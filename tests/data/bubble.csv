@@ -1,0 +1,7 @@
+X,Y,Size,Group,Label
+1,2,1,Alpha,A
+2,4,4,Beta,B
+3,1,9,Alpha,
+4,2,0,Alpha,D
+5,,16,Beta,E
+6,2,,Beta,F

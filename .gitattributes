@@ -1,0 +1,2 @@
+# Frozen fixtures of the Robust curve fit contract keep their CRLF line endings byte for byte.
+tests/data/robust_curve_073/fixtures/*.csv -text whitespace=cr-at-eol

@@ -1,0 +1,24 @@
+{
+  "welch": {
+    "options": {"Study":"Welch difference","Replicates":9,"Seed":42,"Alpha":0.1,"Interval level (%)":90,"N A":6,"N B":8,"Mean A":1.5,"Mean B":3.0,"SD A":0.9,"SD B":1.8,"Null value":0.0}
+  },
+  "ols_generated": {
+    "options": {"Study":"OLS slope","Replicates":9,"Seed":17,"Alpha":0.05,"Interval level (%)":95,"X source":"Generated","N":7,"X minimum":-2,"X maximum":4,"Intercept":2,"Slope":0.8,"SD":1.5,"Null value":0.25}
+  },
+  "ols_worksheet": {
+    "worksheet":"fixed-x.csv",
+    "options": {"Study":"OLS slope","Replicates":8,"Seed":18446744073709551615,"Alpha":0.05,"Interval level (%)":80,"X source":"Worksheet","X column":"X","Intercept":2,"Slope":-1.1,"SD":2.0,"Null value":-0.3}
+  },
+  "pearson": {
+    "options": {"Study":"Pearson 2x2","Replicates":12,"Seed":5489,"Alpha":0.05,"Interval level (%)":95,"N A":20,"N B":14,"Probability A":0.28,"Probability B":0.63}
+  },
+  "pearson_mixed": {
+    "options": {"Study":"Pearson 2x2","Replicates":18,"Seed":14,"Alpha":0.05,"Interval level (%)":95,"N A":3,"N B":5,"Probability A":0.07,"Probability B":0.11}
+  },
+  "pearson_undefined": {
+    "options": {"Study":"Pearson 2x2","Replicates":4,"Seed":1,"Alpha":0.05,"Interval level (%)":95,"N A":3,"N B":5,"Probability A":0,"Probability B":0}
+  },
+  "welch_undefined": {
+    "options": {"Study":"Welch difference","Replicates":4,"Seed":1,"Alpha":0.05,"Interval level (%)":95,"N A":3,"N B":5,"Mean A":1,"Mean B":2,"SD A":0,"SD B":0}
+  }
+}

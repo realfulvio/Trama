@@ -1,0 +1,80 @@
+{
+  "ui_dependency": {
+    "pull_request": 80,
+    "head": "f2dfe57ab23a4b674cc73646c296afca021e33cc"
+  },
+  "version": "0.70.0",
+  "release_published": false,
+  "linux": {
+    "python": "3.14.9",
+    "tk": "8.6.16",
+    "font": "DejaVu Sans",
+    "screen": [
+      1024,
+      768
+    ],
+    "full_unit_tests": 1599,
+    "unit_status": "PASS",
+    "full_smoke": "PASS",
+    "full_smoke_seconds": 267.1
+  },
+  "windows": {
+    "python": "3.13",
+    "tk": "8.6.15",
+    "font": "Segoe UI",
+    "app_scale": 1.0,
+    "screen": [
+      1920,
+      1200
+    ],
+    "dedicated_portable_smoke": "PASS",
+    "full_portable_smoke": "PASS",
+    "native_system_dpi_125_150_tested": false,
+    "full_unit_tests_before_final_precision_fix": 1599,
+    "unit_status_before_final_precision_fix": "PASS",
+    "numeric_tests_after_final_precision_fix": 29,
+    "numeric_status": "PASS",
+    "full_portable_smoke_seconds": 611,
+    "native_1024_screen_smoke": "PASS",
+    "resolution_acceptance": {
+      "smoke": "PASS",
+      "restore_result": 0,
+      "actual": {
+        "height": 768,
+        "width": 1024
+      },
+      "registry_updated": false,
+      "before": {
+        "height": 1200,
+        "width": 1920
+      },
+      "requested": {
+        "height": 768,
+        "width": 1024
+      },
+      "restored": {
+        "height": 1200,
+        "width": 1920
+      }
+    }
+  },
+  "portable_code_attestation": {
+    "exe_sha256": "93c29f9d522e2192cd620a89f58c83e8319033ab46ecb9b3b7baed1b3e48c013",
+    "zip_sha256": "9fb1b08de9d99aa18e3028632718d3d361ccd9d5cc61de5d6ad344e3b52addfd",
+    "modules": [
+      {
+        "module": "analisi.linear_estimates",
+        "function": "estimate_table",
+        "bytecode_matches_current_source": true,
+        "source_sha256": "a4399dc194ece5b8459e73a500c66e30af0eec67e1bae04f19d27b04d62c534e"
+      },
+      {
+        "module": "analisi.linear_estimates_smoke",
+        "function": "check_linear_estimates",
+        "bytecode_matches_current_source": true,
+        "source_sha256": "35e297c4e1e1f56482d9d67bd9b577453e73ba2bf7911aeaa3a68e0026365f0f"
+      }
+    ]
+  },
+  "known_open_issue": "Existing simple OLS summary loses correlation/SE at extreme unit scales; reproduced on UI80 base and assigned to Claude package chapter5."
+}

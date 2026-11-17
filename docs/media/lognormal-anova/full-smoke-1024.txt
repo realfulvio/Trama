@@ -1,0 +1,16 @@
+FULL:1
+Screen: Xvfb 1024x768x24
+TRAMASTAT_SMOKE_SCREENSHOTS=1
+Duration: 479.73 s
+
+The run printed "global-irls: heavy fit 1.4 s, 62 interface ticks" and then raised:
+
+Traceback (most recent call last):
+  File "/tmp/trama-logn-anova/tramastat.py", line 12864, in smoke
+    check_pca_selection(...)
+  File "analisi/pca_selection_smoke.py", line 304, in _check
+    raise RuntimeError("The 1600×1000 view needs a screen of at least 1680×1050.")
+RuntimeError: The 1600×1000 view needs a screen of at least 1680×1050.
+
+check_lognormal_anova_smoke is earlier in the same function and did not raise.
+The assertion in pca_selection_smoke.py was not edited.

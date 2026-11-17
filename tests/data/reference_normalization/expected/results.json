@@ -1,0 +1,2277 @@
+{
+  "raw-Minimum-Maximum": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.3333333333333333,
+        null,
+        1.0
+      ],
+      "B": [
+        0.0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 40.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 16.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Minimum-First-last higher": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.3333333333333333,
+        null,
+        1.0
+      ],
+      "B": [
+        0.0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 40.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 16.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Minimum-Sum": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.16666666666666666,
+        null,
+        0.5
+      ],
+      "B": [
+        0.0,
+        0.1111111111111111,
+        0.2222222222222222,
+        0.3333333333333333
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 70.0,
+        "Scale factor": 0.016666666666666666,
+        "Zero N": 1,
+        "One N": 3,
+        "Zero source rows": "0",
+        "One source rows": "0,1,3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 40.0,
+        "Scale factor": 0.027777777777777776,
+        "Zero N": 1,
+        "One N": 4,
+        "Zero source rows": "0",
+        "One source rows": "0,1,2,3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Minimum-Mean": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.75,
+        null,
+        2.25
+      ],
+      "B": [
+        0.0,
+        0.6666666666666666,
+        1.3333333333333333,
+        2.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 23.333333333333332,
+        "Scale factor": 0.075,
+        "Zero N": 1,
+        "One N": 3,
+        "Zero source rows": "0",
+        "One source rows": "0,1,3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 10.0,
+        "Scale factor": 0.16666666666666666,
+        "Zero N": 1,
+        "One N": 4,
+        "Zero source rows": "0",
+        "One source rows": "0,1,2,3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Minimum-Constant": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.25,
+        null,
+        0.75
+      ],
+      "B": [
+        0.0,
+        0.08695652173913043,
+        0.17391304347826086,
+        0.2608695652173913
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 50.0,
+        "Scale factor": 0.025,
+        "Zero N": 1,
+        "One N": 0,
+        "Zero source rows": "0",
+        "One source rows": ""
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 50.0,
+        "Scale factor": 0.021739130434782608,
+        "Zero N": 1,
+        "One N": 0,
+        "Zero source rows": "0",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Minimum-Selected rows mean": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.3333333333333333,
+        null,
+        1.0
+      ],
+      "B": [
+        0.0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 40.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 16.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-First-last lower-Maximum": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.3333333333333333,
+        null,
+        1.0
+      ],
+      "B": [
+        0.0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 40.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 16.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-First-last lower-First-last higher": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.3333333333333333,
+        null,
+        1.0
+      ],
+      "B": [
+        0.0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 40.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 16.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-First-last lower-Sum": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.16666666666666666,
+        null,
+        0.5
+      ],
+      "B": [
+        0.0,
+        0.1111111111111111,
+        0.2222222222222222,
+        0.3333333333333333
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 70.0,
+        "Scale factor": 0.016666666666666666,
+        "Zero N": 1,
+        "One N": 3,
+        "Zero source rows": "0",
+        "One source rows": "0,1,3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 40.0,
+        "Scale factor": 0.027777777777777776,
+        "Zero N": 1,
+        "One N": 4,
+        "Zero source rows": "0",
+        "One source rows": "0,1,2,3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-First-last lower-Mean": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.75,
+        null,
+        2.25
+      ],
+      "B": [
+        0.0,
+        0.6666666666666666,
+        1.3333333333333333,
+        2.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 23.333333333333332,
+        "Scale factor": 0.075,
+        "Zero N": 1,
+        "One N": 3,
+        "Zero source rows": "0",
+        "One source rows": "0,1,3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 10.0,
+        "Scale factor": 0.16666666666666666,
+        "Zero N": 1,
+        "One N": 4,
+        "Zero source rows": "0",
+        "One source rows": "0,1,2,3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-First-last lower-Constant": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.25,
+        null,
+        0.75
+      ],
+      "B": [
+        0.0,
+        0.08695652173913043,
+        0.17391304347826086,
+        0.2608695652173913
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 50.0,
+        "Scale factor": 0.025,
+        "Zero N": 1,
+        "One N": 0,
+        "Zero source rows": "0",
+        "One source rows": ""
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 50.0,
+        "Scale factor": 0.021739130434782608,
+        "Zero N": 1,
+        "One N": 0,
+        "Zero source rows": "0",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-First-last lower-Selected rows mean": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.3333333333333333,
+        null,
+        1.0
+      ],
+      "B": [
+        0.0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 40.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 16.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Constant-Maximum": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.25,
+        0.5,
+        null,
+        1.0
+      ],
+      "B": [
+        0.25,
+        0.5,
+        0.75,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 0.0,
+        "One reference": 40.0,
+        "Scale factor": 0.025,
+        "Zero N": 0,
+        "One N": 1,
+        "Zero source rows": "",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 0.0,
+        "One reference": 16.0,
+        "Scale factor": 0.0625,
+        "Zero N": 0,
+        "One N": 1,
+        "Zero source rows": "",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Constant-First-last higher": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.25,
+        0.5,
+        null,
+        1.0
+      ],
+      "B": [
+        0.25,
+        0.5,
+        0.75,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 0.0,
+        "One reference": 40.0,
+        "Scale factor": 0.025,
+        "Zero N": 0,
+        "One N": 1,
+        "Zero source rows": "",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 0.0,
+        "One reference": 16.0,
+        "Scale factor": 0.0625,
+        "Zero N": 0,
+        "One N": 1,
+        "Zero source rows": "",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Constant-Sum": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.14285714285714285,
+        0.2857142857142857,
+        null,
+        0.5714285714285714
+      ],
+      "B": [
+        0.1,
+        0.2,
+        0.3,
+        0.4
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 0.0,
+        "One reference": 70.0,
+        "Scale factor": 0.014285714285714285,
+        "Zero N": 0,
+        "One N": 3,
+        "Zero source rows": "",
+        "One source rows": "0,1,3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 0.0,
+        "One reference": 40.0,
+        "Scale factor": 0.025,
+        "Zero N": 0,
+        "One N": 4,
+        "Zero source rows": "",
+        "One source rows": "0,1,2,3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Constant-Mean": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.42857142857142855,
+        0.8571428571428571,
+        null,
+        1.7142857142857142
+      ],
+      "B": [
+        0.4,
+        0.8,
+        1.2,
+        1.6
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 0.0,
+        "One reference": 23.333333333333332,
+        "Scale factor": 0.04285714285714286,
+        "Zero N": 0,
+        "One N": 3,
+        "Zero source rows": "",
+        "One source rows": "0,1,3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 0.0,
+        "One reference": 10.0,
+        "Scale factor": 0.1,
+        "Zero N": 0,
+        "One N": 4,
+        "Zero source rows": "",
+        "One source rows": "0,1,2,3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Constant-Constant": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.2,
+        0.4,
+        null,
+        0.8
+      ],
+      "B": [
+        0.08,
+        0.16,
+        0.24,
+        0.32
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 0.0,
+        "One reference": 50.0,
+        "Scale factor": 0.02,
+        "Zero N": 0,
+        "One N": 0,
+        "Zero source rows": "",
+        "One source rows": ""
+      },
+      {
+        "Series": "B",
+        "Zero reference": 0.0,
+        "One reference": 50.0,
+        "Scale factor": 0.02,
+        "Zero N": 0,
+        "One N": 0,
+        "Zero source rows": "",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Constant-Selected rows mean": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.25,
+        0.5,
+        null,
+        1.0
+      ],
+      "B": [
+        0.25,
+        0.5,
+        0.75,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 0.0,
+        "One reference": 40.0,
+        "Scale factor": 0.025,
+        "Zero N": 0,
+        "One N": 1,
+        "Zero source rows": "",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 0.0,
+        "One reference": 16.0,
+        "Scale factor": 0.0625,
+        "Zero N": 0,
+        "One N": 1,
+        "Zero source rows": "",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Selected rows mean-Maximum": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.3333333333333333,
+        null,
+        1.0
+      ],
+      "B": [
+        0.0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 40.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 16.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Selected rows mean-First-last higher": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.3333333333333333,
+        null,
+        1.0
+      ],
+      "B": [
+        0.0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 40.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 16.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Selected rows mean-Sum": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.16666666666666666,
+        null,
+        0.5
+      ],
+      "B": [
+        0.0,
+        0.1111111111111111,
+        0.2222222222222222,
+        0.3333333333333333
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 70.0,
+        "Scale factor": 0.016666666666666666,
+        "Zero N": 1,
+        "One N": 3,
+        "Zero source rows": "0",
+        "One source rows": "0,1,3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 40.0,
+        "Scale factor": 0.027777777777777776,
+        "Zero N": 1,
+        "One N": 4,
+        "Zero source rows": "0",
+        "One source rows": "0,1,2,3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Selected rows mean-Mean": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.75,
+        null,
+        2.25
+      ],
+      "B": [
+        0.0,
+        0.6666666666666666,
+        1.3333333333333333,
+        2.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 23.333333333333332,
+        "Scale factor": 0.075,
+        "Zero N": 1,
+        "One N": 3,
+        "Zero source rows": "0",
+        "One source rows": "0,1,3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 10.0,
+        "Scale factor": 0.16666666666666666,
+        "Zero N": 1,
+        "One N": 4,
+        "Zero source rows": "0",
+        "One source rows": "0,1,2,3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Selected rows mean-Constant": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.25,
+        null,
+        0.75
+      ],
+      "B": [
+        0.0,
+        0.08695652173913043,
+        0.17391304347826086,
+        0.2608695652173913
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 50.0,
+        "Scale factor": 0.025,
+        "Zero N": 1,
+        "One N": 0,
+        "Zero source rows": "0",
+        "One source rows": ""
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 50.0,
+        "Scale factor": 0.021739130434782608,
+        "Zero N": 1,
+        "One N": 0,
+        "Zero source rows": "0",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "raw-Selected rows mean-Selected rows mean": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.3333333333333333,
+        null,
+        1.0
+      ],
+      "B": [
+        0.0,
+        0.3333333333333333,
+        0.6666666666666666,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 40.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 16.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "replicates-Normalize row means-Fractions": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        0.26666666666666666,
+        0.7333333333333333,
+        1.0
+      ],
+      "B": [
+        0.0,
+        0.3333333333333333,
+        0.5833333333333334,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 12.0,
+        "One reference": 42.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 5.0,
+        "One reference": 17.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "replicates-Normalize row means-Percentages": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        0.0,
+        26.666666666666668,
+        73.33333333333333,
+        100.0
+      ],
+      "B": [
+        0.0,
+        33.333333333333336,
+        58.333333333333336,
+        100.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 12.0,
+        "One reference": 42.0,
+        "Scale factor": 3.3333333333333335,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 5.0,
+        "One reference": 17.0,
+        "Scale factor": 8.333333333333334,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "replicates-Each replicate, common references-Fractions": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A [1]": [
+        -0.06666666666666667,
+        0.26666666666666666,
+        null,
+        0.9333333333333333
+      ],
+      "A [2]": [
+        0.06666666666666667,
+        null,
+        0.7333333333333333,
+        1.0666666666666667
+      ],
+      "B [1]": [
+        -0.08333333333333333,
+        0.25,
+        0.5833333333333334,
+        0.9166666666666666
+      ],
+      "B [2]": [
+        0.08333333333333333,
+        0.4166666666666667,
+        null,
+        1.0833333333333333
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 12.0,
+        "One reference": 42.0,
+        "Scale factor": 0.03333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 5.0,
+        "One reference": 17.0,
+        "Scale factor": 0.08333333333333333,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "replicates-Each replicate, common references-Percentages": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A [1]": [
+        -6.666666666666667,
+        26.666666666666668,
+        null,
+        93.33333333333333
+      ],
+      "A [2]": [
+        6.666666666666667,
+        null,
+        73.33333333333333,
+        106.66666666666667
+      ],
+      "B [1]": [
+        -8.333333333333334,
+        25.0,
+        58.333333333333336,
+        91.66666666666667
+      ],
+      "B [2]": [
+        8.333333333333334,
+        41.666666666666664,
+        null,
+        108.33333333333333
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 12.0,
+        "One reference": 42.0,
+        "Scale factor": 3.3333333333333335,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 5.0,
+        "One reference": 17.0,
+        "Scale factor": 8.333333333333334,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "selected-rows-missing": {
+    "normalized": {
+      "A": [
+        -20.0,
+        20.0,
+        null,
+        100.0
+      ],
+      "B": [
+        -50.0,
+        0.0,
+        50.0,
+        100.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 15.0,
+        "One reference": 40.0,
+        "Scale factor": 4.0,
+        "Zero N": 2,
+        "One N": 1,
+        "Zero source rows": "0,1",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 8.0,
+        "One reference": 16.0,
+        "Scale factor": 12.5,
+        "Zero N": 3,
+        "One N": 1,
+        "Zero source rows": "0,1,2",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "descending-endpoints": {
+    "normalized": {
+      "X": [
+        8,
+        2,
+        3,
+        1
+      ],
+      "A": [
+        1.0,
+        0.14285714285714285,
+        0.8571428571428571,
+        0.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 80.0,
+        "Scale factor": 0.014285714285714285,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "3",
+        "One source rows": "0"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      0,
+      1,
+      2,
+      3
+    ]
+  },
+  "blank-anchors-per-series": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        null,
+        33.333333333333336,
+        null,
+        null
+      ],
+      "B": [
+        null,
+        33.333333333333336,
+        66.66666666666667,
+        null
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 10.0,
+        "One reference": 40.0,
+        "Scale factor": 3.3333333333333335,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      },
+      {
+        "Series": "B",
+        "Zero reference": 4.0,
+        "One reference": 16.0,
+        "Scale factor": 8.333333333333334,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "3"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "source_index": [
+      7,
+      7,
+      42,
+      9
+    ]
+  },
+  "tiny-range": {
+    "normalized": {
+      "A": [
+        0.0,
+        0.5,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": 1e-300,
+        "One reference": 3e-300,
+        "Scale factor": 5e+299,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "2"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "overflow-intermediate": {
+    "normalized": {
+      "A": [
+        0.0,
+        0.5,
+        1.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "A",
+        "Zero reference": -1e+308,
+        "One reference": 1e+308,
+        "Scale factor": 5e-309,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "2"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "summary-SD-False": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        25.0,
+        50.0,
+        75.0
+      ],
+      "Low": [
+        2.5,
+        null,
+        7.5
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "references": [
+      {
+        "Series": "Mean",
+        "Zero reference": 0.0,
+        "One reference": 40.0,
+        "Scale factor": 2.5,
+        "Zero N": 0,
+        "One N": 0,
+        "Zero source rows": "",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "summary-SD-True": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        75.0,
+        50.0,
+        25.0
+      ],
+      "Low": [
+        2.5,
+        null,
+        7.5
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "references": [
+      {
+        "Series": "Mean",
+        "Zero reference": 40.0,
+        "One reference": 0.0,
+        "Scale factor": -2.5,
+        "Zero N": 0,
+        "One N": 0,
+        "Zero source rows": "",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "summary-SEM-False": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        25.0,
+        50.0,
+        75.0
+      ],
+      "Low": [
+        2.5,
+        null,
+        7.5
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "references": [
+      {
+        "Series": "Mean",
+        "Zero reference": 0.0,
+        "One reference": 40.0,
+        "Scale factor": 2.5,
+        "Zero N": 0,
+        "One N": 0,
+        "Zero source rows": "",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "summary-SEM-True": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        75.0,
+        50.0,
+        25.0
+      ],
+      "Low": [
+        2.5,
+        null,
+        7.5
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "references": [
+      {
+        "Series": "Mean",
+        "Zero reference": 40.0,
+        "One reference": 0.0,
+        "Scale factor": -2.5,
+        "Zero N": 0,
+        "One N": 0,
+        "Zero source rows": "",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "summary-Distances-False": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        25.0,
+        50.0,
+        75.0
+      ],
+      "Low": [
+        2.5,
+        null,
+        7.5
+      ],
+      "High": [
+        5.0,
+        10.0,
+        15.0
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "references": [
+      {
+        "Series": "Mean",
+        "Zero reference": 0.0,
+        "One reference": 40.0,
+        "Scale factor": 2.5,
+        "Zero N": 0,
+        "One N": 0,
+        "Zero source rows": "",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "summary-Distances-True": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        75.0,
+        50.0,
+        25.0
+      ],
+      "Low": [
+        5.0,
+        10.0,
+        15.0
+      ],
+      "High": [
+        2.5,
+        null,
+        7.5
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "references": [
+      {
+        "Series": "Mean",
+        "Zero reference": 40.0,
+        "One reference": 0.0,
+        "Scale factor": -2.5,
+        "Zero N": 0,
+        "One N": 0,
+        "Zero source rows": "",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "summary-Limits-False": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        25.0,
+        50.0,
+        75.0
+      ],
+      "Low": [
+        22.5,
+        null,
+        67.5
+      ],
+      "High": [
+        30.0,
+        60.0,
+        90.0
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "references": [
+      {
+        "Series": "Mean",
+        "Zero reference": 0.0,
+        "One reference": 40.0,
+        "Scale factor": 2.5,
+        "Zero N": 0,
+        "One N": 0,
+        "Zero source rows": "",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "summary-Limits-True": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        75.0,
+        50.0,
+        25.0
+      ],
+      "Low": [
+        70.0,
+        40.0,
+        10.0
+      ],
+      "High": [
+        77.5,
+        null,
+        32.5
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "references": [
+      {
+        "Series": "Mean",
+        "Zero reference": 40.0,
+        "One reference": 0.0,
+        "Scale factor": -2.5,
+        "Zero N": 0,
+        "One N": 0,
+        "Zero source rows": "",
+        "One source rows": ""
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "literal-metadata": {
+    "normalized": {
+      "Row title": [
+        "01",
+        "A",
+        "A"
+      ],
+      "Source row": [
+        0.0,
+        50.0,
+        100.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "Source row",
+        "Zero reference": 10.0,
+        "One reference": 30.0,
+        "Scale factor": 5.0,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "2"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  },
+  "explicit-role-groups": {
+    "normalized": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "p": [
+        0.0,
+        40.0,
+        100.0
+      ],
+      "r": [
+        0.0,
+        50.0,
+        100.0
+      ]
+    },
+    "references": [
+      {
+        "Series": "p",
+        "Zero reference": 12.0,
+        "One reference": 32.0,
+        "Scale factor": 5.0,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "2"
+      },
+      {
+        "Series": "r",
+        "Zero reference": 5.0,
+        "One reference": 13.0,
+        "Scale factor": 12.5,
+        "Zero N": 1,
+        "One N": 1,
+        "Zero source rows": "0",
+        "One source rows": "2"
+      }
+    ],
+    "source_rows": [
+      0,
+      1,
+      2
+    ],
+    "source_index": [
+      0,
+      1,
+      2
+    ]
+  }
+}

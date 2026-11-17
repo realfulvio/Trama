@@ -1,0 +1,24 @@
+{
+  "feature": "Equivalence test (TOST)",
+  "pull_request": 86,
+  "version": "0.71.0",
+  "channel": "beta",
+  "code_commit": "4f5b3f0c7b906dbfa180cbcd109224b96d4603d5",
+  "code_tree": "d486ff352964a436a5102850c579352d94ee2c2e",
+  "source_zip_sha256": "9c09a85d9ce9e588fc215de57cb4753069e5b0b85fb16cd9eecc85a070847ec4",
+  "windows_zip_sha256": "ff438a398da3003ec63d67a8a3fcb2a9a1db7320729a0606bfc1993435baf3b8",
+  "linux": {"units": 1870, "skips": 0, "full_smoke": "PASS", "small_tost_smoke": "PASS"},
+  "windows": {
+    "units": 1870,
+    "skips": 0,
+    "portable_build": "PASS",
+    "portable_full_smoke": "PASS",
+    "tost_small": {"status": "PASS", "width": 1024, "height": 768},
+    "tost_large": {"status": "PASS", "width": 1920, "height": 1200},
+    "restored_display": {"width": 1920, "height": 1200},
+    "resolution_registry_modified": false,
+    "visual_inspection": "PASS",
+    "manual_keyboard_mouse": "NOT TESTED",
+    "new_native_125_150_dpi_tests": "NOT TESTED"
+  }
+}

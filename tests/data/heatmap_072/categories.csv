@@ -1,0 +1,9 @@
+X,Y,Class
+D1,R1,low
+D2,R1,high
+D1,R2,LOW
+D2,R2,1
+D1,R3,01
+D2,R3,
+D1,R1,ignored duplicate
+D2,R3,later value must stay ignored

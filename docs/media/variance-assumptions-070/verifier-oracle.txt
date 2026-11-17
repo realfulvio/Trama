@@ -1,0 +1,8 @@
+test_frozen (contract.OracleTests.test_frozen) ... ok
+test_independent_levene_formula (contract.OracleTests.test_independent_levene_formula) ... ok
+test_scaling (contract.OracleTests.test_scaling) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.015s
+
+OK

@@ -1,0 +1,7 @@
+Dose,Title,A,A [1],A [2],B [Mean],B [SD]
+10,first,100,6,8,25,2
+20,second,,8,,16,5
+30,first,200,,12,,4
+,blank X,300,9,9,36,6
+40,fourth,100,7,7,9,3
+50,last,50,,,4,1

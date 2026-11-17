@@ -1,0 +1,56 @@
+[
+  {
+    "Group": "A",
+    "X": 0,
+    "Y": 2.4,
+    "SD": 1.0,
+    "Query X": -1.0,
+    "Query group": "A",
+    "Query k": 1
+  },
+  {
+    "Group": "A",
+    "X": 1,
+    "Y": 1.1,
+    "SD": 1.0,
+    "Query X": -0.5,
+    "Query group": "B",
+    "Query k": 2
+  },
+  {
+    "Group": "A",
+    "X": 2,
+    "Y": 0.85,
+    "SD": 1.0,
+    "Query X": 1.0,
+    "Query group": "A",
+    "Query k": 1
+  },
+  {
+    "Group": "B",
+    "X": 0,
+    "Y": 2.6,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": null,
+    "Query k": null
+  },
+  {
+    "Group": "B",
+    "X": 2,
+    "Y": 0.82,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": null,
+    "Query k": null
+  },
+  {
+    "Group": "B",
+    "X": 4,
+    "Y": 0.51,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": null,
+    "Query k": null
+  }
+]

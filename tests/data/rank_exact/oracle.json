@@ -1,0 +1,244 @@
+{
+  "mann": [
+    {
+      "fixture": "mann-1.csv",
+      "U first": 0.5,
+      "U second": 8.5,
+      "N first": 3,
+      "N second": 3,
+      "Two-sided": 0.2,
+      "Less": 0.1,
+      "Greater": 1.0,
+      "Rank-biserial": -0.8888888888888888,
+      "ranks": [
+        1.5,
+        1.5,
+        3.5,
+        3.5,
+        5.5,
+        5.5
+      ],
+      "total_count": 20
+    },
+    {
+      "fixture": "mann-2.csv",
+      "U first": 2.5,
+      "U second": 3.5,
+      "N first": 3,
+      "N second": 2,
+      "Two-sided": 1,
+      "Less": 0.5,
+      "Greater": 0.7,
+      "Rank-biserial": -0.16666666666666663,
+      "ranks": [
+        1.0,
+        2.5,
+        5.0,
+        2.5,
+        4.0
+      ],
+      "total_count": 10
+    },
+    {
+      "fixture": "mann-3.csv",
+      "U first": 2.0,
+      "U second": 2.0,
+      "N first": 2,
+      "N second": 2,
+      "Two-sided": 1,
+      "Less": 1.0,
+      "Greater": 1.0,
+      "Rank-biserial": 0.0,
+      "ranks": [
+        2.5,
+        2.5,
+        2.5,
+        2.5
+      ],
+      "total_count": 6
+    },
+    {
+      "fixture": "mann-4.csv",
+      "U first": 4.5,
+      "U second": 4.5,
+      "N first": 3,
+      "N second": 3,
+      "Two-sided": 1,
+      "Less": 0.7,
+      "Greater": 0.7,
+      "Rank-biserial": 0.0,
+      "ranks": [
+        1.5,
+        3.5,
+        5.5,
+        1.5,
+        3.5,
+        5.5
+      ],
+      "total_count": 20
+    }
+  ],
+  "wilcoxon": [
+    {
+      "fixture": "wilcoxon-1.csv",
+      "Discard": {
+        "W positive": 9.5,
+        "W negative": 5.5,
+        "Effective N": 5,
+        "Zero pairs": 1,
+        "Two-sided": 0.8125,
+        "Less": 0.78125,
+        "Greater": 0.40625,
+        "Rank-biserial": 0.26666666666666666,
+        "ranks": [
+          null,
+          1.5,
+          1.5,
+          4.0,
+          4.0,
+          4.0
+        ],
+        "total_count": 32
+      },
+      "Pratt": {
+        "W positive": 12.5,
+        "W negative": 7.5,
+        "Effective N": 5,
+        "Zero pairs": 1,
+        "Two-sided": 0.8125,
+        "Less": 0.78125,
+        "Greater": 0.40625,
+        "Rank-biserial": 0.25,
+        "ranks": [
+          1.0,
+          2.5,
+          2.5,
+          5.0,
+          5.0,
+          5.0
+        ],
+        "total_count": 32
+      }
+    },
+    {
+      "fixture": "wilcoxon-2.csv",
+      "Discard": {
+        "W positive": 13.5,
+        "W negative": 1.5,
+        "Effective N": 5,
+        "Zero pairs": 1,
+        "Two-sided": 0.1875,
+        "Less": 0.96875,
+        "Greater": 0.09375,
+        "Rank-biserial": 0.8,
+        "ranks": [
+          null,
+          1.5,
+          3.5,
+          3.5,
+          5.0,
+          1.5
+        ],
+        "total_count": 32
+      },
+      "Pratt": {
+        "W positive": 17.5,
+        "W negative": 2.5,
+        "Effective N": 5,
+        "Zero pairs": 1,
+        "Two-sided": 0.1875,
+        "Less": 0.96875,
+        "Greater": 0.09375,
+        "Rank-biserial": 0.75,
+        "ranks": [
+          1.0,
+          2.5,
+          4.5,
+          4.5,
+          6.0,
+          2.5
+        ],
+        "total_count": 32
+      }
+    },
+    {
+      "fixture": "wilcoxon-3.csv",
+      "Discard": {
+        "W positive": 10.0,
+        "W negative": 0.0,
+        "Effective N": 4,
+        "Zero pairs": 2,
+        "Two-sided": 0.125,
+        "Less": 1.0,
+        "Greater": 0.0625,
+        "Rank-biserial": 1.0,
+        "ranks": [
+          null,
+          null,
+          2.5,
+          2.5,
+          2.5,
+          2.5
+        ],
+        "total_count": 16
+      },
+      "Pratt": {
+        "W positive": 18.0,
+        "W negative": 0.0,
+        "Effective N": 4,
+        "Zero pairs": 2,
+        "Two-sided": 0.125,
+        "Less": 1.0,
+        "Greater": 0.0625,
+        "Rank-biserial": 1.0,
+        "ranks": [
+          1.5,
+          1.5,
+          4.5,
+          4.5,
+          4.5,
+          4.5
+        ],
+        "total_count": 16
+      }
+    },
+    {
+      "fixture": "wilcoxon-4.csv",
+      "Discard": {
+        "W positive": 0.0,
+        "W negative": 0.0,
+        "Effective N": 0,
+        "Zero pairs": 4,
+        "Two-sided": 1,
+        "Less": 1.0,
+        "Greater": 1.0,
+        "Rank-biserial": null,
+        "ranks": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "total_count": 1
+      },
+      "Pratt": {
+        "W positive": 0.0,
+        "W negative": 0.0,
+        "Effective N": 0,
+        "Zero pairs": 4,
+        "Two-sided": 1,
+        "Less": 1.0,
+        "Greater": 1.0,
+        "Rank-biserial": null,
+        "ranks": [
+          2.5,
+          2.5,
+          2.5,
+          2.5
+        ],
+        "total_count": 1
+      }
+    }
+  ],
+  "large_wilcoxon_p": 1.6543612251060553e-24
+}

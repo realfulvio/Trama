@@ -1,0 +1,152 @@
+{
+  "pearson-95": {
+    "N": 6,
+    "Coefficient": 0.9363104078240858,
+    "p": 0.005955372138037297,
+    "Lower": 0.5195137175055476,
+    "Upper": 0.9931804263891068,
+    "R\u00b2": 0.8766771797997059,
+    "P method": "Pearson beta",
+    "CI method": "Fisher z"
+  },
+  "pearson-positive-90": {
+    "N": 6,
+    "Coefficient": 0.9363104078240858,
+    "p": 0.0029776860690186487,
+    "Lower": 0.6396626315271474,
+    "Upper": 0.9902021819354196,
+    "R\u00b2": 0.8766771797997059,
+    "P method": "Pearson beta",
+    "CI method": "Fisher z"
+  },
+  "pearson-negative": {
+    "N": 6,
+    "Coefficient": -0.8857142857142857,
+    "p": 0.009422740524781347,
+    "Lower": -0.9874704963803648,
+    "Upper": -0.26371272512610855,
+    "R\u00b2": 0.7844897959183673,
+    "P method": "Pearson beta",
+    "CI method": "Fisher z"
+  },
+  "pearson-three-no-ci": {
+    "N": 3,
+    "Coefficient": 0.720576692122892,
+    "p": 0.48775429164459994,
+    "Lower": null,
+    "Upper": null,
+    "R\u00b2": 0.519230769230769,
+    "P method": "Pearson beta",
+    "CI method": "Unavailable"
+  },
+  "pearson-perfect": {
+    "N": 5,
+    "Coefficient": 1.0,
+    "p": 0.0,
+    "Lower": 1.0,
+    "Upper": 1.0,
+    "R\u00b2": 1.0,
+    "P method": "Pearson beta",
+    "CI method": "Fisher z"
+  },
+  "pearson-large-units": {
+    "N": 6,
+    "Coefficient": 0.936310407824086,
+    "p": 0.005955372138037256,
+    "Lower": 0.5195137175055489,
+    "Upper": 0.9931804263891068,
+    "R\u00b2": 0.8766771797997063,
+    "P method": "Pearson beta",
+    "CI method": "Fisher z"
+  },
+  "pearson-small-resolvable": {
+    "N": 5,
+    "Coefficient": 0.8219949365267865,
+    "p": 0.08770664700806553,
+    "Lower": -0.21934335747078187,
+    "Upper": 0.9878524535049851,
+    "R\u00b2": 0.6756756756756757,
+    "P method": "Pearson beta",
+    "CI method": "Fisher z"
+  },
+  "spearman-ties-two": {
+    "N": 7,
+    "Coefficient": 0.8257228238447706,
+    "p": 0.03333333333333333,
+    "Lower": null,
+    "Upper": null,
+    "R\u00b2": null,
+    "P method": "Exact",
+    "CI method": "Unavailable"
+  },
+  "spearman-ties-positive": {
+    "N": 7,
+    "Coefficient": 0.8257228238447706,
+    "p": 0.015873015873015872,
+    "Lower": null,
+    "Upper": null,
+    "R\u00b2": null,
+    "P method": "Exact",
+    "CI method": "Unavailable"
+  },
+  "spearman-ties-negative": {
+    "N": 7,
+    "Coefficient": -0.9722222222222223,
+    "p": 0.0015873015873015873,
+    "Lower": null,
+    "Upper": null,
+    "R\u00b2": null,
+    "P method": "Exact",
+    "CI method": "Unavailable"
+  },
+  "spearman-approximate": {
+    "N": 7,
+    "Coefficient": 0.8257228238447706,
+    "p": 0.022118466722329415,
+    "Lower": null,
+    "Upper": null,
+    "R\u00b2": null,
+    "P method": "Approximate",
+    "CI method": "Unavailable"
+  },
+  "spearman-11-ci": {
+    "N": 11,
+    "Coefficient": 0.9545454545454546,
+    "p": 4.988898739949761e-06,
+    "Lower": 0.7796870464657929,
+    "Upper": 0.9913003163937425,
+    "R\u00b2": null,
+    "P method": "Approximate",
+    "CI method": "Bonett\u2013Wright"
+  },
+  "spearman-11-negative-90": {
+    "N": 11,
+    "Coefficient": -0.9636363636363637,
+    "p": 9.260199320351568e-07,
+    "Lower": -0.9909752981593507,
+    "Upper": -0.8593298558229774,
+    "R\u00b2": null,
+    "P method": "Approximate",
+    "CI method": "Bonett\u2013Wright"
+  },
+  "kendall-ties": {
+    "N": 7,
+    "Coefficient": 0.66688592885535,
+    "p": 0.04341137396461022,
+    "Lower": null,
+    "Upper": null,
+    "R\u00b2": null,
+    "P method": "Kendall asymptotic",
+    "CI method": "Unavailable"
+  },
+  "kendall-negative": {
+    "N": 7,
+    "Coefficient": -0.9473684210526313,
+    "p": 0.0023449469062888782,
+    "Lower": null,
+    "Upper": null,
+    "R\u00b2": null,
+    "P method": "Kendall asymptotic",
+    "CI method": "Unavailable"
+  }
+}

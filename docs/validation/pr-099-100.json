@@ -1,0 +1,61 @@
+{
+  "status": "PASS",
+  "runtime_source_commit": "da5be06615728a31ae219590929c297ce1ca56b3",
+  "version": "0.72.0",
+  "channel": "beta",
+  "linux": {
+    "unit_tests": 2131,
+    "failures": 0,
+    "skips": 0,
+    "seconds": 503.468,
+    "legacy_external_verifier": "41/41 PASS",
+    "full_gui_smoke": "PASS"
+  },
+  "windows": {
+    "unit_tests": 2131,
+    "failures": 0,
+    "skips": 0,
+    "seconds": 854.272,
+    "focused_tests": 73,
+    "legacy_external_verifier": "41/41 PASS",
+    "portable_build": "PASS",
+    "frozen_code_and_guides": "PASS",
+    "targeted_portable": {
+      "1024x768": "3/3 PASS",
+      "1920x1080": "3/3 PASS"
+    },
+    "full_portable_gui_smoke": "PASS",
+    "restored": {
+      "height": 768,
+      "width": 1024
+    },
+    "restore_result": 0,
+    "registry_updated": false,
+    "full_smoke_seconds": 1235.874,
+    "native_italian_input": "PASS: OS SendInput, visual review, Esc and clean close",
+    "full_smoke_start_display": {
+      "height": 1080,
+      "width": 1920
+    },
+    "source_and_extracted_archive_reverified": "PASS"
+  },
+  "portable": {
+    "filename": "Trama-0.72.0-Windows-x64.zip",
+    "sha256": "1aab74d4aff09e56729eb166c1b26c71e2f0ab9804572f1144d5bc5038f3c495",
+    "bytes": 103285608,
+    "crc": "PASS"
+  },
+  "limitations": [
+    "Automated native GUI and OS input checks, not a human usability study.",
+    "System DPI scaling at 125/150% was not retested.",
+    "Statistical result sheets and graph labels retain English.",
+    "No version bump, release or visibility change."
+  ],
+  "acceptance_completed_utc": "2026-11-16T17:46:01Z",
+  "evidence_bundles": {
+    "linux_sha256": "cba480cb85869e260e0bf0457492aaa6ca1b94942d6efb7043c9809f28153052",
+    "windows_initial_sha256": "b3941a100262a449a10dbd39847b527b65b9ee7389b15fc64d0ffd525b8e3ad9",
+    "windows_completed_sha256": "671aa334a44fb9149c97dd45b2324caf46a6db75aa914efd5334c887b71540b9"
+  },
+  "previous_attempt": "Stopped at an earlier user time limit; incomplete evidence retained. The full native workflow subsequently passed on the same archive and verified source."
+}

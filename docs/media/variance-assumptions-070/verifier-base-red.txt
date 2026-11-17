@@ -1,0 +1,35 @@
+test_frozen (contract.OracleTests.test_frozen) ... ok
+test_independent_levene_formula (contract.OracleTests.test_independent_levene_formula) ... ok
+test_scaling (contract.OracleTests.test_scaling) ... ok
+test_disabled (contract.RepoTests.test_disabled) ... ok
+test_dispatcher (contract.RepoTests.test_dispatcher) ... FAIL
+test_nonordinary_ignores_keys (contract.RepoTests.test_nonordinary_ignores_keys) ... ok
+test_zero_variance_bartlett (contract.RepoTests.test_zero_variance_bartlett) ... ERROR
+
+======================================================================
+ERROR: test_zero_variance_bartlett (contract.RepoTests.test_zero_variance_bartlett)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tramastat-homog-070/Trama-Grok-02-Omogeneita-Varianze-ANOVA-070/tests/contract.py", line 43, in test_zero_variance_bartlett
+    t=r.tables['Variance assumptions'];row=t[t.Test=='Bartlett'].iloc[0];self.assertTrue(pd.isna(row['p']));self.assertTrue(str(row['Reason']).strip())
+      ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'Variance assumptions'
+
+======================================================================
+FAIL: test_dispatcher (contract.RepoTests.test_dispatcher)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/tramastat-homog-070/Trama-Grok-02-Omogeneita-Varianze-ANOVA-070/tests/contract.py", line 32, in test_dispatcher
+    r=run('One-way ANOVA',fixture(name+'.csv'),self.options());self.assertIn('Variance assumptions',r.tables)
+                                                               ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Variance assumptions' not found in {'ANOVA':                           Method         SS  df  ...  F df1  F df2         p
+Term                                             ...                        
+Group     Ordinary one-way ANOVA  20.759206   2  ...    2.0   15.0  0.201093
+Residual                     NaN  87.056905  15  ...    NaN    NaN       NaN
+
+[2 rows x 8 columns]}
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.623s
+
+FAILED (failures=1, errors=1)

@@ -1,0 +1,14 @@
+[
+  {
+    "Before": 1e+300,
+    "After": 1e-300
+  },
+  {
+    "Before": 2e+300,
+    "After": 1e-300
+  },
+  {
+    "Before": 4e+300,
+    "After": 1e-300
+  }
+]

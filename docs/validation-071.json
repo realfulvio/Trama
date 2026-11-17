@@ -1,0 +1,198 @@
+{
+  "version": "0.71.0",
+  "channel": "beta",
+  "windows_zip_sha256": "c85010eab1eac7456fbba4837e8a7d32e617196bd4249fbc8eaaf01f358804ba",
+  "unit_source_commit": "c27055124742a944e271b19cd5474985b577cfaa",
+  "portable_source_commit": "524c33a4eae25af1f3a6b7a26c3ff54291e513f6",
+  "linux_units": 1802,
+  "windows_units": 1802,
+  "skips": 0,
+  "linux_full_smoke": "PASS",
+  "windows_portable_full_smoke": "PASS",
+  "native_windows": [
+    {
+      "case": "global-uncertainty",
+      "scale_percent": 100,
+      "width": 1024,
+      "height": 768,
+      "native_dpi": {
+        "window_dpi": 96,
+        "awareness": 2
+      },
+      "ui_scale": 1.0,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "lognormal-tests",
+      "scale_percent": 100,
+      "width": 1024,
+      "height": 768,
+      "native_dpi": {
+        "window_dpi": 96,
+        "awareness": 2
+      },
+      "ui_scale": 1.0,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "pca-selection",
+      "scale_percent": 100,
+      "width": 1024,
+      "height": 768,
+      "native_dpi": {
+        "window_dpi": 96,
+        "awareness": 2
+      },
+      "ui_scale": 1.0,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "linear-estimates",
+      "scale_percent": 100,
+      "width": 1024,
+      "height": 768,
+      "native_dpi": {
+        "window_dpi": 96,
+        "awareness": 2
+      },
+      "ui_scale": 1.0,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "mlr-weighting",
+      "scale_percent": 100,
+      "width": 1024,
+      "height": 768,
+      "native_dpi": {
+        "window_dpi": 96,
+        "awareness": 2
+      },
+      "ui_scale": 1.0,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "anova-diagnostics",
+      "scale_percent": 100,
+      "width": 1024,
+      "height": 768,
+      "native_dpi": {
+        "window_dpi": 96,
+        "awareness": 2
+      },
+      "ui_scale": 1.0,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "variance-assumptions",
+      "scale_percent": 100,
+      "width": 1024,
+      "height": 768,
+      "status": "PASS"
+    },
+    {
+      "case": "global-uncertainty",
+      "scale_percent": 125,
+      "width": 1920,
+      "height": 1200,
+      "native_dpi": {
+        "window_dpi": 120,
+        "awareness": 2
+      },
+      "ui_scale": 1.251231527093596,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "mlr-weighting",
+      "scale_percent": 125,
+      "width": 1920,
+      "height": 1200,
+      "native_dpi": {
+        "window_dpi": 120,
+        "awareness": 2
+      },
+      "ui_scale": 1.251231527093596,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "anova-diagnostics",
+      "scale_percent": 125,
+      "width": 1920,
+      "height": 1200,
+      "native_dpi": {
+        "window_dpi": 120,
+        "awareness": 2
+      },
+      "ui_scale": 1.251231527093596,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "global-uncertainty",
+      "scale_percent": 150,
+      "width": 1920,
+      "height": 1200,
+      "native_dpi": {
+        "window_dpi": 144,
+        "awareness": 2
+      },
+      "ui_scale": 1.4985250737463127,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "mlr-weighting",
+      "scale_percent": 150,
+      "width": 1920,
+      "height": 1200,
+      "native_dpi": {
+        "window_dpi": 144,
+        "awareness": 2
+      },
+      "ui_scale": 1.4985250737463127,
+      "font": "Segoe UI",
+      "status": "PASS"
+    },
+    {
+      "case": "anova-diagnostics",
+      "scale_percent": 150,
+      "width": 1920,
+      "height": 1200,
+      "native_dpi": {
+        "window_dpi": 144,
+        "awareness": 2
+      },
+      "ui_scale": 1.4985250737463127,
+      "font": "Segoe UI",
+      "status": "PASS"
+    }
+  ],
+  "display_restoration": {
+    "smoke": "PASS",
+    "restore_result": 0,
+    "actual": {
+      "height": 768,
+      "width": 1024
+    },
+    "registry_updated": false,
+    "before": {
+      "height": 1200,
+      "width": 1920
+    },
+    "requested": {
+      "height": 768,
+      "width": 1024
+    },
+    "restored": {
+      "height": 1200,
+      "width": 1920
+    }
+  }
+}

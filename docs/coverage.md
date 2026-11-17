@@ -1,0 +1,57 @@
+# Capabilities, verification and remaining work
+
+Trama 0.73.0 is a beta Windows application for scientific statistics and figures.
+The catalog groups available analysis families; availability of a family does not
+imply every possible option or design. There is no audited overall completion percentage.
+
+## Current acceptance
+
+The released 0.73 beta passes 2,241 unit tests on Linux and 2,241 on native Windows,
+plus the documented full GUI checks. See [0.73 validation](validation-073.md),
+[features](features.md), and [format compatibility](compatibility.md).
+Tests document particular cases and are not a clinical or regulatory certification.
+
+## Feature families and open work
+
+The table is a family-level development inventory. Detailed later increments and
+limitations are documented in the feature and validation records linked below.
+
+| Family | Implemented and exercised | Outstanding coverage |
+| --- | --- | --- |
+| Data and workflow | Independent project tabs, filtered previews for delimited text, and source tables from supported external ZIP and XML and PCFFGRA4 binary files. ZIP projects can retain saved result tables and XY coordinates. Binary projects can restore supported saved result tables, original EMF and PDF graph views and EMF layout views, verified editable XY line graphs, column graphs and PDF percentage stacks, and paired-test recipes. | Additional binary layouts and graph types, more formatting objects, encodings and exclusion flags, further native analysis recipes, full external-format round trip and dependency chains through derived results |
+| Group comparisons | Ordinary ANOVA with explicitly ordered linear trend and Dunnett control comparisons, Welch ANOVA, Brown–Forsythe omnibus with Tamhane T2 and Dunnett T3 contrasts, complete balanced one/two-factor repeated measurements, Bounded exact Kruskal–Wallis and Friedman (with ties, compressed counting) with Dunn comparisons, column-based and Grouped row-based multiple tests, paired tests, nested t and one-way ANOVA, ordinary multifactor type III, REML with partial subjects, up to three factors, and Satterthwaite or Kenward–Roger inference | Additional mixed-model covariance structures and denominator methods, all post-hoc variants, further nested model options, larger exact Kruskal–Wallis designs and additional nonparametric methods |
+| Multifactor ANOVA | Fixed factors, interactions through third order, comparison of marginal means, simple effects and factor combinations, control contrasts, selectable family adjustments, and Type III effect sizes and model fit | Further contrast patterns, additional effect sizes and residual diagnostics, all graph and reporting options |
+| Curves and regression | 118 choices across 14 families, including beta growth and decline, absolute IC50, heterologous depletion and competitive binding kinetics. Global fits support local, shared and fixed parameters, per-series constraints and profile intervals. Simple linear regression has residual diagnostics and pointwise bands. Nested OLS tests compare slopes and elevations. Deming has jackknife parameter intervals. Multiple linear regression offers observation diagnostics, PRESS, residual plots and pointwise profile intervals. Poisson regression accepts exposure and reports deviance and Pearson residual diagnostics. One-phase and four-parameter logistic stimulation and inhibition models support inverse calibration within the observed X range. Linear, one-phase decay and variable-slope 4PL curves support pointwise forward bands and predictions with per-query replicate counts. Linear inverse calibration reports intervals within the observed X range and lists disjoint components separately. Spline and LOWESS fitting supports five methods, optional residuals and forward or inverse queries with separate outputs for multiple roots and plateaus. Fit custom equation fits a typed function of X with free or fixed coefficients, limits and independent fits per group, using asymptotic t intervals and a restricted grammar that stores only text and numbers in the project. Plot a function generates families from catalog equations, with linear, geometric or worksheet X and optional numerical derivatives and cumulative integrals.  Independent nonlinear fits also provide pointwise mean/prediction bands, exact lower-tail runs tests, replicate lack-of-fit diagnostics and an optional residual panel from the same fitted objects. | Branch-specific equations, general constraints between coefficients, further model initialization and diagnostic options, weighting schemes and nonlinear inverse prediction intervals |
+| Multiple Variables Classic Analyses | Grouped t-tests, nonlinear fits and Kaplan–Meier using variable roles from ordinary tables. Nonlinear regression and survival support several responses and combined grouping variables. | Additional model, parameter and report options |
+| Survival | Event/censor counts, Kaplan–Meier, at-risk display, Cox regression with predicted survival and martingale, deviance and Schoenfeld residuals, adjusted pairwise log-rank, GBW, ordered trend, median confidence intervals, Mantel–Haenszel and log-rank O/E hazard ratios, configurable numeric or text status codes, fraction and percent curves, cumulative events, and pointwise log-log and Greenwood intervals | Other test weights, trend scores, simultaneous intervals and competing-risk models |
+| K-means and hierarchical clustering | Seeded K-means++, five individual k-selection criteria and a 17-index consensus, seven hierarchical linkage choices, row and column scaling and clustering, count and height cuts, standalone dendrograms, clustered heat maps, distance matrices and cophenetic diagnostics | Exact Krzanowski–Lai values and Gap simulation across implementations, additional K-means algorithms and graph options |
+| In-table formulas | Arithmetic, column references, comparisons, conditional values and averages, selected functions and automatic recalculation. ZIP import translates supported arithmetic and selected function recipes. | Additional formula operations and import of unsupported recipes |
+| Parts of whole | Native worksheet, pie, donut, horizontal and vertical slices, dot allocation per-row color and visibility for pie, donut, slice bars and dot plots, plus explode for pie and donut, and Pearson goodness of fit for equal proportions, supplied weights or expected counts | Additional composition graph options and saved composition graph import |
+| Contingency tests | Observations or count matrices, Pearson and Yates, exact Fisher for two-by-two and bounded larger tables, seeded Monte Carlo, Cochran–Armitage trend, residuals, association, 2 × 2 effect estimates with Katz and Koopman relative-risk intervals and exact Baptista–Pike odds-ratio intervals, and diagnostic measures with Wilson, Wilson–Brown or Clopper–Pearson intervals | Exact computation beyond the search limits and additional diagnostic measures |
+| Graphs and layouts | Native Column and Grouped bars, intervals, floating ranges and replicate plots, precomputed Grouped errors, signed and 100% stacks, native matrix and long-form heat maps, pooled or grouped confidence overlays, editable axis and series formatting, live Graph Inspector, per-group box and violin colors and visibility, reference lines, text and arrow annotations and line/arrow, rectangle and ellipse shapes on native graphs with numeric or direct mouse editing, vector arrowheads/perpendicular caps/patterns and per-graph undo, native drawing context menus and native drawing clipboard transfer, multipanel composition and export. Native XY graphs support multiple Y series on a shared X and an optional second Y axis. Bubble plots map size to area. Before/after and longitudinal trajectories show paired or repeated observations. Forest plots show precomputed interval endpoints. Linked pairwise brackets and compact letters summarize comparisons on supported box, violin and Column graphs. Native graphs and layouts offer publication export options for PNG, TIFF, SVG and PDF. SVG and PDF preserve text and vector elements within native layout panels, including in multi-page PDF exports. Supported saved XY series are drawn from the stored coordinates. | Original imported formatting and layouts, full chart catalog, per-data-set chart type, secondary X axes and secondary Y axes for other graph types, independently formatted overlay groups, additional ellipse geometry, additional axes and annotation types |
+| Standard extras | ROC diagnostic thresholds with pointwise binomial intervals, DeLong AUC intervals and paired ROC comparisons, Bland–Altman with log ratio, coverage and limit intervals, PCA, Pearson and Spearman correlation matrices and R² heat maps, common-bin and exact cumulative frequency distributions, replicate pooling and row means, probability axes, four normality tests with Q–Q plots, area under the curve with peak filters, column Grubbs, iterative Grubbs and ROUT-inspired screening, data transforms and simulation, repeatable Monte Carlo studies for Welch, OLS and Pearson 2×2, and local sample-size/power calculations | Remaining transformation, simulation and power-analysis designs, and arbitrary chained simulation studies |
+| Data Processing | Transpose X and Y with replicate means and source-row tracking, Transform concentrations (X), Remove baseline and column math (row, alternate-column, first/last K and linear baselines with replicate-aware handling), Prune rows (X range, K-row means with optional threshold) and Fraction of total (column, row, grand and all three totals in one sheet or separately, with Clopper–Pearson, Wilson and Wilson–Brown intervals for single denominators), Select and Transform with row filters and formulas, and Extract and Rearrange to four worksheet formats | Further baseline and replicate combinations, value-based file filters and live import links, full Select and Transform formula language and import coverage, exact sparse arrangement for every variant, and dependency chains between results |
+
+## Recent accepted increments
+
+- [Equivalence tests](validation-tost-086.md).
+- [Heat-map colors](validation-heatmap-088.md).
+- [Robust fitting, reference normalization and numeric color legends](validation/pr-089-091.md).
+- [Heat-map labels and inverse nonlinear intervals](validation/pr-093-094.md).
+- [Correlation details and heat-map layout](validation/pr-095-097.md).
+- [Exact Spearman and distribution diagnostics](validation/pr-099-100.md).
+- [Q–Q panels and summary-data ANOVA](validation/pr-101-102-104.md).
+- [Lognormal and unequal-variance summary ANOVA](validation/pr-103-105.md).
+
+General editable import for every external drawing and recipe, additional statistical
+options, complete Italian translation, further graph formats and additional native
+workflow coverage remain open. Keep original files when importing data; some content
+can be edited natively while other content is retained only as an archived view.
+
+## Scientific sources and fixture attribution
+
+Method-specific documents and regression tests identify scientific references,
+independent numerical oracles and the permitted sources of external fixtures.
+The license of Trama does not relicense datasets or third-party materials.
+No proprietary application executable, installer or original product artwork is
+included in this source distribution.

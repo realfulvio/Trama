@@ -1,0 +1,327 @@
+[
+  {
+    "id": "pearson-95",
+    "x": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "y": [
+      1.1,
+      2.4,
+      2.1,
+      4.8,
+      4.2,
+      6.3
+    ]
+  },
+  {
+    "id": "pearson-positive-90",
+    "x": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "y": [
+      1.1,
+      2.4,
+      2.1,
+      4.8,
+      4.2,
+      6.3
+    ],
+    "alternative": "Positive",
+    "confidence": 90
+  },
+  {
+    "id": "pearson-negative",
+    "x": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "y": [
+      6,
+      4,
+      5,
+      2,
+      3,
+      1
+    ],
+    "alternative": "Negative"
+  },
+  {
+    "id": "pearson-three-no-ci",
+    "x": [
+      0,
+      1,
+      2
+    ],
+    "y": [
+      1,
+      0,
+      4
+    ]
+  },
+  {
+    "id": "pearson-perfect",
+    "x": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "y": [
+      3,
+      5,
+      7,
+      9,
+      11
+    ]
+  },
+  {
+    "id": "pearson-large-units",
+    "x": [
+      1e+140,
+      2e+140,
+      3e+140,
+      4e+140,
+      5e+140,
+      6e+140
+    ],
+    "y": [
+      1.1e-140,
+      2.4e-140,
+      2.1e-140,
+      4.8e-140,
+      4.2e-140,
+      6.3e-140
+    ]
+  },
+  {
+    "id": "pearson-small-resolvable",
+    "x": [
+      0,
+      1e-150,
+      2e-150,
+      3e-150,
+      4e-150
+    ],
+    "y": [
+      2e-150,
+      1e-150,
+      4e-150,
+      3e-150,
+      6e-150
+    ]
+  },
+  {
+    "id": "spearman-ties-two",
+    "x": [
+      1,
+      1,
+      2,
+      3,
+      4,
+      4,
+      5
+    ],
+    "y": [
+      3,
+      1,
+      2,
+      5,
+      4,
+      4,
+      6
+    ],
+    "method": "Spearman",
+    "p_method": "Exact"
+  },
+  {
+    "id": "spearman-ties-positive",
+    "x": [
+      1,
+      1,
+      2,
+      3,
+      4,
+      4,
+      5
+    ],
+    "y": [
+      3,
+      1,
+      2,
+      5,
+      4,
+      4,
+      6
+    ],
+    "method": "Spearman",
+    "alternative": "Positive"
+  },
+  {
+    "id": "spearman-ties-negative",
+    "x": [
+      1,
+      1,
+      2,
+      3,
+      4,
+      4,
+      5
+    ],
+    "y": [
+      6,
+      6,
+      4,
+      3,
+      1,
+      2,
+      1
+    ],
+    "method": "Spearman",
+    "alternative": "Negative"
+  },
+  {
+    "id": "spearman-approximate",
+    "x": [
+      1,
+      1,
+      2,
+      3,
+      4,
+      4,
+      5
+    ],
+    "y": [
+      3,
+      1,
+      2,
+      5,
+      4,
+      4,
+      6
+    ],
+    "method": "Spearman",
+    "p_method": "Approximate"
+  },
+  {
+    "id": "spearman-11-ci",
+    "x": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "y": [
+      2,
+      1,
+      4,
+      3,
+      6,
+      5,
+      8,
+      7,
+      10,
+      9,
+      12
+    ],
+    "method": "Spearman"
+  },
+  {
+    "id": "spearman-11-negative-90",
+    "x": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "y": [
+      12,
+      10,
+      11,
+      8,
+      9,
+      6,
+      7,
+      4,
+      5,
+      2,
+      1
+    ],
+    "method": "Spearman",
+    "alternative": "Negative",
+    "confidence": 90
+  },
+  {
+    "id": "kendall-ties",
+    "x": [
+      1,
+      1,
+      2,
+      3,
+      4,
+      4,
+      5
+    ],
+    "y": [
+      3,
+      1,
+      2,
+      5,
+      4,
+      4,
+      6
+    ],
+    "method": "Kendall"
+  },
+  {
+    "id": "kendall-negative",
+    "x": [
+      1,
+      1,
+      2,
+      3,
+      4,
+      4,
+      5
+    ],
+    "y": [
+      6,
+      6,
+      4,
+      3,
+      1,
+      2,
+      1
+    ],
+    "method": "Kendall",
+    "alternative": "Negative"
+  }
+]

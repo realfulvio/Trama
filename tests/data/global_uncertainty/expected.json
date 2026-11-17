@@ -1,0 +1,5378 @@
+{
+  "linear-shared": {
+    "df": 6,
+    "rss": 0.491,
+    "wsse": 0.491,
+    "theta": [
+      0.98,
+      3.64,
+      1.27
+    ],
+    "covariance": [
+      [
+        0.02727777777777778,
+        0.016366666666666668,
+        -0.0054555555555555555
+      ],
+      [
+        0.016366666666666668,
+        0.04500833333333333,
+        -0.008183333333333334
+      ],
+      [
+        -0.0054555555555555555,
+        -0.008183333333333334,
+        0.0027277777777777778
+      ]
+    ],
+    "level": 90.0,
+    "curves": [
+      {
+        "Group": "A",
+        "X": 0.0,
+        "Predicted": 0.98,
+        "SE mean": 0.16515985522449994,
+        "Confidence lower": 0.6590646261949892,
+        "Confidence upper": 1.300935373805011,
+        "Prediction lower": 0.3381292523899784,
+        "Prediction upper": 1.6218707476100216,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.2,
+        "Predicted": 1.234,
+        "SE mean": 0.15875977660184165,
+        "Confidence lower": 0.9255011327682863,
+        "Confidence upper": 1.5424988672317137,
+        "Prediction lower": 0.598256267383361,
+        "Prediction upper": 1.869743732616639,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.4,
+        "Predicted": 1.488,
+        "SE mean": 0.15280634076430788,
+        "Confidence lower": 1.191069731889095,
+        "Confidence upper": 1.784930268110905,
+        "Prediction lower": 0.8577888238070511,
+        "Prediction upper": 2.1182111761929487,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.6000000000000001,
+        "Predicted": 1.742,
+        "SE mean": 0.1473536939174282,
+        "Confidence lower": 1.4556652077185657,
+        "Confidence upper": 2.0283347922814343,
+        "Prediction lower": 1.1167111421519347,
+        "Prediction upper": 2.3672888578480653,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.8,
+        "Predicted": 1.996,
+        "SE mean": 0.14245935092743708,
+        "Confidence lower": 1.7191757985027947,
+        "Confidence upper": 2.2728242014972055,
+        "Prediction lower": 1.3750087110009905,
+        "Prediction upper": 2.6169912889990092,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.0,
+        "Predicted": 2.25,
+        "SE mean": 0.1381826488544942,
+        "Confidence lower": 1.9814862016365762,
+        "Confidence upper": 2.518513798363424,
+        "Prediction lower": 1.632668482588456,
+        "Prediction upper": 2.867331517411544,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.2000000000000002,
+        "Predicted": 2.5040000000000004,
+        "SE mean": 0.13458248193745145,
+        "Confidence lower": 2.2424819749963376,
+        "Confidence upper": 2.7655180250036633,
+        "Prediction lower": 1.8896790579184999,
+        "Prediction upper": 3.118320942081501,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.4000000000000001,
+        "Predicted": 2.758,
+        "SE mean": 0.13171433736183266,
+        "Confidence lower": 2.5020552969773466,
+        "Confidence upper": 3.0139447030226534,
+        "Prediction lower": 2.1460308557750314,
+        "Prediction upper": 3.3699691442249686,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.6,
+        "Predicted": 3.012,
+        "SE mean": 0.12962681478425334,
+        "Confidence lower": 2.7601117296852293,
+        "Confidence upper": 3.2638882703147707,
+        "Prediction lower": 2.4017162600885937,
+        "Prediction upper": 3.6222837399114063,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.8,
+        "Predicted": 3.266,
+        "SE mean": 0.12835800628623747,
+        "Confidence lower": 3.016577253338324,
+        "Confidence upper": 3.515422746661676,
+        "Prediction lower": 2.6567297405663552,
+        "Prediction upper": 3.875270259433645,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.0,
+        "Predicted": 3.52,
+        "SE mean": 0.12793227374930327,
+        "Confidence lower": 3.271404528408868,
+        "Confidence upper": 3.768595471591132,
+        "Prediction lower": 2.9110679422351757,
+        "Prediction upper": 4.128932057764824,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.2,
+        "Predicted": 3.7740000000000005,
+        "SE mean": 0.12835800628623747,
+        "Confidence lower": 3.5245772533383244,
+        "Confidence upper": 4.0234227466616765,
+        "Prediction lower": 3.1647297405663557,
+        "Prediction upper": 4.383270259433646,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.4000000000000004,
+        "Predicted": 4.0280000000000005,
+        "SE mean": 0.1296268147842533,
+        "Confidence lower": 3.77611172968523,
+        "Confidence upper": 4.279888270314771,
+        "Prediction lower": 3.417716260088594,
+        "Prediction upper": 4.638283739911406,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.6,
+        "Predicted": 4.282,
+        "SE mean": 0.13171433736183266,
+        "Confidence lower": 4.026055296977346,
+        "Confidence upper": 4.537944703022654,
+        "Prediction lower": 3.6700308557750314,
+        "Prediction upper": 4.893969144224968,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.8000000000000003,
+        "Predicted": 4.5360000000000005,
+        "SE mean": 0.13458248193745145,
+        "Confidence lower": 4.274481974996338,
+        "Confidence upper": 4.797518025003663,
+        "Prediction lower": 3.9216790579185,
+        "Prediction upper": 5.1503209420815015,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.0,
+        "Predicted": 4.79,
+        "SE mean": 0.13818264885449422,
+        "Confidence lower": 4.521486201636576,
+        "Confidence upper": 5.058513798363424,
+        "Prediction lower": 4.172668482588456,
+        "Prediction upper": 5.407331517411544,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.2,
+        "Predicted": 5.0440000000000005,
+        "SE mean": 0.14245935092743708,
+        "Confidence lower": 4.767175798502795,
+        "Confidence upper": 5.320824201497206,
+        "Prediction lower": 4.423008711000991,
+        "Prediction upper": 5.66499128899901,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.4000000000000004,
+        "Predicted": 5.298,
+        "SE mean": 0.1473536939174282,
+        "Confidence lower": 5.011665207718566,
+        "Confidence upper": 5.584334792281434,
+        "Prediction lower": 4.672711142151934,
+        "Prediction upper": 5.923288857848066,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.6,
+        "Predicted": 5.552,
+        "SE mean": 0.15280634076430788,
+        "Confidence lower": 5.255069731889095,
+        "Confidence upper": 5.848930268110904,
+        "Prediction lower": 4.92178882380705,
+        "Prediction upper": 6.182211176192949,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.8000000000000003,
+        "Predicted": 5.806000000000001,
+        "SE mean": 0.15875977660184165,
+        "Confidence lower": 5.497501132768287,
+        "Confidence upper": 6.114498867231715,
+        "Prediction lower": 5.170256267383362,
+        "Prediction upper": 6.44174373261664,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.0,
+        "Predicted": 6.0600000000000005,
+        "SE mean": 0.16515985522449994,
+        "Confidence lower": 5.73906462619499,
+        "Confidence upper": 6.380935373805011,
+        "Prediction lower": 5.418129252389979,
+        "Prediction upper": 6.701870747610022,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.0,
+        "Predicted": 3.64,
+        "SE mean": 0.21215167530173626,
+        "Confidence lower": 3.2277510480753806,
+        "Confidence upper": 4.05224895192462,
+        "Prediction lower": 2.947939496256987,
+        "Prediction upper": 4.332060503743014,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.3,
+        "Predicted": 4.021,
+        "SE mean": 0.20085774402131806,
+        "Confidence lower": 3.630697192628984,
+        "Confidence upper": 4.411302807371016,
+        "Prediction lower": 3.3417836692777607,
+        "Prediction upper": 4.700216330722239,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.6,
+        "Predicted": 4.402,
+        "SE mean": 0.19018499765579128,
+        "Confidence lower": 4.032436262905417,
+        "Confidence upper": 4.771563737094583,
+        "Prediction lower": 3.7344852823694445,
+        "Prediction upper": 5.069514717630556,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.8999999999999999,
+        "Predicted": 4.7829999999999995,
+        "SE mean": 0.18024381635255435,
+        "Confidence lower": 4.432753770378894,
+        "Confidence upper": 5.133246229621105,
+        "Prediction lower": 4.12598328496005,
+        "Prediction upper": 5.440016715039949,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.2,
+        "Predicted": 5.164,
+        "SE mean": 0.17116171690343998,
+        "Confidence lower": 4.831401926934092,
+        "Confidence upper": 5.496598073065908,
+        "Prediction lower": 4.5162191569016255,
+        "Prediction upper": 5.811780843098374,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.5,
+        "Predicted": 5.545,
+        "SE mean": 0.1630822900664978,
+        "Confidence lower": 5.228101709841504,
+        "Confidence upper": 5.8618982901584955,
+        "Prediction lower": 4.905138242443367,
+        "Prediction upper": 6.184861757556633,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.7999999999999998,
+        "Predicted": 5.926,
+        "SE mean": 0.1561612414568139,
+        "Confidence lower": 5.6225505550203305,
+        "Confidence upper": 6.22944944497967,
+        "Prediction lower": 5.292691143172184,
+        "Prediction upper": 6.559308856827816,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.1,
+        "Predicted": 6.307,
+        "SE mean": 0.15055840505708518,
+        "Confidence lower": 6.014437876227237,
+        "Confidence upper": 6.599562123772764,
+        "Prediction lower": 5.678835102266518,
+        "Prediction upper": 6.9351648977334825,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.4,
+        "Predicted": 6.688000000000001,
+        "SE mean": 0.14642517998395402,
+        "Confidence lower": 6.403469477684277,
+        "Confidence upper": 6.972530522315724,
+        "Prediction lower": 6.06353530075164,
+        "Prediction upper": 7.312464699248361,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.6999999999999997,
+        "Predicted": 7.069,
+        "SE mean": 0.1438882668369222,
+        "Confidence lower": 6.789399157284969,
+        "Confidence upper": 7.348600842715031,
+        "Prediction lower": 6.446765981543084,
+        "Prediction upper": 7.691234018456916,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.0,
+        "Predicted": 7.45,
+        "SE mean": 0.14303263030977698,
+        "Confidence lower": 7.172061813311806,
+        "Confidence upper": 7.727938186688195,
+        "Prediction lower": 6.82851132102217,
+        "Prediction upper": 8.071488678977829,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.3,
+        "Predicted": 7.8309999999999995,
+        "SE mean": 0.1438882668369222,
+        "Confidence lower": 7.551399157284968,
+        "Confidence upper": 8.110600842715032,
+        "Prediction lower": 7.208765981543084,
+        "Prediction upper": 8.453234018456916,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.5999999999999996,
+        "Predicted": 8.212,
+        "SE mean": 0.14642517998395402,
+        "Confidence lower": 7.9274694776842765,
+        "Confidence upper": 8.496530522315723,
+        "Prediction lower": 7.5875353007516395,
+        "Prediction upper": 8.83646469924836,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.9,
+        "Predicted": 8.593,
+        "SE mean": 0.15055840505708515,
+        "Confidence lower": 8.300437876227237,
+        "Confidence upper": 8.885562123772763,
+        "Prediction lower": 7.964835102266518,
+        "Prediction upper": 9.221164897733482,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.2,
+        "Predicted": 8.974,
+        "SE mean": 0.15616124145681387,
+        "Confidence lower": 8.67055055502033,
+        "Confidence upper": 9.27744944497967,
+        "Prediction lower": 8.340691143172183,
+        "Prediction upper": 9.607308856827817,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.5,
+        "Predicted": 9.355,
+        "SE mean": 0.1630822900664978,
+        "Confidence lower": 9.038101709841506,
+        "Confidence upper": 9.671898290158495,
+        "Prediction lower": 8.715138242443366,
+        "Prediction upper": 9.994861757556635,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.8,
+        "Predicted": 9.736,
+        "SE mean": 0.17116171690343995,
+        "Confidence lower": 9.403401926934093,
+        "Confidence upper": 10.068598073065909,
+        "Prediction lower": 9.088219156901626,
+        "Prediction upper": 10.383780843098375,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.1,
+        "Predicted": 10.116999999999999,
+        "SE mean": 0.1802438163525543,
+        "Confidence lower": 9.766753770378894,
+        "Confidence upper": 10.467246229621104,
+        "Prediction lower": 9.45998328496005,
+        "Prediction upper": 10.774016715039949,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.3999999999999995,
+        "Predicted": 10.498,
+        "SE mean": 0.19018499765579122,
+        "Confidence lower": 10.128436262905417,
+        "Confidence upper": 10.867563737094581,
+        "Prediction lower": 9.830485282369445,
+        "Prediction upper": 11.165514717630554,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.7,
+        "Predicted": 10.879000000000001,
+        "SE mean": 0.20085774402131806,
+        "Confidence lower": 10.488697192628985,
+        "Confidence upper": 11.269302807371018,
+        "Prediction lower": 10.199783669277762,
+        "Prediction upper": 11.55821633072224,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 6.0,
+        "Predicted": 11.26,
+        "SE mean": 0.21215167530173626,
+        "Confidence lower": 10.84775104807538,
+        "Confidence upper": 11.672248951924619,
+        "Prediction lower": 10.567939496256987,
+        "Prediction upper": 11.952060503743013,
+        "df": 6,
+        "k": 1
+      }
+    ],
+    "queries": [
+      {
+        "Source row": 0,
+        "Group": "A",
+        "X": 1.5,
+        "k": 1,
+        "Predicted": 2.885,
+        "SE mean": 0.13057033013327,
+        "Confidence lower": 2.6312783092646566,
+        "Confidence upper": 3.138721690735343,
+        "Prediction lower": 2.2739572528638545,
+        "Prediction upper": 3.496042747136145,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 1,
+        "Group": "B",
+        "X": 3.0,
+        "k": 4,
+        "Predicted": 7.45,
+        "SE mean": 0.14303263030977698,
+        "Confidence lower": 7.172061813311806,
+        "Confidence upper": 7.727938186688195,
+        "Prediction lower": 7.056936046884171,
+        "Prediction upper": 7.84306395311583,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 2,
+        "Group": "A",
+        "X": 0.0,
+        "k": 9,
+        "Predicted": 0.98,
+        "SE mean": 0.16515985522449994,
+        "Confidence lower": 0.6590646261949892,
+        "Confidence upper": 1.300935373805011,
+        "Prediction lower": 0.6094157510824076,
+        "Prediction upper": 1.3505842489175923,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 3,
+        "Group": "B",
+        "X": 6.0,
+        "k": 1,
+        "Predicted": 11.26,
+        "SE mean": 0.21215167530173626,
+        "Confidence lower": 10.84775104807538,
+        "Confidence upper": 11.672248951924619,
+        "Prediction lower": 10.567939496256987,
+        "Prediction upper": 11.952060503743013,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 4,
+        "Group": "A",
+        "X": 4.5,
+        "k": 1,
+        "Predicted": 6.695,
+        "SE mean": 0.18279846218657797,
+        "Confidence lower": 6.339789632970519,
+        "Confidence upper": 7.050210367029481,
+        "Prediction lower": 6.0353236040881075,
+        "Prediction upper": 7.354676395911893,
+        "df": 6,
+        "Status": "Outside domain"
+      },
+      {
+        "Source row": 5,
+        "Group": "Z",
+        "X": 2.0,
+        "k": 1,
+        "Status": "Unknown group"
+      },
+      {
+        "Source row": 6,
+        "Group": "A",
+        "X": null,
+        "k": 1,
+        "Status": "Missing X"
+      },
+      {
+        "Source row": 7,
+        "Group": null,
+        "X": 1.0,
+        "k": 1,
+        "Status": "Missing group"
+      },
+      {
+        "Source row": 8,
+        "Group": "A",
+        "X": 1.5,
+        "k": 4,
+        "Predicted": 2.885,
+        "SE mean": 0.13057033013327,
+        "Confidence lower": 2.6312783092646566,
+        "Confidence upper": 3.138721690735343,
+        "Prediction lower": 2.5086699162050383,
+        "Prediction upper": 3.2613300837949613,
+        "df": 6,
+        "Status": "OK"
+      }
+    ],
+    "exact": {
+      "theta": [
+        "49/50",
+        "91/25",
+        "127/100"
+      ],
+      "rss": "491/1000",
+      "wsse": "491/1000",
+      "normal_inverse": [
+        [
+          "1/3",
+          "1/5",
+          "-1/15"
+        ],
+        [
+          "1/5",
+          "11/20",
+          "-1/10"
+        ],
+        [
+          "-1/15",
+          "-1/10",
+          "1/30"
+        ]
+      ]
+    },
+    "coords": [
+      [
+        "A",
+        "A"
+      ],
+      [
+        "A",
+        "B"
+      ],
+      [
+        "B",
+        null
+      ]
+    ]
+  },
+  "linear-fixed": {
+    "df": 7,
+    "rss": 0.4939090909090909,
+    "wsse": 0.4939090909090909,
+    "theta": [
+      0.9654545454545455,
+      1.2772727272727273
+    ],
+    "covariance": [
+      [
+        0.018387957497048406,
+        -0.0021381345926800473
+      ],
+      [
+        -0.0021381345926800473,
+        0.0010690672963400236
+      ]
+    ],
+    "level": 90.0,
+    "curves": [
+      {
+        "Group": "A",
+        "X": 0.0,
+        "Predicted": 0.9654545454545455,
+        "SE mean": 0.13560220314231036,
+        "Confidence lower": 0.7085455125780554,
+        "Confidence upper": 1.2223635783310356,
+        "Prediction lower": 0.40041764103940425,
+        "Prediction upper": 1.5304914498696867,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.2,
+        "Predicted": 1.220909090909091,
+        "SE mean": 0.13257249470319998,
+        "Confidence lower": 0.9697400788210001,
+        "Confidence upper": 1.4720781029971817,
+        "Prediction lower": 0.6584588043851889,
+        "Prediction upper": 1.783359377432993,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.4,
+        "Predicted": 1.4763636363636365,
+        "SE mean": 0.12980177421868613,
+        "Confidence lower": 1.2304439720261902,
+        "Confidence upper": 1.722283300701083,
+        "Prediction lower": 0.9162378170289498,
+        "Prediction upper": 2.036489455698323,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.6000000000000001,
+        "Predicted": 1.731818181818182,
+        "SE mean": 0.12730695272652928,
+        "Confidence lower": 1.4906251529032948,
+        "Confidence upper": 1.973011210733069,
+        "Prediction lower": 1.1737514032202712,
+        "Prediction upper": 2.2898849604160927,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.8,
+        "Predicted": 1.9872727272727273,
+        "SE mean": 0.12510453716159917,
+        "Confidence lower": 1.7502523477666738,
+        "Confidence upper": 2.224293106778781,
+        "Prediction lower": 1.4309966155451919,
+        "Prediction upper": 2.5435488390002625,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.0,
+        "Predicted": 2.2427272727272727,
+        "SE mean": 0.12321020902517914,
+        "Confidence lower": 2.0092958467795006,
+        "Confidence upper": 2.476158698675045,
+        "Prediction lower": 1.6879708551911417,
+        "Prediction upper": 2.7974836902634035,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.2000000000000002,
+        "Predicted": 2.4981818181818185,
+        "SE mean": 0.12163836311520279,
+        "Confidence lower": 2.267728377865586,
+        "Confidence upper": 2.728635258498051,
+        "Prediction lower": 1.9446718902391489,
+        "Prediction upper": 3.0516917461244883,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.4000000000000001,
+        "Predicted": 2.753636363636364,
+        "SE mean": 0.12040163013170012,
+        "Confidence lower": 2.525526011170885,
+        "Confidence upper": 2.981746716101843,
+        "Prediction lower": 2.201097871692647,
+        "Prediction upper": 3.306174855580081,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.6,
+        "Predicted": 3.0090909090909093,
+        "SE mean": 0.11951041410313461,
+        "Confidence lower": 2.7826690354456636,
+        "Confidence upper": 3.235512782736155,
+        "Prediction lower": 2.4572473469806537,
+        "Prediction upper": 3.560934471201165,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.8,
+        "Predicted": 3.2645454545454546,
+        "SE mean": 0.11897248002602077,
+        "Confidence lower": 3.0391427392936574,
+        "Confidence upper": 3.489948169797252,
+        "Prediction lower": 2.713119270709037,
+        "Prediction upper": 3.8159716383818725,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.0,
+        "Predicted": 3.52,
+        "SE mean": 0.11879262734567457,
+        "Confidence lower": 3.294938029788455,
+        "Confidence upper": 3.745061970211545,
+        "Prediction lower": 2.9687130124762473,
+        "Prediction upper": 4.071286987523753,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.2,
+        "Predicted": 3.775454545454546,
+        "SE mean": 0.11897248002602077,
+        "Confidence lower": 3.5500518302027486,
+        "Confidence upper": 4.000857260706343,
+        "Prediction lower": 3.224028361618128,
+        "Prediction upper": 4.326880729290964,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.4000000000000004,
+        "Predicted": 4.030909090909091,
+        "SE mean": 0.11951041410313461,
+        "Confidence lower": 3.8044872172638455,
+        "Confidence upper": 4.257330964554337,
+        "Prediction lower": 3.4790655287988357,
+        "Prediction upper": 4.582752653019347,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.6,
+        "Predicted": 4.286363636363637,
+        "SE mean": 0.12040163013170013,
+        "Confidence lower": 4.058253283898158,
+        "Confidence upper": 4.514473988829116,
+        "Prediction lower": 3.73382514441992,
+        "Prediction upper": 4.838902128307354,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.8000000000000003,
+        "Predicted": 4.541818181818183,
+        "SE mean": 0.12163836311520279,
+        "Confidence lower": 4.311364741501951,
+        "Confidence upper": 4.772271622134415,
+        "Prediction lower": 3.9883082538755135,
+        "Prediction upper": 5.095328109760852,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.0,
+        "Predicted": 4.797272727272728,
+        "SE mean": 0.12321020902517914,
+        "Confidence lower": 4.563841301324956,
+        "Confidence upper": 5.0307041532204995,
+        "Prediction lower": 4.2425163097365965,
+        "Prediction upper": 5.352029144808859,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.2,
+        "Predicted": 5.052727272727274,
+        "SE mean": 0.12510453716159917,
+        "Confidence lower": 4.81570689322122,
+        "Confidence upper": 5.289747652233327,
+        "Prediction lower": 4.496451160999738,
+        "Prediction upper": 5.609003384454809,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.4000000000000004,
+        "Predicted": 5.3081818181818194,
+        "SE mean": 0.12730695272652928,
+        "Confidence lower": 5.066988789266932,
+        "Confidence upper": 5.549374847096707,
+        "Prediction lower": 4.750115039583909,
+        "Prediction upper": 5.86624859677973,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.6,
+        "Predicted": 5.563636363636364,
+        "SE mean": 0.12980177421868613,
+        "Confidence lower": 5.317716699298918,
+        "Confidence upper": 5.8095560279738105,
+        "Prediction lower": 5.003510544301678,
+        "Prediction upper": 6.123762182971051,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.8000000000000003,
+        "Predicted": 5.81909090909091,
+        "SE mean": 0.13257249470319998,
+        "Confidence lower": 5.56792189700282,
+        "Confidence upper": 6.070259921179001,
+        "Prediction lower": 5.256640622567009,
+        "Prediction upper": 6.381541195614812,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.0,
+        "Predicted": 6.074545454545455,
+        "SE mean": 0.13560220314231036,
+        "Confidence lower": 5.817636421668965,
+        "Confidence upper": 6.331454487421945,
+        "Prediction lower": 5.509508550130314,
+        "Prediction upper": 6.639582358960596,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.0,
+        "Predicted": 3.6,
+        "SE mean": 0.0,
+        "Confidence lower": 3.6,
+        "Confidence upper": 3.6,
+        "Prediction lower": 3.0967461354569528,
+        "Prediction upper": 4.103253864543047,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.3,
+        "Predicted": 3.9831818181818184,
+        "SE mean": 0.009808978370380991,
+        "Confidence lower": 3.964597937623504,
+        "Confidence upper": 4.001765698740133,
+        "Prediction lower": 3.479584942899497,
+        "Prediction upper": 4.48677869346414,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.6,
+        "Predicted": 4.366363636363636,
+        "SE mean": 0.019617956740761982,
+        "Confidence lower": 4.329195875247008,
+        "Confidence upper": 4.403531397480265,
+        "Prediction lower": 3.861739127799164,
+        "Prediction upper": 4.870988144928108,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.8999999999999999,
+        "Predicted": 4.749545454545455,
+        "SE mean": 0.02942693511114297,
+        "Confidence lower": 4.693793812870512,
+        "Confidence upper": 4.805297096220398,
+        "Prediction lower": 4.243212858590026,
+        "Prediction upper": 5.2558780505008835,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.2,
+        "Predicted": 5.132727272727273,
+        "SE mean": 0.039235913481523964,
+        "Confidence lower": 5.058391750494015,
+        "Confidence upper": 5.207062794960531,
+        "Prediction lower": 4.62401298941767,
+        "Prediction upper": 5.641441556036876,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.5,
+        "Predicted": 5.515909090909091,
+        "SE mean": 0.049044891851904956,
+        "Confidence lower": 5.422989688117518,
+        "Confidence upper": 5.608828493700663,
+        "Prediction lower": 5.004148924822813,
+        "Prediction upper": 6.0276692569953685,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.7999999999999998,
+        "Predicted": 5.8990909090909085,
+        "SE mean": 0.05885387022228594,
+        "Confidence lower": 5.787587625741022,
+        "Confidence upper": 6.010594192440795,
+        "Prediction lower": 5.383632439012748,
+        "Prediction upper": 6.414549379169069,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.1,
+        "Predicted": 6.282272727272728,
+        "SE mean": 0.06866284859266694,
+        "Confidence lower": 6.152185563364527,
+        "Confidence upper": 6.412359891180929,
+        "Prediction lower": 5.762477457583602,
+        "Prediction upper": 6.8020679969618545,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.4,
+        "Predicted": 6.665454545454546,
+        "SE mean": 0.07847182696304793,
+        "Confidence lower": 6.51678350098803,
+        "Confidence upper": 6.814125589921062,
+        "Prediction lower": 6.140699810706705,
+        "Prediction upper": 7.190209280202387,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.6999999999999997,
+        "Predicted": 7.048636363636364,
+        "SE mean": 0.08828080533342891,
+        "Confidence lower": 6.881381438611534,
+        "Confidence upper": 7.215891288661194,
+        "Prediction lower": 6.518316967307535,
+        "Prediction upper": 7.578955759965193,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.0,
+        "Predicted": 7.431818181818182,
+        "SE mean": 0.09808978370380991,
+        "Confidence lower": 7.245979376235037,
+        "Confidence upper": 7.617656987401326,
+        "Prediction lower": 6.895347759671647,
+        "Prediction upper": 7.968288603964717,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.3,
+        "Predicted": 7.8149999999999995,
+        "SE mean": 0.1078987620741909,
+        "Confidence lower": 7.61057731385854,
+        "Confidence upper": 8.019422686141459,
+        "Prediction lower": 7.271812107289934,
+        "Prediction upper": 8.358187892710065,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.5999999999999996,
+        "Predicted": 8.198181818181817,
+        "SE mean": 0.11770774044457188,
+        "Confidence lower": 7.975175251482044,
+        "Confidence upper": 8.42118838488159,
+        "Prediction lower": 7.647730747723477,
+        "Prediction upper": 8.748632888640158,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.9,
+        "Predicted": 8.581363636363637,
+        "SE mean": 0.12751671881495288,
+        "Confidence lower": 8.339773189105548,
+        "Confidence upper": 8.822954083621726,
+        "Prediction lower": 8.023124980962674,
+        "Prediction upper": 9.1396022917646,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.2,
+        "Predicted": 8.964545454545455,
+        "SE mean": 0.13732569718533388,
+        "Confidence lower": 8.704371126729052,
+        "Confidence upper": 9.224719782361857,
+        "Prediction lower": 8.398016432312499,
+        "Prediction upper": 9.53107447677841,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.5,
+        "Predicted": 9.347727272727273,
+        "SE mean": 0.14713467555571488,
+        "Confidence lower": 9.068969064352556,
+        "Confidence upper": 9.626485481101989,
+        "Prediction lower": 8.772426837377365,
+        "Prediction upper": 9.92302770807718,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.8,
+        "Predicted": 9.73090909090909,
+        "SE mean": 0.15694365392609586,
+        "Confidence lower": 9.433567001976058,
+        "Confidence upper": 10.028251179842123,
+        "Prediction lower": 9.146377851343086,
+        "Prediction upper": 10.315440330475095,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.1,
+        "Predicted": 10.114090909090908,
+        "SE mean": 0.16675263229647685,
+        "Confidence lower": 9.798164939599562,
+        "Confidence upper": 10.430016878582254,
+        "Prediction lower": 9.51989088353002,
+        "Prediction upper": 10.708290934651796,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.3999999999999995,
+        "Predicted": 10.497272727272726,
+        "SE mean": 0.17656161066685783,
+        "Confidence lower": 10.162762877223066,
+        "Confidence upper": 10.831782577322386,
+        "Prediction lower": 9.89298695716246,
+        "Prediction upper": 11.101558497382992,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.7,
+        "Predicted": 10.880454545454546,
+        "SE mean": 0.18637058903723883,
+        "Confidence lower": 10.52736081484657,
+        "Confidence upper": 11.233548276062521,
+        "Prediction lower": 10.265686593482284,
+        "Prediction upper": 11.495222497426807,
+        "df": 7,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 6.0,
+        "Predicted": 11.263636363636364,
+        "SE mean": 0.19617956740761983,
+        "Confidence lower": 10.891958752470075,
+        "Confidence upper": 11.635313974802653,
+        "Prediction lower": 10.638009718727604,
+        "Prediction upper": 11.889263008545123,
+        "df": 7,
+        "k": 1
+      }
+    ],
+    "queries": [
+      {
+        "Source row": 0,
+        "Group": "A",
+        "X": 1.5,
+        "k": 1,
+        "Predicted": 2.8813636363636363,
+        "SE mean": 0.11991228100479666,
+        "Confidence lower": 2.654180394284408,
+        "Confidence upper": 3.1085468784428647,
+        "Prediction lower": 2.329207247593986,
+        "Prediction upper": 3.4335200251332867,
+        "df": 7,
+        "Status": "OK"
+      },
+      {
+        "Source row": 1,
+        "Group": "B",
+        "X": 3.0,
+        "k": 4,
+        "Predicted": 7.431818181818182,
+        "SE mean": 0.09808978370380991,
+        "Confidence lower": 7.245979376235037,
+        "Confidence upper": 7.617656987401326,
+        "Prediction lower": 7.119004859363802,
+        "Prediction upper": 7.7446315042725615,
+        "df": 7,
+        "Status": "OK"
+      },
+      {
+        "Source row": 2,
+        "Group": "A",
+        "X": 0.0,
+        "k": 9,
+        "Predicted": 0.9654545454545455,
+        "SE mean": 0.13560220314231036,
+        "Confidence lower": 0.7085455125780554,
+        "Confidence upper": 1.2223635783310356,
+        "Prediction lower": 0.658627646601261,
+        "Prediction upper": 1.2722814443078299,
+        "df": 7,
+        "Status": "OK"
+      },
+      {
+        "Source row": 3,
+        "Group": "B",
+        "X": 6.0,
+        "k": 1,
+        "Predicted": 11.263636363636364,
+        "SE mean": 0.19617956740761983,
+        "Confidence lower": 10.891958752470075,
+        "Confidence upper": 11.635313974802653,
+        "Prediction lower": 10.638009718727604,
+        "Prediction upper": 11.889263008545123,
+        "df": 7,
+        "Status": "OK"
+      },
+      {
+        "Source row": 4,
+        "Group": "A",
+        "X": 4.5,
+        "k": 1,
+        "Predicted": 6.713181818181819,
+        "SE mean": 0.14419902535666967,
+        "Confidence lower": 6.439985429866241,
+        "Confidence upper": 6.986378206497396,
+        "Prediction lower": 6.140555658487566,
+        "Prediction upper": 7.285807977876072,
+        "df": 7,
+        "Status": "Outside domain"
+      },
+      {
+        "Source row": 5,
+        "Group": "Z",
+        "X": 2.0,
+        "k": 1,
+        "Status": "Unknown group"
+      },
+      {
+        "Source row": 6,
+        "Group": "A",
+        "X": null,
+        "k": 1,
+        "Status": "Missing X"
+      },
+      {
+        "Source row": 7,
+        "Group": null,
+        "X": 1.0,
+        "k": 1,
+        "Status": "Missing group"
+      },
+      {
+        "Source row": 8,
+        "Group": "A",
+        "X": 1.5,
+        "k": 4,
+        "Predicted": 2.8813636363636363,
+        "SE mean": 0.11991228100479666,
+        "Confidence lower": 2.654180394284408,
+        "Confidence upper": 3.1085468784428647,
+        "Prediction lower": 2.542352812751753,
+        "Prediction upper": 3.2203744599755195,
+        "df": 7,
+        "Status": "OK"
+      }
+    ],
+    "exact": {
+      "theta": [
+        "531/550",
+        "281/220"
+      ],
+      "rss": "5433/11000",
+      "wsse": "5433/11000",
+      "normal_inverse": [
+        [
+          "43/165",
+          "-1/33"
+        ],
+        [
+          "-1/33",
+          "1/66"
+        ]
+      ]
+    },
+    "coords": [
+      [
+        "A",
+        "A"
+      ],
+      [
+        "B",
+        null
+      ]
+    ]
+  },
+  "linear-weighted": {
+    "df": 6,
+    "rss": 0.5591094756232385,
+    "wsse": 0.5404038676525925,
+    "theta": [
+      0.9525843614660034,
+      3.785380020168409,
+      1.2453151582838584
+    ],
+    "covariance": [
+      [
+        0.015496766317797046,
+        0.00925423341629976,
+        -0.003261542207379452
+      ],
+      [
+        0.00925423341629976,
+        0.042336127246188356,
+        -0.00732626812123731
+      ],
+      [
+        -0.003261542207379452,
+        -0.00732626812123731,
+        0.0025820542475087326
+      ]
+    ],
+    "level": 90.0,
+    "curves": [
+      {
+        "Group": "A",
+        "X": 0.0,
+        "Predicted": 0.9525843614660034,
+        "SE mean": 0.12448600852223131,
+        "Confidence lower": 0.7106856045055434,
+        "Confidence upper": 1.1944831184264635,
+        "Prediction lower": 0.311977975037963,
+        "Prediction upper": 1.593190747894044,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.2,
+        "Predicted": 1.2016473931227751,
+        "SE mean": 0.119563504485046,
+        "Confidence lower": 0.9693139489381306,
+        "Confidence upper": 1.4339808373074197,
+        "Prediction lower": 0.5645913806716913,
+        "Prediction upper": 1.838703405573859,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.4,
+        "Predicted": 1.4507104247795468,
+        "SE mean": 0.11532849271318377,
+        "Confidence lower": 1.2266063719577351,
+        "Confidence upper": 1.6748144776013585,
+        "Prediction lower": 0.8166093601182914,
+        "Prediction upper": 2.0848114894408023,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.6000000000000001,
+        "Predicted": 1.6997734564363185,
+        "SE mean": 0.11185908634547685,
+        "Confidence lower": 1.4824110856533292,
+        "Confidence upper": 1.9171358272193078,
+        "Prediction lower": 1.0680235581808635,
+        "Prediction upper": 2.3315233546917735,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.8,
+        "Predicted": 1.9488364880930902,
+        "SE mean": 0.10922826330394304,
+        "Confidence lower": 1.7365862807659347,
+        "Confidence upper": 2.161086695420246,
+        "Prediction lower": 1.3188272149678475,
+        "Prediction upper": 2.578845761218333,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.0,
+        "Predicted": 2.197899519749862,
+        "SE mean": 0.10749760997597517,
+        "Confidence lower": 1.9890122838420217,
+        "Confidence upper": 2.406786755657702,
+        "Prediction lower": 1.5690152608924837,
+        "Prediction upper": 2.82678377860724,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.2000000000000002,
+        "Predicted": 2.4469625514066338,
+        "SE mean": 0.10671093260064282,
+        "Confidence lower": 2.239603971461667,
+        "Confidence upper": 2.6543211313516006,
+        "Prediction lower": 1.818584389476917,
+        "Prediction upper": 3.0753407133363506,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.4000000000000001,
+        "Predicted": 2.6960255830634052,
+        "SE mean": 0.10688907550471047,
+        "Confidence lower": 2.4883208393401404,
+        "Confidence upper": 2.90373032678667,
+        "Prediction lower": 2.067533105559877,
+        "Prediction upper": 3.3245180605669336,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.6,
+        "Predicted": 2.945088614720177,
+        "SE mean": 0.10802726566846518,
+        "Confidence lower": 2.735172162315228,
+        "Confidence upper": 3.1550050671251264,
+        "Prediction lower": 2.3158617472839116,
+        "Prediction upper": 3.5743154821564427,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.8,
+        "Predicted": 3.194151646376949,
+        "SE mean": 0.1100957316754801,
+        "Confidence lower": 2.980215791616252,
+        "Confidence upper": 3.408087501137646,
+        "Prediction lower": 2.563572481112534,
+        "Prediction upper": 3.824730811641364,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.0,
+        "Predicted": 3.44321467803372,
+        "SE mean": 0.11304341855373168,
+        "Confidence lower": 3.223550936258071,
+        "Confidence upper": 3.662878419809369,
+        "Prediction lower": 2.810669270047657,
+        "Prediction upper": 4.075760086019783,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.2,
+        "Predicted": 3.692277709690492,
+        "SE mean": 0.11680378060349642,
+        "Confidence lower": 3.465306906532142,
+        "Confidence upper": 3.919248512848842,
+        "Prediction lower": 3.0571578161272983,
+        "Prediction upper": 4.327397603253686,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.4000000000000004,
+        "Predicted": 3.941340741347264,
+        "SE mean": 0.12130126210401102,
+        "Confidence lower": 3.7056305208251312,
+        "Confidence upper": 4.177050961869396,
+        "Prediction lower": 3.303045479127679,
+        "Prediction upper": 4.579636003566849,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.6,
+        "Predicted": 4.190403773004036,
+        "SE mean": 0.12645724001646932,
+        "Confidence lower": 3.9446745578756417,
+        "Confidence upper": 4.43613298813243,
+        "Prediction lower": 3.548341174123683,
+        "Prediction upper": 4.832466371884388,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.8000000000000003,
+        "Predicted": 4.439466804660808,
+        "SE mean": 0.13219468694671727,
+        "Confidence lower": 4.182588695797053,
+        "Confidence upper": 4.6963449135245625,
+        "Prediction lower": 3.7930552511387536,
+        "Prediction upper": 5.085878358182861,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.0,
+        "Predicted": 4.688529836317579,
+        "SE mean": 0.1384413280097346,
+        "Confidence lower": 4.419513377720711,
+        "Confidence upper": 4.957546294914446,
+        "Prediction lower": 4.037199360514875,
+        "Prediction upper": 5.339860312120282,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.2,
+        "Predicted": 4.937592867974351,
+        "SE mean": 0.14513142900508483,
+        "Confidence lower": 4.655576337048663,
+        "Confidence upper": 5.2196093989000385,
+        "Prediction lower": 4.280786307845164,
+        "Prediction upper": 5.594399428103538,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.4000000000000004,
+        "Predicted": 5.1866558996311225,
+        "SE mean": 0.15220652551325692,
+        "Confidence lower": 4.890891180688012,
+        "Confidence upper": 5.482420618574233,
+        "Prediction lower": 4.523829902340074,
+        "Prediction upper": 5.849481896922171,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.6,
+        "Predicted": 5.435718931287894,
+        "SE mean": 0.15961542993200306,
+        "Confidence lower": 5.125557375378054,
+        "Confidence upper": 5.745880487197735,
+        "Prediction lower": 4.76634480236014,
+        "Prediction upper": 6.105093060215649,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.8000000000000003,
+        "Predicted": 5.684781962944666,
+        "SE mean": 0.16731380360191242,
+        "Confidence lower": 5.359661079127419,
+        "Confidence upper": 6.009902846761913,
+        "Prediction lower": 5.008346361569721,
+        "Prediction upper": 6.361217564319611,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.0,
+        "Predicted": 5.933844994601437,
+        "SE mean": 0.17526350623818168,
+        "Confidence lower": 5.593276405385431,
+        "Confidence upper": 6.274413583817443,
+        "Prediction lower": 5.249850478779887,
+        "Prediction upper": 6.6178395104229875,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.0,
+        "Predicted": 3.785380020168409,
+        "SE mean": 0.20575744760807166,
+        "Confidence lower": 3.3855562054072434,
+        "Confidence upper": 4.185203834929575,
+        "Prediction lower": 3.0700335191190593,
+        "Prediction upper": 4.500726521217759,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.3,
+        "Predicted": 4.1589745676535665,
+        "SE mean": 0.195378482069346,
+        "Confidence lower": 3.7793189540594003,
+        "Confidence upper": 4.538630181247733,
+        "Prediction lower": 3.454701950944001,
+        "Prediction upper": 4.863247184363132,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.6,
+        "Predicted": 4.532569115138724,
+        "SE mean": 0.18567214392527148,
+        "Confidence lower": 4.171774666422137,
+        "Confidence upper": 4.893363563855311,
+        "Prediction lower": 3.8382823098931667,
+        "Prediction upper": 5.226855920384281,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.8999999999999999,
+        "Predicted": 4.906163662623881,
+        "SE mean": 0.1767492816631606,
+        "Confidence lower": 4.562707943900782,
+        "Confidence upper": 5.249619381346981,
+        "Prediction lower": 4.2207270394142835,
+        "Prediction upper": 5.591600285833479,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.2,
+        "Predicted": 5.279758210109039,
+        "SE mean": 0.168734234438751,
+        "Confidence lower": 4.9518771730998115,
+        "Confidence upper": 5.607639247118266,
+        "Prediction lower": 4.6019916513709855,
+        "Prediction upper": 5.957524768847092,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.5,
+        "Predicted": 5.653352757594197,
+        "SE mean": 0.16176200091298043,
+        "Confidence lower": 5.339020027283395,
+        "Confidence upper": 5.967685487904999,
+        "Prediction lower": 4.982035694606804,
+        "Prediction upper": 6.32466982058159,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.7999999999999998,
+        "Predicted": 6.026947305079354,
+        "SE mean": 0.155972490432327,
+        "Confidence lower": 5.7238646373683935,
+        "Confidence upper": 6.330029972790314,
+        "Prediction lower": 5.360823715060078,
+        "Prediction upper": 6.6930708950986295,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.1,
+        "Predicted": 6.400541852564512,
+        "SE mean": 0.15150135434544856,
+        "Confidence lower": 6.1061474083290745,
+        "Confidence upper": 6.694936296799949,
+        "Prediction lower": 5.738326160731354,
+        "Prediction upper": 7.06275754439767,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.4,
+        "Predicted": 6.774136400049669,
+        "SE mean": 0.14846774979738722,
+        "Confidence lower": 6.4856367963509065,
+        "Confidence upper": 7.062636003748432,
+        "Prediction lower": 6.114520182050355,
+        "Prediction upper": 7.433752618048984,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.6999999999999997,
+        "Predicted": 7.147730947534827,
+        "SE mean": 0.1469607255556584,
+        "Confidence lower": 6.86215976362485,
+        "Confidence upper": 7.433302131444804,
+        "Prediction lower": 6.489390279800316,
+        "Prediction upper": 7.806071615269338,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.0,
+        "Predicted": 7.521325495019984,
+        "SE mean": 0.14702723130883982,
+        "Confidence lower": 7.235625078441884,
+        "Confidence upper": 7.8070259115980845,
+        "Prediction lower": 6.862928759194027,
+        "Prediction upper": 8.179722230845941,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.3,
+        "Predicted": 7.894920042505142,
+        "SE mean": 0.14866515530342747,
+        "Confidence lower": 7.606036844319776,
+        "Confidence upper": 8.183803240690507,
+        "Prediction lower": 7.235135959712005,
+        "Prediction upper": 8.55470412529828,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.5999999999999996,
+        "Predicted": 8.2685145899903,
+        "SE mean": 0.15182364710740187,
+        "Confidence lower": 7.973493872815282,
+        "Confidence upper": 8.563535307165317,
+        "Prediction lower": 7.606020244900594,
+        "Prediction upper": 8.931008935080005,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.9,
+        "Predicted": 8.642109137475458,
+        "SE mean": 0.15641061666378392,
+        "Confidence lower": 8.338175111511156,
+        "Confidence upper": 8.94604316343976,
+        "Prediction lower": 7.975597752837322,
+        "Prediction upper": 9.308620522113594,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.2,
+        "Predicted": 9.015703684960615,
+        "SE mean": 0.16230499670019097,
+        "Confidence lower": 8.700315815943702,
+        "Confidence upper": 9.331091553977528,
+        "Prediction lower": 8.34389192439341,
+        "Prediction upper": 9.687515445527819,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.5,
+        "Predicted": 9.389298232445771,
+        "SE mean": 0.16937034175765367,
+        "Confidence lower": 9.060181124238161,
+        "Confidence upper": 9.718415340653381,
+        "Prediction lower": 8.710932840766393,
+        "Prediction upper": 10.06766362412515,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.8,
+        "Predicted": 9.76289277993093,
+        "SE mean": 0.17746685083392724,
+        "Confidence lower": 9.41804269494529,
+        "Confidence upper": 10.107742864916569,
+        "Prediction lower": 9.076756412414984,
+        "Prediction upper": 10.449029147446875,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.1,
+        "Predicted": 10.136487327416088,
+        "SE mean": 0.18646024613109877,
+        "Confidence lower": 9.774161454034108,
+        "Confidence upper": 10.498813200798068,
+        "Prediction lower": 9.441403467557874,
+        "Prediction upper": 10.831571187274301,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.3999999999999995,
+        "Predicted": 10.510081874901244,
+        "SE mean": 0.1962272493671051,
+        "Confidence lower": 10.128776953431327,
+        "Confidence upper": 10.891386796371162,
+        "Prediction lower": 9.8049187896149,
+        "Prediction upper": 11.215244960187588,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.7,
+        "Predicted": 10.883676422386403,
+        "SE mean": 0.20665820372209218,
+        "Confidence lower": 10.482102276106918,
+        "Confidence upper": 11.285250568665887,
+        "Prediction lower": 10.167350149886593,
+        "Prediction upper": 11.600002694886212,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 6.0,
+        "Predicted": 11.25727096987156,
+        "SE mean": 0.21765767319728246,
+        "Confidence lower": 10.834322871411755,
+        "Confidence upper": 11.680219068331363,
+        "Prediction lower": 10.528747375398368,
+        "Prediction upper": 11.98579456434475,
+        "df": 6,
+        "k": 1
+      }
+    ],
+    "queries": [
+      {
+        "Source row": 0,
+        "Group": "A",
+        "X": 1.5,
+        "k": 1,
+        "Predicted": 2.8205570988917907,
+        "SE mean": 0.10733946968638022,
+        "Confidence lower": 2.6119771580762463,
+        "Confidence upper": 3.029137039707335,
+        "Prediction lower": 2.1917748429207813,
+        "Prediction upper": 3.4493393548628,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 1,
+        "Group": "B",
+        "X": 3.0,
+        "k": 4,
+        "Predicted": 7.521325495019984,
+        "SE mean": 0.14702723130883982,
+        "Confidence lower": 7.235625078441884,
+        "Confidence upper": 7.8070259115980845,
+        "Prediction lower": 7.109512295302875,
+        "Prediction upper": 7.933138694737093,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 2,
+        "Group": "A",
+        "X": 0.0,
+        "k": 9,
+        "Predicted": 0.9525843614660034,
+        "SE mean": 0.12448600852223131,
+        "Confidence lower": 0.7106856045055434,
+        "Confidence upper": 1.1944831184264635,
+        "Prediction lower": 0.6401571946140017,
+        "Prediction upper": 1.2650115283180052,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 3,
+        "Group": "B",
+        "X": 6.0,
+        "k": 1,
+        "Predicted": 11.25727096987156,
+        "SE mean": 0.21765767319728246,
+        "Confidence lower": 10.834322871411755,
+        "Confidence upper": 11.680219068331363,
+        "Prediction lower": 10.528747375398368,
+        "Prediction upper": 11.98579456434475,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 4,
+        "Group": "A",
+        "X": 4.5,
+        "k": 1,
+        "Predicted": 6.556502573743367,
+        "SE mean": 0.19603439739860404,
+        "Confidence lower": 6.1755723984156985,
+        "Confidence upper": 6.937432749071035,
+        "Prediction lower": 5.851542055566253,
+        "Prediction upper": 7.26146309192048,
+        "df": 6,
+        "Status": "Outside domain"
+      },
+      {
+        "Source row": 5,
+        "Group": "Z",
+        "X": 2.0,
+        "k": 1,
+        "Status": "Unknown group"
+      },
+      {
+        "Source row": 6,
+        "Group": "A",
+        "X": null,
+        "k": 1,
+        "Status": "Missing X"
+      },
+      {
+        "Source row": 7,
+        "Group": null,
+        "X": 1.0,
+        "k": 1,
+        "Status": "Missing group"
+      },
+      {
+        "Source row": 8,
+        "Group": "A",
+        "X": 1.5,
+        "k": 4,
+        "Predicted": 2.8205570988917907,
+        "SE mean": 0.10733946968638022,
+        "Confidence lower": 2.6119771580762463,
+        "Confidence upper": 3.029137039707335,
+        "Prediction lower": 2.4579678338287447,
+        "Prediction upper": 3.1831463639548367,
+        "df": 6,
+        "Status": "OK"
+      }
+    ],
+    "exact": {
+      "theta": [
+        "3142005139/3298400925",
+        "832380064/219893395",
+        "273836578/219893395"
+      ],
+      "rss": "1216560567300721348/2175889732408171125",
+      "wsse": "320844351049/593712166500",
+      "normal_inverse": [
+        [
+          "37834332/219893395",
+          "4518720/43978679",
+          "-1592568/43978679"
+        ],
+        [
+          "4518720/43978679",
+          "20672172/43978679",
+          "-3577320/43978679"
+        ],
+        [
+          "-1592568/43978679",
+          "-3577320/43978679",
+          "1260783/43978679"
+        ]
+      ]
+    },
+    "coords": [
+      [
+        "A",
+        "A"
+      ],
+      [
+        "A",
+        "B"
+      ],
+      [
+        "B",
+        null
+      ]
+    ]
+  },
+  "linear-weighted-scaled-sd": {
+    "df": 6,
+    "rss": 0.5591094756232385,
+    "wsse": 5.404038676525926e-17,
+    "theta": [
+      0.9525843614660034,
+      3.785380020168409,
+      1.2453151582838584
+    ],
+    "covariance": [
+      [
+        0.015496766317797046,
+        0.00925423341629976,
+        -0.003261542207379452
+      ],
+      [
+        0.00925423341629976,
+        0.042336127246188356,
+        -0.00732626812123731
+      ],
+      [
+        -0.003261542207379452,
+        -0.00732626812123731,
+        0.0025820542475087326
+      ]
+    ],
+    "level": 90.0,
+    "curves": [
+      {
+        "Group": "A",
+        "X": 0.0,
+        "Predicted": 0.9525843614660034,
+        "SE mean": 0.12448600852223131,
+        "Confidence lower": 0.7106856045055434,
+        "Confidence upper": 1.1944831184264635,
+        "Prediction lower": 0.311977975037963,
+        "Prediction upper": 1.593190747894044,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.2,
+        "Predicted": 1.2016473931227751,
+        "SE mean": 0.119563504485046,
+        "Confidence lower": 0.9693139489381306,
+        "Confidence upper": 1.4339808373074197,
+        "Prediction lower": 0.5645913806716913,
+        "Prediction upper": 1.838703405573859,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.4,
+        "Predicted": 1.4507104247795468,
+        "SE mean": 0.11532849271318377,
+        "Confidence lower": 1.2266063719577351,
+        "Confidence upper": 1.6748144776013585,
+        "Prediction lower": 0.8166093601182914,
+        "Prediction upper": 2.0848114894408023,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.6000000000000001,
+        "Predicted": 1.6997734564363185,
+        "SE mean": 0.11185908634547685,
+        "Confidence lower": 1.4824110856533292,
+        "Confidence upper": 1.9171358272193078,
+        "Prediction lower": 1.0680235581808635,
+        "Prediction upper": 2.3315233546917735,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.8,
+        "Predicted": 1.9488364880930902,
+        "SE mean": 0.10922826330394304,
+        "Confidence lower": 1.7365862807659347,
+        "Confidence upper": 2.161086695420246,
+        "Prediction lower": 1.3188272149678475,
+        "Prediction upper": 2.578845761218333,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.0,
+        "Predicted": 2.197899519749862,
+        "SE mean": 0.10749760997597517,
+        "Confidence lower": 1.9890122838420217,
+        "Confidence upper": 2.406786755657702,
+        "Prediction lower": 1.5690152608924837,
+        "Prediction upper": 2.82678377860724,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.2000000000000002,
+        "Predicted": 2.4469625514066338,
+        "SE mean": 0.10671093260064282,
+        "Confidence lower": 2.239603971461667,
+        "Confidence upper": 2.6543211313516006,
+        "Prediction lower": 1.818584389476917,
+        "Prediction upper": 3.0753407133363506,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.4000000000000001,
+        "Predicted": 2.6960255830634052,
+        "SE mean": 0.10688907550471047,
+        "Confidence lower": 2.4883208393401404,
+        "Confidence upper": 2.90373032678667,
+        "Prediction lower": 2.067533105559877,
+        "Prediction upper": 3.3245180605669336,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.6,
+        "Predicted": 2.945088614720177,
+        "SE mean": 0.10802726566846518,
+        "Confidence lower": 2.735172162315228,
+        "Confidence upper": 3.1550050671251264,
+        "Prediction lower": 2.3158617472839116,
+        "Prediction upper": 3.5743154821564427,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.8,
+        "Predicted": 3.194151646376949,
+        "SE mean": 0.1100957316754801,
+        "Confidence lower": 2.980215791616252,
+        "Confidence upper": 3.408087501137646,
+        "Prediction lower": 2.563572481112534,
+        "Prediction upper": 3.824730811641364,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.0,
+        "Predicted": 3.44321467803372,
+        "SE mean": 0.11304341855373168,
+        "Confidence lower": 3.223550936258071,
+        "Confidence upper": 3.662878419809369,
+        "Prediction lower": 2.810669270047657,
+        "Prediction upper": 4.075760086019783,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.2,
+        "Predicted": 3.692277709690492,
+        "SE mean": 0.11680378060349642,
+        "Confidence lower": 3.465306906532142,
+        "Confidence upper": 3.919248512848842,
+        "Prediction lower": 3.0571578161272983,
+        "Prediction upper": 4.327397603253686,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.4000000000000004,
+        "Predicted": 3.941340741347264,
+        "SE mean": 0.12130126210401102,
+        "Confidence lower": 3.7056305208251312,
+        "Confidence upper": 4.177050961869396,
+        "Prediction lower": 3.303045479127679,
+        "Prediction upper": 4.579636003566849,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.6,
+        "Predicted": 4.190403773004036,
+        "SE mean": 0.12645724001646932,
+        "Confidence lower": 3.9446745578756417,
+        "Confidence upper": 4.43613298813243,
+        "Prediction lower": 3.548341174123683,
+        "Prediction upper": 4.832466371884388,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.8000000000000003,
+        "Predicted": 4.439466804660808,
+        "SE mean": 0.13219468694671727,
+        "Confidence lower": 4.182588695797053,
+        "Confidence upper": 4.6963449135245625,
+        "Prediction lower": 3.7930552511387536,
+        "Prediction upper": 5.085878358182861,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.0,
+        "Predicted": 4.688529836317579,
+        "SE mean": 0.1384413280097346,
+        "Confidence lower": 4.419513377720711,
+        "Confidence upper": 4.957546294914446,
+        "Prediction lower": 4.037199360514875,
+        "Prediction upper": 5.339860312120282,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.2,
+        "Predicted": 4.937592867974351,
+        "SE mean": 0.14513142900508483,
+        "Confidence lower": 4.655576337048663,
+        "Confidence upper": 5.2196093989000385,
+        "Prediction lower": 4.280786307845164,
+        "Prediction upper": 5.594399428103538,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.4000000000000004,
+        "Predicted": 5.1866558996311225,
+        "SE mean": 0.15220652551325692,
+        "Confidence lower": 4.890891180688012,
+        "Confidence upper": 5.482420618574233,
+        "Prediction lower": 4.523829902340074,
+        "Prediction upper": 5.849481896922171,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.6,
+        "Predicted": 5.435718931287894,
+        "SE mean": 0.15961542993200306,
+        "Confidence lower": 5.125557375378054,
+        "Confidence upper": 5.745880487197735,
+        "Prediction lower": 4.76634480236014,
+        "Prediction upper": 6.105093060215649,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.8000000000000003,
+        "Predicted": 5.684781962944666,
+        "SE mean": 0.16731380360191242,
+        "Confidence lower": 5.359661079127419,
+        "Confidence upper": 6.009902846761913,
+        "Prediction lower": 5.008346361569721,
+        "Prediction upper": 6.361217564319611,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.0,
+        "Predicted": 5.933844994601437,
+        "SE mean": 0.17526350623818168,
+        "Confidence lower": 5.593276405385431,
+        "Confidence upper": 6.274413583817443,
+        "Prediction lower": 5.249850478779887,
+        "Prediction upper": 6.6178395104229875,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.0,
+        "Predicted": 3.785380020168409,
+        "SE mean": 0.20575744760807166,
+        "Confidence lower": 3.3855562054072434,
+        "Confidence upper": 4.185203834929575,
+        "Prediction lower": 3.0700335191190593,
+        "Prediction upper": 4.500726521217759,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.3,
+        "Predicted": 4.1589745676535665,
+        "SE mean": 0.195378482069346,
+        "Confidence lower": 3.7793189540594003,
+        "Confidence upper": 4.538630181247733,
+        "Prediction lower": 3.454701950944001,
+        "Prediction upper": 4.863247184363132,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.6,
+        "Predicted": 4.532569115138724,
+        "SE mean": 0.18567214392527148,
+        "Confidence lower": 4.171774666422137,
+        "Confidence upper": 4.893363563855311,
+        "Prediction lower": 3.8382823098931667,
+        "Prediction upper": 5.226855920384281,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.8999999999999999,
+        "Predicted": 4.906163662623881,
+        "SE mean": 0.1767492816631606,
+        "Confidence lower": 4.562707943900782,
+        "Confidence upper": 5.249619381346981,
+        "Prediction lower": 4.2207270394142835,
+        "Prediction upper": 5.591600285833479,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.2,
+        "Predicted": 5.279758210109039,
+        "SE mean": 0.168734234438751,
+        "Confidence lower": 4.9518771730998115,
+        "Confidence upper": 5.607639247118266,
+        "Prediction lower": 4.6019916513709855,
+        "Prediction upper": 5.957524768847092,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.5,
+        "Predicted": 5.653352757594197,
+        "SE mean": 0.16176200091298043,
+        "Confidence lower": 5.339020027283395,
+        "Confidence upper": 5.967685487904999,
+        "Prediction lower": 4.982035694606804,
+        "Prediction upper": 6.32466982058159,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.7999999999999998,
+        "Predicted": 6.026947305079354,
+        "SE mean": 0.155972490432327,
+        "Confidence lower": 5.7238646373683935,
+        "Confidence upper": 6.330029972790314,
+        "Prediction lower": 5.360823715060078,
+        "Prediction upper": 6.6930708950986295,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.1,
+        "Predicted": 6.400541852564512,
+        "SE mean": 0.15150135434544856,
+        "Confidence lower": 6.1061474083290745,
+        "Confidence upper": 6.694936296799949,
+        "Prediction lower": 5.738326160731354,
+        "Prediction upper": 7.06275754439767,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.4,
+        "Predicted": 6.774136400049669,
+        "SE mean": 0.14846774979738722,
+        "Confidence lower": 6.4856367963509065,
+        "Confidence upper": 7.062636003748432,
+        "Prediction lower": 6.114520182050355,
+        "Prediction upper": 7.433752618048984,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.6999999999999997,
+        "Predicted": 7.147730947534827,
+        "SE mean": 0.1469607255556584,
+        "Confidence lower": 6.86215976362485,
+        "Confidence upper": 7.433302131444804,
+        "Prediction lower": 6.489390279800316,
+        "Prediction upper": 7.806071615269338,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.0,
+        "Predicted": 7.521325495019984,
+        "SE mean": 0.14702723130883982,
+        "Confidence lower": 7.235625078441884,
+        "Confidence upper": 7.8070259115980845,
+        "Prediction lower": 6.862928759194027,
+        "Prediction upper": 8.179722230845941,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.3,
+        "Predicted": 7.894920042505142,
+        "SE mean": 0.14866515530342747,
+        "Confidence lower": 7.606036844319776,
+        "Confidence upper": 8.183803240690507,
+        "Prediction lower": 7.235135959712005,
+        "Prediction upper": 8.55470412529828,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.5999999999999996,
+        "Predicted": 8.2685145899903,
+        "SE mean": 0.15182364710740187,
+        "Confidence lower": 7.973493872815282,
+        "Confidence upper": 8.563535307165317,
+        "Prediction lower": 7.606020244900594,
+        "Prediction upper": 8.931008935080005,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.9,
+        "Predicted": 8.642109137475458,
+        "SE mean": 0.15641061666378392,
+        "Confidence lower": 8.338175111511156,
+        "Confidence upper": 8.94604316343976,
+        "Prediction lower": 7.975597752837322,
+        "Prediction upper": 9.308620522113594,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.2,
+        "Predicted": 9.015703684960615,
+        "SE mean": 0.16230499670019097,
+        "Confidence lower": 8.700315815943702,
+        "Confidence upper": 9.331091553977528,
+        "Prediction lower": 8.34389192439341,
+        "Prediction upper": 9.687515445527819,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.5,
+        "Predicted": 9.389298232445771,
+        "SE mean": 0.16937034175765367,
+        "Confidence lower": 9.060181124238161,
+        "Confidence upper": 9.718415340653381,
+        "Prediction lower": 8.710932840766393,
+        "Prediction upper": 10.06766362412515,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.8,
+        "Predicted": 9.76289277993093,
+        "SE mean": 0.17746685083392724,
+        "Confidence lower": 9.41804269494529,
+        "Confidence upper": 10.107742864916569,
+        "Prediction lower": 9.076756412414984,
+        "Prediction upper": 10.449029147446875,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.1,
+        "Predicted": 10.136487327416088,
+        "SE mean": 0.18646024613109877,
+        "Confidence lower": 9.774161454034108,
+        "Confidence upper": 10.498813200798068,
+        "Prediction lower": 9.441403467557874,
+        "Prediction upper": 10.831571187274301,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.3999999999999995,
+        "Predicted": 10.510081874901244,
+        "SE mean": 0.1962272493671051,
+        "Confidence lower": 10.128776953431327,
+        "Confidence upper": 10.891386796371162,
+        "Prediction lower": 9.8049187896149,
+        "Prediction upper": 11.215244960187588,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.7,
+        "Predicted": 10.883676422386403,
+        "SE mean": 0.20665820372209218,
+        "Confidence lower": 10.482102276106918,
+        "Confidence upper": 11.285250568665887,
+        "Prediction lower": 10.167350149886593,
+        "Prediction upper": 11.600002694886212,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 6.0,
+        "Predicted": 11.25727096987156,
+        "SE mean": 0.21765767319728246,
+        "Confidence lower": 10.834322871411755,
+        "Confidence upper": 11.680219068331363,
+        "Prediction lower": 10.528747375398368,
+        "Prediction upper": 11.98579456434475,
+        "df": 6,
+        "k": 1
+      }
+    ],
+    "queries": [
+      {
+        "Source row": 0,
+        "Group": "A",
+        "X": 1.5,
+        "k": 1,
+        "Predicted": 2.8205570988917907,
+        "SE mean": 0.10733946968638022,
+        "Confidence lower": 2.6119771580762463,
+        "Confidence upper": 3.029137039707335,
+        "Prediction lower": 2.1917748429207813,
+        "Prediction upper": 3.4493393548628,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 1,
+        "Group": "B",
+        "X": 3.0,
+        "k": 4,
+        "Predicted": 7.521325495019984,
+        "SE mean": 0.14702723130883982,
+        "Confidence lower": 7.235625078441884,
+        "Confidence upper": 7.8070259115980845,
+        "Prediction lower": 7.109512295302875,
+        "Prediction upper": 7.933138694737093,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 2,
+        "Group": "A",
+        "X": 0.0,
+        "k": 9,
+        "Predicted": 0.9525843614660034,
+        "SE mean": 0.12448600852223131,
+        "Confidence lower": 0.7106856045055434,
+        "Confidence upper": 1.1944831184264635,
+        "Prediction lower": 0.6401571946140017,
+        "Prediction upper": 1.2650115283180052,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 3,
+        "Group": "B",
+        "X": 6.0,
+        "k": 1,
+        "Predicted": 11.25727096987156,
+        "SE mean": 0.21765767319728246,
+        "Confidence lower": 10.834322871411755,
+        "Confidence upper": 11.680219068331363,
+        "Prediction lower": 10.528747375398368,
+        "Prediction upper": 11.98579456434475,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 4,
+        "Group": "A",
+        "X": 4.5,
+        "k": 1,
+        "Predicted": 6.556502573743367,
+        "SE mean": 0.19603439739860404,
+        "Confidence lower": 6.1755723984156985,
+        "Confidence upper": 6.937432749071035,
+        "Prediction lower": 5.851542055566253,
+        "Prediction upper": 7.26146309192048,
+        "df": 6,
+        "Status": "Outside domain"
+      },
+      {
+        "Source row": 5,
+        "Group": "Z",
+        "X": 2.0,
+        "k": 1,
+        "Status": "Unknown group"
+      },
+      {
+        "Source row": 6,
+        "Group": "A",
+        "X": null,
+        "k": 1,
+        "Status": "Missing X"
+      },
+      {
+        "Source row": 7,
+        "Group": null,
+        "X": 1.0,
+        "k": 1,
+        "Status": "Missing group"
+      },
+      {
+        "Source row": 8,
+        "Group": "A",
+        "X": 1.5,
+        "k": 4,
+        "Predicted": 2.8205570988917907,
+        "SE mean": 0.10733946968638022,
+        "Confidence lower": 2.6119771580762463,
+        "Confidence upper": 3.029137039707335,
+        "Prediction lower": 2.4579678338287447,
+        "Prediction upper": 3.1831463639548367,
+        "df": 6,
+        "Status": "OK"
+      }
+    ],
+    "exact": {
+      "theta": [
+        "3142005139/3298400925",
+        "832380064/219893395",
+        "273836578/219893395"
+      ],
+      "rss": "1216560567300721348/2175889732408171125",
+      "wsse": "320844351049/5937121665000000000000000000",
+      "normal_inverse": [
+        [
+          "75668664000000000000000/43978679",
+          "45187200000000000000000/43978679",
+          "-15925680000000000000000/43978679"
+        ],
+        [
+          "45187200000000000000000/43978679",
+          "206721720000000000000000/43978679",
+          "-35773200000000000000000/43978679"
+        ],
+        [
+          "-15925680000000000000000/43978679",
+          "-35773200000000000000000/43978679",
+          "12607830000000000000000/43978679"
+        ]
+      ]
+    },
+    "coords": [
+      [
+        "A",
+        "A"
+      ],
+      [
+        "A",
+        "B"
+      ],
+      [
+        "B",
+        null
+      ]
+    ]
+  },
+  "linear-small-y": {
+    "df": 6,
+    "rss": 4.909999999999993e-25,
+    "wsse": 4.909999999999993e-25,
+    "theta": [
+      9.8e-13,
+      3.64e-12,
+      1.2699999999999998e-12
+    ],
+    "covariance": [
+      [
+        2.7277777777777745e-26,
+        1.6366666666666646e-26,
+        -5.4555555555555485e-27
+      ],
+      [
+        1.6366666666666646e-26,
+        4.5008333333333275e-26,
+        -8.183333333333323e-27
+      ],
+      [
+        -5.4555555555555485e-27,
+        -8.183333333333323e-27,
+        2.7277777777777742e-27
+      ]
+    ],
+    "level": 90.0,
+    "curves": [
+      {
+        "Group": "A",
+        "X": 0.0,
+        "Predicted": 9.8e-13,
+        "SE mean": 1.6515985522449982e-13,
+        "Confidence lower": 6.590646261949895e-13,
+        "Confidence upper": 1.3009353738050106e-12,
+        "Prediction lower": 3.381292523899789e-13,
+        "Prediction upper": 1.6218707476100212e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.2,
+        "Predicted": 1.234e-12,
+        "SE mean": 1.5875977660184156e-13,
+        "Confidence lower": 9.255011327682865e-13,
+        "Confidence upper": 1.5424988672317135e-12,
+        "Prediction lower": 5.982562673833614e-13,
+        "Prediction upper": 1.8697437326166385e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.4,
+        "Predicted": 1.4880000000000001e-12,
+        "SE mean": 1.5280634076430778e-13,
+        "Confidence lower": 1.1910697318890953e-12,
+        "Confidence upper": 1.784930268110905e-12,
+        "Prediction lower": 8.577888238070516e-13,
+        "Prediction upper": 2.1182111761929487e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.6000000000000001,
+        "Predicted": 1.742e-12,
+        "SE mean": 1.4735369391742808e-13,
+        "Confidence lower": 1.455665207718566e-12,
+        "Confidence upper": 2.0283347922814344e-12,
+        "Prediction lower": 1.116711142151935e-12,
+        "Prediction upper": 2.3672888578480653e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.8,
+        "Predicted": 1.996e-12,
+        "SE mean": 1.42459350927437e-13,
+        "Confidence lower": 1.7191757985027948e-12,
+        "Confidence upper": 2.272824201497205e-12,
+        "Prediction lower": 1.3750087110009909e-12,
+        "Prediction upper": 2.616991288999009e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.0,
+        "Predicted": 2.25e-12,
+        "SE mean": 1.381826488544941e-13,
+        "Confidence lower": 1.981486201636576e-12,
+        "Confidence upper": 2.5185137983634237e-12,
+        "Prediction lower": 1.6326684825884563e-12,
+        "Prediction upper": 2.8673315174115433e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.2000000000000002,
+        "Predicted": 2.504e-12,
+        "SE mean": 1.3458248193745137e-13,
+        "Confidence lower": 2.2424819749963373e-12,
+        "Confidence upper": 2.7655180250036623e-12,
+        "Prediction lower": 1.8896790579184998e-12,
+        "Prediction upper": 3.1183209420815e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.4000000000000001,
+        "Predicted": 2.758e-12,
+        "SE mean": 1.3171433736183257e-13,
+        "Confidence lower": 2.5020552969773468e-12,
+        "Confidence upper": 3.0139447030226535e-12,
+        "Prediction lower": 2.146030855775032e-12,
+        "Prediction upper": 3.3699691442249682e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.6,
+        "Predicted": 3.0119999999999997e-12,
+        "SE mean": 1.2962681478425323e-13,
+        "Confidence lower": 2.760111729685229e-12,
+        "Confidence upper": 3.2638882703147702e-12,
+        "Prediction lower": 2.4017162600885935e-12,
+        "Prediction upper": 3.622283739911406e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.8,
+        "Predicted": 3.266e-12,
+        "SE mean": 1.283580062862374e-13,
+        "Confidence lower": 3.016577253338324e-12,
+        "Confidence upper": 3.515422746661676e-12,
+        "Prediction lower": 2.6567297405663557e-12,
+        "Prediction upper": 3.875270259433645e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.0,
+        "Predicted": 3.5199999999999995e-12,
+        "SE mean": 1.2793227374930318e-13,
+        "Confidence lower": 3.271404528408868e-12,
+        "Confidence upper": 3.768595471591131e-12,
+        "Prediction lower": 2.9110679422351757e-12,
+        "Prediction upper": 4.128932057764824e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.2,
+        "Predicted": 3.774e-12,
+        "SE mean": 1.283580062862374e-13,
+        "Confidence lower": 3.524577253338324e-12,
+        "Confidence upper": 4.023422746661676e-12,
+        "Prediction lower": 3.1647297405663555e-12,
+        "Prediction upper": 4.383270259433644e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.4000000000000004,
+        "Predicted": 4.028e-12,
+        "SE mean": 1.2962681478425323e-13,
+        "Confidence lower": 3.776111729685229e-12,
+        "Confidence upper": 4.279888270314771e-12,
+        "Prediction lower": 3.417716260088594e-12,
+        "Prediction upper": 4.6382837399114064e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.6,
+        "Predicted": 4.282e-12,
+        "SE mean": 1.317143373618326e-13,
+        "Confidence lower": 4.026055296977347e-12,
+        "Confidence upper": 4.537944703022653e-12,
+        "Prediction lower": 3.670030855775031e-12,
+        "Prediction upper": 4.893969144224968e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.8000000000000003,
+        "Predicted": 4.536e-12,
+        "SE mean": 1.3458248193745137e-13,
+        "Confidence lower": 4.2744819749963376e-12,
+        "Confidence upper": 4.7975180250036625e-12,
+        "Prediction lower": 3.9216790579185e-12,
+        "Prediction upper": 5.1503209420815e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.0,
+        "Predicted": 4.7899999999999996e-12,
+        "SE mean": 1.381826488544941e-13,
+        "Confidence lower": 4.521486201636576e-12,
+        "Confidence upper": 5.058513798363423e-12,
+        "Prediction lower": 4.172668482588456e-12,
+        "Prediction upper": 5.4073315174115434e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.2,
+        "Predicted": 5.044e-12,
+        "SE mean": 1.42459350927437e-13,
+        "Confidence lower": 4.767175798502795e-12,
+        "Confidence upper": 5.320824201497205e-12,
+        "Prediction lower": 4.423008711000991e-12,
+        "Prediction upper": 5.664991288999009e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.4000000000000004,
+        "Predicted": 5.298e-12,
+        "SE mean": 1.473536939174281e-13,
+        "Confidence lower": 5.011665207718566e-12,
+        "Confidence upper": 5.5843347922814346e-12,
+        "Prediction lower": 4.672711142151935e-12,
+        "Prediction upper": 5.923288857848065e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.6,
+        "Predicted": 5.552e-12,
+        "SE mean": 1.5280634076430778e-13,
+        "Confidence lower": 5.255069731889095e-12,
+        "Confidence upper": 5.8489302681109046e-12,
+        "Prediction lower": 4.9217888238070516e-12,
+        "Prediction upper": 6.182211176192948e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.8000000000000003,
+        "Predicted": 5.806e-12,
+        "SE mean": 1.5875977660184156e-13,
+        "Confidence lower": 5.497501132768286e-12,
+        "Confidence upper": 6.114498867231714e-12,
+        "Prediction lower": 5.1702562673833614e-12,
+        "Prediction upper": 6.441743732616639e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.0,
+        "Predicted": 6.06e-12,
+        "SE mean": 1.6515985522449982e-13,
+        "Confidence lower": 5.739064626194989e-12,
+        "Confidence upper": 6.38093537380501e-12,
+        "Prediction lower": 5.4181292523899785e-12,
+        "Prediction upper": 6.701870747610021e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.0,
+        "Predicted": 3.64e-12,
+        "SE mean": 2.1215167530173613e-13,
+        "Confidence lower": 3.2277510480753806e-12,
+        "Confidence upper": 4.052248951924619e-12,
+        "Prediction lower": 2.947939496256987e-12,
+        "Prediction upper": 4.332060503743013e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.3,
+        "Predicted": 4.021e-12,
+        "SE mean": 2.0085774402131794e-13,
+        "Confidence lower": 3.630697192628984e-12,
+        "Confidence upper": 4.411302807371016e-12,
+        "Prediction lower": 3.3417836692777612e-12,
+        "Prediction upper": 4.700216330722239e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.6,
+        "Predicted": 4.402e-12,
+        "SE mean": 1.9018499765579116e-13,
+        "Confidence lower": 4.032436262905417e-12,
+        "Confidence upper": 4.771563737094583e-12,
+        "Prediction lower": 3.734485282369445e-12,
+        "Prediction upper": 5.069514717630555e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.8999999999999999,
+        "Predicted": 4.782999999999999e-12,
+        "SE mean": 1.802438163525542e-13,
+        "Confidence lower": 4.432753770378894e-12,
+        "Confidence upper": 5.133246229621104e-12,
+        "Prediction lower": 4.12598328496005e-12,
+        "Prediction upper": 5.440016715039948e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.2,
+        "Predicted": 5.163999999999999e-12,
+        "SE mean": 1.7116171690343988e-13,
+        "Confidence lower": 4.831401926934092e-12,
+        "Confidence upper": 5.496598073065907e-12,
+        "Prediction lower": 4.516219156901625e-12,
+        "Prediction upper": 5.8117808430983735e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.5,
+        "Predicted": 5.5449999999999995e-12,
+        "SE mean": 1.630822900664977e-13,
+        "Confidence lower": 5.228101709841505e-12,
+        "Confidence upper": 5.861898290158494e-12,
+        "Prediction lower": 4.905138242443366e-12,
+        "Prediction upper": 6.184861757556633e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.7999999999999998,
+        "Predicted": 5.925999999999999e-12,
+        "SE mean": 1.5616124145681379e-13,
+        "Confidence lower": 5.622550555020329e-12,
+        "Confidence upper": 6.229449444979668e-12,
+        "Prediction lower": 5.292691143172183e-12,
+        "Prediction upper": 6.559308856827815e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.1,
+        "Predicted": 6.307e-12,
+        "SE mean": 1.5055840505708507e-13,
+        "Confidence lower": 6.014437876227236e-12,
+        "Confidence upper": 6.599562123772763e-12,
+        "Prediction lower": 5.678835102266518e-12,
+        "Prediction upper": 6.935164897733481e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.4,
+        "Predicted": 6.687999999999999e-12,
+        "SE mean": 1.4642517998395394e-13,
+        "Confidence lower": 6.403469477684275e-12,
+        "Confidence upper": 6.972530522315723e-12,
+        "Prediction lower": 6.06353530075164e-12,
+        "Prediction upper": 7.312464699248359e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.6999999999999997,
+        "Predicted": 7.068999999999999e-12,
+        "SE mean": 1.4388826683692215e-13,
+        "Confidence lower": 6.789399157284968e-12,
+        "Confidence upper": 7.348600842715031e-12,
+        "Prediction lower": 6.4467659815430836e-12,
+        "Prediction upper": 7.691234018456915e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.0,
+        "Predicted": 7.449999999999999e-12,
+        "SE mean": 1.4303263030977688e-13,
+        "Confidence lower": 7.172061813311805e-12,
+        "Confidence upper": 7.727938186688193e-12,
+        "Prediction lower": 6.82851132102217e-12,
+        "Prediction upper": 8.071488678977828e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.3,
+        "Predicted": 7.831e-12,
+        "SE mean": 1.4388826683692213e-13,
+        "Confidence lower": 7.551399157284967e-12,
+        "Confidence upper": 8.110600842715031e-12,
+        "Prediction lower": 7.208765981543084e-12,
+        "Prediction upper": 8.453234018456915e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.5999999999999996,
+        "Predicted": 8.211999999999998e-12,
+        "SE mean": 1.464251799839539e-13,
+        "Confidence lower": 7.927469477684275e-12,
+        "Confidence upper": 8.49653052231572e-12,
+        "Prediction lower": 7.587535300751638e-12,
+        "Prediction upper": 8.836464699248358e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.9,
+        "Predicted": 8.593e-12,
+        "SE mean": 1.505584050570851e-13,
+        "Confidence lower": 8.300437876227235e-12,
+        "Confidence upper": 8.885562123772764e-12,
+        "Prediction lower": 7.964835102266517e-12,
+        "Prediction upper": 9.221164897733482e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.2,
+        "Predicted": 8.974e-12,
+        "SE mean": 1.561612414568138e-13,
+        "Confidence lower": 8.670550555020329e-12,
+        "Confidence upper": 9.27744944497967e-12,
+        "Prediction lower": 8.340691143172183e-12,
+        "Prediction upper": 9.607308856827816e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.5,
+        "Predicted": 9.355e-12,
+        "SE mean": 1.630822900664977e-13,
+        "Confidence lower": 9.038101709841504e-12,
+        "Confidence upper": 9.671898290158495e-12,
+        "Prediction lower": 8.715138242443367e-12,
+        "Prediction upper": 9.994861757556632e-12,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.8,
+        "Predicted": 9.735999999999998e-12,
+        "SE mean": 1.7116171690343985e-13,
+        "Confidence lower": 9.40340192693409e-12,
+        "Confidence upper": 1.0068598073065906e-11,
+        "Prediction lower": 9.088219156901624e-12,
+        "Prediction upper": 1.0383780843098372e-11,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.1,
+        "Predicted": 1.0116999999999998e-11,
+        "SE mean": 1.802438163525542e-13,
+        "Confidence lower": 9.766753770378892e-12,
+        "Confidence upper": 1.0467246229621104e-11,
+        "Prediction lower": 9.459983284960049e-12,
+        "Prediction upper": 1.0774016715039947e-11,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.3999999999999995,
+        "Predicted": 1.0497999999999998e-11,
+        "SE mean": 1.9018499765579113e-13,
+        "Confidence lower": 1.0128436262905415e-11,
+        "Confidence upper": 1.0867563737094581e-11,
+        "Prediction lower": 9.830485282369444e-12,
+        "Prediction upper": 1.1165514717630553e-11,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.7,
+        "Predicted": 1.0879e-11,
+        "SE mean": 2.0085774402131794e-13,
+        "Confidence lower": 1.0488697192628984e-11,
+        "Confidence upper": 1.1269302807371016e-11,
+        "Prediction lower": 1.0199783669277761e-11,
+        "Prediction upper": 1.1558216330722239e-11,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 6.0,
+        "Predicted": 1.1259999999999998e-11,
+        "SE mean": 2.1215167530173613e-13,
+        "Confidence lower": 1.084775104807538e-11,
+        "Confidence upper": 1.1672248951924618e-11,
+        "Prediction lower": 1.0567939496256985e-11,
+        "Prediction upper": 1.1952060503743012e-11,
+        "df": 6,
+        "k": 1
+      }
+    ],
+    "queries": [
+      {
+        "Source row": 0,
+        "Group": "A",
+        "X": 1.5,
+        "k": 1,
+        "Predicted": 2.885e-12,
+        "SE mean": 1.305703301332699e-13,
+        "Confidence lower": 2.6312783092646566e-12,
+        "Confidence upper": 3.1387216907353432e-12,
+        "Prediction lower": 2.273957252863855e-12,
+        "Prediction upper": 3.496042747136145e-12,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 1,
+        "Group": "B",
+        "X": 3.0,
+        "k": 4,
+        "Predicted": 7.449999999999999e-12,
+        "SE mean": 1.4303263030977688e-13,
+        "Confidence lower": 7.172061813311805e-12,
+        "Confidence upper": 7.727938186688193e-12,
+        "Prediction lower": 7.0569360468841695e-12,
+        "Prediction upper": 7.843063953115828e-12,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 2,
+        "Group": "A",
+        "X": 0.0,
+        "k": 9,
+        "Predicted": 9.8e-13,
+        "SE mean": 1.6515985522449982e-13,
+        "Confidence lower": 6.590646261949895e-13,
+        "Confidence upper": 1.3009353738050106e-12,
+        "Prediction lower": 6.094157510824081e-13,
+        "Prediction upper": 1.350584248917592e-12,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 3,
+        "Group": "B",
+        "X": 6.0,
+        "k": 1,
+        "Predicted": 1.1259999999999998e-11,
+        "SE mean": 2.1215167530173613e-13,
+        "Confidence lower": 1.084775104807538e-11,
+        "Confidence upper": 1.1672248951924618e-11,
+        "Prediction lower": 1.0567939496256985e-11,
+        "Prediction upper": 1.1952060503743012e-11,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 4,
+        "Group": "A",
+        "X": 4.5,
+        "k": 1,
+        "Predicted": 6.694999999999999e-12,
+        "SE mean": 1.8279846218657785e-13,
+        "Confidence lower": 6.339789632970518e-12,
+        "Confidence upper": 7.05021036702948e-12,
+        "Prediction lower": 6.035323604088107e-12,
+        "Prediction upper": 7.354676395911892e-12,
+        "df": 6,
+        "Status": "Outside domain"
+      },
+      {
+        "Source row": 5,
+        "Group": "Z",
+        "X": 2.0,
+        "k": 1,
+        "Status": "Unknown group"
+      },
+      {
+        "Source row": 6,
+        "Group": "A",
+        "X": null,
+        "k": 1,
+        "Status": "Missing X"
+      },
+      {
+        "Source row": 7,
+        "Group": null,
+        "X": 1.0,
+        "k": 1,
+        "Status": "Missing group"
+      },
+      {
+        "Source row": 8,
+        "Group": "A",
+        "X": 1.5,
+        "k": 4,
+        "Predicted": 2.885e-12,
+        "SE mean": 1.305703301332699e-13,
+        "Confidence lower": 2.6312783092646566e-12,
+        "Confidence upper": 3.1387216907353432e-12,
+        "Prediction lower": 2.5086699162050385e-12,
+        "Prediction upper": 3.2613300837949614e-12,
+        "df": 6,
+        "Status": "OK"
+      }
+    ],
+    "exact": {
+      "theta": [
+        "6125000000000001/6250000000000000000000000000",
+        "22749999999999999/6250000000000000000000000000",
+        "15874999999999999/12500000000000000000000000000"
+      ],
+      "rss": "30687499999999961000000000000033/62500000000000000000000000000000000000000000000000000000",
+      "wsse": "30687499999999961000000000000033/62500000000000000000000000000000000000000000000000000000",
+      "normal_inverse": [
+        [
+          "1/3",
+          "1/5",
+          "-1/15"
+        ],
+        [
+          "1/5",
+          "11/20",
+          "-1/10"
+        ],
+        [
+          "-1/15",
+          "-1/10",
+          "1/30"
+        ]
+      ]
+    },
+    "coords": [
+      [
+        "A",
+        "A"
+      ],
+      [
+        "A",
+        "B"
+      ],
+      [
+        "B",
+        null
+      ]
+    ]
+  },
+  "linear-empty-label": {
+    "df": 6,
+    "rss": 0.491,
+    "wsse": 0.491,
+    "theta": [
+      0.98,
+      3.64,
+      1.27
+    ],
+    "covariance": [
+      [
+        0.02727777777777778,
+        0.016366666666666668,
+        -0.0054555555555555555
+      ],
+      [
+        0.016366666666666668,
+        0.04500833333333333,
+        -0.008183333333333334
+      ],
+      [
+        -0.0054555555555555555,
+        -0.008183333333333334,
+        0.0027277777777777778
+      ]
+    ],
+    "level": 90.0,
+    "curves": [
+      {
+        "Group": "",
+        "X": 0.0,
+        "Predicted": 0.98,
+        "SE mean": 0.16515985522449994,
+        "Confidence lower": 0.6590646261949892,
+        "Confidence upper": 1.300935373805011,
+        "Prediction lower": 0.3381292523899784,
+        "Prediction upper": 1.6218707476100216,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 0.2,
+        "Predicted": 1.234,
+        "SE mean": 0.15875977660184165,
+        "Confidence lower": 0.9255011327682863,
+        "Confidence upper": 1.5424988672317137,
+        "Prediction lower": 0.598256267383361,
+        "Prediction upper": 1.869743732616639,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 0.4,
+        "Predicted": 1.488,
+        "SE mean": 0.15280634076430788,
+        "Confidence lower": 1.191069731889095,
+        "Confidence upper": 1.784930268110905,
+        "Prediction lower": 0.8577888238070511,
+        "Prediction upper": 2.1182111761929487,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 0.6000000000000001,
+        "Predicted": 1.742,
+        "SE mean": 0.1473536939174282,
+        "Confidence lower": 1.4556652077185657,
+        "Confidence upper": 2.0283347922814343,
+        "Prediction lower": 1.1167111421519347,
+        "Prediction upper": 2.3672888578480653,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 0.8,
+        "Predicted": 1.996,
+        "SE mean": 0.14245935092743708,
+        "Confidence lower": 1.7191757985027947,
+        "Confidence upper": 2.2728242014972055,
+        "Prediction lower": 1.3750087110009905,
+        "Prediction upper": 2.6169912889990092,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 1.0,
+        "Predicted": 2.25,
+        "SE mean": 0.1381826488544942,
+        "Confidence lower": 1.9814862016365762,
+        "Confidence upper": 2.518513798363424,
+        "Prediction lower": 1.632668482588456,
+        "Prediction upper": 2.867331517411544,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 1.2000000000000002,
+        "Predicted": 2.5040000000000004,
+        "SE mean": 0.13458248193745145,
+        "Confidence lower": 2.2424819749963376,
+        "Confidence upper": 2.7655180250036633,
+        "Prediction lower": 1.8896790579184999,
+        "Prediction upper": 3.118320942081501,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 1.4000000000000001,
+        "Predicted": 2.758,
+        "SE mean": 0.13171433736183266,
+        "Confidence lower": 2.5020552969773466,
+        "Confidence upper": 3.0139447030226534,
+        "Prediction lower": 2.1460308557750314,
+        "Prediction upper": 3.3699691442249686,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 1.6,
+        "Predicted": 3.012,
+        "SE mean": 0.12962681478425334,
+        "Confidence lower": 2.7601117296852293,
+        "Confidence upper": 3.2638882703147707,
+        "Prediction lower": 2.4017162600885937,
+        "Prediction upper": 3.6222837399114063,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 1.8,
+        "Predicted": 3.266,
+        "SE mean": 0.12835800628623747,
+        "Confidence lower": 3.016577253338324,
+        "Confidence upper": 3.515422746661676,
+        "Prediction lower": 2.6567297405663552,
+        "Prediction upper": 3.875270259433645,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 2.0,
+        "Predicted": 3.52,
+        "SE mean": 0.12793227374930327,
+        "Confidence lower": 3.271404528408868,
+        "Confidence upper": 3.768595471591132,
+        "Prediction lower": 2.9110679422351757,
+        "Prediction upper": 4.128932057764824,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 2.2,
+        "Predicted": 3.7740000000000005,
+        "SE mean": 0.12835800628623747,
+        "Confidence lower": 3.5245772533383244,
+        "Confidence upper": 4.0234227466616765,
+        "Prediction lower": 3.1647297405663557,
+        "Prediction upper": 4.383270259433646,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 2.4000000000000004,
+        "Predicted": 4.0280000000000005,
+        "SE mean": 0.1296268147842533,
+        "Confidence lower": 3.77611172968523,
+        "Confidence upper": 4.279888270314771,
+        "Prediction lower": 3.417716260088594,
+        "Prediction upper": 4.638283739911406,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 2.6,
+        "Predicted": 4.282,
+        "SE mean": 0.13171433736183266,
+        "Confidence lower": 4.026055296977346,
+        "Confidence upper": 4.537944703022654,
+        "Prediction lower": 3.6700308557750314,
+        "Prediction upper": 4.893969144224968,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 2.8000000000000003,
+        "Predicted": 4.5360000000000005,
+        "SE mean": 0.13458248193745145,
+        "Confidence lower": 4.274481974996338,
+        "Confidence upper": 4.797518025003663,
+        "Prediction lower": 3.9216790579185,
+        "Prediction upper": 5.1503209420815015,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 3.0,
+        "Predicted": 4.79,
+        "SE mean": 0.13818264885449422,
+        "Confidence lower": 4.521486201636576,
+        "Confidence upper": 5.058513798363424,
+        "Prediction lower": 4.172668482588456,
+        "Prediction upper": 5.407331517411544,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 3.2,
+        "Predicted": 5.0440000000000005,
+        "SE mean": 0.14245935092743708,
+        "Confidence lower": 4.767175798502795,
+        "Confidence upper": 5.320824201497206,
+        "Prediction lower": 4.423008711000991,
+        "Prediction upper": 5.66499128899901,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 3.4000000000000004,
+        "Predicted": 5.298,
+        "SE mean": 0.1473536939174282,
+        "Confidence lower": 5.011665207718566,
+        "Confidence upper": 5.584334792281434,
+        "Prediction lower": 4.672711142151934,
+        "Prediction upper": 5.923288857848066,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 3.6,
+        "Predicted": 5.552,
+        "SE mean": 0.15280634076430788,
+        "Confidence lower": 5.255069731889095,
+        "Confidence upper": 5.848930268110904,
+        "Prediction lower": 4.92178882380705,
+        "Prediction upper": 6.182211176192949,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 3.8000000000000003,
+        "Predicted": 5.806000000000001,
+        "SE mean": 0.15875977660184165,
+        "Confidence lower": 5.497501132768287,
+        "Confidence upper": 6.114498867231715,
+        "Prediction lower": 5.170256267383362,
+        "Prediction upper": 6.44174373261664,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "",
+        "X": 4.0,
+        "Predicted": 6.0600000000000005,
+        "SE mean": 0.16515985522449994,
+        "Confidence lower": 5.73906462619499,
+        "Confidence upper": 6.380935373805011,
+        "Prediction lower": 5.418129252389979,
+        "Prediction upper": 6.701870747610022,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.0,
+        "Predicted": 3.64,
+        "SE mean": 0.21215167530173626,
+        "Confidence lower": 3.2277510480753806,
+        "Confidence upper": 4.05224895192462,
+        "Prediction lower": 2.947939496256987,
+        "Prediction upper": 4.332060503743014,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.3,
+        "Predicted": 4.021,
+        "SE mean": 0.20085774402131806,
+        "Confidence lower": 3.630697192628984,
+        "Confidence upper": 4.411302807371016,
+        "Prediction lower": 3.3417836692777607,
+        "Prediction upper": 4.700216330722239,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.6,
+        "Predicted": 4.402,
+        "SE mean": 0.19018499765579128,
+        "Confidence lower": 4.032436262905417,
+        "Confidence upper": 4.771563737094583,
+        "Prediction lower": 3.7344852823694445,
+        "Prediction upper": 5.069514717630556,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.8999999999999999,
+        "Predicted": 4.7829999999999995,
+        "SE mean": 0.18024381635255435,
+        "Confidence lower": 4.432753770378894,
+        "Confidence upper": 5.133246229621105,
+        "Prediction lower": 4.12598328496005,
+        "Prediction upper": 5.440016715039949,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.2,
+        "Predicted": 5.164,
+        "SE mean": 0.17116171690343998,
+        "Confidence lower": 4.831401926934092,
+        "Confidence upper": 5.496598073065908,
+        "Prediction lower": 4.5162191569016255,
+        "Prediction upper": 5.811780843098374,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.5,
+        "Predicted": 5.545,
+        "SE mean": 0.1630822900664978,
+        "Confidence lower": 5.228101709841504,
+        "Confidence upper": 5.8618982901584955,
+        "Prediction lower": 4.905138242443367,
+        "Prediction upper": 6.184861757556633,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.7999999999999998,
+        "Predicted": 5.926,
+        "SE mean": 0.1561612414568139,
+        "Confidence lower": 5.6225505550203305,
+        "Confidence upper": 6.22944944497967,
+        "Prediction lower": 5.292691143172184,
+        "Prediction upper": 6.559308856827816,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.1,
+        "Predicted": 6.307,
+        "SE mean": 0.15055840505708518,
+        "Confidence lower": 6.014437876227237,
+        "Confidence upper": 6.599562123772764,
+        "Prediction lower": 5.678835102266518,
+        "Prediction upper": 6.9351648977334825,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.4,
+        "Predicted": 6.688000000000001,
+        "SE mean": 0.14642517998395402,
+        "Confidence lower": 6.403469477684277,
+        "Confidence upper": 6.972530522315724,
+        "Prediction lower": 6.06353530075164,
+        "Prediction upper": 7.312464699248361,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.6999999999999997,
+        "Predicted": 7.069,
+        "SE mean": 0.1438882668369222,
+        "Confidence lower": 6.789399157284969,
+        "Confidence upper": 7.348600842715031,
+        "Prediction lower": 6.446765981543084,
+        "Prediction upper": 7.691234018456916,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.0,
+        "Predicted": 7.45,
+        "SE mean": 0.14303263030977698,
+        "Confidence lower": 7.172061813311806,
+        "Confidence upper": 7.727938186688195,
+        "Prediction lower": 6.82851132102217,
+        "Prediction upper": 8.071488678977829,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.3,
+        "Predicted": 7.8309999999999995,
+        "SE mean": 0.1438882668369222,
+        "Confidence lower": 7.551399157284968,
+        "Confidence upper": 8.110600842715032,
+        "Prediction lower": 7.208765981543084,
+        "Prediction upper": 8.453234018456916,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.5999999999999996,
+        "Predicted": 8.212,
+        "SE mean": 0.14642517998395402,
+        "Confidence lower": 7.9274694776842765,
+        "Confidence upper": 8.496530522315723,
+        "Prediction lower": 7.5875353007516395,
+        "Prediction upper": 8.83646469924836,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.9,
+        "Predicted": 8.593,
+        "SE mean": 0.15055840505708515,
+        "Confidence lower": 8.300437876227237,
+        "Confidence upper": 8.885562123772763,
+        "Prediction lower": 7.964835102266518,
+        "Prediction upper": 9.221164897733482,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.2,
+        "Predicted": 8.974,
+        "SE mean": 0.15616124145681387,
+        "Confidence lower": 8.67055055502033,
+        "Confidence upper": 9.27744944497967,
+        "Prediction lower": 8.340691143172183,
+        "Prediction upper": 9.607308856827817,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.5,
+        "Predicted": 9.355,
+        "SE mean": 0.1630822900664978,
+        "Confidence lower": 9.038101709841506,
+        "Confidence upper": 9.671898290158495,
+        "Prediction lower": 8.715138242443366,
+        "Prediction upper": 9.994861757556635,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.8,
+        "Predicted": 9.736,
+        "SE mean": 0.17116171690343995,
+        "Confidence lower": 9.403401926934093,
+        "Confidence upper": 10.068598073065909,
+        "Prediction lower": 9.088219156901626,
+        "Prediction upper": 10.383780843098375,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 5.1,
+        "Predicted": 10.116999999999999,
+        "SE mean": 0.1802438163525543,
+        "Confidence lower": 9.766753770378894,
+        "Confidence upper": 10.467246229621104,
+        "Prediction lower": 9.45998328496005,
+        "Prediction upper": 10.774016715039949,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 5.3999999999999995,
+        "Predicted": 10.498,
+        "SE mean": 0.19018499765579122,
+        "Confidence lower": 10.128436262905417,
+        "Confidence upper": 10.867563737094581,
+        "Prediction lower": 9.830485282369445,
+        "Prediction upper": 11.165514717630554,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 5.7,
+        "Predicted": 10.879000000000001,
+        "SE mean": 0.20085774402131806,
+        "Confidence lower": 10.488697192628985,
+        "Confidence upper": 11.269302807371018,
+        "Prediction lower": 10.199783669277762,
+        "Prediction upper": 11.55821633072224,
+        "df": 6,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 6.0,
+        "Predicted": 11.26,
+        "SE mean": 0.21215167530173626,
+        "Confidence lower": 10.84775104807538,
+        "Confidence upper": 11.672248951924619,
+        "Prediction lower": 10.567939496256987,
+        "Prediction upper": 11.952060503743013,
+        "df": 6,
+        "k": 1
+      }
+    ],
+    "queries": [
+      {
+        "Source row": 0,
+        "Group": "",
+        "X": 1.5,
+        "k": 1,
+        "Predicted": 2.885,
+        "SE mean": 0.13057033013327,
+        "Confidence lower": 2.6312783092646566,
+        "Confidence upper": 3.138721690735343,
+        "Prediction lower": 2.2739572528638545,
+        "Prediction upper": 3.496042747136145,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 1,
+        "Group": "A",
+        "X": 3.0,
+        "k": 4,
+        "Predicted": 7.45,
+        "SE mean": 0.14303263030977698,
+        "Confidence lower": 7.172061813311806,
+        "Confidence upper": 7.727938186688195,
+        "Prediction lower": 7.056936046884171,
+        "Prediction upper": 7.84306395311583,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 2,
+        "Group": "",
+        "X": 0.0,
+        "k": 9,
+        "Predicted": 0.98,
+        "SE mean": 0.16515985522449994,
+        "Confidence lower": 0.6590646261949892,
+        "Confidence upper": 1.300935373805011,
+        "Prediction lower": 0.6094157510824076,
+        "Prediction upper": 1.3505842489175923,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 3,
+        "Group": "A",
+        "X": 6.0,
+        "k": 1,
+        "Predicted": 11.26,
+        "SE mean": 0.21215167530173626,
+        "Confidence lower": 10.84775104807538,
+        "Confidence upper": 11.672248951924619,
+        "Prediction lower": 10.567939496256987,
+        "Prediction upper": 11.952060503743013,
+        "df": 6,
+        "Status": "OK"
+      },
+      {
+        "Source row": 4,
+        "Group": "",
+        "X": 4.5,
+        "k": 1,
+        "Predicted": 6.695,
+        "SE mean": 0.18279846218657797,
+        "Confidence lower": 6.339789632970519,
+        "Confidence upper": 7.050210367029481,
+        "Prediction lower": 6.0353236040881075,
+        "Prediction upper": 7.354676395911893,
+        "df": 6,
+        "Status": "Outside domain"
+      },
+      {
+        "Source row": 5,
+        "Group": "Z",
+        "X": 2.0,
+        "k": 1,
+        "Status": "Unknown group"
+      },
+      {
+        "Source row": 6,
+        "Group": "",
+        "X": null,
+        "k": 1,
+        "Status": "Missing X"
+      },
+      {
+        "Source row": 7,
+        "Group": null,
+        "X": 1.0,
+        "k": 1,
+        "Status": "Missing group"
+      },
+      {
+        "Source row": 8,
+        "Group": "",
+        "X": 1.5,
+        "k": 4,
+        "Predicted": 2.885,
+        "SE mean": 0.13057033013327,
+        "Confidence lower": 2.6312783092646566,
+        "Confidence upper": 3.138721690735343,
+        "Prediction lower": 2.5086699162050383,
+        "Prediction upper": 3.2613300837949613,
+        "df": 6,
+        "Status": "OK"
+      }
+    ],
+    "exact": {
+      "theta": [
+        "49/50",
+        "91/25",
+        "127/100"
+      ],
+      "rss": "491/1000",
+      "wsse": "491/1000",
+      "normal_inverse": [
+        [
+          "1/3",
+          "1/5",
+          "-1/15"
+        ],
+        [
+          "1/5",
+          "11/20",
+          "-1/10"
+        ],
+        [
+          "-1/15",
+          "-1/10",
+          "1/30"
+        ]
+      ]
+    },
+    "coords": [
+      [
+        "A",
+        ""
+      ],
+      [
+        "A",
+        "A"
+      ],
+      [
+        "B",
+        null
+      ]
+    ]
+  },
+  "decay-shared": {
+    "df": 13,
+    "rss": 0.4843474069062657,
+    "wsse": 0.4843474069062657,
+    "theta": [
+      7.508756859908808,
+      4.22469020029561,
+      0.2948305102640533
+    ],
+    "covariance": [
+      [
+        0.024665016168608764,
+        0.004230904115789567,
+        0.0008862189890684014
+      ],
+      [
+        0.004230904115789567,
+        0.019111462589948842,
+        0.0004695873886739564
+      ],
+      [
+        0.0008862189890684012,
+        0.00046958738867395634,
+        9.836130753160336e-05
+      ]
+    ],
+    "level": 90.0,
+    "curves": [
+      {
+        "Group": "A",
+        "X": 0.0,
+        "Predicted": 7.508756859908808,
+        "SE mean": 0.15705099862340502,
+        "Confidence lower": 7.230630001573532,
+        "Confidence upper": 7.786883718244084,
+        "Prediction lower": 7.068073653827431,
+        "Prediction upper": 7.949440065990185,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.4,
+        "Predicted": 6.673454998957939,
+        "SE mean": 0.12640606304488314,
+        "Confidence lower": 6.4495982804565335,
+        "Confidence upper": 6.897311717459345,
+        "Prediction lower": 6.2648488692768876,
+        "Prediction upper": 7.0820611286389905,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 0.8,
+        "Predicted": 5.931075203793132,
+        "SE mean": 0.10469291870125927,
+        "Confidence lower": 5.745671017741733,
+        "Confidence upper": 6.11647938984453,
+        "Prediction lower": 5.542202665549439,
+        "Prediction upper": 6.319947742036824,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.2000000000000002,
+        "Predicted": 5.271280480432209,
+        "SE mean": 0.0906672436944287,
+        "Confidence lower": 5.1107148306516645,
+        "Confidence upper": 5.431846130212753,
+        "Prediction lower": 4.893618638721719,
+        "Prediction upper": 5.648942322142698,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1.6,
+        "Predicted": 4.684883760302895,
+        "SE mean": 0.08269753306161014,
+        "Confidence lower": 4.538431937238362,
+        "Confidence upper": 4.831335583367429,
+        "Prediction lower": 4.313003033088328,
+        "Prediction upper": 5.056764487517463,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.0,
+        "Predicted": 4.163719978290776,
+        "SE mean": 0.07887071985348201,
+        "Confidence lower": 4.0240451865367195,
+        "Confidence upper": 4.303394770044832,
+        "Prediction lower": 3.7944555929971906,
+        "Prediction upper": 4.532984363584361,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.4000000000000004,
+        "Predicted": 3.7005323812979447,
+        "SE mean": 0.07740302468430378,
+        "Confidence lower": 3.563456779934115,
+        "Confidence upper": 3.8376079826617744,
+        "Prediction lower": 3.33224328387044,
+        "Prediction upper": 4.068821478725449,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2.8000000000000003,
+        "Predicted": 3.2888714842577036,
+        "SE mean": 0.0769681092619485,
+        "Confidence lower": 3.1525660891397527,
+        "Confidence upper": 3.4251768793756545,
+        "Prediction lower": 2.9208683599055165,
+        "Prediction upper": 3.6568746086098907,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.2,
+        "Predicted": 2.923005266655597,
+        "SE mean": 0.0767436995319304,
+        "Confidence lower": 2.7870972862229193,
+        "Confidence upper": 3.0589132470882747,
+        "Prediction lower": 2.5551491562809026,
+        "Prediction upper": 3.2908613770302915,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3.6,
+        "Predicted": 2.597839359121302,
+        "SE mean": 0.07629211231417522,
+        "Confidence lower": 2.4627311095737476,
+        "Confidence upper": 2.7329476086688564,
+        "Prediction lower": 2.2302779657588943,
+        "Prediction upper": 2.96540075248371,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.0,
+        "Predicted": 2.308846108758979,
+        "SE mean": 0.07542015067256033,
+        "Confidence lower": 2.17528204520258,
+        "Confidence upper": 2.442410172315378,
+        "Prediction lower": 1.9418495176734376,
+        "Prediction upper": 2.6758426998445204,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.4,
+        "Predicted": 2.052001535512407,
+        "SE mean": 0.07407482047705738,
+        "Confidence lower": 1.9208199621278539,
+        "Confidence upper": 2.18318310889696,
+        "Prediction lower": 1.6858652985863727,
+        "Prediction upper": 2.4181377724384414,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4.800000000000001,
+        "Predicted": 1.8237293017370317,
+        "SE mean": 0.07227755034722678,
+        "Confidence lower": 1.6957305740470052,
+        "Confidence upper": 1.9517280294270583,
+        "Prediction lower": 1.458721338693791,
+        "Prediction upper": 2.1887372647802725,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 5.2,
+        "Predicted": 1.6208509148038754,
+        "SE mean": 0.07008563110711803,
+        "Confidence lower": 1.4967339300974638,
+        "Confidence upper": 1.744967899510287,
+        "Prediction lower": 1.257186007660882,
+        "Prediction upper": 1.9845158219468688,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 5.6000000000000005,
+        "Predicted": 1.440541469349806,
+        "SE mean": 0.06757046555806913,
+        "Confidence lower": 1.3208786753106405,
+        "Confidence upper": 1.5602042633889714,
+        "Prediction lower": 1.0783725542397844,
+        "Prediction upper": 1.8027103844598276,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 6.0,
+        "Predicted": 1.2802903129234409,
+        "SE mean": 0.0648056772589666,
+        "Confidence lower": 1.16552377481599,
+        "Confidence upper": 1.3950568510308918,
+        "Prediction lower": 0.9197095354770006,
+        "Prediction upper": 1.640871090369881,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 6.4,
+        "Predicted": 1.1378660873299504,
+        "SE mean": 0.0618608896895329,
+        "Confidence lower": 1.0283145718732967,
+        "Confidence upper": 1.2474176027866042,
+        "Prediction lower": 0.7789111133658615,
+        "Prediction upper": 1.4968210612940394,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 6.800000000000001,
+        "Predicted": 1.011285658905859,
+        "SE mean": 0.058798739655759845,
+        "Confidence lower": 0.9071570072075362,
+        "Confidence upper": 1.1154143106041818,
+        "Prediction lower": 0.6539484023830875,
+        "Prediction upper": 1.3686229154286305,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 7.2,
+        "Predicted": 0.8987865051048861,
+        "SE mean": 0.055673720154046265,
+        "Confidence lower": 0.8001920548052581,
+        "Confidence upper": 0.9973809554045141,
+        "Prediction lower": 0.5430225321894205,
+        "Prediction upper": 1.2545504780203518,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 7.6000000000000005,
+        "Predicted": 0.7988021729020244,
+        "SE mean": 0.05253204092304158,
+        "Confidence lower": 0.705771427272061,
+        "Confidence upper": 0.8918329185319878,
+        "Prediction lower": 0.4445397582611578,
+        "Prediction upper": 1.1530645875428909,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 8.0,
+        "Predicted": 0.7099404672954374,
+        "SE mean": 0.04941203528771733,
+        "Confidence lower": 0.6224350438407369,
+        "Confidence upper": 0.7974458907501378,
+        "Prediction lower": 0.3570887449973922,
+        "Prediction upper": 1.0627921895934827,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.0,
+        "Predicted": 4.22469020029561,
+        "SE mean": 0.13824421358577307,
+        "Confidence lower": 3.9798689056546226,
+        "Confidence upper": 4.469511494936598,
+        "Prediction lower": 3.8042325863743023,
+        "Prediction upper": 4.6451478142169185,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.3,
+        "Predicted": 3.867068705763712,
+        "SE mean": 0.12307673668163015,
+        "Confidence lower": 3.649108002505131,
+        "Confidence upper": 4.085029409022294,
+        "Prediction lower": 3.4616627278111345,
+        "Prediction upper": 4.27247468371629,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.6,
+        "Predicted": 3.539719995101807,
+        "SE mean": 0.11040386493042713,
+        "Confidence lower": 3.3442021036504896,
+        "Confidence upper": 3.7352378865531244,
+        "Prediction lower": 3.145925144104134,
+        "Prediction upper": 3.93351484609948,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.8999999999999999,
+        "Predicted": 3.240081466628364,
+        "SE mean": 0.09988634644628941,
+        "Confidence lower": 3.063189399903515,
+        "Confidence upper": 3.4169735333532127,
+        "Prediction lower": 2.855194545488013,
+        "Prediction upper": 3.624968387768715,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.2,
+        "Predicted": 2.9658074437853017,
+        "SE mean": 0.09120340452761276,
+        "Confidence lower": 2.804292288879652,
+        "Confidence upper": 3.1273225986909514,
+        "Prediction lower": 2.5877409363307184,
+        "Prediction upper": 3.343873951239885,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.5,
+        "Predicted": 2.714750812350856,
+        "SE mean": 0.08405402377361669,
+        "Confidence lower": 2.5658967345830836,
+        "Confidence upper": 2.863604890118628,
+        "Prediction lower": 2.341917504741672,
+        "Prediction upper": 3.08758411996004,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1.7999999999999998,
+        "Predicted": 2.4849462120687655,
+        "SE mean": 0.07816051428439953,
+        "Confidence lower": 2.3465291470750134,
+        "Confidence upper": 2.6233632770625177,
+        "Prediction lower": 2.116155725916811,
+        "Prediction upper": 2.85373669822072,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.1,
+        "Predicted": 2.2745946511118866,
+        "SE mean": 0.07327302548718594,
+        "Confidence lower": 2.1448330032516316,
+        "Confidence upper": 2.4043562989721416,
+        "Prediction lower": 1.9089647507343066,
+        "Prediction upper": 2.640224551489467,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.4,
+        "Predicted": 2.082049422936818,
+        "SE mean": 0.06917344021124353,
+        "Confidence lower": 1.9595478675514257,
+        "Confidence upper": 2.2045509783222106,
+        "Prediction lower": 1.7189326788082242,
+        "Prediction upper": 2.4451661670654117,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2.6999999999999997,
+        "Predicted": 1.9058032152816766,
+        "SE mean": 0.06567744450459054,
+        "Confidence lower": 1.7894928354454227,
+        "Confidence upper": 2.0221135951179305,
+        "Prediction lower": 1.5447280939393666,
+        "Prediction upper": 2.2668783366239866,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.0,
+        "Predicted": 1.7444763103916943,
+        "SE mean": 0.06263430173450127,
+        "Confidence lower": 1.6335551337157475,
+        "Confidence upper": 1.855397487067641,
+        "Prediction lower": 1.3851009547676796,
+        "Prediction upper": 2.103851666015709,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.3,
+        "Predicted": 1.5968057840998218,
+        "SE mean": 0.05992456886103146,
+        "Confidence lower": 1.490683363863706,
+        "Confidence upper": 1.7029282043359375,
+        "Prediction lower": 1.238882458691319,
+        "Prediction upper": 1.9547291095083246,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.5999999999999996,
+        "Predicted": 1.4616356192089146,
+        "SE mean": 0.057456410554965025,
+        "Confidence lower": 1.3598841429435944,
+        "Confidence upper": 1.5633870954742348,
+        "Prediction lower": 1.1049838258349258,
+        "Prediction upper": 1.8182874125829034,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3.9,
+        "Predicted": 1.3379076557795548,
+        "SE mean": 0.05516125384941491,
+        "Confidence lower": 1.2402207491731165,
+        "Confidence upper": 1.4355945623859931,
+        "Prediction lower": 0.982394125070743,
+        "Prediction upper": 1.6934211864883668,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.2,
+        "Predicted": 1.224653307479158,
+        "SE mean": 0.05298939409396725,
+        "Confidence lower": 1.1308126198450417,
+        "Confidence upper": 1.3184939951132741,
+        "Prediction lower": 0.8701773372775741,
+        "Prediction upper": 1.5791292776807417,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.5,
+        "Predicted": 1.1209859791450036,
+        "SE mean": 0.050905951109700004,
+        "Confidence lower": 1.030834930270361,
+        "Confidence upper": 1.2111370280196463,
+        "Prediction lower": 0.7674688644137526,
+        "Prediction upper": 1.4745030938762547,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4.8,
+        "Predicted": 1.0260941262031977,
+        "SE mean": 0.0488873771037728,
+        "Confidence lower": 0.9395178374479225,
+        "Confidence upper": 1.112670414958473,
+        "Prediction lower": 0.6734716757418763,
+        "Prediction upper": 1.378716576664519,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.1,
+        "Predicted": 0.9392349016102293,
+        "SE mean": 0.046918574515972845,
+        "Confidence lower": 0.8561452311077944,
+        "Confidence upper": 1.0223245721126641,
+        "Prediction lower": 0.5874522526081594,
+        "Prediction upper": 1.2910175506122992,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.3999999999999995,
+        "Predicted": 0.8597283405831349,
+        "SE mean": 0.04499059542199767,
+        "Confidence lower": 0.7800529926449851,
+        "Confidence upper": 0.9394036885212846,
+        "Prediction lower": 0.5087364605292288,
+        "Prediction upper": 1.2107202206370409,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5.7,
+        "Predicted": 0.7869520375942773,
+        "SE mean": 0.04309885157399886,
+        "Confidence lower": 0.7106268420132014,
+        "Confidence upper": 0.8632772331753533,
+        "Prediction lower": 0.43670544692536045,
+        "Prediction upper": 1.1371986282631943,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 6.0,
+        "Predicted": 0.7203362739603676,
+        "SE mean": 0.0412417501409987,
+        "Confidence lower": 0.6472998813267267,
+        "Confidence upper": 0.7933726665940085,
+        "Prediction lower": 0.3707916366911832,
+        "Prediction upper": 1.069880911229552,
+        "df": 13,
+        "k": 1
+      }
+    ],
+    "queries": [
+      {
+        "Source row": 0,
+        "Group": "A",
+        "X": 1.5,
+        "k": 1,
+        "Predicted": 4.825064754749629,
+        "SE mean": 0.08422547955953942,
+        "Confidence lower": 4.675907040204631,
+        "Confidence upper": 4.974222469294627,
+        "Prediction lower": 4.45211011594888,
+        "Prediction upper": 5.1980193935503785,
+        "df": 13,
+        "Status": "OK"
+      },
+      {
+        "Source row": 1,
+        "Group": "B",
+        "X": 3.0,
+        "k": 4,
+        "Predicted": 1.7444763103916943,
+        "SE mean": 0.06263430173450127,
+        "Confidence lower": 1.6335551337157475,
+        "Confidence upper": 1.855397487067641,
+        "Prediction lower": 1.5407232929076478,
+        "Prediction upper": 1.9482293278757408,
+        "df": 13,
+        "Status": "OK"
+      },
+      {
+        "Source row": 2,
+        "Group": "A",
+        "X": 0.0,
+        "k": 9,
+        "Predicted": 7.508756859908808,
+        "SE mean": 0.15705099862340502,
+        "Confidence lower": 7.230630001573532,
+        "Confidence upper": 7.786883718244084,
+        "Prediction lower": 7.208194778552751,
+        "Prediction upper": 7.809318941264865,
+        "df": 13,
+        "Status": "OK"
+      },
+      {
+        "Source row": 3,
+        "Group": "B",
+        "X": 6.0,
+        "k": 1,
+        "Predicted": 0.7203362739603676,
+        "SE mean": 0.0412417501409987,
+        "Confidence lower": 0.6472998813267267,
+        "Confidence upper": 0.7933726665940085,
+        "Prediction lower": 0.3707916366911832,
+        "Prediction upper": 1.069880911229552,
+        "df": 13,
+        "Status": "OK"
+      },
+      {
+        "Source row": 4,
+        "Group": "A",
+        "X": 4.5,
+        "k": 1,
+        "Predicted": 1.9923854203978482,
+        "SE mean": 0.07366603469542071,
+        "Confidence lower": 1.8619277794058,
+        "Confidence upper": 2.1228430613898963,
+        "Prediction lower": 1.626507934225331,
+        "Prediction upper": 2.3582629065703653,
+        "df": 13,
+        "Status": "OK"
+      },
+      {
+        "Source row": 5,
+        "Group": "Z",
+        "X": 2.0,
+        "k": 1,
+        "Status": "Unknown group"
+      },
+      {
+        "Source row": 6,
+        "Group": "A",
+        "X": null,
+        "k": 1,
+        "Status": "Missing X"
+      },
+      {
+        "Source row": 7,
+        "Group": null,
+        "X": 1.0,
+        "k": 1,
+        "Status": "Missing group"
+      },
+      {
+        "Source row": 8,
+        "Group": "A",
+        "X": 1.5,
+        "k": 4,
+        "Predicted": 4.825064754749629,
+        "SE mean": 0.08422547955953942,
+        "Confidence lower": 4.675907040204631,
+        "Confidence upper": 4.974222469294627,
+        "Prediction lower": 4.598217210114549,
+        "Prediction upper": 5.05191229938471,
+        "df": 13,
+        "Status": "OK"
+      }
+    ],
+    "coords": [
+      [
+        "A",
+        "A"
+      ],
+      [
+        "A",
+        "B"
+      ],
+      [
+        "K",
+        null
+      ]
+    ]
+  },
+  "decay-large-x": {
+    "df": 13,
+    "rss": 0.4843474069062657,
+    "wsse": 0.4843474069062657,
+    "theta": [
+      7.508756859908808,
+      4.22469020029561,
+      2.948305102640533e-13
+    ],
+    "covariance": [
+      [
+        0.024665016168608764,
+        0.004230904115789567,
+        8.862189890684014e-16
+      ],
+      [
+        0.004230904115789567,
+        0.019111462589948842,
+        4.695873886739564e-16
+      ],
+      [
+        8.862189890684012e-16,
+        4.695873886739564e-16,
+        9.836130753160335e-29
+      ]
+    ],
+    "level": 90.0,
+    "curves": [
+      {
+        "Group": "A",
+        "X": 0.0,
+        "Predicted": 7.508756859908808,
+        "SE mean": 0.15705099862340502,
+        "Confidence lower": 7.230630001573532,
+        "Confidence upper": 7.786883718244084,
+        "Prediction lower": 7.068073653827431,
+        "Prediction upper": 7.949440065990185,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 400000000000.0,
+        "Predicted": 6.673454998957939,
+        "SE mean": 0.12640606304488314,
+        "Confidence lower": 6.4495982804565335,
+        "Confidence upper": 6.897311717459345,
+        "Prediction lower": 6.2648488692768876,
+        "Prediction upper": 7.0820611286389905,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 800000000000.0,
+        "Predicted": 5.931075203793132,
+        "SE mean": 0.10469291870125927,
+        "Confidence lower": 5.745671017741733,
+        "Confidence upper": 6.11647938984453,
+        "Prediction lower": 5.542202665549439,
+        "Prediction upper": 6.319947742036824,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1200000000000.0,
+        "Predicted": 5.2712804804322095,
+        "SE mean": 0.09066724369442872,
+        "Confidence lower": 5.110714830651665,
+        "Confidence upper": 5.431846130212754,
+        "Prediction lower": 4.89361863872172,
+        "Prediction upper": 5.648942322142699,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 1600000000000.0,
+        "Predicted": 4.684883760302895,
+        "SE mean": 0.08269753306161012,
+        "Confidence lower": 4.538431937238362,
+        "Confidence upper": 4.831335583367429,
+        "Prediction lower": 4.313003033088328,
+        "Prediction upper": 5.056764487517463,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2000000000000.0,
+        "Predicted": 4.163719978290776,
+        "SE mean": 0.078870719853482,
+        "Confidence lower": 4.0240451865367195,
+        "Confidence upper": 4.303394770044832,
+        "Prediction lower": 3.7944555929971906,
+        "Prediction upper": 4.532984363584361,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2400000000000.0,
+        "Predicted": 3.700532381297945,
+        "SE mean": 0.07740302468430377,
+        "Confidence lower": 3.5634567799341155,
+        "Confidence upper": 3.837607982661775,
+        "Prediction lower": 3.3322432838704406,
+        "Prediction upper": 4.068821478725449,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 2800000000000.0,
+        "Predicted": 3.288871484257704,
+        "SE mean": 0.07696810926194851,
+        "Confidence lower": 3.1525660891397527,
+        "Confidence upper": 3.4251768793756554,
+        "Prediction lower": 2.9208683599055174,
+        "Prediction upper": 3.6568746086098907,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3200000000000.0,
+        "Predicted": 2.923005266655597,
+        "SE mean": 0.0767436995319304,
+        "Confidence lower": 2.7870972862229193,
+        "Confidence upper": 3.0589132470882747,
+        "Prediction lower": 2.5551491562809026,
+        "Prediction upper": 3.2908613770302915,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 3600000000000.0,
+        "Predicted": 2.597839359121303,
+        "SE mean": 0.07629211231417524,
+        "Confidence lower": 2.4627311095737485,
+        "Confidence upper": 2.7329476086688573,
+        "Prediction lower": 2.230277965758895,
+        "Prediction upper": 2.9654007524837107,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4000000000000.0,
+        "Predicted": 2.308846108758979,
+        "SE mean": 0.07542015067256035,
+        "Confidence lower": 2.17528204520258,
+        "Confidence upper": 2.442410172315378,
+        "Prediction lower": 1.9418495176734376,
+        "Prediction upper": 2.6758426998445204,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4400000000000.0,
+        "Predicted": 2.0520015355124075,
+        "SE mean": 0.07407482047705737,
+        "Confidence lower": 1.9208199621278543,
+        "Confidence upper": 2.1831831088969604,
+        "Prediction lower": 1.6858652985863731,
+        "Prediction upper": 2.418137772438442,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 4800000000000.0,
+        "Predicted": 1.8237293017370322,
+        "SE mean": 0.07227755034722678,
+        "Confidence lower": 1.6957305740470057,
+        "Confidence upper": 1.9517280294270587,
+        "Prediction lower": 1.4587213386937914,
+        "Prediction upper": 2.188737264780273,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 5200000000000.0,
+        "Predicted": 1.6208509148038759,
+        "SE mean": 0.07008563110711805,
+        "Confidence lower": 1.4967339300974642,
+        "Confidence upper": 1.7449678995102875,
+        "Prediction lower": 1.2571860076608825,
+        "Prediction upper": 1.9845158219468693,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 5600000000000.0,
+        "Predicted": 1.4405414693498064,
+        "SE mean": 0.06757046555806914,
+        "Confidence lower": 1.320878675310641,
+        "Confidence upper": 1.560204263388972,
+        "Prediction lower": 1.0783725542397848,
+        "Prediction upper": 1.802710384459828,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 6000000000000.0,
+        "Predicted": 1.2802903129234409,
+        "SE mean": 0.06480567725896659,
+        "Confidence lower": 1.16552377481599,
+        "Confidence upper": 1.3950568510308918,
+        "Prediction lower": 0.9197095354770006,
+        "Prediction upper": 1.640871090369881,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 6400000000000.0,
+        "Predicted": 1.1378660873299504,
+        "SE mean": 0.06186088968953289,
+        "Confidence lower": 1.0283145718732967,
+        "Confidence upper": 1.2474176027866042,
+        "Prediction lower": 0.7789111133658615,
+        "Prediction upper": 1.4968210612940394,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 6800000000000.0,
+        "Predicted": 1.011285658905859,
+        "SE mean": 0.05879873965575984,
+        "Confidence lower": 0.9071570072075362,
+        "Confidence upper": 1.1154143106041818,
+        "Prediction lower": 0.6539484023830876,
+        "Prediction upper": 1.3686229154286305,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 7200000000000.0,
+        "Predicted": 0.8987865051048866,
+        "SE mean": 0.055673720154046286,
+        "Confidence lower": 0.8001920548052586,
+        "Confidence upper": 0.9973809554045145,
+        "Prediction lower": 0.543022532189421,
+        "Prediction upper": 1.2545504780203522,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 7600000000000.0,
+        "Predicted": 0.7988021729020247,
+        "SE mean": 0.05253204092304159,
+        "Confidence lower": 0.7057714272720613,
+        "Confidence upper": 0.8918329185319881,
+        "Prediction lower": 0.44453975826115816,
+        "Prediction upper": 1.1530645875428913,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "A",
+        "X": 8000000000000.0,
+        "Predicted": 0.7099404672954374,
+        "SE mean": 0.049412035287717336,
+        "Confidence lower": 0.6224350438407369,
+        "Confidence upper": 0.7974458907501378,
+        "Prediction lower": 0.3570887449973922,
+        "Prediction upper": 1.0627921895934827,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 0.0,
+        "Predicted": 4.22469020029561,
+        "SE mean": 0.13824421358577307,
+        "Confidence lower": 3.9798689056546226,
+        "Confidence upper": 4.469511494936598,
+        "Prediction lower": 3.8042325863743023,
+        "Prediction upper": 4.6451478142169185,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 300000000000.0,
+        "Predicted": 3.867068705763712,
+        "SE mean": 0.12307673668163015,
+        "Confidence lower": 3.649108002505131,
+        "Confidence upper": 4.085029409022294,
+        "Prediction lower": 3.4616627278111345,
+        "Prediction upper": 4.27247468371629,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 600000000000.0,
+        "Predicted": 3.539719995101807,
+        "SE mean": 0.11040386493042713,
+        "Confidence lower": 3.3442021036504896,
+        "Confidence upper": 3.7352378865531244,
+        "Prediction lower": 3.145925144104134,
+        "Prediction upper": 3.93351484609948,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 900000000000.0,
+        "Predicted": 3.240081466628364,
+        "SE mean": 0.09988634644628941,
+        "Confidence lower": 3.063189399903515,
+        "Confidence upper": 3.4169735333532127,
+        "Prediction lower": 2.855194545488013,
+        "Prediction upper": 3.624968387768715,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1200000000000.0,
+        "Predicted": 2.9658074437853017,
+        "SE mean": 0.09120340452761276,
+        "Confidence lower": 2.804292288879652,
+        "Confidence upper": 3.1273225986909514,
+        "Prediction lower": 2.5877409363307184,
+        "Prediction upper": 3.343873951239885,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1500000000000.0,
+        "Predicted": 2.714750812350856,
+        "SE mean": 0.08405402377361669,
+        "Confidence lower": 2.5658967345830836,
+        "Confidence upper": 2.863604890118628,
+        "Prediction lower": 2.341917504741672,
+        "Prediction upper": 3.08758411996004,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 1800000000000.0,
+        "Predicted": 2.4849462120687655,
+        "SE mean": 0.07816051428439953,
+        "Confidence lower": 2.3465291470750134,
+        "Confidence upper": 2.6233632770625177,
+        "Prediction lower": 2.116155725916811,
+        "Prediction upper": 2.85373669822072,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2100000000000.0,
+        "Predicted": 2.2745946511118866,
+        "SE mean": 0.07327302548718594,
+        "Confidence lower": 2.1448330032516316,
+        "Confidence upper": 2.4043562989721416,
+        "Prediction lower": 1.9089647507343066,
+        "Prediction upper": 2.6402245514894664,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2400000000000.0,
+        "Predicted": 2.082049422936818,
+        "SE mean": 0.06917344021124353,
+        "Confidence lower": 1.9595478675514257,
+        "Confidence upper": 2.2045509783222106,
+        "Prediction lower": 1.7189326788082242,
+        "Prediction upper": 2.4451661670654117,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 2700000000000.0,
+        "Predicted": 1.9058032152816766,
+        "SE mean": 0.06567744450459054,
+        "Confidence lower": 1.7894928354454227,
+        "Confidence upper": 2.0221135951179305,
+        "Prediction lower": 1.5447280939393666,
+        "Prediction upper": 2.2668783366239866,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3000000000000.0,
+        "Predicted": 1.7444763103916943,
+        "SE mean": 0.06263430173450127,
+        "Confidence lower": 1.6335551337157475,
+        "Confidence upper": 1.855397487067641,
+        "Prediction lower": 1.3851009547676796,
+        "Prediction upper": 2.103851666015709,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3300000000000.0,
+        "Predicted": 1.5968057840998215,
+        "SE mean": 0.059924568861031445,
+        "Confidence lower": 1.490683363863706,
+        "Confidence upper": 1.702928204335937,
+        "Prediction lower": 1.2388824586913185,
+        "Prediction upper": 1.9547291095083246,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3600000000000.0,
+        "Predicted": 1.4616356192089146,
+        "SE mean": 0.05745641055496502,
+        "Confidence lower": 1.3598841429435944,
+        "Confidence upper": 1.5633870954742348,
+        "Prediction lower": 1.1049838258349258,
+        "Prediction upper": 1.8182874125829034,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 3900000000000.0,
+        "Predicted": 1.337907655779555,
+        "SE mean": 0.05516125384941491,
+        "Confidence lower": 1.2402207491731168,
+        "Confidence upper": 1.4355945623859934,
+        "Prediction lower": 0.9823941250707432,
+        "Prediction upper": 1.6934211864883668,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4200000000000.0,
+        "Predicted": 1.224653307479158,
+        "SE mean": 0.05298939409396725,
+        "Confidence lower": 1.1308126198450417,
+        "Confidence upper": 1.3184939951132741,
+        "Prediction lower": 0.8701773372775741,
+        "Prediction upper": 1.5791292776807417,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4500000000000.0,
+        "Predicted": 1.1209859791450036,
+        "SE mean": 0.050905951109700004,
+        "Confidence lower": 1.030834930270361,
+        "Confidence upper": 1.2111370280196463,
+        "Prediction lower": 0.7674688644137526,
+        "Prediction upper": 1.4745030938762547,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 4800000000000.0,
+        "Predicted": 1.0260941262031977,
+        "SE mean": 0.0488873771037728,
+        "Confidence lower": 0.9395178374479225,
+        "Confidence upper": 1.112670414958473,
+        "Prediction lower": 0.6734716757418763,
+        "Prediction upper": 1.378716576664519,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5100000000000.0,
+        "Predicted": 0.9392349016102293,
+        "SE mean": 0.04691857451597285,
+        "Confidence lower": 0.8561452311077944,
+        "Confidence upper": 1.0223245721126641,
+        "Prediction lower": 0.5874522526081594,
+        "Prediction upper": 1.2910175506122992,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5400000000000.0,
+        "Predicted": 0.8597283405831349,
+        "SE mean": 0.04499059542199766,
+        "Confidence lower": 0.7800529926449851,
+        "Confidence upper": 0.9394036885212846,
+        "Prediction lower": 0.5087364605292288,
+        "Prediction upper": 1.2107202206370409,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 5700000000000.0,
+        "Predicted": 0.7869520375942776,
+        "SE mean": 0.04309885157399887,
+        "Confidence lower": 0.7106268420132016,
+        "Confidence upper": 0.8632772331753535,
+        "Prediction lower": 0.4367054469253607,
+        "Prediction upper": 1.1371986282631945,
+        "df": 13,
+        "k": 1
+      },
+      {
+        "Group": "B",
+        "X": 6000000000000.0,
+        "Predicted": 0.7203362739603676,
+        "SE mean": 0.04124175014099869,
+        "Confidence lower": 0.6472998813267267,
+        "Confidence upper": 0.7933726665940085,
+        "Prediction lower": 0.37079163669118326,
+        "Prediction upper": 1.069880911229552,
+        "df": 13,
+        "k": 1
+      }
+    ],
+    "queries": [
+      {
+        "Source row": 0,
+        "Group": "A",
+        "X": 1500000000000.0,
+        "k": 1,
+        "Predicted": 4.825064754749629,
+        "SE mean": 0.08422547955953942,
+        "Confidence lower": 4.675907040204631,
+        "Confidence upper": 4.974222469294627,
+        "Prediction lower": 4.45211011594888,
+        "Prediction upper": 5.1980193935503785,
+        "df": 13,
+        "Status": "OK"
+      },
+      {
+        "Source row": 1,
+        "Group": "B",
+        "X": 3000000000000.0,
+        "k": 4,
+        "Predicted": 1.7444763103916943,
+        "SE mean": 0.06263430173450127,
+        "Confidence lower": 1.6335551337157475,
+        "Confidence upper": 1.855397487067641,
+        "Prediction lower": 1.5407232929076478,
+        "Prediction upper": 1.9482293278757408,
+        "df": 13,
+        "Status": "OK"
+      },
+      {
+        "Source row": 2,
+        "Group": "A",
+        "X": 0.0,
+        "k": 9,
+        "Predicted": 7.508756859908808,
+        "SE mean": 0.15705099862340502,
+        "Confidence lower": 7.230630001573532,
+        "Confidence upper": 7.786883718244084,
+        "Prediction lower": 7.208194778552751,
+        "Prediction upper": 7.809318941264865,
+        "df": 13,
+        "Status": "OK"
+      },
+      {
+        "Source row": 3,
+        "Group": "B",
+        "X": 6000000000000.0,
+        "k": 1,
+        "Predicted": 0.7203362739603676,
+        "SE mean": 0.04124175014099869,
+        "Confidence lower": 0.6472998813267267,
+        "Confidence upper": 0.7933726665940085,
+        "Prediction lower": 0.37079163669118326,
+        "Prediction upper": 1.069880911229552,
+        "df": 13,
+        "Status": "OK"
+      },
+      {
+        "Source row": 4,
+        "Group": "A",
+        "X": 4500000000000.0,
+        "k": 1,
+        "Predicted": 1.9923854203978482,
+        "SE mean": 0.07366603469542071,
+        "Confidence lower": 1.8619277794058,
+        "Confidence upper": 2.1228430613898963,
+        "Prediction lower": 1.626507934225331,
+        "Prediction upper": 2.3582629065703653,
+        "df": 13,
+        "Status": "OK"
+      },
+      {
+        "Source row": 5,
+        "Group": "Z",
+        "X": 2000000000000.0,
+        "k": 1,
+        "Status": "Unknown group"
+      },
+      {
+        "Source row": 6,
+        "Group": "A",
+        "X": null,
+        "k": 1,
+        "Status": "Missing X"
+      },
+      {
+        "Source row": 7,
+        "Group": null,
+        "X": 1000000000000.0,
+        "k": 1,
+        "Status": "Missing group"
+      },
+      {
+        "Source row": 8,
+        "Group": "A",
+        "X": 1500000000000.0,
+        "k": 4,
+        "Predicted": 4.825064754749629,
+        "SE mean": 0.08422547955953942,
+        "Confidence lower": 4.675907040204631,
+        "Confidence upper": 4.974222469294627,
+        "Prediction lower": 4.598217210114549,
+        "Prediction upper": 5.05191229938471,
+        "df": 13,
+        "Status": "OK"
+      }
+    ],
+    "coords": [
+      [
+        "A",
+        "A"
+      ],
+      [
+        "A",
+        "B"
+      ],
+      [
+        "K",
+        null
+      ]
+    ]
+  }
+}

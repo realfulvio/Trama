@@ -1,0 +1,189 @@
+{
+  "strong": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": true,
+    "Graph display": "Scree",
+    "Selection": "Parallel analysis",
+    "Retained components": 2,
+    "Eigenvalue threshold": 1.0,
+    "Cumulative variance (%)": 80.0,
+    "Parallel simulations": 37,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  },
+  "prefix-orthogonal": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": true,
+    "Graph display": "Scree",
+    "Selection": "Parallel analysis",
+    "Retained components": 2,
+    "Eigenvalue threshold": 1.0,
+    "Cumulative variance (%)": 80.0,
+    "Parallel simulations": 37,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  },
+  "fixed": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": true,
+    "Graph display": "Scree",
+    "Selection": "Fixed number",
+    "Retained components": 2,
+    "Eigenvalue threshold": 1.0,
+    "Cumulative variance (%)": 80.0,
+    "Parallel simulations": 37,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  },
+  "kaiser": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": true,
+    "Graph display": "Scree",
+    "Selection": "Eigenvalue threshold",
+    "Retained components": 2,
+    "Eigenvalue threshold": 1.0,
+    "Cumulative variance (%)": 80.0,
+    "Parallel simulations": 37,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  },
+  "cumulative": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": true,
+    "Graph display": "Scree",
+    "Selection": "Cumulative variance",
+    "Retained components": 2,
+    "Eigenvalue threshold": 1.0,
+    "Cumulative variance (%)": 95.0,
+    "Parallel simulations": 37,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  },
+  "rank-two": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": true,
+    "Graph display": "Scree",
+    "Selection": "Cumulative variance",
+    "Retained components": 2,
+    "Eigenvalue threshold": 1.0,
+    "Cumulative variance (%)": 100.0,
+    "Parallel simulations": 37,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  },
+  "centered": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": false,
+    "Graph display": "Scree",
+    "Selection": "Parallel analysis",
+    "Retained components": 2,
+    "Eigenvalue threshold": 1.0,
+    "Cumulative variance (%)": 80.0,
+    "Parallel simulations": 37,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  },
+  "tiny-units": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": false,
+    "Graph display": "Scree",
+    "Selection": "Parallel analysis",
+    "Retained components": 2,
+    "Eigenvalue threshold": 1.0,
+    "Cumulative variance (%)": 80.0,
+    "Parallel simulations": 37,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  },
+  "missing": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": true,
+    "Graph display": "Scree",
+    "Selection": "Parallel analysis",
+    "Retained components": 2,
+    "Eigenvalue threshold": 1.0,
+    "Cumulative variance (%)": 80.0,
+    "Parallel simulations": 37,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  },
+  "prefix-more": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": true,
+    "Graph display": "Scree",
+    "Selection": "Parallel analysis",
+    "Retained components": 2,
+    "Eigenvalue threshold": 1.0,
+    "Cumulative variance (%)": 80.0,
+    "Parallel simulations": 42,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  },
+  "zero-selected": {
+    "Variables": [
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "Standardize": true,
+    "Graph display": "Scree",
+    "Selection": "Eigenvalue threshold",
+    "Retained components": 2,
+    "Eigenvalue threshold": 100.0,
+    "Cumulative variance (%)": 80.0,
+    "Parallel simulations": 37,
+    "Parallel seed": 42,
+    "Parallel percentile (%)": 95.0,
+    "Save parallel simulations": true
+  }
+}

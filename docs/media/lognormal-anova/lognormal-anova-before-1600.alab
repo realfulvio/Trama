@@ -1,0 +1,1 @@
+{"version":2,"tables":[{"title":"Counts","columns":["Y","Group"],"kinds":["numeric","text"],"rows":[[1,"A"],[2,"A"],[4,"A"],[8,"B"],[16,"B"],[32,"B"],[64,"C"],[128,"C"],[256,"C"]],"formulas":[],"analyses":[["One-way ANOVA",{"Response":"Y","Group":"Group","Method":"Ordinary","Post-hoc":"None"}]],"excluded":[],"table_format":"multivariable","graph_styles":{}}],"layouts":[]}

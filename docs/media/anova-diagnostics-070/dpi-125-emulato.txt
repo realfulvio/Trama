@@ -1,0 +1,3 @@
+scaling 1.2499807766243751
+Run Analysis x=761 y=578 w=123 h=27 mapped=1 viewable=1
+Cancel x=641 y=578 w=112 h=27 mapped=1 viewable=1

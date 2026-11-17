@@ -1,0 +1,146 @@
+[
+  {
+    "Group": "A",
+    "X": 0.0,
+    "Y": 7.2,
+    "SD": 1.0,
+    "Query X": 1500000000000.0,
+    "Query group": "A",
+    "Query k": 1
+  },
+  {
+    "Group": "A",
+    "X": 1000000000000.0,
+    "Y": 5.82,
+    "SD": 1.0,
+    "Query X": 3000000000000.0,
+    "Query group": "B",
+    "Query k": 4
+  },
+  {
+    "Group": "A",
+    "X": 2000000000000.0,
+    "Y": 4.41,
+    "SD": 1.0,
+    "Query X": 0.0,
+    "Query group": "A",
+    "Query k": 9
+  },
+  {
+    "Group": "A",
+    "X": 3000000000000.0,
+    "Y": 3.35,
+    "SD": 1.0,
+    "Query X": 6000000000000.0,
+    "Query group": "B",
+    "Query k": 1
+  },
+  {
+    "Group": "A",
+    "X": 4000000000000.0,
+    "Y": 2.4,
+    "SD": 1.0,
+    "Query X": 4500000000000.0,
+    "Query group": "A",
+    "Query k": 1
+  },
+  {
+    "Group": "A",
+    "X": 5000000000000.0,
+    "Y": 1.55,
+    "SD": 1.0,
+    "Query X": 2000000000000.0,
+    "Query group": "Z",
+    "Query k": 1
+  },
+  {
+    "Group": "A",
+    "X": 6000000000000.0,
+    "Y": 1.03,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": "A",
+    "Query k": 1
+  },
+  {
+    "Group": "A",
+    "X": 7000000000000.0,
+    "Y": 0.72,
+    "SD": 1.0,
+    "Query X": 1000000000000.0,
+    "Query group": null,
+    "Query k": 1
+  },
+  {
+    "Group": "A",
+    "X": 8000000000000.0,
+    "Y": 0.52,
+    "SD": 1.0,
+    "Query X": 1500000000000.0,
+    "Query group": "A",
+    "Query k": 4
+  },
+  {
+    "Group": "B",
+    "X": 0.0,
+    "Y": 4.25,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": null,
+    "Query k": null
+  },
+  {
+    "Group": "B",
+    "X": 1000000000000.0,
+    "Y": 3.13,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": null,
+    "Query k": null
+  },
+  {
+    "Group": "B",
+    "X": 2000000000000.0,
+    "Y": 2.31,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": null,
+    "Query k": null
+  },
+  {
+    "Group": "B",
+    "X": 3000000000000.0,
+    "Y": 1.84,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": null,
+    "Query k": null
+  },
+  {
+    "Group": "B",
+    "X": 4000000000000.0,
+    "Y": 1.29,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": null,
+    "Query k": null
+  },
+  {
+    "Group": "B",
+    "X": 5000000000000.0,
+    "Y": 0.88,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": null,
+    "Query k": null
+  },
+  {
+    "Group": "B",
+    "X": 6000000000000.0,
+    "Y": 0.65,
+    "SD": 1.0,
+    "Query X": null,
+    "Query group": null,
+    "Query k": null
+  }
+]

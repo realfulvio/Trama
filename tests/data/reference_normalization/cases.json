@@ -1,0 +1,1932 @@
+[
+  {
+    "name": "raw-Minimum-Maximum",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Minimum",
+      "One reference": "Maximum",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/01.csv"
+  },
+  {
+    "name": "raw-Minimum-First-last higher",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Minimum",
+      "One reference": "First-last higher",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/02.csv"
+  },
+  {
+    "name": "raw-Minimum-Sum",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Minimum",
+      "One reference": "Sum",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/03.csv"
+  },
+  {
+    "name": "raw-Minimum-Mean",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Minimum",
+      "One reference": "Mean",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/04.csv"
+  },
+  {
+    "name": "raw-Minimum-Constant",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Minimum",
+      "One reference": "Constant",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/05.csv"
+  },
+  {
+    "name": "raw-Minimum-Selected rows mean",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Minimum",
+      "One reference": "Selected rows mean",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/06.csv"
+  },
+  {
+    "name": "raw-First-last lower-Maximum",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "First-last lower",
+      "One reference": "Maximum",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/07.csv"
+  },
+  {
+    "name": "raw-First-last lower-First-last higher",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "First-last lower",
+      "One reference": "First-last higher",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/08.csv"
+  },
+  {
+    "name": "raw-First-last lower-Sum",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "First-last lower",
+      "One reference": "Sum",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/09.csv"
+  },
+  {
+    "name": "raw-First-last lower-Mean",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "First-last lower",
+      "One reference": "Mean",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/10.csv"
+  },
+  {
+    "name": "raw-First-last lower-Constant",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "First-last lower",
+      "One reference": "Constant",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/11.csv"
+  },
+  {
+    "name": "raw-First-last lower-Selected rows mean",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "First-last lower",
+      "One reference": "Selected rows mean",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/12.csv"
+  },
+  {
+    "name": "raw-Constant-Maximum",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Constant",
+      "One reference": "Maximum",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/13.csv"
+  },
+  {
+    "name": "raw-Constant-First-last higher",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Constant",
+      "One reference": "First-last higher",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/14.csv"
+  },
+  {
+    "name": "raw-Constant-Sum",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Constant",
+      "One reference": "Sum",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/15.csv"
+  },
+  {
+    "name": "raw-Constant-Mean",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Constant",
+      "One reference": "Mean",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/16.csv"
+  },
+  {
+    "name": "raw-Constant-Constant",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Constant",
+      "One reference": "Constant",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/17.csv"
+  },
+  {
+    "name": "raw-Constant-Selected rows mean",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Constant",
+      "One reference": "Selected rows mean",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/18.csv"
+  },
+  {
+    "name": "raw-Selected rows mean-Maximum",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Selected rows mean",
+      "One reference": "Maximum",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/19.csv"
+  },
+  {
+    "name": "raw-Selected rows mean-First-last higher",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Selected rows mean",
+      "One reference": "First-last higher",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/20.csv"
+  },
+  {
+    "name": "raw-Selected rows mean-Sum",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Selected rows mean",
+      "One reference": "Sum",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/21.csv"
+  },
+  {
+    "name": "raw-Selected rows mean-Mean",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Selected rows mean",
+      "One reference": "Mean",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/22.csv"
+  },
+  {
+    "name": "raw-Selected rows mean-Constant",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Selected rows mean",
+      "One reference": "Constant",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/23.csv"
+  },
+  {
+    "name": "raw-Selected rows mean-Selected rows mean",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Zero reference": "Selected rows mean",
+      "One reference": "Selected rows mean",
+      "Zero value": 0,
+      "One value": 50,
+      "Zero rows": "1",
+      "One rows": "4",
+      "Graph results": false,
+      "Allow reversed references": true,
+      "Units": "Fractions"
+    },
+    "csv": "fixtures/24.csv"
+  },
+  {
+    "name": "replicates-Normalize row means-Fractions",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A [1]": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "A [2]": [
+        14,
+        null,
+        34,
+        44
+      ],
+      "B [1]": [
+        4,
+        8,
+        12,
+        16
+      ],
+      "B [2]": [
+        6,
+        10,
+        null,
+        18
+      ]
+    },
+    "replicate_groups": [
+      [
+        "A [1]",
+        "A [2]"
+      ],
+      [
+        "B [1]",
+        "B [2]"
+      ]
+    ],
+    "options": {
+      "Variables": [
+        "A [1]",
+        "A [2]",
+        "B [1]",
+        "B [2]"
+      ],
+      "X": "X",
+      "Replicates": "Normalize row means",
+      "Units": "Fractions",
+      "Graph results": false
+    },
+    "csv": "fixtures/25.csv"
+  },
+  {
+    "name": "replicates-Normalize row means-Percentages",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A [1]": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "A [2]": [
+        14,
+        null,
+        34,
+        44
+      ],
+      "B [1]": [
+        4,
+        8,
+        12,
+        16
+      ],
+      "B [2]": [
+        6,
+        10,
+        null,
+        18
+      ]
+    },
+    "replicate_groups": [
+      [
+        "A [1]",
+        "A [2]"
+      ],
+      [
+        "B [1]",
+        "B [2]"
+      ]
+    ],
+    "options": {
+      "Variables": [
+        "A [1]",
+        "A [2]",
+        "B [1]",
+        "B [2]"
+      ],
+      "X": "X",
+      "Replicates": "Normalize row means",
+      "Units": "Percentages",
+      "Graph results": false
+    },
+    "csv": "fixtures/26.csv"
+  },
+  {
+    "name": "replicates-Each replicate, common references-Fractions",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A [1]": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "A [2]": [
+        14,
+        null,
+        34,
+        44
+      ],
+      "B [1]": [
+        4,
+        8,
+        12,
+        16
+      ],
+      "B [2]": [
+        6,
+        10,
+        null,
+        18
+      ]
+    },
+    "replicate_groups": [
+      [
+        "A [1]",
+        "A [2]"
+      ],
+      [
+        "B [1]",
+        "B [2]"
+      ]
+    ],
+    "options": {
+      "Variables": [
+        "A [1]",
+        "A [2]",
+        "B [1]",
+        "B [2]"
+      ],
+      "X": "X",
+      "Replicates": "Each replicate, common references",
+      "Units": "Fractions",
+      "Graph results": false
+    },
+    "csv": "fixtures/27.csv"
+  },
+  {
+    "name": "replicates-Each replicate, common references-Percentages",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A [1]": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "A [2]": [
+        14,
+        null,
+        34,
+        44
+      ],
+      "B [1]": [
+        4,
+        8,
+        12,
+        16
+      ],
+      "B [2]": [
+        6,
+        10,
+        null,
+        18
+      ]
+    },
+    "replicate_groups": [
+      [
+        "A [1]",
+        "A [2]"
+      ],
+      [
+        "B [1]",
+        "B [2]"
+      ]
+    ],
+    "options": {
+      "Variables": [
+        "A [1]",
+        "A [2]",
+        "B [1]",
+        "B [2]"
+      ],
+      "X": "X",
+      "Replicates": "Each replicate, common references",
+      "Units": "Percentages",
+      "Graph results": false
+    },
+    "csv": "fixtures/28.csv"
+  },
+  {
+    "name": "selected-rows-missing",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "Zero reference": "Selected rows mean",
+      "One reference": "Selected rows mean",
+      "Zero rows": "1, 2-3,2",
+      "One rows": "4",
+      "Graph results": false
+    },
+    "csv": "fixtures/29.csv"
+  },
+  {
+    "name": "descending-endpoints",
+    "data": {
+      "X": [
+        8,
+        2,
+        3,
+        1
+      ],
+      "A": [
+        80,
+        20,
+        70,
+        10
+      ]
+    },
+    "options": {
+      "Variables": [
+        "A"
+      ],
+      "X": "X",
+      "Zero reference": "First-last lower",
+      "One reference": "First-last higher",
+      "Units": "Fractions",
+      "Graph results": false
+    },
+    "csv": "fixtures/30.csv"
+  },
+  {
+    "name": "blank-anchors-per-series",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "A": [
+        10,
+        20,
+        null,
+        40
+      ],
+      "B": [
+        4,
+        8,
+        12,
+        16
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9
+    ],
+    "options": {
+      "Variables": [
+        "A",
+        "B"
+      ],
+      "X": "X",
+      "Reference values in output": "Blank reference values",
+      "Graph results": false
+    },
+    "csv": "fixtures/31.csv"
+  },
+  {
+    "name": "tiny-range",
+    "data": {
+      "A": [
+        1e-300,
+        2e-300,
+        3e-300
+      ]
+    },
+    "options": {
+      "Variables": [
+        "A"
+      ],
+      "Units": "Fractions",
+      "Graph results": false
+    },
+    "csv": "fixtures/32.csv"
+  },
+  {
+    "name": "overflow-intermediate",
+    "data": {
+      "A": [
+        -1e+308,
+        0,
+        1e+308
+      ]
+    },
+    "options": {
+      "Variables": [
+        "A"
+      ],
+      "Units": "Fractions",
+      "Graph results": false
+    },
+    "csv": "fixtures/33.csv"
+  },
+  {
+    "name": "summary-SD-False",
+    "data": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        10,
+        20,
+        30
+      ],
+      "Low": [
+        1,
+        null,
+        3
+      ],
+      "High": [
+        2,
+        4,
+        6
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "options": {
+      "Input": "Summary values",
+      "Mean": "Mean",
+      "X": "X",
+      "Error format": "SD",
+      "Error lower": "Low",
+      "N": "N",
+      "Zero reference": "Constant",
+      "One reference": "Constant",
+      "Zero value": 0,
+      "One value": 40,
+      "Allow reversed references": false,
+      "Graph results": false
+    },
+    "csv": "fixtures/34.csv"
+  },
+  {
+    "name": "summary-SD-True",
+    "data": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        10,
+        20,
+        30
+      ],
+      "Low": [
+        1,
+        null,
+        3
+      ],
+      "High": [
+        2,
+        4,
+        6
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "options": {
+      "Input": "Summary values",
+      "Mean": "Mean",
+      "X": "X",
+      "Error format": "SD",
+      "Error lower": "Low",
+      "N": "N",
+      "Zero reference": "Constant",
+      "One reference": "Constant",
+      "Zero value": 40,
+      "One value": 0,
+      "Allow reversed references": true,
+      "Graph results": false
+    },
+    "csv": "fixtures/35.csv"
+  },
+  {
+    "name": "summary-SEM-False",
+    "data": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        10,
+        20,
+        30
+      ],
+      "Low": [
+        1,
+        null,
+        3
+      ],
+      "High": [
+        2,
+        4,
+        6
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "options": {
+      "Input": "Summary values",
+      "Mean": "Mean",
+      "X": "X",
+      "Error format": "SEM",
+      "Error lower": "Low",
+      "N": "N",
+      "Zero reference": "Constant",
+      "One reference": "Constant",
+      "Zero value": 0,
+      "One value": 40,
+      "Allow reversed references": false,
+      "Graph results": false
+    },
+    "csv": "fixtures/36.csv"
+  },
+  {
+    "name": "summary-SEM-True",
+    "data": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        10,
+        20,
+        30
+      ],
+      "Low": [
+        1,
+        null,
+        3
+      ],
+      "High": [
+        2,
+        4,
+        6
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "options": {
+      "Input": "Summary values",
+      "Mean": "Mean",
+      "X": "X",
+      "Error format": "SEM",
+      "Error lower": "Low",
+      "N": "N",
+      "Zero reference": "Constant",
+      "One reference": "Constant",
+      "Zero value": 40,
+      "One value": 0,
+      "Allow reversed references": true,
+      "Graph results": false
+    },
+    "csv": "fixtures/37.csv"
+  },
+  {
+    "name": "summary-Distances-False",
+    "data": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        10,
+        20,
+        30
+      ],
+      "Low": [
+        1,
+        null,
+        3
+      ],
+      "High": [
+        2,
+        4,
+        6
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "options": {
+      "Input": "Summary values",
+      "Mean": "Mean",
+      "X": "X",
+      "Error format": "Distances",
+      "Error lower": "Low",
+      "N": "N",
+      "Zero reference": "Constant",
+      "One reference": "Constant",
+      "Zero value": 0,
+      "One value": 40,
+      "Allow reversed references": false,
+      "Graph results": false,
+      "Error upper": "High"
+    },
+    "csv": "fixtures/38.csv"
+  },
+  {
+    "name": "summary-Distances-True",
+    "data": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        10,
+        20,
+        30
+      ],
+      "Low": [
+        1,
+        null,
+        3
+      ],
+      "High": [
+        2,
+        4,
+        6
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "options": {
+      "Input": "Summary values",
+      "Mean": "Mean",
+      "X": "X",
+      "Error format": "Distances",
+      "Error lower": "Low",
+      "N": "N",
+      "Zero reference": "Constant",
+      "One reference": "Constant",
+      "Zero value": 40,
+      "One value": 0,
+      "Allow reversed references": true,
+      "Graph results": false,
+      "Error upper": "High"
+    },
+    "csv": "fixtures/39.csv"
+  },
+  {
+    "name": "summary-Limits-False",
+    "data": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        10,
+        20,
+        30
+      ],
+      "Low": [
+        9,
+        null,
+        27
+      ],
+      "High": [
+        12,
+        24,
+        36
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "options": {
+      "Input": "Summary values",
+      "Mean": "Mean",
+      "X": "X",
+      "Error format": "Limits",
+      "Error lower": "Low",
+      "N": "N",
+      "Zero reference": "Constant",
+      "One reference": "Constant",
+      "Zero value": 0,
+      "One value": 40,
+      "Allow reversed references": false,
+      "Graph results": false,
+      "Error upper": "High"
+    },
+    "csv": "fixtures/40.csv"
+  },
+  {
+    "name": "summary-Limits-True",
+    "data": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "Mean": [
+        10,
+        20,
+        30
+      ],
+      "Low": [
+        9,
+        null,
+        27
+      ],
+      "High": [
+        12,
+        24,
+        36
+      ],
+      "N": [
+        4,
+        8,
+        16
+      ]
+    },
+    "options": {
+      "Input": "Summary values",
+      "Mean": "Mean",
+      "X": "X",
+      "Error format": "Limits",
+      "Error lower": "Low",
+      "N": "N",
+      "Zero reference": "Constant",
+      "One reference": "Constant",
+      "Zero value": 40,
+      "One value": 0,
+      "Allow reversed references": true,
+      "Graph results": false,
+      "Error upper": "High"
+    },
+    "csv": "fixtures/41.csv"
+  },
+  {
+    "name": "literal-metadata",
+    "data": {
+      "Row title": [
+        "01",
+        "A",
+        "A"
+      ],
+      "Source row": [
+        10,
+        20,
+        30
+      ]
+    },
+    "options": {
+      "Variables": [
+        "Source row"
+      ],
+      "Row titles": "Row title",
+      "Graph results": false
+    },
+    "csv": "fixtures/42.csv"
+  },
+  {
+    "name": "explicit-role-groups",
+    "data": {
+      "X": [
+        0,
+        1,
+        2
+      ],
+      "p": [
+        10,
+        20,
+        30
+      ],
+      "q": [
+        14,
+        null,
+        34
+      ],
+      "r": [
+        4,
+        8,
+        12
+      ],
+      "s": [
+        6,
+        10,
+        14
+      ]
+    },
+    "replicate_groups": [
+      [
+        "p",
+        "q"
+      ],
+      [
+        "r",
+        "s"
+      ]
+    ],
+    "attrs": {
+      "worksheet_roles": {
+        "x": [
+          "X"
+        ],
+        "y": [
+          [
+            "p",
+            "q"
+          ],
+          [
+            "r",
+            "s"
+          ]
+        ]
+      }
+    },
+    "options": {
+      "Variables": [
+        "p",
+        "q",
+        "r",
+        "s"
+      ],
+      "X": "X",
+      "Replicates": "Normalize row means",
+      "Graph results": false
+    },
+    "csv": "fixtures/43.csv"
+  }
+]

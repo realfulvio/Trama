@@ -1,0 +1,939 @@
+{
+  "linear-legacy": {
+    "rows": [
+      {
+        "Response": 9.0,
+        "Interpolated X": 2.9803862401931207,
+        "Outside calibration": false
+      },
+      {
+        "Response": 9.0,
+        "Interpolated X": 2.9803862401931207,
+        "Outside calibration": false
+      },
+      {
+        "Response": 3.5,
+        "Interpolated X": 0.19221484610742312,
+        "Outside calibration": false
+      },
+      {
+        "Response": 16.9,
+        "Interpolated X": 6.985214242607122,
+        "Outside calibration": false
+      },
+      {
+        "Response": 40.0,
+        "Interpolated X": 18.69553409776705,
+        "Outside calibration": true
+      }
+    ],
+    "components": []
+  },
+  "linear-inverse-mean": {
+    "rows": [
+      {
+        "Response": 9.0,
+        "Interpolated X": 2.9803862401931207,
+        "Outside calibration": false,
+        "X lower": 2.738891704800388,
+        "X upper": 3.2113786617427733,
+        "Interval status": "Complete"
+      },
+      {
+        "Response": 9.0,
+        "Interpolated X": 2.9803862401931207,
+        "Outside calibration": false,
+        "X lower": 2.738891704800388,
+        "X upper": 3.2113786617427733,
+        "Interval status": "Complete"
+      },
+      {
+        "Response": 3.5,
+        "Interpolated X": 0.19221484610742312,
+        "Outside calibration": false,
+        "X lower": 0.0,
+        "X upper": 0.5646730065430265,
+        "Interval status": "Clipped low"
+      },
+      {
+        "Response": 16.9,
+        "Interpolated X": 6.985214242607122,
+        "Outside calibration": false,
+        "X lower": 6.599665960376619,
+        "X upper": 7.0,
+        "Interval status": "Clipped high"
+      },
+      {
+        "Response": 40.0,
+        "Interpolated X": 18.69553409776705,
+        "Outside calibration": true,
+        "X lower": null,
+        "X upper": null,
+        "Interval status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "linear-inverse-prediction": {
+    "rows": [
+      {
+        "Response": 9.0,
+        "Interpolated X": 2.9803862401931207,
+        "Outside calibration": false,
+        "X lower": 2.282134411373394,
+        "X upper": 3.6681359551697676,
+        "Replicate count": 1,
+        "Interval status": "Complete"
+      },
+      {
+        "Response": 9.0,
+        "Interpolated X": 2.9803862401931207,
+        "Outside calibration": false,
+        "X lower": 2.572741404364653,
+        "X upper": 3.3775289621785083,
+        "Replicate count": 4,
+        "Interval status": "Complete"
+      },
+      {
+        "Response": 3.5,
+        "Interpolated X": 0.19221484610742312,
+        "Outside calibration": false,
+        "X lower": 0.0,
+        "X upper": 0.9263694505598661,
+        "Replicate count": 1,
+        "Interval status": "Clipped low"
+      },
+      {
+        "Response": 16.9,
+        "Interpolated X": 6.985214242607122,
+        "Outside calibration": false,
+        "X lower": 6.244879809558658,
+        "X upper": 7.0,
+        "Replicate count": 1,
+        "Interval status": "Clipped high"
+      },
+      {
+        "Response": 40.0,
+        "Interpolated X": 18.69553409776705,
+        "Outside calibration": true,
+        "X lower": null,
+        "X upper": null,
+        "Replicate count": 2,
+        "Interval status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "linear-inverse-high-confidence": {
+    "rows": [
+      {
+        "Response": 9.0,
+        "Interpolated X": 2.9803862401931207,
+        "Outside calibration": false,
+        "X lower": 0.0,
+        "X upper": 7.0,
+        "Interval status": "Clipped both"
+      },
+      {
+        "Response": 9.0,
+        "Interpolated X": 2.9803862401931207,
+        "Outside calibration": false,
+        "X lower": 0.0,
+        "X upper": 7.0,
+        "Interval status": "Clipped both"
+      },
+      {
+        "Response": 3.5,
+        "Interpolated X": 0.19221484610742312,
+        "Outside calibration": false,
+        "X lower": 0.0,
+        "X upper": 7.0,
+        "Interval status": "Clipped both"
+      },
+      {
+        "Response": 16.9,
+        "Interpolated X": 6.985214242607122,
+        "Outside calibration": false,
+        "X lower": 0.0,
+        "X upper": 7.0,
+        "Interval status": "Clipped both"
+      },
+      {
+        "Response": 40.0,
+        "Interpolated X": 18.69553409776705,
+        "Outside calibration": true,
+        "X lower": null,
+        "X upper": null,
+        "Interval status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "linear-inverse-disconnected": {
+    "rows": [
+      {
+        "Response": 5.72,
+        "Interpolated X": 12.870857142857144,
+        "Outside calibration": false,
+        "X lower": null,
+        "X upper": null,
+        "Interval status": "Disconnected"
+      }
+    ],
+    "components": [
+      {
+        "Source row": 0,
+        "Component": 1,
+        "X lower": -12.0,
+        "X upper": -7.4218207984856726
+      },
+      {
+        "Source row": 0,
+        "Component": 2,
+        "X lower": -2.14977339324102,
+        "X upper": 13.0
+      }
+    ]
+  },
+  "linear-inverse-exact-fit": {
+    "rows": [
+      {
+        "Response": 5.0,
+        "Interpolated X": 2.000000000000001,
+        "Outside calibration": false,
+        "X lower": null,
+        "X upper": null,
+        "Interval status": "Uncertainty unavailable"
+      },
+      {
+        "Response": 20.0,
+        "Interpolated X": 9.499999999999996,
+        "Outside calibration": true,
+        "X lower": null,
+        "X upper": null,
+        "Interval status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "linear-forward-count": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": 3.0,
+        "Predicted Y": 9.038690476190474,
+        "Y lower": 7.678844691470536,
+        "Y upper": 10.398536260910413,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": 3.0,
+        "Predicted Y": 9.038690476190474,
+        "Y lower": 8.249461819689252,
+        "Y upper": 9.827919132691697,
+        "Status": "In range",
+        "Replicate count": 4
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": 0.0,
+        "Predicted Y": 3.1208333333333336,
+        "Y lower": 1.5988799955457955,
+        "Y upper": 4.642786671120872,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 7.0,
+        "Predicted Y": 16.929166666666664,
+        "Y lower": 15.407213328879125,
+        "Y upper": 18.4511200044542,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": -1.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration",
+        "Replicate count": 2
+      }
+    ],
+    "components": []
+  },
+  "decay-forward-count": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": 2.5,
+        "Predicted Y": 3.936126072269264,
+        "Y lower": 3.5847779598532767,
+        "Y upper": 4.2874741846852515,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": 2.5,
+        "Predicted Y": 3.936126072269264,
+        "Y lower": 3.7162279898765664,
+        "Y upper": 4.156024154661962,
+        "Status": "In range",
+        "Replicate count": 4
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": 0.0,
+        "Predicted Y": 12.057548170785289,
+        "Y lower": 11.703927484522769,
+        "Y upper": 12.411168857047809,
+        "Status": "In range",
+        "Replicate count": 2
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": -1.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration",
+        "Replicate count": 1
+      }
+    ],
+    "components": []
+  },
+  "stim-concentration-none": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": 0.4,
+        "Predicted Y": 6.212588637607762,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": 0.4,
+        "Predicted Y": 6.212588637607762,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": 0.0,
+        "Predicted Y": 1.6076549958278028,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 20.0,
+        "Predicted Y": 10.061873472316531,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": -1.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "stim-concentration-mean-response": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": 0.4,
+        "Predicted Y": 6.212588637607762,
+        "Y lower": 6.052371758484529,
+        "Y upper": 6.372805516730995,
+        "Status": "In range"
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": 0.4,
+        "Predicted Y": 6.212588637607762,
+        "Y lower": 6.052371758484529,
+        "Y upper": 6.372805516730995,
+        "Status": "In range"
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": 0.0,
+        "Predicted Y": 1.6076549958278028,
+        "Y lower": 1.4978876962993706,
+        "Y upper": 1.717422295356235,
+        "Status": "In range"
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 20.0,
+        "Predicted Y": 10.061873472316531,
+        "Y lower": 9.913669164273903,
+        "Y upper": 10.210077780359159,
+        "Status": "In range"
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": -1.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "stim-concentration-prediction": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": 0.4,
+        "Predicted Y": 6.212588637607762,
+        "Y lower": 5.946053391633437,
+        "Y upper": 6.479123883582088,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": 0.4,
+        "Predicted Y": 6.212588637607762,
+        "Y lower": 6.020202708798922,
+        "Y upper": 6.404974566416603,
+        "Status": "In range",
+        "Replicate count": 4
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": 0.0,
+        "Predicted Y": 1.6076549958278028,
+        "Y lower": 1.3680293522994649,
+        "Y upper": 1.8472806393561407,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 20.0,
+        "Predicted Y": 10.061873472316531,
+        "Y lower": 9.802381457192752,
+        "Y upper": 10.32136548744031,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": -1.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration",
+        "Replicate count": 2
+      }
+    ],
+    "components": []
+  },
+  "stim-log10-none": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": -0.3979400086720376,
+        "Predicted Y": 6.215008706533892,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": -0.3979400086720376,
+        "Predicted Y": 6.215008706533892,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": -2.6989700043360187,
+        "Predicted Y": 1.597609531397824,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 1.3010299956639813,
+        "Predicted Y": 10.06534313402206,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": 2.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "stim-log10-mean-response": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": -0.3979400086720376,
+        "Predicted Y": 6.215008706533892,
+        "Y lower": 6.041543744806326,
+        "Y upper": 6.388473668261458,
+        "Status": "In range"
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": -0.3979400086720376,
+        "Predicted Y": 6.215008706533892,
+        "Y lower": 6.041543744806326,
+        "Y upper": 6.388473668261458,
+        "Status": "In range"
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": -2.6989700043360187,
+        "Predicted Y": 1.597609531397824,
+        "Y lower": 1.4615650072390838,
+        "Y upper": 1.7336540555565643,
+        "Status": "In range"
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 1.3010299956639813,
+        "Predicted Y": 10.06534313402206,
+        "Y lower": 9.90387974810987,
+        "Y upper": 10.226806519934248,
+        "Status": "In range"
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": 2.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "stim-log10-prediction": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": -0.3979400086720376,
+        "Predicted Y": 6.215008706533892,
+        "Y lower": 5.9261845874788355,
+        "Y upper": 6.503832825588948,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": -0.3979400086720376,
+        "Predicted Y": 6.215008706533892,
+        "Y lower": 6.0066282548419405,
+        "Y upper": 6.423389158225843,
+        "Status": "In range",
+        "Replicate count": 4
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": -2.6989700043360187,
+        "Predicted Y": 1.597609531397824,
+        "Y lower": 1.329584548692178,
+        "Y upper": 1.86563451410347,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 1.3010299956639813,
+        "Predicted Y": 10.06534313402206,
+        "Y lower": 9.783563603553624,
+        "Y upper": 10.347122664490495,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": 2.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration",
+        "Replicate count": 2
+      }
+    ],
+    "components": []
+  },
+  "inhib-concentration-none": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": 0.4,
+        "Predicted Y": 5.507675727298369,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": 0.4,
+        "Predicted Y": 5.507675727298369,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": 0.0,
+        "Predicted Y": 10.107667913183946,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 20.0,
+        "Predicted Y": 1.6688122454143863,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": -1.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "inhib-concentration-mean-response": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": 0.4,
+        "Predicted Y": 5.507675727298369,
+        "Y lower": 5.355244658512946,
+        "Y upper": 5.660106796083792,
+        "Status": "In range"
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": 0.4,
+        "Predicted Y": 5.507675727298369,
+        "Y lower": 5.355244658512946,
+        "Y upper": 5.660106796083792,
+        "Status": "In range"
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": 0.0,
+        "Predicted Y": 10.107667913183946,
+        "Y lower": 9.99182188681945,
+        "Y upper": 10.223513939548441,
+        "Status": "In range"
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 20.0,
+        "Predicted Y": 1.6688122454143863,
+        "Y lower": 1.5149889439769053,
+        "Y upper": 1.8226355468518673,
+        "Status": "In range"
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": -1.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "inhib-concentration-prediction": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": 0.4,
+        "Predicted Y": 5.507675727298369,
+        "Y lower": 5.245562307468488,
+        "Y upper": 5.76978914712825,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": 0.4,
+        "Predicted Y": 5.507675727298369,
+        "Y lower": 5.321658834887953,
+        "Y upper": 5.693692619708785,
+        "Status": "In range",
+        "Replicate count": 4
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": 0.0,
+        "Predicted Y": 10.107667913183946,
+        "Y lower": 9.864998351952437,
+        "Y upper": 10.350337474415454,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 20.0,
+        "Predicted Y": 1.6688122454143863,
+        "Y lower": 1.4058867384946976,
+        "Y upper": 1.931737752334075,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": -1.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration",
+        "Replicate count": 2
+      }
+    ],
+    "components": []
+  },
+  "inhib-log10-none": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": -0.3979400086720376,
+        "Predicted Y": 5.509640264654691,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": -0.3979400086720376,
+        "Predicted Y": 5.509640264654691,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": -2.6989700043360187,
+        "Predicted Y": 10.067514363348323,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 1.3010299956639813,
+        "Predicted Y": 1.673345709172842,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "In range"
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": 2.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "inhib-log10-mean-response": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": -0.3979400086720376,
+        "Predicted Y": 5.509640264654691,
+        "Y lower": 5.343844060108497,
+        "Y upper": 5.675436469200886,
+        "Status": "In range"
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": -0.3979400086720376,
+        "Predicted Y": 5.509640264654691,
+        "Y lower": 5.343844060108497,
+        "Y upper": 5.675436469200886,
+        "Status": "In range"
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": -2.6989700043360187,
+        "Predicted Y": 10.067514363348323,
+        "Y lower": 9.925601066688145,
+        "Y upper": 10.209427660008501,
+        "Status": "In range"
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 1.3010299956639813,
+        "Predicted Y": 1.673345709172842,
+        "Y lower": 1.5061668512655186,
+        "Y upper": 1.8405245670801655,
+        "Status": "In range"
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": 2.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration"
+      }
+    ],
+    "components": []
+  },
+  "inhib-log10-prediction": {
+    "rows": [
+      {
+        "Source row": 0,
+        "Row title": "Sample 1",
+        "X": -0.3979400086720376,
+        "Predicted Y": 5.509640264654691,
+        "Y lower": 5.225293628575628,
+        "Y upper": 5.7939869007337546,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 1,
+        "Row title": "Sample 2",
+        "X": -0.3979400086720376,
+        "Predicted Y": 5.509640264654691,
+        "Y lower": 5.307577060572869,
+        "Y upper": 5.711703468736514,
+        "Status": "In range",
+        "Replicate count": 4
+      },
+      {
+        "Source row": 2,
+        "Row title": "Sample 3",
+        "X": -2.6989700043360187,
+        "Predicted Y": 10.067514363348323,
+        "Y lower": 9.79639813038446,
+        "Y upper": 10.338630596312186,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 3,
+        "Row title": "Sample 4",
+        "X": 1.3010299956639813,
+        "Predicted Y": 1.673345709172842,
+        "Y lower": 1.3881906661896384,
+        "Y upper": 1.9585007521560458,
+        "Status": "In range",
+        "Replicate count": 1
+      },
+      {
+        "Source row": 4,
+        "Row title": "Sample 5",
+        "X": 2.0,
+        "Predicted Y": null,
+        "Y lower": null,
+        "Y upper": null,
+        "Status": "Outside calibration",
+        "Replicate count": 2
+      }
+    ],
+    "components": []
+  }
+}

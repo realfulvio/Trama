@@ -1,0 +1,74 @@
+{
+  "passed": 17,
+  "total": 17,
+  "cases": [
+    {
+      "name": "oracle A: rational ordinary/GM/GeoSD",
+      "ok": true
+    },
+    {
+      "name": "oracle B: Fraction Welch and original Brown",
+      "ok": true
+    },
+    {
+      "name": "oracle A: independent studentized-range intervals",
+      "ok": true
+    },
+    {
+      "name": "ordinary log model",
+      "ok": true
+    },
+    {
+      "name": "geometric summary",
+      "ok": true
+    },
+    {
+      "name": "Welch log model",
+      "ok": true
+    },
+    {
+      "name": "original Brown log model",
+      "ok": true
+    },
+    {
+      "name": "Tukey ratios and simultaneous limits",
+      "ok": true
+    },
+    {
+      "name": "ratio reciprocal and reversed bounds",
+      "ok": true
+    },
+    {
+      "name": "unit invariance",
+      "ok": true
+    },
+    {
+      "name": "used nonpositive field error",
+      "ok": true
+    },
+    {
+      "name": "unused nonpositive row omitted",
+      "ok": true
+    },
+    {
+      "name": "legacy Normal unchanged",
+      "ok": true
+    },
+    {
+      "name": "inactive direction ignored",
+      "ok": true
+    },
+    {
+      "name": "typed group identities",
+      "ok": true
+    },
+    {
+      "name": "unrepresentable ratio disclosed",
+      "ok": true
+    },
+    {
+      "name": "invalid distribution named field",
+      "ok": true
+    }
+  ]
+}

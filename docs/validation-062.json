@@ -1,0 +1,26 @@
+{
+  "version": "0.62.0",
+  "tested_source_commit": "88b23b757969a4106ae519d1bcd21873fd1dad6a",
+  "runtime_changes_since_tested_source": false,
+  "platform": "Windows x64 VM, interactive session",
+  "unit_tests": {
+    "Linux": 1436,
+    "Windows": 1436,
+    "skips": 0
+  },
+  "full_gui_smoke": {
+    "Linux": "PASS",
+    "Windows_portable_extracted_archive": "PASS"
+  },
+  "handoff_verifiers": 8,
+  "original_reference_groups": 31,
+  "additional_grouped_reference": "PASS",
+  "authentic_imported_pzf_shape_refusal": "PASS without mutation",
+  "archive": {
+    "name": "TramaStat-0.62.0-Windows-x64.zip",
+    "bytes": 103236295,
+    "sha256": "5f6a2f505c96b0e3eb12ea68df214d42f95d9ad39459a427cd694df52233c41f"
+  },
+  "recorded_utc": "2026-11-11T13:55:45.013403+00:00",
+  "shape_verifier_note": "Original 7/9 due to two fixture defects; corrected fixtures 9/9; product validation unchanged."
+}

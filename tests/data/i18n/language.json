@@ -1,0 +1,19 @@
+{
+  "labels": [
+    ["menu.file", "File", "File"],
+    ["menu.edit", "Edit", "Modifica"],
+    ["menu.view", "View", "Visualizza"],
+    ["menu.insert", "Insert", "Inserisci"],
+    ["menu.analyze", "Analyze", "Analisi"],
+    ["menu.tools", "Tools", "Strumenti"],
+    ["command.language", "Language…", "Lingua…"],
+    ["command.paste_special", "Paste Special…", "Incolla speciale…"],
+    ["table.xy", "XY", "XY"]
+  ],
+  "status": {
+    "key": "status.saved",
+    "values": {"name": "Misurazioni {A} – città.alab"},
+    "en": "Saved Misurazioni {A} – città.alab.",
+    "it": "Salvato Misurazioni {A} – città.alab."
+  }
+}

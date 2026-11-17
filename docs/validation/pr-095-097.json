@@ -1,0 +1,98 @@
+{
+  "status": "PASS",
+  "accepted_source_commit": "4061a169997fe842c26567fc981bcf7d6af6f048",
+  "original_pull_requests": {
+    "95": "464536e9fbd16df4f05793e0c0da3ef0f9e3dafe",
+    "96": "7aafb265d2aa52ad386d2e5f34f28008de683556",
+    "97": "7932bcdaac42f0f5cfb3db25e7ff2621294c2cd1"
+  },
+  "version": "0.72.0",
+  "channel": "beta",
+  "linux": {
+    "unit_tests": 2101,
+    "failures": 0,
+    "skips": 0,
+    "seconds": 343.117,
+    "focused_tests": 63,
+    "external_verifiers": [
+      {
+        "passed": 17,
+        "total": 17
+      },
+      {
+        "passed": 14,
+        "total": 14
+      },
+      {
+        "passed": 43,
+        "total": 43
+      },
+      {
+        "passed": 41,
+        "total": 41
+      }
+    ],
+    "full_gui_smoke": "PASS with screenshots enabled",
+    "initial_gui_attempt": "FAIL: screenshot capture disabled; log retained separately"
+  },
+  "windows": {
+    "unit_tests": 2101,
+    "failures": 0,
+    "skips": 0,
+    "seconds": 440.804,
+    "focused_tests": 63,
+    "external_verifiers": [
+      {
+        "passed": 17,
+        "total": 17
+      },
+      {
+        "passed": 14,
+        "total": 14
+      },
+      {
+        "passed": 43,
+        "total": 43
+      },
+      {
+        "passed": 41,
+        "total": 41
+      }
+    ],
+    "portable_build": "PASS",
+    "frozen_code_and_packaged_guides": "PASS",
+    "targeted_portable_checks": {
+      "1024x768": "5/5 PASS",
+      "1920x1080": "5/5 PASS"
+    },
+    "full_portable_gui_smoke": "PASS",
+    "small": {
+      "height": 768,
+      "width": 1024
+    },
+    "large": {
+      "height": 1080,
+      "width": 1920
+    },
+    "before": {
+      "dpi": 96,
+      "width": 1024,
+      "height": 768
+    },
+    "restored": {
+      "height": 768,
+      "width": 1024
+    },
+    "restore_result": 0,
+    "registry_updated": false
+  },
+  "portable": {
+    "sha256": "076b73cca84d252a4adb9a08f7c92b75de3bd6191f26c7ac1a93cf45de30d85a",
+    "filename": "Trama-0.72.0-Windows-x64.zip"
+  },
+  "limitations": [
+    "Automated real GUI tests; not a manual mouse/keyboard usability study.",
+    "New correlation report legends and some reasons remain in English.",
+    "No version bump or release in this integration."
+  ]
+}

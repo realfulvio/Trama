@@ -1,0 +1,592 @@
+{
+ "lognormal paired": {
+  "method": "Lognormal t-test",
+  "options": {
+   "Design": "Paired",
+   "First": "First",
+   "Second": "Second"
+  },
+  "tables": {
+   "Log observations": {
+    "columns": [
+     "Source row",
+     "Sample",
+     "Value",
+     "Log value"
+    ],
+    "data": [
+     [
+      0,
+      "First",
+      2.03,
+      0.307496037913213
+     ],
+     [
+      1,
+      "First",
+      2.13,
+      0.328379603438738
+     ],
+     [
+      2,
+      "First",
+      1.99,
+      0.298853076409707
+     ],
+     [
+      3,
+      "First",
+      2.0,
+      0.301029995663981
+     ],
+     [
+      4,
+      "First",
+      2.05,
+      0.311753861055754
+     ],
+     [
+      5,
+      "First",
+      2.06,
+      0.313867220369153
+     ],
+     [
+      6,
+      "First",
+      2.02,
+      0.305351369446624
+     ],
+     [
+      0,
+      "Second",
+      2.0,
+      0.301029995663981
+     ],
+     [
+      1,
+      "Second",
+      2.1,
+      0.322219294733919
+     ],
+     [
+      2,
+      "Second",
+      1.95,
+      0.290034611362518
+     ],
+     [
+      3,
+      "Second",
+      2.05,
+      0.311753861055754
+     ],
+     [
+      4,
+      "Second",
+      1.99,
+      0.298853076409707
+     ],
+     [
+      5,
+      "Second",
+      2.02,
+      0.305351369446624
+     ],
+     [
+      6,
+      "Second",
+      1.97,
+      0.294466226161593
+     ]
+    ],
+    "index": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13
+    ]
+   },
+   "Lognormal test": {
+    "columns": [
+     "N first",
+     "N second",
+     "Mean log ratio",
+     "SE log ratio",
+     "Log lower",
+     "Log upper",
+     "t",
+     "df",
+     "p",
+     "Geometric ratio",
+     "Lower",
+     "Upper",
+     "Status",
+     "Reason"
+    ],
+    "data": [
+     [
+      7,
+      7,
+      0.006146104209011,
+      0.002950140624392,
+      -0.001072629847358,
+      0.013364838265379,
+      2.083325844942607,
+      6.0,
+      0.082355023995944,
+      1.014252540524206,
+      0.997533226002843,
+      1.031252081779654,
+      "OK",
+      ""
+     ]
+    ],
+    "index": [
+     0
+    ]
+   },
+   "Paired ratios": {
+    "columns": [
+     "Source row",
+     "First",
+     "Second",
+     "Log ratio",
+     "Ratio"
+    ],
+    "data": [
+     [
+      0,
+      2.03,
+      2.0,
+      0.006466042249232,
+      1.015
+     ],
+     [
+      1,
+      2.13,
+      2.1,
+      0.006160308704818,
+      1.014285714285714
+     ],
+     [
+      2,
+      1.99,
+      1.95,
+      0.008818465047189,
+      1.02051282051282
+     ],
+     [
+      3,
+      2.0,
+      2.05,
+      -0.010723865391773,
+      0.975609756097561
+     ],
+     [
+      4,
+      2.05,
+      1.99,
+      0.012900784646048,
+      1.030150753768844
+     ],
+     [
+      5,
+      2.06,
+      2.02,
+      0.00851585092253,
+      1.01980198019802
+     ],
+     [
+      6,
+      2.02,
+      1.97,
+      0.010885143285031,
+      1.025380710659898
+     ]
+    ],
+    "index": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ]
+   },
+   "Settings": {
+    "columns": [
+     "Value"
+    ],
+    "data": [
+     [
+      "Paired"
+     ],
+     [
+      "First"
+     ],
+     [
+      "Second"
+     ],
+     [
+      "First / Second"
+     ],
+     [
+      "First / Second"
+     ],
+     [
+      1.0
+     ],
+     [
+      "Not used"
+     ],
+     [
+      95.0
+     ],
+     [
+      "Two-sided"
+     ],
+     [
+      "10"
+     ],
+     [
+      "Ratio estimation"
+     ],
+     [
+      "On"
+     ],
+     [
+      "Two-sided at the stated level, also for one-sided P values; Null ratio does not move it."
+     ],
+     [
+      "log10 columns"
+     ],
+     [
+      0.722067395956356
+     ],
+     [
+      0.066892228099405
+     ],
+     [
+      "Correlation of the log values; it does not prove that the pairing was effective."
+     ]
+    ],
+    "index": [
+     "Design",
+     "First",
+     "Second",
+     "Report ratio",
+     "Ratio definition",
+     "Null ratio",
+     "Hypothetical geometric mean",
+     "Confidence level (%)",
+     "Alternative",
+     "Log base",
+     "Graph",
+     "Pairing correlation",
+     "Interval",
+     "Log scale",
+     "Pearson r (log values)",
+     "Pearson P (two-sided)",
+     "Pairing correlation note"
+    ]
+   }
+  }
+ },
+ "t-test one-sample": {
+  "method": "t-test",
+  "options": {
+   "Design": "One-sample",
+   "Null mean": 0.0,
+   "Response": "Response"
+  },
+  "tables": {
+   "t-test": {
+    "columns": [
+     "Value"
+    ],
+    "data": [
+     [
+      "Sample"
+     ],
+     [
+      0.0
+     ],
+     [
+      8
+     ],
+     [
+      null
+     ],
+     [
+      0.022375
+     ],
+     [
+      0.0
+     ],
+     [
+      0.022375
+     ],
+     [
+      8.68277537630072
+     ],
+     [
+      7
+     ],
+     [
+      5.3838232389e-05
+     ],
+     [
+      0.016281502778616
+     ],
+     [
+      0.028468497221384
+     ],
+     [
+      3.069824674050908
+     ]
+    ],
+    "index": [
+     "First",
+     "Second / null",
+     "N first",
+     "N second",
+     "Mean first",
+     "Mean second",
+     "Difference",
+     "t",
+     "df",
+     "p",
+     "CI 95% low",
+     "CI 95% high",
+     "Cohen's d"
+    ]
+   }
+  }
+ },
+ "t-test paired columns": {
+  "method": "Paired t-test (columns)",
+  "options": {
+   "First": "First",
+   "Second": "Second"
+  },
+  "tables": {
+   "t-test": {
+    "columns": [
+     "Value"
+    ],
+    "data": [
+     [
+      "First"
+     ],
+     [
+      "Second"
+     ],
+     [
+      7
+     ],
+     [
+      7
+     ],
+     [
+      1.04
+     ],
+     [
+      1.011428571428571
+     ],
+     [
+      0.028571428571428
+     ],
+     [
+      2.085144140570745
+     ],
+     [
+      6
+     ],
+     [
+      0.082148150610652
+     ],
+     [
+      -0.004957077115682
+     ],
+     [
+      0.062099934258539
+     ],
+     [
+      0.7881104062391
+     ]
+    ],
+    "index": [
+     "First",
+     "Second / null",
+     "N first",
+     "N second",
+     "Mean first",
+     "Mean second",
+     "Difference",
+     "t",
+     "df",
+     "p",
+     "CI 95% low",
+     "CI 95% high",
+     "Cohen's d"
+    ]
+   }
+  }
+ },
+ "t-test student": {
+  "method": "t-test",
+  "options": {
+   "Design": "Student",
+   "Group": "Group",
+   "Null mean": 0.0,
+   "Response": "Response"
+  },
+  "tables": {
+   "t-test": {
+    "columns": [
+     "Value"
+    ],
+    "data": [
+     [
+      "A"
+     ],
+     [
+      "B"
+     ],
+     [
+      15
+     ],
+     [
+      8
+     ],
+     [
+      10.05
+     ],
+     [
+      10.0
+     ],
+     [
+      0.050000000000001
+     ],
+     [
+      0.459908538396258
+     ],
+     [
+      21.0
+     ],
+     [
+      0.650307981633981
+     ],
+     [
+      -0.176089936488187
+     ],
+     [
+      0.276089936488189
+     ],
+     [
+      0.20134681656421
+     ]
+    ],
+    "index": [
+     "First",
+     "Second / null",
+     "N first",
+     "N second",
+     "Mean first",
+     "Mean second",
+     "Difference",
+     "t",
+     "df",
+     "p",
+     "CI 95% low",
+     "CI 95% high",
+     "Cohen's d"
+    ]
+   }
+  }
+ },
+ "t-test welch": {
+  "method": "t-test",
+  "options": {
+   "Design": "Welch",
+   "Group": "Group",
+   "Null mean": 0.0,
+   "Response": "Response"
+  },
+  "tables": {
+   "t-test": {
+    "columns": [
+     "Value"
+    ],
+    "data": [
+     [
+      "A"
+     ],
+     [
+      "B"
+     ],
+     [
+      15
+     ],
+     [
+      8
+     ],
+     [
+      10.05
+     ],
+     [
+      10.0
+     ],
+     [
+      0.050000000000001
+     ],
+     [
+      0.568398560058814
+     ],
+     [
+      20.703535176758823
+     ],
+     [
+      0.575878311321144
+     ],
+     [
+      -0.13309587037352
+     ],
+     [
+      0.233095870373522
+     ],
+     [
+      0.20134681656421
+     ]
+    ],
+    "index": [
+     "First",
+     "Second / null",
+     "N first",
+     "N second",
+     "Mean first",
+     "Mean second",
+     "Difference",
+     "t",
+     "df",
+     "p",
+     "CI 95% low",
+     "CI 95% high",
+     "Cohen's d"
+    ]
+   }
+  }
+ }
+}

@@ -1,0 +1,13 @@
+Time,Event,Arm
+1,Death,A
+2,Death,B
+2,Censored,A
+3,Censored,B
+4,Death,A
+4,Death,A
+5,Censored,B
+6,Death,A
+7,Death,B
+8,Censored,A
+8,Death,A
+9,Censored,B

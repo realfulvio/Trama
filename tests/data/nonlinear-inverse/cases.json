@@ -1,0 +1,470 @@
+[
+  {
+    "id": "decay-mean",
+    "model": "One-phase decay",
+    "parameters": [
+      2,
+      8,
+      0.6
+    ],
+    "covariance": [
+      [
+        0.01,
+        0,
+        0
+      ],
+      [
+        0,
+        0.04,
+        0
+      ],
+      [
+        0,
+        0,
+        0.0004
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 4.0,
+    "low": 0.0,
+    "high": 8.0,
+    "level": 95.0,
+    "uncertainty": "Mean response",
+    "replicates": 1
+  },
+  {
+    "id": "decay-prediction-k1",
+    "model": "One-phase decay",
+    "parameters": [
+      2,
+      8,
+      0.6
+    ],
+    "covariance": [
+      [
+        0.01,
+        0,
+        0
+      ],
+      [
+        0,
+        0.04,
+        0
+      ],
+      [
+        0,
+        0,
+        0.0004
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 4.0,
+    "low": 0.0,
+    "high": 8.0,
+    "level": 95.0,
+    "uncertainty": "Prediction",
+    "replicates": 1
+  },
+  {
+    "id": "decay-prediction-k4",
+    "model": "One-phase decay",
+    "parameters": [
+      2,
+      8,
+      0.6
+    ],
+    "covariance": [
+      [
+        0.01,
+        0,
+        0
+      ],
+      [
+        0,
+        0.04,
+        0
+      ],
+      [
+        0,
+        0,
+        0.0004
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 4.0,
+    "low": 0.0,
+    "high": 8.0,
+    "level": 95.0,
+    "uncertainty": "Prediction",
+    "replicates": 4
+  },
+  {
+    "id": "concentration-stimulate",
+    "model": "Stimulation (variable slope)",
+    "parameters": [
+      0,
+      10,
+      1,
+      1.2
+    ],
+    "covariance": [
+      [
+        0.01,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0.01,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0.0025,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0.01
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 3,
+    "low": 0,
+    "high": 30,
+    "level": 95.0,
+    "uncertainty": "Mean response",
+    "replicates": 1
+  },
+  {
+    "id": "concentration-inhibit",
+    "model": "Inhibition (variable slope)",
+    "parameters": [
+      0,
+      10,
+      1,
+      -1.2
+    ],
+    "covariance": [
+      [
+        0.01,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0.01,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0.0025,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0.01
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 3,
+    "low": 0,
+    "high": 30,
+    "level": 95.0,
+    "uncertainty": "Mean response",
+    "replicates": 1
+  },
+  {
+    "id": "log-stimulate",
+    "model": "Stimulation (variable slope, log10 X)",
+    "parameters": [
+      0,
+      10,
+      0,
+      1.2
+    ],
+    "covariance": [
+      [
+        0.01,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0.01,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0.0025,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0.01
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 3,
+    "low": -3,
+    "high": 3,
+    "level": 95.0,
+    "uncertainty": "Mean response",
+    "replicates": 1
+  },
+  {
+    "id": "log-inhibit",
+    "model": "Inhibition (variable slope, log10 X)",
+    "parameters": [
+      0,
+      10,
+      0,
+      -1.2
+    ],
+    "covariance": [
+      [
+        0.01,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0.01,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0.0025,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0.01
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 3,
+    "low": -3,
+    "high": 3,
+    "level": 95.0,
+    "uncertainty": "Mean response",
+    "replicates": 1
+  },
+  {
+    "id": "two-components",
+    "model": "Stimulation (variable slope)",
+    "parameters": [
+      0,
+      10,
+      1,
+      1.2
+    ],
+    "covariance": [
+      [
+        100,
+        -99.99,
+        0,
+        0
+      ],
+      [
+        -99.99,
+        100,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0.0001,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0.0001
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 2,
+    "low": 0.001,
+    "high": 100,
+    "level": 95.0,
+    "uncertainty": "Mean response",
+    "replicates": 1
+  },
+  {
+    "id": "needle-component",
+    "model": "Stimulation (variable slope)",
+    "parameters": [
+      0,
+      10,
+      1,
+      12
+    ],
+    "covariance": [
+      [
+        1e-14,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        1e-14,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1e-14,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1e-14
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 5,
+    "low": 0.01,
+    "high": 100,
+    "level": 95.0,
+    "uncertainty": "Mean response",
+    "replicates": 1
+  },
+  {
+    "id": "clipped-low",
+    "model": "One-phase decay",
+    "parameters": [
+      2,
+      8,
+      0.6
+    ],
+    "covariance": [
+      [
+        0.01,
+        0,
+        0
+      ],
+      [
+        0,
+        0.04,
+        0
+      ],
+      [
+        0,
+        0,
+        0.0004
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 10,
+    "low": 0.0,
+    "high": 8.0,
+    "level": 95.0,
+    "uncertainty": "Mean response",
+    "replicates": 1
+  },
+  {
+    "id": "empty-set",
+    "model": "One-phase decay",
+    "parameters": [
+      2,
+      8,
+      0.6
+    ],
+    "covariance": [
+      [
+        0.01,
+        0,
+        0
+      ],
+      [
+        0,
+        0.04,
+        0
+      ],
+      [
+        0,
+        0,
+        0.0004
+      ]
+    ],
+    "residual_variance": 0.09,
+    "df": 20,
+    "response": 40,
+    "low": 0.0,
+    "high": 8.0,
+    "level": 95.0,
+    "uncertainty": "Mean response",
+    "replicates": 1
+  },
+  {
+    "id": "singleton-at-domain-end",
+    "model": "One-phase decay",
+    "parameters": [
+      2,
+      8,
+      0.6
+    ],
+    "covariance": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0
+      ]
+    ],
+    "residual_variance": 0,
+    "df": 20,
+    "response": 10,
+    "low": 0,
+    "high": 8,
+    "level": 95,
+    "uncertainty": "Mean response",
+    "replicates": 1
+  }
+]

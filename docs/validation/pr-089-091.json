@@ -1,0 +1,88 @@
+{
+  "source_commit": "c79a625cf40e4fc955104535e60ab6ca727659bb",
+  "base_commit": "8c8ca6cf1a7d24817da182244a8ab15185761046",
+  "pull_requests": [
+    89,
+    90,
+    91
+  ],
+  "test_date": "2026-11-13",
+  "evidence_verified": "2026-11-16",
+  "source_manifest": {
+    "files": 1017,
+    "linux": "MATCH",
+    "windows": "MATCH"
+  },
+  "source_archive_sha256": "cf78fd02f80ba4c6a35eef4a79b219c4d3bc97fe6b6aa7cb0250a41215607a66",
+  "units": {
+    "linux": {
+      "count": 2007,
+      "seconds": 251.98,
+      "skipped": 0,
+      "status": "PASS"
+    },
+    "windows": {
+      "count": 2007,
+      "seconds": 369.846,
+      "skipped": 0,
+      "status": "PASS"
+    }
+  },
+  "focused": {
+    "linux": {
+      "count": 71,
+      "status": "PASS"
+    },
+    "windows": {
+      "count": 71,
+      "status": "PASS"
+    }
+  },
+  "external_verifiers_each_platform": {
+    "robust_curve": {
+      "passed": 35,
+      "total": 35
+    },
+    "reference_normalization": {
+      "passed": 60,
+      "total": 60
+    },
+    "heatmap_number_format": {
+      "passed": 18,
+      "total": 18
+    }
+  },
+  "linux_full_smoke": "PASS",
+  "native_windows_portable": {
+    "build": "PASS",
+    "packaging": "PASS",
+    "resolution_1024x768": {
+      "robust_curve": "PASS",
+      "heatmap_number_format": "PASS",
+      "reference_normalization": "PASS"
+    },
+    "resolution_1920x1080": {
+      "robust_curve": "PASS",
+      "heatmap_number_format": "PASS",
+      "reference_normalization": "PASS"
+    },
+    "full_smoke": "PASS",
+    "dpi": 96,
+    "frozen_code_checks": "PASS",
+    "restored_initial_resolution": true,
+    "registry_updated": false
+  },
+  "portable_archive": {
+    "sha256": "7434e5b1f17dde29e98a6ecca543f5a7971f15cf86cac12d3681d31416ba9b19",
+    "bytes": 103096180,
+    "files": 2888,
+    "crc": "PASS",
+    "embedded_version": "0.72.0",
+    "channel": "beta"
+  },
+  "not_verified": [
+    "Native Windows 125%/150% DPI",
+    "Unscripted mouse-and-keyboard acceptance"
+  ],
+  "release_created": false
+}

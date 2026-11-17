@@ -1,0 +1,795 @@
+{
+  "lanes-and-star-boundaries": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": 2.0
+      },
+      "B": {
+        "x": 1,
+        "top": 4.0
+      },
+      "C": {
+        "x": 2,
+        "top": 3.0
+      },
+      "D": {
+        "x": 3,
+        "top": 5.0
+      }
+    },
+    "comparisons": [
+      {
+        "left": "A",
+        "right": "D",
+        "p": 0.0001
+      },
+      {
+        "left": "C",
+        "right": "D",
+        "p": 0.05
+      },
+      {
+        "left": "A",
+        "right": "B",
+        "p": 0.001
+      },
+      {
+        "left": "B",
+        "right": "C",
+        "p": 0.01
+      },
+      {
+        "left": "A",
+        "right": "C",
+        "p": 0.0500001
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": null
+    },
+    "y_limits": [
+      0.0,
+      10.0
+    ]
+  },
+  "numeric-values": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": 2.0
+      },
+      "B": {
+        "x": 1,
+        "top": 4.0
+      },
+      "C": {
+        "x": 2,
+        "top": 3.0
+      },
+      "D": {
+        "x": 3,
+        "top": 5.0
+      }
+    },
+    "comparisons": [
+      {
+        "left": "A",
+        "right": "B",
+        "p": 0.0
+      },
+      {
+        "left": "C",
+        "right": "D",
+        "p": 0.0001
+      },
+      {
+        "left": "A",
+        "right": "D",
+        "p": 0.00234567
+      }
+    ],
+    "settings": {
+      "label": "p",
+      "cutoff": null,
+      "pairs": null
+    },
+    "y_limits": [
+      0.0,
+      10.0
+    ]
+  },
+  "exact-cutoff": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": 2.0
+      },
+      "B": {
+        "x": 1,
+        "top": 4.0
+      },
+      "C": {
+        "x": 2,
+        "top": 3.0
+      },
+      "D": {
+        "x": 3,
+        "top": 5.0
+      }
+    },
+    "comparisons": [
+      {
+        "left": "A",
+        "right": "D",
+        "p": 0.0001
+      },
+      {
+        "left": "C",
+        "right": "D",
+        "p": 0.05
+      },
+      {
+        "left": "A",
+        "right": "B",
+        "p": 0.001
+      },
+      {
+        "left": "B",
+        "right": "C",
+        "p": 0.01
+      },
+      {
+        "left": "A",
+        "right": "C",
+        "p": 0.0500001
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": 0.05,
+      "pairs": null
+    },
+    "y_limits": [
+      0.0,
+      10.0
+    ]
+  },
+  "reverse-selected": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": 2.0
+      },
+      "B": {
+        "x": 1,
+        "top": 4.0
+      },
+      "C": {
+        "x": 2,
+        "top": 3.0
+      },
+      "D": {
+        "x": 3,
+        "top": 5.0
+      }
+    },
+    "comparisons": [
+      {
+        "left": "A",
+        "right": "D",
+        "p": 0.0001
+      },
+      {
+        "left": "C",
+        "right": "D",
+        "p": 0.05
+      },
+      {
+        "left": "A",
+        "right": "B",
+        "p": 0.001
+      },
+      {
+        "left": "B",
+        "right": "C",
+        "p": 0.01
+      },
+      {
+        "left": "A",
+        "right": "C",
+        "p": 0.0500001
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": [
+        [
+          "D",
+          "C"
+        ],
+        [
+          "D",
+          "A"
+        ]
+      ]
+    },
+    "y_limits": [
+      0.0,
+      10.0
+    ]
+  },
+  "duplicate-first-valid": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": 2.0
+      },
+      "B": {
+        "x": 1,
+        "top": 4.0
+      },
+      "C": {
+        "x": 2,
+        "top": 3.0
+      },
+      "D": {
+        "x": 3,
+        "top": 5.0
+      }
+    },
+    "comparisons": [
+      {
+        "left": "B",
+        "right": "A",
+        "p": null
+      },
+      {
+        "left": "B",
+        "right": "A",
+        "p": 0.001
+      },
+      {
+        "left": "A",
+        "right": "B",
+        "p": 1e-05
+      },
+      {
+        "left": "C",
+        "right": "D",
+        "p": 0.025
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": null
+    },
+    "y_limits": [
+      0.0,
+      10.0
+    ]
+  },
+  "missing-and-invalid": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": 2.0
+      },
+      "B": {
+        "x": 1,
+        "top": 4.0
+      },
+      "C": {
+        "x": 2,
+        "top": 3.0
+      },
+      "D": {
+        "x": 3,
+        "top": 5.0
+      }
+    },
+    "comparisons": [
+      {
+        "left": "E",
+        "right": "A",
+        "p": 0.002
+      },
+      {
+        "left": "C",
+        "right": "D",
+        "p": -0.0001
+      },
+      {
+        "left": "A",
+        "right": "A",
+        "p": 0.002
+      },
+      {
+        "left": "B",
+        "right": "C",
+        "p": 1.01
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": null
+    },
+    "y_limits": [
+      0.0,
+      10.0
+    ]
+  },
+  "typed-labels": {
+    "anchors": {
+      "category:int:1": {
+        "x": 0,
+        "top": 2
+      },
+      "category:str:1": {
+        "x": 1,
+        "top": 3
+      },
+      "category:str:B": {
+        "x": 2,
+        "top": 4
+      }
+    },
+    "comparisons": [
+      {
+        "left": "category:int:1",
+        "right": "category:str:1",
+        "p": 0.009
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": null
+    },
+    "y_limits": [
+      0.0,
+      10.0
+    ]
+  },
+  "negative-data": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": -8
+      },
+      "B": {
+        "x": 1,
+        "top": -5
+      }
+    },
+    "comparisons": [
+      {
+        "left": "A",
+        "right": "B",
+        "p": 0.03
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": null
+    },
+    "y_limits": [
+      -12,
+      -4
+    ]
+  },
+  "log-spacing": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": 2
+      },
+      "B": {
+        "x": 1,
+        "top": 20
+      },
+      "C": {
+        "x": 2,
+        "top": 0
+      },
+      "D": {
+        "x": 3,
+        "top": 10
+      }
+    },
+    "comparisons": [
+      {
+        "left": "A",
+        "right": "B",
+        "p": 0.01
+      },
+      {
+        "left": "A",
+        "right": "C",
+        "p": 0.01
+      },
+      {
+        "left": "B",
+        "right": "D",
+        "p": 0.02
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": null
+    },
+    "y_limits": [
+      1,
+      100
+    ],
+    "yscale": "log"
+  },
+  "fixed-upper-limit": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": 7.5
+      },
+      "B": {
+        "x": 1,
+        "top": 8
+      },
+      "C": {
+        "x": 2,
+        "top": 8.5
+      }
+    },
+    "comparisons": [
+      {
+        "left": "A",
+        "right": "B",
+        "p": 0.005
+      },
+      {
+        "left": "A",
+        "right": "C",
+        "p": 0.002
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": null
+    },
+    "y_limits": [
+      0.0,
+      10.0
+    ],
+    "fixed_y": true
+  },
+  "inverted-y": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": 2.0
+      },
+      "B": {
+        "x": 1,
+        "top": 4.0
+      },
+      "C": {
+        "x": 2,
+        "top": 3.0
+      },
+      "D": {
+        "x": 3,
+        "top": 5.0
+      }
+    },
+    "comparisons": [
+      {
+        "left": "A",
+        "right": "B",
+        "p": 0.01
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": null
+    },
+    "y_limits": [
+      10,
+      0
+    ]
+  },
+  "empty-selection": {
+    "anchors": {
+      "A": {
+        "x": 0,
+        "top": 2.0
+      },
+      "B": {
+        "x": 1,
+        "top": 4.0
+      },
+      "C": {
+        "x": 2,
+        "top": 3.0
+      },
+      "D": {
+        "x": 3,
+        "top": 5.0
+      }
+    },
+    "comparisons": [
+      {
+        "left": "A",
+        "right": "D",
+        "p": 0.0001
+      },
+      {
+        "left": "C",
+        "right": "D",
+        "p": 0.05
+      },
+      {
+        "left": "A",
+        "right": "B",
+        "p": 0.001
+      },
+      {
+        "left": "B",
+        "right": "C",
+        "p": 0.01
+      },
+      {
+        "left": "A",
+        "right": "C",
+        "p": 0.0500001
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": []
+    },
+    "y_limits": [
+      0.0,
+      10.0
+    ]
+  },
+  "annotation-budget": {
+    "anchors": {
+      "0": {
+        "x": 0,
+        "top": 1
+      },
+      "1": {
+        "x": 1,
+        "top": 2
+      },
+      "2": {
+        "x": 2,
+        "top": 3
+      },
+      "3": {
+        "x": 3,
+        "top": 4
+      },
+      "4": {
+        "x": 4,
+        "top": 5
+      },
+      "5": {
+        "x": 5,
+        "top": 6
+      },
+      "6": {
+        "x": 6,
+        "top": 7
+      },
+      "7": {
+        "x": 7,
+        "top": 8
+      },
+      "8": {
+        "x": 8,
+        "top": 9
+      }
+    },
+    "comparisons": [
+      {
+        "left": "0",
+        "right": "1",
+        "p": 0.001
+      },
+      {
+        "left": "0",
+        "right": "2",
+        "p": 0.001
+      },
+      {
+        "left": "0",
+        "right": "3",
+        "p": 0.001
+      },
+      {
+        "left": "0",
+        "right": "4",
+        "p": 0.001
+      },
+      {
+        "left": "0",
+        "right": "5",
+        "p": 0.001
+      },
+      {
+        "left": "0",
+        "right": "6",
+        "p": 0.001
+      },
+      {
+        "left": "0",
+        "right": "7",
+        "p": 0.001
+      },
+      {
+        "left": "0",
+        "right": "8",
+        "p": 0.001
+      },
+      {
+        "left": "1",
+        "right": "2",
+        "p": 0.001
+      },
+      {
+        "left": "1",
+        "right": "3",
+        "p": 0.001
+      },
+      {
+        "left": "1",
+        "right": "4",
+        "p": 0.001
+      },
+      {
+        "left": "1",
+        "right": "5",
+        "p": 0.001
+      },
+      {
+        "left": "1",
+        "right": "6",
+        "p": 0.001
+      },
+      {
+        "left": "1",
+        "right": "7",
+        "p": 0.001
+      },
+      {
+        "left": "1",
+        "right": "8",
+        "p": 0.001
+      },
+      {
+        "left": "2",
+        "right": "3",
+        "p": 0.001
+      },
+      {
+        "left": "2",
+        "right": "4",
+        "p": 0.001
+      },
+      {
+        "left": "2",
+        "right": "5",
+        "p": 0.001
+      },
+      {
+        "left": "2",
+        "right": "6",
+        "p": 0.001
+      },
+      {
+        "left": "2",
+        "right": "7",
+        "p": 0.001
+      },
+      {
+        "left": "2",
+        "right": "8",
+        "p": 0.001
+      },
+      {
+        "left": "3",
+        "right": "4",
+        "p": 0.001
+      },
+      {
+        "left": "3",
+        "right": "5",
+        "p": 0.001
+      },
+      {
+        "left": "3",
+        "right": "6",
+        "p": 0.001
+      },
+      {
+        "left": "3",
+        "right": "7",
+        "p": 0.001
+      },
+      {
+        "left": "3",
+        "right": "8",
+        "p": 0.001
+      },
+      {
+        "left": "4",
+        "right": "5",
+        "p": 0.001
+      },
+      {
+        "left": "4",
+        "right": "6",
+        "p": 0.001
+      },
+      {
+        "left": "4",
+        "right": "7",
+        "p": 0.001
+      },
+      {
+        "left": "4",
+        "right": "8",
+        "p": 0.001
+      },
+      {
+        "left": "5",
+        "right": "6",
+        "p": 0.001
+      },
+      {
+        "left": "5",
+        "right": "7",
+        "p": 0.001
+      },
+      {
+        "left": "5",
+        "right": "8",
+        "p": 0.001
+      },
+      {
+        "left": "6",
+        "right": "7",
+        "p": 0.001
+      },
+      {
+        "left": "6",
+        "right": "8",
+        "p": 0.001
+      },
+      {
+        "left": "7",
+        "right": "8",
+        "p": 0.001
+      }
+    ],
+    "settings": {
+      "label": "stars",
+      "cutoff": null,
+      "pairs": null
+    },
+    "y_limits": [
+      0.0,
+      10.0
+    ]
+  }
+}

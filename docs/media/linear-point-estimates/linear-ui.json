@@ -1,0 +1,10 @@
+{
+  "platform": "win32",
+  "font_family": "Segoe UI",
+  "ui_scale": 1.0,
+  "dialog_width": 757,
+  "dialog_height": 486,
+  "tcl": "8.6.15",
+  "tk": "8.6.15",
+  "field_errors_corrected_in_same_dialog": true
+}

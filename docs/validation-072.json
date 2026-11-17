@@ -1,0 +1,23 @@
+{
+  "version": "0.72.0",
+  "channel": "beta",
+  "application_base_commit": "a126955ed31a151b73bc48afb6a7a30061d1ebac",
+  "portable_source_commit": "e78f2495895c63df9d3ac55d61c0409765cc8fcc",
+  "application_changes_since_full_acceptance": ["version metadata"],
+  "other_changes": ["release documentation", "packaged documentation list"],
+  "inherited_full_acceptance": "validation-tost-086.json",
+  "linux_full_units": 1870,
+  "windows_full_units": 1870,
+  "full_unit_skips": 0,
+  "linux_complete_smoke": "PASS on the application base",
+  "windows_portable_complete_smoke": "PASS on the application base",
+  "release_targeted_units": 71,
+  "release_portable_tost_1920x1200": "PASS",
+  "release_portable_tost_1024x768": "PASS",
+  "embedded_version": "0.72.0",
+  "embedded_channel": "beta",
+  "windows_zip_sha256": "e2ac1e0219ebffd9c10554f82c06f5f90c47afe1d5b92cb519e6fca4cc3d879a",
+  "display_restoration": "PASS",
+  "new_manual_keyboard_mouse_tests": "NOT TESTED",
+  "new_native_125_150_dpi_tests": "NOT TESTED"
+}

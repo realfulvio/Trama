@@ -1,0 +1,34 @@
+# Mixed models and global fits
+
+## Partial repeated measures
+
+Choose **Mixed-effects model (REML)** under **Group Comparison**. For long data, select the response, subject ID, and one to three within/between factors. At least one factor must repeat within subject. If each experimental arm starts numbering subjects again, select **Restart within between groups**.
+
+For one within-subject factor, **Wide repeated measures** accepts one measurement column per condition and uses row positions as subjects if you omit the ID column. For a Prism-style grouped sheet, select **Grouped replicate table**, the row labels and measurement columns, and whether subjects repeat across rows, columns or both. A header such as `Treatment A [2]` identifies replicate 2 of the series `Treatment A`.
+
+Leave unobserved responses blank. The **Model** and **Subjects** tabs report retained observations and partial or excluded subjects. The fit uses restricted maximum likelihood and Type III tests. It estimates a subject intercept and, when multiple factors repeat, the applicable independent subject-by-factor variance components.
+
+Under **Options → Denominator method**, select **Satterthwaite** (the default) or **Kenward–Roger**. The latter adjusts fixed-effect covariance, uses contrast-specific degrees of freedom for t tests and intervals, and reports the scaling applied to omnibus F tests. If the variance components are on a boundary or the required information matrix is singular, the report keeps the point estimates and marks the affected inference unavailable. The numerical references include [Kenward and Roger's paper](https://doi.org/10.2307/2533558) and [pbkrtest](https://doi.org/10.18637/jss.v059.i09).
+
+Enable **Post-hoc** to compare marginal means. Set a **Comparison factor** and optionally **Condition on factors** to compare simple effects. Choose whether to adjust within each stratum or across the pooled family.
+
+## Joint nonlinear fitting
+
+Choose **Global nonlinear regression** under **Regression and Curves**. Select a long table with X, Y and a series column, or select X and multiple Y columns in **Wide XY**. Numbered Y columns can be combined as replicates of the same series. Choose **Log10 concentrations** when the X column already contains log-dose values and the model expects concentration. The fit reports concentration parameters in their original units.
+
+Use **Options → Browse** to search equations and families. Choose **As entered** for equations that already expect log10 X. The picker shows parameters and any required constants or shared values. Equations that require fixed values also support a single curve through **Global nonlinear regression**. Leave the series role blank for one curve in long format, or select one Y column in wide format.
+
+Some equations use equivalent parameterizations with different reported coefficients. Three-phase decay uses the slow percentage of the fraction remaining after the fast phase, so the three weights are nonnegative and sum to one. Two-phase association reports separate fast and slow spans. Equivalent components can exchange labels in unconstrained fits.
+
+In **Parameters**, choose **Local**, **Shared** or **Fixed** for each coefficient. Local estimates can vary by series. A shared coefficient has one estimate for all series. Fixed values, limits and optional initial values apply to the selected coefficient across all series. A starting value at a bound is moved to a usable interior seed before fitting.
+
+In **Series constraints**, select a series and enter any local fixed value, lower or upper limit, or starting value. Blank fields inherit the common settings. For a shared coefficient, the fit uses the intersection of common and series limits. A fixed coefficient must satisfy every applicable limit. The result shows the overrides in a separate table. Native project recipes retain those settings when reopened.
+
+Check **Compare** next to a local coefficient to test whether sharing it worsens the fit while preserving existing sharing. The **Compare with independent fits** option instead tests the full set of equality constraints against separate coefficients. The output identifies comparisons unavailable due to rank, an active bound, or lack of residual variance.
+
+Choose symmetric t intervals or profile likelihood intervals in **Options**. Profile intervals refit nuisance parameters for each endpoint. Optional plot bands are pointwise confidence bands for the fitted mean based on the linearized covariance. Replicates can be fitted individually or averaged at each X. Relative SD weights use a positive SD for every retained observation. For averaged weighted observations, the SDs are propagated assuming independent replicates.
+
+**Weighting** offers Unweighted, Inverse variance (column), 1/abs(Y), 1/Y², 1/abs(Yfit) and 1/Yfit². For a residual r = Y − f(X) the denominators are the scale |Y|^(q/2) (observed Y) or |Yfit|^(q/2) (fitted curve), with q = 1 or 2; the objective is the sum of (r/scale)². The same scale is normalized over all series together, so a series with more or larger observations keeps its influence, and Weighted residual and Weighted residual SS are reported in the original units. A zero Y is an error on **Weighting** for the observed modes, and the dialog stays open. The fitted modes fit the same model without weights first, then refit with the previous curve's scales held fixed (at most 50 weighted refits) until the free parameters change by less than 1e−8 relative to their internal solver units and the log scales, centred on their median, change by less than 1e−8. They accept a zero observed Y when no fitted value is zero. If the criteria are not met, the fit stops with an error on **Weighting** and keeps the previous result. **Joint fit** reports Weighting iterations, Weighting converged and Inference weights = Final frozen weights. Covariance, symmetric and profile intervals, bands, Shared vs independent and Selected parameter comparison condition on those final scales, so each comparison is a weighted least-squares test with the same weights. The independent Nonlinear regression offers the same six choices; Compare nonlinear models keeps Unweighted and Inverse variance (column), and AICc remains unweighted.
+
+Each joint fit uses one selected equation and, in wide mode, one SD column. Profile refits and large dense designs have explicit size limits.
+

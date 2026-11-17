@@ -1,0 +1,615 @@
+"""Native column and grouped plots from worksheet observations."""
+from dataclasses import dataclass
+import re
+
+from matplotlib.collections import LineCollection
+from matplotlib.colors import to_rgba
+import numpy as np
+import pandas as pd
+from scipy.stats import t
+
+from .data import _worksheet_roles
+from .pairwise_graph import register_anchors
+from .processing import FieldError
+from .reporting import Result, _plot
+
+
+COLUMN_GRAPH, GROUPED_GRAPH = "Column graph", "Grouped graph"
+BARS, POINTS, SYMBOLS, RANGE, PAIRED = "Bars", "Individual points", "Center and interval", "Floating range", "Before and after"
+GROUPED_STYLES = (BARS, POINTS, SYMBOLS, RANGE)
+COLUMN_STYLES = (POINTS, BARS, SYMBOLS, RANGE, PAIRED)
+INTERVALS = ("None", "SD", "SEM", "Confidence interval", "Range", "Interquartile range")
+PLACEMENTS = ("Spread exact ties", "Centered", "Jitter")
+OPTIONS = {"Center": ("Mean", "Median"), "Interval": INTERVALS, "Confidence level (%)": 95.,
+           "Overlay observations": False, "Point placement": PLACEMENTS}
+# Grouped graphs read raw replicates or summaries that were calculated elsewhere.
+RAW, SUMMARIES = INPUTS = ("Raw replicates", "Precomputed summaries")
+INTERLEAVED, SUPERIMPOSED, STACKED, PERCENT_STACKED = GROUP_PLACEMENTS = (
+    "Interleaved", "Superimposed", "Stacked", "100% stacked")
+STACKED_PLACEMENTS = frozenset({STACKED, PERCENT_STACKED})
+DISTANCES, LIMITS = "Distances from estimate (minus/plus)", "Limits on axis (lower/upper)"
+SUMMARY_ERRORS = ("None", "SD", "SEM", DISTANCES, LIMITS)
+ENTERED_SEM, DERIVED_SEM = SEM_SOURCES = ("Entered SEM, else SD / √N", "SD / √N")
+SUMMARY_STYLES = (BARS, SYMBOLS)
+GROUPED_OPTIONS = {"Input": INPUTS, "Graph style": GROUPED_STYLES, "Placement of groups": GROUP_PLACEMENTS,
+                   "Center": OPTIONS["Center"], "Interval": INTERVALS,
+                   "Confidence level (%)": OPTIONS["Confidence level (%)"],
+                   "Summary error": SUMMARY_ERRORS, "SEM source": SEM_SOURCES,
+                   "Overlay observations": False, "Point placement": PLACEMENTS}
+PERCENT_LABEL = "Percent of row total (%)"
+COLORS = ("#216a94", "#ca6239", "#2b8a73", "#845994", "#b08428", "#5678a9", "#b64e69", "#527f50")
+_REPLICATE = re.compile(r"(.+) \[[1-9]\d*\]( \(\d+\))?")
+_SUMMARY = re.compile(r".+ \[(?:Mean|SD|SEM|N|CV%?|Center|Plus|Minus|Lower|Upper)\](?: \(\d+\))?")
+# A subcolumn role is only recognized at the end of the name, before an optional
+# duplicate suffix that the grid adds, e.g. "Control [SD] (2)".
+_SUMMARY_FIELD = re.compile(r"(.+) \[(Mean|Center|SD|SEM|N|Minus|Plus|Lower|Upper|CV%?)\]( \(\d+\))?")
+_FIELD_ROLES = {"Mean": "center", "Center": "center", "SD": "sd", "SEM": "sem", "N": "n",
+                "Minus": "minus", "Plus": "plus", "Lower": "lower", "Upper": "upper"}
+MAX_CATEGORIES = 120
+MAX_PLOT_CELLS = 240
+MAX_POINTS = 60_000
+
+
+@dataclass
+class _Series:
+    name: str
+    values: list
+    x: np.ndarray
+    color: str
+
+
+def _choice(options, name, choices):
+    value = options.get(name, choices[0])
+    if value not in choices:
+        raise FieldError(name, f"Choose a valid {name.lower()}.")
+    return value
+
+
+def _numbers(frame, names):
+    selected = frame.loc[:, names]
+    converted = selected.apply(pd.to_numeric, errors="coerce")
+    if any(np.iscomplexobj(column.to_numpy()) for _, column in converted.items()):
+        raise FieldError("Variables", "Choose columns with real numeric values.")
+    matrix = converted.to_numpy(dtype=float, na_value=np.nan)
+    invalid = selected.notna().to_numpy() & ~np.isfinite(matrix)
+    if invalid.any():
+        name = names[int(np.nonzero(invalid)[1][0])]
+        raise FieldError("Variables", f'"{name}" contains text or infinite values.')
+    return matrix
+
+
+def _title(name):
+    match = _REPLICATE.fullmatch(name)
+    return match[1] + (match[2] or "") if match else name
+
+
+def _row_title_column(frame, row_labels, roles):
+    if row_labels is None:
+        aliases = {"row title", "row titles"}
+        first = frame.columns[0]
+        stored_groups = {name for group in roles["y"] for name in group} if roles else set()
+        if first.casefold() in aliases or (stored_groups and first not in stored_groups and first not in roles["x"]):
+            row_labels = first
+    if row_labels is not None and row_labels not in frame:
+        raise FieldError("Row titles", "Choose an existing row title variable.")
+    return row_labels
+
+
+def _row_title(labels, row):
+    label = labels.iat[row] if labels is not None else None
+    return str(label) if pd.notna(label) and str(label).strip() else f"Row {row + 1}"
+
+
+def _included_rows(observed, labels, stacked):
+    if not observed.any():
+        raise FieldError("Variables", "The selected variables have no observations.")
+    # A stack keeps positions for labeled rows with no values.
+    if stacked and labels is not None:
+        observed |= labels.astype("string").str.strip().fillna("").ne("").to_numpy(dtype=bool)
+    return np.flatnonzero(observed)
+
+
+def _check_size(rows, groups):
+    if rows > MAX_CATEGORIES or rows * groups > MAX_PLOT_CELLS:
+        raise FieldError("Variables", "Select fewer worksheet rows or groups to graph.")
+
+
+def _unique_names(names, fallbacks):
+    names = list(names)
+    for i, name in enumerate(names):
+        if name in names[:i]:
+            title = fallbacks[i]
+            while title in names[:i]:
+                title += " (series)"
+            names[i] = title
+    return names
+
+
+def _positions(rows, groups, layout, titles, names):
+    """Place each series by row: side by side, overlaid or in one stack."""
+    category_x = np.arange(rows, dtype=float)
+    span = .76 / groups
+    interleave = rows > 1 and layout == INTERLEAVED
+    by_row = rows > 1 or layout in STACKED_PLACEMENTS
+    positions = []
+    for index in range(groups):
+        offset = (index - (groups - 1) / 2) * span if interleave else 0.
+        positions.append(category_x + offset if by_row else np.array([float(index)]))
+    ticks = (category_x, titles) if by_row else (np.arange(groups), names)
+    return positions, ticks, .88 * span if interleave else .56, by_row
+
+
+def _grouped_data(frame, names, row_labels, layout):
+    roles = _worksheet_roles(frame)
+    row_labels = _row_title_column(frame, row_labels, roles)
+    names = [name for name in names if name != row_labels]
+    if not names:
+        raise FieldError("Variables", "Select at least one replicate variable.")
+    if any(_SUMMARY.fullmatch(name) for name in names):
+        raise FieldError("Variables", "Choose raw replicate columns for this graph, "
+                                      "or set Input to Precomputed summaries.")
+
+    if roles:
+        chosen = set(names)
+        grouped = [[name for name in group if name in chosen] for group in roles["y"]]
+        groups = [group for group in grouped if group]
+        remaining = chosen.difference(name for group in groups for name in group)
+        groups.extend([name] for name in names if name in remaining)
+    else:
+        groups_by_title = {}
+        for name in names:
+            groups_by_title.setdefault(_title(name), []).append(name)
+        groups = list(groups_by_title.values())
+    matrix = _numbers(frame, names)
+    labels = frame[row_labels] if row_labels is not None else None
+    rows = _included_rows(np.isfinite(matrix).any(axis=1), labels, layout in STACKED_PLACEMENTS)
+    _check_size(len(rows), len(groups))
+
+    columns = {name: index for index, name in enumerate(names)}
+    titles = [_row_title(labels, row) for row in rows]
+    series_names = _unique_names([_title(group[0]) for group in groups], [group[0] for group in groups])
+    positions, ticks, width, legend = _positions(len(rows), len(groups), layout, titles, series_names)
+    plots = []
+    for index, (group, name, x) in enumerate(zip(groups, series_names, positions, strict=True)):
+        values = matrix[np.ix_(rows, [columns[column] for column in group])]
+        plots.append(_Series(name, [row[np.isfinite(row)] for row in values], x, COLORS[index % len(COLORS)]))
+    return plots, titles, ticks, width, legend
+
+
+_ROLE_LABELS = {"center": "[Mean] or [Center]", "sd": "[SD]", "sem": "[SEM]", "n": "[N]",
+                "minus": "[Minus]", "plus": "[Plus]", "lower": "[Lower]", "upper": "[Upper]"}
+
+
+@dataclass
+class _SummarySeries:
+    title: str
+    fields: dict
+    first: str
+
+
+def _summary_groups(frame, roles):
+    """Group each recognized summary subcolumn of the sheet with its series."""
+    parsed = {name: match for name in frame.columns
+              if isinstance(name, str) and (match := _SUMMARY_FIELD.fullmatch(name))}
+    stored = {}
+    if roles:
+        for index, group in enumerate(roles["y"]):
+            stored.update({name: ("group", index) for name in group if name in parsed})
+    groups = {}
+    for name, match in parsed.items():
+        # The duplicate suffix belongs to the series, like the grid's heading bands.
+        key = stored.get(name, ("title", match[1], match[3] or ""))
+        groups.setdefault(key, []).append(name)
+    return parsed, list(groups.values())
+
+
+def _required_fields(error, sem_source, selected, available):
+    if error == "SD":
+        return ("sd",)
+    if error == "SEM":
+        entered = sem_source == ENTERED_SEM and ("sem" in selected or ("sem" in available and not (
+            "sd" in selected and "n" in selected)))
+        return ("sem",) if entered else ("sd", "n")
+    return {DISTANCES: ("minus", "plus"), LIMITS: ("lower", "upper")}.get(error, ())
+
+
+def _summary_series(frame, names, roles, error, sem_source):
+    parsed, groups = _summary_groups(frame, roles)
+    for name in names:
+        match = parsed.get(name)
+        if match is None:
+            if _REPLICATE.fullmatch(name):
+                raise FieldError("Variables", f'"{name}" is a raw replicate. Set Input to Raw replicates, '
+                                              'or select summary subcolumns such as "Series [Mean]".')
+            raise FieldError("Variables", f'"{name}" is not a summary subcolumn. Name summary columns like '
+                                          '"Series [Mean]" and "Series [SD]", or deselect it.')
+        if match[2].startswith("CV"):
+            raise FieldError("Variables", f'"{name}" holds a coefficient of variation, which this graph does not use. '
+                                          'Deselect it.')
+    chosen = set(names)
+    series = []
+    for group in groups:
+        if chosen.isdisjoint(group):
+            continue
+        first = parsed[group[0]]
+        title = first[1] + (first[3] or "")
+        selected, available = {}, {}
+        for name in group:
+            if parsed[name][2].startswith("CV"):
+                continue
+            role = _FIELD_ROLES[parsed[name][2]]
+            available.setdefault(role, name)
+            if name in chosen:
+                if role in selected:
+                    raise FieldError("Variables", f'{title}: "{selected[role]}" and "{name}" both provide the '
+                                                  f'{_ROLE_LABELS[role]} field. Select only one of them.')
+                selected[role] = name
+        required = _required_fields(error, sem_source, selected, available)
+        for role in ("center", *required):
+            if role in selected:
+                continue
+            if role in available:
+                raise FieldError("Variables", f'{title} needs "{available[role]}". Select it together with the '
+                                              'other subcolumns of this series.')
+            if role == "center":
+                raise FieldError("Variables", f"{title} has no [Mean] or [Center] subcolumn, so it has no estimate "
+                                              "to plot.")
+            fields = " and ".join(_ROLE_LABELS[name] for name in required)
+            if error == "SEM" and sem_source == ENTERED_SEM:
+                fields = "[SEM] subcolumn or [SD] and [N]"
+            raise FieldError("Summary error", f"{title} has no {fields} for {error} error bars. "
+                                              "Add the subcolumns to the sheet or choose another summary error.")
+        series.append(_SummarySeries(title, {role: selected[role] for role in ("center", *required, "n")
+                                             if role in selected}, group[0]))
+    return series
+
+
+def _summary_values(frame, series, labels, error):
+    """Return the estimate, the interval and N of one series on each worksheet row."""
+
+    def column(role):
+        name = series.fields[role]
+        source = frame[name]
+        values = pd.to_numeric(source, errors="coerce")
+        if np.iscomplexobj(values.to_numpy()):
+            raise FieldError("Variables", f'"{name}" must contain real numbers.')
+        values = values.to_numpy(dtype=float, na_value=np.nan)
+        invalid = np.flatnonzero(source.notna().to_numpy() & ~np.isfinite(values))
+        if len(invalid):
+            row = invalid[0]
+            raise FieldError("Variables", f'{_row_title(labels, row)}, {series.title}: "{name}" must be a finite number, '
+                                          f'not "{source.iloc[row]}".')
+        return values
+
+    def nonnegative(role):
+        values = column(role)
+        invalid = np.flatnonzero(values < 0)
+        if len(invalid):
+            row = invalid[0]
+            raise FieldError("Variables", f'{_row_title(labels, row)}, {series.title}: "{series.fields[role]}" must be zero or '
+                                          f'positive, not {values[row]:g}.')
+        return values
+
+    center = column("center")
+    counts = column("n") if "n" in series.fields else np.full(len(frame), np.nan)
+    lower = upper = np.full(len(frame), np.nan)
+    inputs = [center]
+    with np.errstate(over="ignore", invalid="ignore"):
+        if error == "SD" or (error == "SEM" and "sem" in series.fields):
+            margin = nonnegative("sd" if error == "SD" else "sem")
+            inputs.append(margin)
+            lower, upper = center - margin, center + margin
+        elif error == "SEM":
+            invalid = np.flatnonzero(np.isfinite(counts) & ((counts < 2) | (counts != np.floor(counts))))
+            if len(invalid):
+                row = invalid[0]
+                raise FieldError("Variables", f'{_row_title(labels, row)}, {series.title}: "{series.fields["n"]}" must be a whole '
+                                              f'number of at least 2 to convert SD to SEM, not {counts[row]:g}.')
+            spread = nonnegative("sd")
+            margin = spread / np.sqrt(counts)
+            inputs.extend((spread, counts))
+            lower, upper = center - margin, center + margin
+        elif error == DISTANCES:
+            minus, plus = nonnegative("minus"), nonnegative("plus")
+            inputs.extend((minus, plus))
+            lower, upper = center - minus, center + plus
+        elif error == LIMITS:
+            lower, upper = column("lower"), column("upper")
+            inputs.extend((lower, upper))
+            contains = (lower <= center) & (center <= upper)
+            ordered = lower <= upper
+            invalid = np.flatnonzero(np.isfinite(lower) & np.isfinite(upper)
+                                     & np.where(np.isfinite(center), ~contains, ~ordered))
+            if len(invalid):
+                row = invalid[0]
+                raise FieldError("Variables", f'{_row_title(labels, row)}, {series.title}: the limits {lower[row]:g} and '
+                                              f'{upper[row]:g} must contain the estimate {center[row]:g}.'
+                                 if np.isfinite(center[row]) else
+                                 f'{_row_title(labels, row)}, {series.title}: the lower limit must not exceed the upper limit.')
+    complete = np.logical_and.reduce([np.isfinite(values) for values in inputs])
+    with np.errstate(over="ignore", invalid="ignore"):
+        invalid = np.flatnonzero(complete & ~np.isfinite(upper - lower))
+    if error != "None" and len(invalid):
+        row = invalid[0]
+        raise FieldError("Variables", f"{_row_title(labels, row)}, {series.title}: the interval exceeds the numeric range for this graph.")
+    # A missing error value, or one half of an asymmetric pair, leaves the estimate without whiskers.
+    lower = np.where(complete, lower, np.nan)
+    upper = np.where(complete, upper, np.nan)
+    return center, lower, upper, counts
+
+
+def _summary_data(frame, names, row_labels, layout, error, sem_source):
+    roles = _worksheet_roles(frame)
+    row_labels = _row_title_column(frame, row_labels, roles)
+    order = {name: index for index, name in enumerate(frame.columns)}
+    names = sorted((name for name in names if name != row_labels), key=order.__getitem__)
+    if not names:
+        raise FieldError("Variables", "Select at least one summary subcolumn.")
+    series = _summary_series(frame, names, roles, error, sem_source)
+    labels = frame[row_labels] if row_labels is not None else None
+    values = [_summary_values(frame, item, labels, error) for item in series]
+    observed = np.column_stack([center for center, *_ in values])
+    rows = _included_rows(np.isfinite(observed).any(axis=1), labels, layout in STACKED_PLACEMENTS)
+    _check_size(len(rows), len(series))
+    titles = [_row_title(labels, row) for row in rows]
+    series_names = _unique_names([item.title for item in series], [item.first for item in series])
+    positions, ticks, width, legend = _positions(len(rows), len(series), layout, titles, series_names)
+    plots = [_Series(name, [np.empty(0)] * len(rows), x, COLORS[index % len(COLORS)])
+             for index, (name, x) in enumerate(zip(series_names, positions, strict=True))]
+    summaries = [np.column_stack((center[rows], lower[rows], upper[rows])) for center, lower, upper, _ in values]
+    counts = [count[rows] for *_, count in values]
+    return plots, titles, ticks, width, legend, summaries, counts
+
+
+def _summary(values, center, interval, level, floating):
+    if not len(values):
+        return np.nan, np.nan, np.nan
+    with np.errstate(over="ignore", invalid="ignore"):
+        midpoint = float(np.mean(values) if center == "Mean" else np.median(values))
+        if floating or interval == "Range":
+            low, high = np.min(values), np.max(values)
+        elif interval == "Interquartile range":
+            low, high = np.quantile(values, [.25, .75])
+        elif interval in {"SD", "SEM", "Confidence interval"} and len(values) > 1:
+            margin = np.std(values, ddof=1)
+            if interval != "SD":
+                margin /= np.sqrt(len(values))
+            if interval == "Confidence interval":
+                margin *= t.isf((1 - level) / 2, len(values) - 1)
+            low, high = midpoint - margin, midpoint + margin
+        else:
+            low = high = np.nan
+        invalid_interval = np.isinf([low, high]).any() or (np.isfinite(high) and not np.isfinite(high - low))
+    if not np.isfinite(midpoint) or invalid_interval:
+        raise FieldError("Variables", "The selected values exceed the numeric range for this graph.")
+    return midpoint, low, high
+
+
+def _spread(values, placement, width, rng):
+    if placement == "Centered":
+        return np.zeros(len(values))
+    if placement == "Jitter":
+        return rng.uniform(-.35 * width, .35 * width, len(values))
+    order = np.argsort(values, kind="stable")
+    sorted_values = values[order]
+    cuts = np.r_[0, np.flatnonzero(sorted_values[1:] != sorted_values[:-1]) + 1, len(order)]
+    offsets = np.zeros(len(values))
+    for start, stop in zip(cuts[:-1], cuts[1:], strict=True):
+        if stop - start > 1:
+            offsets[order[start:stop]] = np.linspace(-.34 * width, .34 * width, stop - start)
+    return offsets
+
+
+def _draw_series(axes, series, summaries, style, width, show_points, placement, rng):
+    x, color = series.x, series.color
+    center, lower, upper = np.asarray(summaries).T
+    observed = np.isfinite(center)
+    interval = np.isfinite(lower) & np.isfinite(upper)
+    if style == BARS:
+        axes.bar(x[observed], center[observed], width, color=to_rgba(color, .76), edgecolor=color,
+                 linewidth=1.15, label=series.name)
+    elif style == RANGE:
+        axes.bar(x[interval], upper[interval] - lower[interval], width, bottom=lower[interval],
+                 color=to_rgba(color, .22), edgecolor=color, linewidth=1.4, label=series.name)
+    elif style in {POINTS, SYMBOLS}:
+        axes.scatter(x[observed], center[observed], marker="_" if style == POINTS else "o",
+                     s=160 if style == POINTS else 42, linewidths=1.8, color=color,
+                     label=series.name if style == SYMBOLS else "_nolegend_", zorder=4)
+    if style not in {RANGE, PAIRED} and interval.any():
+        # Intervals may be asymmetric, and a mean need not lie inside the IQR.
+        bottom, top = lower[interval], upper[interval]
+        middle = bottom + (top - bottom) / 2
+        axes.errorbar(x[interval], middle, yerr=[middle - bottom, top - middle], fmt="none",
+                      ecolor=color, capsize=4, elinewidth=1.3, zorder=3)
+    if show_points:
+        points = [(location + _spread(values, placement, width, rng), values)
+                  for location, values in zip(x, series.values, strict=True) if len(values)]
+        if points:
+            x_points, y_points = (np.concatenate(parts) for parts in zip(*points, strict=True))
+            axes.scatter(x_points, y_points, s=26, color=color, edgecolors="white", linewidths=.6,
+                         label=series.name if style in {POINTS, PAIRED} else "_nolegend_", zorder=3.5)
+
+
+def _draw_stacks(axes, plots, centers, width, percent, row_names):
+    """Stack the center of each row and series, keeping positive and negative totals apart."""
+    heights = centers
+    if percent:
+        observed = np.isfinite(centers)
+        negative = np.argwhere(observed & (centers < 0))
+        if len(negative):
+            row, index = negative[0]
+            raise FieldError("Placement of groups", f"{row_names[row]}, {plots[index].name}: 100% stacked bars need "
+                                                    f"values of zero or more, not {centers[row, index]:g}. "
+                                                    "Correct the value or choose Stacked.")
+        heights = np.full(centers.shape, np.nan)
+        for row, columns in enumerate(observed):
+            values = centers[row, columns]
+            if not len(values) or not values.max() > 0:
+                continue  # A labeled row without a positive total keeps an empty position.
+            with np.errstate(over="ignore"):
+                total = values.sum()
+            if not np.isfinite(total):
+                values = values / values.max()
+                total = values.sum()
+            heights[row, columns] = (values / total) * 100
+        if not np.isfinite(heights).any():
+            raise FieldError("Variables", "No row has a positive total to show as 100%. Enter positive values "
+                                          "in at least one row, or choose Stacked.")
+    positive, negative = np.zeros(len(centers)), np.zeros(len(centers))
+    bottoms = np.full(centers.shape, np.nan)
+    for index, plot in enumerate(plots):
+        height = heights[:, index]
+        drawn = np.isfinite(height)
+        bottom = np.where(height < 0, negative, positive)
+        bottoms[drawn, index] = bottom[drawn]
+        with np.errstate(over="ignore", invalid="ignore"):
+            positive = positive + np.where(drawn & (height > 0), height, 0)
+            negative = negative + np.where(drawn & (height < 0), height, 0)
+            span = positive.max() - negative.min()
+        if not np.isfinite(span):
+            raise FieldError("Variables", "The stacked totals exceed the numeric range for this graph.")
+        if drawn.any():
+            bars = axes.bar(plot.x[drawn], height[drawn], width, bottom=bottom[drawn],
+                            color=to_rgba(plot.color, .76), edgecolor=plot.color, linewidth=1.15, label=plot.name)
+            for patch, value in zip(bars.patches, height[drawn], strict=True):
+                if value == 0:
+                    patch.set_linewidth(0)  # An observed zero adds no visible segment.
+    return bottoms, heights
+
+
+def _column_anchor(plot, summary, style, show_points):
+    """Center and highest drawn value of one column, for pairwise comparison brackets."""
+    midpoint, _, upper = summary
+    if not np.isfinite(midpoint):
+        return {}
+    heights = [upper if style == RANGE else midpoint]
+    if style == BARS:
+        heights.append(0.)
+    if style != RANGE and np.isfinite(upper):
+        heights.append(upper)
+    if show_points and len(plot.values[0]):
+        heights.append(float(np.max(plot.values[0])))
+    top = float(np.nanmax(heights))
+    return {f"column:{plot.name}": {"x": float(plot.x[0]), "top": top, "name": plot.name, "group": None}}
+
+
+def category_graph(frame, options, *, grouped=False):
+    names = options.get("Variables", [])
+    if (not isinstance(names, list) or not names or any(not isinstance(name, str) or name not in frame for name in names)
+            or len(set(names)) != len(names) or not frame.columns.is_unique):
+        raise FieldError("Variables", "Choose distinct existing variables for the graph.")
+    source = _choice(options, "Input", INPUTS) if grouped else RAW
+    layout = _choice(options, "Placement of groups", GROUP_PLACEMENTS) if grouped else None
+    stacked = layout in STACKED_PLACEMENTS
+    style = _choice(options, "Graph style", GROUPED_STYLES if grouped else COLUMN_STYLES)
+    if source == SUMMARIES and style not in SUMMARY_STYLES:
+        raise FieldError("Graph style", "Precomputed summaries can be drawn as Bars or Center and interval. "
+                                        "Individual points and floating ranges need raw replicates.")
+    if stacked and style != BARS:
+        raise FieldError("Placement of groups", "Stacked and 100% stacked placements use the Bars style.")
+    if (source == SUMMARIES or stacked) and options.get("Overlay observations", False):
+        reason = "stacked bars" if stacked else "precomputed summaries"
+        raise FieldError("Overlay observations", f"Individual observations are not shown for {reason}.")
+    if stacked and (options.get("Interval", "None") != "None" or options.get("Summary error", "None") != "None"):
+        field = "Summary error" if source == SUMMARIES else "Interval"
+        raise FieldError(field, "Stacked bars have no error bars. The errors of the components do not define "
+                                "an interval for the stack.")
+    level = .95
+    if source == SUMMARIES:
+        if options.get("Center", "Mean") != "Mean":
+            raise FieldError("Center", "Precomputed summaries provide the estimate in their [Mean] or [Center] "
+                                       "subcolumn.")
+        if options.get("Interval", "None") != "None":
+            raise FieldError("Interval", "Choose error bars for precomputed summaries with Summary error.")
+        center, interval = "Estimate", "None"
+        error = "None" if stacked else _choice(options, "Summary error", SUMMARY_ERRORS)
+        sem_source = _choice(options, "SEM source", SEM_SOURCES)
+    else:
+        center = _choice(options, "Center", OPTIONS["Center"])
+        interval = "None" if style in {RANGE, PAIRED} or stacked else _choice(options, "Interval", INTERVALS)
+        if center == "Median" and interval in {"SD", "SEM", "Confidence interval"}:
+            raise FieldError("Interval", "Choose Range or Interquartile range for a median.")
+        if interval == "Confidence interval":
+            try:
+                level = float(options.get("Confidence level (%)", 95.)) / 100
+            except (TypeError, ValueError, OverflowError):
+                level = np.nan
+            if not 0 < level < 1:
+                raise FieldError("Confidence level (%)", "Choose a confidence level strictly between 0 and 100.")
+    show_points = source == RAW and not stacked and (style in {POINTS, PAIRED} or options.get("Overlay observations", False))
+    placement = "Centered" if style == PAIRED else _choice(options, "Point placement", PLACEMENTS) if show_points else "Centered"
+    graph = GROUPED_GRAPH if grouped else COLUMN_GRAPH
+    figure, axes = _plot(graph, "", PERCENT_LABEL if layout == PERCENT_STACKED else "Value")
+    counts = None
+    if grouped and source == SUMMARIES:
+        plots, row_names, ticks, width, legend, summaries, counts = _summary_data(
+            frame, names, options.get("Row titles"), layout, error, sem_source)
+    elif grouped:
+        plots, row_names, ticks, width, legend = _grouped_data(frame, names, options.get("Row titles"), layout)
+    else:
+        if len(names) > MAX_CATEGORIES:
+            raise FieldError("Variables", "Select fewer columns to graph.")
+        matrix = _numbers(frame, names)
+        if not np.isfinite(matrix).any():
+            raise FieldError("Variables", "The selected variables have no observations.")
+        plots = [_Series(name, [column[np.isfinite(column)]], np.array([index]), COLORS[index % len(COLORS)])
+                 for index, (name, column) in enumerate(zip(names, matrix.T, strict=True))]
+        row_names, ticks, width, legend = [None], (np.arange(len(names)), names), .56, False
+        if style == PAIRED:
+            if len(names) < 2:
+                raise FieldError("Variables", "Choose at least two columns for a before-and-after graph.")
+            if np.isfinite(matrix).sum() > MAX_POINTS:
+                raise FieldError("Variables", "Select fewer observations to draw matched rows.")
+            rows, left = np.nonzero(np.isfinite(matrix[:, :-1]) & np.isfinite(matrix[:, 1:]))
+            segments = np.stack((np.column_stack((left, matrix[rows, left])),
+                                 np.column_stack((left + 1, matrix[rows, left + 1]))), axis=1)
+            axes.add_collection(LineCollection(segments, colors="#8494a5", linewidths=.8, alpha=.65))
+    if show_points and sum(len(values) for plot in plots for values in plot.values) > MAX_POINTS:
+        raise FieldError("Variables", "Select fewer observations or turn off the point overlay.")
+
+    if counts is None:
+        summaries = [[_summary(values, center, interval, level, style == RANGE) for values in plot.values]
+                     for plot in plots]
+        counts = [[len(values) for values in plot.values] for plot in plots]
+    rows, rng = [], np.random.default_rng(0)
+    if stacked:
+        centers = np.column_stack([np.asarray(summary, dtype=float).reshape(-1, 3)[:, 0] for summary in summaries])
+        bottoms, heights = _draw_stacks(axes, plots, centers, width, layout == PERCENT_STACKED, row_names)
+        for index, plot in enumerate(plots):
+            for row, category in enumerate(row_names):
+                record = {"Row": category, "Group": plot.name, "N": counts[index][row], center: centers[row, index],
+                          "Bottom": bottoms[row, index], "Top": bottoms[row, index] + heights[row, index]}
+                if layout == PERCENT_STACKED:
+                    record["Percent"] = heights[row, index]
+                rows.append(record)
+        axes._tramastat_zero_baseline = ("y",)
+        if layout == PERCENT_STACKED:
+            axes.set_ylim(0, 100)
+    else:
+        anchors = {}
+        for plot, summary, count in zip(plots, summaries, counts, strict=True):
+            _draw_series(axes, plot, summary, style, width, show_points, placement, rng)
+            if not grouped and style != PAIRED:
+                anchors.update(_column_anchor(plot, summary[0], style, show_points))
+            for category, number, (midpoint, lower, upper) in zip(row_names, count, summary, strict=True):
+                row = {"Group": plot.name, "N": number, center: midpoint, "Lower": lower, "Upper": upper}
+                rows.append({"Row": category, **row} if grouped else row)
+        if anchors:
+            register_anchors(axes, anchors)
+    axes.set_xticks(*ticks, rotation=30 if len(ticks[1]) > 8 else 0)
+    for label in axes.get_xticklabels():
+        label.set_parse_math(False)
+    if legend:
+        for label in axes.legend().get_texts():
+            label.set_parse_math(False)
+    return Result({"Graph data": pd.DataFrame(rows)}, figure)
+
+
+def default_grouped_input(frame):
+    """Suggest summaries for a new graph when every numeric column is a summary subcolumn."""
+    if frame.empty:
+        return RAW
+    title = _row_title_column(frame, None, _worksheet_roles(frame))
+    numeric = [name for name in frame.select_dtypes(include="number").columns
+               if isinstance(name, str) and name != title]
+    return SUMMARIES if numeric and all(_SUMMARY_FIELD.fullmatch(name) for name in numeric) else RAW

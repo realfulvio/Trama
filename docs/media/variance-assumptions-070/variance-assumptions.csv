@@ -1,0 +1,3 @@
+﻿,Test,Statistic,df1,df2,p,Alpha,Decision,Reason
+0,Brown–Forsythe (median Levene),3.248605046578274,2,14.0,0.06934784688689383,0.05,Do not reject,
+1,Bartlett,10.689461554579681,2,,0.004773236095928962,0.05,Reject,

@@ -1,0 +1,9 @@
+{
+  "screen": [[8,5], {"format":"png","width_mm":160,"dpi":96,"transparent":true}, [160,100,96,[605,378],true,null]],
+  "print": [[8,5], {"format":"tiff","width_mm":85,"dpi":300,"transparent":true}, [85,53.125,300,[1004,627],false,null]],
+  "native-size": [[4,3], {"format":"png"}, [101.6,76.2,300,[1200,900],false,null]],
+  "half-pixel": [[4,4], {"format":"png","width_mm":25.527,"dpi":100}, [25.527,25.527,100,[101,101],false,null]],
+  "pdf": [[8,5], {"format":"pdf","width_mm":85,"dpi":"hidden","transparent":true}, [85,53.125,null,null,true,null]],
+  "svg-editable": [[8,5], {"format":"svg","width_mm":160,"svg_text":"text"}, [160,100,null,null,false,"text"]],
+  "svg-outlines": [[8,5], {"format":"svg","width_mm":85,"svg_text":"paths"}, [85,53.125,null,null,false,"paths"]]
+}

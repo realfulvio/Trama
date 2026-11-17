@@ -1,0 +1,21 @@
+{
+  "smoke": "PASS",
+  "restore_result": 0,
+  "actual": {
+    "height": 768,
+    "width": 1024
+  },
+  "registry_updated": false,
+  "before": {
+    "height": 1200,
+    "width": 1920
+  },
+  "requested": {
+    "height": 768,
+    "width": 1024
+  },
+  "restored": {
+    "height": 1200,
+    "width": 1920
+  }
+}

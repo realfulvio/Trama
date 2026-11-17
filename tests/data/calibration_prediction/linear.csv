@@ -1,0 +1,9 @@
+X,Y,Query X,Row title
+0.0,3.6,3.0,Sample 1
+1.0,4.7,3.0,Sample 2
+2.0,7.4,0.0,Sample 3
+3.0,8.2,-1.0,Sample 4
+4.0,11.3,,Sample 5
+5.0,13.1,,Sample 6
+6.0,14.55,,Sample 7
+7.0,17.35,,Sample 8

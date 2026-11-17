@@ -1,0 +1,375 @@
+{
+  "linear-shared": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A+B*X",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 1.0,
+        "fixed": false,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "B",
+        "start": 1.0,
+        "fixed": false,
+        "shared": true,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Unweighted",
+    "SD column": null,
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "linear-fixed": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A+B*X",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 1.0,
+        "fixed": false,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "B",
+        "start": 1.0,
+        "fixed": false,
+        "shared": true,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [
+      {
+        "series": "B",
+        "parameters": {
+          "A": {
+            "fixed": 3.6
+          }
+        }
+      }
+    ],
+    "Weighting": "Unweighted",
+    "SD column": null,
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "linear-weighted": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A+B*X",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 1.0,
+        "fixed": false,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "B",
+        "start": 1.0,
+        "fixed": false,
+        "shared": true,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Inverse variance (column)",
+    "SD column": "SD",
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "linear-weighted-scaled-sd": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A+B*X",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 1.0,
+        "fixed": false,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "B",
+        "start": 1.0,
+        "fixed": false,
+        "shared": true,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Inverse variance (column)",
+    "SD column": "SD",
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "linear-small-y": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A+B*X",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 1e-12,
+        "fixed": false,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "B",
+        "start": 1e-12,
+        "fixed": false,
+        "shared": true,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Unweighted",
+    "SD column": null,
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "linear-empty-label": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A+B*X",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 1.0,
+        "fixed": false,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "B",
+        "start": 1.0,
+        "fixed": false,
+        "shared": true,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Unweighted",
+    "SD column": null,
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "decay-shared": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A*exp(-K*X)+C",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 5.0,
+        "fixed": false,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "K",
+        "start": 0.3,
+        "fixed": false,
+        "shared": true,
+        "lower": 0.0,
+        "upper": null
+      },
+      {
+        "name": "C",
+        "start": 0.0,
+        "fixed": true,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Unweighted",
+    "SD column": null,
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "decay-large-x": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A*exp(-K*X)+C",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 5.0,
+        "fixed": false,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "K",
+        "start": 3e-13,
+        "fixed": false,
+        "shared": true,
+        "lower": 0.0,
+        "upper": null
+      },
+      {
+        "name": "C",
+        "start": 0.0,
+        "fixed": true,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Unweighted",
+    "SD column": null,
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "linear-perfect": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A+B*X",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 1.0,
+        "fixed": false,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "B",
+        "start": 1.0,
+        "fixed": false,
+        "shared": true,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Unweighted",
+    "SD column": null,
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "all-fixed": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A+B*X",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 1.0,
+        "fixed": true,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "B",
+        "start": 1.5,
+        "fixed": true,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Unweighted",
+    "SD column": null,
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "active-bound": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A+B*X",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 1.0,
+        "fixed": false,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "B",
+        "start": 0.1,
+        "fixed": false,
+        "shared": true,
+        "lower": null,
+        "upper": 0.2
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Unweighted",
+    "SD column": null,
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  },
+  "rational-domain": {
+    "X": "X",
+    "Y": "Y",
+    "Group": "Group",
+    "Equation": "A/(1+B*X)",
+    "Parameters": [
+      {
+        "name": "A",
+        "start": 2.0,
+        "fixed": false,
+        "shared": true,
+        "lower": null,
+        "upper": null
+      },
+      {
+        "name": "B",
+        "start": 1.0,
+        "fixed": true,
+        "shared": false,
+        "lower": null,
+        "upper": null
+      }
+    ],
+    "Series constraints": [],
+    "Weighting": "Unweighted",
+    "SD column": null,
+    "Confidence level (%)": 95.0,
+    "Curve points": 21
+  }
+}

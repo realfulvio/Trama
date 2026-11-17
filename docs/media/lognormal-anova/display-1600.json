@@ -1,0 +1,17 @@
+{
+  "screen": "1600x1000",
+  "buttons": {
+    "Run Analysis": {
+      "x": 830,
+      "y": 678,
+      "width": 123,
+      "height": 27
+    },
+    "Cancel": {
+      "x": 710,
+      "y": 678,
+      "width": 112,
+      "height": 27
+    }
+  }
+}

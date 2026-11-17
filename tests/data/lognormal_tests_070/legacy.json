@@ -1,0 +1,71 @@
+{
+  "method": "Paired t-test (columns)",
+  "input": "paired",
+  "options": {
+    "First": "Before",
+    "Second": "After"
+  },
+  "snapshot": {
+    "t-test": {
+      "columns": [
+        "Value"
+      ],
+      "index": [
+        "First",
+        "Second / null",
+        "N first",
+        "N second",
+        "Mean first",
+        "Mean second",
+        "Difference",
+        "t",
+        "df",
+        "p",
+        "CI 95% low",
+        "CI 95% high",
+        "Cohen's d"
+      ],
+      "values": [
+        [
+          "Before"
+        ],
+        [
+          "After"
+        ],
+        [
+          5
+        ],
+        [
+          5
+        ],
+        [
+          8.4
+        ],
+        [
+          17.2
+        ],
+        [
+          -8.799999999999999
+        ],
+        [
+          -3.6461514780461837
+        ],
+        [
+          4
+        ],
+        [
+          0.02184557580493053
+        ],
+        [
+          -15.500960471020537
+        ],
+        [
+          -2.099039528979463
+        ],
+        [
+          -1.63060851223452
+        ]
+      ]
+    }
+  }
+}

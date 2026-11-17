@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/tmp/tramastat-base-f2dfe57/tramastat.py", line 11104, in smoke
+    check_workspace_setup()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/tmp/tramastat-base-f2dfe57/tramastat.py", line 5731, in check_workspace_setup
+    assert button.winfo_ismapped() and button.winfo_rootx() + button.winfo_width() <= root.winfo_rootx() + 820, label
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Layout

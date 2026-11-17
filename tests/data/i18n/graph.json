@@ -1,0 +1,68 @@
+{
+  "labels": [
+    [
+      "graph.format.title",
+      "Format Graph",
+      "Formato grafico"
+    ],
+    [
+      "graph.format.appearance",
+      "Appearance",
+      "Aspetto"
+    ],
+    [
+      "graph.format.axes",
+      "Axes",
+      "Assi"
+    ],
+    [
+      "graph.format.series",
+      "Series",
+      "Serie"
+    ],
+    [
+      "graph.format.references",
+      "Reference Lines",
+      "Linee di riferimento"
+    ],
+    [
+      "graph.inspector.title",
+      "Inspector",
+      "Ispettore"
+    ],
+    [
+      "graph.inspector.apply",
+      "Apply",
+      "Applica"
+    ],
+    [
+      "graph.inspector.cancel",
+      "Cancel",
+      "Annulla"
+    ],
+    [
+      "graph.choice.linear",
+      "Linear",
+      "Lineare"
+    ],
+    [
+      "graph.choice.log",
+      "Logarithmic",
+      "Logaritmica"
+    ]
+  ],
+  "axes": {
+    "x": [
+      1,
+      2,
+      4
+    ],
+    "y": [
+      2,
+      4,
+      7
+    ],
+    "title": "Titolo {A} – città & $",
+    "expected_xscale": "log"
+  }
+}

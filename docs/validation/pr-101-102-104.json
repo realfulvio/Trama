@@ -1,0 +1,70 @@
+{
+  "status": "PASS",
+  "source_commit": "47b34043f5c2c82f3cfc0f0b2ccca9ddbaf0fa8a",
+  "version": "0.72.0",
+  "channel": "beta",
+  "pull_requests": [
+    101,
+    102,
+    104
+  ],
+  "linux": {
+    "unit_tests": 2163,
+    "seconds": 280.566,
+    "failures": 0,
+    "skips": 0,
+    "runtime_source_commit": "a978597",
+    "full_gui_smoke": "PASS; 1920x1080",
+    "targeted_gui": "Q-Q and summary ANOVA PASS"
+  },
+  "windows": {
+    "unit_tests": 2163,
+    "seconds": 826.066,
+    "failures": 0,
+    "skips": 0,
+    "focused_tests": 103,
+    "external_verifier": "12/12 PASS",
+    "portable_build": "PASS",
+    "frozen_code_and_guides": "PASS",
+    "targeted_portable": {
+      "1024x768": "3/3 PASS",
+      "1920x1080": "3/3 PASS"
+    },
+    "full_portable_gui": "PASS",
+    "restored": {
+      "height": 768,
+      "width": 1024
+    },
+    "registry_updated": false,
+    "terminal_task": "Ready, result 0"
+  },
+  "portable": {
+    "filename": "Trama-0.72.0-Windows-x64.zip",
+    "bytes": 103336142,
+    "members": 2913,
+    "sha256": "07dcf4d07df9a1d828bc667a42d17023f0a7655757074f125007356ba7787711",
+    "remote_hash_match": true,
+    "crc": "PASS"
+  },
+  "evidence_bundles": {
+    "windows-evidence.zip": "05ec06ad2f67594b1f99581ff521243ead2e721a1646a996a8c3e0546686a20c",
+    "linux-evidence.zip": "91875384cce6b45d78513414f40486d32d003265e66e721dd7d4bd34cf128ac8"
+  },
+  "review_fixes": [
+    "Empty Q-Q axis records normalized before rendering.",
+    "Oversized integer bounds rejected as validation errors.",
+    "Stored axis limits retain full float precision when the editor opens.",
+    "Portable includes both new guides."
+  ],
+  "earlier_attempts": [
+    "An initial native unit process exited -1 with empty logs; no crash event was found. A verbose full rerun passed on the same source.",
+    "The original large-screen targeted captures were obscured by a concurrent build console. All three workflows ran again inside the completed full portable check at 1920x1080 after the build ended, with clean visual evidence.",
+    "The first Linux full run at 1600x1000 was stopped before the pre-existing large-screen screenshot check; the replacement at 1920x1080 passed."
+  ],
+  "limitations": [
+    "Automated real-widget GUI acceptance; not a human usability study.",
+    "System DPI 125/150% not retested.",
+    "Result table headings retain English.",
+    "No version bump, release, tag or visibility change."
+  ]
+}

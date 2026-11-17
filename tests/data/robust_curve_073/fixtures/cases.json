@@ -1,0 +1,1123 @@
+[
+  {
+    "name": "line-Cauchy-0.5",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Cauchy",
+      "Residual scale": 0.5,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/01.csv"
+  },
+  {
+    "name": "line-Cauchy-1.0",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Cauchy",
+      "Residual scale": 1.0,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/02.csv"
+  },
+  {
+    "name": "line-Cauchy-2.0",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Cauchy",
+      "Residual scale": 2.0,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/03.csv"
+  },
+  {
+    "name": "line-Huber-0.5",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Huber",
+      "Residual scale": 0.5,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/04.csv"
+  },
+  {
+    "name": "line-Huber-1.0",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Huber",
+      "Residual scale": 1.0,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/05.csv"
+  },
+  {
+    "name": "line-Huber-2.0",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Huber",
+      "Residual scale": 2.0,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/06.csv"
+  },
+  {
+    "name": "line-Soft L1-0.5",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Soft L1",
+      "Residual scale": 0.5,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/07.csv"
+  },
+  {
+    "name": "line-Soft L1-1.0",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Soft L1",
+      "Residual scale": 1.0,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/08.csv"
+  },
+  {
+    "name": "line-Soft L1-2.0",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Soft L1",
+      "Residual scale": 2.0,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/09.csv"
+  },
+  {
+    "name": "line-units-1e-09",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1e-09,
+        4.8e-09,
+        8.1e-09,
+        1.1000000000000001e-08,
+        1.42e-08,
+        1.69e-08,
+        5.0000000000000004e-08,
+        2.3100000000000002e-08,
+        2.5800000000000003e-08
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Cauchy",
+      "Scale method": "Fixed",
+      "Residual scale": 1e-09,
+      "Initial parameters": {
+        "Intercept": 2e-09,
+        "Slope": 3.0000000000000004e-09
+      }
+    },
+    "csv": "fixtures/10.csv"
+  },
+  {
+    "name": "line-units-1000000000.0",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2100000000.0,
+        4800000000.0,
+        8100000000.0,
+        11000000000.0,
+        14200000000.0,
+        16899999999.999998,
+        50000000000.0,
+        23100000000.0,
+        25800000000.0
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Cauchy",
+      "Scale method": "Fixed",
+      "Residual scale": 1000000000.0,
+      "Initial parameters": {
+        "Intercept": 2000000000.0,
+        "Slope": 3000000000.0
+      }
+    },
+    "csv": "fixtures/11.csv"
+  },
+  {
+    "name": "tiny-slope-large-x",
+    "data": {
+      "X": [
+        0.0,
+        1000000000.0,
+        2000000000.0,
+        3000000000.0,
+        4000000000.0,
+        5000000000.0,
+        6000000000.0,
+        7000000000.0,
+        8000000000.0
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Cauchy",
+      "Scale method": "Fixed",
+      "Residual scale": 1.0,
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3e-09
+      }
+    },
+    "csv": "fixtures/12.csv"
+  },
+  {
+    "name": "decay-Cauchy",
+    "data": {
+      "X": [
+        0,
+        0.25,
+        0.5,
+        1,
+        1.5,
+        2,
+        3,
+        4,
+        5
+      ],
+      "Y": [
+        10.05,
+        9.01,
+        8.23,
+        6.91,
+        5.74,
+        4.96,
+        7.9,
+        3.07,
+        2.68
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "One-phase decay",
+      "Loss": "Cauchy",
+      "Residual scale": 0.2,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Plateau": 2.0,
+        "Span": 8.0,
+        "Rate": 0.5
+      }
+    },
+    "csv": "fixtures/13.csv"
+  },
+  {
+    "name": "decay-Huber",
+    "data": {
+      "X": [
+        0,
+        0.25,
+        0.5,
+        1,
+        1.5,
+        2,
+        3,
+        4,
+        5
+      ],
+      "Y": [
+        10.05,
+        9.01,
+        8.23,
+        6.91,
+        5.74,
+        4.96,
+        7.9,
+        3.07,
+        2.68
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "One-phase decay",
+      "Loss": "Huber",
+      "Residual scale": 0.2,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Plateau": 2.0,
+        "Span": 8.0,
+        "Rate": 0.5
+      }
+    },
+    "csv": "fixtures/14.csv"
+  },
+  {
+    "name": "decay-Soft L1",
+    "data": {
+      "X": [
+        0,
+        0.25,
+        0.5,
+        1,
+        1.5,
+        2,
+        3,
+        4,
+        5
+      ],
+      "Y": [
+        10.05,
+        9.01,
+        8.23,
+        6.91,
+        5.74,
+        4.96,
+        7.9,
+        3.07,
+        2.68
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "One-phase decay",
+      "Loss": "Soft L1",
+      "Residual scale": 0.2,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Plateau": 2.0,
+        "Span": 8.0,
+        "Rate": 0.5
+      }
+    },
+    "csv": "fixtures/15.csv"
+  },
+  {
+    "name": "horizontal-Cauchy",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "Y": [
+        1.8,
+        2.0,
+        2.1,
+        1.9,
+        2.2,
+        2.0,
+        14.0
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Horizontal line",
+      "Loss": "Cauchy",
+      "Residual scale": 0.3,
+      "Initial parameters": {
+        "Mean": 2.0
+      },
+      "Scale method": "Fixed"
+    },
+    "csv": "fixtures/16.csv"
+  },
+  {
+    "name": "horizontal-Huber",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "Y": [
+        1.8,
+        2.0,
+        2.1,
+        1.9,
+        2.2,
+        2.0,
+        14.0
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Horizontal line",
+      "Loss": "Huber",
+      "Residual scale": 0.3,
+      "Initial parameters": {
+        "Mean": 2.0
+      },
+      "Scale method": "Fixed"
+    },
+    "csv": "fixtures/17.csv"
+  },
+  {
+    "name": "horizontal-Soft L1",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "Y": [
+        1.8,
+        2.0,
+        2.1,
+        1.9,
+        2.2,
+        2.0,
+        14.0
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Horizontal line",
+      "Loss": "Soft L1",
+      "Residual scale": 0.3,
+      "Initial parameters": {
+        "Mean": 2.0
+      },
+      "Scale method": "Fixed"
+    },
+    "csv": "fixtures/18.csv"
+  },
+  {
+    "name": "pilot-mad",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        11.0,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Cauchy",
+      "Scale method": "Pilot MAD",
+      "Residual scale": "ignored-invalid",
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/19.csv"
+  },
+  {
+    "name": "missing-lineage",
+    "data": {
+      "X": [
+        0,
+        1,
+        null,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "Y": [
+        2.1,
+        4.8,
+        8.1,
+        null,
+        14.2,
+        16.9,
+        50.0,
+        23.1,
+        25.8,
+        29.1
+      ]
+    },
+    "index": [
+      7,
+      7,
+      42,
+      9,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+    ],
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Straight line",
+      "Loss": "Cauchy",
+      "Scale method": "Fixed",
+      "Residual scale": 1.0,
+      "Initial parameters": {
+        "Intercept": 2.0,
+        "Slope": 3.0
+      }
+    },
+    "csv": "fixtures/20.csv"
+  },
+  {
+    "name": "exact-pilot",
+    "data": {
+      "X": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "Y": [
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        2.0
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Horizontal line",
+      "Loss": "Cauchy",
+      "Scale method": "Pilot MAD",
+      "Initial parameters": {
+        "Mean": 2.0
+      }
+    },
+    "csv": "fixtures/21.csv"
+  },
+  {
+    "name": "logistic-Cauchy",
+    "data": {
+      "X": [
+        -2,
+        -1,
+        0,
+        0.5,
+        1,
+        1.5,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "Y": [
+        3.597108536890602,
+        4.92366906758936,
+        7.680459339702975,
+        9.223622117975864,
+        10.9,
+        12.776377882024136,
+        14.519540660297023,
+        36.97633093241064,
+        18.4028914631094,
+        19.395016989658245,
+        19.67624822068235
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Logistic (4 parameters)",
+      "Loss": "Cauchy",
+      "Residual scale": 0.25,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Low": 2.0,
+        "High": 20.0,
+        "Midpoint": 1.0,
+        "Slope": 0.8
+      }
+    },
+    "csv": "fixtures/22.csv"
+  },
+  {
+    "name": "logistic-Huber",
+    "data": {
+      "X": [
+        -2,
+        -1,
+        0,
+        0.5,
+        1,
+        1.5,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "Y": [
+        3.597108536890602,
+        4.92366906758936,
+        7.680459339702975,
+        9.223622117975864,
+        10.9,
+        12.776377882024136,
+        14.519540660297023,
+        36.97633093241064,
+        18.4028914631094,
+        19.395016989658245,
+        19.67624822068235
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Logistic (4 parameters)",
+      "Loss": "Huber",
+      "Residual scale": 0.25,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Low": 2.0,
+        "High": 20.0,
+        "Midpoint": 1.0,
+        "Slope": 0.8
+      }
+    },
+    "csv": "fixtures/23.csv"
+  },
+  {
+    "name": "logistic-Soft L1",
+    "data": {
+      "X": [
+        -2,
+        -1,
+        0,
+        0.5,
+        1,
+        1.5,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "Y": [
+        3.597108536890602,
+        4.92366906758936,
+        7.680459339702975,
+        9.223622117975864,
+        10.9,
+        12.776377882024136,
+        14.519540660297023,
+        36.97633093241064,
+        18.4028914631094,
+        19.395016989658245,
+        19.67624822068235
+      ]
+    },
+    "options": {
+      "X": "X",
+      "Y columns": [
+        "Y"
+      ],
+      "Model": "Logistic (4 parameters)",
+      "Loss": "Soft L1",
+      "Residual scale": 0.25,
+      "Scale method": "Fixed",
+      "Initial parameters": {
+        "Low": 2.0,
+        "High": 20.0,
+        "Midpoint": 1.0,
+        "Slope": 0.8
+      }
+    },
+    "csv": "fixtures/24.csv"
+  }
+]

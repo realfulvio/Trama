@@ -1,0 +1,2 @@
+VERSION = "0.73.0"
+RELEASE_CHANNEL = "beta"

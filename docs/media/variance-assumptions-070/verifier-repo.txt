@@ -1,0 +1,12 @@
+test_frozen (contract.OracleTests.test_frozen) ... ok
+test_independent_levene_formula (contract.OracleTests.test_independent_levene_formula) ... ok
+test_scaling (contract.OracleTests.test_scaling) ... ok
+test_disabled (contract.RepoTests.test_disabled) ... ok
+test_dispatcher (contract.RepoTests.test_dispatcher) ... ok
+test_nonordinary_ignores_keys (contract.RepoTests.test_nonordinary_ignores_keys) ... ok
+test_zero_variance_bartlett (contract.RepoTests.test_zero_variance_bartlett) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.422s
+
+OK

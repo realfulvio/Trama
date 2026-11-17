@@ -1,0 +1,21 @@
+{
+  "status": "PASS",
+  "screen": [
+    1920,
+    1080
+  ],
+  "checks": [
+    "EN/IT controls",
+    "level and row validation",
+    "long and subcolumn inputs",
+    "edit/exclusion",
+    "roundtrip graph first",
+    "result as data",
+    "CSV/PNG/SVG/PDF",
+    "Welch and Brown\u2013Forsythe",
+    "incompatible post-hoc",
+    "pointwise error bars",
+    "Inspector",
+    "legacy ordinary recipe"
+  ]
+}

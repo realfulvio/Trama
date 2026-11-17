@@ -1,0 +1,125 @@
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+import warnings
+from zipfile import ZipFile
+
+import pandas as pd
+
+from analisi.data import Dataset, load_project, load_tables, save_project
+from analisi.workbench import analyse
+
+
+def write_archive(path, table, sets, text, dimensions=None):
+    with ZipFile(path, "w") as archive:
+        archive.writestr("document.json", '{"sheets":{"data":["sheet"]}}')
+        archive.writestr("data/sheets/sheet/sheet.json", json.dumps({"title": "Experiment", "table": table}))
+        for uid, metadata in sets.items():
+            archive.writestr(f"data/sets/{uid}.json", json.dumps(metadata))
+        archive.writestr("data/tables/table/data.csv", text)
+        if dimensions is not None:
+            rows, cols = dimensions
+            archive.writestr("data/tables/table/content.json", json.dumps(
+                {"numberOfRows": rows, "numberOfColumns": cols, "version": 1}))
+
+
+class PrismImportTests(unittest.TestCase):
+    def setUp(self):
+        workspace = TemporaryDirectory()
+        self.addCleanup(workspace.cleanup)
+        self.path = Path(workspace.name)
+
+    def test_zip_pzt_keeps_summary_columns_separate_from_replicates(self):
+        source = self.path / "summary.pzt"
+        write_archive(source, {"uid": "table", "format": "xy", "xDataSet": "x", "xDataSetFormat": "y_error",
+                               "dataFormat": "y_sd_n", "dataSets": ["y"]},
+                      {"x": {"title": "Time"}, "y": {"title": "Signal"}}, "1,0.1,3,0.5,4\n", (1, 5))
+        frame = load_tables(source)["Experiment"]
+        self.assertEqual(list(frame), ["Time", "Time [Error]", "Signal [Mean]", "Signal [SD]", "Signal [N]"])
+        self.assertEqual(frame.iloc[0].tolist(), [1, .1, 3, .5, 4])
+
+    def test_native_recipe_recalculates_and_survives_saving_with_forward_references(self):
+        source = self.path / "formulas.prism"
+        table = {"uid": "table", "format": "multivariable", "dataFormat": "y_single", "dataSets": ["x", "a", "b"]}
+
+        def calculated(title, recipe):
+            return {"title": title, "valuesStorageData": {"@class": "TransformDataSource", "transform": recipe}}
+
+        write_archive(source, table, {"x": {"title": "Source dose"}, "a": calculated("Squared dose", "C^2"),
+                                      "b": calculated("Offset dose", "A+2")}, "2,,\n5,,\n", (2, 3))
+        frame = load_tables(source)["Experiment"]
+        self.assertEqual(frame["Squared dose"].tolist(), [16, 49])
+        data = Dataset(frame)
+        self.assertEqual(list(data.raw), ["Source dose"])
+        self.assertEqual(list(data.formulas), ["Offset dose", "Squared dose"])
+        self.assertEqual(data.frame()["Squared dose"].tolist(), [16, 49])
+        data.raw.iat[0, 0] = 8
+        native = self.path / "saved.alab"
+        save_project(native, {"Experiment": data})
+        reopened = load_project(native)["Experiment"]
+        self.assertEqual(reopened.frame()["Squared dose"].tolist(), [100, 49])
+
+    def test_unsupported_or_cyclic_formulas_preserve_cached_cells(self):
+        source = self.path / "formulas.prism"
+        table = {"uid": "table", "format": "multivariable", "dataFormat": "y_single",
+                 "dataSets": ["a", "b", "c", "d", "e"]}
+        sets = {"a": {"title": "Value"}}
+        for uid, expression in (("b", "C+1"), ("c", "B-1"), ("d", "UNSUPPORTED(A)"), ("e", "D+1")):
+            sets[uid] = {"title": uid, "valuesStorageData": {"@class": "TransformDataSource", "transform": expression}}
+        write_archive(source, table, sets, "2,4,3,5,6\n", (1, 5))
+        frame = load_tables(source)["Experiment"]
+        self.assertEqual(frame.iloc[0].tolist(), [2, 4, 3, 5, 6])
+        self.assertFalse(Dataset(frame).formulas)
+        self.assertIn("b, c, d, e", frame.attrs["import_warnings"][0])
+
+    def test_legacy_wrapper_uses_sheet_sequence_dates_and_upper_lower_endpoints(self):
+        source = self.path / "example.xml"
+        source.write_text(
+            '<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform">'
+            '<GraphPadPrismFile xmlns="http://graphpad.com/prism/Prism.htm"><TableSequence><Ref ID="B"/>'
+            '<Ref ID="A"/></TableSequence><Table ID="A"><YColumn><Subcolumn><d>8</d></Subcolumn></YColumn></Table>'
+            '<Table ID="B" XFormat="date" YFormat="upper-lower-limits" TableType="XY"><Title>Dates</Title>'
+            '<XColumn><Subcolumn><d>12</d></Subcolumn></XColumn><XAdvancedColumn><Subcolumn>'
+            '<d>2-Jan-2022</d></Subcolumn></XAdvancedColumn><YColumn><Title>Signal</Title>'
+            '<Subcolumn><d Excluded="1">5</d></Subcolumn><Subcolumn><d>7</d></Subcolumn>'
+            '<Subcolumn><d>2</d></Subcolumn></YColumn></Table></GraphPadPrismFile>'
+            '<xsl:template match="/"><xsl:value-of select="document(\'file:///no-read\')"/></xsl:template>'
+            '</xsl:stylesheet>', encoding="utf-8")
+        tables = load_tables(source)
+        self.assertEqual(list(tables), ["Dates", "A"])
+        frame = tables["Dates"]
+        self.assertEqual(list(frame), ["X", "X [Date]", "Signal [Center]", "Signal [Upper]", "Signal [Lower]"])
+        self.assertEqual(frame.iloc[0].tolist(), [12, "2-Jan-2022", 5, 7, 2])
+        self.assertTrue(pd.isna(Dataset(frame).frame(mask_excluded=True)["Signal [Center]"].iloc[0]))
+        graph = analyse("XY error bars", frame, {"X": "X", "Y": "Signal [Center]",
+                        "Y lower error": "Signal [Lower]", "Y upper error": "Signal [Upper]",
+                        "Y error values": "Endpoints"})
+        _, _, whiskers = graph.figure.axes[0].containers[0].lines
+        self.assertEqual(whiskers[0].get_segments()[0].tolist(), [[12, 2], [12, 7]])
+
+    def test_inconsistent_or_duplicate_zip_entries_are_rejected(self):
+        source = self.path / "broken.prism"
+        table = {"uid": "table", "format": "column", "dataFormat": "y_single", "dataSets": ["y"]}
+        write_archive(source, table, {"y": {"title": "Signal"}}, "3\n", (2, 1))
+        with self.assertRaisesRegex(ValueError, "row count"):
+            load_tables(source)
+        with warnings.catch_warnings(), ZipFile(source, "a") as archive:
+            warnings.simplefilter("ignore", UserWarning)
+            archive.writestr("document.json", '{}')
+        with self.assertRaisesRegex(ValueError, "duplicate archive entries"):
+            load_tables(source)
+
+    def test_a_data_set_cannot_be_both_x_and_y(self):
+        source = self.path / "ambiguous.prism"
+        write_archive(source, {"uid": "table", "format": "xy", "dataFormat": "y_single",
+                               "xDataSet": "same", "dataSets": ["same"]},
+                      {"same": {"title": "Value"}}, "10,100\n20,150\n", (2, 2))
+        with self.assertRaisesRegex(ValueError, "multiple column roles"):
+            load_tables(source, restore_prism=True)
+
+    def test_proprietary_binary_fails_with_actionable_conversion(self):
+        source = self.path / "old.pzf"
+        source.write_bytes(b"PCFFGRAF" + b"\0" * 32)
+        with self.assertRaisesRegex(ValueError, r"binary project.*\.prism or \.pzfx"):
+            load_tables(source)

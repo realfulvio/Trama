@@ -1,0 +1,60 @@
+{
+  "status": "PASS",
+  "source_commit": "2167c36a9af2bf85023fc59e69a6d0238c089180",
+  "version": "0.72.0",
+  "channel": "beta",
+  "pull_requests": [
+    103,
+    105
+  ],
+  "linux": {
+    "unit_tests": 2174,
+    "seconds": 567.113,
+    "failures": 0,
+    "skips": 0,
+    "external_verifier": "17/17 PASS",
+    "full_gui_smoke": "PASS"
+  },
+  "windows": {
+    "focused_native_tests": 155,
+    "seconds": 77.181,
+    "failures": 0,
+    "skips": 0,
+    "external_verifier": "17/17 PASS",
+    "portable_build": "PASS",
+    "frozen_code_and_guides": "PASS",
+    "targeted_portable": {
+      "1024x768": "5/5 PASS",
+      "1920x1080": "5/5 PASS"
+    },
+    "full_suite_and_full_gui": "Not repeated on this candidate. Complete native baseline acceptance is recorded in pr-101-102-104.json.",
+    "baseline_source_commit": "47b34043f5c2c82f3cfc0f0b2ccca9ddbaf0fa8a",
+    "restored": {
+      "height": 768,
+      "width": 1024
+    },
+    "registry_updated": false,
+    "terminal_task": "Ready, result 0"
+  },
+  "portable": {
+    "filename": "Trama-0.72.0-Windows-x64.zip",
+    "bytes": 103355693,
+    "members": 2911,
+    "sha256": "d96f45a12835bc49c6ee61d2a5b9b6b238f22ee513317e9d36a891752f024f63",
+    "crc": "PASS",
+    "remote_hash_match": true
+  },
+  "evidence_bundles": {
+    "windows-evidence.zip": "2869e111fa116b7128965adb64a36d8afc6667ad1ff66fc814155fd80b8e5e34",
+    "linux-evidence.zip": "c567f1bc61cc0b3f92b0747b6206b72b371dd72ca2186432a3aee2b767443b78"
+  },
+  "harness_note": "An unsupported unequal-anova selector invoked the full workflow; that incomplete attempt was stopped and retained. Four completed small workflows were kept; the six remaining runs use recognized selectors. The saved ZIP and every extracted member were reverified before resumption.",
+  "review_correction": "Representable positive subnormal geometric means, ratios and confidence limits are retained; true zero-rounding/overflow remains unavailable.",
+  "limitations": [
+    "Native acceptance after the baseline concentrates on affected statistical modules, legacy ANOVA dialogs, Q-Q panels and summary ANOVA.",
+    "Automated real-widget GUI acceptance, not a human usability study.",
+    "System DPI 125/150% not retested.",
+    "The lognormal ANOVA result has no figure; table headings retain English.",
+    "No release, tag, version bump or visibility change."
+  ]
+}

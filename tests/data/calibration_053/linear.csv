@@ -1,0 +1,9 @@
+X,Y,Query Y,Query X,K,Row title
+0,3.6,9,3,1,Sample 1
+1,4.7,9,3,4,Sample 2
+2,7.4,3.5,0,1,Sample 3
+3,8.2,16.9,7,1,Sample 4
+4,11.3,40,-1,2,Sample 5
+5,13.1,,,,Sample 6
+6,14.55,,,,Sample 7
+7,17.35,,,,Sample 8

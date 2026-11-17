@@ -1,0 +1,30 @@
+[
+  {
+    "Before": 3.0,
+    "After": 6.3
+  },
+  {
+    "Before": 5.0,
+    "After": 9.6
+  },
+  {
+    "Before": 8.0,
+    "After": 17.2
+  },
+  {
+    "Before": 11.0,
+    "After": 20.9
+  },
+  {
+    "Before": 15.0,
+    "After": 32.0
+  },
+  {
+    "Before": null,
+    "After": 7.0
+  },
+  {
+    "Before": 0.0,
+    "After": null
+  }
+]

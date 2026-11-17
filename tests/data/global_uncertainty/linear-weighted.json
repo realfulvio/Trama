@@ -1,0 +1,83 @@
+[
+  {
+    "Group": "A",
+    "X": 0,
+    "Y": 1,
+    "SD": 0.5,
+    "Query X": 1.5,
+    "Query group": "A",
+    "Query k": 1
+  },
+  {
+    "Group": "A",
+    "X": 1,
+    "Y": 2.4,
+    "SD": 1,
+    "Query X": 3.0,
+    "Query group": "B",
+    "Query k": 4
+  },
+  {
+    "Group": "A",
+    "X": 2,
+    "Y": 3.7,
+    "SD": 1.5,
+    "Query X": 0.0,
+    "Query group": "A",
+    "Query k": 9
+  },
+  {
+    "Group": "A",
+    "X": 3,
+    "Y": 4.3,
+    "SD": 0.75,
+    "Query X": 6.0,
+    "Query group": "B",
+    "Query k": 1
+  },
+  {
+    "Group": "A",
+    "X": 4,
+    "Y": 6.2,
+    "SD": 1.2,
+    "Query X": 4.5,
+    "Query group": "A",
+    "Query k": 1
+  },
+  {
+    "Group": "B",
+    "X": 0,
+    "Y": 3.6,
+    "SD": 1.2,
+    "Query X": 2.0,
+    "Query group": "Z",
+    "Query k": 1
+  },
+  {
+    "Group": "B",
+    "X": 2,
+    "Y": 6.3,
+    "SD": 0.7,
+    "Query X": null,
+    "Query group": "A",
+    "Query k": 1
+  },
+  {
+    "Group": "B",
+    "X": 4,
+    "Y": 8.4,
+    "SD": 1.5,
+    "Query X": 1.0,
+    "Query group": null,
+    "Query k": 1
+  },
+  {
+    "Group": "B",
+    "X": 6,
+    "Y": 11.5,
+    "SD": 1.0,
+    "Query X": 1.5,
+    "Query group": "A",
+    "Query k": 4
+  }
+]

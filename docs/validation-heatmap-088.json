@@ -1,0 +1,50 @@
+{
+  "status": "PASS",
+  "application_commit": "9566dacdca09c0a9e7e10003bb08a0c86f8560da",
+  "source_sha256": "6101be7459ddee21c0fc30176e9a9dcae98eff9776c5e348fecf3577f538cf76",
+  "portable_sha256": "866a1f899676962e86638b0bf4c188dc5202fc88ac3bea104891518e8fdae200",
+  "portable_bytes": 102635002,
+  "linux_units": {
+    "passed": 1919,
+    "skipped": 0,
+    "seconds": 474.266
+  },
+  "windows_units": {
+    "passed": 1919,
+    "skipped": 0,
+    "seconds": 930.675
+  },
+  "linux_full_smoke": "PASS",
+  "windows_portable_full_smoke": "PASS",
+  "windows_portable_heatmap_resolutions": [
+    "1024x768",
+    "1920x1080"
+  ],
+  "package_verifier": "PASS on both platforms",
+  "focused_tests": 52,
+  "embedded_code_check": "PASS",
+  "source_manifest_files": 958,
+  "display_restore": {
+    "registry_updated": false,
+    "small": "1024x768",
+    "full_smoke": "PASS",
+    "restored": {
+      "height": 768,
+      "width": 1024
+    },
+    "source_commit": "9566dacdca09c0a9e7e10003bb08a0c86f8560da",
+    "large": "1920x1080",
+    "before": {
+      "dpi": 96,
+      "width": 1024,
+      "height": 768
+    },
+    "restore_result": 0,
+    "status": "PASS",
+    "observer": "20 minute observer detached; original application and individual assertions unchanged"
+  },
+  "native_dpi": 96,
+  "manual_input": "NOT TESTED",
+  "native_125_150_percent": "NOT TESTED",
+  "supervision": "External 20-minute supervisor detached; original application continued and reported PASS. Individual timeouts and assertions unchanged."
+}
