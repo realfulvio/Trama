@@ -263,6 +263,10 @@ from analisi.variance_assumptions import (ALPHA as VARIANCE_ALPHA, BARTLETT as V
                                           validate as validate_variance)
 from analisi.fdr_control import (METHOD as FDR_METHOD, PLOT as FDR_PLOT, format_fdr_error,
                                  validate_request as validate_fdr_request)
+from analisi.variance_ratio import (CHOICE_KEYS as VARIANCE_RATIO_CHOICES, LABEL_KEYS as VARIANCE_RATIO_LABELS,
+                                    METHOD as VARIANCE_RATIO, NOTE_KEY as VARIANCE_RATIO_NOTE,
+                                    SHOW as VARIANCE_SHOW, format_error as format_variance_ratio_error,
+                                    shows_graph as variance_ratio_shows_graph)
 
 TREND_HEADINGS = {TREND: "analysis.trend.heading.trend", TREND_ORDER: "analysis.trend.heading.order"}
 from analisi import unequal_anova
@@ -1194,6 +1198,7 @@ class AnalysisDialog(simpledialog.Dialog):
             lognormal_control = self.method == "One-way ANOVA" and label in lognormal_anova.LABEL_KEYS
             fit_control = self.method == "Nonlinear regression" and label in FIT_HEADINGS
             ratio_control = self.method == LOGNORMAL and label in RATIO_LABEL_KEYS
+            variance_ratio_control = self.method == VARIANCE_RATIO and label in VARIANCE_RATIO_LABELS
             tost_control = self.method == EQUIVALENCE and label in TOST_LABEL_KEYS
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
@@ -1201,6 +1206,7 @@ class AnalysisDialog(simpledialog.Dialog):
             label_text = (tr(RANK_LABEL_KEYS[label]) if rank_control
                           else tr(ROBUST_LABEL_KEYS[label]) if robust_control
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
+                          else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
                           else tr(PARAM_CI_LABELS[label]) if parameter_ci_control
                           else tr(NL_BAND_LABELS[label]) if band_control
@@ -1424,6 +1430,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, XY_ERROR_CHOICE_KEYS)
                     elif ratio_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, RATIO_CHOICE_KEYS)
+                    elif variance_ratio_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, VARIANCE_RATIO_CHOICES)
                     elif tost_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOST_CHOICE_KEYS)
                     elif robust_control and isinstance(kind, tuple) and label != ROBUST_MODEL:
@@ -1708,8 +1716,19 @@ class AnalysisDialog(simpledialog.Dialog):
             self.controls["Input"][1].trace_add("write", lambda *_: self.show_fields(self.compare_lines_fields()))
             self.show_fields(self.compare_lines_fields())
         if self.method == LOGNORMAL:
-            self.controls[RATIO_DESIGN][1].trace_add("write", lambda *_: self.show_fields(self.lognormal_fields()))
-            self.show_fields(self.lognormal_fields())
+            self.variance_ratio_note = ttk.Label(options, wraplength=360, foreground="#486075", justify="left")
+            self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.controls[RATIO_DESIGN][1].trace_add("write", lambda *_: self.show_lognormal_fields())
+            self.show_lognormal_fields()
+        if self.method == "t-test":
+            self.variance_ratio_note = ttk.Label(options, wraplength=360, foreground="#486075", justify="left")
+            self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.controls["Design"][1].trace_add("write", lambda *_: self.show_ttest_variance())
+            self.show_ttest_variance()
+        if self.method == VARIANCE_RATIO:
+            self.variance_ratio_note = ttk.Label(options, text=tr(VARIANCE_RATIO_NOTE), wraplength=360,
+                                                 foreground="#486075", justify="left")
+            self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
         if self.method in (SUMMARY_ANOVA, SUMMARY_TTEST):
             self.controls["Input"][1].trace_add("write", lambda *_: self.show_fields(self.summary_anova_fields()))
             self.show_fields(self.summary_anova_fields())
@@ -2820,6 +2839,32 @@ class AnalysisDialog(simpledialog.Dialog):
             return {}
         return lognormal_visibility(self.controls[RATIO_DESIGN][1].get())
 
+    def show_lognormal_fields(self):
+        visible = self.lognormal_fields()
+        self.show_fields(visible)
+        self._show_variance_note(visible)
+
+    def ttest_variance_fields(self):
+        """The variance check belongs only to Welch and Student. Hidden means omitted from the recipe."""
+        if self.method != "t-test" or VARIANCE_SHOW not in self.controls:
+            return {}
+        return {VARIANCE_SHOW: self.controls["Design"][1].get() in ("Welch", "Student")}
+
+    def show_ttest_variance(self):
+        visible = self.ttest_variance_fields()
+        self.show_fields(visible)
+        self._show_variance_note(visible)
+
+    def _show_variance_note(self, visible):
+        note = getattr(self, "variance_ratio_note", None)
+        if note is None:
+            return
+        if visible.get(VARIANCE_SHOW):
+            note.configure(text=tr(VARIANCE_RATIO_NOTE))
+            note.grid()
+        else:
+            note.grid_remove()
+
     def equivalence_fields(self):
         """Response and Reference belong to One-sample, First and Second to the other designs."""
         if self.method != EQUIVALENCE or TOST_DESIGN not in self.controls:
@@ -2955,7 +3000,8 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.auc_visibility(), **self.deming_visibility(), **self.linear_visibility(),
                       **self.calibration_visibility(), **self.agreement_visibility(),
                       **self.anova_fields(), **self.anova_diagnostic_fields(), **self.regression_visibility(), **self.forest_fields(),
-                      **self.compare_lines_fields(), **self.lognormal_fields(), **self.equivalence_fields(), **self.cox_fields(),
+                      **self.compare_lines_fields(), **self.lognormal_fields(), **self.ttest_variance_fields(),
+                      **self.equivalence_fields(), **self.cox_fields(),
                       **self.summary_anova_fields(),
                       **self.one_way_fields(),
                       **self.monte_carlo_fields(), **self.function_fields(), **self.weighting_visibility(),
@@ -3174,7 +3220,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
                     or self.method == PARTS_GRAPH
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
-                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, EQUIVALENCE, COX, OUTLIERS,
+                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
                                        "One-way ANOVA", REFERENCE_NORMALIZATION,
                                        SPLINE_FIT, COMPARE_MODELS, XY_ERRORS}):
                 # Keep field errors in the dialog and reuse the successful result.
@@ -3256,6 +3302,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     formatted := lognormal_anova.format_error(error) or format_variance_error(error)):
                 message = formatted
             elif self.method == FDR_METHOD and (formatted := format_fdr_error(error)):
+                message = formatted
+            elif self.method == VARIANCE_RATIO and (formatted := format_variance_ratio_error(error)):
                 message = formatted
             elif field and field not in message:
                 message = f"{field}: {message}"
@@ -3975,7 +4023,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                                  and run.options.get(MONTE_CARLO_GRAPH, GRAPH_NONE) != GRAPH_NONE)
                              or (run.method == "Multifactor ANOVA"
                                  and run.options.get(ANOVA_DIAG_GRAPH) not in (None, "", "None"))
-                             or (run.method == FDR_METHOD and run.options.get(FDR_PLOT))))],
+                             or (run.method == FDR_METHOD and run.options.get(FDR_PLOT))
+                             or (run.method == VARIANCE_RATIO and variance_ratio_shows_graph(run.options))))],
              "New Graph…", self.new_graph),
             ("Layouts", [(layout.name, ("layout", i)) for i, layout in enumerate(self.layouts)]
                         + [(run.name, ("saved-layout", i)) for i, run in enumerate(self.runs)
@@ -6091,12 +6140,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method == FDR_METHOD or getattr(run, 'source', None) is not None
+                or run.method == FDR_METHOD or run.method == VARIANCE_RATIO
+                or getattr(run, 'source', None) is not None
                 or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return self._lognormal_one_way(run) or run.method == FDR_METHOD
+        return self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO)
 
     def weighting_recovery(self, method, options, index, only=None):
         """Reopen the dialog when a field error is first known on the worker."""
@@ -6112,7 +6162,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "One-way ANOVA":
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
-        if method == FDR_METHOD:
+        if method in (FDR_METHOD, VARIANCE_RATIO):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if (method == "Interpolate a standard curve" and options.get("Curve") == "Nonlinear"
                 and options.get(CALIBRATION_UNCERTAINTY, "None") not in (None, "None")):
@@ -6154,7 +6204,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
-                     else format_fdr_error(error) if run.method == FDR_METHOD else None)
+                     else format_fdr_error(error) if run.method == FDR_METHOD
+                     else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO else None)
         if formatted:
             message = formatted
         elif run.method == "Interpolate a standard curve":
@@ -6189,7 +6240,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if self.refresh_chain_calculations([(run, None)], inputs_changed=False):
             return
         recovery = (self.weighting_recovery(run.method, run.options, index)
-                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD} else None)
+                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO} else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
@@ -6495,7 +6546,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.status.set(f"{run.method} cancelled. {detail}")
         except Exception as error:
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
-                     else format_fdr_error(error) or error if run.method == FDR_METHOD else error)
+                     else format_fdr_error(error) or error if run.method == FDR_METHOD
+                     else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -6604,6 +6656,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         runs = (self.layout_runs(self.layouts[key]) if kind == "layout"
                 else [self.runs[key]] if kind in {"result", "graph", "saved-layout"} else [])
         failures = [(translate_message(run.calculation_error, 'fdr.error.') if run.method == FDR_METHOD
+                     else translate_message(run.calculation_error, 'variance.ratio.error.')
+                     if run.method == VARIANCE_RATIO
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA" else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
@@ -12822,6 +12876,19 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "variance-ratio":
+            # The two-sample variance comparison alone:
+            # TRAMASTAT_SMOKE_ONLY=variance-ratio python tramastat.py --smoke DIR
+            from analisi.variance_ratio_smoke import check_variance_ratio
+            check_variance_ratio(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+                drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+                wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "anova-trend":
             # The ordinal ANOVA trend check alone:
             # TRAMASTAT_SMOKE_ONLY=anova-trend python tramastat.py --smoke DIR
@@ -13477,6 +13544,11 @@ def smoke(root, app, directory, legacy_reference=None):
         check_fdr_control(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
             select_columns=select_columns,
+            drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+            wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
+        from analisi.variance_ratio_smoke import check_variance_ratio
+        check_variance_ratio(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
             drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
             wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
         from analisi.fit_quality_smoke import check_fit_quality
