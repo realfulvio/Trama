@@ -194,10 +194,11 @@ from analisi.plot_function import (CURVE_LIST, CURVES as FUNCTION_CURVES, EXAMPL
                                    GRAPH_NOTE as FUNCTION_NOTE, MODEL as FUNCTION_MODEL, PLOT_FUNCTION,
                                    TABS as FUNCTION_TABS, X_SOURCE as FUNCTION_X_SOURCE,
                                    visibility as function_visibility)
-from analisi.custom_equation_dialog import EquationEditor, ParameterTable, translate_error as translate_custom_error
+from analisi.custom_equation_dialog import (SYNTAX_CHOICE_KEYS, EquationEditor, ParameterTable,
+                                           translate_error as translate_custom_error)
 from analisi.custom_fit import (CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS,
                                 LEVEL as CUSTOM_LEVEL, PARAMETER_LIST, POINTS as CUSTOM_POINTS,
-                                SD_COLUMN as CUSTOM_SD, check_options as check_custom_options)
+                                SD_COLUMN as CUSTOM_SD, SYNTAX as CUSTOM_SYNTAX, check_options as check_custom_options)
 from analisi.robust_curve import (COMPARE as ROBUST_COMPARE, DEFAULTS as ROBUST_DEFAULTS, DISPLAY as ROBUST_DISPLAY,
                                   EVALUATIONS as ROBUST_EVALUATIONS, GROUP as ROBUST_GROUP, INITIAL as ROBUST_INITIAL,
                                   INITIAL_LIST, LOSS as ROBUST_LOSS, MODEL as ROBUST_MODEL, OUTPUT_FIELDS as ROBUST_OUTPUT,
@@ -305,7 +306,7 @@ CUSTOM_LABEL_KEYS = {"Variables": "custom.tab.variables", "Equation": "custom.fi
                      "Parameters": "custom.field.Parameters", "Output": "custom.tab.output",
                      "Group": "custom.field.Group", "Weighting": "custom.field.Weighting",
                      CUSTOM_SD: "custom.field.SD column", CUSTOM_LEVEL: "custom.field.Confidence level (%)",
-                     CUSTOM_POINTS: "custom.field.Curve points"}
+                     CUSTOM_POINTS: "custom.field.Curve points", CUSTOM_SYNTAX: "conditional.field.syntax"}
 GLOBAL_WEIGHTING_KEYS = {UNWEIGHTED: "gfit.weighting.unweighted",
                          INVERSE_VARIANCE: "gfit.weighting.inverse_variance"}
 # Gaussian weighting of Multiple regression: translated labels, choices and the note under the choice.
@@ -398,6 +399,7 @@ GLOBAL_LABEL_KEYS = {"Variables": "gfit.tab.variables", "Equation": "gfit.tab.eq
                      "Group": "gfit.field.Group", "Weighting": "gfit.field.Weighting",
                      CUSTOM_SD: "gfit.field.SD column", CUSTOM_LEVEL: "gfit.field.Confidence level (%)",
                      CUSTOM_POINTS: "gfit.field.Curve points", PARAM_CI_METHOD: "parameter_ci.method",
+                     CUSTOM_SYNTAX: "conditional.field.syntax",
                      "Response": "gfit.tab.response",
                      **{name: "gfit.field." + name for name in GLOBAL_TABS["Response"]}}
 # Response bands and predictions show translated choices; recipes keep these canonical values.
@@ -1131,7 +1133,7 @@ class AnalysisDialog(simpledialog.Dialog):
             self.fields.tab(options, text=ui("Output"))
             fields_by_tab["Weighting"] = variables
             fields_by_tab.update(dict.fromkeys((PARAM_CI_METHOD, CUSTOM_LEVEL, CUSTOM_POINTS), options))
-            tabs = {"Equation": ("Equation",), "Parameters": ("Parameters",)}
+            tabs = {"Equation": (CUSTOM_SYNTAX, "Equation"), "Parameters": ("Parameters",)}
             if not saved:
                 saved = {"Equation": DEFAULT_EQUATION, "Parameters": [dict(record) for record in EXAMPLE_PARAMETERS]}
         elif self.method == GLOBAL_CUSTOM_EQUATION:
@@ -1156,6 +1158,11 @@ class AnalysisDialog(simpledialog.Dialog):
                 outer = ttk.Frame(self.fields)
                 self.fields.add(outer, text=tr("heat.layout.tab"))
                 frame = self._make_scrollable_tab(outer)
+            elif self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and tab == "Equation":
+                # 0.81: the conditional guide can exceed the page; Check equation and its message stay on top.
+                outer = ttk.Frame(self.fields)
+                self.fields.add(outer, text=ui(tab))
+                frame = self._make_scrollable_tab(outer)
             else:
                 frame = ttk.Frame(self.fields, padding=10)
                 frame.columnconfigure(1, weight=1)
@@ -1170,12 +1177,18 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method == COMPARE_MODELS:
             # Data, Models, Output: the models are chosen right after the columns.
             self.fields.insert(1, fields_by_tab[MODELS_FIELD])
+        def notebook_page(frame):
+            # A scrollable tab holds its fields in a frame inside a canvas; the notebook moves the outer page.
+            while frame.master is not self.fields:
+                frame = frame.master
+            return frame
+
         if self.method == CUSTOM_EQUATION:
-            self.fields.insert(1, fields_by_tab["Equation"])
+            self.fields.insert(1, notebook_page(fields_by_tab["Equation"]))
             self.fields.insert(2, fields_by_tab["Parameters"])
         if self.method == GLOBAL_CUSTOM_EQUATION:
             for index, name in enumerate(("Equation", "Parameters", "Series constraints"), start=1):
-                self.fields.insert(index, fields_by_tab[name])
+                self.fields.insert(index, notebook_page(fields_by_tab[name]))
         category_roles = {"Group", "Rows", "Columns", "Subject", "Row label", "Row factor variable",
                           "Column factor variable", "Row (treatment) variable", "Column (outcome) variable",
                           "X categories", "Y categories"}
@@ -1266,7 +1279,8 @@ class AnalysisDialog(simpledialog.Dialog):
             if kind == PARAMETER_LIST:
                 positions[parent] += 1
                 field = ParameterTable(parent, saved.get(label, ()),
-                                       equation=lambda: self.controls["Equation"][1].values())
+                                       equation=lambda: self.controls["Equation"][1].values(),
+                                       syntax=self.equation_syntax)
                 field.grid(row=row + 1, column=0, columnspan=2, sticky="nsew", pady=3)
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
@@ -1274,7 +1288,8 @@ class AnalysisDialog(simpledialog.Dialog):
             if kind == GLOBAL_PARAMETER_LIST:
                 positions[parent] += 1
                 field = GlobalCoefficientTable(parent, saved.get(label, ()),
-                                               equation=lambda: self.controls["Equation"][1].values())
+                                               equation=lambda: self.controls["Equation"][1].values(),
+                                               syntax=self.equation_syntax)
                 field.grid(row=row + 1, column=0, columnspan=2, sticky="nsew", pady=3)
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
@@ -1436,6 +1451,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOST_CHOICE_KEYS)
                     elif robust_control and isinstance(kind, tuple) and label != ROBUST_MODEL:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ROBUST_CHOICE_KEYS)
+                    elif self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and label == CUSTOM_SYNTAX:
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, SYNTAX_CHOICE_KEYS)
                     elif self.method == CUSTOM_EQUATION and label == "Weighting":
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, CUSTOM_WEIGHTING_KEYS)
                     elif self.method == GLOBAL_CUSTOM_EQUATION and label == "Weighting":
@@ -1642,6 +1659,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 hint = ttk.Label(tab, text=tr(key), wraplength=ui_theme.px(400), foreground="#486075", justify="left")
                 hint.grid(row=positions[tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.show_fields(self.robust_fields())
+        if self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION):
+            self.bind_equation_syntax()
+            self._bind_scrollable_children(fields_by_tab["Equation"])
         if self.method == CUSTOM_EQUATION:
             self.controls["Weighting"][1].trace_add("write", lambda *_: self.show_fields(self.custom_fields()))
             self.show_fields(self.custom_fields())
@@ -2633,11 +2653,31 @@ class AnalysisDialog(simpledialog.Dialog):
             return self.controls[name][1].get()
 
         options = {"X": get("X"), "Y": get("Y"), "Group": get("Group") or None, "Weighting": get("Weighting"),
+                   CUSTOM_SYNTAX: self.equation_syntax(),
                    "Equation": self.controls["Equation"][1].values(),
                    "Parameters": self.controls["Parameters"][1].values()}
         if options["Weighting"] == INVERSE_VARIANCE:
             options[CUSTOM_SD] = get(CUSTOM_SD) or None
         return options
+
+    def equation_syntax(self):
+        """The canonical Equation syntax of the dialog; Arithmetic while the control does not exist."""
+        control = self.controls.get(CUSTOM_SYNTAX)
+        return control[1].get() if control is not None else "Arithmetic"
+
+    def bind_equation_syntax(self):
+        """Show the conditional guide for the chosen syntax. The equation and the coefficients stay as typed."""
+        variable = self.controls[CUSTOM_SYNTAX][1]
+        editor = self.controls["Equation"][1]
+
+        def changed(*_):
+            editor.set_syntax(variable.get())
+            table = self.controls.get("Parameters")
+            if table is not None and hasattr(table[1], "mark_unused"):
+                table[1].mark_unused()
+
+        variable.trace_add("write", changed)
+        editor.set_syntax(variable.get())
 
     def check_custom_equation(self, editor):
         """Syntax, names and domain at the starting values on the used X. No fit is started."""
@@ -2656,6 +2696,7 @@ class AnalysisDialog(simpledialog.Dialog):
             return self.controls[name][1].get()
 
         options = {"X": get("X"), "Y": get("Y"), "Group": get("Group") or None, "Weighting": get("Weighting"),
+                   CUSTOM_SYNTAX: self.equation_syntax(),
                    "Equation": self.controls["Equation"][1].values(),
                    "Parameters": self.controls["Parameters"][1].values(),
                    "Series constraints": self.controls["Series constraints"][1].values(),
@@ -3160,6 +3201,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 saved = self.current[1] if self.current and self.current[0] == self.method else {}
                 if PARAM_CI_METHOD not in saved and options.get(PARAM_CI_METHOD) == PARAM_CI_WALD:
                     options.pop(PARAM_CI_METHOD, None)
+                # Like the interval method: an Arithmetic recipe stays exactly the recipe of earlier versions.
+                if CUSTOM_SYNTAX not in saved and options.get(CUSTOM_SYNTAX) == "Arithmetic":
+                    options.pop(CUSTOM_SYNTAX, None)
             if self.method == ROBUST_CURVE:
                 # Columns, limits, the domain and the starting values; the fits run on the worker.
                 check_robust_options(self.data, options)
@@ -3174,6 +3218,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 check_global_custom_options(self.data, options)
                 if PARAM_CI_METHOD not in saved and options.get(PARAM_CI_METHOD) == PARAM_CI_WALD:
                     options.pop(PARAM_CI_METHOD, None)
+                if CUSTOM_SYNTAX not in saved and options.get(CUSTOM_SYNTAX) == "Arithmetic":
+                    options.pop(CUSTOM_SYNTAX, None)
             if self.select_editors:
                 options.update({name: editor.values() for name, editor in self.select_editors.items()})
             grouped_validation = self.method == GROUPED_GRAPH and (
@@ -12170,6 +12216,12 @@ def smoke(root, app, directory, legacy_reference=None):
             select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
             filedialog=filedialog, errors=errors))
 
+    def check_piecewise_equations_smoke():
+        from analisi.piecewise_equation_smoke import check_piecewise_equations
+        check_piecewise_equations(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_global_custom_smoke():
         from analisi.global_custom_smoke import check_global_custom
         check_global_custom(root, app, directory, SimpleNamespace(
@@ -12596,6 +12648,15 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "custom-equation":
             # The 0.61 custom equation check alone: TRAMASTAT_SMOKE_ONLY=custom-equation python tramastat.py --smoke DIR
             check_custom_equation_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "piecewise-equations":
+            # The 0.81 conditional equations check alone (window = screen size, theme from the preferences):
+            # TRAMASTAT_SMOKE_ONLY=piecewise-equations python tramastat.py --smoke DIR
+            check_piecewise_equations_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -13582,6 +13643,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_analysis_chains_smoke()
         check_hierarchical_import_smoke()
         check_family_workflow_smoke()
+        check_piecewise_equations_smoke()
         assert app.nav.winfo_ismapped()
         assert not errors, errors
         (directory / "status.txt").write_text("PASS\n", encoding="utf-8")

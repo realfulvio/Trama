@@ -1415,6 +1415,67 @@ _IT.update({
     "custom.error.rank": "I coefficienti non sono identificabili da questi dati (lo Jacobiano ha rango incompleto). Fissa o rimuovi coefficienti, oppure controlla l'equazione.",
 })
 
+# Conditional equation syntax (0.81) of Fit custom equation and Global fit custom equation. The
+# conditional.error.* texts are the exact engine messages with placeholders; recipe values stay English.
+_EN.update({
+    "conditional.field.syntax": "Equation syntax",
+    "conditional.choice.arithmetic": "Arithmetic", "conditional.choice.conditional": "Conditional",
+    "conditional.guide": ("Conditional: if(condition, value if true, value if false), also nested. Compare numbers "
+                          "with < <= > >= == != and combine conditions with not, and, or (in this order); "
+                          "write (0<X) and (X<1), not 0<X<1. Each branch is computed only where it applies. "
+                          "A coefficient inside a condition is a known threshold: mark it Fixed. Change points "
+                          "are not estimated."),
+    "conditional.examples": "Examples (select to copy, or Insert at the cursor):",
+    "conditional.insert": "Insert",
+    "conditional.error.compare_hint": "Unexpected {char} at position {position}. Compare with < <= > >= == or != inside if(...).",
+    "conditional.error.needs_conditional": "Unexpected {char} at position {position}. Comparisons and if(...) need the Conditional equation syntax.",
+    "conditional.error.not_a_number": "A comparison is not a number ({operator} at position {position}). Use comparisons only as the condition of if(condition, value if true, value if false).",
+    "conditional.error.word": "{word} combines conditions: use it only inside the condition of if(condition, value if true, value if false).",
+    "conditional.error.if_call": "if is the conditional: write if(condition, value if true, value if false).",
+    "conditional.error.arity": "if takes exactly three arguments: if(condition, value if true, value if false).",
+    "conditional.error.close_if": "Missing ) after the arguments of if.",
+    "conditional.error.no_comparison": "A condition needs a comparison such as X < T (use < <= > >= == or !=); none was found before position {position}.",
+    "conditional.error.no_comparison_end": "A condition needs a comparison such as X < T (use < <= > >= == or !=); the equation ends before one.",
+    "conditional.error.chained": "Chained comparisons such as 0<X<1 are not supported ({operator} at position {position}). Join two comparisons with and, as in (0<X) and (X<1).",
+    "conditional.error.reserved": "{name} is a word of the Conditional syntax and cannot be a coefficient there. Rename the coefficient, or choose Arithmetic.",
+    "conditional.error.syntax": "Choose Arithmetic or Conditional.",
+    "conditional.error.condition_row": "A condition of if(...) is not defined at X = {x} (source row {row}): one side of a comparison is not a finite number. Check divisions, logarithms and roots in the condition.",
+    "conditional.error.condition": "A condition of if(...) is not defined at X = {x}: one side of a comparison is not a finite number. Check divisions, logarithms and roots in the condition.",
+    "conditional.error.condition_curve": "A condition of if(...) is not defined on the drawn curve at X = {x}.",
+    "conditional.error.free_threshold": "{names} appears in a condition of if(...) and must be Fixed: this fit uses known thresholds and does not estimate change points. Tick Fixed and type the threshold value.",
+    "conditional.error.free_shared": "{names} appears in a condition of if(...) and must be Fixed: a shared coefficient cannot be a threshold to estimate. This fit uses known thresholds and does not estimate change points.",
+    "conditional.error.free_series": "{names} appears in a condition of if(...) and is not fixed for series {series}: this fit uses known thresholds and does not estimate change points. Mark it Fixed, or give it a fixed value for every series in Series constraints.",
+})
+_IT.update({
+    "conditional.field.syntax": "Sintassi dell'equazione",
+    "conditional.choice.arithmetic": "Aritmetica", "conditional.choice.conditional": "Condizionale",
+    "conditional.guide": ("Condizionale: if(condizione, valore se vera, valore se falsa), anche annidato. Confronta "
+                          "numeri con < <= > >= == != e combina le condizioni con not, and, or (in quest'ordine); "
+                          "scrivi (0<X) and (X<1), non 0<X<1. Ogni ramo è calcolato solo dove vale. Un "
+                          "coefficiente dentro una condizione è una soglia nota: segnalo come Fisso. I punti di "
+                          "cambio non vengono stimati."),
+    "conditional.examples": "Esempi (seleziona per copiare, o Inserisci nel punto del cursore):",
+    "conditional.insert": "Inserisci",
+    "conditional.error.compare_hint": "{char} inatteso alla posizione {position}. Confronta con < <= > >= == o != dentro if(...).",
+    "conditional.error.needs_conditional": "{char} inatteso alla posizione {position}. Confronti e if(...) richiedono la sintassi Condizionale.",
+    "conditional.error.not_a_number": "Un confronto non è un numero ({operator} alla posizione {position}). Usa i confronti solo come condizione di if(condizione, valore se vera, valore se falsa).",
+    "conditional.error.word": "{word} combina condizioni: usalo solo dentro la condizione di if(condizione, valore se vera, valore se falsa).",
+    "conditional.error.if_call": "if è il condizionale: scrivi if(condizione, valore se vera, valore se falsa).",
+    "conditional.error.arity": "if vuole esattamente tre argomenti: if(condizione, valore se vera, valore se falsa).",
+    "conditional.error.close_if": "Manca ) dopo gli argomenti di if.",
+    "conditional.error.no_comparison": "Una condizione richiede un confronto come X < T (usa < <= > >= == o !=); non ce n'è prima della posizione {position}.",
+    "conditional.error.no_comparison_end": "Una condizione richiede un confronto come X < T (usa < <= > >= == o !=); l'equazione finisce prima.",
+    "conditional.error.chained": "I confronti concatenati come 0<X<1 non sono ammessi ({operator} alla posizione {position}). Unisci due confronti con and, come in (0<X) and (X<1).",
+    "conditional.error.reserved": "{name} è una parola della sintassi Condizionale e lì non può essere un coefficiente. Rinomina il coefficiente o scegli Aritmetica.",
+    "conditional.error.syntax": "Scegli Aritmetica o Condizionale.",
+    "conditional.error.condition_row": "Una condizione di if(...) non è definita in X = {x} (riga sorgente {row}): un lato del confronto non è un numero finito. Controlla divisioni, logaritmi e radici nella condizione.",
+    "conditional.error.condition": "Una condizione di if(...) non è definita in X = {x}: un lato del confronto non è un numero finito. Controlla divisioni, logaritmi e radici nella condizione.",
+    "conditional.error.condition_curve": "Una condizione di if(...) non è definita sulla curva disegnata in X = {x}.",
+    "conditional.error.free_threshold": "{names} compare in una condizione di if(...) e deve essere Fisso: questo fit usa soglie note e non stima punti di cambio. Spunta Fisso e scrivi il valore della soglia.",
+    "conditional.error.free_shared": "{names} compare in una condizione di if(...) e deve essere Fisso: un coefficiente condiviso non può essere una soglia da stimare. Questo fit usa soglie note e non stima punti di cambio.",
+    "conditional.error.free_series": "{names} compare in una condizione di if(...) e non è fisso per la serie {series}: questo fit usa soglie note e non stima punti di cambio. Segnalalo come Fisso, oppure dagli un valore fisso per ogni serie in Vincoli di serie.",
+})
+
 # Global fit custom equation. gfit.error.* texts are the engine sentences that Fit custom equation does not already use.
 _EN.update({
     "gfit.tab.variables": "Variables", "gfit.tab.equation": "Equation", "gfit.tab.parameters": "Parameters",
