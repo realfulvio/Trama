@@ -93,6 +93,14 @@ def check_family_workflow(root, app, directory, tools):
     original_language, original_theme = i18n.active_language(), ui_theme._state.get('theme', 'standard')
     windows, report = [], {'screen': [root.winfo_screenwidth(), root.winfo_screenheight()],
                            'theme': original_theme, 'languages': {}}
+    root.update()
+    if not app.nav.winfo_ismapped():
+        # The stand-alone run starts on the start page, where the navigator is hidden: open a sheet so that the
+        # check at the end (the main window must come back as it was) has something to compare.
+        app._add_tables({'Probe': pd.DataFrame({'X': [1., 2.], 'Y': [2., 3.]})})
+        root.update()
+    navigator_shown = app.nav.winfo_ismapped()
+    assert navigator_shown, 'the navigator should be visible before the check'
     try:
         for code in ('en', 'it'):
             i18n.set_language(code)
@@ -116,6 +124,9 @@ def check_family_workflow(root, app, directory, tools):
         i18n.set_language(original_language)
         ui_theme.configure(root, original_theme)
         root.deiconify()
+        root.update()  # let the map event arrive: the main window, and its navigator, must be visible again
+    # The check hides the main window while it drives its own instances; it must leave it as it found it.
+    assert app.nav.winfo_ismapped() == navigator_shown, 'the main window was not restored'
 
 
 def _scenario(root, app, out, tools, code):
