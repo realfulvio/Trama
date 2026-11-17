@@ -1,0 +1,5 @@
+﻿Term,Order,df,Effect
+Dose (mg),1,1,Main effect
+Group,1,1,Main effect
+Lot 24,1,2,Main effect
+Dose (mg):Lot 24,2,2,Two-way interaction

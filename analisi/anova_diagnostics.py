@@ -150,11 +150,14 @@ def format_anova_error(error):
     """Translated diagnostic sentence, prefixed with the translated field caption.
 
     Returns None when the error does not name one of these fields, so effect-size alpha
-    keeps the dialog's existing wording.
+    keeps the dialog's existing wording. Errors on the model terms of Selected terms go to
+    ``anova_terms.format_error``.
     """
     field = getattr(error, "field", None)
     if field not in LABEL_KEYS or field not in (DIAGNOSTICS, ASSUMPTIONS, ALPHA, GRAPH, QQ_LINE):
-        return None
+        # Model terms and the comparison controls (0.83) word their own errors.
+        from .anova_terms import format_error
+        return format_error(error)
     message = translate_anova_error(error)
     label = tr(LABEL_KEYS[field])
     if label and label not in message:
