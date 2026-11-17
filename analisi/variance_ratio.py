@@ -180,11 +180,20 @@ def _parts(array):
     Subtracting the first observation removes a shared offset before scaling, so a
     translation that is still representable cannot erase the spread.
     """
-    shifted = array - float(array[0])
+    with np.errstate(over="ignore"):
+        shifted = array - float(array[0])
     peak = float(np.max(np.abs(shifted)))
-    if not math.isfinite(peak) or peak == 0.0:
+    if not math.isfinite(peak):
+        # Finite values at opposite extremes can have an unrepresentable
+        # difference. Normalize before centering in that case; keep centering
+        # first otherwise, to preserve small spreads around a large offset.
+        peak = float(np.max(np.abs(array)))
+        scaled = array / peak
+        scaled = scaled - float(scaled[0])
+    elif peak == 0.0:
         return 0.0, 0.0, 0, True, 0.0
-    scaled = shifted / peak
+    else:
+        scaled = shifted / peak
     center = float(scaled.mean())
     deviation = scaled - center
     squares = float(deviation @ deviation)
@@ -251,11 +260,14 @@ def compare_variances(first, second, *, level=95., distribution="Normal"):
     if not math.isfinite(cdf) or not math.isfinite(survival):
         raise _InputError("ratio", "The variance ratio is outside the range floating-point numbers can represent.")
     probability = min(1.0, 2.0 * min(cdf, survival))
-    alpha = 1.0 - level / 100.0
-    upper_quantile = float(stats.f.ppf(1.0 - alpha / 2.0, df1, df2))
+    alpha = (100.0 - level) / 100.0
+    # The reciprocal F distribution swaps the degrees of freedom. Its lower
+    # tail avoids rounding 1 - alpha/2 to 1 at high confidence levels (isf in
+    # some SciPy versions also performs that subtraction internally).
+    reciprocal_upper_quantile = float(stats.f.ppf(alpha / 2.0, df2, df1))
     lower_quantile = float(stats.f.ppf(alpha / 2.0, df1, df2))
     interval = "The confidence interval is outside the range floating-point numbers can represent."
-    lower = _positive(ratio / upper_quantile, "interval", interval)
+    lower = _positive(ratio * reciprocal_upper_quantile, "interval", interval)
     upper = _positive(ratio / lower_quantile, "interval", interval)
     sd = _positive(math.sqrt(ratio), "ratio",
                    "The variance ratio is outside the range floating-point numbers can represent.")
@@ -315,9 +327,9 @@ def _field_error(error, first_name, second_name):
 def _scale_note(distribution):
     if distribution == LOGNORMAL:
         return ("Natural logarithms of the strictly positive observations. Each sample is then centered "
-                "on its first observation and divided by the maximum absolute deviation from it.")
-    return ("Each sample is centered on its first observation and divided by the maximum absolute "
-            "deviation from it.")
+                "and scaled independently; scaling precedes centering if a finite difference would overflow.")
+    return ("Each sample is centered and scaled independently; scaling precedes centering if a finite "
+            "difference would overflow.")
 
 
 def _peaks(first, second, distribution):
@@ -400,7 +412,7 @@ def _summary(options, distribution, level, first, second, missing_first, missing
         "First peak": first_peak, "Second peak": second_peak,
     }
     settings = {
-        "Confidence level (%)": level, "Alpha": 1.0 - level / 100.0,
+        "Confidence level (%)": level, "Alpha": (100.0 - level) / 100.0,
         "Distribution": distribution, "Graph": options[GRAPH],
         "First": options[FIRST], "Second": options[SECOND],
         "Orientation": f"{options[FIRST]} / {options[SECOND]}",
