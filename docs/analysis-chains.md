@@ -12,6 +12,8 @@ Un risultato può diventare l’ingresso di un’altra analisi senza creare una 
 
 Il comando ordinario **Analizza dati…**, quando si guarda un’analisi collegata, usa lo stesso ingresso di quell’analisi. Il comando esplicito **Analizza questo risultato…** usa invece la scheda di uscita selezionata.
 
+![Risultati della regressione collegata e navigatore delle dipendenze, nel portabile Windows 0.79 beta con dati sintetici.](media/analysis-chains/results-windows.png)
+
 ## Collegamento o copia
 
 **Usa risultato come dati** conserva il comportamento precedente: crea una tabella modificabile e indipendente. Le successive modifiche alla sorgente non aggiornano quella copia. I risultati collegati restano in sola lettura: si modificano i dati o i parametri da cui derivano.
@@ -21,6 +23,8 @@ Le colonne delle repliche e le etichette di riga restano disponibili per l’ana
 ## Aggiornamento e problemi
 
 Il ricalcolo avviene sul worker, nell’ordine delle dipendenze. Ogni nodo interessato viene calcolato una volta per revisione. Aprire per primo un grafico finale o un layout collegato riaperto ricostruisce anche le analisi sorgente non ancora calcolate.
+
+![Grafico collegato nella vera applicazione Windows 0.79 beta, con Tema Moderno opzionale e dati sintetici.](media/analysis-chains/modern-windows.png)
 
 Se una sorgente fallisce, i risultati precedenti restano consultabili con un avviso che li distingue dai risultati attuali. Esportazione e riutilizzo sono bloccati finché il problema non viene corretto e il ricalcolo riesce. Lo stesso vale per i layout che contengono un pannello non aggiornato.
 
@@ -35,3 +39,13 @@ I progetti con collegamenti usano il formato `.alab` versione 3. Le versioni pre
 Il budget complessivo è di 65.536 analisi per progetto, senza un limite di profondità separato. Ogni tabella dei risultati usata come ingresso deve essere non vuota, avere nomi di colonna non ambigui e rispettare il limite di due milioni di celle. Questo budget è un limite di validazione del formato, non una promessa di prestazioni per progetti di tale dimensione.
 
 L’interfaccia dei nuovi comandi è disponibile in inglese e italiano; nomi canonici delle analisi e dei risultati restano nel progetto. Questa funzione non elimina i limiti dei singoli metodi statistici.
+
+## English quick start
+
+Open a calculated result, select its output worksheet and choose **Analyze this result…**. The new analysis keeps a persistent link to that worksheet. **Source analysis** returns to its input; **Change input result…** chooses a different result or the original data, then reviews the analysis parameters before committing the change. Cancelling preserves the confirmed recipe.
+
+The ordinary **Analyze data…** command uses the current analysis's input; **Analyze this result…** uses its selected output. **Use Result as Data** still creates an independent editable copy.
+
+Source edits, formulas, exclusions and parameter changes recalculate affected descendants on the worker. Failed or cancelled updates keep previous results visibly stale and block export/reuse until corrected. Linked layouts and graphs reconstruct missing upstream calculations when reopened. Linked projects use `.alab` format 3 and require this version or newer. The Standard and optional Modern themes both support this workflow.
+
+[Screenshot provenance](media/analysis-chains/PROVENANCE.md).
