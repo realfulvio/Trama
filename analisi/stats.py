@@ -313,6 +313,9 @@ class Fit:
     # Parameter covariance in original units: raw curve_fit matrix × residual variance, scaled on both sides.
     # Keyword-only so subclasses (GroupFit) can still add positional fields.
     covariance: np.ndarray | None = field(default=None, kw_only=True)
+    # Exact per-observation scales used in the confirmed WLS/last IRLS fit.
+    # Retaining them avoids reconstructing weights from rounded or zero residuals.
+    residual_scales: np.ndarray | None = field(default=None, kw_only=True)
 
 
 def _fit_curve(part, x, y, model, label, sigma, initial=None, weighting=None):
@@ -434,7 +437,12 @@ def _fit_once(part, x, y, model, label, sigma, initial=None, weighting=None, *, 
         diagnostics["Weighted R²"] = 1 - weighted_ss / weighted_total_ss if weighted_total_ss > 0 else np.nan
     residuals = pd.DataFrame({"X": xx, "Observed": yy, "Predicted": predicted,
                               "Residual": residual, "Weighted residual": weighted}, index=part.index)
-    return Fit(summary, part, curve, ss, diagnostics, residuals, covariance=covariance), magnitudes
+    retained_scales = None
+    if scales is not None:
+        retained_scales = np.array(scales, dtype=float, copy=True)
+        retained_scales.setflags(write=False)
+    return Fit(summary, part, curve, ss, diagnostics, residuals, covariance=covariance,
+               residual_scales=retained_scales), magnitudes
 
 
 def nonlinear(frame, x, y, model, group=None, *, weighting="Unweighted", sigma=None):
