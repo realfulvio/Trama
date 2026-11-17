@@ -60,9 +60,11 @@ def _bad_text(text):
     return any(unicodedata.category(character) in _REFUSED for character in text)
 
 
-def _check_name(text, limit, what):
+def _check_name(text, limit, mode):
+    """``mode`` is "name" for the new data table or "prefix" for the literal prefix of the other sheets."""
     if not text.strip():
-        raise FamilyError("name-empty", f"Enter {what}.", field="name")
+        raise FamilyError("name-empty", "Enter a name for the new data table." if mode == "name" else "Enter a prefix.",
+                          field="name", mode=mode)
     if _bad_text(text):
         raise FamilyError("name-invalid", "Use one line of text without control characters.", field="name")
     if len(text) > limit:
@@ -233,6 +235,11 @@ def _selection(tables, layouts, infos, selected):
     raise FamilyError("selection", "The selected sheet is not part of this project.")
 
 
+def family_graph(tables):
+    """The dependency graph of ``tables``; pass it as ``graph`` to plan or preview repeatedly."""
+    return _Graph(tables)
+
+
 def plan_family(tables, layouts, infos, selected, *, include_layouts=True, export=False, graph=None):
     """Select the family of ``selected``. ``export`` also pulls in the other panels of the layouts."""
     infos = tuple(infos)
@@ -341,7 +348,7 @@ class FamilyPreview:
         return self.plan.shared_panels
 
 
-def _display_name(dataset, title, slot):
+def display_name(dataset, title, slot):
     method, options = dataset.analyses[slot]
     source = dataset.analysis_sources.get(slot)
     explicit = dataset.analysis_labels.get(slot) or options.get(PRISM_TITLE)
@@ -353,16 +360,16 @@ def preview_family(tables, layouts, infos, selected, *, name, include_layouts=Tr
     infos = tuple(infos)
     plan = plan_family(tables, layouts, infos, selected, include_layouts=include_layouts, graph=graph)
     if not isinstance(name, str):
-        raise FamilyError("name-empty", "Enter a name.", field="name")
+        raise FamilyError("name-empty", "Enter a name.", field="name", mode="prefix")
     named = plan.kind == "data"
     if named:
         text = name.strip()
-        _check_name(text, MAX_NAME, "a name for the new data table")
+        _check_name(text, MAX_NAME, "name")
         if text in tables:
             raise FamilyError("name-taken", f'A data table named "{text}" already exists.', field="name", name=text)
     else:
         text = name
-        _check_name(text, MAX_PREFIX, "a prefix")
+        _check_name(text, MAX_PREFIX, "prefix")
 
     taken = set(tables)
     table_names = {}
@@ -398,7 +405,7 @@ def preview_family(tables, layouts, infos, selected, *, name, include_layouts=Tr
     for title, slots in plan.slots.items():
         dataset = tables[title]
         for slot in slots:
-            explicit, shown = _display_name(dataset, title, slot)
+            explicit, shown = display_name(dataset, title, slot)
             if not named:
                 label = text + shown
             elif explicit:
@@ -632,7 +639,7 @@ def duplicate_family(tables, layouts, infos, selected, *, name, include_layouts=
     return _build(tables, layouts, infos, preview.plan, preview, renew=True, cancel=cancel, graph=graph)
 
 
-def _same_file(first, second):
+def same_file(first, second):
     first, second = Path(first), Path(second)
     if first.resolve() == second.resolve():
         return True
@@ -642,7 +649,7 @@ def _same_file(first, second):
         return False
 
 
-def save_family(path, tables, layouts, infos, selected, *, include_layouts=True, source_path=None):
+def save_family(path, tables, layouts, infos, selected, *, include_layouts=True, source_path=None, cancel=None):
     """Write the family of ``selected`` as a project that opens on its own.
 
     The original objects are never changed. ``source_path`` is the file of the current project: it is
@@ -652,16 +659,18 @@ def save_family(path, tables, layouts, infos, selected, *, include_layouts=True,
     path = Path(path)
     if path.suffix.lower() != ".alab":
         raise FamilyError("file-name", "Choose a file name ending in .alab.")
-    if source_path is not None and _same_file(path, source_path):
+    if source_path is not None and same_file(path, source_path):
         raise FamilyError("current-path", "Choose a new file: the current project cannot be replaced by a subset.")
     infos = tuple(infos)
+    _cancelled(cancel)
     graph = _Graph(tables)
     plan = plan_family(tables, layouts, infos, selected, include_layouts=include_layouts, export=True, graph=graph)
-    bundle = _build(tables, layouts, infos, plan, None, renew=False, cancel=None, graph=graph)
+    bundle = _build(tables, layouts, infos, plan, None, renew=False, cancel=cancel, graph=graph)
+    _cancelled(cancel)
     save_project(path, bundle.tables, layouts=bundle.layouts, info_sheets=bundle.infos)
     return bundle
 
 
-def export_plan(tables, layouts, infos, selected, *, include_layouts=True):
+def export_plan(tables, layouts, infos, selected, *, include_layouts=True, graph=None):
     """The content of Save family as…, for a preview."""
-    return plan_family(tables, layouts, infos, selected, include_layouts=include_layouts, export=True)
+    return plan_family(tables, layouts, infos, selected, include_layouts=include_layouts, export=True, graph=graph)
