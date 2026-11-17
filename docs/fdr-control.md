@@ -41,3 +41,9 @@ Se una modifica ai dati rende il calcolo non valido, il dialogo si riapre sul ca
 Cinque righe, colonna `P` = 0,01, 0,03, 0,04, 0,2 e un p mancante, famiglia `G` = a, a, b, b, b. Con Benjamini–Hochberg al 5% e colonne separate, le righe originali sono 1…5. I p aggiustati dei primi quattro sono 0,02, 0,03, 0,08 e 0,2. Le scoperte sono sì, sì, no, no. L'ultima riga è `Missing p` e non ha figura.
 
 I numeri congelati in `tests/data/fdr_control/families.json` sono sintetici. Non sono dati di terzi.
+
+## Nell’applicazione Windows
+
+![Grafico diagnostico FDR con famiglie per gruppo e colonna, nell’applicazione Windows con dati sintetici.](media/fdr-axis/fdr-windows.png)
+
+Cattura reale del portabile Windows0.78beta; dati sintetici. [Provenienza](media/fdr-axis/PROVENANCE.md).
