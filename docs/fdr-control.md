@@ -46,4 +46,4 @@ I numeri congelati in `tests/data/fdr_control/families.json` sono sintetici. Non
 
 ![Grafico diagnostico FDR con famiglie per gruppo e colonna, nell’applicazione Windows con dati sintetici.](media/fdr-axis/fdr-windows.png)
 
-Cattura reale del portabile Windows0.78beta; dati sintetici. [Provenienza](media/fdr-axis/PROVENANCE.md).
+Cattura reale del portabile Windows 0.78 beta; dati sintetici. [Provenienza](media/fdr-axis/PROVENANCE.md).

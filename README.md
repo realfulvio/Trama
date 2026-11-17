@@ -12,7 +12,7 @@ Trama è un'applicazione per Windows che riunisce fogli dati, analisi statistich
 
 Windows 10/11 a 64 bit · Versione portabile · Interfaccia italiano / inglese
 
-**Novità 0.77 beta:** intervalli asimmetrici anche nei fit globali personalizzati, con parametri condivisi, vincoli per serie e calcolo annullabile. [Novità e limiti](docs/release-077.md) · [Verifiche](docs/validation-077.md).
+**Novità 0.78 beta:** controllo FDR per famiglie di confronti, tacche personalizzate e fasce sugli assi. [Novità e limiti](docs/release-078.md) · [Verifiche](docs/validation-078.md).
 
 ## Un foglio familiare. Un flusso di lavoro completo.
 
@@ -64,6 +64,17 @@ Gradienti personalizzati, etichette dei valori e legenda orientabile aiutano a l
 ![Heat map reale con gradiente verde petrolio e corallo, valori delle celle e legenda orizzontale; dati sintetici.](docs/media/homepage/heatmap-standard-linux.png)
 
 *Cattura reale su Linux con Tema standard. [Provenienza delle schermate](docs/media/homepage/PROVENANCE.md).*
+
+</details>
+
+<details>
+<summary>Nuovo: controllo delle false scoperte e riferimenti sugli assi</summary>
+
+Raggruppa i confronti in famiglie, applica BH, BY o BKY e visualizza le decisioni. Nei grafici nativi aggiungi tacche con etichette, linee di riferimento e fasce senza modificare i dati.
+
+![Grafico diagnostico FDR nel portabile Windows 0.78 beta, con dati sintetici.](docs/media/fdr-axis/fdr-windows.png)
+
+[Controllo FDR](docs/fdr-control.md) · [Assi: editor e limiti](docs/axis-guides.md) · [Provenienza](docs/media/fdr-axis/PROVENANCE.md)
 
 </details>
 
