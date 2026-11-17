@@ -1,4 +1,10 @@
 """Trama desktop entry point."""
+import sys
+
+if __name__ == "__main__" and "--smoke" not in sys.argv[1:]:
+    from trama_startup import launch
+    raise SystemExit(launch())
+
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy, deepcopy
 from dataclasses import dataclass, field, replace
@@ -108,7 +114,7 @@ from analisi.nonlinear_bands import (BAND as NL_BAND, BAND_NONE as NL_BAND_NONE,
                                      DRAWING as NL_BAND_DRAWING, LABEL_KEYS as NL_BAND_LABELS, LEVEL as NL_BAND_LEVEL,
                                      check_band_options)
 from analisi.parameter_intervals import (METHOD as PARAM_CI_METHOD, LEVEL as PARAM_CI_LEVEL,
-                                        PROFILE as PARAM_CI_PROFILE, OPTIONS as PARAM_CI_OPTIONS,
+                                        PROFILE as PARAM_CI_PROFILE, WALD as PARAM_CI_WALD, OPTIONS as PARAM_CI_OPTIONS,
                                         LABEL_KEYS as PARAM_CI_LABELS, CHOICE_KEYS as PARAM_CI_CHOICES,
                                         settings as check_parameter_ci, validate_profile_data)
 from analisi.linear_diagnostics import BAND_NONE, linear_confidence_level
@@ -1113,7 +1119,7 @@ class AnalysisDialog(simpledialog.Dialog):
             # Variables / Equation / Parameters / Output; the two editors get tabs of their own.
             self.fields.tab(options, text=ui("Output"))
             fields_by_tab["Weighting"] = variables
-            fields_by_tab.update(dict.fromkeys((CUSTOM_LEVEL, CUSTOM_POINTS), options))
+            fields_by_tab.update(dict.fromkeys((PARAM_CI_METHOD, CUSTOM_LEVEL, CUSTOM_POINTS), options))
             tabs = {"Equation": ("Equation",), "Parameters": ("Parameters",)}
             if not saved:
                 saved = {"Equation": DEFAULT_EQUATION, "Parameters": [dict(record) for record in EXAMPLE_PARAMETERS]}
@@ -1172,7 +1178,7 @@ class AnalysisDialog(simpledialog.Dialog):
             positions[parent] += 1
             # The new rank-test controls show translated captions; the recipe keeps the English key.
             rank_control = self.method in RANK_METHODS and label in RANK_LABEL_KEYS
-            parameter_ci_control = self.method == "Nonlinear regression" and label in PARAM_CI_LABELS
+            parameter_ci_control = self.method in ("Nonlinear regression", CUSTOM_EQUATION) and label in PARAM_CI_LABELS
             band_control = self.method == "Nonlinear regression" and label in NL_BAND_LABELS
             xy_error_control = self.method == XY_ERRORS and label in XY_ERROR_LABEL_KEYS
             trend_control = self.method == "One-way ANOVA" and label in TREND_HEADINGS
@@ -1624,6 +1630,9 @@ class AnalysisDialog(simpledialog.Dialog):
             self.controls["Weighting"][1].trace_add("write", lambda *_: self.show_fields(self.custom_fields()))
             self.show_fields(self.custom_fields())
             self._translate_analysis_labels(CUSTOM_LABEL_KEYS)
+            ttk.Label(options, text=tr("custom.profile.hint"), wraplength=430,
+                      foreground="#486075", justify="left").grid(
+                row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
         if self.method == GLOBAL_CUSTOM_EQUATION:
             self.controls["Weighting"][1].trace_add("write", lambda *_: self.show_fields(self.global_custom_fields()))
             for name in ("X", "Y", "Group"):
@@ -3088,6 +3097,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == CUSTOM_EQUATION:
                 # Syntax, names, limits and the domain at the starting values; the fit itself runs on the worker.
                 check_custom_options(self.data, options)
+                saved = self.current[1] if self.current and self.current[0] == self.method else {}
+                if PARAM_CI_METHOD not in saved and options.get(PARAM_CI_METHOD) == PARAM_CI_WALD:
+                    options.pop(PARAM_CI_METHOD, None)
             if self.method == ROBUST_CURVE:
                 # Columns, limits, the domain and the starting values; the fits run on the worker.
                 check_robust_options(self.data, options)
@@ -6261,7 +6273,8 @@ class App:
             return
         self.status.set(tr("interface.running", method=ui(run.method)))
         # A Monte Carlo study reports its blocks and stops between them when cancelled.
-        parameter_profile = run.method == "Nonlinear regression" and run.options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE
+        parameter_profile = (run.method in ("Nonlinear regression", CUSTOM_EQUATION)
+                             and run.options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE)
         control = CalculationControl() if (run.method == MONTE_CARLO_METHOD or parameter_profile
                                            or extended_request(run.method, run.options)) else None
         layout_data = self.layout_panel_data(run) if run.method == SAVED_BINARY_LAYOUT else None
@@ -11856,6 +11869,13 @@ def smoke(root, app, directory, legacy_reference=None):
             pick_method=pick_method, select_columns=select_columns, wait_for_calculation=wait_for_calculation,
             messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_custom_profiles_smoke():
+        from analisi.custom_profiles_smoke import check_custom_profiles
+        check_custom_profiles(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox,
+            filedialog=filedialog, errors=errors))
+
     def check_parameter_weighting_smoke():
         from analisi.parameter_weighting_smoke import check_parameter_weighting
         check_parameter_weighting(root, app, directory, SimpleNamespace(
@@ -11924,6 +11944,13 @@ def smoke(root, app, directory, legacy_reference=None):
             check_modern_theme(root, app, directory, SimpleNamespace(
                 Run=Run, capture=capture, drive_dialog=drive_dialog,
                 wait_for_calculation=wait_for_calculation, messagebox=messagebox, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "custom-profiles":
+            check_custom_profiles_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -13046,6 +13073,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_nonlinear_bands_smoke()
         check_parameter_intervals_smoke()
         check_parameter_weighting_smoke()
+        check_custom_profiles_smoke()
         check_custom_equation_smoke()
         check_global_custom_smoke()
         check_global_uncertainty_smoke()
@@ -13194,11 +13222,11 @@ def smoke(root, app, directory, legacy_reference=None):
         root.destroy()
 
 
-def main():
+def main(*, root=None, on_ready=None):
     # Read once at startup: Edit → Language… changes the file, the running window keeps its language.
     set_language(load_language(config_path()))
     configure_native_dpi()
-    root = tk.Tk()
+    root = tk.Tk() if root is None else root
     app = App(root)
     root.report_callback_exception = lambda kind, error, trace: app.error(error)
     smoke_path = None
@@ -13208,6 +13236,10 @@ def main():
         root.after(300, lambda: smoke(root, app, smoke_path, legacy_reference))
     elif len(sys.argv) == 2:
         root.after(0, lambda: app.open_document(sys.argv[1]))
+    if on_ready is not None:
+        root.deiconify()
+        root.update_idletasks()
+        on_ready()
     root.mainloop()
     if smoke_path is not None:
         status = smoke_path / "status.txt"

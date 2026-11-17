@@ -22,7 +22,10 @@ def translate_error(message):
     match = _GROUP_PREFIX.match(message)
     if match and not message.startswith("Group must"):
         return tr("custom.group_prefix", group=match["group"]) + " " + translate_error(match["rest"])
-    return translate_message(message, "custom.error.")
+    translated = translate_message(message, "custom.error.")
+    if translated == message:
+        translated = translate_message(message, "parameter_ci.error.")
+    return translated
 
 
 def _text(value):

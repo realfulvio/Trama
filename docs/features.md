@@ -2,9 +2,11 @@
 
 [Presentazione](../README.md) · [Guida rapida](getting-started.md) · [Compatibilità](compatibility.md)
 
-Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.73.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
+Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.76.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
 
 ## Interfaccia
+
+Una [schermata di avvio con cerchio animato](startup-screen.md) accompagna il caricamento e si chiude quando la finestra principale è pronta.
 
 **Impostazioni → Tema…** permette di scegliere Tema standard o Tema Moderno. Standard rimane il predefinito. Moderno dispone griglia, anteprima del grafico e ispettore nello stesso spazio; il tema si applica al prossimo avvio e non cambia dati, analisi o figure esportate. [Guida ai temi](interface-themes.md).
 
@@ -28,6 +30,7 @@ Sono disponibili normalità e Q–Q, screening di outlier ROUT su modello costan
 - Regressione lineare, confronto fra rette, Deming, regressioni multiple OLS (anche pesate con pesi fissi gaussiani: 1/|Y|, 1/Y², 1/|Y|^K, 1/SD² o colonna di pesi), logistiche e Poisson con esposizione e diagnostica.
 - 118 equazioni a catalogo in 14 famiglie; pesi osservati e IRLS dove supportati, vincoli, diagnostica e bande puntuali.
 - [Intervalli dei parametri nei fit non lineari](nonlinear-parameter-intervals.md): Wald a livello configurabile e profili extra-SS asimmetrici nei fit indipendenti, inclusi i pesi osservati e quelli finali congelati IRLS, con stati per ciascun estremo e annullamento.
+- [Profili dei parametri per equazioni personalizzate](custom-parameter-profiles.md), con coefficienti fissi, vincoli, SD relative, stati per ogni estremo e annullamento.
 - Fit globali del catalogo con parametri condivisi e vincoli per singola serie; equazioni personalizzate e fit globali personalizzati, con bande puntuali di confidenza o predizione e previsioni per nuove X per serie dal fit congiunto.
 - Confronti fra modelli, AICc, calibrazione diretta e inversa con intervalli nei modelli supportati, spline e LOWESS.
 - Adattamento robusto di curve (perdita Cauchy, Huber o Soft L1, scala fissa o MAD pilota), con pesi di influenza per punto, confronto facoltativo con il fit ordinario e grafico di curva, residui o pesi; descrittivo, senza errori standard né p ([guida](robust-curve-073.md)).
