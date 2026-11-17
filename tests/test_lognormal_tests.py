@@ -61,9 +61,9 @@ class Catalog(unittest.TestCase):
 
     def test_visibility_follows_the_design(self):
         self.assertEqual(visibility("Paired"), {"Second": True, "Hypothetical geometric mean": False,
-                                                "Pairing correlation": True})
+                                                "Pairing correlation": True, "Show variance comparison": False})
         self.assertEqual(visibility("One-sample"), {"Second": False, "Hypothetical geometric mean": True,
-                                                    "Pairing correlation": False})
+                                                    "Pairing correlation": False, "Show variance comparison": False})
         self.assertFalse(visibility("Welch")["Pairing correlation"])
 
 
