@@ -269,6 +269,7 @@ Label angle|Angolo delle etichette
 Show cut line|Mostra linea di taglio
 Scaled data|Dati scalati
 Distance matrix|Matrice delle distanze
+Merge map|Mappa delle fusioni
 Cophenetic distances|Distanze cofenetiche
 Cophenetic correlation|Correlazione cofenetica
 Matrix format|Formato della matrice
