@@ -40,6 +40,12 @@ class CustomProfileDialogTests(TkCase):
             self.assertEqual(d.result[1][METHOD], PROFILE)
         self.drive(action)
 
+    def test_unchanged_legacy_wald_dialog_does_not_add_a_recipe_key(self):
+        def action(d, _):
+            self.assertTrue(d.validate())
+            self.assertNotIn(METHOD, d.result[1])
+        self.drive(action)
+
     def test_italian_choice_persists_the_canonical_value(self):
         self.use('it')
         def action(d, _):

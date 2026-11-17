@@ -1,4 +1,10 @@
 """Trama desktop entry point."""
+import sys
+
+if __name__ == "__main__" and "--smoke" not in sys.argv[1:]:
+    from trama_startup import launch
+    raise SystemExit(launch())
+
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy, deepcopy
 from dataclasses import dataclass, field, replace
@@ -108,7 +114,7 @@ from analisi.nonlinear_bands import (BAND as NL_BAND, BAND_NONE as NL_BAND_NONE,
                                      DRAWING as NL_BAND_DRAWING, LABEL_KEYS as NL_BAND_LABELS, LEVEL as NL_BAND_LEVEL,
                                      check_band_options)
 from analisi.parameter_intervals import (METHOD as PARAM_CI_METHOD, LEVEL as PARAM_CI_LEVEL,
-                                        PROFILE as PARAM_CI_PROFILE, OPTIONS as PARAM_CI_OPTIONS,
+                                        PROFILE as PARAM_CI_PROFILE, WALD as PARAM_CI_WALD, OPTIONS as PARAM_CI_OPTIONS,
                                         LABEL_KEYS as PARAM_CI_LABELS, CHOICE_KEYS as PARAM_CI_CHOICES,
                                         settings as check_parameter_ci, validate_profile_data)
 from analisi.linear_diagnostics import BAND_NONE, linear_confidence_level
@@ -3091,6 +3097,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == CUSTOM_EQUATION:
                 # Syntax, names, limits and the domain at the starting values; the fit itself runs on the worker.
                 check_custom_options(self.data, options)
+                saved = self.current[1] if self.current and self.current[0] == self.method else {}
+                if PARAM_CI_METHOD not in saved and options.get(PARAM_CI_METHOD) == PARAM_CI_WALD:
+                    options.pop(PARAM_CI_METHOD, None)
             if self.method == ROBUST_CURVE:
                 # Columns, limits, the domain and the starting values; the fits run on the worker.
                 check_robust_options(self.data, options)
@@ -13213,11 +13222,11 @@ def smoke(root, app, directory, legacy_reference=None):
         root.destroy()
 
 
-def main():
+def main(*, root=None, on_ready=None):
     # Read once at startup: Edit → Language… changes the file, the running window keeps its language.
     set_language(load_language(config_path()))
     configure_native_dpi()
-    root = tk.Tk()
+    root = tk.Tk() if root is None else root
     app = App(root)
     root.report_callback_exception = lambda kind, error, trace: app.error(error)
     smoke_path = None
@@ -13227,6 +13236,10 @@ def main():
         root.after(300, lambda: smoke(root, app, smoke_path, legacy_reference))
     elif len(sys.argv) == 2:
         root.after(0, lambda: app.open_document(sys.argv[1]))
+    if on_ready is not None:
+        root.deiconify()
+        root.update_idletasks()
+        on_ready()
     root.mainloop()
     if smoke_path is not None:
         status = smoke_path / "status.txt"
