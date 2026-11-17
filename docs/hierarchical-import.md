@@ -20,3 +20,9 @@ Saved result snapshots remain independent of the native calculation and keep the
 The native figure uses Trama's graph presentation. It does not reproduce every original color, label placement or drawing object. The importer does not promise a native graph for every stored view, and it reports unavailable views. Additional saved cut methods, linkages or distances that the converter does not recognize stay as saved content where available; they are not silently replaced with another analysis.
 
 These additions concern supported hierarchical analysis metadata in ZIP project files. They do not add general binary-project recipe restoration or external-format save support.
+
+## Native Windows preview
+
+![Editable imported heat map and both clustering trees in Trama, using a synthetic project.](media/hierarchical-import/modern-windows.png)
+
+Unedited capture of the Windows 0.80 beta portable, optional Modern theme, 96 DPI. Source data are synthetic. The native graph uses Trama styling; the saved result snapshot is retained separately. Accepted application source: `74a5d75dff56bde4f2088afa6064033678db8e9e`.
