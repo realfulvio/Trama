@@ -103,6 +103,36 @@ class HierarchicalRecipeTests(unittest.TestCase):
         self.assertNotIn("Assignments", result.tables)
         self.assertEqual(len(result.tables["Merges"]), 2)
 
+    def test_saved_merge_map_restores_named_children_for_both_directions(self):
+        args = fixture()
+        args[1]["content"]["report"]["mergeMap"] = True
+        frame, method, options = self.converted(args)
+        result = analyse(method, frame, options)
+        self.assertTrue(options["Merge map"])
+        rows = result.tables["Row Merge map"]
+        self.assertEqual(list(rows.columns), ["Merge order", "Node 1", "Node 2", "Cophenetic distance"])
+        self.assertEqual(rows["Merge order"].tolist(), [1, 2, 3])
+        self.assertEqual(rows[["Node 1", "Node 2"]].values.tolist(),
+                         [["a", "b"], ["Cluster 1", "d"], ["c", "Cluster 2"]])
+        np.testing.assert_allclose(rows["Cophenetic distance"], np.sqrt([0, 14, 56]))
+
+        columns = result.tables["Column Merge map"]
+        self.assertEqual(columns[["Node 1", "Node 2"]].values.tolist(), [["B", "C"], ["A", "Cluster 1"]])
+        np.testing.assert_allclose(columns["Cophenetic distance"], np.sqrt([12, 54]))
+        legacy = analyse(method, frame, {k: v for k, v in options.items() if k != "Merge map"})
+        self.assertNotIn("Row Merge map", legacy.tables)
+        pd.testing.assert_frame_equal(legacy.tables["Row Merges"], result.tables["Row Merges"])
+
+    def test_source_exclusion_recalculates_merge_map_with_remaining_labels(self):
+        args = fixture()
+        args[1]["content"]["report"]["mergeMap"] = True
+        frame, method, options = self.converted(args)
+        frame.loc[1, "A"] = np.nan
+        rows = analyse(method, frame, options).tables["Row Merge map"]
+        self.assertEqual(rows["Merge order"].tolist(), [1, 2])
+        self.assertEqual(rows[["Node 1", "Node 2"]].values.tolist(),
+                         [["a", "d"], ["c", "Cluster 1"]])
+
     def test_row_only_reports_and_legacy_dendrogram_priority(self):
         args = fixture()
         content = args[1]["content"]
@@ -118,9 +148,20 @@ class HierarchicalRecipeTests(unittest.TestCase):
         self.assertTrue(options["Standardize"])
         self.assertEqual(options["Graph output"], "Dendrogram")
         result = analyse(method, frame, options)
+        self.assertTrue(options["Elbow data"])
+        self.assertEqual(result.tables["Elbow data"]["Number of clusters"].tolist(), [1, 2, 3])
         self.assertNotIn("Scaled data", result.tables)
         self.assertIn("Cophenetic correlation", result.tables)
         self.assertFalse(result.tables["Cophenetic distances"].isna().any().any())
+
+    def test_saved_elbow_only_restores_the_plot(self):
+        args = fixture()
+        args[1]["content"]["graph"]["plots"] = ["ELBOW_PLOT"]
+        frame, method, options = self.converted(args)
+        self.assertEqual(options["Graph output"], "Elbow plot")
+        result = analyse(method, frame, options)
+        self.assertEqual(len(result.figure.axes), 2)
+        self.assertEqual(result.tables["Row Elbow data"]["Number of clusters"].tolist(), [1, 2, 3])
 
     def test_missing_rows_keep_uid_roles_and_allow_original_label_column(self):
         args = fixture()
@@ -145,6 +186,7 @@ class HierarchicalRecipeTests(unittest.TestCase):
             (("defineClusters", "columns", "clusterCount"), 4),
             (("defineClusters", "columns", "clusterCount"), float("nan")),
             (("report", "distanceMatrix"), "false"),
+            (("report", "mergeMap"), "false"),
             (("graph", "plots"), ["UNRECOGNIZED"]),
         ]
         for path, value in paths:

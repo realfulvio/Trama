@@ -22,22 +22,23 @@ HIERARCHICAL_OPTIONS = {
     "Distance": ("euclidean", "cityblock", "chebyshev", "cosine", "correlation"),
     "Row cut": CUT_MODES, "Clusters": 2, "Row cut height": 1.0,
     "Column cut": CUT_MODES, "Column clusters": 2, "Column cut height": 1.0,
-    "Graph output": ("Dendrogram", "Heat map"),
+    "Graph output": ("Dendrogram", "Heat map", "Elbow plot"),
     "Dendrogram orientation": ("Vertical", "Horizontal"),
     "Branch appearance": ("By cluster", "Single color"),
     "Branch width": 1.4, "Branch style": ("Solid", "Dashed", "Dotted"), "Branch opacity (%)": 100.0,
     "Label type": ("Values", "Numbers", "Letters"),
     "First label": 1, "Label interval (0 = automatic)": 0,
     "Label angle": 0.0, "Show cut line": True,
-    "Scaled data": False, "Distance matrix": False, "Cophenetic distances": False,
-    "Cophenetic correlation": False, "Matrix format": ("Full", "Lower triangle"),
+    "Scaled data": False, "Distance matrix": False, "Merge map": False, "Cophenetic distances": False,
+    "Cophenetic correlation": False, "Elbow data": False, "Matrix format": ("Full", "Lower triangle"),
 }
 HIERARCHICAL_TABS = {
     "Clusters": ("Row cut", "Clusters", "Row cut height", "Column cut", "Column clusters", "Column cut height"),
     "Graph": ("Graph output", "Dendrogram orientation", "Branch appearance", "Label type",
               "Branch width", "Branch style", "Branch opacity (%)", "First label",
               "Label interval (0 = automatic)", "Label angle", "Show cut line"),
-    "Output": ("Scaled data", "Distance matrix", "Cophenetic distances", "Cophenetic correlation", "Matrix format"),
+    "Output": ("Scaled data", "Distance matrix", "Merge map", "Cophenetic distances",
+               "Cophenetic correlation", "Elbow data", "Matrix format"),
 }
 PALETTE = ("#156978", "#b65a39", "#5b5aa7", "#36815b", "#a77b25", "#b34c73", "#456e9a", "#626b35")
 MIXED_BRANCH = "#637584"
@@ -209,6 +210,58 @@ def _matrix(distances, names, lower):
     return pd.DataFrame(values, index=pd.Index(labels, name="Observation"), columns=labels)
 
 
+def _merge_map(tree, names):
+    """Name each child by its observation label or its earlier merge number."""
+    n = len(names)
+    last_leaf = list(range(n))
+    labels = list(names)
+    rows = []
+    for step, (left, right, height, _) in enumerate(tree, 1):
+        first, second = int(left), int(right)
+        # The report orders children by the last source observation they contain.
+        if last_leaf[first] > last_leaf[second]:
+            first, second = second, first
+        rows.append((step, labels[first], labels[second], height))
+        last_leaf.append(last_leaf[second])
+        labels.append(f"Cluster {step}")
+    return pd.DataFrame(rows, columns=["Merge order", "Node 1", "Node 2", "Cophenetic distance"])
+
+
+def _elbow_data(tree, observations):
+    """Accumulate within-cluster squared deviations along the merge sequence."""
+    n, variables = observations.shape
+    centers = np.empty((2 * n - 1, variables))
+    sizes = np.ones(2 * n - 1, dtype=int)
+    costs = np.empty(n - 1)
+    total = 0.
+    with np.errstate(over="ignore", invalid="ignore"):
+        centers[:n] = observations - observations[0]
+        for node, (left, right, _, _) in enumerate(tree, n):
+            first, second = int(left), int(right)
+            a, b = sizes[first], sizes[second]
+            sizes[node] = a + b
+            delta = centers[second] - centers[first]
+            centers[node] = centers[first] + delta * (b / (a + b))
+            # The joined cluster adds the squared separation of its centers,
+            # weighted by their sample sizes, to the previous total.
+            weighted_delta = delta * np.sqrt(a * b / (a + b))
+            total += float(weighted_delta @ weighted_delta)
+            costs[node - n] = total
+    if not np.isfinite(costs).all():
+        raise ValueError("Elbow data require finite within-cluster sums of squares.")
+    return pd.DataFrame({"Number of clusters": np.arange(1, n), "WCSS": costs[::-1]})
+
+
+def _elbow_plot(reports):
+    figure = Figure(figsize=(8.6 if len(reports) == 2 else 7.4, 4.8), layout="constrained")
+    axes = figure.subplots(1, len(reports), squeeze=False).ravel()
+    for ax, (axis, table) in zip(axes, reports.items(), strict=True):
+        ax.plot(table["Number of clusters"], table["WCSS"], marker="o", markersize=3)
+        ax.set(title=f"Elbow plot ({axis.lower()}s)", xlabel="Number of clusters", ylabel="WCSS")
+        ax.spines[["top", "right"]].set_visible(False)
+    return figure
+
+
 def _diagnostics(fit, names, options):
     outputs = {}
     distance = options.get("Distance matrix", False)
@@ -219,6 +272,8 @@ def _diagnostics(fit, names, options):
     lower = options.get("Matrix format") == "Lower triangle"
     if distance:
         outputs["Distance matrix"] = _matrix(fit.distances, names, lower)
+    if options.get("Merge map", False):
+        outputs["Merge map"] = _merge_map(fit.tree, names)
     if coph_distance or coph_correlation:
         coph = cophenet(fit.tree)
         if coph_distance:
@@ -252,6 +307,8 @@ def hierarchical_result(frame, options):
     scale = next(iter(fits.values()))
     row_names = _row_names(frame, scale, variables, options.get("Observation labels"))
     column_names = list(map(str, scale.scaled.columns))
+    graph_output = options.get("Graph output", "Dendrogram")
+    elbow_reports = {}
     if options.get("Scaled data", False):
         tables["Scaled data"] = scale.scaled
     for axis, fit in fits.items():
@@ -264,8 +321,15 @@ def hierarchical_result(frame, options):
             tables[prefix + "Assignments"] = fit.data.assign(**{label: fit.labels})
         tables[prefix + "Merges"] = pd.DataFrame(fit.tree, columns=["Node A", "Node B", "Distance", "Count"])
         tables.update({prefix + title: table for title, table in _diagnostics(fit, names[axis], options).items()})
-    if options.get("Graph output") == "Heat map":
+        if options.get("Elbow data", False) or graph_output == "Elbow plot":
+            scaled = fit.scaled.to_numpy()
+            observations = scaled if axis == "Row" else scaled.T
+            elbow_reports[axis] = _elbow_data(fit.tree, observations)
+            tables[prefix + "Elbow data"] = elbow_reports[axis]
+    if graph_output == "Heat map":
         figure = _heat_map(fits, names, heights, options, row_names, column_names)
+    elif graph_output == "Elbow plot":
+        figure = _elbow_plot(elbow_reports)
     else:
         figure = _dendrograms(fits, names, heights, options)
     return Result(tables, figure)
