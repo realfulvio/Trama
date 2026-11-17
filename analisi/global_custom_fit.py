@@ -554,10 +554,7 @@ def _solve(compiled, packed, s, labels, lower, upper, fixed, starts, *, cancel=N
 
     def predict_all(values):
         maps = _parameter_maps(s, labels, fixed, values, mapping, scale)
-        pieces = []
-        for part, parameters in zip(packed, maps):
-            with np.errstate(all="ignore"):
-                pieces.append(np.asarray(compiled.evaluate(part["X"], parameters), dtype=float))
+        pieces = [_evaluate_part(compiled, part, parameters) for part, parameters in zip(packed, maps)]
         return maps, pieces
 
     def residual(values):
@@ -568,14 +565,11 @@ def _solve(compiled, packed, s, labels, lower, upper, fixed, starts, *, cancel=N
         value = (y - stacked) / (sd_unit * factor_holder["reference"])
         return np.where(np.isfinite(value), value, 1e150)
 
-    # Conditions read X and fixed values only: checked once here, they hold for every step of the solver.
-    for part, parameters in zip(packed, _parameter_maps(s, labels, fixed, seeds / scale if n_free else np.empty(0),
-                                                        mapping, scale)):
-        _evaluate_part(compiled, part, parameters)
+    if n_free or reference == 0:
+        _, initial = predict_all(seeds / scale)
     if reference == 0:
-        _, pieces = predict_all(seeds / scale if n_free else np.empty(0))
         with np.errstate(all="ignore"):
-            guess = np.concatenate(pieces) if pieces else np.empty(0)
+            guess = np.concatenate(initial) if initial else np.empty(0)
             reference = float(np.max(np.abs(guess / sd_unit))) if len(guess) else 0.0
     if not np.isfinite(reference) or reference == 0:
         reference = 1.0
@@ -589,11 +583,9 @@ def _solve(compiled, packed, s, labels, lower, upper, fixed, starts, *, cancel=N
     start_u = start / scale if n_free else start
     if n_free:
         # Confirm the starting point itself is defined, before the solver replaces bad steps.
-        _, pieces = predict_all(seeds / scale)
-        stacked = np.concatenate(pieces)
+        stacked = np.concatenate(initial)
         if not np.isfinite(stacked).all():
-            offset = 0
-            for part, piece in zip(packed, pieces):
+            for part, piece in zip(packed, initial):
                 if not np.isfinite(piece).all():
                     _defined(piece, part, True)
             _defined(stacked, packed[0], True)
