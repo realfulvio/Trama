@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.78 beta:** grouped false-discovery control, custom axis ticks and shaded ranges. [Changes and limits](docs/release-078.md) · [Verification](docs/validation-078.md).
+**New in 0.79 beta:** use a result worksheet as another analysis's live input. Transformations, normalization, regression and downstream graphs update together. [Guide and limits](docs/analysis-chains.md) · [Changes](docs/release-079.md) · [Verification](docs/validation-079.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
