@@ -190,7 +190,8 @@ def _check_groups(groups):
 def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
                     "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", LEGEND_OPTIONS_KEY, "series",
-                    "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY},
+                    "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY,
+                    "hierarchical"},
             "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
         if key in style and not _text(style[key]):
@@ -245,6 +246,10 @@ def validated_style(style):
         normalise_guides(style[AXIS_GUIDES])
     if AXIS_BANDS in style:
         normalise_bands(style[AXIS_BANDS])
+    if "hierarchical" in style:
+        from .hierarchical_style import validate_hierarchical_style
+
+        style["hierarchical"] = validate_hierarchical_style(style["hierarchical"])
     return style
 
 
@@ -993,6 +998,11 @@ def apply_style(figure, style):
     after = getattr(axes, "_tramastat_after_style", None)
     if after is not None:
         after(axes)
+    # Hierarchical presentation is explicit and wins over the generic axis it shares labels with.
+    from .hierarchical_style import apply_hierarchical_style, describe_hierarchical_artists
+
+    if describe_hierarchical_artists(figure) or style.get("hierarchical"):
+        apply_hierarchical_style(figure, style.get("hierarchical", {}))
 
 
 def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHITE):

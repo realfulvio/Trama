@@ -8,6 +8,7 @@ from scipy.cluster.hierarchy import cophenet
 from scipy.spatial.distance import squareform
 
 from .data import _headers
+from .hierarchical_style import bind_matrix_labels, register_heatmap, register_tree
 from .reporting import Result
 from .stats import hierarchical
 
@@ -106,6 +107,16 @@ def _coordinates(tree, cluster_ids):
     return np.asarray(leaves), paths, groups[n:]
 
 
+def _leaf_label_texts(names, order, options):
+    """Every leaf caption in dendrogram order. The fit chooses the text; the style only hides some."""
+    mode = options.get("Label type", "Values")
+    if mode == "Letters":
+        return tuple(_letter(index + 1) for index in range(len(order)))
+    if mode == "Numbers":
+        return tuple(str(index + 1) for index in range(len(order)))
+    return tuple(names[index] for index in order)
+
+
 def _labels_in_order(names, order, options):
     first = options.get("First label", 1)
     interval = options.get("Label interval (0 = automatic)", 0)
@@ -124,7 +135,7 @@ def _labels_in_order(names, order, options):
     return [i + .5 for i in positions], labels, angle
 
 
-def _draw_tree(ax, fit, names, options, cut_height, *, horizontal=False, margin=False):
+def _draw_tree(ax, fit, names, options, cut_height, *, horizontal=False, margin=False, component=None):
     labels = fit.labels if options.get("Branch appearance", "By cluster") == "By cluster" else None
     order, paths, groups = _coordinates(fit.tree, labels)
     colors = [PALETTE[(group - 1) % len(PALETTE)] if group else MIXED_BRANCH for group in groups]
@@ -162,6 +173,16 @@ def _draw_tree(ax, fit, names, options, cut_height, *, horizontal=False, margin=
             for text, tick in zip(leaf_labels, ticks, strict=True):
                 group = labels.iloc[order[int(tick)]]
                 text.set_color(PALETTE[(group - 1) % len(PALETTE)])
+    if component in ("row", "column"):
+        cluster_ids = None if fit.labels is None else tuple(int(value) for value in np.asarray(fit.labels))
+        label_colors = None
+        if labels is not None:
+            label_colors = tuple(PALETTE[(int(labels.iloc[leaf]) - 1) % len(PALETTE)] for leaf in order)
+        register_tree(
+            ax.figure, component, ax, lines, horizontal=horizontal, margin=margin, order=order,
+            cluster_ids=cluster_ids, children=fit.tree[:, :2],
+            leaf_labels=_leaf_label_texts(names, order, options), label_colors=label_colors, options=options,
+            palette=PALETTE, mixed_color=MIXED_BRANCH)
     return order
 
 
@@ -172,7 +193,7 @@ def _dendrograms(fits, names, heights, options):
     fig = Figure(figsize=(8.6 if count == 2 else 7.4, 6.8 if horizontal and count == 2 else 4.8), layout="constrained")
     axes = fig.subplots(*n_axes, squeeze=False).ravel()
     for ax, (key, fit) in zip(axes, fits.items(), strict=True):
-        _draw_tree(ax, fit, names[key], options, heights[key], horizontal=horizontal)
+        _draw_tree(ax, fit, names[key], options, heights[key], horizontal=horizontal, component=key.lower())
         ax.set_title(f"Dendrogram of {key.lower()}s")
     return fig
 
@@ -186,17 +207,21 @@ def _heat_map(fits, names, heights, options, row_names, column_names):
     rows, cols = np.arange(len(scale)), np.arange(len(scale.columns))
     if "Row" in fits:
         tree = fig.add_subplot(grid[1, 0], sharey=ax)
-        rows = _draw_tree(tree, fits["Row"], row_names, options, heights["Row"], horizontal=True, margin=True)
+        rows = _draw_tree(tree, fits["Row"], row_names, options, heights["Row"], horizontal=True, margin=True,
+                          component="row")
     if "Column" in fits:
         tree = fig.add_subplot(grid[0, 1], sharex=ax)
-        cols = _draw_tree(tree, fits["Column"], column_names, options, heights["Column"], margin=True)
+        cols = _draw_tree(tree, fits["Column"], column_names, options, heights["Column"], margin=True,
+                          component="column")
     raster = ax.imshow(scale.to_numpy()[np.ix_(rows, cols)], extent=(0, len(cols), len(rows), 0),
                        cmap="viridis", aspect="auto", interpolation="nearest")
     x, x_names, angle = _labels_in_order(column_names, cols, options)
     y, y_names, _ = _labels_in_order(row_names, rows, options)
     ax.set_xticks(x, x_names, rotation=angle, parse_math=False)
     ax.set_yticks(y, y_names, parse_math=False)
-    fig.colorbar(raster, cax=fig.add_subplot(grid[1, 2]), label="Value")
+    colorbar = fig.colorbar(raster, cax=fig.add_subplot(grid[1, 2]), label="Value")
+    register_heatmap(fig, ax, raster, colorbar)
+    bind_matrix_labels(fig, ax)
     fig.suptitle("Hierarchical clustering · Heat map", fontweight="bold")
     return fig
 
