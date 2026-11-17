@@ -112,6 +112,26 @@ class LegendDialogGuiTests(unittest.TestCase):
         self.assertIn("Normal model only", [t.get_text() for t in figure.axes[0].get_legend().get_texts()])
         self.assertNotIn("Normal model only", [t.get_text() for t in figure.axes[1].get_legend().get_texts()])
 
+    def test_non_decimal_digits_and_overlong_integer_show_inline_columns_error(self):
+        for invalid in ("²", "9" * 5000):
+            with self.subTest(length=len(invalid)):
+                figure, _ = _make_figure()
+                errors = []
+
+                def drive(dialog):
+                    dialog.fields["columns"].set(invalid)
+                    self.assertFalse(dialog.preview())
+                    self.assertIs(dialog.error_widget, dialog.widgets["columns"])
+                    self.assertTrue(dialog.error_labels["columns"].winfo_ismapped())
+                    self.assertTrue(dialog.winfo_exists())
+                    dialog.fields["columns"].set("2")
+                    self.assertTrue(dialog.preview())
+                    dialog.cancel()
+
+                self._drive_modal(self.root, LegendEditorDialog, drive, errors)
+                LegendEditorDialog(self.root, figure)
+                self.assertFalse(errors, errors)
+
     def test_inline_error_focus_recovery_reset_and_cancel_en_and_it(self):
         for lang, theme in (("en", "standard"), ("it", "modern")):
             with self.subTest(lang=lang, theme=theme):
