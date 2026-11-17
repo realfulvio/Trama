@@ -8,6 +8,7 @@ if __name__ == "__main__" and "--smoke" not in sys.argv[1:]:
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy, deepcopy
 from dataclasses import dataclass, field, replace
+from uuid import uuid4
 import os
 from pathlib import Path
 import shutil
@@ -24,6 +25,8 @@ import numpy as np
 import pandas as pd
 
 from analisi._version import VERSION, RELEASE_CHANNEL
+from analisi.analysis_chain import MAX_ANALYSIS_NODES, ResultSource
+from analisi.analysis_chain_app import AnalysisChainMixin
 from analisi.windows_dpi import configure_native_dpi, window_dpi
 from analisi.window_geometry import keep_native_window_on_screen
 from analisi.shape_canvas import ShapeCanvas, ShapeHistory, render_shapes
@@ -3549,6 +3552,8 @@ class Run:
     style: dict | None = None
     shape_history: ShapeHistory = field(default_factory=ShapeHistory, repr=False, compare=False)
     calculation_error: str | None = field(default=None, repr=False, compare=False)
+    uid: str = field(default_factory=lambda: str(uuid4()), repr=False)
+    source: ResultSource | None = None
 
     @property
     def reference(self):
@@ -3556,7 +3561,8 @@ class Run:
 
     @property
     def name(self):
-        return self.options.get(PRISM_TITLE) or f"{self.method} of {self.title}"
+        source_title = self.source.table if self.source is not None else self.title
+        return self.options.get(PRISM_TITLE) or f"{self.method} of {source_title}"
 
 
 @dataclass
@@ -3572,7 +3578,14 @@ class AnalysisRecovery:
     only: object = None
 
 
-class App:
+class App(AnalysisChainMixin):
+    @staticmethod
+    def make_chain_control():
+        return CalculationControl()
+
+    def chain_analysis_dialog(self, frame, **options):
+        return AnalysisDialog(self.root, frame, **options)
+
     def __init__(self, root):
         self.root = root
         self.root.title("Trama beta")
@@ -3663,6 +3676,8 @@ class App:
                        ("Graph annotations…", self.edit_graph_annotations), ("Graph shapes…", self.edit_graph_shapes),
                        ("New layout…", self.new_layout)],
             "Analyze": [("Analyze data…", self.choose_analysis), ("Change parameters…", self.edit_analysis),
+                        ("Analyze result table…", self.analyze_result_table),
+                        ("Source analysis", self.source_analysis), ("Change input result…", self.change_input_result),
                         ("Load example", self.example)],
             "Change": [("Format graph…", self.format_graph), ("Edit layout…", lambda: self.new_layout(edit=True)),
                        ("Info sheet properties…", self.info_properties)],
@@ -3971,7 +3986,8 @@ class App:
         run = self.runs[ref[1]]
         short = {"Global nonlinear regression": "Global fit",
                  "Mixed-effects model (REML)": "Mixed model"}.get(run.method)
-        return f"{short} · {run.title}" if short and not run.options.get(PRISM_TITLE) else name
+        source_title = run.source.table if run.source is not None else run.title
+        return f"{short} · {source_title}" if short and not run.options.get(PRISM_TITLE) else name
 
     def navigator_section(self, name, needle):
         node = f"section:{name}"
@@ -3997,6 +4013,7 @@ class App:
     def refresh_navigator(self):
         if not hasattr(self, "nav"):
             return
+        self.sync_analysis_links()
         self.remember_navigator_expansion()
         self.nav.delete(*self.nav.get_children())
         self.nodes.clear()
@@ -4021,24 +4038,27 @@ class App:
         for category, entries, label, action in sections:
             if self.combined_navigator and category == "Data Tables":
                 parent = self.navigator_section("Data + Results", needle)
-                results_by_source = {}
-                for name, ref in result_entries:
-                    title = self.runs[ref[1]].title
-                    results_by_source.setdefault(title, []).append((name, ref))
-                for title, ref in entries:
-                    results = results_by_source.pop(title, ())
-                    children = [(name, child) for name, child in results if matches(name, child)]
-                    if not matches(title, ref) and not children:
-                        continue
-                    iid = f"source:{title}"
-                    node = self.add_sheet_node(parent, title, ref, iid=iid,
-                                               open=bool(needle) or self.nav_expansion.get(iid, True))
-                    for name, child in children:
-                        self.add_sheet_node(node, self.navigator_label(name, child), child)
-                for results in results_by_source.values():
-                    for name, ref in results:
-                        if matches(name, ref):
-                            self.add_sheet_node(parent, self.navigator_label(name, ref), ref)
+                if self._chain_node_ids:
+                    self.populate_chain_results(parent, entries, result_entries, matches, source_ids=True)
+                else:
+                    results_by_source = {}
+                    for name, ref in result_entries:
+                        title = self.runs[ref[1]].title
+                        results_by_source.setdefault(title, []).append((name, ref))
+                    for title, ref in entries:
+                        results = results_by_source.pop(title, ())
+                        children = [(name, child) for name, child in results if matches(name, child)]
+                        if not matches(title, ref) and not children:
+                            continue
+                        iid = f"source:{title}"
+                        node = self.add_sheet_node(parent, title, ref, iid=iid,
+                                                   open=bool(needle) or self.nav_expansion.get(iid, True))
+                        for name, child in children:
+                            self.add_sheet_node(node, self.navigator_label(name, child), child)
+                    for results in results_by_source.values():
+                        for name, ref in results:
+                            if matches(name, ref):
+                                self.add_sheet_node(parent, self.navigator_label(name, ref), ref)
                 if not needle:
                     self.navigator_action(parent, label, action)
                     self.navigator_action(parent, result_label, result_action)
@@ -4081,6 +4101,22 @@ class App:
         title = self.active_data
         if title not in self.tables:
             return []
+        if getattr(self, '_chain_node_ids', ()):
+            graph = self.analysis_graph()
+            related = set(graph.affected([run.uid for run in self.runs if run.title == title]))
+            by_id = {run.uid: run for run in self.runs}
+            pending = list(related)
+            while pending:
+                source = by_id[pending.pop()].source
+                if source is not None and source.analysis_id not in related:
+                    related.add(source.analysis_id)
+                    pending.append(source.analysis_id)
+            titles = {title, *(by_id[key].title for key in related)}
+            return [(name, ref) for _, entries, _, _ in self.sheet_sections() for name, ref in entries
+                    if (ref[0] == 'data' and ref[1] in titles
+                        or ref[0] == 'info' and self.info_sheets[ref[1]].table in titles
+                        or ref[0] in RUN_VIEWS and self.runs[ref[1]].uid in related
+                        or ref[0] == 'layout' and any(panel[0] in titles for panel in self.layouts[ref[1]].panels))]
         return [(name, ref) for _, entries, _, _ in self.sheet_sections() for name, ref in entries
                 if (ref == ("data", title)
                     or (ref[0] == "info" and self.info_sheets[ref[1]].table == title)
@@ -4092,12 +4128,30 @@ class App:
         if not self.nav.exists(parent):
             return
         children = self.nav.get_children(parent)
-        for node in children:
+        pending = list(children)
+        while pending:
+            node = pending.pop()
+            pending.extend(self.nav.get_children(node))
             self.nodes.pop(node, None)
-            for nested in self.nav.get_children(node):
-                self.nodes.pop(nested, None)
         self.nav.delete(*children)
         if self.search.get().strip():
+            return
+        if getattr(self, '_chain_node_ids', ()):
+            entries = self.family_sheets()
+            roots, results = self.populate_chain_results(
+                parent, [(name, ref) for name, ref in entries if ref[0] == 'data'],
+                [(name, ref) for name, ref in entries if ref[0] == 'result'], lambda *_: True)
+            for name, ref in entries:
+                if ref[0] in {'data', 'result'}:
+                    continue
+                if ref[0] in RUN_VIEWS:
+                    run = self.runs[ref[1]]
+                    owner = results.get(run.uid) if run.source is not None else roots.get(run.title)
+                elif ref[0] == 'info':
+                    owner = roots.get(self.info_sheets[ref[1]].table)
+                else:
+                    owner = None
+                self.add_sheet_node(owner or parent, self.navigator_label(name, ref), ref)
             return
         for name, ref in self.family_sheets():
             if ref[0] == "data":
@@ -4296,6 +4350,11 @@ class App:
         kind, index = ref
         if self.pending is None and kind in RUN_VIEWS and self.runs[index].result is None:
             self.recalculate(index)
+        elif self.pending is None and kind == "layout":
+            panels = self.layout_runs(self.layouts[index])
+            if (any(run.result is None for run in panels)
+                    and any(run.uid in getattr(self, '_chain_node_ids', ()) for run in panels)):
+                self.recalculate_layout(index)
 
     def show(self, kind, key, *, record_history=True):
         if not self.ribbon.winfo_manager():
@@ -4379,6 +4438,15 @@ class App:
             result = run.result
             subtitle = run.options.get(PRISM_NOTES) or ui("Analysis results" if kind == "result" else "Graph")
             self._clear(run.name, subtitle)
+            if run.source is not None:
+                source_bar = ttk.Frame(self.page)
+                source_bar.pack(fill="x", pady=(0, 5))
+                ttk.Button(source_bar, text=tr("chain.source_analysis"), command=self.source_analysis).grid(row=0, column=0, sticky="w")
+                ttk.Button(source_bar, text=tr("chain.change_input"), command=self.change_input_result).grid(row=0, column=1, sticky="w", padx=6)
+                source = next((other for other in self.runs if other.uid == run.source.analysis_id), None)
+                name = source.name if source is not None else tr("chain.missing_source")
+                ttk.Label(source_bar, text=tr("chain.input_label", analysis=name, table=run.source.table),
+                          wraplength=630).grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
             if result is None:
                 if run.method in {SAVED_BINARY_GRAPH, SAVED_BINARY_RESULT, SAVED_BINARY_LAYOUT, SAVED_EDITABLE_GRAPH}:
                     label = "Open saved view"
@@ -4392,6 +4460,11 @@ class App:
                 if run.method != SAVED_BINARY_RESULT:
                     ttk.Button(bar, text=ui("Change Parameters…"), command=self.edit_analysis).pack(side="left")
                 ttk.Button(bar, text=ui("Use Result as Data"), command=self.use_result_as_data).pack(side="left", padx=6)
+                chain_bar = ttk.Frame(self.page)
+                chain_bar.pack(fill="x", pady=(0, 7))
+                ttk.Button(chain_bar, text=tr("chain.analyze_result"), command=self.analyze_result_table).pack(side="left")
+                if run.source is None:
+                    ttk.Button(chain_bar, text=tr("chain.change_input"), command=self.change_input_result).pack(side="left", padx=6)
                 self.result_tabs = ttk.Notebook(self.page)
                 self.result_tabs.pack(fill="both", expand=True)
                 for title, frame in result.tables.items():
@@ -5117,6 +5190,9 @@ class App:
             return
         layout = self.layouts[key]
         distinct = {run.reference: run for run in self.layout_runs(layout)}
+        needed = [(run, None) for run in distinct.values() if run.result is None or run.calculation_error]
+        if needed and self.refresh_chain_calculations(needed, inputs_changed=False):
+            return
         missing = [(run, self.tables[run.title].frame(mask_excluded=True), self.pairwise_snapshot(run))
                    for run in distinct.values() if run.result is None]
         self.status.set(tr("interface.updating", name=layout.name))
@@ -5297,7 +5373,9 @@ class App:
             titles.append(title)
             dataset = self.tables[title] = Dataset(frame.reset_index(drop=True),
                                                    info=contexts.get(title, contexts[None]))
-            self.runs.extend(Run(method, title, options, slot=i)
+            self.runs.extend(Run(method, title, options, slot=i,
+                                 uid=dataset.analysis_ids.get(i, str(uuid4())),
+                                 source=dataset.analysis_sources.get(i))
                              for i, (method, options) in enumerate(dataset.analyses))
             skipped.extend(frame.attrs.get("skipped", []))
             warnings.extend(frame.attrs.get("import_warnings", []))
@@ -5346,7 +5424,8 @@ class App:
             loaded, layouts, info_sheets = load_workspace(filename, include_info=True)
             self.tables, self.path, self.layouts = loaded, Path(filename), layouts
             self.info_sheets = {sheet.uid: sheet for sheet in info_sheets}
-            self.runs = [Run(method, name, options, slot=index, style=table.graph_styles.get(index))
+            self.runs = [Run(method, name, options, slot=index, style=table.graph_styles.get(index),
+                             uid=table.analysis_ids.get(index, str(uuid4())), source=table.analysis_sources.get(index))
                          for name, table in loaded.items()
                          for index, (method, options) in enumerate(table.analyses)]
             self.selected = None
@@ -5733,6 +5812,8 @@ class App:
     def refresh_calculations(self, affected):
         if not affected:
             return
+        if self.refresh_chain_calculations(affected):
+            return
         previous = {}
         for run, _ in affected:
             if self._keeps_failed_result(run):
@@ -5935,10 +6016,24 @@ class App:
                             result=dialog.processing_result)
 
     def choose_analysis(self, only=None, *, prefer_worksheet_graph=False):
-        dataset = self.get_dataset()
-        if dataset is None:
-            return
-        frame = dataset.frame(mask_excluded=True)
+        current = (self.runs[self.selected[1]] if self.selected and self.selected[0] in {'result', 'graph'} else None)
+        source = current.source if current is not None else None
+        if source is not None:
+            if self.pending is not None:
+                self.error(tr('chain.wait'))
+                return
+            try:
+                frame = self.input_frame(current)
+            except ValueError as error:
+                self.error(error)
+                return
+            table_format = frame.attrs.get('table_format', 'multivariable')
+        else:
+            dataset = self.get_dataset()
+            if dataset is None:
+                return
+            frame = dataset.frame(mask_excluded=True)
+            table_format = dataset.table_format
         if frame.empty:
             self.error("Enter some data first.")
             return
@@ -5946,19 +6041,23 @@ class App:
         if prefer_worksheet_graph:
             preferred = {"column": COLUMN_GRAPH, "grouped": GROUPED_GRAPH,
                          "twoway": GROUPED_GRAPH, "two way": GROUPED_GRAPH,
-                         "parts_of_whole": PARTS_GRAPH, "parts of whole": PARTS_GRAPH}.get(dataset.table_format.casefold())
-        elif only is None and dataset.table_format.casefold() == "nested":
+                         "parts_of_whole": PARTS_GRAPH, "parts of whole": PARTS_GRAPH}.get(table_format.casefold())
+        elif only is None and table_format.casefold() == "nested":
             preferred = preferred_nested_method(frame)
         dialog = AnalysisDialog(self.root, frame, only=only, current=(preferred, {}) if preferred else None)
         if dialog.result:
-            self.submit_new_analysis(self.active_data, frame, dialog, only)
+            self.submit_new_analysis(self.active_data, frame, dialog, only, source=source)
 
-    def submit_new_analysis(self, title, frame, dialog, only=None):
+    def submit_new_analysis(self, title, frame, dialog, only=None, *, source=None):
         method, options = dialog.result
-        if len(self.tables[title].analyses) >= 256:
+        dataset = self.tables[title]
+        if source is None and len(dataset.analyses) - len(dataset.analysis_sources) >= 256:
             self.error("A table supports up to 256 analyses.")
             return
-        self.start_analysis(Run(method, title, options), frame, result=dialog.processing_result,
+        if len(self.runs) >= MAX_ANALYSIS_NODES:
+            self.error(tr("chain.node_budget"))
+            return
+        self.start_analysis(Run(method, title, options, source=source), frame, result=dialog.processing_result,
                             recovery=self.weighting_recovery(method, options, None, only))
 
     def _lognormal_one_way(self, run):
@@ -5969,7 +6068,8 @@ class App:
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method == FDR_METHOD)
+                or run.method == FDR_METHOD or getattr(run, 'source', None) is not None
+                or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
@@ -6014,7 +6114,11 @@ class App:
     def reopen_analysis(self, run, error, recovery):
         if recovery.project != self.active_project or run.title not in self.tables:
             return
-        frame = self.tables[run.title].frame(mask_excluded=True)
+        try:
+            frame = self.input_frame(run)
+        except ValueError as error:
+            self.error(error)
+            return
         message = (translate_global_error(error) if run.method == GLOBAL_CUSTOM_EQUATION
                    else translate_mlr_error(error) if run.method == "Multiple regression"
                    else translate_reference_error(error) if run.method == REFERENCE_NORMALIZATION
@@ -6050,14 +6154,17 @@ class App:
             self.status.set(f"Change discarded. {kept}")
             return
         if recovery.index is None:
-            self.submit_new_analysis(run.title, frame, dialog, recovery.only)
+            self.submit_new_analysis(run.title, frame, dialog, recovery.only, source=run.source)
         elif self.runs[recovery.index] is recovery.confirmed:
-            self.submit_edit(recovery.index, frame, dialog, recovery.only)
+            self.submit_edit(recovery.index, frame, dialog, recovery.only, source=run.source,
+                             change_source=run.source != recovery.confirmed.source)
 
     def recalculate(self, index):
         if self.pending is not None:
             return
         run = self.runs[index]
+        if self.refresh_chain_calculations([(run, None)], inputs_changed=False):
+            return
         recovery = (self.weighting_recovery(run.method, run.options, index)
                     if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD} else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
@@ -6066,22 +6173,29 @@ class App:
         if not self.selected or self.selected[0] not in {"result", "graph"}:
             self.error("Select an analysis or graph first.")
             return
-        dataset = self.get_dataset()
-        if dataset is None:
-            return
         index = self.selected[1]
         run = self.runs[index]
+        if run.source is not None:
+            if self.pending is not None:
+                self.error(tr('chain.wait'))
+                return
+        elif self.get_dataset() is None:
+            return
         if run.method in PRISM_GRAPH_METHODS:
             self.error(ui("Use Format Graph for an imported XY graph, or Export for its original preview."))
             return
-        frame = dataset.frame(mask_excluded=True)
+        try:
+            frame = self.input_frame(run)
+        except ValueError as error:
+            self.error(error)
+            return
         only = run.method if initial_field else None
         dialog = AnalysisDialog(self.root, frame, current=(run.method, run.options),
                                 only=only, initial_field=initial_field)
         if dialog.result:
             self.submit_edit(index, frame, dialog, only)
 
-    def submit_edit(self, index, frame, dialog, only=None):
+    def submit_edit(self, index, frame, dialog, only=None, *, source=None, change_source=False):
         run = self.runs[index]
         method, options = dialog.result
         if method == run.method:
@@ -6107,9 +6221,11 @@ class App:
             style = survival_style(style, run.options, options)
         elif method == run.method == XY_METHOD:
             style = xy_style(style, options)
-        self.start_analysis(Run(method, run.title, options, slot=run.slot, style=style), frame, index,
+        self.start_analysis(Run(method, run.title, options, slot=run.slot, style=style,
+                                uid=run.uid, source=source if change_source else run.source), frame, index,
                             result=dialog.processing_result,
-                            recovery=self.weighting_recovery(method, options, index, only))
+                            recovery=self.weighting_recovery(method, options, index, only),
+                            source_override=change_source)
 
     def pairwise_snapshot(self, run):
         """Resolve the comparison source of a graph on the UI thread: the worker gets a consistent copy."""
@@ -6131,6 +6247,9 @@ class App:
         if problem:
             return {"message": f"{problem} The graph is shown without comparisons."}
         source = next((other for other in self.runs if other.title == run.title and other.slot == slot), None)
+        if source is not None and source.source != run.source:
+            return {"message": "The comparison source analyzes a different input table. "
+                               "Choose an analysis of this graph's input, or remove the comparisons."}
         # A stored result is current: editing data or the source clears it before anything reads it.
         tables = source.result.tables if source is not None and source.result is not None else None
         return {"settings": settings, "method": method, "options": deepcopy(options), "tables": tables,
@@ -6296,7 +6415,18 @@ class App:
         except (OSError, ValueError, TypeError) as error:
             self.error(error)
 
-    def start_analysis(self, run, frame, index=None, *, result=None, recovery=None):
+    def start_analysis(self, run, frame, index=None, *, result=None, recovery=None, source_override=False):
+        if index is not None and self.runs[index] is not run:
+            run.uid = self.runs[index].uid
+            if not source_override:
+                run.source = self.runs[index].source
+        if run.source is not None or getattr(self, '_chain_node_ids', ()):
+            try:
+                self.analysis_graph(replacement=(index, run) if index is not None else None,
+                                    additional=run if index is None else None)
+            except ValueError as error:
+                self.error(error)
+                return
         pairwise = self.pairwise_snapshot(run)
         if result is not None:
             self.add_result(run, self.compute(run, frame, result, pairwise=pairwise), index)
@@ -6369,10 +6499,15 @@ class App:
             self.dirty = True
             index = len(self.runs) - 1
         elif self.runs[index] is not run:
+            run.uid = self.runs[index].uid
             self.runs[index] = run
             recipes[run.slot] = run.method, run.options
             self.dirty = True
             dependents = self.pairwise_dependents(run)
+        self.sync_analysis_links(persist=True)
+        if not new_run:
+            dependents = list({other.uid: other for other in
+                               [*dependents, *self.chain_dependents(run)]}.values())
         self.refresh_navigator()
         if reveal:
             if self.gallery is None or new_run:
@@ -6402,6 +6537,7 @@ class App:
     def save(self, as_new=False):
         if not self.settle_graph_draft("saving"):
             return False
+        self.sync_analysis_links(persist=True)
         if self.current_grid is not None and self.pending is None:
             self.current_grid.commit_edit()
         if self.current_info is not None:
@@ -11980,6 +12116,13 @@ def smoke(root, app, directory, legacy_reference=None):
             drive_dialog=drive_dialog, pick_method=pick_method, select_columns=select_columns,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_analysis_chains_smoke():
+        from analisi.analysis_chain_smoke import check_analysis_chains
+        check_analysis_chains(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, LayoutDialog=LayoutDialog, capture=capture,
+            drive_dialog=drive_dialog, pick_method=pick_method, select_columns=select_columns,
+            wait_for_calculation=wait_for_calculation, filedialog=filedialog, errors=errors))
+
     try:
         screen = (root.winfo_screenwidth(), root.winfo_screenheight())
         (directory / "display.json").write_text(json.dumps({"width": screen[0], "height": screen[1],
@@ -11988,6 +12131,13 @@ def smoke(root, app, directory, legacy_reference=None):
             raise RuntimeError(
                 f"GUI smoke requires a display of at least 1024x768; actual display is {screen[0]}x{screen[1]}. "
                 "On Linux use xvfb-run -a -s '-screen 0 1024x768x24'.")
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "analysis-chains":
+            check_analysis_chains_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "modern-theme":
             from analisi.modern_theme_smoke import check_modern_theme
             check_modern_theme(root, app, directory, SimpleNamespace(
@@ -13304,6 +13454,7 @@ def smoke(root, app, directory, legacy_reference=None):
             wait_for_calculation=wait_for_calculation, filedialog=filedialog,
             LayoutDialog=LayoutDialog, errors=errors))
         check_reference_normalization_smoke()
+        check_analysis_chains_smoke()
         assert app.nav.winfo_ismapped()
         assert not errors, errors
         (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
