@@ -105,8 +105,8 @@ class ParameterIntervalContract(unittest.TestCase):
                                    roots, rtol=3e-5)
         self.assertTrue(result.tables['Parameter CI status: All']['Lower status'].eq('Profile root').all())
 
-    def test_profile_rejects_unsupported_weighting_on_its_field(self):
-        for weighting in ('1/abs(Y)', '1/Y²', 'Inverse variance (column)', '1/abs(Yfit)', '1/Yfit²'):
+    def test_profile_rejects_unknown_weighting_on_its_field(self):
+        for weighting in ('Unknown', None, False):
             with self.subTest(weighting=weighting),self.assertRaises(FieldError) as cm:
                 run(**{METHOD:PROFILE,'Weighting':weighting})
             self.assertEqual(cm.exception.field, 'Weighting')
