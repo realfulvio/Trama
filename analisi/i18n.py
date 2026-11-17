@@ -2724,3 +2724,28 @@ _IT.update({
  "modern.preview_unavailable":"Apri il foglio del grafico per visualizzare questa figura.",
  "modern.preview_failed":"Anteprima del grafico non disponibile: {error}",
 })
+
+# Parameter inference is distinct from curve bands; recipe values stay canonical.
+_EN.update({
+    "parameter_ci.tab": "Confidence intervals",
+    "parameter_ci.method": "Parameter intervals",
+    "parameter_ci.level": "Parameter confidence level (%)",
+    "parameter_ci.wald": "Symmetric (Wald)",
+    "parameter_ci.profile": "Profile likelihood",
+    "parameter_ci.hint": "Parameter intervals describe coefficient uncertainty, not a band around the curve. Profile likelihood currently requires Unweighted regression; nuisance parameters are refitted on the calculation worker. Unresolved limits are reported explicitly.",
+    "parameter_ci.error.method": "Choose Symmetric (Wald) or Profile likelihood.",
+    "parameter_ci.error.level": "Choose a finite parameter confidence level strictly between 0 and 100.",
+    "parameter_ci.error.weighting": "Parameter profile intervals currently require Unweighted regression.",
+})
+_IT.update({
+    "parameter_ci.tab": "Intervalli di confidenza",
+    "parameter_ci.method": "Intervalli dei parametri",
+    "parameter_ci.level": "Livello di confidenza dei parametri (%)",
+    "parameter_ci.wald": "Simmetrici (Wald)",
+    "parameter_ci.profile": "Profilo di verosimiglianza",
+    "parameter_ci.hint": "Gli intervalli descrivono l’incertezza dei coefficienti, non una banda intorno alla curva. Il profilo di verosimiglianza richiede per ora una regressione non pesata; gli altri parametri vengono ristimati sul thread di calcolo. I limiti non determinati sono indicati esplicitamente.",
+    "parameter_ci.error.method": "Scegli Simmetrici (Wald) o Profilo di verosimiglianza.",
+    "parameter_ci.error.level": "Scegli un livello di confidenza finito, strettamente compreso tra 0 e 100.",
+    "parameter_ci.error.weighting": "Gli intervalli con profilo di verosimiglianza richiedono per ora una regressione non pesata.",
+})
+KEY_BY_LABEL[_EN["parameter_ci.level"]] = "parameter_ci.level"
