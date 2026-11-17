@@ -1017,3 +1017,9 @@ CAPTIONS.update({
     "Desired FDR (%)": "FDR desiderato (%)",
     "Show diagnostic plot": "Mostra il grafico diagnostico",
 })
+
+CAPTIONS.update({
+    'Analyze result table…': 'Analizza tabella risultati…',
+    'Source analysis': 'Analisi sorgente',
+    'Change input result…': 'Cambia risultato di ingresso…',
+})
