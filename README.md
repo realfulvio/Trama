@@ -12,7 +12,7 @@ Trama è un'applicazione per Windows che riunisce fogli dati, analisi statistich
 
 Windows 10/11 a 64 bit · Versione portabile · Interfaccia italiano / inglese
 
-**Novità 0.78 beta:** controllo FDR per famiglie di confronti, tacche personalizzate e fasce sugli assi. [Novità e limiti](docs/release-078.md) · [Verifiche](docs/validation-078.md).
+**Novità 0.79 beta:** usa una tabella di risultati come ingresso di un’altra analisi. Trasformazioni, normalizzazioni, regressioni e grafici a valle si aggiornano insieme. [Guida e limiti](docs/analysis-chains.md) · [Novità](docs/release-079.md) · [Verifiche](docs/validation-079.md).
 
 ## Un foglio familiare. Un flusso di lavoro completo.
 
