@@ -160,5 +160,137 @@ def _options(**changes):
     return options
 
 
+class DialogResult(unittest.TestCase):
+    def test_dispatcher_table_and_optional_figure(self):
+        frame = pd.DataFrame({"A": A, "B": B})
+        result = analyse(METHOD, frame, _options())
+        self.assertEqual(list(result.tables), [SHEET, "Summary", "Settings"])
+        close(self, result.tables[SHEET].at["p", "Value"], 0.4)
+        self.assertIsNone(result.figure)
+        self.assertNotIn(METHOD, GRAPH_METHODS)
+        self.assertEqual(list(result.tables[SHEET].index), list(KEYS))
+        drawn = analyse(METHOD, frame, _options(**{GRAPH: GRAPH_VARIANCE}))
+        line = next(artist for artist in drawn.figure.axes[0].lines if artist.get_gid() == "variance-ratio:interval")
+        lower = drawn.tables[SHEET].at["Variance ratio lower", "Value"]
+        upper = drawn.tables[SHEET].at["Variance ratio upper", "Value"]
+        self.assertEqual(list(line.get_xdata()), [lower, upper])
+        self.assertEqual(drawn.figure.axes[0].get_xscale(), "log")
+        reference = next(artist for artist in drawn.figure.axes[0].lines
+                         if artist.get_gid() == "variance-ratio:reference")
+        self.assertEqual(list(reference.get_xdata()), [1, 1])
+        self.assertEqual(drawn.figure.axes[0]._tramastat_numeric_axes, ("x",))
+        sd = analyse(METHOD, frame, _options(**{GRAPH: GRAPH_SD}))
+        sd_line = next(artist for artist in sd.figure.axes[0].lines if artist.get_gid() == "variance-ratio:interval")
+        self.assertEqual(list(sd_line.get_xdata()), [
+            sd.tables[SHEET].at["SD ratio lower", "Value"], sd.tables[SHEET].at["SD ratio upper", "Value"]])
+
+    def test_field_errors_name_the_control(self):
+        frame = pd.DataFrame({"A": A, "B": B, "C": [1, 1, 1]})
+        cases = (
+            (_options(Second="A"), "Second", "different"),
+            (_options(**{LEVEL: 100}), LEVEL, "less than 100"),
+            (_options(**{LEVEL: True}), LEVEL, "finite"),
+            (_options(Distribution="nope"), "Distribution", "Normal"),
+            (_options(**{GRAPH: "box"}), GRAPH, "SD ratio"),
+            (_options(First="Missing"), "First", "not in the worksheet"),
+            (_options(Second="C"), "Second", "zero variance"),
+            (_options(Distribution="Lognormal"), "First", "strictly positive"),
+        )
+        for options, field, snippet in cases:
+            with self.subTest(field=field, snippet=snippet):
+                with self.assertRaises(FieldError) as caught:
+                    analysis(frame, options)
+                self.assertEqual(caught.exception.field, field)
+                self.assertIn(snippet, str(caught.exception))
+
+    def test_summary_records_orientation_missing_counts_and_literal_labels(self):
+        frame = pd.DataFrame({"Dose A": [0, None, 2, 4], "Dose B": [0, 1, None, 2]})
+        tables = analysis(frame, {"First": "Dose A", "Second": "Dose B", LEVEL: 90,
+                                   "Distribution": "Normal", GRAPH: GRAPH_NONE}).tables
+        summary = tables["Summary"]["Value"]
+        self.assertEqual(summary["Missing first"], 1)
+        self.assertEqual(summary["Missing second"], 1)
+        self.assertEqual(summary["Orientation"], "Dose A / Dose B")
+        self.assertEqual(summary["First"], "Dose A")
+        settings = tables["Settings"]["Value"]
+        self.assertIn("Not a Wald interval", settings["Interval"])
+        self.assertEqual(settings[LEVEL], 90)
+
+
+
+class AlongsideMeanTests(unittest.TestCase):
+    def frame(self):
+        return pd.DataFrame({"Y": [0, 2, 4, 0, 1, 2], "G": ["A", "A", "A", "B", "B", "B"]})
+
+    def t_options(self, **changes):
+        options = {"Design": "Welch", "Response": "Y", "Group": "G", "Subject": None, "Null mean": 0.0}
+        options.update(changes)
+        return options
+
+    def test_absent_and_false_leave_the_t_test_unchanged(self):
+        frame = self.frame()
+        plain = analyse("t-test", frame, self.t_options())
+        explicit = analyse("t-test", frame, self.t_options(**{SHOW: False}))
+        self.assertEqual(list(plain.tables), ["t-test"])
+        self.assertEqual(list(explicit.tables), ["t-test"])
+        pd.testing.assert_series_equal(plain.tables["t-test"]["Value"], explicit.tables["t-test"]["Value"])
+        student = analyse("t-test", frame, self.t_options(Design="Student", **{SHOW: True}))
+        welch = analyse("t-test", frame, self.t_options(**{SHOW: True}))
+        pd.testing.assert_series_equal(student.tables["t-test"]["Value"],
+                                        analyse("t-test", frame, self.t_options(Design="Student")).tables["t-test"]["Value"])
+        close(self, welch.tables[SHEET].at["p", "Value"], 0.4)
+        close(self, student.tables[SHEET].at["p", "Value"], 0.4)
+        self.assertEqual(list(welch.tables[SHEET].index), list(KEYS))
+
+    def test_a_constant_group_keeps_the_t_result_and_explains(self):
+        frame = self.frame()
+        frame.loc[frame["G"] == "B", "Y"] = 1
+        result = analyse("t-test", frame, self.t_options(**{SHOW: True}))
+        self.assertIn("t", result.tables["t-test"].index)
+        self.assertEqual(list(result.tables[SHEET].index), ["Reason"])
+        self.assertIn("zero variance", result.tables[SHEET].at["Reason", "Value"])
+        self.assertNotIn("p", result.tables[SHEET].index)
+
+    def test_paired_and_one_sample_ignore_the_flag(self):
+        paired = pd.DataFrame({"Y": [1, 2, 4, 3, 6, 5], "G": ["A", "B"] * 3, "S": [1, 1, 2, 2, 3, 3]})
+        options = {"Design": "Paired", "Response": "Y", "Group": "G", "Subject": "S", "Null mean": 0.0, SHOW: True}
+        result = analyse("t-test", paired, options)
+        self.assertEqual(list(result.tables), ["t-test"])
+        one = analyse("t-test", pd.DataFrame({"Y": [1.0, 2, 4]}),
+                      {"Design": "One-sample", "Response": "Y", "Group": None, "Subject": None,
+                       "Null mean": 0.0, SHOW: "not a bool"})
+        self.assertEqual(list(one.tables), ["t-test"])
+
+    def test_unpaired_rejects_a_non_boolean_flag(self):
+        with self.assertRaises(FieldError) as caught:
+            analyse("t-test", self.frame(), self.t_options(**{SHOW: "yes"}))
+        self.assertEqual(caught.exception.field, SHOW)
+
+    def test_lognormal_unpaired_uses_the_callers_level_and_paired_ignores_the_flag(self):
+        frame = pd.DataFrame({"P": [math.exp(x) for x in (0, 2, 4)], "Q": [math.exp(x) for x in (0, 1, 2)]})
+        options = {"First": "P", "Second": "Q", "Design": "Welch", "Report ratio": "First / Second",
+                   "Null ratio": 1.0, "Hypothetical geometric mean": 1.0, LEVEL: 90.0,
+                   "Alternative": "Two-sided", "Log base": "10", GRAPH: "None", "Pairing correlation": False,
+                   SHOW: True}
+        result = analyse(LOGNORMAL, frame, options)
+        self.assertEqual(list(result.tables["Lognormal test"].columns)[:1], ["N first"])
+        close(self, result.tables[SHEET].at["p", "Value"], 0.4)
+        close(self, result.tables[SHEET].at["Variance ratio", "Value"], 4)
+        ratio = result.tables[SHEET].at["Variance ratio", "Value"]
+        close(self, result.tables[SHEET].at["Variance ratio lower", "Value"], ratio / stats.f.ppf(0.95, 2, 2))
+        quiet = analyse(LOGNORMAL, frame, {**options, "Design": "Paired", SHOW: True, "Pairing correlation": True})
+        self.assertNotIn(SHEET, quiet.tables)
+        failed = frame.assign(Q=[1, 1, 1])
+        explained = analyse(LOGNORMAL, failed, options)
+        self.assertIn("zero variance", explained.tables[SHEET].at["Reason", "Value"])
+        self.assertTrue(math.isfinite(explained.tables["Lognormal test"].at[0, "t"]))
+
+    def test_menu_order_keeps_the_existing_prefix(self):
+        self.assertEqual(GROUPS["Group Comparison"][:4],
+                         ("t-test", "Paired t-test (columns)", "Lognormal t-test", METHOD))
+        self.assertIs(METHODS["t-test"][SHOW], False)
+        self.assertEqual(METHODS[METHOD][GRAPH][0], GRAPH_NONE)
+
+
 if __name__ == "__main__":
     unittest.main()

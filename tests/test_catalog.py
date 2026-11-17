@@ -40,6 +40,8 @@ class CatalogTests(unittest.TestCase):
                                  "Null ratio": 1., "Hypothetical geometric mean": 1., "Confidence level (%)": 95.,
                                  "Alternative": "Two-sided", "Log base": "10", "Graph": "Ratio estimation",
                                  "Pairing correlation": True},
+            "Compare two variances": {"First": "x", "Second": "y", "Confidence level (%)": 95.,
+                                      "Distribution": "Normal", "Graph": "None"},
             "Equivalence test (TOST)": {"Design": "Paired", "First": "x", "Second": "y",
                                         "Lower margin": -5., "Upper margin": 25., "Alpha": .05},
             NESTED_T: {}, NESTED_ANOVA: {"Post-hoc": "Holm"},
