@@ -14,7 +14,7 @@ RECIPE = {'X':'X','Y columns':['Y'],'Grouping variables':[],'Model':'Straight li
 
 
 class ParameterDialogTests(TkCase):
-    def drive(self,action,**recipe):
+    def drive(self,action,*,frame=None,**recipe):
         from tramastat import AnalysisDialog
         seen={}
         def step():
@@ -27,7 +27,7 @@ class ParameterDialogTests(TkCase):
             finally:dialog.result=None;dialog.cancel()
         self.root.deiconify();self.root.geometry('1000x700+0+0');ui_theme.configure(self.root)
         self.root.after(100,step)
-        AnalysisDialog(self.root,FRAME.copy(),current=('Nonlinear regression',{**RECIPE,**recipe}),only='Nonlinear regression')
+        AnalysisDialog(self.root,FRAME.copy() if frame is None else frame.copy(),current=('Nonlinear regression',{**RECIPE,**recipe}),only='Nonlinear regression')
         self.root.withdraw();self.assertNotIn('error',seen,seen.get('error'));return seen
 
     def test_defaults_and_separate_confidence_page(self):

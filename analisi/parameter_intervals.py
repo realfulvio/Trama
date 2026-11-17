@@ -14,7 +14,8 @@ from scipy import optimize, stats
 
 from .curve_models import MODELS
 from .field_error import FieldError
-from .fit_weights import UNWEIGHTED
+from .fit_weights import (UNWEIGHTED, INVERSE_VARIANCE, NONLINEAR_WEIGHTINGS,
+                         FITTED_WEIGHTINGS, INFERENCE_WEIGHTS, uses_observed_y, observed_scales)
 from .monte_carlo import MonteCarloCancelled
 
 METHOD, LEVEL = 'Parameter intervals', 'Parameter confidence level (%)'
@@ -34,6 +35,32 @@ class Settings:
     level: float
 
 
+def validate_profile_data(frame, options, roles):
+    """Check used observed values/SDs without fitting on the dialog thread."""
+    if options.get(METHOD) != PROFILE:
+        return
+    weighting = options.get('Weighting', UNWEIGHTED)
+    if weighting != INVERSE_VARIANCE and not uses_observed_y(weighting):
+        return
+    from .stats import complete
+    x = options.get('X')
+    responses, groups = roles['Y columns'], roles['Grouping variables']
+    sigma = options.get('SD column')
+    if weighting == INVERSE_VARIANCE and (sigma not in frame or sigma in [x, *responses, *groups]):
+        raise FieldError('SD column', 'Choose a separate column of positive relative standard deviations.')
+    for response in responses:
+        used = complete(frame.reset_index(drop=True), [x, response], groups)
+        if uses_observed_y(weighting):
+            observed_scales(used[response].to_numpy(float), weighting)
+        else:
+            scales = pd.to_numeric(frame[sigma].iloc[used.index], errors='coerce')
+            if np.iscomplexobj(scales.to_numpy()):
+                raise FieldError('SD column', 'Choose positive finite SDs for every complete observation.')
+            scales = scales.to_numpy(dtype=float, na_value=np.nan)
+            if not np.isfinite(scales).all() or (scales <= 0).any():
+                raise FieldError('SD column', 'Choose positive finite SDs for every complete observation.')
+
+
 def settings(options):
     method = options.get(METHOD, WALD)
     if method not in METHODS:
@@ -46,8 +73,8 @@ def settings(options):
     if isinstance(raw, (bool, np.bool_)) or not np.isfinite(value) or not 0 < value < 100:
         raise FieldError(LEVEL, 'Choose a finite parameter confidence level strictly between 0 and 100.')
     if method == PROFILE:
-        if options.get('Weighting', UNWEIGHTED) != UNWEIGHTED:
-            raise FieldError('Weighting', 'Parameter profile intervals currently require Unweighted regression.')
+        if options.get('Weighting', UNWEIGHTED) not in NONLINEAR_WEIGHTINGS:
+            raise FieldError('Weighting', 'Choose a supported regression weighting.')
         model = MODELS.get(options.get('Model'))
         if model is not None and len(model.parameters) > MAX_PARAMETERS:
             raise FieldError(METHOD, f'Profile intervals support at most {MAX_PARAMETERS} free parameters per fit.')
@@ -95,7 +122,29 @@ def _profile(fit, model, level, budget):
         return intervals, kinds, reasons
     x = fit.residuals['X'].to_numpy(float)
     y = fit.residuals['Observed'].to_numpy(float)
-    residual_scale = np.max(np.abs(fit.residuals['Residual'].to_numpy(float)))
+    raw_residual = fit.residuals['Residual'].to_numpy(float)
+    precision = None
+    if fit.diagnostics.get('Weighting', UNWEIGHTED) != UNWEIGHTED:
+        scales = getattr(fit, 'residual_scales', None)
+        if scales is None or np.shape(scales) != (n,):
+            reasons[:] = 'The confirmed fit does not retain aligned residual scales for weighted profiling.'
+            return intervals, kinds, reasons
+        try:
+            scales = np.asarray(scales, dtype=float)
+        except (TypeError, ValueError, OverflowError):
+            reasons[:] = 'The confirmed residual scales must be finite and strictly positive.'
+            return intervals, kinds, reasons
+        if not np.isfinite(scales).all() or (scales <= 0).any():
+            reasons[:] = 'The confirmed residual scales must be finite and strictly positive.'
+            return intervals, kinds, reasons
+        # Only relative weights enter the extra-SS ratio. Keep multipliers <= 1
+        # so a common change in SD units cannot overflow the profiling objective.
+        precision = scales.min()/scales
+        if (precision <= 0).any():
+            reasons[:] = 'The relative residual scales exceed the weighted profile numeric range.'
+            return intervals, kinds, reasons
+        raw_residual = raw_residual*precision
+    residual_scale = np.max(np.abs(raw_residual))
     if not np.isfinite(residual_scale) or residual_scale <= 0:
         reasons[:] = 'The confirmed fit has no measurable residual scatter.'
         return intervals, kinds, reasons
@@ -112,7 +161,10 @@ def _profile(fit, model, level, budget):
         with np.errstate(all='ignore'), warnings.catch_warnings():
             warnings.simplefilter('ignore', RuntimeWarning)
             predicted = np.asarray(spec.equation(x, *parameters), float)
-            r = (y-predicted)/residual_scale
+            r = y-predicted
+            if precision is not None:
+                r = r*precision
+            r = r/residual_scale
         if r.shape != y.shape or not np.isfinite(r).all():
             raise Unavailable('The profile left the finite model domain.')
         return r
@@ -215,4 +267,10 @@ def parameter_outputs(fit, model, config, *, budget=None):
     status = pd.DataFrame({'Method':config.method, LEVEL:level, 'df':fit.diagnostics['df'],
                            'Lower status':kinds[:,0], 'Upper status':kinds[:,1],
                            'Lower reason':reasons[:,0], 'Upper reason':reasons[:,1]}, index=fit.parameters.index)
+    weighting = fit.diagnostics.get('Weighting', UNWEIGHTED)
+    if weighting != UNWEIGHTED:
+        status['Weighting'] = weighting
+        status['Inference'] = (INFERENCE_WEIGHTS if weighting in FITTED_WEIGHTINGS else
+                               'Supplied relative SDs, held fixed' if weighting == INVERSE_VARIANCE else
+                               'Observed Y weights, held fixed')
     return table, status

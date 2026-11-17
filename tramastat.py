@@ -110,7 +110,7 @@ from analisi.nonlinear_bands import (BAND as NL_BAND, BAND_NONE as NL_BAND_NONE,
 from analisi.parameter_intervals import (METHOD as PARAM_CI_METHOD, LEVEL as PARAM_CI_LEVEL,
                                         PROFILE as PARAM_CI_PROFILE, OPTIONS as PARAM_CI_OPTIONS,
                                         LABEL_KEYS as PARAM_CI_LABELS, CHOICE_KEYS as PARAM_CI_CHOICES,
-                                        settings as check_parameter_ci)
+                                        settings as check_parameter_ci, validate_profile_data)
 from analisi.linear_diagnostics import BAND_NONE, linear_confidence_level
 from analisi.linear_estimates import (FORWARD as LINEAR_Y_CI, INVERSE as LINEAR_X_CI,
                                      X_VALUE as LINEAR_X_VALUE, Y_VALUE as LINEAR_Y_VALUE,
@@ -242,7 +242,8 @@ from analisi.additional import bland_altman_visibility, regression_visibility
 from analisi.models import DIAGNOSTICS as POISSON_DIAGNOSTICS_FIELD
 from analisi.exploration import LIMIT_INTERVALS as BLAND_ALTMAN_INTERVALS
 from analisi.trend_anova import ORDER as TREND_ORDER, ORDER_KIND as TREND_ORDER_KIND, TREND, group_levels
-from analisi.fit_quality import REPLICATES as FIT_REPLICATES, RESIDUAL_VIEW as FIT_RESIDUALS, RUNS as FIT_RUNS
+from analisi.fit_quality import (REPLICATES as FIT_REPLICATES, RESIDUAL_VIEW as FIT_RESIDUALS,
+                                 RUNS as FIT_RUNS, check_options as check_fit_quality_options)
 from analisi.field_error import FieldError
 from analisi import lognormal_anova
 from analisi.unequal_anova import check_one_way_options, one_way_visibility
@@ -3059,6 +3060,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 # Level, choices and weighting limits name their field and keep the dialog open.
                 check_band_options(options)
                 check_parameter_ci(options)
+                if options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE:
+                    check_fit_quality_options(options)
+                validate_profile_data(self.data, options, classic_roles(self.method, options))
             forward_calibration = (self.method == "Interpolate a standard curve"
                                    and options.get(CALIBRATION_DIRECTION) == CALIBRATION_DIRECTIONS[1])
             if forward_calibration:
@@ -3126,7 +3130,8 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == PARTS_GRAPH:
                 self._collect_pie_options(options)
             # A zero response under an observed-Y weighting names the Weighting field and stays in the dialog.
-            observed_weighting = self.method == "Nonlinear regression" and uses_observed_y(options.get("Weighting"))
+            observed_weighting = (self.method == "Nonlinear regression" and uses_observed_y(options.get("Weighting"))
+                                  and options.get(PARAM_CI_METHOD) != PARAM_CI_PROFILE)
             fit_diagnostics = (self.method == "Nonlinear regression"
                                and (options.get(FIT_RUNS) or options.get(FIT_REPLICATES))
                                and options.get(PARAM_CI_METHOD) != PARAM_CI_PROFILE)
@@ -3196,7 +3201,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = field_caption_for_reference(field) if field else ""
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
-            elif self.method == "Nonlinear regression" and (field in PARAM_CI_LABELS or message.startswith("Parameter profile")):
+            elif self.method == "Nonlinear regression" and (field in PARAM_CI_LABELS or message.startswith("Parameter profile")
+                    or (options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE and field in {'Weighting', 'SD column'})):
                 message = translate_message(message, "parameter_ci.error.")
                 label = tr(PARAM_CI_LABELS[field]) if field in PARAM_CI_LABELS else ui(field)
                 if label and label not in message:
@@ -11850,6 +11856,13 @@ def smoke(root, app, directory, legacy_reference=None):
             pick_method=pick_method, select_columns=select_columns, wait_for_calculation=wait_for_calculation,
             messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_parameter_weighting_smoke():
+        from analisi.parameter_weighting_smoke import check_parameter_weighting
+        check_parameter_weighting(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation,
+            messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_parameter_intervals_smoke():
         from analisi.parameter_intervals_smoke import check_parameter_intervals
         check_parameter_intervals(root, app, directory, SimpleNamespace(
@@ -11911,6 +11924,13 @@ def smoke(root, app, directory, legacy_reference=None):
             check_modern_theme(root, app, directory, SimpleNamespace(
                 Run=Run, capture=capture, drive_dialog=drive_dialog,
                 wait_for_calculation=wait_for_calculation, messagebox=messagebox, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "parameter-weighting":
+            check_parameter_weighting_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -13025,6 +13045,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_global_irls_smoke()
         check_nonlinear_bands_smoke()
         check_parameter_intervals_smoke()
+        check_parameter_weighting_smoke()
         check_custom_equation_smoke()
         check_global_custom_smoke()
         check_global_uncertainty_smoke()
