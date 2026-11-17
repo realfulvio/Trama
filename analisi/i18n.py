@@ -2759,6 +2759,17 @@ _IT.update({
 KEY_BY_LABEL[_EN["parameter_ci.level"]] = "parameter_ci.level"
 
 _EN.update({
+    "gfit.profile.hint": "Parameter profiles refit all series jointly, counting each shared coefficient once. The confidence level on this page applies to parameters; response bands use their separate level. Bounds and unavailable limits are reported explicitly. You can cancel the calculation.",
+    "gfit.error.profile_parameters": "Global profile intervals support at most {count} free coordinates.",
+    "gfit.error.profile_rows": "Global profile intervals support at most {count} complete observations in total.",
+})
+_IT.update({
+    "gfit.profile.hint": "I profili ricalcolano tutte le serie insieme, contando una sola volta ogni coefficiente condiviso. Il livello di questa pagina riguarda i parametri; le bande della risposta hanno un livello separato. Vincoli e limiti non determinati sono indicati esplicitamente. Puoi annullare il calcolo.",
+    "gfit.error.profile_parameters": "I profili globali supportano al massimo {count} coordinate libere.",
+    "gfit.error.profile_rows": "I profili globali supportano al massimo {count} osservazioni complete complessive.",
+})
+
+_EN.update({
     "parameter_ci.error.weighting_choice": "Choose a supported regression weighting.",
     "parameter_ci.error.sd_column": "Choose a separate column of positive relative standard deviations.",
     "parameter_ci.error.sd_values": "Choose positive finite SDs for every complete observation.",
