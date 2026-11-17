@@ -22,6 +22,8 @@ from matplotlib.ticker import (AutoMinorLocator, FixedFormatter, FuncFormatter, 
                                MaxNLocator, NullLocator, StrMethodFormatter)
 from matplotlib.transforms import IdentityTransform
 
+from .axis_guides import (AXIS_BANDS, AXIS_GUIDES, apply_axis_guides_and_bands, clear_axis_guides_and_bands,
+                          normalise_bands, normalise_guides, validate_axis_guides_domain)
 from .probability_scale import PROBABILITY_SCALES
 from .qq_panels import (PANEL_KEY, POINTS_ATTR, POINTS_KEY, REFERENCE_ATTR, REFERENCE_KEY,
                         normalize_panel_styles, panel_axes)
@@ -186,7 +188,8 @@ def _check_groups(groups):
 def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
                     "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", "series",
-                    "groups", "reference_lines", ANNOTATIONS, SHAPES, PANEL_KEY}, "Invalid graph style.")
+                    "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY},
+            "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
         if key in style and not _text(style[key]):
             raise ValueError("Graph labels are limited to 160 characters.")
@@ -234,6 +237,10 @@ def validated_style(style):
         if (ref.get("axis") not in ("x", "y") or not _number(ref.get("value"))
                 or not _text(label) or len(label.splitlines()) > 1):
             raise ValueError("Each reference needs an axis, a finite value and an optional label up to 160 characters.")
+    if AXIS_GUIDES in style:
+        normalise_guides(style[AXIS_GUIDES])
+    if AXIS_BANDS in style:
+        normalise_bands(style[AXIS_BANDS])
     return style
 
 
@@ -301,7 +308,8 @@ def _series(axes):
     error_lines = {line for center, caps, _ in (artist.lines for artist in errorbars)
                    for line in (center, *caps) if line is not None}
     artists = [("line", artist) for artist in axes.lines
-               if id(artist) not in xy_ids and not str(artist.get_gid() or "").startswith("tramastat-shape-")]
+               if id(artist) not in xy_ids
+               and not str(artist.get_gid() or "").startswith(("tramastat-shape-", "trama-axis-guide:"))]
     artists.extend(("errorbar", artist) for artist in errorbars)
     artists.extend(("scatter", artist) for artist in axes.collections if isinstance(artist, PathCollection))
     artists.extend(("bar", artist) for artist in axes.containers if isinstance(artist, BarContainer) and artist.patches)
@@ -447,6 +455,10 @@ def _capture_defaults(axes):
 
 
 def axis_has_numeric_ticks(axes, dimension):
+    if getattr(axes, "_tramastat_non_native", False) or not getattr(axes, "axison", True):
+        return False
+    if dimension in getattr(axes, "_tramastat_categorical_axes", ()):
+        return False
     if (dimension in getattr(axes, "_tramastat_numeric_axes", ())
             or getattr(axes, dimension + "axis").get_scale() in PROBABILITY_SCALES):
         return True
@@ -505,6 +517,15 @@ def validate_graph_style(axes, style):
             limits = (options["min"], options["max"]) if "min" in options else baseline["limits"]
             if not _tick_domain(limits, options["step"], options.get("start", 0), options.get("minor", 0)):
                 raise ValueError("The major interval places too many ticks or is too small at this range.")
+    xscale = style.get("xscale", defaults["axes"]["x"]["scale"] if defaults else axes.xaxis.get_scale())
+    yscale = style.get("yscale", defaults["axes"]["y"]["scale"] if defaults else axes.yaxis.get_scale())
+    validate_axis_guides_domain(
+        axes,
+        normalise_guides(list(style.get(AXIS_GUIDES, ()))),
+        normalise_bands(list(style.get(AXIS_BANDS, ()))),
+        xscale=xscale,
+        yscale=yscale,
+    )
     return style
 
 
@@ -891,6 +912,7 @@ def apply_style(figure, style):
     capture_defaults(figure)
     defaults = axes._tramastat_defaults
     previous = getattr(axes, "_tramastat_style", {})
+    clear_axis_guides_and_bands(axes)
     for artist in (*getattr(axes, "_tramastat_references", ()), *getattr(axes, "_tramastat_annotations", ()),
                    *getattr(axes, "_tramastat_shapes", ())):
         artist.remove()
@@ -950,6 +972,11 @@ def apply_style(figure, style):
     axes._tramastat_references = _reference_artists(axes, style.get("reference_lines", []))
     axes._tramastat_shapes = draw_shapes(axes, style.get(SHAPES, []))
     axes._tramastat_annotations = draw_annotations(axes, style.get(ANNOTATIONS, []))
+    apply_axis_guides_and_bands(
+        axes,
+        normalise_guides(list(style.get(AXIS_GUIDES, ()))),
+        normalise_bands(list(style.get(AXIS_BANDS, ()))),
+    )
     _apply_qq_panels(figure, style, axes)
     axes._tramastat_style = deepcopy(style)
     # Annotations that depend on the formatted axis (pairwise brackets) are removed and drawn again.
