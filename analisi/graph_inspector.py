@@ -10,6 +10,7 @@ from copy import deepcopy
 from tkinter import ttk
 
 from . import ui_theme
+from .axis_guides import AXIS_BANDS, AXIS_GUIDES
 from .graph_dialog import (LEGEND_LABELS, LINE_LABELS, MARKER_LABELS, SCALE_LABELS, ChoiceBinding, pick_color,
                            series_name)
 from .i18n import tr, translate_message
@@ -247,6 +248,13 @@ class GraphInspector(ttk.Frame):
             self.qq_panels_button = ttk.Button(frame, text=tr("qq.panels.button"), command=self._qq_panels)
             self.qq_panels_button.grid(row=row, column=0, columnspan=3, sticky="w", pady=(6, 2))
             self.widgets["qq_panels"] = self.qq_panels_button
+        row = frame.grid_size()[1]
+        self.axis_guides_button = ttk.Button(frame, text=tr("graph.guides.button"), command=self._edit_axis_guides)
+        self.axis_guides_button.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(6, 2))
+        self.widgets["axis_guides"] = self.axis_guides_button
+        self.axis_bands_button = ttk.Button(frame, text=tr("graph.bands.button"), command=self._edit_axis_bands)
+        self.axis_bands_button.grid(row=row + 1, column=0, columnspan=3, sticky="ew", pady=(0, 2))
+        self.widgets["axis_bands"] = self.axis_bands_button
         self._finish_section(frame, "axes")
 
     def _page_section(self):
@@ -425,7 +433,9 @@ class GraphInspector(ttk.Frame):
             self._write(candidate, source)
             validate_graph_style(self.axes, candidate)
         except ValueError as error:
-            self._flag(source, translate_message(error))
+            from .axis_guides_dialog import translate_guide_error
+
+            self._flag(source, translate_guide_error(error))
             return
         self._flag(source, None)
         if candidate != self.draft:
@@ -436,9 +446,11 @@ class GraphInspector(ttk.Frame):
         try:
             apply_style(self.figure, candidate)
         except ValueError as error:
+            from .axis_guides_dialog import translate_guide_error
+
             apply_style(self.figure, previous)
             self.canvas.draw_idle()
-            self.status.configure(text=translate_message(error), foreground=ERROR)
+            self.status.configure(text=translate_guide_error(error), foreground=ERROR)
             return False
         self.draft = candidate
         self.status.configure(text="")
@@ -536,6 +548,57 @@ class GraphInspector(ttk.Frame):
         pick_color(self, variable)
         self._now(source)
 
+    def _edit_axis_guides(self):
+        from .axis_guides_dialog import AxisGuidesDialog
+
+        self._edit_guide_collection(AXIS_GUIDES, AxisGuidesDialog)
+
+    def _edit_axis_bands(self):
+        from .axis_guides_dialog import AxisBandsDialog
+
+        self._edit_guide_collection(AXIS_BANDS, AxisBandsDialog)
+
+    def _edit_guide_collection(self, key, dialog_cls):
+        if self._busy:
+            return
+        self._flush()
+        base_draft = deepcopy(self.draft)
+
+        def build_candidate(records):
+            candidate = deepcopy(base_draft)
+            if records:
+                candidate[key] = deepcopy(records)
+            else:
+                candidate.pop(key, None)
+            return candidate
+
+        def preview(records):
+            if records is None:
+                apply_style(self.figure, base_draft)
+                self.canvas.draw_idle()
+                return
+            candidate = build_candidate(records)
+            try:
+                validate_graph_style(self.axes, candidate)
+                apply_style(self.figure, candidate)
+            except ValueError:
+                apply_style(self.figure, base_draft)
+                self.canvas.draw_idle()
+                raise
+            self.canvas.draw_idle()
+
+        dialog = dialog_cls(
+            self,
+            self.axes,
+            base_draft.get(key, []),
+            preview=preview,
+            busy=lambda: self._busy,
+        )
+        if dialog.result is not None:
+            candidate = build_candidate(dialog.result)
+            if candidate != self.draft:
+                self._preview(candidate)
+
     def _select(self):
         self._load_element()
         self._refresh_states()
@@ -597,12 +660,16 @@ class GraphInspector(ttk.Frame):
             validate_graph_style(self.axes, self.draft)
             apply_style(self.figure, self.draft)
         except ValueError as error:
-            self.status.configure(text=translate_message(error), foreground=ERROR)
+            from .axis_guides_dialog import translate_guide_error
+
+            self.status.configure(text=translate_guide_error(error), foreground=ERROR)
             return False
         try:
             self._commit(deepcopy(self.draft))
         except ValueError as error:
-            self.status.configure(text=translate_message(error), foreground=ERROR)
+            from .axis_guides_dialog import translate_guide_error
+
+            self.status.configure(text=translate_guide_error(error), foreground=ERROR)
             return False
         self.status.configure(text=tr("graph.inspector.applied"), foreground=HINT)
         self.canvas.draw_idle()

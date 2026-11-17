@@ -3,6 +3,7 @@ from copy import deepcopy
 from math import isfinite, ulp
 from numbers import Real
 from sys import float_info
+import types
 import uuid
 
 import matplotlib as mpl
@@ -404,7 +405,10 @@ class _GuideLocator(Locator):
         return self.base_locator.tick_values(vmin, vmax)
 
     def __getattr__(self, name):
-        return getattr(self.base_locator, name)
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
+        base = object.__getattribute__(self, "base_locator")
+        return getattr(base, name)
 
 
 class _GuideFormatter(Formatter):
@@ -474,7 +478,10 @@ class _GuideFormatter(Formatter):
         return self.base_formatter.get_offset()
 
     def __getattr__(self, name):
-        return getattr(self.base_formatter, name)
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
+        base = object.__getattribute__(self, "base_formatter")
+        return getattr(base, name)
 
 
 class _OppositeTickLine(Line2D):
@@ -542,6 +549,15 @@ def _style_primary_guide_ticks(axis, ticks, guides, tick_defaults):
         tick.label1.set_gid(f"{gid_base}:label")
 
 
+def _axis_guide_update_ticks(ax_obj):
+    orig = type(ax_obj)._update_ticks
+    ticks = orig(ax_obj)
+    info = getattr(ax_obj, "_tramastat_tick_guide_state", None)
+    if info is not None:
+        _style_primary_guide_ticks(ax_obj, ticks, info["guides"], info["tick_defaults"])
+    return ticks
+
+
 def clear_axis_guides_and_bands(axes):
     """Remove all axis guide/band artists and restore original locators, formatters, and tick properties."""
     for artist in (*getattr(axes, "_tramastat_axis_guides", ()), *getattr(axes, "_tramastat_axis_bands", ())):
@@ -557,6 +573,7 @@ def clear_axis_guides_and_bands(axes):
         for dim, info in wrappers.items():
             axis = getattr(axes, dim + "axis")
             axis.__dict__.pop("_update_ticks", None)
+            axis.__dict__.pop("_tramastat_tick_guide_state", None)
             axis.set_major_locator(info["locator"])
             axis.set_major_formatter(info["formatter"])
             tick_defaults = info["tick_defaults"]
@@ -743,14 +760,11 @@ def apply_axis_guides_and_bands(axes, guides, bands):
             guide_formatter = _GuideFormatter(base_formatter, guide_locator, primary_ticks)
             axis.set_major_locator(guide_locator)
             axis.set_major_formatter(guide_formatter)
-            orig_update_ticks = type(axis)._update_ticks
-
-            def _wrapped_update_ticks(ax_obj=axis, orig=orig_update_ticks, tg=primary_ticks, td=tick_defaults):
-                ticks = orig(ax_obj)
-                _style_primary_guide_ticks(ax_obj, ticks, tg, td)
-                return ticks
-
-            axis._update_ticks = _wrapped_update_ticks
+            axis._tramastat_tick_guide_state = {
+                "guides": tuple(deepcopy(primary_ticks)),
+                "tick_defaults": tick_defaults,
+            }
+            axis._update_ticks = types.MethodType(_axis_guide_update_ticks, axis)
             axis.reset_ticks()
         axes._tramastat_axis_guide_wrappers = wrappers
     finally:
