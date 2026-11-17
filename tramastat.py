@@ -292,6 +292,10 @@ from analisi.anova_diagnostics import (ALPHA as ANOVA_DIAG_ALPHA, ASSUMPTIONS as
                                        format_anova_error, graph_choice as anova_graph_choice,
                                        validate as validate_anova_diagnostics,
                                        visibility as anova_diagnostic_visibility)
+from analisi.anova_terms import (FULL as ANOVA_FULL_TERMS, MODEL_TERMS as ANOVA_MODEL_TERMS, TERM_LIST,
+                                 TERM_SELECTION as ANOVA_TERM_SELECTION, active_factors as anova_active_factors,
+                                 check_comparison_controls as check_anova_comparisons, check_options as check_anova_terms)
+from analisi.anova_terms_dialog import ANOVA_MODEL_TAB, TermPicker
 from analisi.processing import (BASELINES, COMBINED_TOTALS, DENOMINATORS, FieldError, INTERVALS,
                                 METHODS as PROCESSING_METHODS, PRUNE_MODES, WILSON_BROWN)
 
@@ -1013,7 +1017,9 @@ class AnalysisDialog(simpledialog.Dialog):
         elif self.method in (SUMMARY_ANOVA, SUMMARY_TTEST):
             fields_by_tab["Input"] = variables
         elif self.method == "Multifactor ANOVA":
-            tabs = {"Effect sizes": (ANOVA_EFFECTS, ANOVA_ALPHA), **ANOVA_DIAG_TABS}
+            # The Model page (term selection, order, term checkboxes) scrolls and sits right after Variables.
+            tabs = {ANOVA_MODEL_TAB: (ANOVA_TERM_SELECTION, "Interaction order", ANOVA_MODEL_TERMS),
+                    "Effect sizes": (ANOVA_EFFECTS, ANOVA_ALPHA), **ANOVA_DIAG_TABS}
         elif self.method == "Hierarchical clustering":
             saved = saved_hierarchical_options(saved)
             fields_by_tab["Direction"] = variables
@@ -1158,8 +1164,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 outer = ttk.Frame(self.fields)
                 self.fields.add(outer, text=tr("heat.layout.tab"))
                 frame = self._make_scrollable_tab(outer)
-            elif self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and tab == "Equation":
-                # 0.81: the conditional guide can exceed the page; Check equation and its message stay on top.
+            elif ((self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and tab == "Equation")
+                  or (self.method == "Multifactor ANOVA" and tab == ANOVA_MODEL_TAB)):
+                # Scrollable pages: the conditional equation guide (0.81) and the ANOVA Model terms (0.83) can
+                # exceed the page.
                 outer = ttk.Frame(self.fields)
                 self.fields.add(outer, text=ui(tab))
                 frame = self._make_scrollable_tab(outer)
@@ -1169,6 +1177,11 @@ class AnalysisDialog(simpledialog.Dialog):
                 self.fields.add(frame, text=ui(tab))
             positions[frame] = 0
             fields_by_tab.update(dict.fromkeys(labels, frame))
+        if self.method == "Multifactor ANOVA":
+            page = fields_by_tab[ANOVA_TERM_SELECTION]
+            while page.master is not self.fields:
+                page = page.master
+            self.fields.insert(1, page)
         if self.method == "Multiple regression":
             # The Gaussian weighting stays on Options with its SD and weight columns (no extra tab keeps the dialog
             # narrow); the future precision of the profiles sits beside the profiles.
@@ -1324,6 +1337,18 @@ class AnalysisDialog(simpledialog.Dialog):
             if kind == CATEGORY_COLOR_LIST:
                 field = CategoryColorsField(parent, saved.get(label), self.heat_map_levels)
                 field.grid(row=row, column=1, sticky="ew", pady=3)
+                self.controls[label] = (kind, field)
+                self.field_rows[label] = heading, field
+                continue
+            if kind == TERM_LIST:
+                # The checkboxes sit under their heading and use the width of the page.
+                positions[parent] += 1
+                field = TermPicker(parent, saved.get(label), factors=self.anova_factors,
+                                   response=lambda: self.controls["Response"][1].get(),
+                                   selected=lambda: self.controls[ANOVA_TERM_SELECTION][1].get() != ANOVA_FULL_TERMS,
+                                   order=lambda: self.controls["Interaction order"][1].get(),
+                                   on_build=lambda widgets, page=parent: self._bind_scrollable_widgets(page, widgets))
+                field.grid(row=row + 1, column=0, columnspan=2, sticky="ew", pady=3)
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
                 continue
@@ -1626,10 +1651,17 @@ class AnalysisDialog(simpledialog.Dialog):
             self.show_one_way_fields()
         if self.method == "Multifactor ANOVA":
             self._anova_graph = self.controls[ANOVA_DIAG_GRAPH][1].get()
-            for label in (ANOVA_EFFECTS, ANOVA_DIAGNOSTICS, ANOVA_ASSUMPTIONS, ANOVA_DIAG_GRAPH):
+            for label in (ANOVA_EFFECTS, ANOVA_DIAGNOSTICS, ANOVA_ASSUMPTIONS, ANOVA_DIAG_GRAPH, ANOVA_TERM_SELECTION):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_anova_fields())
+            picker = self.controls[ANOVA_MODEL_TERMS][1]
+            self.controls["Factors"][1].bind("<<ListboxSelect>>", lambda _e: picker.refresh(), add="+")
+            self.controls["Interaction order"][1].trace_add("write", lambda *_: picker.refresh())
+            self.controls["Response"][1].trace_add("write", lambda *_: picker.sync())
             self.show_anova_fields()
             self._translate_analysis_labels(ANOVA_DIAG_LABEL_KEYS)
+            model_page = self.field_rows[ANOVA_TERM_SELECTION][0].master
+            self._bind_scrollable_children(model_page)
+            self._bind_scrollable_widgets(model_page, picker.static_widgets())
         if self.method == FOREST_PLOT:
             self.forest_order = [name for name in saved.get("Study columns", ()) if name in columns]
             self.controls["Study columns"][1].bind("<<ListboxSelect>>", lambda _: self.forest_columns())
@@ -2048,6 +2080,20 @@ class AnalysisDialog(simpledialog.Dialog):
             if not isinstance(widget, ttk.Label):
                 widget.bind("<FocusIn>", lambda _e, w=widget, fn=reveal: fn(w), add="+")
 
+    @staticmethod
+    def _bind_scrollable_widgets(content, widgets):
+        """Wheel scrolling and focus reveal for widgets created after the page was built."""
+        wheel = getattr(content, "_scroll_wheel", None)
+        reveal = getattr(content, "_scroll_reveal", None)
+        if wheel is None or reveal is None:
+            return
+        for widget in widgets:
+            widget.bind("<MouseWheel>", lambda event, fn=wheel: fn(-1 if event.delta > 0 else 1), add="+")
+            widget.bind("<Button-4>", lambda _e, fn=wheel: fn(-1), add="+")
+            widget.bind("<Button-5>", lambda _e, fn=wheel: fn(1), add="+")
+            if not isinstance(widget, ttk.Label):
+                widget.bind("<FocusIn>", lambda _e, w=widget, fn=reveal: fn(w), add="+")
+
     def focus_field(self, name):
         """Show the tab that holds a field and move the keyboard focus to it."""
         _, widget = self.field_rows.get(name, (None, None))
@@ -2351,6 +2397,12 @@ class AnalysisDialog(simpledialog.Dialog):
             return {}
         return anova_visibility(self.controls[ANOVA_EFFECTS][1].get())
 
+    def anova_term_fields(self):
+        """Interaction order belongs to Full hierarchy; Selected terms leaves it out of the recipe."""
+        if self.method != "Multifactor ANOVA":
+            return {}
+        return {"Interaction order": self.controls[ANOVA_TERM_SELECTION][1].get() == ANOVA_FULL_TERMS}
+
     def anova_diagnostic_fields(self):
         """Diagnostic alpha follows the assumption tests. The Q–Q line follows that graph."""
         if self.method != "Multifactor ANOVA":
@@ -2367,7 +2419,14 @@ class AnalysisDialog(simpledialog.Dialog):
         if graph == ANOVA_GRAPH_QQ and getattr(self, "_anova_graph", graph) != ANOVA_GRAPH_QQ:
             self.controls[ANOVA_QQ_LINE][1].set(True)
         self._anova_graph = graph
-        self.show_fields({**self.anova_fields(), **self.anova_diagnostic_fields()})
+        self.show_fields({**self.anova_fields(), **self.anova_term_fields(), **self.anova_diagnostic_fields()})
+        # The checkboxes follow the mode; an untouched picker starts Selected terms from the Full hierarchy.
+        self.controls[ANOVA_MODEL_TERMS][1].sync()
+
+    def anova_factors(self):
+        """The names ticked in Factors, in the order of the list."""
+        box = self.controls["Factors"][1]
+        return [box.get(index) for index in box.curselection()]
 
     def agreement_visibility(self):
         if self.method != "Bland–Altman":
@@ -3046,7 +3105,8 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.outlier_fields(), **self.spline_fields(),
                       **self.auc_visibility(), **self.deming_visibility(), **self.linear_visibility(),
                       **self.calibration_visibility(), **self.agreement_visibility(),
-                      **self.anova_fields(), **self.anova_diagnostic_fields(), **self.regression_visibility(), **self.forest_fields(),
+                      **self.anova_fields(), **self.anova_term_fields(), **self.anova_diagnostic_fields(),
+                      **self.regression_visibility(), **self.forest_fields(),
                       **self.compare_lines_fields(), **self.lognormal_fields(), **self.ttest_variance_fields(),
                       **self.equivalence_fields(), **self.cox_fields(),
                       **self.summary_anova_fields(),
@@ -3079,7 +3139,7 @@ class AnalysisDialog(simpledialog.Dialog):
                         raise ValueError(f"Select at least one column for {name}.")
                 elif kind in (GROUP_ORDER, TREND_ORDER_KIND, DUNN_PAIR_LIST, PAIR_LIST, PROFILE_LIST, CURVE_LIST,
                               SETS_LIST, MODEL_LIST, EQUATION_TEXT, PARAMETER_LIST, INITIAL_LIST,
-                              GLOBAL_PARAMETER_LIST, GLOBAL_SERIES_LIST, CATEGORY_COLOR_LIST):
+                              GLOBAL_PARAMETER_LIST, GLOBAL_SERIES_LIST, CATEGORY_COLOR_LIST, TERM_LIST):
                     value = control.values()
                 else:
                     value = control.get()
@@ -3141,11 +3201,23 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == SUMMARY_TTEST:
                 check_summary_ttest(self.data, options)
             if self.method == "Multifactor ANOVA":
+                saved_terms = self.current[1] if self.current and self.current[0] == self.method else {}
+                chosen_terms = check_anova_terms(options)
+                if chosen_terms is None:
+                    # Full hierarchy keeps the recipe free of the 0.83 keys unless the recipe already had them.
+                    options.pop(ANOVA_MODEL_TERMS, None)
+                    if ANOVA_TERM_SELECTION not in saved_terms:
+                        options.pop(ANOVA_TERM_SELECTION, None)
+                else:
+                    check_anova_comparisons(options, options.get("Factors") or [], chosen_terms)
                 check_anova_options(options)
                 validate_anova_diagnostics(options)
                 diagnostic_graph = anova_graph_choice(options)
                 if diagnostic_graph != "None":
-                    count = _anova_row_count(self.data, options.get("Response"), options.get("Factors") or [])
+                    count = _anova_row_count(
+                        self.data, options.get("Response"),
+                        anova_active_factors(options.get("Factors") or [], chosen_terms) if chosen_terms is not None
+                        else options.get("Factors") or [])
                     if count is not None:
                         ensure_anova_graph_budget(count, diagnostic_graph)
             if self.method == "Area under curve":
