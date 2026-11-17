@@ -8211,6 +8211,10 @@ def smoke(root, app, directory, legacy_reference=None):
             pd.testing.assert_frame_equal(reopened.result.tables[name], expected)
 
     def check_confidence_overlays():
+        from matplotlib.colors import to_rgba
+
+        from analisi.ellipse_style_dialog import EllipseStyleDialog
+
         title, method = "Response by cohort", "Scatter / confidence ellipse"
         path = directory / "confidence-overlays.alab"
         rng = np.random.default_rng(74)
@@ -8263,6 +8267,44 @@ def smoke(root, app, directory, legacy_reference=None):
         ]
         app.show("graph", 0)
         capture(root, "window-confidence-ellipses.png")
+
+        def edit_group_styles(editor):
+            assert editor.groups.get() == "Cohort A"
+            editor.variables["Fill color"].set("#14758f")
+            editor.variables["Fill opacity (%)"].set("21")
+            editor.variables["Border width"].set("2,25")
+            editor.groups.current(1)
+            editor.groups.event_generate("<<ComboboxSelected>>")
+            assert editor.groups.get() == "Cohort B"
+            editor.variables["Fill color"].set("#d36b3a")
+            editor.variables["Fill opacity (%)"].set("13")
+            editor.variables["Border style"].set("Solid")
+            capture(editor, "window-ellipse-group-styles.png")
+
+        def edit_overlays(dialog):
+            button = dialog.field_rows[ELLIPSE_GROUP_STYLES][1]
+            dialog.fields.select(button.master)
+            drive_dialog(EllipseStyleDialog, edit_group_styles)
+            button.invoke()
+
+        def check_group_styles():
+            axis, = app.runs[0].result.figure.axes
+            assert [shape.get_facecolor() for shape in axis.patches] == [
+                to_rgba("#14758f", .21), to_rgba("#d36b3a", .13),
+            ]
+            assert [border.get_linewidth() for border in axis.lines[:2]] == [2.25, 2.5]
+            assert [border.get_linestyle() for border in axis.lines[:2]] == ["--", "-"]
+
+        drive_dialog(AnalysisDialog, edit_overlays)
+        page_button("Confidence overlays…").invoke()
+        wait_for_calculation()
+        check_group_styles()
+        capture(root, "window-confidence-group-styles.png")
+        assert app.save()
+        app.import_file(path)
+        app.open_sheet(("graph", 0))
+        wait_for_calculation()
+        check_group_styles()
 
         def use_one_overlay(dialog):
             assert dialog.fields.tab(dialog.fields.select(), "text") == "Ellipse"
@@ -13031,6 +13073,13 @@ def smoke(root, app, directory, legacy_reference=None):
                 select_columns=select_columns,
                 drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
                 wait_for_calculation=wait_for_calculation))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "confidence-overlays":
+            check_confidence_overlays()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
