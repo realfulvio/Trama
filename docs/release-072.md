@@ -1,6 +1,6 @@
 # Trama 0.72.0 beta
 
-Build beta di sviluppo: funzionalità ancora incomplete e possibili errori. Il repository resta privato.
+Build beta di sviluppo: funzionalità ancora incomplete e possibili errori.
 
 La 0.72 aggiunge **Confronto tra gruppi → Test di equivalenza (TOST)** per un campione, dati appaiati, Student a varianza comune e Welch a varianze separate. L'utente dichiara i margini inferiore e superiore e il livello alfa. L'analisi restituisce la differenza, i due test unilaterali, l'intervallo, i dati utilizzati e un grafico collegato.
 
