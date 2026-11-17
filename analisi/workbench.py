@@ -28,6 +28,7 @@ from .fit_quality import OPTIONS as FIT_QUALITY_OPTIONS, check_options as check_
 from .fit_weights import INVERSE_VARIANCE, NONLINEAR_WEIGHTINGS
 from .forest_plot import FOREST_PLOT, OPTIONS as FOREST_OPTIONS, forest_plot
 from .frequency import FREQUENCY, FREQUENCY_OPTIONS, frequency
+from .graph_legend import typed_group_token
 from .heatmap import HEAT_MAP, OPTIONS as HEAT_MAP_OPTIONS, heat_map
 from .reference_normalization import (METHOD as REFERENCE_NORMALIZATION, OPTIONS as REFERENCE_NORMALIZATION_OPTIONS,
                                       normalize_to_references)
@@ -414,6 +415,8 @@ def _scatter(frame, o):
     for label, part in groups:
         legend_label = str(label) if group or not separate_overlay else "_nolegend_"
         dots = axes.scatter(part[x], part[y], label=legend_label)
+        if group:
+            dots._tramastat_legend_key = f"group:{typed_group_token(label)}"
         point_colors[label] = dots.get_facecolor()[0]
     overlays = draw_confidence_overlays(axes, frame, o, point_colors)
     if group or separate_overlay:
@@ -704,6 +707,8 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None):
     colors = {}
     for label, fit in fits.items():
         dots = axes.scatter(fit.data[x], fit.data[y], label=str(label))
+        if o.get("Group"):
+            dots._tramastat_legend_key = f"group:{typed_group_token(label)}"
         colors[label] = dots.get_facecolor()[0]
         axes.plot(*fit.curve.T, color=colors[label])
         if residual_axes is not None:

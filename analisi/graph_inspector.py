@@ -13,6 +13,7 @@ from . import ui_theme
 from .axis_guides import AXIS_BANDS, AXIS_GUIDES
 from .graph_dialog import (LEGEND_LABELS, LINE_LABELS, MARKER_LABELS, SCALE_LABELS, ChoiceBinding, pick_color,
                            series_name)
+from .graph_legend import LEGEND_OPTIONS_KEY
 from .i18n import tr, translate_message
 from .presentation import (LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES, active_series_fields, apply_style,
                            axis_has_numeric_ticks, capture_defaults, graph_groups, graph_series,
@@ -32,7 +33,7 @@ TEXT_FIELDS = {"title": ("graph.field.title", 0), "xlabel": ("graph.field.xlabel
                "ylabel": ("graph.field.ylabel", 2)}
 NUMBER_FIELDS = {"width", "marker_size"}
 SECTION_KEYS = {"data": ("series",), "axes": ("xlabel", "ylabel", "xscale", "yscale"),
-                "page": ("title", "grid", "legend")}
+                "page": ("title", "grid", "legend", LEGEND_OPTIONS_KEY)}
 QUIET_KEYS = {"Tab", "ISO_Left_Tab", "Shift_L", "Shift_R", "Control_L", "Control_R", "Alt_L", "Alt_R",
               "Left", "Right", "Up", "Down", "Home", "End", "Escape", "Return", "KP_Enter"}
 
@@ -262,6 +263,10 @@ class GraphInspector(ttk.Frame):
         self._field(frame, "title", tr("graph.field.title"))
         self._field(frame, "legend", tr("graph.inspector.legend"), choices=(AUTO, *LEGEND_LOCATIONS), width=12,
                     labels={**AUTO_LABELS, **LEGEND_LABELS})
+        row = frame.grid_size()[1]
+        self.legend_options_button = ttk.Button(frame, text=tr("legend_editor.button"), command=self._edit_legend_options)
+        self.legend_options_button.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(4, 2))
+        self.widgets["legend_options"] = self.legend_options_button
         self._field(frame, "grid", "", check=tr("graph.field.major_grid"))
         self._finish_section(frame, "page")
 
@@ -447,10 +452,14 @@ class GraphInspector(ttk.Frame):
             apply_style(self.figure, candidate)
         except ValueError as error:
             from .axis_guides_dialog import translate_guide_error
+            from .graph_legend_dialog import translate_legend_error
 
             apply_style(self.figure, previous)
             self.canvas.draw_idle()
-            self.status.configure(text=translate_guide_error(error), foreground=ERROR)
+            msg = translate_legend_error(error)
+            if msg == str(error):
+                msg = translate_guide_error(error)
+            self.status.configure(text=msg, foreground=ERROR)
             return False
         self.draft = candidate
         self.status.configure(text="")
@@ -558,6 +567,51 @@ class GraphInspector(ttk.Frame):
 
         self._edit_guide_collection(AXIS_BANDS, AxisBandsDialog)
 
+    def _edit_legend_options(self):
+        from .graph_legend_dialog import LegendEditorDialog
+
+        if self._busy:
+            return
+        self._flush()
+        base_draft = deepcopy(self.draft)
+
+        def build_candidate(options):
+            candidate = deepcopy(base_draft)
+            if options:
+                candidate[LEGEND_OPTIONS_KEY] = deepcopy(options)
+            else:
+                candidate.pop(LEGEND_OPTIONS_KEY, None)
+            return candidate
+
+        def preview(options):
+            if options is None:
+                apply_style(self.figure, base_draft)
+                self.canvas.draw_idle()
+                return
+            candidate = build_candidate(options)
+            try:
+                validate_graph_style(self.axes, candidate)
+                apply_style(self.figure, candidate)
+            except ValueError:
+                apply_style(self.figure, base_draft)
+                self.canvas.draw_idle()
+                raise
+            self.canvas.draw_idle()
+
+        dialog = LegendEditorDialog(
+            self,
+            self.figure,
+            base_draft.get(LEGEND_OPTIONS_KEY, {}),
+            preview=preview,
+            busy=lambda: self._busy,
+        )
+        if dialog.result is not None:
+            candidate = build_candidate(dialog.result)
+            if candidate != self.draft:
+                self._preview(candidate)
+            else:
+                self.canvas.draw_idle()
+
     def _edit_guide_collection(self, key, dialog_cls):
         if self._busy:
             return
@@ -661,15 +715,23 @@ class GraphInspector(ttk.Frame):
             apply_style(self.figure, self.draft)
         except ValueError as error:
             from .axis_guides_dialog import translate_guide_error
+            from .graph_legend_dialog import translate_legend_error
 
-            self.status.configure(text=translate_guide_error(error), foreground=ERROR)
+            msg = translate_legend_error(error)
+            if msg == str(error):
+                msg = translate_guide_error(error)
+            self.status.configure(text=msg, foreground=ERROR)
             return False
         try:
             self._commit(deepcopy(self.draft))
         except ValueError as error:
             from .axis_guides_dialog import translate_guide_error
+            from .graph_legend_dialog import translate_legend_error
 
-            self.status.configure(text=translate_guide_error(error), foreground=ERROR)
+            msg = translate_legend_error(error)
+            if msg == str(error):
+                msg = translate_guide_error(error)
+            self.status.configure(text=msg, foreground=ERROR)
             return False
         self.status.configure(text=tr("graph.inspector.applied"), foreground=HINT)
         self.canvas.draw_idle()

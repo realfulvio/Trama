@@ -12543,6 +12543,17 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "legend-formatting":
+            from analisi.legend_formatting_smoke import check_legend_formatting
+            check_legend_formatting(SimpleNamespace(
+                app=app, root=root, directory=directory, capture=capture, drive_dialog=drive_dialog,
+                wait_for_calculation=wait_for_calculation, filedialog=filedialog,
+                LayoutDialog=LayoutDialog, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "graph-shapes":
             # The 0.61 native shapes check alone: TRAMASTAT_SMOKE_ONLY=graph-shapes python tramastat.py --smoke DIR
             from analisi.graph_shape_smoke import check_graph_shapes
@@ -13575,6 +13586,11 @@ def smoke(root, app, directory, legacy_reference=None):
             wait_for_calculation=wait_for_calculation, errors=errors))
         from analisi.axis_guides_smoke import check_axis_guides
         check_axis_guides(SimpleNamespace(
+            app=app, root=root, directory=directory, capture=capture, drive_dialog=drive_dialog,
+            wait_for_calculation=wait_for_calculation, filedialog=filedialog,
+            LayoutDialog=LayoutDialog, errors=errors))
+        from analisi.legend_formatting_smoke import check_legend_formatting
+        check_legend_formatting(SimpleNamespace(
             app=app, root=root, directory=directory, capture=capture, drive_dialog=drive_dialog,
             wait_for_calculation=wait_for_calculation, filedialog=filedialog,
             LayoutDialog=LayoutDialog, errors=errors))
