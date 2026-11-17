@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
+from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, valid_analysis_id
 
 MAX_ENTRY = 32 * 1024 * 1024
 MAX_CELLS = 2_000_000
@@ -290,6 +291,8 @@ class Dataset:
     table_format: str = "multivariable"
     graph_styles: dict[int, dict] = field(default_factory=dict)
     info: Mapping[str, str | None] = field(default_factory=dict)
+    analysis_ids: dict[int, str] = field(default_factory=dict)
+    analysis_sources: dict[int, ResultSource] = field(default_factory=dict)
 
     @property
     def locked_columns(self):
@@ -395,6 +398,38 @@ class ProjectTables(dict):
         self.info_sheets = tuple(info_sheets)
 
 
+def validate_analysis_links(tables):
+    """Validate the entire saved dependency graph before applying or writing it."""
+    nodes = []
+    total = 0
+    for data in tables.values():
+        total += len(data.analyses)
+        for mapping in (data.analysis_ids, data.analysis_sources):
+            if not isinstance(mapping, dict) or any(type(slot) is not int or
+                    not 0 <= slot < len(data.analyses) for slot in mapping):
+                raise ValueError("Invalid saved analysis identity or source slot.")
+        if set(data.analysis_sources) - set(data.analysis_ids):
+            raise ValueError("A linked analysis is missing its persistent identity.")
+        for slot, identifier in data.analysis_ids.items():
+            valid_analysis_id(identifier)
+            nodes.append((identifier, data.analysis_sources.get(slot)))
+    if total > MAX_ANALYSIS_NODES:
+        raise ValueError("The project exceeds the analysis node budget.")
+    return AnalysisGraph(nodes)
+
+
+def _analysis_slots(value, count):
+    if not isinstance(value, dict):
+        raise ValueError("Invalid saved analysis metadata.")
+    result = {}
+    for slot, record in value.items():
+        if (not isinstance(slot, str) or not slot.isdecimal() or str(int(slot)) != slot
+                or not 0 <= int(slot) < count):
+            raise ValueError("Invalid saved analysis metadata slot.")
+        result[int(slot)] = record
+    return result
+
+
 def save_project(path, tables, *, layouts=(), info_sheets=None):
     import os
     from dataclasses import asdict
@@ -407,7 +442,9 @@ def save_project(path, tables, *, layouts=(), info_sheets=None):
         raise ValueError("A project supports up to 128 layouts.")
     if info_sheets is None:
         info_sheets = getattr(tables, "info_sheets", ())
-    data = {"version": 2, "tables": [], "layouts": [asdict(layout) for layout in layouts]}
+    validate_analysis_links(tables)
+    linked = any(dataset.analysis_sources for dataset in tables.values())
+    data = {"version": 3 if linked else 2, "tables": [], "layouts": [asdict(layout) for layout in layouts]}
     if info_sheets:
         validate_info_sheets(info_sheets, tables)
         records = []
@@ -438,6 +475,10 @@ def save_project(path, tables, *, layouts=(), info_sheets=None):
             "table_format": dataset.table_format,
             "graph_styles": dataset.graph_styles,
         }
+        if dataset.analysis_ids:
+            record["analysis_ids"] = dataset.analysis_ids
+        if dataset.analysis_sources:
+            record["analysis_sources"] = {slot: asdict(source) for slot, source in dataset.analysis_sources.items()}
         roles = _worksheet_roles(raw)
         if roles is not None:
             record["worksheet_roles"] = _validated_worksheet_roles(roles, raw.columns)
@@ -463,7 +504,7 @@ def load_workspace(path, *, include_info=False):
     if path.stat().st_size > MAX_ENTRY:
         raise ValueError("Project file exceeds 32 MiB.")
     obj = json.loads(path.read_text(encoding="utf-8-sig"))
-    if obj["version"] not in (1, 2) or len(obj["tables"]) > 256:
+    if obj["version"] not in (1, 2, 3) or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
     if (not isinstance(stored_info, list) or len(stored_info) > MAX_INFO_SHEETS
@@ -489,10 +530,19 @@ def load_workspace(path, *, include_info=False):
         for name, expression in table["formulas"]:
             data.set_formula(name, expression)
         entries = table.get("analyses", [])
-        if len(entries) > 256 or any(not isinstance(method, str) or not isinstance(options, dict)
+        limit = MAX_ANALYSIS_NODES if obj["version"] == 3 else 256
+        if len(entries) > limit or any(not isinstance(method, str) or not isinstance(options, dict)
                                     for method, options in entries):
             raise ValueError("Invalid saved analysis settings.")
         data.analyses = [(method, options) for method, options in entries]
+        data.analysis_ids = _analysis_slots(table.get("analysis_ids", {}), len(entries))
+        sources = _analysis_slots(table.get("analysis_sources", {}), len(entries))
+        if sources and obj["version"] != 3:
+            raise ValueError("Linked analyses require project format version 3.")
+        try:
+            data.analysis_sources = {slot: ResultSource(**source) for slot, source in sources.items()}
+        except (TypeError, ValueError) as error:
+            raise ValueError("Invalid saved result-input reference.") from error
         for index, style in table.get("graph_styles", {}).items():
             if not index.isdecimal() or not 0 <= int(index) < len(data.analyses):
                 raise ValueError("Graph style references an unknown analysis.")
@@ -500,6 +550,7 @@ def load_workspace(path, *, include_info=False):
         if table["title"] in result:
             raise ValueError("Duplicate data table title.")
         result[table["title"]] = data
+    validate_analysis_links(result)
     stored_layouts = obj.get("layouts", [])
     if len(stored_layouts) > 128:
         raise ValueError("A project supports up to 128 layouts.")
