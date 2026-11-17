@@ -107,6 +107,10 @@ from analisi.lognormal_tests import (CHOICE_KEYS as RATIO_CHOICE_KEYS, DATA_FIEL
 from analisi.nonlinear_bands import (BAND as NL_BAND, BAND_NONE as NL_BAND_NONE, CHOICE_KEYS as NL_BAND_CHOICES,
                                      DRAWING as NL_BAND_DRAWING, LABEL_KEYS as NL_BAND_LABELS, LEVEL as NL_BAND_LEVEL,
                                      check_band_options)
+from analisi.parameter_intervals import (METHOD as PARAM_CI_METHOD, LEVEL as PARAM_CI_LEVEL,
+                                        PROFILE as PARAM_CI_PROFILE, OPTIONS as PARAM_CI_OPTIONS,
+                                        LABEL_KEYS as PARAM_CI_LABELS, CHOICE_KEYS as PARAM_CI_CHOICES,
+                                        settings as check_parameter_ci)
 from analisi.linear_diagnostics import BAND_NONE, linear_confidence_level
 from analisi.linear_estimates import (FORWARD as LINEAR_Y_CI, INVERSE as LINEAR_X_CI,
                                      X_VALUE as LINEAR_X_VALUE, Y_VALUE as LINEAR_Y_VALUE,
@@ -1102,6 +1106,8 @@ class AnalysisDialog(simpledialog.Dialog):
             tabs = {tr(ROBUST_TAB_KEYS["output"]): ROBUST_OUTPUT}
             starts = {ROBUST_X: numeric[0], ROBUST_Y: [numeric[1]]} if len(numeric) > 1 else {}
             saved = {**ROBUST_DEFAULTS, **starts, **saved}
+        elif self.method == "Nonlinear regression":
+            tabs = {tr("parameter_ci.tab"): (*PARAM_CI_OPTIONS, NL_BAND, NL_BAND_LEVEL, NL_BAND_DRAWING)}
         elif self.method == CUSTOM_EQUATION:
             # Variables / Equation / Parameters / Output; the two editors get tabs of their own.
             self.fields.tab(options, text=ui("Output"))
@@ -1165,6 +1171,7 @@ class AnalysisDialog(simpledialog.Dialog):
             positions[parent] += 1
             # The new rank-test controls show translated captions; the recipe keeps the English key.
             rank_control = self.method in RANK_METHODS and label in RANK_LABEL_KEYS
+            parameter_ci_control = self.method == "Nonlinear regression" and label in PARAM_CI_LABELS
             band_control = self.method == "Nonlinear regression" and label in NL_BAND_LABELS
             xy_error_control = self.method == XY_ERRORS and label in XY_ERROR_LABEL_KEYS
             trend_control = self.method == "One-way ANOVA" and label in TREND_HEADINGS
@@ -1180,6 +1187,7 @@ class AnalysisDialog(simpledialog.Dialog):
                           else tr(ROBUST_LABEL_KEYS[label]) if robust_control
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
+                          else tr(PARAM_CI_LABELS[label]) if parameter_ci_control
                           else tr(NL_BAND_LABELS[label]) if band_control
                           else tr(XY_ERROR_LABEL_KEYS[label]) if xy_error_control
                           else tr(TREND_HEADINGS[label]) if trend_control
@@ -1393,6 +1401,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     if rank_control:
                         # Translated labels on screen, canonical values in the variable and the recipe.
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, RANK_CHOICE_KEYS)
+                    elif parameter_ci_control and label == PARAM_CI_METHOD:
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, PARAM_CI_CHOICES)
                     elif band_control and label != NL_BAND_LEVEL:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, NL_BAND_CHOICES)
                     elif xy_error_control and isinstance(kind, tuple):
@@ -1746,10 +1756,14 @@ class AnalysisDialog(simpledialog.Dialog):
             self.controls["Weighting"][1].trace_add("write", lambda *_: self.show_weighting_fields())
             self.show_weighting_fields()
         if self.method == "Nonlinear regression":
-            hint = ttk.Label(options, text=tr("bands.hint"), wraplength=430, foreground="#486075", justify="left")
+            confidence_page = fields_by_tab[NL_BAND]
+            hint = ttk.Label(confidence_page, text=tr("bands.hint"), wraplength=430, foreground="#486075", justify="left")
             # The Weighting note occupies the row at positions[options] without advancing it.
-            hint.grid(row=positions[options] + 1, column=0, columnspan=2, sticky="w", pady=(4, 0))
-            positions[options] += 2
+            hint.grid(row=positions[confidence_page], column=0, columnspan=2, sticky="w", pady=(4, 0))
+            positions[confidence_page] += 1
+            ttk.Label(confidence_page, text=tr("parameter_ci.hint"), wraplength=430,
+                      foreground="#486075", justify="left").grid(row=positions[confidence_page],
+                      column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.controls[NL_BAND][1].trace_add("write", lambda *_: self.show_fields(self.band_fields()))
             self.show_fields(self.band_fields())
             ttk.Label(options, text=tr("analysis.fit.note.diagnostics"), wraplength=420,
@@ -3044,6 +3058,7 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == "Nonlinear regression":
                 # Level, choices and weighting limits name their field and keep the dialog open.
                 check_band_options(options)
+                check_parameter_ci(options)
             forward_calibration = (self.method == "Interpolate a standard curve"
                                    and options.get(CALIBRATION_DIRECTION) == CALIBRATION_DIRECTIONS[1])
             if forward_calibration:
@@ -3113,7 +3128,8 @@ class AnalysisDialog(simpledialog.Dialog):
             # A zero response under an observed-Y weighting names the Weighting field and stays in the dialog.
             observed_weighting = self.method == "Nonlinear regression" and uses_observed_y(options.get("Weighting"))
             fit_diagnostics = (self.method == "Nonlinear regression"
-                               and (options.get(FIT_RUNS) or options.get(FIT_REPLICATES)))
+                               and (options.get(FIT_RUNS) or options.get(FIT_REPLICATES))
+                               and options.get(PARAM_CI_METHOD) != PARAM_CI_PROFILE)
             if (observed_weighting or fit_diagnostics or grouped_validation or dunn_validation or poisson_validation
                     or linear_validation
                     or logistic_validation or pca_validation or self.method in RANK_METHODS
@@ -3179,6 +3195,11 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = translate_reference_error(error)
                 label = field_caption_for_reference(field) if field else ""
                 if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == "Nonlinear regression" and (field in PARAM_CI_LABELS or message.startswith("Parameter profile")):
+                message = translate_message(message, "parameter_ci.error.")
+                label = tr(PARAM_CI_LABELS[field]) if field in PARAM_CI_LABELS else ui(field)
+                if label and label not in message:
                     message = f"{label}: {message}"
             elif self.method in (NORMALITY, SUMMARY_ANOVA, SUMMARY_TTEST):
                 message = ui(message)
@@ -6234,7 +6255,9 @@ class App:
             return
         self.status.set(tr("interface.running", method=ui(run.method)))
         # A Monte Carlo study reports its blocks and stops between them when cancelled.
-        control = CalculationControl() if (run.method == MONTE_CARLO_METHOD or extended_request(run.method, run.options)) else None
+        parameter_profile = run.method == "Nonlinear regression" and run.options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE
+        control = CalculationControl() if (run.method == MONTE_CARLO_METHOD or parameter_profile
+                                           or extended_request(run.method, run.options)) else None
         layout_data = self.layout_panel_data(run) if run.method == SAVED_BINARY_LAYOUT else None
         self.pending = self.worker.submit(self.compute, run, frame, None, control, layout_data, pairwise)
         self.begin_calculation(control)
@@ -11827,6 +11850,13 @@ def smoke(root, app, directory, legacy_reference=None):
             pick_method=pick_method, select_columns=select_columns, wait_for_calculation=wait_for_calculation,
             messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_parameter_intervals_smoke():
+        from analisi.parameter_intervals_smoke import check_parameter_intervals
+        check_parameter_intervals(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation,
+            messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_global_irls_smoke():
         from analisi.global_irls_smoke import check_global_irls
         check_global_irls(root, app, directory, SimpleNamespace(
@@ -11881,6 +11911,13 @@ def smoke(root, app, directory, legacy_reference=None):
             check_modern_theme(root, app, directory, SimpleNamespace(
                 Run=Run, capture=capture, drive_dialog=drive_dialog,
                 wait_for_calculation=wait_for_calculation, messagebox=messagebox, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "parameter-intervals":
+            check_parameter_intervals_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -12987,6 +13024,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_nonlinear_weighting_smoke()
         check_global_irls_smoke()
         check_nonlinear_bands_smoke()
+        check_parameter_intervals_smoke()
         check_custom_equation_smoke()
         check_global_custom_smoke()
         check_global_uncertainty_smoke()

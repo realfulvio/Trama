@@ -1,4 +1,5 @@
 """Connect analysis options to result sheets and graphs."""
+from functools import partial
 import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
@@ -49,6 +50,8 @@ from .paired_graphs import (BEFORE_AFTER, BEFORE_AFTER_OPTIONS, TRAJECTORIES, TR
                             subject_trajectories)
 from .spline_fit import SPLINE_FIT
 from .outlier_screening import OPTIONS as OUTLIER_OPTIONS, OUTLIERS, identify_outliers
+from .parameter_intervals import (OPTIONS as PARAMETER_CI_OPTIONS, settings as parameter_ci_settings,
+                                  parameter_outputs, ProfileBudget)
 from .normality import NORMALITY, OPTIONS as NORMALITY_OPTIONS, is_legacy as legacy_normality, normality
 from .nested import METHODS as NESTED_METHODS, NESTED_ANOVA, NESTED_T, nested_analysis
 from .select_transform import SELECT_OPTIONS, SELECT_TRANSFORM, select_transform
@@ -197,7 +200,7 @@ METHODS = {
                              "Model": tuple(name for name, spec in engine.MODELS.items()
                                             if not (spec.required_fixed or spec.required_shared)),
                              "Weighting": NONLINEAR_WEIGHTINGS, "SD column": OPTIONAL,
-                             **BAND_OPTIONS, **FIT_QUALITY_OPTIONS},
+                             **BAND_OPTIONS, **FIT_QUALITY_OPTIONS, **PARAMETER_CI_OPTIONS},
     "Compare nonlinear models": {"X": None, "Y": None, "Group": OPTIONAL,
                                  "Nested models": tuple(f"{a} → {b}" for a, b in engine.NESTED_MODELS),
                                  "Weighting": engine.FIT_WEIGHTINGS, "SD column": OPTIONAL},
@@ -653,10 +656,12 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
     return Result(outputs, figure)
 
 
-def _nonlinear(frame, o, axes=None, compact=False):
+def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None):
     x, y, model = o["X"], o["Y"], o["Model"]
     # Band fields are checked before any fit; Band=None ignores stale level and drawing.
     band = band_settings(o)
+    parameter_config = parameter_ci_settings(o)
+    parameter_budget = parameter_budget if parameter_budget is not None else ProfileBudget()
     fits = engine.nonlinear(frame, x, y, model, o.get("Group"),
                             weighting=o.get("Weighting", "Unweighted"), sigma=o.get("SD column"))
     show_residuals = bool(o.get("Residuals versus X"))
@@ -695,7 +700,10 @@ def _nonlinear(frame, o, axes=None, compact=False):
         axes.plot(*fit.curve.T, color=colors[label])
         if residual_axes is not None:
             residual_axes.scatter(fit.residuals["X"], fit.residuals["Residual"], color=colors[label])
-        tables["Parameters"][label] = fit.parameters.rename_axis("Parameter")
+        parameters, parameter_status = parameter_outputs(fit, model, parameter_config, budget=parameter_budget)
+        tables["Parameters"][label] = parameters.rename_axis("Parameter")
+        if parameter_status is not None:
+            tables.setdefault("Parameter CI status", {})[label] = parameter_status.rename_axis("Parameter")
         tables["Fit"][label] = _report(fit.diagnostics).rename_axis("Metric")
         tables["Residuals"][label] = fit.residuals.rename_axis("Source row")
     if model == "Normalized inhibition":
@@ -960,8 +968,9 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
     if method == COMPARE_LINES:
         return compare_lines(frame, o)
     if method == "Nonlinear regression":
+        parameter_ci_settings(o)
         check_fit_options(o)
-        return _classic_analysis(method, frame, o, "X", _nonlinear)
+        return _classic_analysis(method, frame, o, "X", partial(_nonlinear, parameter_budget=ProfileBudget(cancel)))
     if method == "Compare nonlinear models":
         pair = next(pair for pair in engine.NESTED_MODELS if " → ".join(pair) == o["Nested models"])
         return Result({"Extra sum-of-squares F test": engine.compare_nonlinear(
