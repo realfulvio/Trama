@@ -92,10 +92,10 @@ class HierarchicalStyleDialogTests(TkCase):
             dialog.vars["row.width"].set("4")
             dialog.ok()
 
-        seen = self.drive(figure, {"title": "Keep", "legend_options": {"entries": []}}, action)
+        seen = self.drive(figure, {"title": "Keep", "legend_options": {"title": "Kept legend", "frame": False}}, action)
         result = seen["result"]
         self.assertEqual(result["title"], "Keep")
-        self.assertEqual(result["legend_options"], {"entries": []})
+        self.assertEqual(result["legend_options"], {"title": "Kept legend", "frame": False})
         self.assertEqual(result["hierarchical"]["row"]["width"], 4)
         self.assertNotIn("color_mode", result["hierarchical"]["row"])
         self.assertAlmostEqual(
