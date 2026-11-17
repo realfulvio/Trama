@@ -406,6 +406,23 @@ def _run(root, app, directory, tools, out, phase, shot, operate):
     assert app.runs[heat_index].style["hierarchical"]["heatmap"]["title"] == kept["heatmap"]["title"]
     assert _width(app.runs[heat_index].result.figure) == 2.5
 
+    phase("switch-graph")
+    for graph_output in ("Elbow plot", "Heat map"):
+        operate(tools.AnalysisDialog,
+                lambda dialog: dialog.controls["Graph output"][1].set(graph_output), confirm=True)
+        app.edit_analysis()
+        wait()
+        app.open_sheet(("graph", heat_index))
+        wait()
+        run = app.runs[heat_index]
+        assert run.options["Graph output"] == graph_output
+        assert run.result.style_warning is None and run.style["hierarchical"] == kept
+        if graph_output == "Elbow plot":
+            assert "Row Elbow data" in run.result.tables
+            assert not describe_hierarchical_artists(run.result.figure)
+        else:
+            assert _width(run.result.figure) == 2.5
+
     phase("exclude")
     app.show("data", TABLE)
     root.update()

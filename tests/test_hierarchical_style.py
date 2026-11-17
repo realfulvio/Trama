@@ -175,6 +175,19 @@ class HierarchicalStyleValidationTests(unittest.TestCase):
             self.assertEqual(caught.exception.field, "figure")
             self.assertEqual(len(figure.axes), before)
 
+    def test_distance_overrides_are_checked_before_changing_artists(self):
+        figure = _heat()
+        row = describe_hierarchical_artists(figure)["row"]["branches"]
+        before = np.array(row.get_linewidths())
+        for distance, field in [
+            ({"minimum": 1000}, "column.distance.minimum"),
+            ({"step": 0.001}, "column.distance.step"),
+        ]:
+            with self.subTest(distance=distance), self.assertRaises(HierarchicalStyleError) as caught:
+                apply_hierarchical_style(figure, {"row": {"width": 5}, "column": {"distance": distance}})
+            self.assertEqual(caught.exception.field, field)
+            np.testing.assert_allclose(row.get_linewidths(), before)
+
 
 class HierarchicalStyleGeometryTests(unittest.TestCase):
     def test_empty_override_matches_the_renderer(self):
@@ -539,6 +552,24 @@ class _Project:
 
 
 class HierarchicalStyleIntegrationTests(unittest.TestCase):
+    def test_saved_dendrogram_style_is_inactive_on_an_elbow_plot(self):
+        style = {"xlabel": "Cluster count", "hierarchical": {"row": {"width": 3.0}}}
+        elbow = _result(**{"Graph output": "Elbow plot"})
+        before = elbow.tables["Row Elbow data"].copy()
+        artists = tuple(elbow.figure.axes[0].lines)
+
+        apply_style(elbow.figure, style)
+
+        self.assertEqual(tuple(elbow.figure.axes[0].lines), artists)
+        self.assertEqual(elbow.figure.axes[0].get_xlabel(), "Cluster count")
+        pd.testing.assert_frame_equal(elbow.tables["Row Elbow data"], before)
+        self.assertEqual(style["hierarchical"], {"row": {"width": 3.0}})
+
+        heatmap = _heat()
+        apply_style(heatmap, style)
+        row = describe_hierarchical_artists(heatmap)["row"]["branches"]
+        np.testing.assert_allclose(row.get_linewidths(), [3.0])
+
     def test_presentation_keeps_generic_fields_and_legend_options(self):
         style = {
             "title": "Keep literal",
