@@ -1,0 +1,807 @@
+[
+  {
+    "name": "mixed/bh",
+    "p": [
+      0.01,
+      0.03,
+      0.04,
+      0.2,
+      0.5
+    ],
+    "method": "bh",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.049999999999999996,
+        0.06666666666666667,
+        0.06666666666666667,
+        0.25,
+        0.5
+      ],
+      "rejected": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.05
+      ]
+    }
+  },
+  {
+    "name": "mixed/by",
+    "p": [
+      0.01,
+      0.03,
+      0.04,
+      0.2,
+      0.5
+    ],
+    "method": "by",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.11416666666666667,
+        0.15222222222222223,
+        0.15222222222222223,
+        0.5708333333333333,
+        1.0
+      ],
+      "rejected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.021897810218978103
+      ]
+    }
+  },
+  {
+    "name": "mixed/bky",
+    "p": [
+      0.01,
+      0.03,
+      0.04,
+      0.2,
+      0.5
+    ],
+    "method": "bky",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.0525,
+        0.07,
+        0.07,
+        0.2625,
+        0.525
+      ],
+      "rejected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "r1": 0,
+      "m0": 5,
+      "stage_alphas": [
+        0.047619047619047616
+      ]
+    }
+  },
+  {
+    "name": "adaptive/bh",
+    "p": [
+      0.001,
+      0.003,
+      0.01,
+      0.06,
+      0.2,
+      0.8
+    ],
+    "method": "bh",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.006,
+        0.009000000000000001,
+        0.02,
+        0.09,
+        0.24,
+        0.8
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.05
+      ]
+    }
+  },
+  {
+    "name": "adaptive/by",
+    "p": [
+      0.001,
+      0.003,
+      0.01,
+      0.06,
+      0.2,
+      0.8
+    ],
+    "method": "by",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.0147,
+        0.02205,
+        0.048999999999999995,
+        0.22049999999999997,
+        0.588,
+        1.0
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.02040816326530612
+      ]
+    }
+  },
+  {
+    "name": "adaptive/bky",
+    "p": [
+      0.001,
+      0.003,
+      0.01,
+      0.06,
+      0.2,
+      0.8
+    ],
+    "method": "bky",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.00315,
+        0.004725000000000001,
+        0.0105,
+        0.04725,
+        0.126,
+        0.42000000000000004
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "r1": 3,
+      "m0": 3,
+      "stage_alphas": [
+        0.047619047619047616,
+        0.09523809523809523
+      ]
+    }
+  },
+  {
+    "name": "ties/bh",
+    "p": [
+      0.01,
+      0.01,
+      0.04,
+      0.04,
+      0.8
+    ],
+    "method": "bh",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.024999999999999998,
+        0.024999999999999998,
+        0.049999999999999996,
+        0.049999999999999996,
+        0.8
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.05
+      ]
+    }
+  },
+  {
+    "name": "ties/by",
+    "p": [
+      0.01,
+      0.01,
+      0.04,
+      0.04,
+      0.8
+    ],
+    "method": "by",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.05708333333333333,
+        0.05708333333333333,
+        0.11416666666666667,
+        0.11416666666666667,
+        1.0
+      ],
+      "rejected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.021897810218978103
+      ]
+    }
+  },
+  {
+    "name": "ties/bky",
+    "p": [
+      0.01,
+      0.01,
+      0.04,
+      0.04,
+      0.8
+    ],
+    "method": "bky",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.015749999999999997,
+        0.015749999999999997,
+        0.03149999999999999,
+        0.03149999999999999,
+        0.504
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "r1": 2,
+      "m0": 3,
+      "stage_alphas": [
+        0.047619047619047616,
+        0.07936507936507936
+      ]
+    }
+  },
+  {
+    "name": "zeros/bh",
+    "p": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "method": "bh",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "rejected": [
+        true,
+        true,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.05
+      ]
+    }
+  },
+  {
+    "name": "zeros/by",
+    "p": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "method": "by",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "rejected": [
+        true,
+        true,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.02727272727272727
+      ]
+    }
+  },
+  {
+    "name": "zeros/bky",
+    "p": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "method": "bky",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.0,
+        0.0,
+        0.35
+      ],
+      "rejected": [
+        true,
+        true,
+        false
+      ],
+      "r1": 2,
+      "m0": 1,
+      "stage_alphas": [
+        0.047619047619047616,
+        0.14285714285714285
+      ]
+    }
+  },
+  {
+    "name": "all/bh",
+    "p": [
+      0.001,
+      0.002,
+      0.003,
+      0.004
+    ],
+    "method": "bh",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.004,
+        0.004,
+        0.004,
+        0.004
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.05
+      ]
+    }
+  },
+  {
+    "name": "all/by",
+    "p": [
+      0.001,
+      0.002,
+      0.003,
+      0.004
+    ],
+    "method": "by",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.008333333333333331,
+        0.008333333333333331,
+        0.008333333333333331,
+        0.008333333333333331
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.024
+      ]
+    }
+  },
+  {
+    "name": "all/bky",
+    "p": [
+      0.001,
+      0.002,
+      0.003,
+      0.004
+    ],
+    "method": "bky",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.004200000000000001,
+        0.004200000000000001,
+        0.004200000000000001,
+        0.004200000000000001
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "r1": 4,
+      "m0": 0,
+      "stage_alphas": [
+        0.047619047619047616
+      ]
+    }
+  },
+  {
+    "name": "none/bh",
+    "p": [
+      0.4,
+      0.6,
+      1.0
+    ],
+    "method": "bh",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.9,
+        0.9,
+        1.0
+      ],
+      "rejected": [
+        false,
+        false,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.05
+      ]
+    }
+  },
+  {
+    "name": "none/by",
+    "p": [
+      0.4,
+      0.6,
+      1.0
+    ],
+    "method": "by",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "rejected": [
+        false,
+        false,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.02727272727272727
+      ]
+    }
+  },
+  {
+    "name": "none/bky",
+    "p": [
+      0.4,
+      0.6,
+      1.0
+    ],
+    "method": "bky",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.9450000000000001,
+        0.9450000000000001,
+        1.0
+      ],
+      "rejected": [
+        false,
+        false,
+        false
+      ],
+      "r1": 0,
+      "m0": 3,
+      "stage_alphas": [
+        0.047619047619047616
+      ]
+    }
+  },
+  {
+    "name": "one/bh",
+    "p": [
+      0.01
+    ],
+    "method": "bh",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.01
+      ],
+      "rejected": [
+        true
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.05
+      ]
+    }
+  },
+  {
+    "name": "one/by",
+    "p": [
+      0.01
+    ],
+    "method": "by",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.01
+      ],
+      "rejected": [
+        true
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.05
+      ]
+    }
+  },
+  {
+    "name": "one/bky",
+    "p": [
+      0.01
+    ],
+    "method": "bky",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.0105
+      ],
+      "rejected": [
+        true
+      ],
+      "r1": 1,
+      "m0": 0,
+      "stage_alphas": [
+        0.047619047619047616
+      ]
+    }
+  },
+  {
+    "name": "q10/bh",
+    "p": [
+      0.001,
+      0.003,
+      0.01,
+      0.06,
+      0.2,
+      0.8
+    ],
+    "method": "bh",
+    "q": 0.1,
+    "expected": {
+      "adjusted": [
+        0.006,
+        0.009000000000000001,
+        0.02,
+        0.09,
+        0.24,
+        0.8
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.1
+      ]
+    }
+  },
+  {
+    "name": "q10/by",
+    "p": [
+      0.001,
+      0.003,
+      0.01,
+      0.06,
+      0.2,
+      0.8
+    ],
+    "method": "by",
+    "q": 0.1,
+    "expected": {
+      "adjusted": [
+        0.0147,
+        0.02205,
+        0.048999999999999995,
+        0.22049999999999997,
+        0.588,
+        1.0
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.04081632653061224
+      ]
+    }
+  },
+  {
+    "name": "q10/bky",
+    "p": [
+      0.001,
+      0.003,
+      0.01,
+      0.06,
+      0.2,
+      0.8
+    ],
+    "method": "bky",
+    "q": 0.1,
+    "expected": {
+      "adjusted": [
+        0.0022,
+        0.0033000000000000004,
+        0.007333333333333333,
+        0.033,
+        0.088,
+        0.29333333333333333
+      ],
+      "rejected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "r1": 4,
+      "m0": 2,
+      "stage_alphas": [
+        0.09090909090909091,
+        0.2727272727272727
+      ]
+    }
+  },
+  {
+    "name": "bh-boundary/bh",
+    "p": [
+      0.025,
+      0.05
+    ],
+    "method": "bh",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.05,
+        0.05
+      ],
+      "rejected": [
+        true,
+        true
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.05
+      ]
+    }
+  },
+  {
+    "name": "bh-boundary/by",
+    "p": [
+      0.025,
+      0.05
+    ],
+    "method": "by",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.07500000000000001,
+        0.07500000000000001
+      ],
+      "rejected": [
+        false,
+        false
+      ],
+      "r1": null,
+      "m0": null,
+      "stage_alphas": [
+        0.03333333333333333
+      ]
+    }
+  },
+  {
+    "name": "bh-boundary/bky",
+    "p": [
+      0.025,
+      0.05
+    ],
+    "method": "bky",
+    "q": 0.05,
+    "expected": {
+      "adjusted": [
+        0.052500000000000005,
+        0.052500000000000005
+      ],
+      "rejected": [
+        false,
+        false
+      ],
+      "r1": 0,
+      "m0": 2,
+      "stage_alphas": [
+        0.047619047619047616
+      ]
+    }
+  }
+]
