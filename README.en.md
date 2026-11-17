@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.74 beta:** configurable parameter confidence levels and asymmetric profile intervals for independent unweighted nonlinear fits, with cancellable calculation. [Changes and limits](docs/release-074.md) · [Verification](docs/validation-074.md).
+**New in 0.75 beta:** parameter profiles now support weighted independent fits, preserving supplied relative SDs, observed weights and final IRLS weights. [Changes and limits](docs/release-075.md) · [Verification](docs/validation-075.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
