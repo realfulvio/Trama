@@ -527,10 +527,21 @@ def _figure(request, panels):
         axis.set_title(panel["label"], fontsize=10)
         axis.set_xlabel(tr("fdr.axis.rank"))
         axis.set_ylabel(tr("fdr.axis.p"))
-        axis.legend(fontsize=8, loc="best")
         axis.spines[["right", "top"]].set_visible(False)
     for axis in axes[count:]:
         axis.set_visible(False)
+    from matplotlib.lines import Line2D
+
+    handles = [Line2D([], [], linestyle="--", color="#0f6b4c")]
+    labels = [threshold_label]
+    decisions = [np.asarray(panel["discovery"], dtype=bool) for panel in panels]
+    if any(choice.any() for choice in decisions):
+        handles.append(Line2D([], [], linestyle="none", marker="o", color="#1f4e79", markersize=6))
+        labels.append(discovery_label)
+    if any((~choice).any() for choice in decisions):
+        handles.append(Line2D([], [], linestyle="none", marker="x", color="#9a3412", markersize=6))
+        labels.append(other_label)
+    figure.legend(handles, labels, loc="outside lower center", ncol=len(labels), fontsize=8)
     figure.suptitle(tr("fdr.figure.title", method=method, level=level))
     return figure
 
