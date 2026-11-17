@@ -2749,3 +2749,61 @@ _IT.update({
     "parameter_ci.error.weighting": "Gli intervalli con profilo di verosimiglianza richiedono per ora una regressione non pesata.",
 })
 KEY_BY_LABEL[_EN["parameter_ci.level"]] = "parameter_ci.level"
+
+# False-discovery messages stay English in the engine. The active language is applied here.
+_EN.update({
+    "fdr.error.p_count": "Select between 1 and 24 distinct p columns.",
+    "fdr.error.family_count": "Select at most 4 distinct family columns.",
+    "fdr.error.overlap": "A p column cannot also be a family column.",
+    "fdr.error.missing": "Column {column} is not in the table.",
+    "fdr.error.duplicate": "Column {column} occurs more than once in the table.",
+    "fdr.error.reserved": "Family column {column} uses a reserved result name.",
+    "fdr.error.scope": "Choose Each column separately or Pool selected columns.",
+    "fdr.error.method": "Choose Benjamini–Hochberg, Benjamini–Yekutieli, or Two-stage Benjamini–Krieger–Yekutieli.",
+    "fdr.error.level": "Enter a finite number strictly between 0 and 100.",
+    "fdr.error.plot": "Choose whether to show the diagnostic plot.",
+    "fdr.error.p": "Column {column} contains a value that is not a finite p in [0, 1].",
+    "fdr.error.cells": "Use at most 200000 p values.",
+    "fdr.error.families": "Use at most 200 nonempty families.",
+    "fdr.error.plot_families": "A diagnostic plot shows at most 12 families.",
+    "fdr.note": (
+        "BH and two-stage BKY control the false discovery rate only under their dependence conditions. "
+        "BY is more conservative. Trama does not test independence. Adjusted values depend on the requested FDR; "
+        "they are not level-free q-values. The decision rejects every rank through the last one that satisfies "
+        "p <= alpha × rank / m."
+    ),
+    "fdr.legend.threshold": "{method} at {level}%",
+    "fdr.legend.discovery": "Discovery",
+    "fdr.legend.not": "Not a discovery",
+    "fdr.axis.rank": "Rank",
+    "fdr.axis.p": "p",
+    "fdr.figure.title": "{method}, FDR {level}%",
+})
+_IT.update({
+    "fdr.error.p_count": "Seleziona da 1 a 24 colonne dei valori p, tutte diverse.",
+    "fdr.error.family_count": "Seleziona al massimo 4 colonne della famiglia, tutte diverse.",
+    "fdr.error.overlap": "Una colonna dei valori p non può essere anche una colonna della famiglia.",
+    "fdr.error.missing": "La colonna {column} non è nella tabella.",
+    "fdr.error.duplicate": "La colonna {column} compare più di una volta nella tabella.",
+    "fdr.error.reserved": "La colonna della famiglia {column} usa un nome riservato ai risultati.",
+    "fdr.error.scope": "Scegli Ogni colonna separatamente oppure Accorpa le colonne selezionate.",
+    "fdr.error.method": "Scegli Benjamini–Hochberg, Benjamini–Yekutieli o Benjamini–Krieger–Yekutieli a due stadi.",
+    "fdr.error.level": "Inserisci un numero finito strettamente compreso tra 0 e 100.",
+    "fdr.error.plot": "Scegli se mostrare il grafico diagnostico.",
+    "fdr.error.p": "La colonna {column} contiene un valore che non è un p finito in [0, 1].",
+    "fdr.error.cells": "Usa al massimo 200000 valori p.",
+    "fdr.error.families": "Usa al massimo 200 famiglie non vuote.",
+    "fdr.error.plot_families": "Un grafico diagnostico mostra al massimo 12 famiglie.",
+    "fdr.note": (
+        "BH e BKY a due stadi controllano il tasso di false scoperte solo alle condizioni di dipendenza dichiarate. "
+        "BY è più conservativo. Trama non verifica l’indipendenza. I valori aggiustati dipendono dall’FDR richiesto; "
+        "non sono q-value indipendenti dal livello. La decisione rifiuta ogni rango fino all’ultimo che soddisfa "
+        "p <= alpha × rango / m."
+    ),
+    "fdr.legend.threshold": "Soglia {method} al {level}%",
+    "fdr.legend.discovery": "Scoperta",
+    "fdr.legend.not": "Non è una scoperta",
+    "fdr.axis.rank": "Rango",
+    "fdr.axis.p": "p",
+    "fdr.figure.title": "{method}, FDR {level}%",
+})
