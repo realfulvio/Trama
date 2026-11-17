@@ -1,6 +1,6 @@
 # Presentazione dei grafici di clustering gerarchico
 
-Nota del ramo `grok/hierarchical-style-081`. Non è una release: `analisi/_version.py` resta `0.81.0` con `RELEASE_CHANNEL = "beta"`. Pubblicazione, merge e portabile Windows restano al coordinatore.
+Nota del ramo `grok/hierarchical-style-081`. Non è una release e non modifica `analisi/_version.py`. Allineato a main, il file resta `0.82.0` con `RELEASE_CHANNEL = "beta"`. Pubblicazione, merge e portabile Windows restano al coordinatore.
 
 La sezione `run.style["hierarchical"]` cambia solo la presentazione dei dendrogrammi nativi, delle etichette, della matrice e della barra dei colori. Il fit, le distanze, l’ordine delle foglie e i fogli di risultato restano quelli del calcolo. Un’anteprima non ricalcola il clustering e non ricrea il canvas.
 
@@ -12,7 +12,7 @@ La barra dei colori della matrice non è la legenda di Matplotlib e non passa da
 
 Un override parziale eredita i valori catturati dal renderer prima della prima anteprima, non la bozza precedente. Se l’override tocca le etichette, la loro dimensione è quella della sezione gerarchica e può sostituire un `tick_size` generico su quelle stesse etichette. Senza la sezione, `tick_size` resta com’è. Solo un reset di questa sezione la toglie: titolo, assi, forme e `legend_options` restano.
 
-`legend_options` è conservato nel formato del grafico ma non è validato qui. L’editor delle legende native è un altro incarico: i due rami si toccano in `presentation.py`, `graph_dialog.py` e nei cataloghi.
+`legend_options` resta la sezione dell’editor delle legende già su main: la valida quel modulo, non questo. La barra dei colori della matrice non entra in quella sezione. Un reset del solo formato gerarchico lascia titolo, assi, forme e `legend_options`. Il reset di Format Graph segue l’editor delle legende per `legend_options` e conserva la sezione gerarchica.
 
 ## Editor
 
