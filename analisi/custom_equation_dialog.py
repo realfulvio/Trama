@@ -7,7 +7,7 @@ import re
 import tkinter as tk
 from tkinter import ttk
 
-from .custom_equations import FUNCTIONS, MAX_PARAMETERS, RESERVED
+from .custom_equations import ARITHMETIC, CONDITIONAL, CONDITIONAL_RESERVED, FUNCTIONS, MAX_PARAMETERS, RESERVED
 from .custom_fit import EXAMPLE_PARAMETERS
 from .data import decimal_comma
 from .i18n import tr, translate_message
@@ -22,10 +22,25 @@ def translate_error(message):
     match = _GROUP_PREFIX.match(message)
     if match and not message.startswith("Group must"):
         return tr("custom.group_prefix", group=match["group"]) + " " + translate_error(match["rest"])
-    translated = translate_message(message, "custom.error.")
+    # The conditional sentences first: "Unexpected … at position …. Compare …" would also match the shorter
+    # custom.error.unexpected pattern and leave its tail in English.
+    translated = translate_message(message, "conditional.error.")
+    if translated == message:
+        translated = translate_message(message, "custom.error.")
     if translated == message:
         translated = translate_message(message, "parameter_ci.error.")
     return translated
+
+
+# Conditional syntax (0.81): canonical choice values in the recipe, translated captions on screen.
+SYNTAX_CHOICE_KEYS = {ARITHMETIC: "conditional.choice.arithmetic", CONDITIONAL: "conditional.choice.conditional"}
+# Copyable examples; they are inserted only when the user presses Insert, never on a change of syntax.
+CONDITIONAL_EXAMPLES = ("if(X<T, A+B*X, A+C*X)", "if(X<T1, A, if(X<T2, B, C))", "if((X>=L) and (X<=U), A*X, 0)")
+
+
+def reserved_names(syntax):
+    """Words that are never coefficients: the Conditional syntax adds if, and, or, not."""
+    return CONDITIONAL_RESERVED if syntax == CONDITIONAL else RESERVED
 
 
 def _text(value):
@@ -78,6 +93,23 @@ class EquationEditor(ttk.Frame):
         ttk.Label(self, wraplength=430, justify="left", foreground="#486075",
                   text=tr("custom.grammar", functions=", ".join(FUNCTIONS))).grid(
                       row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        # Shown only with the Conditional syntax. Switching syntax never edits the formula.
+        self.conditional = ttk.Frame(self)
+        self.conditional.columnconfigure(0, weight=1)
+        ttk.Label(self.conditional, wraplength=430, justify="left", foreground="#486075",
+                  text=tr("conditional.guide")).grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(self.conditional, text=tr("conditional.examples")).grid(row=1, column=0, columnspan=2,
+                                                                          sticky="w", pady=(6, 2))
+        self.examples = []
+        for row, example in enumerate(CONDITIONAL_EXAMPLES, start=2):
+            shown = tk.StringVar(self, value=example)
+            entry = ttk.Entry(self.conditional, textvariable=shown, state="readonly", font=("Consolas", 10))
+            entry.grid(row=row, column=0, sticky="ew", pady=1)
+            button = ttk.Button(self.conditional, text=tr("conditional.insert"),
+                                command=lambda text=example: self.insert_example(text))
+            button.grid(row=row, column=1, sticky="w", padx=(6, 0), pady=1)
+            self.examples.append((entry, button, shown))
+        self.syntax = ARITHMETIC
         self.refresh()
 
     def values(self):
@@ -85,6 +117,24 @@ class EquationEditor(ttk.Frame):
 
     def focus_target(self):
         return self.box
+
+    def set_syntax(self, syntax):
+        """Show the conditional guide for the Conditional syntax. The equation text is left untouched."""
+        self.syntax = CONDITIONAL if syntax == CONDITIONAL else ARITHMETIC
+        if self.syntax == CONDITIONAL:
+            self.conditional.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        else:
+            self.conditional.grid_remove()
+        # A message about the other syntax is stale now.
+        self.checked = None
+        self.message.configure(text="")
+
+    def insert_example(self, text):
+        """Insert an example at the cursor, replacing a selection, as typing it would."""
+        if self.box.tag_ranges("sel"):
+            self.box.delete("sel.first", "sel.last")
+        self.box.insert("insert", text)
+        self.box.focus_set()
 
     def modified(self, _event=None):
         if self.box.edit_modified():
@@ -110,9 +160,10 @@ class ParameterTable(ttk.Frame):
 
     COLUMNS = (("name", 90), ("start", 90), ("fixed", 52), ("lower", 80), ("upper", 80))
 
-    def __init__(self, parent, records, *, equation):
+    def __init__(self, parent, records, *, equation, syntax=lambda: ARITHMETIC):
         super().__init__(parent)
         self.equation = equation
+        self.syntax = syntax
         self.rows = []
         for record in records if isinstance(records, (list, tuple)) else ():
             if isinstance(record, dict):
@@ -219,7 +270,7 @@ class ParameterTable(ttk.Frame):
     def free_name(self):
         used = {row["name"] for row in self.rows}
         for letter in "ABCDEFGHIJKLMNOPQRSTUVWZ":
-            if letter not in used and letter not in RESERVED:
+            if letter not in used and letter not in reserved_names(self.syntax()):
                 return letter
         return f"P{len(self.rows) + 1}"
 
@@ -246,10 +297,11 @@ class ParameterTable(ttk.Frame):
         """Declare every name that the equation uses and the table does not list yet."""
         present = {row["name"] for row in self.rows}
         text = self.equation()
+        reserved = reserved_names(self.syntax())
         for match in re.finditer(r"(?<![0-9.A-Za-z_])[A-Za-z][A-Za-z0-9_]*", text):
             name = match.group()
             call = text[match.end():].lstrip().startswith("(")
-            if name in RESERVED or name in present or call or len(self.rows) >= MAX_PARAMETERS:
+            if name in reserved or name in present or call or len(self.rows) >= MAX_PARAMETERS:
                 continue
             present.add(name)
             self.add_row(name)
