@@ -2798,8 +2798,8 @@ _EN.update({
     "fdr.error.plot_families": "A diagnostic plot shows at most 12 families.",
     "fdr.note": (
         "BH and two-stage BKY control the false discovery rate only under their dependence conditions. "
-        "BY is more conservative. Trama does not test independence. Adjusted values depend on the requested FDR; "
-        "they are not level-free q-values. The decision rejects every rank through the last one that satisfies "
+        "BY is more conservative. Trama does not test independence. BH/BY adjusted p values do not depend on the level; "
+        "two-stage BKY adjusted values must be recalculated when the requested FDR changes. The decision rejects every rank through the last one that satisfies "
         "p <= alpha × rank / m."
     ),
     "fdr.legend.threshold": "{method} at {level}%",
@@ -2826,8 +2826,8 @@ _IT.update({
     "fdr.error.plot_families": "Un grafico diagnostico mostra al massimo 12 famiglie.",
     "fdr.note": (
         "BH e BKY a due stadi controllano il tasso di false scoperte solo alle condizioni di dipendenza dichiarate. "
-        "BY è più conservativo. Trama non verifica l’indipendenza. I valori aggiustati dipendono dall’FDR richiesto; "
-        "non sono q-value indipendenti dal livello. La decisione rifiuta ogni rango fino all’ultimo che soddisfa "
+        "BY è più conservativo. Trama non verifica l’indipendenza. I p aggiustati BH/BY non dipendono dal livello; "
+        "quelli BKY a due stadi vanno ricalcolati quando cambia l’FDR desiderato. La decisione rifiuta ogni rango fino all’ultimo che soddisfa "
         "p <= alpha × rango / m."
     ),
     "fdr.legend.threshold": "Soglia {method} al {level}%",

@@ -304,5 +304,26 @@ def check_fdr_control(root, app, directory, kit):
         app.show("graph", app.runs.index(pooled))
         kit.capture(root, "window-fdr-graph-it.png")
         assert "Soglia" in pooled.result.figure.legends[0].get_texts()[0].get_text()
+
+        # Retained results describe the previous data until a successful
+        # recalculation. Cancelling recovery must not make them exportable.
+        kept = pooled.result
+        app.show('data', TITLE)
+        holder = drive(lambda d: kit.capture(d, 'window-fdr-recovery-it.png'), accept=False)
+        app.edit_cell(1, 4, '2')
+        kit.wait_for_calculation()
+        finish(holder)
+        assert pooled.result is kept and pooled.calculation_error
+        app.show('result', app.runs.index(pooled))
+        assert app.stale_calculation_note()
+        kit.capture(root, 'window-fdr-stale-it.png')
+        with patch.object(app, 'error') as error, patch.object(filedialog, 'asksaveasfilename') as chooser:
+            app.export()
+            app.use_result_as_data()
+        assert error.call_count == 2 and not chooser.called
+        app.show('data', TITLE)
+        app.edit_cell(1, 4, '.03')
+        kit.wait_for_calculation()
+        assert pooled.result is not kept and pooled.calculation_error is None
     finally:
         set_language(previous_language)

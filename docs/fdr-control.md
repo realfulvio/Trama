@@ -6,7 +6,9 @@
 
 Il FDR è la quota attesa di false scoperte fra le ipotesi rifiutate, non la probabilità di errore di una singola ipotesi. Una scoperta non dice che l'ipotesi sia falsa. L'assenza di una scoperta non dice che sia vera. Trama non verifica se le ipotesi siano indipendenti.
 
-I valori aggiustati e la decisione dipendono dal livello richiesto. Non sono q-value da riusare a un altro FDR.
+I p aggiustati BH e BY non dipendono dal livello richiesto e possono essere confrontati con un altro livello. I p aggiustati BKY a due stadi dipendono invece dall’FDR scelto e vanno ricalcolati quando questo cambia. La decisione di scoperta usa sempre il livello richiesto. Il foglio Settings distingue esplicitamente i due casi.
+
+La distinzione è documentata anche nelle note di [statsmodels multipletests](https://www.statsmodels.org/stable/generated/statsmodels.stats.multitest.multipletests.html) e di [fdrcorrection_twostage](https://www.statsmodels.org/stable/generated/statsmodels.stats.multitest.fdrcorrection_twostage.html).
 
 ## Procedura
 
@@ -31,6 +33,8 @@ Limiti, prima di allocare il grafico: 200.000 p usati, 200 famiglie non vuote, 1
 I nomi dei fogli e i token di stato restano inglesi, così il ricalcolo in inglese e in italiano produce le stesse tabelle. `FDR results` ha una riga per cella selezionata. `Discovery` è vero o falso solo per i p usati. `FDR families` riporta metodo, `q` come frazione, `m` e le scoperte; per BKY anche `R1`, `m0` e i due stadi. `Settings` registra il confronto inclusivo, i limiti e le note. La nota su `m0` compare solo per BKY.
 
 Il grafico diagnostico esiste solo se richiesto e se c'è almeno una famiglia non vuota. Un pannello per famiglia, scala lineare, `p = 0` resta 0. I marcatori distinguono le scoperte anche senza il colore. Il controllo dei campi avviene nel dialogo; l'aggiustamento e la figura girano sul worker.
+
+Se una modifica ai dati rende il calcolo non valido, il dialogo si riapre sul campo da correggere. Annullando si conserva l'ultimo risultato riuscito, marcato come precedente: export e Use Result as Data restano bloccati fino a un ricalcolo valido. Il ricalcolo manuale segue lo stesso recupero. Un tentativo fallito di cambiare soltanto le opzioni conserva invece l'analisi confermata dei dati originali.
 
 ## Esempio sintetico
 

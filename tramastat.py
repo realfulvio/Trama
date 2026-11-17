@@ -5780,7 +5780,7 @@ class App:
                 if cancelled and (run.method == MONTE_CARLO_METHOD or extended_request(run.method, run.options)):
                     continue
                 run.result = result
-                run.calculation_error = str(error) if error and run.method == REFERENCE_NORMALIZATION else None
+                run.calculation_error = str(error) if error and self._keeps_failed_result(run) else None
                 if error:
                     if self._reopens_field_error(run) and isinstance(error, FieldError):
                         index = next((i for i, item in enumerate(self.runs) if item is run), None)
@@ -6059,7 +6059,7 @@ class App:
             return
         run = self.runs[index]
         recovery = (self.weighting_recovery(run.method, run.options, index)
-                    if run.method in {"Interpolate a standard curve", HEAT_MAP} else None)
+                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD} else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
@@ -6341,6 +6341,14 @@ class App:
         except Exception as error:
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD else error)
+            # Manual recalculation uses the confirmed Run itself. A failed
+            # candidate with edited options is a different object and must not
+            # invalidate the still-current confirmed analysis.
+            if (index is not None and index < len(self.runs) and self.runs[index] is run
+                    and self._keeps_failed_result(run) and run.result is not None):
+                run.calculation_error = str(error)
+                if self.selected == ("result", index) or self.selected == ("graph", index):
+                    self.show(*self.selected)
             if recovery is None or not self.recover_analysis(run, error, recovery):
                 self.status.set(ui("Analysis could not be completed."))
                 self.error(shown)
@@ -6432,7 +6440,10 @@ class App:
         kind, key = ref
         runs = (self.layout_runs(self.layouts[key]) if kind == "layout"
                 else [self.runs[key]] if kind in {"result", "graph", "saved-layout"} else [])
-        failures = [translate_reference_error(run.calculation_error) for run in runs if run.calculation_error]
+        failures = [(translate_message(run.calculation_error, 'fdr.error.') if run.method == FDR_METHOD
+                     else translate_message(run.calculation_error, 'anova.lognormal.error.')
+                     if self._lognormal_one_way(run) else translate_reference_error(run.calculation_error))
+                    for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
 
     def require_current_calculation(self):

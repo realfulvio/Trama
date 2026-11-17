@@ -2,8 +2,8 @@
 
 Benjamini–Hochberg, Benjamini–Yekutieli and the two-stage Benjamini–Krieger–Yekutieli
 procedure are step-up tests. The comparison is inclusive (``p <= alpha * rank / m``).
-Adjusted values and the discovery decision depend on the requested level: they are not
-q-values that can be reused at another FDR. Equal p values share the adjusted value
+BH/BY adjusted values are independent of the requested level; two-stage BKY adjusted
+values are level-specific. Discovery decisions always use the requested FDR. Equal p values share the adjusted value
 and the decision. The rank is only the stable order statistic used by the step-up rule.
 
 For two-stage BKY, ``m0`` is the stage-1 estimate ``m - R1``. It is not ``m`` minus the
@@ -81,8 +81,9 @@ DEPENDENCE_NOTE = (
     "independence. Trama does not test whether the hypotheses are independent."
 )
 LEVEL_NOTE = (
-    "Adjusted values and the discovery decision depend on the requested q. "
-    "They are not q-values that remain valid at another level."
+    "BH and BY adjusted p values are independent of the requested FDR. "
+    "Two-stage BKY adjusted p values depend on that level and must be recalculated for another FDR. "
+    "Discovery decisions always use the requested level."
 )
 STEP_NOTE = (
     "After a stable sort, the procedure finds the largest rank i with p(i) <= alpha * i / m "
@@ -123,10 +124,11 @@ def adjust_family(values, method, q):
     if isinstance(q, (bool, str, bytes)) or not math.isfinite(level) or not 0 < level < 1:
         raise ValueError("q must be a fraction in (0, 1).")
     try:
-        observed = [float(value) for value in values]
+        original = list(values)
+        observed = [float(value) for value in original]
     except (TypeError, ValueError):
         raise ValueError("Invalid p family.") from None
-    if (not observed or any(isinstance(value, bool) for value in values)
+    if (not observed or any(isinstance(value, (bool, np.bool_)) for value in original)
             or any(not math.isfinite(value) or not 0 <= value <= 1 for value in observed)):
         raise ValueError("Invalid p family.")
     count = len(observed)
@@ -312,6 +314,7 @@ def _prepare(frame, options):
     # Every non-missing p is judged before a missing family removes the row from the test.
     # Row order, then the selected p-column order, so the first invalid cell is stable.
     groups = []
+    group_values = {}
     seen = {}
     cells = []
     opened = set()
@@ -327,6 +330,7 @@ def _prepare(frame, options):
             if family_key not in seen:
                 seen[family_key] = len(groups)
                 groups.append(family_key)
+                group_values[family_key] = family_values
         for name, column in zip(names, p_values, strict=True):
             number = _as_p(column[row], name)
             if family_key is None:
@@ -359,7 +363,8 @@ def _prepare(frame, options):
         raise FieldError(FAMILY_COLUMNS, ERR_FAMILIES)
     if request["plot"] and nonempty > MAX_PLOT_FAMILIES:
         raise FieldError(PLOT, ERR_PLOT_FAMILIES)
-    request.update(cells=ordered, groups=groups, buckets=buckets, nonempty=nonempty, used=used_count)
+    request.update(cells=ordered, groups=groups, group_values=group_values, buckets=buckets,
+                   nonempty=nonempty, used=used_count)
     return request
 
 
@@ -394,8 +399,7 @@ def _calculate(request):
     panels = []
     variables = [None] if request["scope"] == SCOPE_POOL else request["p_columns"]
     for key in request["groups"]:
-        sample = next(cell for cell in request["cells"] if cell.family_key == key)
-        label = _family_label(sample.family_values, request["family_columns"])
+        label = _family_label(request["group_values"][key], request["family_columns"])
         for variable in variables:
             members = _members(request, key, variable)
             used = [cell for cell in members if cell.status == STATUS_USED]
@@ -481,6 +485,7 @@ def _settings(request, summaries):
         ("Figure", figure),
         ("Dependence", DEPENDENCE_NOTE),
         ("Requested level", LEVEL_NOTE),
+        ("Adjusted p depends on desired FDR", request["method"] == "bky"),
         ("Step-up", STEP_NOTE),
     ]
     if request["method"] == "bky":
