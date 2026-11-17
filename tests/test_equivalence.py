@@ -628,7 +628,8 @@ class LegacyUnchanged(unittest.TestCase):
     def test_existing_recipes_and_menu_entries_are_untouched(self):
         self.assertEqual(METHODS["t-test"], {"Design": ("Welch", "Student", "Paired", "One-sample"),
                                              "Response": None, "Group": METHODS["t-test"]["Group"],
-                                             "Subject": METHODS["t-test"]["Subject"], "Null mean": 0.0})
+                                             "Subject": METHODS["t-test"]["Subject"], "Null mean": 0.0,
+                                             "Show variance comparison": False})
         self.assertEqual(METHODS["Paired t-test (columns)"], {"First": None, "Second": None})
         self.assertEqual(GROUPS["Group Comparison"][:3], ("t-test", "Paired t-test (columns)", "Lognormal t-test"))
 

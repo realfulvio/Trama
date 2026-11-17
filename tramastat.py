@@ -27,6 +27,7 @@ import pandas as pd
 from analisi._version import VERSION, RELEASE_CHANNEL
 from analisi.analysis_chain import MAX_ANALYSIS_NODES, ResultSource
 from analisi.analysis_chain_app import AnalysisChainMixin
+from analisi.family_workflow_app import FamilyWorkflowMixin
 from analisi.windows_dpi import configure_native_dpi, window_dpi
 from analisi.window_geometry import keep_native_window_on_screen
 from analisi.shape_canvas import ShapeCanvas, ShapeHistory, render_shapes
@@ -262,6 +263,10 @@ from analisi.variance_assumptions import (ALPHA as VARIANCE_ALPHA, BARTLETT as V
                                           validate as validate_variance)
 from analisi.fdr_control import (METHOD as FDR_METHOD, PLOT as FDR_PLOT, format_fdr_error,
                                  validate_request as validate_fdr_request)
+from analisi.variance_ratio import (CHOICE_KEYS as VARIANCE_RATIO_CHOICES, LABEL_KEYS as VARIANCE_RATIO_LABELS,
+                                    METHOD as VARIANCE_RATIO, NOTE_KEY as VARIANCE_RATIO_NOTE,
+                                    SHOW as VARIANCE_SHOW, format_error as format_variance_ratio_error,
+                                    shows_graph as variance_ratio_shows_graph)
 
 TREND_HEADINGS = {TREND: "analysis.trend.heading.trend", TREND_ORDER: "analysis.trend.heading.order"}
 from analisi import unequal_anova
@@ -1193,6 +1198,7 @@ class AnalysisDialog(simpledialog.Dialog):
             lognormal_control = self.method == "One-way ANOVA" and label in lognormal_anova.LABEL_KEYS
             fit_control = self.method == "Nonlinear regression" and label in FIT_HEADINGS
             ratio_control = self.method == LOGNORMAL and label in RATIO_LABEL_KEYS
+            variance_ratio_control = self.method == VARIANCE_RATIO and label in VARIANCE_RATIO_LABELS
             tost_control = self.method == EQUIVALENCE and label in TOST_LABEL_KEYS
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
@@ -1200,6 +1206,7 @@ class AnalysisDialog(simpledialog.Dialog):
             label_text = (tr(RANK_LABEL_KEYS[label]) if rank_control
                           else tr(ROBUST_LABEL_KEYS[label]) if robust_control
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
+                          else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
                           else tr(PARAM_CI_LABELS[label]) if parameter_ci_control
                           else tr(NL_BAND_LABELS[label]) if band_control
@@ -1423,6 +1430,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, XY_ERROR_CHOICE_KEYS)
                     elif ratio_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, RATIO_CHOICE_KEYS)
+                    elif variance_ratio_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, VARIANCE_RATIO_CHOICES)
                     elif tost_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOST_CHOICE_KEYS)
                     elif robust_control and isinstance(kind, tuple) and label != ROBUST_MODEL:
@@ -1707,8 +1716,19 @@ class AnalysisDialog(simpledialog.Dialog):
             self.controls["Input"][1].trace_add("write", lambda *_: self.show_fields(self.compare_lines_fields()))
             self.show_fields(self.compare_lines_fields())
         if self.method == LOGNORMAL:
-            self.controls[RATIO_DESIGN][1].trace_add("write", lambda *_: self.show_fields(self.lognormal_fields()))
-            self.show_fields(self.lognormal_fields())
+            self.variance_ratio_note = ttk.Label(options, wraplength=360, foreground="#486075", justify="left")
+            self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.controls[RATIO_DESIGN][1].trace_add("write", lambda *_: self.show_lognormal_fields())
+            self.show_lognormal_fields()
+        if self.method == "t-test":
+            self.variance_ratio_note = ttk.Label(options, wraplength=360, foreground="#486075", justify="left")
+            self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.controls["Design"][1].trace_add("write", lambda *_: self.show_ttest_variance())
+            self.show_ttest_variance()
+        if self.method == VARIANCE_RATIO:
+            self.variance_ratio_note = ttk.Label(options, text=tr(VARIANCE_RATIO_NOTE), wraplength=360,
+                                                 foreground="#486075", justify="left")
+            self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
         if self.method in (SUMMARY_ANOVA, SUMMARY_TTEST):
             self.controls["Input"][1].trace_add("write", lambda *_: self.show_fields(self.summary_anova_fields()))
             self.show_fields(self.summary_anova_fields())
@@ -2819,6 +2839,32 @@ class AnalysisDialog(simpledialog.Dialog):
             return {}
         return lognormal_visibility(self.controls[RATIO_DESIGN][1].get())
 
+    def show_lognormal_fields(self):
+        visible = self.lognormal_fields()
+        self.show_fields(visible)
+        self._show_variance_note(visible)
+
+    def ttest_variance_fields(self):
+        """The variance check belongs only to Welch and Student. Hidden means omitted from the recipe."""
+        if self.method != "t-test" or VARIANCE_SHOW not in self.controls:
+            return {}
+        return {VARIANCE_SHOW: self.controls["Design"][1].get() in ("Welch", "Student")}
+
+    def show_ttest_variance(self):
+        visible = self.ttest_variance_fields()
+        self.show_fields(visible)
+        self._show_variance_note(visible)
+
+    def _show_variance_note(self, visible):
+        note = getattr(self, "variance_ratio_note", None)
+        if note is None:
+            return
+        if visible.get(VARIANCE_SHOW):
+            note.configure(text=tr(VARIANCE_RATIO_NOTE))
+            note.grid()
+        else:
+            note.grid_remove()
+
     def equivalence_fields(self):
         """Response and Reference belong to One-sample, First and Second to the other designs."""
         if self.method != EQUIVALENCE or TOST_DESIGN not in self.controls:
@@ -2954,7 +3000,8 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.auc_visibility(), **self.deming_visibility(), **self.linear_visibility(),
                       **self.calibration_visibility(), **self.agreement_visibility(),
                       **self.anova_fields(), **self.anova_diagnostic_fields(), **self.regression_visibility(), **self.forest_fields(),
-                      **self.compare_lines_fields(), **self.lognormal_fields(), **self.equivalence_fields(), **self.cox_fields(),
+                      **self.compare_lines_fields(), **self.lognormal_fields(), **self.ttest_variance_fields(),
+                      **self.equivalence_fields(), **self.cox_fields(),
                       **self.summary_anova_fields(),
                       **self.one_way_fields(),
                       **self.monte_carlo_fields(), **self.function_fields(), **self.weighting_visibility(),
@@ -3173,7 +3220,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
                     or self.method == PARTS_GRAPH
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
-                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, EQUIVALENCE, COX, OUTLIERS,
+                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
                                        "One-way ANOVA", REFERENCE_NORMALIZATION,
                                        SPLINE_FIT, COMPARE_MODELS, XY_ERRORS}):
                 # Keep field errors in the dialog and reuse the successful result.
@@ -3255,6 +3302,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     formatted := lognormal_anova.format_error(error) or format_variance_error(error)):
                 message = formatted
             elif self.method == FDR_METHOD and (formatted := format_fdr_error(error)):
+                message = formatted
+            elif self.method == VARIANCE_RATIO and (formatted := format_variance_ratio_error(error)):
                 message = formatted
             elif field and field not in message:
                 message = f"{field}: {message}"
@@ -3554,6 +3603,7 @@ class Run:
     calculation_error: str | None = field(default=None, repr=False, compare=False)
     uid: str = field(default_factory=lambda: str(uuid4()), repr=False)
     source: ResultSource | None = None
+    label: str | None = None
 
     @property
     def reference(self):
@@ -3562,7 +3612,7 @@ class Run:
     @property
     def name(self):
         source_title = self.source.table if self.source is not None else self.title
-        return self.options.get(PRISM_TITLE) or f"{self.method} of {source_title}"
+        return self.label or self.options.get(PRISM_TITLE) or f"{self.method} of {source_title}"
 
 
 @dataclass
@@ -3578,7 +3628,7 @@ class AnalysisRecovery:
     only: object = None
 
 
-class App(AnalysisChainMixin):
+class App(AnalysisChainMixin, FamilyWorkflowMixin):
     @staticmethod
     def make_chain_control():
         return CalculationControl()
@@ -3687,7 +3737,8 @@ class App(AnalysisChainMixin):
                        ("Family gallery", lambda: self.open_gallery("Family")),
                        ("Linked Info sheet", lambda: self.show_section("info")),
                        ("Analysis results", lambda: self.show_section("result")),
-                       ("Graphs", lambda: self.show_section("graph"))],
+                       ("Graphs", lambda: self.show_section("graph")),
+                       ("Duplicate family…", self.duplicate_family), ("Save family as…", self.save_family_as)],
             "Tools": [("Power and sample size…", lambda: self.standalone("Power and sample size")),
                       ("Simulate data…", lambda: self.standalone("Simulate data")),
                       ("Monte Carlo study…", lambda: self.choose_analysis(only=(MONTE_CARLO_METHOD,))),
@@ -3770,6 +3821,12 @@ class App(AnalysisChainMixin):
         self.nav_menu.add_separator()
         self.nav_menu.add_command(label=tr("nav.expand_all"), command=lambda: self.expand_navigator(True))
         self.nav_menu.add_command(label=tr("nav.collapse_all"), command=lambda: self.expand_navigator(False))
+        self.nav_menu.add_separator()
+        self.nav_menu_ref = None  # the sheet under the pointer when the menu opened; the selection is untouched
+        self.nav_menu.add_command(label=ui("Duplicate family…"),
+                                  command=lambda: self.duplicate_family(self.nav_menu_ref))
+        self.nav_menu.add_command(label=ui("Save family as…"),
+                                  command=lambda: self.save_family_as(self.nav_menu_ref))
         self.nav.bind("<<TreeviewSelect>>", self.navigate)
         self.nav.bind("<ButtonRelease-1>", self.activate_nav_action)
         self.nav.bind("<Return>", self.activate_nav_action)
@@ -3966,7 +4023,8 @@ class App(AnalysisChainMixin):
                                  and run.options.get(MONTE_CARLO_GRAPH, GRAPH_NONE) != GRAPH_NONE)
                              or (run.method == "Multifactor ANOVA"
                                  and run.options.get(ANOVA_DIAG_GRAPH) not in (None, "", "None"))
-                             or (run.method == FDR_METHOD and run.options.get(FDR_PLOT))))],
+                             or (run.method == FDR_METHOD and run.options.get(FDR_PLOT))
+                             or (run.method == VARIANCE_RATIO and variance_ratio_shows_graph(run.options))))],
              "New Graph…", self.new_graph),
             ("Layouts", [(layout.name, ("layout", i)) for i, layout in enumerate(self.layouts)]
                         + [(run.name, ("saved-layout", i)) for i, run in enumerate(self.runs)
@@ -3987,7 +4045,7 @@ class App(AnalysisChainMixin):
         short = {"Global nonlinear regression": "Global fit",
                  "Mixed-effects model (REML)": "Mixed model"}.get(run.method)
         source_title = run.source.table if run.source is not None else run.title
-        return f"{short} · {source_title}" if short and not run.options.get(PRISM_TITLE) else name
+        return f"{short} · {source_title}" if short and not (run.label or run.options.get(PRISM_TITLE)) else name
 
     def navigator_section(self, name, needle):
         node = f"section:{name}"
@@ -4081,9 +4139,18 @@ class App(AnalysisChainMixin):
     def toggle_combined_navigator(self):
         self.set_combined_navigator(not self.combined_navigator)
 
-    def navigator_menu(self, event):
+    def update_nav_menu(self, row):
+        """Prepare the context menu for the navigator row under the pointer (None: empty space)."""
         label = tr("nav.hide_data_results") if self.combined_navigator else tr("nav.show_data_results")
         self.nav_menu.entryconfigure(0, label=label)
+        self.nav_menu_ref = self.nodes.get(row)
+        state = ("normal" if self.nav_menu_ref is not None and self.family_ref(self.nav_menu_ref) is not None
+                 else "disabled")
+        for entry in (5, 6):
+            self.nav_menu.entryconfigure(entry, state=state)
+
+    def navigator_menu(self, event):
+        self.update_nav_menu(self.nav.identify_row(event.y))
         try:
             self.nav_menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -4182,6 +4249,9 @@ class App(AnalysisChainMixin):
         if entries:
             menu.add_separator()
         menu.add_command(label=tr("bar.view_family_gallery"), command=lambda: self.open_gallery("Family"))
+        menu.add_separator()
+        menu.add_command(label=ui("Duplicate family…"), command=self.duplicate_family)
+        menu.add_command(label=ui("Save family as…"), command=self.save_family_as)
         try:
             menu.tk_popup(self.family_button.winfo_rootx(), self.family_button.winfo_rooty())
         finally:
@@ -5357,6 +5427,14 @@ class App(AnalysisChainMixin):
         else:
             self.home()
 
+    @staticmethod
+    def runs_for(title, dataset):
+        """The Run of every stored analysis of a table, with the identity, source and name it was saved with."""
+        return [Run(method, title, options, slot=index, style=dataset.graph_styles.get(index),
+                    uid=dataset.analysis_ids.get(index, str(uuid4())), source=dataset.analysis_sources.get(index),
+                    label=dataset.analysis_labels.get(index))
+                for index, (method, options) in enumerate(dataset.analyses)]
+
     def _add_tables(self, tables, info_sheets=()):
         if not tables and not info_sheets:
             raise ValueError("No data tables were found.")
@@ -5373,10 +5451,7 @@ class App(AnalysisChainMixin):
             titles.append(title)
             dataset = self.tables[title] = Dataset(frame.reset_index(drop=True),
                                                    info=contexts.get(title, contexts[None]))
-            self.runs.extend(Run(method, title, options, slot=i,
-                                 uid=dataset.analysis_ids.get(i, str(uuid4())),
-                                 source=dataset.analysis_sources.get(i))
-                             for i, (method, options) in enumerate(dataset.analyses))
+            self.runs.extend(self.runs_for(title, dataset))
             skipped.extend(frame.attrs.get("skipped", []))
             warnings.extend(frame.attrs.get("import_warnings", []))
         self.dirty = True
@@ -5424,10 +5499,7 @@ class App(AnalysisChainMixin):
             loaded, layouts, info_sheets = load_workspace(filename, include_info=True)
             self.tables, self.path, self.layouts = loaded, Path(filename), layouts
             self.info_sheets = {sheet.uid: sheet for sheet in info_sheets}
-            self.runs = [Run(method, name, options, slot=index, style=table.graph_styles.get(index),
-                             uid=table.analysis_ids.get(index, str(uuid4())), source=table.analysis_sources.get(index))
-                         for name, table in loaded.items()
-                         for index, (method, options) in enumerate(table.analyses)]
+            self.runs = [run for name, table in loaded.items() for run in self.runs_for(name, table)]
             self.selected = None
             self.active_data = None
             self.history.clear()
@@ -6068,12 +6140,13 @@ class App(AnalysisChainMixin):
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method == FDR_METHOD or getattr(run, 'source', None) is not None
+                or run.method == FDR_METHOD or run.method == VARIANCE_RATIO
+                or getattr(run, 'source', None) is not None
                 or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return self._lognormal_one_way(run) or run.method == FDR_METHOD
+        return self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO)
 
     def weighting_recovery(self, method, options, index, only=None):
         """Reopen the dialog when a field error is first known on the worker."""
@@ -6089,7 +6162,7 @@ class App(AnalysisChainMixin):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "One-way ANOVA":
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
-        if method == FDR_METHOD:
+        if method in (FDR_METHOD, VARIANCE_RATIO):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if (method == "Interpolate a standard curve" and options.get("Curve") == "Nonlinear"
                 and options.get(CALIBRATION_UNCERTAINTY, "None") not in (None, "None")):
@@ -6131,7 +6204,8 @@ class App(AnalysisChainMixin):
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
-                     else format_fdr_error(error) if run.method == FDR_METHOD else None)
+                     else format_fdr_error(error) if run.method == FDR_METHOD
+                     else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO else None)
         if formatted:
             message = formatted
         elif run.method == "Interpolate a standard curve":
@@ -6166,7 +6240,7 @@ class App(AnalysisChainMixin):
         if self.refresh_chain_calculations([(run, None)], inputs_changed=False):
             return
         recovery = (self.weighting_recovery(run.method, run.options, index)
-                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD} else None)
+                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO} else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
@@ -6418,6 +6492,8 @@ class App(AnalysisChainMixin):
     def start_analysis(self, run, frame, index=None, *, result=None, recovery=None, source_override=False):
         if index is not None and self.runs[index] is not run:
             run.uid = self.runs[index].uid
+            if run.label is None:
+                run.label = self.runs[index].label
             if not source_override:
                 run.source = self.runs[index].source
         if run.source is not None or getattr(self, '_chain_node_ids', ()):
@@ -6470,7 +6546,8 @@ class App(AnalysisChainMixin):
             self.status.set(f"{run.method} cancelled. {detail}")
         except Exception as error:
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
-                     else format_fdr_error(error) or error if run.method == FDR_METHOD else error)
+                     else format_fdr_error(error) or error if run.method == FDR_METHOD
+                     else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -6500,6 +6577,8 @@ class App(AnalysisChainMixin):
             index = len(self.runs) - 1
         elif self.runs[index] is not run:
             run.uid = self.runs[index].uid
+            if run.label is None:
+                run.label = self.runs[index].label
             self.runs[index] = run
             recipes[run.slot] = run.method, run.options
             self.dirty = True
@@ -6577,6 +6656,8 @@ class App(AnalysisChainMixin):
         runs = (self.layout_runs(self.layouts[key]) if kind == "layout"
                 else [self.runs[key]] if kind in {"result", "graph", "saved-layout"} else [])
         failures = [(translate_message(run.calculation_error, 'fdr.error.') if run.method == FDR_METHOD
+                     else translate_message(run.calculation_error, 'variance.ratio.error.')
+                     if run.method == VARIANCE_RATIO
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA" else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
@@ -12129,6 +12210,11 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog,
             wait_for_calculation=wait_for_calculation, filedialog=filedialog, errors=errors))
 
+    def check_family_workflow_smoke():
+        from analisi.family_workflow_smoke import check_family_workflow
+        check_family_workflow(root, app, directory, SimpleNamespace(
+            App=App, capture=capture, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     try:
         screen = (root.winfo_screenwidth(), root.winfo_screenheight())
         (directory / "display.json").write_text(json.dumps({"width": screen[0], "height": screen[1],
@@ -12146,6 +12232,14 @@ def smoke(root, app, directory, legacy_reference=None):
             return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "analysis-chains":
             check_analysis_chains_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "family-workflow":
+            # The experiment-family check alone: TRAMASTAT_SMOKE_ONLY=family-workflow python tramastat.py --smoke DIR
+            check_family_workflow_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -12775,6 +12869,19 @@ def smoke(root, app, directory, legacy_reference=None):
             check_fdr_control(root, app, directory, SimpleNamespace(
                 AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
                 select_columns=select_columns,
+                drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+                wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "variance-ratio":
+            # The two-sample variance comparison alone:
+            # TRAMASTAT_SMOKE_ONLY=variance-ratio python tramastat.py --smoke DIR
+            from analisi.variance_ratio_smoke import check_variance_ratio
+            check_variance_ratio(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
                 drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
                 wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
             assert not errors, errors
@@ -13439,6 +13546,11 @@ def smoke(root, app, directory, legacy_reference=None):
             select_columns=select_columns,
             drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
             wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
+        from analisi.variance_ratio_smoke import check_variance_ratio
+        check_variance_ratio(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+            drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+            wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
         from analisi.fit_quality_smoke import check_fit_quality
         check_fit_quality(root, app, directory, SimpleNamespace(
             capture=capture, pick_method=pick_method, select_columns=select_columns,
@@ -13469,6 +13581,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_reference_normalization_smoke()
         check_analysis_chains_smoke()
         check_hierarchical_import_smoke()
+        check_family_workflow_smoke()
         assert app.nav.winfo_ismapped()
         assert not errors, errors
         (directory / "status.txt").write_text("PASS\n", encoding="utf-8")

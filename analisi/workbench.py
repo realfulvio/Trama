@@ -36,6 +36,7 @@ from .inference import CHI_SQUARE_P, DUNN_OPTIONS, KRUSKAL_P, KRUSKAL_P_METHODS,
 from .linear_diagnostics import LINEAR_OPTIONS, linear_result
 from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, equivalence_test
 from .lognormal_tests import LOGNORMAL, OPTIONS as LOGNORMAL_OPTIONS, lognormal_test
+from .variance_ratio import METHOD as VARIANCE_RATIO, SHOW as VARIANCE_SHOW, analysis as variance_ratio_analysis, attach_ttest
 from .summary_anova import METHOD as SUMMARY_ANOVA, OPTIONS as SUMMARY_ANOVA_OPTIONS, summary_anova
 from .summary_ttest import METHOD as SUMMARY_TTEST, OPTIONS as SUMMARY_TTEST_OPTIONS, summary_ttest
 from .model_selection import COMPARE_MODELS, OPTIONS as COMPARE_MODELS_OPTIONS, model_selection
@@ -176,9 +177,13 @@ METHODS = {
     "Descriptive statistics": {"Variables": MULTIPLE, GEOMETRIC_MEAN: False},
     NORMALITY: NORMALITY_OPTIONS,
     "t-test": {"Design": ("Welch", "Student", "Paired", "One-sample"),
-               "Response": None, "Group": OPTIONAL, "Subject": OPTIONAL, "Null mean": 0.0},
+               "Response": None, "Group": OPTIONAL, "Subject": OPTIONAL, "Null mean": 0.0,
+               VARIANCE_SHOW: False},
     "Paired t-test (columns)": {"First": None, "Second": None},
     LOGNORMAL: LOGNORMAL_OPTIONS,
+    VARIANCE_RATIO: {"First": None, "Second": None, "Confidence level (%)": 95.0,
+                     "Distribution": ("Normal", "Lognormal"),
+                     "Graph": ("None", "Variance ratio", "SD ratio")},
     EQUIVALENCE: EQUIVALENCE_OPTIONS,
     SUMMARY_ANOVA: SUMMARY_ANOVA_OPTIONS,
     SUMMARY_TTEST: SUMMARY_TTEST_OPTIONS,
@@ -277,7 +282,7 @@ GROUPS = {
                               "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
                               "Interpolate a standard curve", SPLINE_FIT, PLOT_FUNCTION),
-    "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, EQUIVALENCE, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
+    "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
                          "Multifactor ANOVA", "Contingency table",
@@ -921,11 +926,15 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
     if method == "t-test":
         result = engine.t_test(frame, o["Response"], o.get("Group"), o["Design"].lower(),
                                o.get("Subject"), order=o.get("Group order"), null=o.get("Null mean", 0.0))
-        return Result({"t-test": _report(result)})
+        tables = {"t-test": _report(result)}
+        attach_ttest(frame, o, tables)
+        return Result(tables)
     if method == "Paired t-test (columns)":
         return Result({"t-test": _report(engine.paired_t_test(frame, o["First"], o["Second"]))})
     if method == LOGNORMAL:
         return lognormal_test(frame, o)
+    if method == VARIANCE_RATIO:
+        return variance_ratio_analysis(frame, o)
     if method == EQUIVALENCE:
         return equivalence_test(frame, o)
     if method == SUMMARY_ANOVA:
