@@ -2727,6 +2727,10 @@ _IT.update({
 
 # Parameter inference is distinct from curve bands; recipe values stay canonical.
 _EN.update({
+    "custom.profile.hint": "Profile intervals refit the other free coefficients while respecting fixed values and limits. Supplied relative SDs stay fixed. You can cancel; unavailable endpoints carry a reason.",
+    "custom.field.Parameter intervals": "Parameter intervals",
+    "custom.error.profile_parameters": "Profile intervals support at most {count} free parameters per fit.",
+    "custom.error.profile_points": "Profile intervals support at most {count} complete observations per fit.",
     "parameter_ci.tab": "Confidence intervals",
     "parameter_ci.method": "Parameter intervals",
     "parameter_ci.level": "Parameter confidence level (%)",
@@ -2738,6 +2742,10 @@ _EN.update({
     "parameter_ci.error.weighting": "Parameter profile intervals currently require Unweighted regression.",
 })
 _IT.update({
+    "custom.profile.hint": "I profili ristimano gli altri coefficienti liberi rispettando valori fissi e vincoli. Le SD relative inserite restano fisse. Puoi annullare; i limiti non determinati riportano il motivo.",
+    "custom.field.Parameter intervals": "Intervalli dei parametri",
+    "custom.error.profile_parameters": "I profili supportano al massimo {count} coefficienti liberi per fit.",
+    "custom.error.profile_points": "I profili supportano al massimo {count} osservazioni complete per fit.",
     "parameter_ci.tab": "Intervalli di confidenza",
     "parameter_ci.method": "Intervalli dei parametri",
     "parameter_ci.level": "Livello di confidenza dei parametri (%)",

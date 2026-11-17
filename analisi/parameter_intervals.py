@@ -106,7 +106,17 @@ class ProfileBudget:
 
 
 def _profile(fit, model, level, budget):
-    spec = MODELS[model]
+    return profile_limits(fit, MODELS[model], level, budget)
+
+
+def profile_limits(fit, spec, level, budget=None):
+    """Profile a confirmed fit using explicit equation and parameter bounds.
+
+    ``spec.equation(X, *free_parameters)`` includes any fixed coefficients in
+    its closure. The parameter and residual tables describe that same fit;
+    no point estimation or weight estimation is performed here.
+    """
+    budget = budget if budget is not None else ProfileBudget()
     estimates = fit.parameters['Estimate'].to_numpy(float)
     se = fit.parameters['SE'].to_numpy(float)
     n, p = len(fit.residuals), len(estimates)
@@ -114,6 +124,9 @@ def _profile(fit, model, level, budget):
     kinds = np.full((p, 2), 'Unavailable', dtype=object)
     reasons = np.full((p, 2), '', dtype=object)
     df = n-p
+    if p > MAX_PARAMETERS:
+        reasons[:] = f'Profile intervals support at most {MAX_PARAMETERS} free parameters per fit.'
+        return intervals, kinds, reasons
     if n > MAX_POINTS:
         reasons[:] = f'Profile intervals support at most {MAX_POINTS} complete observations per fit.'
         return intervals, kinds, reasons
