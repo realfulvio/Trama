@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.73 beta:** optional Modern theme, richer heat maps, robust curve fits, nonlinear inverse intervals, detailed correlations and analyses from summaries. [Release details](docs/release-073.md).
+**New in 0.74 beta:** configurable parameter confidence levels and asymmetric profile intervals for independent unweighted nonlinear fits, with cancellable calculation. [Changes and limits](docs/release-074.md) · [Verification](docs/validation-074.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
