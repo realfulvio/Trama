@@ -5,7 +5,9 @@ In **Analyze → Nonlinear regression → Confidence intervals**, scegli il meto
 - **Symmetric (Wald)** usa la covarianza e i gradi di libertà del fit confermato. Il livello predefinito del 95% conserva i risultati delle ricette precedenti.
 - **Profile likelihood** ristima gli altri coefficienti per ogni valore provato del parametro di interesse. Può produrre limiti asimmetrici; non sostituisce le stime puntuali né modifica la curva stimata.
 
-Per il profilo, Trama inverte il test extra-sum-of-squares con un parametro fissato: il limite soddisfa `SS_profile = SS_min × (1 + F(level; 1, df)/df)`, con `df = N − p`. La somma dei quadrati e i gradi di libertà si riferiscono allo stesso fit indipendente. È un intervallo marginale per ciascun coefficiente, non una regione simultanea per tutti i coefficienti.
+Per il profilo, Trama inverte il test extra-sum-of-squares con un parametro fissato: il limite soddisfa `SS_profile = SS_min × (1 + F(level; 1, df)/df)`, con `df = N − p`. La somma dei quadrati e i gradi di libertà si riferiscono allo stesso fit indipendente. È un intervallo marginale per ciascun coefficiente, non una regione simultanea per tutti i coefficienti. L’inferenza non lineare è approssimata e presuppone errori indipendenti gaussiani con varianza comune.
+
+![Dialogo italiano della vera applicazione Windows.](media/nonlinear-parameter-intervals/options-it.png)
 
 ## Risultati
 
@@ -16,6 +18,8 @@ Il foglio **Parameters** mantiene stima e SE e indica il livello nei nomi delle 
 - **Unavailable**: il limite non è stato determinato, con motivo esplicito. Non viene sostituito con Wald né dichiarato infinito soltanto perché la ricerca non ha trovato una radice.
 
 Cambiare i dati o escludere una cella ricalcola stime e intervalli. Metodo e livelli si salvano nel progetto `.alab` con valori canonici, indipendenti dalla lingua dell'interfaccia. Il calcolo del profilo avviene sul worker ed è annullabile: annullare una modifica conserva l'ultimo risultato completato.
+
+![Stime e limiti dei parametri su dati sintetici.](media/nonlinear-parameter-intervals/results.png)
 
 ## Limiti della beta
 
