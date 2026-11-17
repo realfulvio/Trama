@@ -6442,7 +6442,7 @@ class App:
                 else [self.runs[key]] if kind in {"result", "graph", "saved-layout"} else [])
         failures = [(translate_message(run.calculation_error, 'fdr.error.') if run.method == FDR_METHOD
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
-                     if self._lognormal_one_way(run) else translate_reference_error(run.calculation_error))
+                     if run.method == "One-way ANOVA" else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
 
