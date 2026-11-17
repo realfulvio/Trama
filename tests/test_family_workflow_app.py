@@ -218,3 +218,36 @@ class DialogBehaviour(FamilyAppCase):
             text = family_error_text(FamilyError(code, 'English fallback', **detail))
             self.assertNotEqual(text, 'English fallback', code)
             self.assertNotIn('family.error', text)
+
+
+class RecoveredLayoutCopy(FamilyAppCase):
+    def test_a_recovered_layout_is_copied_with_new_graph_identities(self):
+        from analisi.prism_layout_edit import PRISM_PANEL_DATA
+        from analisi.prism_restore import (PRISM_GRAPH_LINK, PRISM_GRAPH_STYLE, SAVED_BINARY_LAYOUT,
+                                           SAVED_EDITABLE_GRAPH)
+        tables = {
+            'Recovered A': Dataset(pd.DataFrame({'X': [1., 2.], 'Y': [3., 4.]}), analyses=[
+                (SAVED_EDITABLE_GRAPH, {PRISM_GRAPH_LINK: 'graph-a', PRISM_GRAPH_STYLE: {'fixture': 'A'}})]),
+            'Recovered layouts': Dataset(pd.DataFrame({'View': ['Synthetic']}), analyses=[
+                (SAVED_BINARY_LAYOUT, {PRISM_PANEL_DATA: {'1': 'graph-a'}})])}
+        path = Path(self.tmp.name)/'recovered.alab'
+        save_project(path, tables)
+        self.app.import_file(path)
+        index = next(i for i, run in enumerate(self.app.runs) if run.method == SAVED_BINARY_LAYOUT)
+        reference = self.app.family_ref(('saved-layout', index))
+        self.assertEqual(reference, ('saved-layout', ('Recovered layouts', 0)))
+        describe = self.app.family_describer(reference, export=False)
+        error, lines = describe('Repeat ', False)
+        self.assertIsNone(error)
+        self.assertIn(tr('family.counts', tables=2, analyses=2, layouts=0, infos=0), '\n'.join(text for _, text in lines))
+        bundle = duplicate_family(self.app.tables, self.app.layouts, tuple(self.app.info_sheets.values()), reference,
+                                  name='Repeat ')
+        with patch.object(self.app, 'open_sheet') as opened:
+            self.app.apply_family(bundle)
+        copied = {run.title: run for run in self.app.runs if run.title.startswith('Repeat')}
+        link = copied['Repeat Recovered A'].options[PRISM_GRAPH_LINK]
+        self.assertNotEqual(link, 'graph-a')
+        self.assertEqual(copied['Repeat Recovered layouts'].options[PRISM_PANEL_DATA], {'1': link})
+        self.assertEqual(tables['Recovered layouts'].analyses[0][1][PRISM_PANEL_DATA], {'1': 'graph-a'})
+        opened.assert_called_once()
+        self.assertEqual(opened.call_args.args[0][0], 'saved-layout')
