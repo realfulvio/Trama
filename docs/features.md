@@ -2,7 +2,7 @@
 
 [Presentazione](../README.md) · [Guida rapida](getting-started.md) · [Compatibilità](compatibility.md)
 
-Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.81.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
+Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.82.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
 
 Il [confronto di due varianze](variance-ratio-079.md) offre intervalli esatti e una figura facoltativa.
 
@@ -17,6 +17,8 @@ Le [ricette gerarchiche ZIP supportate](hierarchical-import.md) diventano analis
 Una [schermata di avvio con cerchio animato](startup-screen.md) accompagna il caricamento e si chiude quando la finestra principale è pronta.
 
 **Impostazioni → Tema…** permette di scegliere Tema standard o Tema Moderno. Standard rimane il predefinito. Moderno dispone griglia, anteprima del grafico e ispettore nello stesso spazio; il tema si applica al prossimo avvio e non cambia dati, analisi o figure esportate. [Guida ai temi](interface-themes.md).
+
+L’[editor delle legende](graph-legends.md) modifica titolo, colonne, cornice ed etichette dei grafici nativi con anteprima.
 
 ## Tabelle e progetti
 

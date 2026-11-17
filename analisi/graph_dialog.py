@@ -7,6 +7,7 @@ from matplotlib.colors import to_hex
 
 from .axis_guides import AXIS_BANDS, AXIS_GUIDES
 from .graph_annotations import ANNOTATIONS
+from .graph_legend import LEGEND_OPTIONS_KEY
 from .graph_shapes import SHAPES
 from .presentation import (FONT_FAMILIES, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
                            _check_math_text, _color, _number, _text, active_series_fields, apply_style,
@@ -137,7 +138,9 @@ class GraphFormatDialog(simpledialog.Dialog):
         self._series_index = -1
         self._axis_guides = deepcopy(style.get(AXIS_GUIDES, []))
         self._axis_bands = deepcopy(style.get(AXIS_BANDS, []))
+        self._legend_options = deepcopy(style.get(LEGEND_OPTIONS_KEY, {}))
         self._guides_previewed = False
+        self._legend_previewed = False
         self.error_widget = None
         self._pending_error_target = None
         super().__init__(parent, tr("graph.format.title"))
@@ -219,6 +222,13 @@ class GraphFormatDialog(simpledialog.Dialog):
                 tab, 8, tr("graph.field.accent"), to_hex(self.style["accent"], keep_alpha=True))
             ttk.Button(tab, text=tr("graph.field.pick"), command=lambda: self._pick_color(self.inputs["accent"])).grid(
                 row=8, column=2, padx=(4, 0))
+        from .graph_legend_dialog import legend_summary
+
+        legend_row = 9 if "accent" in self.style else 8
+        self.legend_button = ttk.Button(tab, text=tr("legend_editor.button"), command=self._edit_legend_options)
+        self.legend_button.grid(row=legend_row, column=0, sticky="w", pady=(8, 0))
+        self.legend_summary = ttk.Label(tab, text=legend_summary(self._legend_options), foreground="#506575")
+        self.legend_summary.grid(row=legend_row, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=(8, 0))
         return initial_focus
 
     def _axes_tab(self, tab):
@@ -395,6 +405,57 @@ class GraphFormatDialog(simpledialog.Dialog):
             text = tr("graph.guides.summary_count", count=len(items)) if items else tr("graph.guides.summary_none")
             label.configure(text=text)
 
+    def _refresh_legend_summary(self):
+        from .graph_legend_dialog import legend_summary
+
+        if hasattr(self, "legend_summary"):
+            self.legend_summary.configure(text=legend_summary(self._legend_options))
+
+    def _preview_legend_options(self, options):
+        figure = getattr(self.axes, "figure", None)
+        if figure is None:
+            return
+        try:
+            base = self._read_style()
+        except ValueError:
+            base = deepcopy(self.style)
+            for dim in ("x", "y"):
+                if dim + "scale" in self.inputs:
+                    base[dim + "scale"] = self.inputs[dim + "scale"].get()
+        if options is None:
+            candidate = base
+        else:
+            candidate = deepcopy(base)
+            if options:
+                candidate[LEGEND_OPTIONS_KEY] = deepcopy(options)
+            else:
+                candidate.pop(LEGEND_OPTIONS_KEY, None)
+        try:
+            apply_style(figure, candidate)
+        except ValueError:
+            apply_style(figure, base)
+            raise
+        self._legend_previewed = True
+        canvas = getattr(figure, "canvas", None)
+        if canvas is not None:
+            canvas.draw_idle()
+
+    def _edit_legend_options(self):
+        from .graph_legend_dialog import LegendEditorDialog
+
+        dialog = LegendEditorDialog(
+            self,
+            getattr(self.axes, "figure", None),
+            self._legend_options,
+            preview=self._preview_legend_options,
+        )
+        self.grab_set()
+        if dialog.result is not None:
+            self._legend_options = dialog.result
+            self._refresh_legend_summary()
+            if self._legend_previewed:
+                self._preview_legend_options(self._legend_options)
+
     def _preview_guides_or_bands(self, key, records):
         figure = getattr(self.axes, "figure", None)
         if figure is None:
@@ -462,7 +523,7 @@ class GraphFormatDialog(simpledialog.Dialog):
             self._refresh_guide_summaries()
 
     def cancel(self, event=None):
-        if self._guides_previewed and self.result is None:
+        if (self._guides_previewed or self._legend_previewed) and self.result is None:
             figure = getattr(self.axes, "figure", None)
             if figure is not None:
                 try:
@@ -555,6 +616,8 @@ class GraphFormatDialog(simpledialog.Dialog):
             style[AXIS_GUIDES] = deepcopy(self._axis_guides)
         if self._axis_bands:
             style[AXIS_BANDS] = deepcopy(self._axis_bands)
+        if self._legend_options:
+            style[LEGEND_OPTIONS_KEY] = deepcopy(self._legend_options)
         if self.xy is not None:
             for key, var in (("Right minimum", self.right_min), ("Right maximum", self.right_max)):
                 raw = var.get().strip()
@@ -612,6 +675,8 @@ class GraphFormatDialog(simpledialog.Dialog):
                 target = (3, getattr(self, "guides_button", self.references), None)
             elif "band" in msg.casefold():
                 target = (3, getattr(self, "bands_button", self.references), None)
+            elif "legend formatting" in msg.casefold() or "legend border" in msg.casefold() or "legend background" in msg.casefold() or "legend column" in msg.casefold() or "legend entry" in msg.casefold() or "legend title" in msg.casefold() or "legend frame" in msg.casefold():
+                target = (0, getattr(self, "legend_button", self._appearance_widgets.get("legend")), None)
             elif any(word in msg.casefold() for word in ("font", "legend", "frame", "title", "label")):
                 target = (0, self._appearance_widgets.get("title"), None)
             elif any(word in msg.casefold() for word in ("axis", "limit", "tick", "interval", "logarithm", "probability")):
@@ -675,8 +740,12 @@ class GraphFormatDialog(simpledialog.Dialog):
             self.result = style
         except ValueError as error:
             from .axis_guides_dialog import translate_guide_error
+            from .graph_legend_dialog import translate_legend_error
 
             self._focus_error(error)
-            messagebox.showerror(tr("graph.format.error_title"), translate_guide_error(error), parent=self)
+            msg = translate_legend_error(error)
+            if msg == str(error):
+                msg = translate_guide_error(error)
+            messagebox.showerror(tr("graph.format.error_title"), msg, parent=self)
             return False
         return True
