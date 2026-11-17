@@ -8,8 +8,11 @@ from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
+from matplotlib.colors import to_hex
 
 from analisi.data import Dataset, load_project, load_tables, save_project
+from analisi.hierarchical_style import describe_hierarchical_artists
+from analisi.presentation import apply_style
 from analisi.prism_recipes import restore_recipe
 from analisi.workbench import analyse
 from tests.test_prism_recipes import source, var
@@ -35,14 +38,19 @@ def fixture():
                   {**{c: [c] for c in "ABC"}, "label": ["Label"]})
 
 
-def write_project(path):
+def write_project(path, *, heatmap_sheet=None):
     """Write only synthetic content, including an independently saved result view."""
     sheet, parameters, sources = fixture()
     frame = sources["source"]
     with ZipFile(path, "w") as archive:
         def write(name, obj):
             archive.writestr(name, json.dumps(obj))
-        write("document.json", {"sheets": {"data": ["source"], "analyses": ["tree"]}})
+        sheets = {"data": ["source"], "analyses": ["tree"]}
+        if heatmap_sheet is not None:
+            sheets["graphs"] = ["heatmap"]
+            sheet["graphs"] = [{"settings": {"uid": "heatmap", "graph": {"dataSheet": "heatmap-data"}}}]
+            write("graphs/heatmap/sheet.json", heatmap_sheet)
+        write("document.json", {"sheets": sheets})
         write("data/sheets/source/sheet.json", {"title": "Expression", "table": {
             "uid": "matrix", "format": "multivariable", "dataFormat": "y_single",
             "dataSets": ["label", "A", "B", "C"]}})
@@ -61,6 +69,53 @@ def write_project(path):
 
 
 class HierarchicalRecipeTests(unittest.TestCase):
+    def test_imported_heatmap_style_follows_the_linked_graph_and_roundtrips(self):
+        sheet = {"uid": "heatmap", "graph": {
+            "dataSheet": "heatmap-data",
+            "components": [{"@class": "DendrogramGraphComponent", "levelsSourceType": "rows",
+                            "branchesLink": "/rows/dendrogram", "isVisible": True,
+                            "colormap": {"@class": "SingleColormap", "color": "#2A7744ff"},
+                            "linesStrokeSettings": {"strokeThickness": 1.5, "strokeStyle": "solid"},
+                            "axis": {"orientation": "horizontal", "segments": [{
+                                "@class": "LinearAxisSegment", "lowerLimit": 0, "upperLimit": 10,
+                                "interval": 2, "startTicksValue": 0, "isReversed": True}]}}],
+            "gdoSettingsExt": {"heatmap": {
+                "@class": "HeatmapFigure::Settings", "isColorLegendEnabled": False,
+                "colormap": {"@class": "GradientColormap", "colorScheme": "Viridis",
+                             "colorsTransparencyPercent": 0}}}}}
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "import.prism"
+            write_project(source, heatmap_sheet=sheet)
+            dataset = Dataset(load_tables(source, restore_prism=True)["Expression"])
+            saved = Path(directory) / "restored.alab"
+            save_project(saved, {"Expression": dataset})
+            restored = load_project(saved)["Expression"]
+            self.assertEqual(restored.graph_styles, dataset.graph_styles)
+            method, options = restored.analyses[0]
+            before = analyse(method, restored.frame(), options)
+            result = analyse(method, restored.frame(), options)
+            apply_style(result.figure, restored.graph_styles[0])
+            artists = describe_hierarchical_artists(result.figure)
+            for color in artists["row"]["branches"].get_colors():
+                self.assertEqual(to_hex(color), "#2a7744")
+            np.testing.assert_allclose(artists["row"]["branches"].get_linewidths(), [1.5])
+            self.assertEqual(artists["row"]["axes"].get_xlim(), (10., 0.))
+            self.assertFalse(artists["heatmap"]["colorbar"].ax.get_visible())
+            pd.testing.assert_frame_equal(before.tables["Row Merges"], result.tables["Row Merges"])
+
+            segment = sheet["graph"]["components"][0]["axis"]["segments"][0]
+            segment.update(lowerLimit=1, startTicksValue=1)
+            write_project(source, heatmap_sheet=sheet)
+            offset = Dataset(load_tables(source, restore_prism=True)["Expression"])
+            distance = offset.graph_styles[0]["hierarchical"]["row"]["distance"]
+            self.assertEqual(distance, {"minimum": 1., "maximum": 10., "reversed": True})
+
+            sheet["graph"]["dataSheet"] = "another-table"
+            write_project(source, heatmap_sheet=sheet)
+            unlinked = Dataset(load_tables(source, restore_prism=True)["Expression"])
+            self.assertEqual(unlinked.graph_styles, {})
+            self.assertEqual(unlinked.analyses[0][0], "Hierarchical clustering")
+
     def converted(self, args=None):
         args = fixture() if args is None else args
         found = restore_recipe(*args)

@@ -1,7 +1,8 @@
 """Restore verified native recipes and materialize saved Prism views."""
 import csv
-from uuid import uuid4
+from math import remainder
 import re
+from uuid import uuid4
 
 import numpy as np
 import pandas as pd
@@ -31,6 +32,92 @@ def _list(value):
     if not isinstance(value, list) or len(value) > 256:
         raise ValueError("Unsupported Prism sheet list.")
     return value
+
+
+def _dendrogram_presentation(component, direction):
+    """Translate the saved single-color stroke and the matching linear distance axis."""
+    style = {}
+    visible = component.get("isVisible")
+    if type(visible) is bool:
+        style["visible"] = visible
+    color_map = component.get("colormap") or {}
+    color = color_map.get("color")
+    if (color_map.get("@class") == "SingleColormap" and isinstance(color, str)
+            and re.fullmatch(r"#[0-9a-fA-F]{6}[fF]{2}", color)):
+        style.update(color_mode="single", color=color[:7].lower())
+    stroke = component.get("linesStrokeSettings") or {}
+    width = stroke.get("strokeThickness")
+    if type(width) in {int, float} and 0 < width <= 12:
+        style["width"] = float(width)
+    if stroke.get("strokeStyle") in ("solid", "dashed", "dotted", "dashdot"):
+        style["line_style"] = stroke["strokeStyle"]
+    axis = component.get("axis") or {}
+    segments = axis.get("segments")
+    orientation = "horizontal" if direction == "rows" else "vertical"
+    if axis.get("orientation") != orientation or not isinstance(segments, list) or len(segments) != 1:
+        return style
+    segment, = segments
+    if segment.get("@class") != "LinearAxisSegment":
+        return style
+    low, high, step = (segment.get(key) for key in ("lowerLimit", "upperLimit", "interval"))
+    if type(low) in {int, float} and type(high) in {int, float} and 0 <= low < high < float("inf"):
+        distance = {"minimum": float(low), "maximum": float(high)}
+        if type(step) in {int, float} and 0 < step < float("inf") and segment.get("startTicksValue") == low:
+            from .hierarchical_style import MAX_DISTANCE_TICKS
+
+            # The native locator is anchored at zero, so retain matching tick grids.
+            if (high - low) / step < MAX_DISTANCE_TICKS and abs(remainder(low, step)) <= step * 1e-10:
+                distance["step"] = float(step)
+        if type(segment.get("isReversed")) is bool:
+            distance["reversed"] = segment["isReversed"]
+        style["distance"] = distance
+    return style
+
+
+def _restored_heatmap_style(archive, names, analysis):
+    """Use the exact graph and source-sheet identities stored by a hierarchical analysis."""
+    from .hierarchical_style import validate_hierarchical_style
+
+    found = {}
+    try:
+        for reference in _list(analysis.get("graphs", [])):
+            settings = reference["settings"]
+            uid = _identifier(settings["uid"])
+            data_sheet = _identifier(settings["graph"]["dataSheet"])
+            path = f"graphs/{uid}/sheet.json"
+            if path not in names:
+                continue
+            sheet = _json_object(archive, path)
+            graph = sheet["graph"]
+            if sheet.get("uid") != uid or graph.get("dataSheet") != data_sheet:
+                continue
+            heatmap = graph.get("gdoSettingsExt", {}).get("heatmap", {})
+            if heatmap.get("@class") != "HeatmapFigure::Settings":
+                continue
+            section = {}
+            for component in _list(graph.get("components", [])):
+                side = component.get("levelsSourceType")
+                if (side not in ("rows", "columns") or component.get("@class") != "DendrogramGraphComponent"
+                        or component.get("branchesLink") != f"/{side}/dendrogram"):
+                    continue
+                key = side[:-1]
+                if key in section:
+                    raise ValueError("Duplicate saved dendrogram component.")
+                section[key] = _dendrogram_presentation(component, side)
+            settings = {}
+            colormap = heatmap.get("colormap") or {}
+            if (colormap.get("@class") == "GradientColormap" and colormap.get("colorScheme") == "Viridis"
+                    and colormap.get("colorsTransparencyPercent") == 0):
+                settings["cmap"] = "viridis"
+            if type(heatmap.get("isColorLegendEnabled")) is bool:
+                settings["colorbar"] = heatmap["isColorLegendEnabled"]
+            if settings:
+                section["heatmap"] = settings
+            if section:
+                found[uid] = {"hierarchical": validate_hierarchical_style(section)}
+    except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+        return None
+    return next(iter(found.items())) if len(found) == 1 else None
 
 
 def _saved_xy(graph, owners, remaining_cells):
@@ -90,6 +177,7 @@ def _saved_xy(graph, owners, remaining_cells):
 def restore_sheets(archive, names, sheets, sources, tables, cells):
     """Add non-executable snapshots and supported native analysis recipes."""
     warnings = []
+    restyled = set()
     owners = {}
     for source in sources.values():
         if source.attrs["prism_x"]:
@@ -121,6 +209,16 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
                 source, method, options = recipe
                 restored = sources[source].attrs.setdefault("prism_recipes", [])
                 if len(restored) < 256:
+                    if method == "Hierarchical clustering" and options.get("Graph output") == "Heat map":
+                        saved_style = _restored_heatmap_style(archive, names, sheet)
+                        if saved_style is not None:
+                            graph_uid, style = saved_style
+                            styles = sources[source].attrs.setdefault("prism_graph_styles", {})
+                            styles[len(restored)] = style
+                            restyled.add(graph_uid)
+                            options[PRISM_NOTES] = (
+                                "Recalculates the supported hierarchy and restores selected saved heat map "
+                                "and dendrogram settings. Other settings use Trama formatting.")
                     restored.append((method, {**options, PRISM_TITLE: label[:160]}))
             else:
                 warnings.append(f"Recalculation unavailable for {label}.")
@@ -134,6 +232,8 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
         label = str(entry)
         try:
             uid = _identifier(entry)
+            if uid in restyled:
+                continue
             graph = _json_object(archive, f"graphs/{uid}/sheet.json")
             label = graph.get("title") or uid
             if not isinstance(label, str):
