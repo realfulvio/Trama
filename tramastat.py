@@ -42,7 +42,8 @@ from analisi.nested import (CONFIRM as NESTED_CONFIRM, METHODS as NESTED_METHODS
 from analisi.correlation_matrix import CORRELATION_MATRIX
 from analisi.data import (EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, MAX_CELLS, MAX_COLUMNS, Dataset, _table, decimal_comma, info_references, load_project, load_tables,
                           load_workspace, save_project)
-from analisi.ellipse_workbench import ELLIPSE_TABS, ellipse_visibility
+from analisi.ellipse_workbench import (BY_GROUP as ELLIPSE_BY_GROUP, ELLIPSE_TABS, GROUP_STYLES as ELLIPSE_GROUP_STYLES,
+                                     ellipse_grouping_column, ellipse_visibility)
 from analisi.equation_dialog import EquationDialog
 from analisi.function_editor import CurveEditor
 from analisi.model_picker import ModelPicker
@@ -1525,7 +1526,15 @@ class AnalysisDialog(simpledialog.Dialog):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_hierarchical_fields())
             self.show_hierarchical_fields()
         if self.method == "Scatter / confidence ellipse":
-            for label in ("Ellipse", "Ellipse grouping", "Fill", "Border", "Center marker"):
+            parent = fields_by_tab["Fill"]
+            row = positions[parent]
+            heading = ttk.Label(parent, text=ui(ELLIPSE_GROUP_STYLES), wraplength=170)
+            heading.grid(row=row, column=0, sticky="w", pady=4, padx=(0, 10))
+            editor = ttk.Button(parent, text=ui("Edit group styles…"), command=self.edit_ellipse_group_styles)
+            editor.grid(row=row, column=1, sticky="w", pady=4)
+            self.field_rows[ELLIPSE_GROUP_STYLES] = heading, editor
+            self.ellipse_group_styles = deepcopy(saved.get(ELLIPSE_GROUP_STYLES, {}))
+            for label in ("Ellipse", "Ellipse grouping", "Group", "Ellipse group", "Fill", "Border", "Center marker"):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_ellipse_fields())
             self.show_ellipse_fields()
         if self.method in CATEGORY_GRAPHS:
@@ -2143,7 +2152,36 @@ class AnalysisDialog(simpledialog.Dialog):
     def show_ellipse_fields(self):
         self.show_fields(self.overlay_visibility())
         tab = self.field_rows["Fill"][0].master
-        self.fields.tab(tab, state="normal" if self.controls["Ellipse"][1].get() != "None" else "disabled")
+        enabled = self.controls["Ellipse"][1].get() != "None"
+        self.fields.tab(tab, state="normal" if enabled else "disabled")
+        options = self.ellipse_style_options()
+        group = ellipse_grouping_column(options)
+        visible = enabled and group in self.data and ELLIPSE_BY_GROUP in (options["Fill"], options["Border"])
+        self.show_fields({ELLIPSE_GROUP_STYLES: visible})
+
+    def ellipse_style_options(self):
+        fields = ("Group", "Ellipse grouping", "Ellipse group", "Fill", "Border")
+        return {field: self.controls[field][1].get() for field in fields}
+
+    def edit_ellipse_group_styles(self):
+        from analisi.ellipse_style_dialog import EllipseStyleDialog
+
+        options = self.ellipse_style_options()
+        column = ellipse_grouping_column(options)
+        if column not in self.data:
+            return
+        values = self.data[column].dropna().unique()
+        if not len(values):
+            messagebox.showerror(ui(ELLIPSE_GROUP_STYLES), ui("The grouping column has no observed values."), parent=self)
+            return
+        try:
+            dialog = EllipseStyleDialog(self, values, options, column, self.ellipse_group_styles)
+        except FieldError as error:
+            messagebox.showerror(ui(ELLIPSE_GROUP_STYLES), ui(str(error)), parent=self)
+            return
+        self.grab_set()
+        if dialog.result is not None:
+            self.ellipse_group_styles = dialog.result
 
     def category_visibility(self):
         if self.method not in CATEGORY_GRAPHS:
@@ -3132,6 +3170,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     elif kind is None and not value:
                         raise ValueError(f"Choose a column for {name}.")
                 options[name] = value
+            if self.method == "Scatter / confidence ellipse" and self.ellipse_group_styles:
+                options[ELLIPSE_GROUP_STYLES] = self.ellipse_group_styles
             if self.method == "Kaplan–Meier survival":
                 check_survival_options(self.data, options)
             if self.method == NORMALITY:
