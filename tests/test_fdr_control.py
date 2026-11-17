@@ -26,6 +26,7 @@ from analisi.fdr_control import (
     adjust_family, analysis, format_fdr_error, validate_request,
 )
 from analisi.field_error import FieldError
+from analisi.i18n import active_language, set_language, ui
 from analisi.workbench import GRAPH_METHODS, analyse
 
 FIXTURES = json.loads((Path(__file__).parent / "data" / "fdr_control" / "families.json").read_text())
@@ -320,6 +321,32 @@ class ResultTests(unittest.TestCase):
         families = analysis(frame, _options()).tables["FDR families"]
         self.assertEqual(int(families["m"].iloc[0]), MAX_CELLS)
         self.assertGreater(int(families["Discoveries"].iloc[0]), 0)
+
+    def test_workbench_dispatches_the_verifier_case(self):
+        frame = pd.DataFrame({"P": [0.01, 0.03, 0.04, 0.2, None], "G": ["a", "a", "b", "b", "b"]},
+                             index=[99, 99, 5, 5, 5])
+        result = analyse(METHOD, frame, {
+            P_COLUMNS: ["P"], FAMILY_COLUMNS: ["G"], SCOPE: SCOPE_EACH, FDR_METHOD: BH, LEVEL: 5.0, PLOT: False,
+        })
+        table = result.tables["FDR results"]
+        self.assertEqual(table["Source row"].tolist(), [1, 2, 3, 4, 5])
+        self.assertTrue(_close(table["Adjusted p"].iloc[:4], [0.02, 0.03, 0.08, 0.2]))
+        self.assertEqual(table["Discovery"].iloc[:4].tolist(), [True, True, False, False])
+        self.assertEqual(table["Status"].iloc[4], STATUS_MISSING_P)
+        self.assertIsNone(result.figure)
+        self.assertNotIn(METHOD, GRAPH_METHODS)
+
+    def test_italian_choices_in_one_combobox_stay_unique(self):
+        original = active_language()
+        try:
+            set_language("it")
+            self.assertEqual(len({ui(name) for name in (BH, BY, BKY)}), 3)
+            self.assertEqual(len({ui(name) for name in (SCOPE_EACH, SCOPE_POOL)}), 2)
+            self.assertNotEqual(ui(METHOD), METHOD)
+            self.assertIn("compreso tra 0 e 100", format_fdr_error(FieldError(LEVEL, ERR_LEVEL)))
+            self.assertIn("FDR desiderato (%)", format_fdr_error(FieldError(LEVEL, ERR_LEVEL)))
+        finally:
+            set_language(original)
 
     def test_legacy_holm_adjustment_is_unchanged(self):
         frame = pd.DataFrame({"p": [0.01, 0.03, 0.2]})
