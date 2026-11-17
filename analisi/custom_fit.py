@@ -31,7 +31,8 @@ import pandas as pd
 from scipy import stats
 from scipy.optimize import least_squares
 
-from .custom_equations import MAX_PARAMETERS, check_name, compile_equation
+from .custom_equations import (ARITHMETIC, CONDITIONAL, MAX_PARAMETERS, SYNTAXES, ConditionError, check_name,
+                               compile_equation, curve_with_breaks, syntax_of)
 from .field_error import FieldError
 from .fit_weights import INVERSE_VARIANCE, UNWEIGHTED
 from .reporting import Result, _plot, _report
@@ -44,6 +45,9 @@ PARAMETER_LIST = "Coefficient list"  # Dialog kind of the Parameters field.
 EQUATION_TEXT = "Equation text"  # Dialog kind of the Equation field.
 WEIGHTINGS = (UNWEIGHTED, INVERSE_VARIANCE)
 LEVEL, POINTS, SD_COLUMN = "Confidence level (%)", "Curve points", "SD column"
+# 0.81: "Arithmetic" (the default and the meaning of a recipe without the field) or "Conditional".
+SYNTAX = "Equation syntax"
+BRANCH = "Branch"
 DEFAULT_LEVEL, DEFAULT_POINTS = 95.0, 201
 MIN_POINTS, MAX_POINTS = 20, 10_000
 MAX_GROUPS, MAX_PAIRS = 12, 100_000
@@ -53,10 +57,11 @@ EXAMPLE_PARAMETERS = ({"name": "A", "start": 1.0, "lower": None, "upper": None, 
                       {"name": "B", "start": 1.0, "lower": None, "upper": None, "fixed": False})
 DEFAULT_EQUATION = "A + B*X"
 # "Optional" is the dialog's own kind name for an optional column (see workbench).
-OPTIONS = {"X": None, "Y": None, "Group": "Optional", "Equation": EQUATION_TEXT, "Parameters": PARAMETER_LIST,
+OPTIONS = {"X": None, "Y": None, "Group": "Optional", SYNTAX: SYNTAXES, "Equation": EQUATION_TEXT,
+           "Parameters": PARAMETER_LIST,
            "Weighting": WEIGHTINGS, SD_COLUMN: "Optional", INTERVAL_METHOD: INTERVAL_METHODS,
            LEVEL: DEFAULT_LEVEL, POINTS: DEFAULT_POINTS}
-TABS = {"Equation": ("Equation",), "Parameters": ("Parameters",), "Output": (INTERVAL_METHOD, LEVEL, POINTS)}
+TABS = {"Equation": (SYNTAX, "Equation"), "Parameters": ("Parameters",), "Output": (INTERVAL_METHOD, LEVEL, POINTS)}
 
 
 @dataclass(frozen=True)
@@ -80,6 +85,7 @@ class Settings:
     level: float
     points: int
     intervals: str
+    syntax: str = ARITHMETIC
 
 
 def _number(value):
@@ -99,7 +105,7 @@ def _where(label, message):
     return message if label == "All" else f"Group {label}: {message}"
 
 
-def coefficients_from(records):
+def coefficients_from(records, syntax=ARITHMETIC):
     """Validate the Parameters recipe field: names, finite starts, strict limits, feasible values."""
     if not isinstance(records, (list, tuple)):
         raise FieldError("Parameters", "Parameters must be a list of coefficients.")
@@ -110,7 +116,7 @@ def coefficients_from(records):
         if not isinstance(record, dict):
             raise FieldError("Parameters", "Each coefficient needs a name, a starting value and its limits.")
         name = record.get("name")
-        check_name(name)
+        check_name(name, syntax)
         if name in seen:
             raise FieldError("Parameters", f"The coefficient {name} appears more than once.")
         seen.add(name)
@@ -161,15 +167,30 @@ def resolve(frame, options):
     if (not _number(points) or not np.isfinite(points) or points != int(points)
             or not MIN_POINTS <= points <= MAX_POINTS):
         raise FieldError(POINTS, f"Curve points must be a whole number from {MIN_POINTS} to {MAX_POINTS}.")
-    coefficients = coefficients_from(options.get("Parameters", ()))
+    syntax = syntax_of(options.get(SYNTAX))
+    coefficients = coefficients_from(options.get("Parameters", ()), syntax)
     intervals = options.get(INTERVAL_METHOD, WALD)
     if intervals not in INTERVAL_METHODS:
         raise FieldError(INTERVAL_METHOD, "Choose Symmetric (Wald) or Profile likelihood.")
     if intervals == PROFILE and sum(not c.fixed for c in coefficients) > PROFILE_PARAMETERS:
         raise FieldError(INTERVAL_METHOD, f"Profile intervals support at most {PROFILE_PARAMETERS} free parameters per fit.")
     equation = options.get("Equation")
-    compile_equation(equation, [c.name for c in coefficients])
-    return Settings(x, y, group, sd, equation.strip(), coefficients, weighting, float(level), int(points), intervals)
+    compiled = compile_equation(equation, [c.name for c in coefficients], syntax=syntax)
+    require_fixed_conditions(compiled, [c.name for c in coefficients if not c.fixed])
+    return Settings(x, y, group, sd, equation.strip(), coefficients, weighting, float(level), int(points), intervals,
+                    syntax)
+
+
+def require_fixed_conditions(compiled, free_names):
+    """A coefficient read inside a condition must be Fixed: the fit estimates known thresholds' branches only.
+
+    Raised before any worker starts. The equation and the Fixed flags are never changed for the user.
+    """
+    free = [name for name in compiled.condition_parameters if name in set(free_names)]
+    if free:
+        raise FieldError("Parameters", f"{', '.join(free)} appears in a condition of if(...) and must be Fixed: "
+                                       "this fit uses known thresholds and does not estimate change points. "
+                                       "Tick Fixed and type the threshold value.")
 
 
 def _values(series, field, label, rows):
@@ -232,13 +253,28 @@ def _undefined(label, data, predicted, at_start):
                                                 f"(source row {data.index[position]}). Check divisions, logarithms and roots."))
 
 
+def condition_error(label, error, rows=None):
+    """A ConditionError with the group and, when known, the source row of the element."""
+    where = "" if rows is None else f" (source row {rows[error.position]})"
+    return FieldError("Equation", _where(label, f"A condition of if(...) is not defined at X = {error.x:g}{where}: "
+                                                "one side of a comparison is not a finite number. Check divisions, "
+                                                "logarithms and roots in the condition."))
+
+
+def _evaluate_rows(compiled, label, data, parameters):
+    try:
+        return compiled.evaluate(data["X"].to_numpy(), parameters)
+    except ConditionError as error:
+        raise condition_error(label, error, data.index) from None
+
+
 def check_domain(frame, s):
     """Dialog check: parse, then evaluate at the starting values on every used X. Never runs a fit."""
-    compiled = compile_equation(s.equation, [c.name for c in s.coefficients])
+    compiled = compile_equation(s.equation, [c.name for c in s.coefficients], syntax=s.syntax)
     start = {c.name: c.start for c in s.coefficients}
     for label, data, _ in prepare(frame, s):
         if len(data):
-            predicted = compiled.evaluate(data["X"].to_numpy(), start)
+            predicted = _evaluate_rows(compiled, label, data, start)
             if not np.isfinite(predicted).all():
                 raise _undefined(label, data, predicted, True)
     return compiled
@@ -265,6 +301,9 @@ def _fit_group(label, data, s, compiled):
 
     def predicted(theta):
         return compiled.evaluate(x, {**fixed, **dict(zip((c.name for c in free), theta))})
+
+    # Conditions read X and fixed coefficients only, so one evaluation settles every branch for the whole fit.
+    _evaluate_rows(compiled, label, data, {c.name: c.start for c in s.coefficients})
 
     # Normalised problem (see the module docstring). The SD column is first divided by its largest value, a
     # finite common factor, so everything below is independent of the unit in which the relative SDs were
@@ -363,12 +402,25 @@ def _fit_group(label, data, s, compiled):
                                   # A plain Index, never a RangeIndex: Use Result as Data keeps the source rows.
                                   index=pd.Index(data.index.to_numpy(), name="Source row"))
     grid = np.linspace(x.min(), x.max(), s.points)
-    curve = compiled.evaluate(grid, estimates)
+    try:
+        curve = compiled.evaluate(grid, estimates)
+    except ConditionError as error:
+        raise FieldError("Equation", _where(label, f"A condition of if(...) is not defined on the drawn curve at "
+                                                   f"X = {error.x:g}.")) from None
     if not np.isfinite(curve).all():
         bad = int(np.flatnonzero(~np.isfinite(curve))[0])
         raise FieldError("Equation", _where(label, f"The equation is not defined on the drawn curve at X = {grid[bad]:g}."))
+    curve_table = pd.DataFrame({"X": grid, "Predicted": curve})
+    if s.syntax == CONDITIONAL:
+        # Path labels, not estimates: equal codes follow the same branches of if(...).
+        curve_table[BRANCH] = compiled.branch_codes(grid, estimates)
+        summary["Equation syntax"] = CONDITIONAL
+        if compiled.condition_parameters:
+            summary["Conditions"] = ("Known thresholds, held fixed: " + ", ".join(
+                f"{name} = {estimates[name]:g}" for name in compiled.condition_parameters)
+                + ". Estimates and intervals are conditional on them; change points are not estimated.")
     fit = {"parameters": parameters, "summary": summary, "residuals": residual_table,
-           "curve": pd.DataFrame({"X": grid, "Predicted": curve}), "data": data}
+           "curve": curve_table, "data": data}
     if s.intervals == PROFILE and p:
         # Curvature supplies search units even when a coefficient is on a
         # bound. Its displayed Wald SE remains unavailable; a one-sided
@@ -385,7 +437,7 @@ def custom_fit(frame, options, *, cancel=None):
     """The analysis behind ``analyse("Fit custom equation", …)``."""
     s = resolve(frame, options)
     budget = ProfileBudget(cancel)
-    compiled = compile_equation(s.equation, [c.name for c in s.coefficients])
+    compiled = compile_equation(s.equation, [c.name for c in s.coefficients], syntax=s.syntax)
     groups = prepare(frame, s)
     figure, axes = _plot(_title(s.equation), s.x, s.y)
     tables = {}
@@ -397,7 +449,13 @@ def custom_fit(frame, options, *, cancel=None):
             profile_status = apply_profiles(fit, s, compiled, budget)
         fit["summary"]["Skipped rows"] = skipped
         dots = axes.scatter(fit["data"]["X"], fit["data"]["Y"], label=label)
-        axes.plot(fit["curve"]["X"], fit["curve"]["Predicted"], color=dots.get_facecolor()[0])
+        drawn = fit["curve"]
+        if BRANCH in drawn:
+            # Separators exist only in the drawn line: the Curve sheet keeps the sampled points.
+            axes.plot(*curve_with_breaks(drawn["X"], drawn["Predicted"], drawn[BRANCH]),
+                      color=dots.get_facecolor()[0])
+        else:
+            axes.plot(drawn["X"], drawn["Predicted"], color=dots.get_facecolor()[0])
         tables[f"Parameters: {label}"] = fit["parameters"]
         tables[f"Fit: {label}"] = _report(fit["summary"]).rename_axis("Metric")
         tables[f"Residuals: {label}"] = fit["residuals"]

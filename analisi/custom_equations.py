@@ -374,9 +374,11 @@ class _Parser:
         left = self.expression(depth + 1)
         kind, operator, position = self.peek()
         if not (kind == "op" and operator in COMPARISONS):
-            where = "the end" if kind == "end" else f"position {position + 1}"
+            if kind == "end":
+                raise FieldError("Equation", "A condition needs a comparison such as X < T (use < <= > >= == or "
+                                             "!=); the equation ends before one.")
             raise FieldError("Equation", f"A condition needs a comparison such as X < T (use < <= > >= == or !=); "
-                                         f"none was found before {where}.")
+                                         f"none was found before position {position + 1}.")
         self.take()
         right = self.expression(depth + 1)
         if self.comparison_ahead():
