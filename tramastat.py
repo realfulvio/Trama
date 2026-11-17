@@ -387,7 +387,8 @@ GLOBAL_LABEL_KEYS = {"Variables": "gfit.tab.variables", "Equation": "gfit.tab.eq
                      "Output": "gfit.tab.output", "X": "gfit.field.X", "Y": "gfit.field.Y",
                      "Group": "gfit.field.Group", "Weighting": "gfit.field.Weighting",
                      CUSTOM_SD: "gfit.field.SD column", CUSTOM_LEVEL: "gfit.field.Confidence level (%)",
-                     CUSTOM_POINTS: "gfit.field.Curve points", "Response": "gfit.tab.response",
+                     CUSTOM_POINTS: "gfit.field.Curve points", PARAM_CI_METHOD: "parameter_ci.method",
+                     "Response": "gfit.tab.response",
                      **{name: "gfit.field." + name for name in GLOBAL_TABS["Response"]}}
 # Response bands and predictions show translated choices; recipes keep these canonical values.
 GLOBAL_RESPONSE_CHOICES = {"None": "gfit.choice.none", "Confidence": "gfit.choice.confidence",
@@ -1178,7 +1179,8 @@ class AnalysisDialog(simpledialog.Dialog):
             positions[parent] += 1
             # The new rank-test controls show translated captions; the recipe keeps the English key.
             rank_control = self.method in RANK_METHODS and label in RANK_LABEL_KEYS
-            parameter_ci_control = self.method in ("Nonlinear regression", CUSTOM_EQUATION) and label in PARAM_CI_LABELS
+            parameter_ci_control = self.method in ("Nonlinear regression", CUSTOM_EQUATION,
+                                                    GLOBAL_CUSTOM_EQUATION) and label in PARAM_CI_LABELS
             band_control = self.method == "Nonlinear regression" and label in NL_BAND_LABELS
             xy_error_control = self.method == XY_ERRORS and label in XY_ERROR_LABEL_KEYS
             trend_control = self.method == "One-way ANOVA" and label in TREND_HEADINGS
@@ -1648,6 +1650,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 wraplength=max(360, event.width - 24)), add="+")
             self.show_fields(self.global_custom_fields())
             self._translate_analysis_labels(GLOBAL_LABEL_KEYS)
+            ttk.Label(options, text=tr("gfit.profile.hint"), wraplength=430,
+                      foreground="#486075", justify="left").grid(
+                row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.global_series.refresh_labels()
         if self.method == MONTE_CARLO_METHOD:
             for label in (MONTE_CARLO_STUDY, MONTE_CARLO_X_SOURCE):
@@ -3112,6 +3117,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         options.pop(key, None)
                 # Syntax, sharing, series limits and the domain at the start; the fit itself runs on the worker.
                 check_global_custom_options(self.data, options)
+                if PARAM_CI_METHOD not in saved and options.get(PARAM_CI_METHOD) == PARAM_CI_WALD:
+                    options.pop(PARAM_CI_METHOD, None)
             if self.select_editors:
                 options.update({name: editor.values() for name, editor in self.select_editors.items()})
             grouped_validation = self.method == GROUPED_GRAPH and (
@@ -3186,8 +3193,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     message = f"{field}: {message}"
             elif self.method == GLOBAL_CUSTOM_EQUATION:
                 message = translate_global_error(error)
-                label = tr("gfit.field." + field) if field else ""
-                if field and label != "gfit.field." + field:
+                label = tr(GLOBAL_LABEL_KEYS[field]) if field in GLOBAL_LABEL_KEYS else ui(field) if field else ""
+                if label and label not in message:
                     message = f"{label}: {message}"
                 elif field and field not in message:
                     message = f"{field}: {message}"
@@ -6273,7 +6280,7 @@ class App:
             return
         self.status.set(tr("interface.running", method=ui(run.method)))
         # A Monte Carlo study reports its blocks and stops between them when cancelled.
-        parameter_profile = (run.method in ("Nonlinear regression", CUSTOM_EQUATION)
+        parameter_profile = (run.method in ("Nonlinear regression", CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION)
                              and run.options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE)
         control = CalculationControl() if (run.method == MONTE_CARLO_METHOD or parameter_profile
                                            or extended_request(run.method, run.options)) else None
@@ -11876,6 +11883,13 @@ def smoke(root, app, directory, legacy_reference=None):
             wait_for_calculation=wait_for_calculation, messagebox=messagebox,
             filedialog=filedialog, errors=errors))
 
+    def check_global_profiles_smoke():
+        from analisi.global_custom_profiles_smoke import check_global_custom_profiles
+        check_global_custom_profiles(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox,
+            filedialog=filedialog, errors=errors))
+
     def check_parameter_weighting_smoke():
         from analisi.parameter_weighting_smoke import check_parameter_weighting
         check_parameter_weighting(root, app, directory, SimpleNamespace(
@@ -11944,6 +11958,13 @@ def smoke(root, app, directory, legacy_reference=None):
             check_modern_theme(root, app, directory, SimpleNamespace(
                 Run=Run, capture=capture, drive_dialog=drive_dialog,
                 wait_for_calculation=wait_for_calculation, messagebox=messagebox, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "global-profiles":
+            check_global_profiles_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -13074,6 +13095,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_parameter_intervals_smoke()
         check_parameter_weighting_smoke()
         check_custom_profiles_smoke()
+        check_global_profiles_smoke()
         check_custom_equation_smoke()
         check_global_custom_smoke()
         check_global_uncertainty_smoke()

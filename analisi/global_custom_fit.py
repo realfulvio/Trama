@@ -44,6 +44,8 @@ from .custom_fit import (
 from . import global_uncertainty as uncertainty
 from .field_error import FieldError
 from .fit_weights import INVERSE_VARIANCE, UNWEIGHTED
+from .parameter_intervals import METHOD as INTERVAL_METHOD, METHODS as INTERVAL_METHODS, PROFILE, WALD, ProfileBudget
+from .monte_carlo import MonteCarloCancelled
 from .repeated_input import decode_series_constraints
 from .reporting import Result, _plot, _report
 
@@ -68,7 +70,7 @@ EXAMPLE_PARAMETERS = (
 OPTIONS = {
     "X": None, "Y": None, "Group": None, "Equation": EQUATION_TEXT, "Parameters": PARAMETER_LIST,
     "Series constraints": SERIES_LIST, "Weighting": WEIGHTINGS, SD_COLUMN: "Optional",
-    LEVEL: DEFAULT_LEVEL, POINTS: DEFAULT_POINTS,
+    LEVEL: DEFAULT_LEVEL, POINTS: DEFAULT_POINTS, INTERVAL_METHOD: INTERVAL_METHODS,
     # 0.70: response bands. "None" comes first, so a recipe without these keys keeps the five sheets.
     uncertainty.CURVE_BAND: uncertainty.INTERVALS, uncertainty.RESPONSE_LEVEL: uncertainty.DEFAULT_RESPONSE_LEVEL,
     uncertainty.BAND_DRAWING: uncertainty.DRAWINGS,
@@ -79,7 +81,7 @@ OPTIONS = {
 }
 TABS = {
     "Equation": ("Equation",), "Parameters": ("Parameters",),
-    "Series constraints": ("Series constraints",), "Output": (LEVEL, POINTS),
+    "Series constraints": ("Series constraints",), "Output": (INTERVAL_METHOD, LEVEL, POINTS),
     # 0.70: bands of the fitted response and predictions for new X, on a page of their own.
     "Response": (uncertainty.CURVE_BAND, uncertainty.RESPONSE_LEVEL, uncertainty.BAND_DRAWING, uncertainty.PREDICT,
                  uncertainty.QUERY_X, uncertainty.QUERY_GROUP, uncertainty.QUERY_INTERVAL, uncertainty.QUERY_K,
@@ -116,6 +118,7 @@ class Settings:
     response_level: float | None = None
     drawing: str = uncertainty.FILLED
     queries: object = None
+    intervals: str = WALD
 
 
 def _flag(record, name, key):
@@ -203,8 +206,11 @@ def resolve(frame, options):
     constraints = _constraints_from(options.get("Series constraints", []))
     band, response_level, drawing = uncertainty.band_options(options, weighting)
     queries = uncertainty.query_options(options, columns, weighting)
+    intervals = options.get(INTERVAL_METHOD, WALD)
+    if intervals not in INTERVAL_METHODS:
+        raise FieldError(INTERVAL_METHOD, 'Choose Symmetric (Wald) or Profile likelihood.')
     return Settings(x, y, group, sd, str(options.get("Equation")).strip(), coefficients, weighting,
-                    float(level), int(points), constraints, band, response_level, drawing, queries)
+                    float(level), int(points), constraints, band, response_level, drawing, queries, intervals)
 
 
 def _limits(lower, upper):
@@ -477,7 +483,7 @@ def _polish(residual, solution, lower, upper):
     return solution
 
 
-def _solve(compiled, packed, s, labels, lower, upper, fixed, starts):
+def _solve(compiled, packed, s, labels, lower, upper, fixed, starts, *, cancel=None):
     """Joint least squares. ``packed`` rows stay in source order inside each series."""
     coordinates, mapping, scale, bound_lo, bound_hi, seeds = _layout(s, labels, lower, upper, fixed, starts)
     n_obs = sum(len(part["X"]) for part in packed)
@@ -509,6 +515,8 @@ def _solve(compiled, packed, s, labels, lower, upper, fixed, starts):
         return maps, pieces
 
     def residual(values):
+        if cancel is not None and cancel.is_set():
+            raise MonteCarloCancelled('Parameter profile calculation cancelled.')
         _, pieces = predict_all(values)
         stacked = np.concatenate(pieces) if pieces else np.empty(0)
         value = (y - stacked) / (sd_unit * factor_holder["reference"])
@@ -570,6 +578,9 @@ def _solve(compiled, packed, s, labels, lower, upper, fixed, starts):
     else:
         covariance = np.empty((0, 0))
         active = np.zeros(0, dtype=bool)
+    # Search units from the same joint Jacobian, before the conservative Wald
+    # rule suppresses the covariance at a bound. Never use them as reported SEs.
+    profile_units = np.sqrt(np.diag(covariance)).copy() if s.intervals == PROFILE else None
     infer = bool(n_free) and has_variance and not active.any()
     if n_free and not infer:
         covariance = np.full((n_free, n_free), np.nan)
@@ -595,6 +606,7 @@ def _solve(compiled, packed, s, labels, lower, upper, fixed, starts):
         "reason": reason, "scale": scale, "values": values,
         # Context for response bands: coordinate of each (series, coefficient), physical limits per coordinate.
         "mapping": mapping, "names": [c.name for c in s.coefficients], "bounds": (bound_lo, bound_hi),
+        "profile_units": profile_units,
     }
 
 
@@ -706,6 +718,9 @@ def check_options(frame, options):
     coordinates, *_rest = _layout(s, labels, lower, upper, fixed, starts)
     n_obs = sum(len(data) for _, data in groups)
     n_free = len(coordinates)
+    if s.intervals == PROFILE:
+        from .global_custom_profiles import check_budget
+        check_budget(n_obs, n_free)
     if n_free and n_obs <= n_free:
         raise FieldError("Parameters", f"{n_obs} complete rows cannot estimate {n_free} free coefficients; "
                                        "fix some coefficients or add data.")
@@ -737,7 +752,7 @@ def series_in(frame, options):
         return []
 
 
-def global_custom_fit(frame, options):
+def global_custom_fit(frame, options, *, cancel=None):
     """The analysis behind ``analyse("Global fit custom equation", …)``."""
     s = resolve(frame, options)
     groups = prepare(frame, s)
@@ -745,7 +760,20 @@ def global_custom_fit(frame, options):
     lower, upper, fixed, starts, _ = _bind(s, labels)
     queries, propagated = _queries(frame, s, labels)
     coordinates = _layout(s, labels, lower, upper, fixed, starts)[0]
+    budget = None
+    if s.intervals == PROFILE:
+        from .global_custom_profiles import check_budget
+        check_budget(sum(len(data) for _, data in groups), len(coordinates))
+        budget = ProfileBudget(cancel)
+        if cancel is not None and cancel.is_set():
+            raise MonteCarloCancelled('Parameter profile calculation cancelled.')
     uncertainty.check_budget(len(groups), s.points, s.band, propagated, len(coordinates))
     compiled = compile_equation(s.equation, [c.name for c in s.coefficients])
-    solved = _solve(compiled, _arrays(groups), s, labels, lower, upper, fixed, starts)
-    return _tables(compiled, _arrays(groups), solved, s, queries)
+    packed = _arrays(groups)
+    solved = _solve(compiled, packed, s, labels, lower, upper, fixed, starts,
+                    cancel=cancel if s.intervals == PROFILE else None)
+    result = _tables(compiled, packed, solved, s, queries)
+    if s.intervals == PROFILE:
+        from .global_custom_profiles import apply_profiles
+        apply_profiles(result, solved, s, compiled, packed, budget)
+    return result
