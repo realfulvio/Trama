@@ -3,6 +3,7 @@
 The public repository begins with **Trama 0.73.0 beta**. All 0.x versions are
 beta builds; no final stable release has been declared.
 
+- [0.83 beta: conditional equations and hierarchical reports](release-083.md) · [Verification](validation-083.md).
 - [0.82 beta: native legend editor](release-082.md) · [Verification](validation-082.md).
 - [0.81 beta: experiment families and variance comparisons](release-081.md) · [Verification](validation-081.md).
 - [0.80 beta: editable hierarchical ZIP-project analyses](release-080.md) · [Verification](validation-080.md).
