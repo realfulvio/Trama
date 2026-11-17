@@ -108,6 +108,31 @@ class Engine(unittest.TestCase):
         settings = analysis(frame, _options()).tables["Settings"]["Value"]
         self.assertIn("cannot be stored", settings["Scale"])
 
+    def test_opposite_sign_extremes_keep_a_representable_ratio(self):
+        # Subtracting the first finite value can overflow even when the
+        # comparison itself has the ordinary, exactly known F(2, 2) result.
+        for order in ((0, 1, 2), (2, 0, 1), (1, 2, 0)):
+            first = np.array([-1e308, 0, 1e308])[list(order)]
+            second = first / 2
+            with self.subTest(order=order), np.errstate(over="raise", invalid="raise"):
+                result = compare_variances(first, second)
+                close(self, result["Variance ratio"], 4)
+                close(self, result["p"], 0.4)
+                close(self, result["Variance ratio lower"], 4 / 39)
+                close(self, result["Variance ratio upper"], 156)
+                self.assertTrue(math.isnan(result["Variance first"]))
+                self.assertTrue(math.isnan(result["Variance second"]))
+
+    def test_level_immediately_below_100_keeps_both_exact_tails(self):
+        level = float(np.nextafter(100.0, 0.0))
+        tail = (100.0 - level) / 200.0
+        result = compare_variances(A, B, level=level)
+        # Closed-form F(2, 2) quantiles, without subtracting a tiny tail from 1.
+        self.assertAlmostEqual(result["Variance ratio lower"] / (4 * tail / (1 - tail)), 1)
+        self.assertAlmostEqual(result["Variance ratio upper"] / (4 * (1 - tail) / tail), 1)
+        settings = analysis(pd.DataFrame({"A": A, "B": B}), _options(**{LEVEL: level})).tables["Settings"]
+        self.assertEqual(settings.at["Alpha", "Value"], 2 * tail)
+
     def test_non_representable_ratio_names_the_reason(self):
         with self.assertRaises(ValueError) as caught:
             compare_variances([0, 1e200, 2e200], [0, 1e-200, 2e-200])

@@ -18,6 +18,7 @@ def main():
     for name in ("README.en.md", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(root / name, bundle / name)
     for name in ("features.md", "getting-started.md", "compatibility.md", "development.md", "legal.md",
+                 "release-081.md", "validation-081.md", "experiment-families.md", "variance-ratio-079.md",
                  "release-080.md", "validation-080.md", "hierarchical-import.md",
                  "release-079.md", "validation-079.md", "analysis-chains.md",
                  "release-078.md", "validation-078.md", "fdr-control.md", "axis-guides.md",
@@ -40,7 +41,7 @@ def main():
     shutil.rmtree(bundle / "docs" / "media", ignore_errors=True)
     # Product media only. Raw extracted resources and historical imported
     # drawings are research evidence, not approved redistribution assets.
-    for folder in ("hierarchical-import", "analysis-chains", "fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
+    for folder in ("experiment-families", "variance-ratio-079", "hierarchical-import", "analysis-chains", "fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
                    "anova-diagnostics-070", "variance-assumptions-070", "reference-normalization"):
         source = root / "docs" / "media" / folder
         if source.is_dir():
