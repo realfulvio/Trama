@@ -7,6 +7,7 @@ It does not simulate manual pointer or keyboard use and does not measure the sys
 from dataclasses import replace
 import hashlib
 import json
+import os
 from pathlib import Path
 import threading
 import time
@@ -488,13 +489,26 @@ def _scenario(root, app, out, tools, code):
     assert refused.called and tr('family.error.current-path') in refused.call_args.args[0]
     assert hashlib.sha256(current.read_bytes()).hexdigest() == digest
     link = out/'current-link.alab'
-    if not link.exists():
-        link.symlink_to(current.name)
-    with chooser(link), patch.object(app, 'error') as refused:
-        drive(lambda dialog: dialog.ok_button.invoke())
-        popup.invoke(index)
-        finish()
-    assert refused.called and hashlib.sha256(current.read_bytes()).hexdigest() == digest
+    link.unlink(missing_ok=True)
+    os.link(current, link)
+    aliases = [('hard_link', link)]
+    symbolic = out/'current-symbolic.alab'
+    symbolic.unlink(missing_ok=True)
+    try:
+        symbolic.symlink_to(current.name)
+    except OSError as error:
+        if os.name != 'nt' or error.winerror != 1314:
+            raise
+        found['symbolic_link'] = 'NOT AVAILABLE: Windows account lacks symbolic-link creation privilege.'
+    else:
+        aliases.append(('symbolic_link', symbolic))
+    for kind, alias in aliases:
+        with chooser(alias), patch.object(app, 'error') as refused:
+            drive(lambda dialog: dialog.ok_button.invoke())
+            popup.invoke(index)
+            finish()
+        assert refused.called and hashlib.sha256(current.read_bytes()).hexdigest() == digest
+        found[kind] = 'PASS: current project overwrite refused.'
     assert keep == hashlib.sha256((out/'family-plain.alab').read_bytes()).hexdigest()
 
     # The saved family opens on its own, in a project of its own.
