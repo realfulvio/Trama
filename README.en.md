@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.83 beta:** conditional equations for custom fits, plus hierarchical merge maps and elbow plots. [What’s new](docs/release-083.md) · [Verification](docs/validation-083.md).
+**New in 0.84 beta:** a hierarchical graph editor and restoration of selected styles and effect-size requests in compatible imports. [What’s new](docs/release-084.md) · [Verification](docs/validation-084.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
