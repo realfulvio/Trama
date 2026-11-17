@@ -498,6 +498,15 @@ class _OppositeTickLine(Line2D):
             return
         super().draw(renderer)
 
+    def get_tightbbox(self, renderer=None):
+        # Match draw(): a tick hidden by the current view must also be absent
+        # from tight-layout/export bounds, otherwise a distant coordinate can
+        # create an enormous blank page even though no marker was rendered.
+        low, high = sorted(self._guide_axis.get_view_interval())
+        if not low <= self._guide_value <= high:
+            return None
+        return super().get_tightbbox(renderer)
+
 
 def _capture_tick_defaults(axis, dimension):
     kw = getattr(axis, "_major_tick_kw", {})
