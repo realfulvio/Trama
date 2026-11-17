@@ -881,12 +881,9 @@ def hierarchical(frame, columns, count, standardize=False, linkage="average", me
 
 def ellipse(points, level=.95, kind="mean"):
     data = np.asarray(points, dtype=float)
-    n = len(data)
-    if data.shape != (n, 2) or n < 3 or not np.isfinite(data).all() or not 0 < level < 1:
+    if data.ndim != 2 or data.shape[1] != 2 or len(data) < 3 or not np.isfinite(data).all() or not 0 < level < 1:
         raise ValueError("An ellipse needs at least three finite XY pairs and a level between 0 and 1.")
-    values, vectors = np.linalg.eigh(np.cov(data, rowvar=False))
-    if values.min() <= np.finfo(float).eps * values.max():
-        raise ValueError("The selected XY data are collinear.")
+    n = len(data)
     if kind == "mean":
         scale = 2 * (n - 1) / (n * (n - 2)) * stats.f.ppf(level, 2, n - 2)
     elif kind == "data":
@@ -895,4 +892,33 @@ def ellipse(points, level=.95, kind="mean"):
         raise ValueError("Unknown ellipse type.")
     theta = np.linspace(0, 2 * np.pi, 181)
     circle = np.column_stack([np.cos(theta), np.sin(theta)])
-    return data.mean(axis=0) + circle @ np.diag(np.sqrt(values * scale)) @ vectors.T
+    epsilon = np.finfo(float).eps
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+        # Keep the original sampling orientation for well-conditioned data.
+        covariance = np.cov(data, rowvar=False)
+        if np.isfinite(covariance).all():
+            values, vectors = np.linalg.eigh(covariance)
+            squared_radii = values * scale
+            if values[0] > epsilon * values[1] and 0 < squared_radii[0] <= squared_radii[1] < np.inf:
+                contour = data.mean(axis=0) + circle @ np.diag(np.sqrt(squared_radii)) @ vectors.T
+                if np.isfinite(contour).all():
+                    return contour
+
+        # Scale each coordinate before centering or squaring it. The spreads
+        # remove differences in units from the degeneracy check.
+        _, exponent = np.frexp(np.max(np.abs(data), axis=0))
+        scaled = np.ldexp(data, -exponent)
+        center = scaled.mean(axis=0)
+        centered = scaled - center
+        spread = np.max(np.abs(centered), axis=0)
+        if np.any(spread == 0):
+            raise ValueError("The selected XY data are collinear.")
+        normalized = centered / spread
+        values, vectors = np.linalg.eigh(normalized.T @ normalized / (n - 1))
+        if values[0] <= epsilon * values[1]:
+            raise ValueError("The selected XY data are collinear.")
+        offsets = circle @ np.diag(np.sqrt(values) * np.sqrt(scale)) @ vectors.T
+        contour = np.ldexp(center + offsets * spread, exponent)
+    if not np.isfinite(contour).all():
+        raise ValueError("The selected XY data exceed the numeric range for an ellipse.")
+    return contour

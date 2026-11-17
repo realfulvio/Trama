@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 import tempfile
 import unittest
@@ -110,6 +111,19 @@ class AnalysisTests(unittest.TestCase):
         np.testing.assert_allclose(contour[0], contour[-1], atol=1e-10)
         np.testing.assert_allclose(contour[:-1].mean(axis=0), [0, 0], atol=1e-10)
         self.assertGreater(np.ptp(contour[:, 1]), np.ptp(contour[:, 0]))
+
+    def test_confidence_ellipses_are_invariant_to_units_on_each_axis(self):
+        points = np.array([[-1., -1.], [-1., 1.], [1., 1.], [1., -1.]])
+        for units in (np.array([1e-9, 1e9]), np.array([1e-165, 1e165])):
+            center = np.array([5., -4.]) * units
+            for kind, radius in (("mean", math.sqrt(19)), ("data", math.sqrt(-8 * math.log(.05) / 3))):
+                with self.subTest(x_units=units[0], kind=kind):
+                    contour = (ellipse(points * units + center, .95, kind) - center) / units
+                    np.testing.assert_allclose(np.linalg.norm(contour, axis=1), radius, rtol=1e-12)
+                    np.testing.assert_allclose(contour[0], contour[-1], atol=1e-12)
+        collinear = np.array([[0., 0.], [1e-165, 1e165], [2e-165, 2e165]])
+        with self.assertRaisesRegex(ValueError, "collinear"):
+            ellipse(collinear)
 
     def test_calculated_column_updates_after_edit(self):
         data = Dataset(pd.DataFrame({"Sample mass": [4., 12.], "ratio": [2., 3.]}))
