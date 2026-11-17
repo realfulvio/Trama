@@ -5,6 +5,7 @@ from tkinter import colorchooser, messagebox, simpledialog, ttk
 
 from matplotlib.colors import to_hex
 
+from .axis_guides import AXIS_BANDS, AXIS_GUIDES
 from .graph_annotations import ANNOTATIONS
 from .graph_shapes import SHAPES
 from .presentation import (FONT_FAMILIES, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
@@ -134,6 +135,9 @@ class GraphFormatDialog(simpledialog.Dialog):
         self._xy_style = dict(options.get("Series style") or {})
         self._xy_side = dict(options.get("Series side") or {})
         self._series_index = -1
+        self._axis_guides = deepcopy(style.get(AXIS_GUIDES, []))
+        self._axis_bands = deepcopy(style.get(AXIS_BANDS, []))
+        self._guides_previewed = False
         self.error_widget = None
         self._pending_error_target = None
         super().__init__(parent, tr("graph.format.title"))
@@ -368,11 +372,107 @@ class GraphFormatDialog(simpledialog.Dialog):
 
     def _references_tab(self, tab):
         ttk.Label(tab, text=tr("graph.references.hint"), justify="left", wraplength=490).pack(anchor="w")
-        self.references = tk.Text(tab, width=54, height=10, wrap="none", padx=5, pady=5)
+        self.references = tk.Text(tab, width=54, height=8, wrap="none", padx=5, pady=5)
         self.references.pack(fill="both", expand=True, pady=(8, 0))
         for line in self.style.get("reference_lines", []):
             label = ", " + line["label"] if line.get("label") else ""
             self.references.insert("end", f"{line['axis'].upper()}, {line['value']}{label}\n")
+        extra = ttk.Frame(tab)
+        extra.pack(fill="x", pady=(10, 0))
+        extra.columnconfigure(1, weight=1)
+        self.guides_button = ttk.Button(extra, text=tr("graph.guides.button"), command=self._edit_axis_guides)
+        self.guides_button.grid(row=0, column=0, sticky="w", pady=2)
+        self.guides_summary = ttk.Label(extra, text="", foreground="#506575")
+        self.guides_summary.grid(row=0, column=1, sticky="w", padx=(8, 0), pady=2)
+        self.bands_button = ttk.Button(extra, text=tr("graph.bands.button"), command=self._edit_axis_bands)
+        self.bands_button.grid(row=1, column=0, sticky="w", pady=2)
+        self.bands_summary = ttk.Label(extra, text="", foreground="#506575")
+        self.bands_summary.grid(row=1, column=1, sticky="w", padx=(8, 0), pady=2)
+        self._refresh_guide_summaries()
+
+    def _refresh_guide_summaries(self):
+        for label, items in ((self.guides_summary, self._axis_guides), (self.bands_summary, self._axis_bands)):
+            text = tr("graph.guides.summary_count", count=len(items)) if items else tr("graph.guides.summary_none")
+            label.configure(text=text)
+
+    def _preview_guides_or_bands(self, key, records):
+        figure = getattr(self.axes, "figure", None)
+        if figure is None:
+            return
+        try:
+            base = self._read_style()
+        except ValueError:
+            base = deepcopy(self.style)
+            for dim in ("x", "y"):
+                if dim + "scale" in self.inputs:
+                    base[dim + "scale"] = self.inputs[dim + "scale"].get()
+        if records is None:
+            candidate = base
+        else:
+            candidate = deepcopy(base)
+            if records:
+                candidate[key] = deepcopy(records)
+            else:
+                candidate.pop(key, None)
+        try:
+            apply_style(figure, candidate)
+        except ValueError:
+            apply_style(figure, base)
+            raise
+        self._guides_previewed = True
+        canvas = getattr(figure, "canvas", None)
+        if canvas is not None:
+            canvas.draw_idle()
+
+    def _scale_overrides(self):
+        return {
+            dim: self.inputs[dim + "scale"].get()
+            for dim in ("x", "y")
+            if dim + "scale" in self.inputs
+        }
+
+    def _edit_axis_guides(self):
+        from .axis_guides_dialog import AxisGuidesDialog
+
+        dialog = AxisGuidesDialog(
+            self,
+            self.axes,
+            self._axis_guides,
+            preview=lambda records: self._preview_guides_or_bands(AXIS_GUIDES, records),
+            scale_overrides=self._scale_overrides(),
+        )
+        self.grab_set()
+        if dialog.result is not None:
+            self._axis_guides = dialog.result
+            self._refresh_guide_summaries()
+
+    def _edit_axis_bands(self):
+        from .axis_guides_dialog import AxisBandsDialog
+
+        dialog = AxisBandsDialog(
+            self,
+            self.axes,
+            self._axis_bands,
+            preview=lambda records: self._preview_guides_or_bands(AXIS_BANDS, records),
+            scale_overrides=self._scale_overrides(),
+        )
+        self.grab_set()
+        if dialog.result is not None:
+            self._axis_bands = dialog.result
+            self._refresh_guide_summaries()
+
+    def cancel(self, event=None):
+        if self._guides_previewed and self.result is None:
+            figure = getattr(self.axes, "figure", None)
+            if figure is not None:
+                try:
+                    apply_style(figure, deepcopy(self.style))
+                    canvas = getattr(figure, "canvas", None)
+                    if canvas is not None:
+                        canvas.draw_idle()
+                except ValueError:
+                    pass
+        super().cancel(event)
 
     def buttonbox(self):
         box = ttk.Frame(self, padding=(8, 0, 8, 8))
@@ -451,6 +551,10 @@ class GraphFormatDialog(simpledialog.Dialog):
             refs.append({"axis": cells[0].lower(), "value": float(cells[1]), "label": cells[2] if len(cells) == 3 else ""})
         if refs:
             style["reference_lines"] = refs
+        if self._axis_guides:
+            style[AXIS_GUIDES] = deepcopy(self._axis_guides)
+        if self._axis_bands:
+            style[AXIS_BANDS] = deepcopy(self._axis_bands)
         if self.xy is not None:
             for key, var in (("Right minimum", self.right_min), ("Right maximum", self.right_max)):
                 raw = var.get().strip()
@@ -504,6 +608,10 @@ class GraphFormatDialog(simpledialog.Dialog):
             msg = str(error)
             if "reference" in msg.casefold():
                 target = (3, self.references, None)
+            elif "guide" in msg.casefold() or "tick" in msg.casefold() and "logarithmic" in msg.casefold():
+                target = (3, getattr(self, "guides_button", self.references), None)
+            elif "band" in msg.casefold():
+                target = (3, getattr(self, "bands_button", self.references), None)
             elif any(word in msg.casefold() for word in ("font", "legend", "frame", "title", "label")):
                 target = (0, self._appearance_widgets.get("title"), None)
             elif any(word in msg.casefold() for word in ("axis", "limit", "tick", "interval", "logarithm", "probability")):
@@ -566,7 +674,9 @@ class GraphFormatDialog(simpledialog.Dialog):
                 self._prepare_xy(style, self._xy_candidate(style))
             self.result = style
         except ValueError as error:
+            from .axis_guides_dialog import translate_guide_error
+
             self._focus_error(error)
-            messagebox.showerror(tr("graph.format.error_title"), translate_message(error), parent=self)
+            messagebox.showerror(tr("graph.format.error_title"), translate_guide_error(error), parent=self)
             return False
         return True

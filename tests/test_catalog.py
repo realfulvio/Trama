@@ -108,6 +108,7 @@ class CatalogTests(unittest.TestCase):
             "Multiple t-tests": {"Variables": ["y", "z"], "Group": "Group", "Design": "Welch", "Correction": "Holm"},
             "Multiple tests (one per row)": {"First replicates": ["x", "y"], "Second replicates": ["z", "p"]},
             "Adjust a stack of p values": {"p value": "p", "Correction": "Holm"},
+            "Control false discoveries": {"p columns": ["p"], "Show diagnostic plot": False},
             "Normalize": {"Variables": ["x", "y"], "Method": "Z score"},
             REFERENCE_NORMALIZATION: {"Variables": ["y", "z"], "X": "x", "Graph results": True},
             "Transform": {"Variables": ["x", "y"], "Operation": "Log10"},

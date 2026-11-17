@@ -257,6 +257,8 @@ from analisi.variance_assumptions import (ALPHA as VARIANCE_ALPHA, BARTLETT as V
                                           BROWN as VARIANCE_BROWN, LABEL_KEYS as VARIANCE_LABEL_KEYS,
                                           TAB as VARIANCE_TAB, format_variance_error,
                                           validate as validate_variance)
+from analisi.fdr_control import (METHOD as FDR_METHOD, PLOT as FDR_PLOT, format_fdr_error,
+                                 validate_request as validate_fdr_request)
 
 TREND_HEADINGS = {TREND: "analysis.trend.heading.trend", TREND_ORDER: "analysis.trend.heading.order"}
 from analisi import unequal_anova
@@ -1723,6 +1725,9 @@ class AnalysisDialog(simpledialog.Dialog):
             self.show_fields(self.equivalence_fields())
             ttk.Label(options, text=tr("tost.hint"), wraplength=370, foreground="#486075").grid(
                 row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+        if self.method == FDR_METHOD:
+            ttk.Label(options, text=tr("fdr.note"), wraplength=430, foreground="#486075", justify="left").grid(
+                row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
         if self.method == "Interpolate a standard curve":
             for label in (CALIBRATION_DIRECTION, "Curve", CALIBRATION_UNCERTAINTY, "Model"):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_calibration_fields())
@@ -3154,6 +3159,9 @@ class AnalysisDialog(simpledialog.Dialog):
             fit_diagnostics = (self.method == "Nonlinear regression"
                                and (options.get(FIT_RUNS) or options.get(FIT_REPLICATES))
                                and options.get(PARAM_CI_METHOD) != PARAM_CI_PROFILE)
+            if self.method == FDR_METHOD:
+                # Columns, domains and budgets stay in the dialog. Adjustment and the figure run on the worker.
+                validate_fdr_request(self.data, options)
             if (observed_weighting or fit_diagnostics or grouped_validation or dunn_validation or poisson_validation
                     or linear_validation
                     or logistic_validation or pca_validation or self.method in RANK_METHODS
@@ -3242,6 +3250,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = formatted
             elif self.method == "One-way ANOVA" and (
                     formatted := lognormal_anova.format_error(error) or format_variance_error(error)):
+                message = formatted
+            elif self.method == FDR_METHOD and (formatted := format_fdr_error(error)):
                 message = formatted
             elif field and field not in message:
                 message = f"{field}: {message}"
@@ -3940,7 +3950,8 @@ class App:
                              or (run.method == MONTE_CARLO_METHOD
                                  and run.options.get(MONTE_CARLO_GRAPH, GRAPH_NONE) != GRAPH_NONE)
                              or (run.method == "Multifactor ANOVA"
-                                 and run.options.get(ANOVA_DIAG_GRAPH) not in (None, "", "None"))))],
+                                 and run.options.get(ANOVA_DIAG_GRAPH) not in (None, "", "None"))
+                             or (run.method == FDR_METHOD and run.options.get(FDR_PLOT))))],
              "New Graph…", self.new_graph),
             ("Layouts", [(layout.name, ("layout", i)) for i, layout in enumerate(self.layouts)]
                         + [(run.name, ("saved-layout", i)) for i, run in enumerate(self.runs)
@@ -5696,10 +5707,10 @@ class App:
         focused = grid is not None and self.root.focus_get() == grid.canvas
         affected = [run for run in self.runs if run.title == title]
         for run in affected:
-            # refresh_calculations keeps the previous result of this method when the edit cannot be calculated.
-            # Clearing it first would snapshot None and drop the last good result.
-            # A lognormal FieldError on the next edit restores this result. Clearing it here would snapshot None.
-            if run.method != REFERENCE_NORMALIZATION and not self._lognormal_one_way(run):
+            # refresh_calculations keeps the previous result when the edit cannot be calculated.
+            # Clearing it first would snapshot None. Reference normalization, lognormal one-way
+            # and false-discovery control restore that result.
+            if not self._keeps_failed_result(run):
                 run.result = None
         links = {run.options.get(PRISM_GRAPH_LINK) for run in affected if run.method == SAVED_EDITABLE_GRAPH}
         if links:
@@ -5724,7 +5735,7 @@ class App:
             return
         previous = {}
         for run, _ in affected:
-            if run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run):
+            if self._keeps_failed_result(run):
                 # Read back only if this edit fails. The worker does not change the saved result.
                 previous[id(run)] = run.result
             run.result = None
@@ -5748,7 +5759,7 @@ class App:
                 except Exception as error:
                     if run.method == REFERENCE_NORMALIZATION:
                         results.append((run, previous.get(id(run)), error))
-                    elif self._lognormal_one_way(run) and isinstance(error, FieldError):
+                    elif self._reopens_field_error(run) and isinstance(error, FieldError):
                         results.append((run, previous.get(id(run)), error))
                     elif run.method == HEAT_MAP:
                         results.append((run, None, error))
@@ -5769,9 +5780,9 @@ class App:
                 if cancelled and (run.method == MONTE_CARLO_METHOD or extended_request(run.method, run.options)):
                     continue
                 run.result = result
-                run.calculation_error = str(error) if error and run.method == REFERENCE_NORMALIZATION else None
+                run.calculation_error = str(error) if error and self._keeps_failed_result(run) else None
                 if error:
-                    if self._lognormal_one_way(run) and isinstance(error, FieldError):
+                    if self._reopens_field_error(run) and isinstance(error, FieldError):
                         index = next((i for i, item in enumerate(self.runs) if item is run), None)
                         recovery = self.weighting_recovery(run.method, run.options, index)
                         if recovery is not None and self.recover_analysis(run, error, recovery):
@@ -5955,6 +5966,15 @@ class App:
         return (run.method == "One-way ANOVA"
                 and run.options.get(lognormal_anova.DISTRIBUTION) == lognormal_anova.LOGNORMAL)
 
+    def _keeps_failed_result(self, run):
+        """Keep the last good result when a later edit cannot be calculated."""
+        return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
+                or run.method == FDR_METHOD)
+
+    def _reopens_field_error(self, run):
+        """Field errors reopen the dialog. Reference normalization keeps its own message path."""
+        return self._lognormal_one_way(run) or run.method == FDR_METHOD
+
     def weighting_recovery(self, method, options, index, only=None):
         """Reopen the dialog when a field error is first known on the worker."""
         if method in CORRELATION_METHODS or method in (
@@ -5968,6 +5988,8 @@ class App:
             # A fixed Gaussian weight can become invalid after a data edit; the dialog reopens on its field.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "One-way ANOVA":
+            return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
+        if method == FDR_METHOD:
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if (method == "Interpolate a standard curve" and options.get("Curve") == "Nonlinear"
                 and options.get(CALIBRATION_UNCERTAINTY, "None") not in (None, "None")):
@@ -6004,7 +6026,8 @@ class App:
         formatted = (format_anova_error(error) if run.method == "Multifactor ANOVA"
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
-                     else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE else None)
+                     else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
+                     else format_fdr_error(error) if run.method == FDR_METHOD else None)
         if formatted:
             message = formatted
         elif run.method == "Interpolate a standard curve":
@@ -6036,7 +6059,7 @@ class App:
             return
         run = self.runs[index]
         recovery = (self.weighting_recovery(run.method, run.options, index)
-                    if run.method in {"Interpolate a standard curve", HEAT_MAP} else None)
+                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD} else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
@@ -6316,7 +6339,16 @@ class App:
                 detail = "Open the study to calculate again."
             self.status.set(f"{run.method} cancelled. {detail}")
         except Exception as error:
-            shown = translate_correlation_error(error) if run.method in CORRELATION_METHODS else error
+            shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
+                     else format_fdr_error(error) or error if run.method == FDR_METHOD else error)
+            # Manual recalculation uses the confirmed Run itself. A failed
+            # candidate with edited options is a different object and must not
+            # invalidate the still-current confirmed analysis.
+            if (index is not None and index < len(self.runs) and self.runs[index] is run
+                    and self._keeps_failed_result(run) and run.result is not None):
+                run.calculation_error = str(error)
+                if self.selected == ("result", index) or self.selected == ("graph", index):
+                    self.show(*self.selected)
             if recovery is None or not self.recover_analysis(run, error, recovery):
                 self.status.set(ui("Analysis could not be completed."))
                 self.error(shown)
@@ -6408,7 +6440,10 @@ class App:
         kind, key = ref
         runs = (self.layout_runs(self.layouts[key]) if kind == "layout"
                 else [self.runs[key]] if kind in {"result", "graph", "saved-layout"} else [])
-        failures = [translate_reference_error(run.calculation_error) for run in runs if run.calculation_error]
+        failures = [(translate_message(run.calculation_error, 'fdr.error.') if run.method == FDR_METHOD
+                     else translate_message(run.calculation_error, 'anova.lognormal.error.')
+                     if run.method == "One-way ANOVA" else translate_reference_error(run.calculation_error))
+                    for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
 
     def require_current_calculation(self):
@@ -12240,6 +12275,17 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "axis-guides":
+            from analisi.axis_guides_smoke import check_axis_guides
+            check_axis_guides(SimpleNamespace(
+                app=app, root=root, directory=directory, capture=capture, drive_dialog=drive_dialog,
+                wait_for_calculation=wait_for_calculation, filedialog=filedialog,
+                LayoutDialog=LayoutDialog, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "graph-shapes":
             # The 0.61 native shapes check alone: TRAMASTAT_SMOKE_ONLY=graph-shapes python tramastat.py --smoke DIR
             from analisi.graph_shape_smoke import check_graph_shapes
@@ -12552,6 +12598,20 @@ def smoke(root, app, directory, legacy_reference=None):
             from analisi.variance_assumptions_smoke import check_variance_assumptions
             check_variance_assumptions(root, app, directory, SimpleNamespace(
                 AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+                drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+                wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "fdr-control":
+            # The false-discovery check alone:
+            # TRAMASTAT_SMOKE_ONLY=fdr-control python tramastat.py --smoke DIR
+            from analisi.fdr_control_smoke import check_fdr_control
+            check_fdr_control(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+                select_columns=select_columns,
                 drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
                 wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
             assert not errors, errors
@@ -13210,6 +13270,12 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
             drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
             wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
+        from analisi.fdr_control_smoke import check_fdr_control
+        check_fdr_control(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+            select_columns=select_columns,
+            drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+            wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
         from analisi.fit_quality_smoke import check_fit_quality
         check_fit_quality(root, app, directory, SimpleNamespace(
             capture=capture, pick_method=pick_method, select_columns=select_columns,
@@ -13232,6 +13298,11 @@ def smoke(root, app, directory, legacy_reference=None):
             drive_dialog=drive_dialog, filedialog=filedialog, messagebox=messagebox,
             pick_method=pick_method, save_project=save_project, select_columns=select_columns,
             wait_for_calculation=wait_for_calculation, errors=errors))
+        from analisi.axis_guides_smoke import check_axis_guides
+        check_axis_guides(SimpleNamespace(
+            app=app, root=root, directory=directory, capture=capture, drive_dialog=drive_dialog,
+            wait_for_calculation=wait_for_calculation, filedialog=filedialog,
+            LayoutDialog=LayoutDialog, errors=errors))
         check_reference_normalization_smoke()
         assert app.nav.winfo_ismapped()
         assert not errors, errors
