@@ -75,10 +75,14 @@ def _hierarchical(frame, content, _results):
     plots = content.get("graph", {}).get("plots", ["DENDROGRAM"])
     if not isinstance(plots, list) or any(not isinstance(plot, str) for plot in plots):
         return None
+    if "ELBOW_PLOT" in plots:
+        options["Elbow data"] = True
     if "DENDROGRAM" in plots:
         options["Graph output"] = "Dendrogram"
     elif "HEATMAP" in plots:
         options["Graph output"] = "Heat map"
+    elif "ELBOW_PLOT" in plots:
+        options["Graph output"] = "Elbow plot"
     else:
         return None
     return "Hierarchical clustering", options

@@ -8,6 +8,8 @@ Selected scaled-data, distance-matrix, merge map and cophenetic reports are rest
 
 Enable **Output → Merge map** to see one table per clustering direction with the one-based merge order, two child labels and the cophenetic distance at which they join. A child displayed as **Cluster 3** refers to the third merge in that report. Children are ordered by the last source observation in each child. The numeric **Merges** sheet and the dendrogram retain their existing ordering. The optional report recalculates with the analysis, so equal distances can produce a different merge sequence in a recomputed tree.
 
+Enable **Output → Elbow data** to report within-cluster sums of squares (WCSS) for each cut from one cluster to one fewer than the number of observations. WCSS uses squared deviations from cluster centers on the same scaled data and merge sequence as the fitted tree. Select **Graph output → Elbow plot** to show those values, with separate panels for row and column clustering. If a stored project requested more than one plot, the editable recipe restores the elbow data alongside its primary supported plot. Change **Graph output** to see the elbow plot.
+
 ## Working with an imported analysis
 
 1. Open the imported analysis or graph in the project navigator.

@@ -148,9 +148,20 @@ class HierarchicalRecipeTests(unittest.TestCase):
         self.assertTrue(options["Standardize"])
         self.assertEqual(options["Graph output"], "Dendrogram")
         result = analyse(method, frame, options)
+        self.assertTrue(options["Elbow data"])
+        self.assertEqual(result.tables["Elbow data"]["Number of clusters"].tolist(), [1, 2, 3])
         self.assertNotIn("Scaled data", result.tables)
         self.assertIn("Cophenetic correlation", result.tables)
         self.assertFalse(result.tables["Cophenetic distances"].isna().any().any())
+
+    def test_saved_elbow_only_restores_the_plot(self):
+        args = fixture()
+        args[1]["content"]["graph"]["plots"] = ["ELBOW_PLOT"]
+        frame, method, options = self.converted(args)
+        self.assertEqual(options["Graph output"], "Elbow plot")
+        result = analyse(method, frame, options)
+        self.assertEqual(len(result.figure.axes), 2)
+        self.assertEqual(result.tables["Row Elbow data"]["Number of clusters"].tolist(), [1, 2, 3])
 
     def test_missing_rows_keep_uid_roles_and_allow_original_label_column(self):
         args = fixture()
