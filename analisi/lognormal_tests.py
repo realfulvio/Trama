@@ -398,6 +398,8 @@ def _figure(graph, design, first_name, second_name, ratio_text, base, orientatio
         _plain(axes.title, axes.xaxis.label)
         axes.set_xscale("log")
         axes.set_yticks([])
+        axes._tramastat_numeric_axes = ("x",)
+        axes._tramastat_categorical_axes = ("y",)
         axes.spines["left"].set_visible(False)
         axes.set_ylim(-1, 1)
         estimate, low, high = row["Geometric ratio"], row["Lower"], row["Upper"]
