@@ -1,0 +1,1 @@
+Native Windows portable screenshots from Trama 0.74.0 beta candidate at 1024×768, 96 DPI. Synthetic exponential-decay data only. Captured through the real-widget parameter-intervals smoke; no mockups. Runtime source: `28640d2cd7ca656f70e8500d1e99ecba120e7fcd`.
