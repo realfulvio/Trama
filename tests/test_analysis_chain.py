@@ -62,7 +62,9 @@ class AnalysisGraphTests(TestCase):
         self.assertEqual(converted.Subject.tolist(), ['a', 'b'])
         self.assertEqual(converted.attrs['worksheet_roles'], frame.attrs['worksheet_roles'])
         converted.iloc[0, 1] = 999
+        converted.attrs['worksheet_roles']['x'].append('Independent')
         self.assertEqual(frame.iloc[0, 0], 1.)
+        self.assertEqual(frame.attrs['worksheet_roles']['x'], ['X'])
         with self.assertRaisesRegex(ValueError, 'Missing'):
             result_frame(result, 'Missing')
 

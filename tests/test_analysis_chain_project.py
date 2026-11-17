@@ -99,3 +99,16 @@ class LinkedProjectTests(TestCase):
         loaded, _ = load_workspace(self.path)
         self.assertEqual(len(loaded['Long chain'].analyses), count)
         self.assertEqual(loaded['Long chain'].analysis_sources[count-1].analysis_id, uid(count-1))
+        data.analysis_sources.clear()
+        save_project(self.path, {'Detached': data})
+        self.assertEqual(json.loads(self.path.read_text())['version'], 3)
+        self.assertEqual(len(load_workspace(self.path)[0]['Detached'].analyses), count)
+
+    def test_annotation_dependencies_cannot_hide_a_result_input_cycle(self):
+        tables = self.tables()
+        data = tables['Esperimento α']
+        data.analyses = [('Column graph', {'Pairwise comparisons': {
+            'Source slot': 1, 'Source method': 'One-way ANOVA'}}), ('One-way ANOVA', {})]
+        data.analysis_sources = {1: ResultSource(uid(1), 'Summary')}
+        with self.assertRaisesRegex(ValueError, 'cycle'):
+            save_project(self.path, tables)

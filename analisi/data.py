@@ -400,7 +400,10 @@ class ProjectTables(dict):
 
 def validate_analysis_links(tables):
     """Validate the entire saved dependency graph before applying or writing it."""
-    nodes = []
+    nodes, dependencies = [], {}
+    linked = any(dataset.analysis_sources for dataset in tables.values())
+    if linked:
+        from .pairwise_graph import read_section
     total = 0
     for data in tables.values():
         total += len(data.analyses)
@@ -413,9 +416,15 @@ def validate_analysis_links(tables):
         for slot, identifier in data.analysis_ids.items():
             valid_analysis_id(identifier)
             nodes.append((identifier, data.analysis_sources.get(slot)))
+            if linked:
+                settings, _ = read_section(data.analyses[slot][1])
+                if settings and settings['slot'] < len(data.analyses):
+                    if settings['slot'] not in data.analysis_ids:
+                        raise ValueError('A linked comparison source is missing its persistent identity.')
+                    dependencies[identifier] = [data.analysis_ids[settings['slot']]]
     if total > MAX_ANALYSIS_NODES:
         raise ValueError("The project exceeds the analysis node budget.")
-    return AnalysisGraph(nodes)
+    return AnalysisGraph(nodes, dependencies=dependencies)
 
 
 def _analysis_slots(value, count):
@@ -443,7 +452,7 @@ def save_project(path, tables, *, layouts=(), info_sheets=None):
     if info_sheets is None:
         info_sheets = getattr(tables, "info_sheets", ())
     validate_analysis_links(tables)
-    linked = any(dataset.analysis_sources for dataset in tables.values())
+    linked = any(dataset.analysis_sources or len(dataset.analyses) > 256 for dataset in tables.values())
     data = {"version": 3 if linked else 2, "tables": [], "layouts": [asdict(layout) for layout in layouts]}
     if info_sheets:
         validate_info_sheets(info_sheets, tables)
