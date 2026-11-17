@@ -12245,6 +12245,13 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog,
             wait_for_calculation=wait_for_calculation, filedialog=filedialog, errors=errors))
 
+    def check_hierarchical_style_smoke():
+        from analisi.hierarchical_style_smoke import check_hierarchical_style
+        check_hierarchical_style(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, GraphFormatDialog=GraphFormatDialog, capture=capture,
+            drive_dialog=drive_dialog, pick_method=pick_method, select_columns=select_columns,
+            wait_for_calculation=wait_for_calculation, filedialog=filedialog, errors=errors))
+
     def check_family_workflow_smoke():
         from analisi.family_workflow_smoke import check_family_workflow
         check_family_workflow(root, app, directory, SimpleNamespace(
@@ -12260,6 +12267,15 @@ def smoke(root, app, directory, legacy_reference=None):
                 "On Linux use xvfb-run -a -s '-screen 0 1024x768x24'.")
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "hierarchical-import":
             check_hierarchical_import_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "hierarchical-style":
+            # Dendrogram and heat-map presentation:
+            # TRAMASTAT_SMOKE_ONLY=hierarchical-style python tramastat.py --smoke DIR
+            check_hierarchical_style_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -13632,6 +13648,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_reference_normalization_smoke()
         check_analysis_chains_smoke()
         check_hierarchical_import_smoke()
+        check_hierarchical_style_smoke()
         check_family_workflow_smoke()
         assert app.nav.winfo_ismapped()
         assert not errors, errors
