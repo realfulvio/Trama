@@ -302,9 +302,6 @@ def _fit_group(label, data, s, compiled):
     def predicted(theta):
         return compiled.evaluate(x, {**fixed, **dict(zip((c.name for c in free), theta))})
 
-    # Conditions read X and fixed coefficients only, so one evaluation settles every branch for the whole fit.
-    _evaluate_rows(compiled, label, data, {c.name: c.start for c in s.coefficients})
-
     # Normalised problem (see the module docstring). The SD column is first divided by its largest value, a
     # finite common factor, so everything below is independent of the unit in which the relative SDs were
     # typed. Then the response scale is chosen: max|Y / SD| when Y is not identically zero, otherwise the
@@ -313,10 +310,11 @@ def _fit_group(label, data, s, compiled):
     start = np.array([c.start for c in free], dtype=float)
     scale = np.where(start == 0, 1.0, np.abs(start))
     sd_unit = sd / np.max(sd)
+    initial = _evaluate_rows(compiled, label, data, {c.name: c.start for c in s.coefficients})
     with np.errstate(all="ignore"):
         reference = float(np.max(np.abs(y / sd_unit)))
         if reference == 0:
-            reference = float(np.max(np.abs(predicted(start) / sd_unit)))
+            reference = float(np.max(np.abs(initial / sd_unit)))
     if not np.isfinite(reference) or reference == 0:
         reference = 1.0
     divisor = sd_unit * reference
@@ -328,9 +326,9 @@ def _fit_group(label, data, s, compiled):
         # A trial step outside the domain is rejected by a huge residual instead of poisoning the solver.
         return np.where(np.isfinite(value), value, 1e150)
 
-    first = (y - predicted(start)) / sd
+    first = (y - initial) / sd
     if not np.isfinite(first).all():
-        raise _undefined(label, data, y - predicted(start), True)
+        raise _undefined(label, data, y - initial, True)
     converged = "Not applicable"
     jacobian = np.empty((n, 0))
     theta = start
