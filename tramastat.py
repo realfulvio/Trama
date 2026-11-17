@@ -4095,7 +4095,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         label = tr("nav.hide_data_results") if self.combined_navigator else tr("nav.show_data_results")
         self.nav_menu.entryconfigure(0, label=label)
         self.nav_menu_ref = self.nodes.get(row)
-        state = "normal" if self.family_ref(self.nav_menu_ref) is not None else "disabled"
+        state = ("normal" if self.nav_menu_ref is not None and self.family_ref(self.nav_menu_ref) is not None
+                 else "disabled")
         for entry in (5, 6):
             self.nav_menu.entryconfigure(entry, state=state)
 
