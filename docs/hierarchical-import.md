@@ -6,6 +6,8 @@ The converter restores row, column or combined clustering, supported column and 
 
 Selected scaled-data, distance-matrix, merge map and cophenetic reports are restored, including full or lower-triangle matrix display. When a saved heat map is the only supported graph selection, the native result contains the heat map with its row and column trees. When a saved dendrogram is also selected, it is the primary native figure. Additional saved plots remain available only where their stored views can be imported.
 
+When the editable heat map is linked to its saved graph, Trama can also restore an opaque single branch color, stroke width and style, tree visibility and supported linear distance-axis limits, direction and spacing. It can restore the Viridis palette and the visibility of the color bar. Open **Format Graph** or the **Inspector** to change those settings. Other attributes use the Trama defaults.
+
 Enable **Output → Merge map** to see one table per clustering direction with the one-based merge order, two child labels and the cophenetic distance at which they join. A child displayed as **Cluster 3** refers to the third merge in that report. Children are ordered by the last source observation in each child. The numeric **Merges** sheet and the dendrogram retain their existing ordering. The optional report recalculates with the analysis, so equal distances can produce a different merge sequence in a recomputed tree.
 
 Enable **Output → Elbow data** to report within-cluster sums of squares (WCSS) for each cut from one cluster to one fewer than the number of observations. WCSS uses squared deviations from cluster centers on the same scaled data and merge sequence as the fitted tree. Select **Graph output → Elbow plot** to show those values, with separate panels for row and column clustering. If a stored project requested more than one plot, the editable recipe restores the elbow data alongside its primary supported plot. Change **Graph output** to see the elbow plot.
@@ -21,7 +23,7 @@ Saved result snapshots remain independent of the native calculation and keep the
 
 ## Limits
 
-The native figure uses Trama's graph presentation. It does not reproduce every original color, label placement or drawing object. The importer does not promise a native graph for every stored view, and it reports unavailable views. Additional saved cut methods, linkages or distances that the converter does not recognize stay as saved content where available; they are not silently replaced with another analysis.
+The native figure uses Trama's graph presentation. Original categorical branch palettes, label positions and drawing objects are outside the supported settings above. The importer reports unavailable saved views. Additional saved cut methods, linkages or distances that the converter does not recognize stay as saved content where available.
 
 These additions concern supported hierarchical analysis metadata in ZIP project files. They do not add general binary-project recipe restoration or external-format save support.
 

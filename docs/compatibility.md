@@ -17,7 +17,7 @@
 Trama legge strutture supportate di **PZFX**, progetti XML/ZIP compatibili e dei formati binari **PZF / PZT** verificati. L'estensione da sola non garantisce il recupero di ogni contenuto.
 
 - **Dati:** recupero delle tabelle e dei metadati riconosciuti.
-- **Analisi:** ripristino delle ricette supportate e conservazione di risultati archiviati dove riconosciuti. Un risultato archiviato non è una nuova analisi ricalcolabile. Nei progetti ZIP, le [ricette gerarchiche riconosciute](hierarchical-import.md) possono ripristinare clustering di righe e colonne, trasformazioni e report come analisi native modificabili.
+- **Analisi:** ripristino delle ricette supportate e conservazione di risultati archiviati dove riconosciuti. Un risultato archiviato non è una nuova analisi ricalcolabile. Nei progetti ZIP, le [ricette gerarchiche riconosciute](hierarchical-import.md) possono ripristinare clustering di righe e colonne, trasformazioni e report come analisi native modificabili. Un'ANOVA multifattoriale ordinaria supportata riattiva le dimensioni dell'effetto e la soglia α quando il riepilogo salvato contiene i risultati completi per tutti i termini.
 - **Grafici:** alcuni grafici verificati diventano modificabili; altri restano viste originali PDF/EMF. Colori, assi, annotazioni e geometria si conservano entro le capacità del singolo importatore.
 - **Layout:** recupero di viste e pannelli nei sottotipi supportati. Non ogni pannello, oggetto o collegamento originale può essere convertito in elemento nativo.
 - **Dati importati modificabili:** nei sottotipi previsti è possibile modificare i dati delle viste recuperate conservandone la presentazione supportata. Questo non estende automaticamente l'editabilità a tutti i documenti.

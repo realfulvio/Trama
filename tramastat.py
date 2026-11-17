@@ -4645,6 +4645,12 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     drawing_menu.add_command(label=tr("shape.canvas.stop"), command=lambda: self.start_shape_mode(None))
                     draw.configure(menu=drawing_menu)
                     draw.pack(side="left", padx=(0, 6))
+                from analisi.hierarchical_style import describe_hierarchical_artists
+
+                if run.method not in PRISM_GRAPH_METHODS and describe_hierarchical_artists(result.figure):
+                    self.hierarchical_style_button = ttk.Button(
+                        bar, text=tr("hierarchy.style.button"), command=self.edit_hierarchical_style)
+                    self.hierarchical_style_button.pack(side="left", padx=(0, 6))
                 self.inspector_button = ttk.Button(bar, text=tr("graph.inspector.title"), command=self.toggle_inspector)
                 self.inspector_button.pack(side="left")
                 self.inspector_reason = ttk.Label(bar, foreground="#506575")
@@ -4804,12 +4810,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def open_inspector(self, run, *, focus=False):
         if self.graph_canvas is None or self.inspector is not None:
             return
+        from analisi.hierarchical_style import describe_hierarchical_artists
+
         self.inspector = GraphInspector(
             self.page, run, self.graph_canvas, self.graph_toolbar, confirmed=lambda: run.style,
             commit=lambda style: self.commit_graph_style(run, style), closed=self.close_inspector,
             remember=lambda key: setattr(self, "inspector_element", key), element=self.inspector_element,
             colors=(lambda: self.edit_heat_map_colors(run)) if run.method == HEAT_MAP else None,
-            qq_panels=self.edit_qq_panels if panel_axes(self.graph_canvas.figure) else None)
+            qq_panels=self.edit_qq_panels if panel_axes(self.graph_canvas.figure) else None,
+            hierarchical_style=self.edit_hierarchical_style
+            if describe_hierarchical_artists(self.graph_canvas.figure) else None)
         self.inspector.pack(side="right", fill="y", before=self.graph_toolbar)
         self.refresh_inspector_button()
         if focus:
@@ -4819,6 +4829,31 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         """Inspector shortcut: the heat map's color and legend editor, after the draft is applied or dropped."""
         if self.pending is None and self.settle_graph_draft("opening the heat-map colors"):
             self.edit_analysis(initial_field=self.heat_map_settings_field(run))
+
+    def edit_hierarchical_style(self):
+        """Open the dendrogram and heat-map editor after settling any Inspector draft."""
+        from analisi.hierarchical_style import describe_hierarchical_artists
+        from analisi.hierarchical_style_dialog import HierarchicalStyleDialog
+
+        if self.pending is not None:
+            return
+        problem = self.graph_format_problem()
+        if problem:
+            self.error(problem)
+            return
+        run = self.runs[self.selected[1]]
+        if not describe_hierarchical_artists(run.result.figure):
+            return
+        if not self.settle_graph_draft("editing the dendrogram style"):
+            return
+        dialog = HierarchicalStyleDialog(self.root, run.result.figure, self.graph_canvas, run.style or {})
+        if dialog.result is None:
+            return
+        self.commit_graph_style(run, dialog.result, record_shapes=False)
+        self.graph_canvas.draw_idle()
+        if self.inspector is not None:
+            self.inspector.draft = deepcopy(run.style or {})
+            self.inspector._load()
 
     def edit_qq_panels(self):
         """Open the dedicated per-panel formatter for Q–Q graphs after settling any Inspector draft."""
@@ -12268,6 +12303,13 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog,
             wait_for_calculation=wait_for_calculation, filedialog=filedialog, errors=errors))
 
+    def check_hierarchical_style_smoke():
+        from analisi.hierarchical_style_smoke import check_hierarchical_style
+        check_hierarchical_style(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, GraphFormatDialog=GraphFormatDialog, capture=capture,
+            drive_dialog=drive_dialog, pick_method=pick_method, select_columns=select_columns,
+            wait_for_calculation=wait_for_calculation, filedialog=filedialog, errors=errors))
+
     def check_family_workflow_smoke():
         from analisi.family_workflow_smoke import check_family_workflow
         check_family_workflow(root, app, directory, SimpleNamespace(
@@ -12283,6 +12325,15 @@ def smoke(root, app, directory, legacy_reference=None):
                 "On Linux use xvfb-run -a -s '-screen 0 1024x768x24'.")
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "hierarchical-import":
             check_hierarchical_import_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "hierarchical-style":
+            # Dendrogram and heat-map presentation:
+            # TRAMASTAT_SMOKE_ONLY=hierarchical-style python tramastat.py --smoke DIR
+            check_hierarchical_style_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -13664,6 +13715,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_reference_normalization_smoke()
         check_analysis_chains_smoke()
         check_hierarchical_import_smoke()
+        check_hierarchical_style_smoke()
         check_family_workflow_smoke()
         check_piecewise_equations_smoke()
         assert app.nav.winfo_ismapped()
