@@ -28,26 +28,59 @@ def _roles(frame, references, minimum=1, maximum=None):
 
 def _hierarchical(frame, content, _results):
     data, calc, clusters = (content[key] for key in ("data", "calc", "defineClusters"))
-    if (data["inputType"] != "ROWS" or calc["rowTransform"] != "NONE"
-            or clusters["rows"]["method"] != "NUMBER_OF_CLUSTERS"
-            or clusters["columns"]["method"] != "NONE"):
-        return None
+    direction, axes = {"ROWS": ("Rows", ("rows",)), "COLUMNS": ("Columns", ("columns",)),
+                       "ROWS_COLUMNS": ("Rows and columns", ("rows", "columns"))}[data["inputType"]]
     variables = _roles(frame, data["variables"], 1, len(frame.columns))
-    count = clusters["rows"]["clusterCount"]
-    if type(count) is not int or not 1 <= count <= len(frame):
-        return None
     label = data["label"]
     if label["type"] not in {"VARIABLE", "NONE"}:
         return None
-    return "Hierarchical clustering", {
-        "Variables": variables, "Clusters": count,
+    scales = {"STANDARDIZE": "Standardize", "NONE": "None", "CENTER": "Center"}
+    options = {
+        "Variables": variables, "Direction": direction,
         "Observation labels": _column(frame, label["variable"]) if label["type"] == "VARIABLE" else None,
-        "Standardize": {"STANDARDIZE": True, "NONE": False}[calc["columnTransform"]],
+        "Standardize": calc["columnTransform"] == "STANDARDIZE",
+        "Scale columns": scales[calc["columnTransform"]], "Scale rows": scales[calc["rowTransform"]],
         "Linkage": {"GROUP_AVERAGE": "average", "COMPLETE": "complete"}[calc["linkage"]],
         "Distance": {"EUCLIDIAN": "euclidean"}[calc["distance"]["type"]],
-        "Prism import notes": "Recalculates row assignments and merge distances with native cluster numbering. "
-                              "Additional Prism reports and graph styling use saved views when available.",
+        "Prism import notes": "Recalculates the saved clustering directions, scales, cuts and supported reports "
+                              "with native cluster numbering. Native graph styling is used; additional plots "
+                              "and original formatting remain in saved views when available.",
     }
+    for axis, prefix, count_field, maximum in (("rows", "Row", "Clusters", len(frame)),
+                                              ("columns", "Column", "Column clusters", len(variables))):
+        cut = clusters[axis]
+        if axis not in axes:
+            if cut["method"] != "NONE":
+                return None
+            continue
+        options[f"{prefix} cut"] = {"NONE": "No cut", "NUMBER_OF_CLUSTERS": "Count"}[cut["method"]]
+        if cut["method"] == "NUMBER_OF_CLUSTERS":
+            count = cut["clusterCount"]
+            if type(count) is not int or not 1 <= count <= maximum:
+                return None
+            options[count_field] = count
+    report = content.get("report", {})
+    for saved, native in (("standardizedData", "Scaled data"), ("distanceMatrix", "Distance matrix"),
+                          ("copheneticDistanceMatrix", "Cophenetic distances"),
+                          ("copheneticCorrelation", "Cophenetic correlation")):
+        value = report.get(saved, False)
+        if type(value) is not bool:
+            return None
+        options[native] = value
+    full = report.get("outputFullMatrix", True)
+    if type(full) is not bool:
+        return None
+    options["Matrix format"] = "Full" if full else "Lower triangle"
+    plots = content.get("graph", {}).get("plots", ["DENDROGRAM"])
+    if not isinstance(plots, list) or any(not isinstance(plot, str) for plot in plots):
+        return None
+    if "DENDROGRAM" in plots:
+        options["Graph output"] = "Dendrogram"
+    elif "HEATMAP" in plots:
+        options["Graph output"] = "Heat map"
+    else:
+        return None
+    return "Hierarchical clustering", options
 
 
 def _factor_indices(references, factors):

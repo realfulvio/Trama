@@ -12123,6 +12123,12 @@ def smoke(root, app, directory, legacy_reference=None):
             drive_dialog=drive_dialog, pick_method=pick_method, select_columns=select_columns,
             wait_for_calculation=wait_for_calculation, filedialog=filedialog, errors=errors))
 
+    def check_hierarchical_import_smoke():
+        from analisi.hierarchical_import_smoke import check_hierarchical_import
+        check_hierarchical_import(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog,
+            wait_for_calculation=wait_for_calculation, filedialog=filedialog, errors=errors))
+
     try:
         screen = (root.winfo_screenwidth(), root.winfo_screenheight())
         (directory / "display.json").write_text(json.dumps({"width": screen[0], "height": screen[1],
@@ -12131,6 +12137,13 @@ def smoke(root, app, directory, legacy_reference=None):
             raise RuntimeError(
                 f"GUI smoke requires a display of at least 1024x768; actual display is {screen[0]}x{screen[1]}. "
                 "On Linux use xvfb-run -a -s '-screen 0 1024x768x24'.")
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "hierarchical-import":
+            check_hierarchical_import_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "analysis-chains":
             check_analysis_chains_smoke()
             assert not errors, errors
@@ -13455,6 +13468,7 @@ def smoke(root, app, directory, legacy_reference=None):
             LayoutDialog=LayoutDialog, errors=errors))
         check_reference_normalization_smoke()
         check_analysis_chains_smoke()
+        check_hierarchical_import_smoke()
         assert app.nav.winfo_ismapped()
         assert not errors, errors
         (directory / "status.txt").write_text("PASS\n", encoding="utf-8")

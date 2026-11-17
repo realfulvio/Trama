@@ -62,7 +62,7 @@ class PrismRecipeTests(unittest.TestCase):
         self.assertEqual(options["Observation labels"], "City")
         graph = analyse(method, frame, options).figure
         self.assertEqual({label.get_text() for label in graph.axes[0].get_xticklabels()}, set("ABCDF"))
-        content["data"]["inputType"] = "ROWS_COLUMNS"
+        content["data"]["inputType"] = "UNKNOWN"
         self.assertIsNone(restore_recipe(*args))
 
     def test_paired_t_uses_saved_sample_ids_instead_of_first_seen_order(self):
