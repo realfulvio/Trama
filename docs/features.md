@@ -66,7 +66,7 @@ Layout fino a 12 pannelli; export PNG, TIFF, SVG, PDF e PDF multipagina. Le porz
 
 L’importazione dei formati legacy è parziale e dipende dalla struttura del documento: vedi [formati e limiti](compatibility.md). L'[archivio delle versioni](release-history.md) conserva i dettagli storici; la [documentazione tecnica](coverage.md) approfondisce metodi e scelte numeriche.
 
-La base applicativa della 0.72.0 beta è stata verificata con 1.870 test sia su Linux sia su Windows e con gli smoke completi dell'applicazione e del portabile Windows. Il dialogo TOST è stato collaudato a 1024×768 e 1920×1200 reali. Questa evidenza riguarda i casi provati e non equivale a una validazione per qualsiasi impiego. Vedi [validazione e responsabilità](legal.md) e [rapporto TOST](validation-tost-086.md).
+La 0.78.0 beta è stata verificata con 2.382 test sia su Linux sia su Windows, con gli smoke GUI completi e con il portabile nativo. [Collaudi e limiti](validation-078.md). Il dialogo TOST è stato collaudato a 1024×768 e 1920×1200 reali. Questa evidenza riguarda i casi provati e non equivale a una validazione per qualsiasi impiego. Vedi [validazione e responsabilità](legal.md) e [rapporto TOST](validation-tost-086.md).
 
 La regressione lineare offre anche [stime di Y a X fissata e intervalli inversi di X a Y fissata](linear-point-estimates.md), compresi gli intervalli asimmetrici dell’intercetta X.
 

@@ -46,6 +46,6 @@ python -m unittest tests.test_axis_guides tests.test_axis_guides_dialog -v
 
 ![The native Windows editor for additional ticks and reference lines, with synthetic records.](media/fdr-axis/axis-guides-dialog-windows.png)
 
-Actual0.78beta portable capture; [provenance](media/fdr-axis/PROVENANCE.md). The editor was checked at1024x768 and1920x1080 desktop resolutions.
+Actual 0.78 beta portable capture; [provenance](media/fdr-axis/PROVENANCE.md). The editor was checked at 1024×768 and 1920×1080 desktop resolutions.
 
 Opposite-side labels still belong to the primary axis. In dual-Y plots they share the right margin with the right-Y labels and title and can overlap them; automatic collision avoidance is not implemented. Prefer primary-side labels or provide more space for the figure. The right-Y coordinates and limits are not changed by primary-axis guides.
