@@ -318,6 +318,8 @@ def forest_plot(frame, options):
     if weight or show_reference:
         axes.legend(loc="best", frameon=False, fontsize=9)
     axes._tramastat_forest = {"intervals": intervals, "caps": caps, "points": points}
+    axes._tramastat_numeric_axes = ("x",)
+    axes._tramastat_categorical_axes = ("y",)
 
     source = "Source row" if mode == BY_ROW else "Source column"
     values = pd.DataFrame({"Study": [s["Study"] for s in studies], source: [s[source] for s in studies],

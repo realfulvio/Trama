@@ -335,6 +335,8 @@ def box_violin(frame, options):
             group.artists.append((axes.scatter([group.x], [stats["mean"]], marker="D", s=34, color="white",
                                                edgecolors=group.color, linewidths=1.4, zorder=5), "mean"))
     axes.set_xticks([g.x for g in groups], [str(g.label) for g in groups], rotation=20)
+    axes._tramastat_numeric_axes = ("y",)
+    axes._tramastat_categorical_axes = ("x",)
     for label in axes.get_xticklabels():
         label.set_parse_math(False)
     axes.set_xlim(.4, len(groups) + .6)

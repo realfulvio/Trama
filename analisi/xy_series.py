@@ -259,6 +259,7 @@ def xy_series(frame, options, left_scale="linear"):
                 "Y": float(y_values[position]),
             })
     axes._tramastat_xy_order = order
+    axes._tramastat_numeric_axes = ("x", "y")
     if handles:
         axes.legend(handles, [artist.get_label() for artist in handles])
     left_limits = _limit_pair(options, "Y minimum", "Y maximum", "Y minimum", _is_log(left_scale))
