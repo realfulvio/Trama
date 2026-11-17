@@ -18,6 +18,7 @@ import pandas as pd
 
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
 from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, valid_analysis_id
+from .analysis_labels import validate_labels
 
 MAX_ENTRY = 32 * 1024 * 1024
 MAX_CELLS = 2_000_000
@@ -293,6 +294,8 @@ class Dataset:
     info: Mapping[str, str | None] = field(default_factory=dict)
     analysis_ids: dict[int, str] = field(default_factory=dict)
     analysis_sources: dict[int, ResultSource] = field(default_factory=dict)
+    # Literal sheet names per analysis slot. Display only: they never reach the statistical engine.
+    analysis_labels: dict[int, str] = field(default_factory=dict)
 
     @property
     def locked_columns(self):
@@ -452,6 +455,8 @@ def save_project(path, tables, *, layouts=(), info_sheets=None):
     if info_sheets is None:
         info_sheets = getattr(tables, "info_sheets", ())
     validate_analysis_links(tables)
+    for dataset in tables.values():
+        validate_labels(dataset.analysis_labels, len(dataset.analyses))
     linked = any(dataset.analysis_sources or len(dataset.analyses) > 256 for dataset in tables.values())
     data = {"version": 3 if linked else 2, "tables": [], "layouts": [asdict(layout) for layout in layouts]}
     if info_sheets:
@@ -488,6 +493,8 @@ def save_project(path, tables, *, layouts=(), info_sheets=None):
             record["analysis_ids"] = dataset.analysis_ids
         if dataset.analysis_sources:
             record["analysis_sources"] = {slot: asdict(source) for slot, source in dataset.analysis_sources.items()}
+        if dataset.analysis_labels:
+            record["analysis_labels"] = dict(sorted(dataset.analysis_labels.items()))
         roles = _worksheet_roles(raw)
         if roles is not None:
             record["worksheet_roles"] = _validated_worksheet_roles(roles, raw.columns)
@@ -548,6 +555,8 @@ def load_workspace(path, *, include_info=False):
         sources = _analysis_slots(table.get("analysis_sources", {}), len(entries))
         if sources and obj["version"] != 3:
             raise ValueError("Linked analyses require project format version 3.")
+        data.analysis_labels = validate_labels(_analysis_slots(table.get("analysis_labels", {}), len(entries)),
+                                               len(entries)) if "analysis_labels" in table else {}
         try:
             data.analysis_sources = {slot: ResultSource(**source) for slot, source in sources.items()}
         except (TypeError, ValueError) as error:

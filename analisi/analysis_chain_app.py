@@ -125,6 +125,10 @@ class AnalysisChainMixin:
                     dataset.analysis_sources[run.slot] = run.source
                 else:
                     dataset.analysis_sources.pop(run.slot, None)
+                if run.label is not None:
+                    dataset.analysis_labels[run.slot] = run.label
+                else:
+                    dataset.analysis_labels.pop(run.slot, None)
 
     def analysis_graph(self, *, replacement=None, additional=None):
         from .pairwise_graph import read_section
