@@ -334,7 +334,7 @@ class HierarchicalStyleDialog(simpledialog.Dialog):
             layout = self._read_layout()
             if layout:
                 collected["layout"] = layout
-        canonical = validate_hierarchical_style(collected)
+        canonical = validate_hierarchical_style(collected, figure=self.figure)
         return _diff(canonical, self.baseline)
 
     def _optional_text(self, field):
