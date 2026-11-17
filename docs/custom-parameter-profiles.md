@@ -14,6 +14,10 @@ Il parser delle equazioni resta ristretto: non esegue codice Python. Nella
 ricetta vengono salvati soltanto testo, numeri, flag e la scelta canonica del
 metodo, indipendentemente dalla lingua dell'interfaccia.
 
+![Dialogo reale del portabile Windows: scelta italiana degli intervalli dei parametri.](media/custom-parameter-profiles/options-it.png)
+
+![Risultati reali del profilo su dati sintetici nel portabile Windows.](media/custom-parameter-profiles/results.png)
+
 ## Significato del profilo
 
 Per ciascun coefficiente libero, Trama fissa un valore di prova e ristima gli
