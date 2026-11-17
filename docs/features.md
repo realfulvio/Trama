@@ -4,6 +4,8 @@
 
 Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.80.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
 
+Le [famiglie di esperimenti](experiment-families.md) si duplicano o si salvano come progetto autonomo con tutto ciò da cui dipendono.
+
 Le [analisi collegate](analysis-chains.md) usano una tabella di risultati come ingresso di un’analisi successiva e propagano le modifiche alla sorgente. La copia indipendente **Usa risultato come dati** rimane disponibile.
 
 Le [ricette gerarchiche ZIP supportate](hierarchical-import.md) diventano analisi native modificabili: trasformazioni, clustering di righe e colonne, heat map e report si ricalcolano dai dati importati. La formattazione nativa non riproduce ogni dettaglio del documento originale.
