@@ -19,6 +19,7 @@ import pandas as pd
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
 from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, valid_analysis_id
 from .analysis_labels import validate_labels
+from .formula_windows import WINDOW_FUNCTION, lower_window_clauses, worksheet_statistic
 
 MAX_ENTRY = 32 * 1024 * 1024
 MAX_CELLS = 2_000_000
@@ -194,27 +195,41 @@ FUNCTIONS = {
 }
 
 
-def formula(frame, expression, *, info=None):
-    """Evaluate arithmetic, comparisons and whitelisted functions only."""
+def _formula_tree(expression):
     source = expression.strip().removeprefix("=").strip()
     if not source or len(source) > 2048:
         raise ValueError("Enter a formula of up to 2048 characters.")
     try:
         tokens = tokenize.generate_tokens(StringIO(source).readline)
-        normalized = tokenize.untokenize(
+        operators = [
             (token.type, "**" if token.type == tokenize.OP and token.string == "^" else token.string)
             for token in tokens
-        )
-        tree = ast.parse(normalized, mode="eval")
+        ]
+        return ast.parse(tokenize.untokenize(lower_window_clauses(operators)), mode="eval")
     except (SyntaxError, tokenize.TokenError) as error:
         raise ValueError("Invalid formula syntax.") from error
+
+
+def _casefold_text(value):
+    if isinstance(value, str):
+        return value.casefold()
+    if isinstance(value, np.ndarray) and value.dtype.kind in {"O", "U"}:
+        return np.array([item.casefold() if isinstance(item, str) else item for item in value], dtype=object)
+    return value
+
+
+def formula(frame, expression, *, info=None):
+    """Evaluate arithmetic, comparisons and whitelisted functions only."""
+    tree = _formula_tree(expression)
     if sum(1 for _ in ast.walk(tree)) > 128:
         raise ValueError("Formula is too complex.")
 
-    def column(name):
+    def column(name, *, raw=False):
         if name not in frame:
             raise ValueError(f"Unknown column: {name}")
         data = frame[name]
+        if raw:
+            return data.to_numpy(dtype=object)
         if pd.api.types.is_numeric_dtype(data):
             return data.to_numpy(dtype=float, na_value=np.nan)
         return data.fillna("").astype(str).to_numpy()
@@ -233,31 +248,42 @@ def formula(frame, expression, *, info=None):
                 return parsed
         return value
 
-    def evaluate(node):
+    def evaluate(node, *, raw=False, filter_text=False):
         if isinstance(node, ast.Constant) and type(node.value) in {int, float, str, bool}:
             return float(node.value) if type(node.value) in {int, float} else node.value
         if isinstance(node, ast.Name):
-            return column(node.id)
+            return column(node.id, raw=raw)
         if isinstance(node, ast.UnaryOp) and type(node.op) in {ast.UAdd, ast.USub}:
-            result = evaluate(node.operand)
+            result = evaluate(node.operand, filter_text=filter_text)
             return -result if isinstance(node.op, ast.USub) else +result
         if isinstance(node, ast.BinOp) and type(node.op) in BINARY:
-            lhs, rhs = evaluate(node.left), evaluate(node.right)
+            lhs = evaluate(node.left, filter_text=filter_text)
+            rhs = evaluate(node.right, filter_text=filter_text)
             if isinstance(lhs, str) or isinstance(rhs, str):
                 raise ValueError("Arithmetic requires numeric operands.")
             return BINARY[type(node.op)](lhs, rhs)
         if isinstance(node, ast.Compare) and len(node.ops) == 1 and type(node.ops[0]) in COMPARE:
-            return COMPARE[type(node.ops[0])](evaluate(node.left), evaluate(node.comparators[0]))
+            lhs, rhs = evaluate(node.left, filter_text=filter_text), evaluate(node.comparators[0], filter_text=filter_text)
+            if filter_text:
+                lhs, rhs = _casefold_text(lhs), _casefold_text(rhs)
+            return COMPARE[type(node.ops[0])](lhs, rhs)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.keywords:
             name = node.func.id.upper()
             if name in {"COL", "INFO"} and len(node.args) == 1 and isinstance(node.args[0], ast.Constant):
                 value = node.args[0].value
                 if isinstance(value, str):
-                    return column(value) if name == "COL" else info_value(value)
+                    return column(value, raw=raw) if name == "COL" else info_value(value)
+            if name == WINDOW_FUNCTION and len(node.args) == 4 and isinstance(node.args[0], ast.Constant):
+                statistic, values, partition, condition = node.args
+                if not isinstance(statistic.value, str):
+                    raise ValueError("Unknown worksheet statistic.")
+                group = None if isinstance(partition, ast.Constant) and partition.value is None else evaluate(partition, raw=True)
+                mask = None if isinstance(condition, ast.Constant) and condition.value is None else evaluate(condition, filter_text=True)
+                return worksheet_statistic(statistic.value, evaluate(values, raw=True), group, mask, len(frame))
             if name in FUNCTIONS:
                 arity, function = FUNCTIONS[name]
                 if len(node.args) == arity:
-                    return function(*(evaluate(arg) for arg in node.args))
+                    return function(*(evaluate(arg, filter_text=filter_text) for arg in node.args))
         raise ValueError("Unsupported expression in calculated column.")
 
     try:
@@ -275,7 +301,7 @@ def formula(frame, expression, *, info=None):
 
 def info_references(expression):
     """Return the constant names used by an already validated formula."""
-    tree = ast.parse(expression.strip().removeprefix("=").strip(), mode="eval")
+    tree = _formula_tree(expression)
     return {
         node.args[0].value.strip().casefold()
         for node in ast.walk(tree)
