@@ -610,9 +610,7 @@ class HierarchicalStyleIntegrationTests(unittest.TestCase):
         json.dumps(baseline)
 
     def test_merge_distances_match_the_known_fixture(self):
-        path = Path("/tmp/trama-hier-081/pkg/Trama-Grok-Grafici-Gerarchici-081/fixtures/matrix.csv")
-        if not path.exists():
-            self.skipTest("package fixture is not on this machine")
+        path = Path(__file__).parent / "data" / "hierarchical_style" / "matrix.csv"
         frame = pd.read_csv(path)
         result = hierarchical_result(frame, _options())
         expected = json.loads((path.parent / "expected.json").read_text())
