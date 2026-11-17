@@ -5,7 +5,7 @@ contain before anything is copied or written. It never builds the copy: it asks 
 refusal and the preview lines of the current input, so the engine stays the only place that decides.
 """
 import tkinter as tk
-from tkinter import simpledialog, ttk
+from tkinter import font as tkfont, simpledialog, ttk
 
 from .i18n import tr
 from .window_geometry import keep_native_window_on_screen
@@ -85,9 +85,11 @@ class FamilyDialog(simpledialog.Dialog):
         self.preview.configure(yscrollcommand=scroll.set)
         self.preview.grid(row=0, column=0, sticky="nsew")
         scroll.grid(row=0, column=1, sticky="ns")
-        base = self.preview.cget("font")
-        self.preview.tag_configure("heading", font=(base, 10, "bold"), spacing1=4)
-        self.preview.tag_configure("counts", font=(base, 10, "bold"), spacing3=4)
+        base = tkfont.nametofont("TkDefaultFont").actual()
+        self.preview.configure(font="TkDefaultFont")
+        bold = (base["family"], base["size"], "bold")
+        self.preview.tag_configure("heading", font=bold, spacing1=6)
+        self.preview.tag_configure("counts", font=bold, spacing3=4)
         self.preview.tag_configure("item", lmargin1=12, lmargin2=24)
         self.preview.tag_configure("note", foreground="#176676", spacing1=4, lmargin1=0, lmargin2=12)
         self.name_var.trace_add("write", lambda *_: self.refresh())
