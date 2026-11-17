@@ -27,6 +27,7 @@ the levels of the other factors of the model, each combination counted once. Fac
 model do not enter that average.
 """
 from itertools import combinations
+import json
 from math import prod
 from types import SimpleNamespace
 
@@ -90,8 +91,9 @@ def format_error(error):
 
 
 def label(term):
-    """Sheet label of a term: its factor names joined with a colon."""
-    return ":".join(str(name) for name in term)
+    """Keep reserved names and literal colons distinguishable in result labels."""
+    return ":".join(json.dumps(name, ensure_ascii=False) if name == "Residual" or any(c in name for c in ':"')
+                    else name for name in term)
 
 
 def selected(options):
