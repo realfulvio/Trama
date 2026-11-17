@@ -19,7 +19,7 @@ def main():
         shutil.copy2(root / name, bundle / name)
     for name in ("features.md", "getting-started.md", "compatibility.md", "development.md", "legal.md",
                  "release-history.md", "release-071.md", "release-072.md", "release-073.md", "validation-073.md", "interface-themes.md", "summary-unequal-anova.md", "validation-tost-086.md", "linear-point-estimates.md",
-                 "global-custom-070.md", "lognormal-tests-070.md", "equivalence-tost-071.md", "pca-selection-070.md",
+                 "nonlinear-parameter-intervals.md", "global-custom-070.md", "lognormal-tests-070.md", "equivalence-tost-071.md", "pca-selection-070.md",
                  "weighted-multiple-regression-070.md", "anova-diagnostics-070.md", "variance-assumptions-070.md",
                  "heatmap-colors-072.md", "robust-curve-073.md", "reference-normalization.md",
                  "nonlinear-inverse-intervals-073.md", "heatmap-layout.md", "correlation-details.md", "spearman-exact-extended.md", "lognormality.md", "summary-anova.md", "qq-panels.md", "lognormal-anova.md", "summary-ttest.md"):
