@@ -187,11 +187,33 @@ class ModernWorksheet(ttk.Frame):
             return
         proxy = SimpleNamespace(method=run.method,
                                 result=SimpleNamespace(figure=self.figure, style_warning=run.result.style_warning))
+        from .hierarchical_style import describe_hierarchical_artists
+
+        hierarchical = None
+        if describe_hierarchical_artists(self.figure):
+            hierarchical = lambda run=run: self._edit_hierarchical(run)
         self.inspector = GraphInspector(self.inspector_host, proxy, self.canvas, None,
             confirmed=lambda: run.style, commit=lambda style: self._commit(run, style),
-            closed=self.close_inspector)
+            closed=self.close_inspector, hierarchical_style=hierarchical)
         self.inspector.pack(fill='both', expand=True)
         self.app.inspector = self.inspector
+
+    def _edit_hierarchical(self, run):
+        """Edit the private preview. Apply commits the same section onto the saved figure."""
+        from .hierarchical_style_dialog import HierarchicalStyleDialog
+
+        if self.app.pending is not None:
+            return
+        if self.inspector is not None and self.inspector.has_draft:
+            if not self.app.settle_graph_draft("editing the dendrogram style"):
+                return
+        dialog = HierarchicalStyleDialog(self.winfo_toplevel(), self.figure, self.canvas, run.style or {})
+        if dialog.result is None:
+            return
+        self._commit(run, dialog.result)
+        if self.inspector is not None and self.inspector.winfo_exists():
+            self.inspector.draft = deepcopy(run.style or {})
+            self.inspector._load()
 
     def _commit(self, run, style):
         if self.app.pending is not None or run.result is None:
