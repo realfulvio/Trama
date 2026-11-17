@@ -23,8 +23,9 @@ def _project(path):
                      "distance": {"type": "EUCLIDIAN", "value": 2.}},
             "defineClusters": {"rows": {"method": "NONE", "clusterCount": 2},
                                "columns": {"method": "NUMBER_OF_CLUSTERS", "clusterCount": 2}},
-            "report": {"standardizedData": True, "distanceMatrix": True, "outputFullMatrix": False},
-            "graph": {"plots": ["HEATMAP"]},
+            "report": {"standardizedData": True, "distanceMatrix": True, "mergeMap": True,
+                       "outputFullMatrix": False},
+            "graph": {"plots": ["HEATMAP", "ELBOW_PLOT"]},
         },
     }
     with ZipFile(path, "w") as archive:
@@ -82,12 +83,17 @@ def check_hierarchical_import(root, app, directory, kit):
         np.testing.assert_allclose(initial, [[-1, 1, 0], [-1, 1, 0], [3, -2, -1], [-3, 0, 3]])
         assert len(app.runs[index].result.figure.axes) == 4
         assert "Row Assignments" not in app.runs[index].result.tables
+        initial_map = app.runs[index].result.tables["Row Merge map"].copy()
+        assert initial_map["Node 1"].tolist() == ["Aster", "Cluster 1", "Cedar"]
+        assert initial_map["Node 2"].tolist() == ["Birch", "Dahlia", "Cluster 2"]
+        assert app.runs[index].result.tables["Row Elbow data"]["Number of clusters"].tolist() == [1, 2, 3]
         capture(root, "window-imported-clustering-en.png")
 
         def edit(dialog):
             assert dialog.controls["Direction"][1].get() == "Rows and columns"
             assert dialog.controls["Scale rows"][1].get() == "Center"
             assert dialog.controls["Row cut"][1].get() == "No cut"
+            assert dialog.controls["Merge map"][1].get()
             dialog.controls["Column clusters"][1].set("3")
             dialog.focus_field("Column clusters")
             capture(dialog, "window-imported-clustering-options-en.png")
@@ -114,12 +120,21 @@ def check_hierarchical_import(root, app, directory, kit):
         app.toggle_exclusion()
         finish()
         assert table().index.tolist() == [0, 2, 3]
+        edited_map = app.runs[index].result.tables["Row Merge map"].copy()
+        assert edited_map["Merge order"].tolist() == [1, 2]
+        assert "Birch" not in edited_map[["Node 1", "Node 2"]].to_numpy()
         app.show("result", index)
         position = list(app.runs[index].result.tables).index("Scaled data")
         app.result_tabs.select(position)
         with patch.object(kit.filedialog, "asksaveasfilename", return_value=str(out/"scaled.csv")):
             app.export()
         assert "Marker A" in (out/"scaled.csv").read_text(encoding="utf-8")
+        position = list(app.runs[index].result.tables).index("Row Merge map")
+        app.result_tabs.select(position)
+        with patch.object(kit.filedialog, "asksaveasfilename", return_value=str(out/"merge-map.csv")):
+            app.export()
+        pd.testing.assert_frame_equal(pd.read_csv(out/"merge-map.csv", index_col=0), edited_map)
+        capture(root, "window-imported-merge-map.png")
 
         for suffix in ("svg", "png", "pdf"):
             app.show("graph", index)
@@ -135,6 +150,7 @@ def check_hierarchical_import(root, app, directory, kit):
         app.open_sheet(("graph", index))
         finish()
         pd.testing.assert_frame_equal(table(), changed)
+        pd.testing.assert_frame_equal(app.runs[index].result.tables["Row Merge map"], edited_map)
         assert app.runs[index].options == options and app.runs[index].style == style
         pd.testing.assert_frame_equal(app.tables[archived_name].raw, archived)
 
@@ -142,16 +158,33 @@ def check_hierarchical_import(root, app, directory, kit):
         app.show("graph", index)
         capture(root, "window-imported-clustering-it.png")
         def inspect_it(dialog):
-            dialog.focus_field("Scale rows")
+            assert dialog.controls["Merge map"][1].get()
+            dialog.focus_field("Merge map")
             capture(dialog, "window-imported-clustering-options-it.png")
         kit.drive_dialog(kit.AnalysisDialog, inspect_it)
         app.edit_analysis()
         finish()
         assert app.runs[index].options == options
+
+        def choose_elbow(dialog):
+            dialog.controls["Graph output"][1].set("Elbow plot")
+            assert not dialog.hierarchical_visibility()["Branch width"]
+            dialog.focus_field("Graph output")
+        kit.drive_dialog(kit.AnalysisDialog, choose_elbow)
+        app.edit_analysis()
+        finish()
+        elbow = app.runs[index].result
+        row_line, = elbow.figure.axes[0].lines
+        np.testing.assert_array_equal(row_line.get_xdata(), [1, 2])
+        np.testing.assert_allclose(row_line.get_ydata(), elbow.tables["Row Elbow data"]["WCSS"])
+        app.show("graph", index)
+        capture(root, "window-imported-elbow-it.png")
         (out/"report.json").write_text(json.dumps({
             "directions": "Rows and columns", "row_centering": True, "column_clusters": 3,
             "edited_data": True, "excluded_row": 1, "roundtrip": True, "saved_snapshot_unchanged": True,
             "style_preserved": True, "screen": [root.winfo_screenwidth(), root.winfo_screenheight()],
+            "merge_map_imported_recalculated_exported_reopened": True,
+            "elbow_data_imported_and_dual_plot_switch": True,
         }, indent=2), encoding="utf-8")
     finally:
         set_language(language)
