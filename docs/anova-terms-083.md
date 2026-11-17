@@ -19,6 +19,8 @@ Choose **Group Comparison → Multifactor ANOVA** and open the **Model** tab, wh
 
 Names in `Model terms` are the literal column names. They are never Patsy expressions, so a name such as `Dose (mg)` or `Lot 24` needs no quoting and no escape. Saved values stay canonical English in both languages (`Selected terms`, not its Italian caption), and the factor names are not translated.
 
+The result sheets quote factor names containing colons or quotation marks, and a factor named `Residual`. That keeps a literal name distinguishable from an interaction or the residual row.
+
 ## The Model tab
 
 * **Term selection** switches between the two modes. Interaction order is shown only in Full hierarchy, because Selected terms does not use it.
