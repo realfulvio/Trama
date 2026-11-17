@@ -2,7 +2,7 @@
 
 [Presentazione](../README.md) · [Guida rapida](getting-started.md) · [Compatibilità](compatibility.md)
 
-Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.76.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
+Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.78.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
 
 ## Interfaccia
 
@@ -44,6 +44,10 @@ Kaplan–Meier, tabelle a rischio, confronti log-rank e Gehan–Breslow–Wilcox
 
 PCA con scree, scores, loadings e biplot; K-means con selezione del numero di gruppi e consenso a 17 indici; clustering gerarchico, dendrogrammi, heat map, matrici di correlazione ed ellissi di confidenza. Correlazione di Pearson, Spearman o Kendall con risultati dettagliati opzionali; correlazione di più risposte contro un controllo; confronto di due correlazioni di Pearson indipendenti sulla scala z di Fisher ([guida](correlation-details.md)).
 
+## Controllo delle false scoperte
+
+[Control false discoveries](fdr-control.md) applica BH, BY o BKY a due stadi a più colonne p e famiglie esplicite. Distingue p mancanti e famiglie vuote e offre un grafico diagnostico facoltativo. I p aggiustati BKY dipendono dal livello scelto; quelli BH e BY no.
+
 ## Elaborazione dei dati e simulazione
 
 Trasformazioni, normalizzazione, baseline anche con repliche, frazioni del totale, potatura di righe, scambio XY, frequenze, area sotto la curva e picchi. Studi Monte Carlo con seed riproducibile, avanzamento e annullamento.
@@ -54,13 +58,15 @@ Grafici XY con più serie e due assi Y, barre d'errore anche asimmetriche, Colum
 
 Formattazione di assi, serie, gruppi e legende; Inspector con anteprima; confronti statistici collegati al grafico, parentesi, stelle e lettere nei metodi supportati. Annotazioni e forme native, selezione e disposizione degli oggetti, tratteggi, frecce, riempimenti e colori distinti.
 
+[Tacche aggiuntive, linee e fasce sugli assi](axis-guides.md) supportano assi numerici primari lineari o logaritmici, etichette letterali e anteprima modificabile. Le etichette sul bordo opposto possono sovrapporsi a quelle di un secondo asse Y: la guida descrive il limite.
+
 Layout fino a 12 pannelli; export PNG, TIFF, SVG, PDF e PDF multipagina. Le porzioni vettoriali compatibili restano vettoriali negli export nativi; una heat map rasterizzata o una vista importata non diventa automaticamente un disegno nativo.
 
 ## Interoperabilità e verifiche
 
 L’importazione dei formati legacy è parziale e dipende dalla struttura del documento: vedi [formati e limiti](compatibility.md). L'[archivio delle versioni](release-history.md) conserva i dettagli storici; la [documentazione tecnica](coverage.md) approfondisce metodi e scelte numeriche.
 
-La base applicativa della 0.72.0 beta è stata verificata con 1.870 test sia su Linux sia su Windows e con gli smoke completi dell'applicazione e del portabile Windows. Il dialogo TOST è stato collaudato a 1024×768 e 1920×1200 reali. Questa evidenza riguarda i casi provati e non equivale a una validazione per qualsiasi impiego. Vedi [validazione e responsabilità](legal.md) e [rapporto TOST](validation-tost-086.md).
+La 0.78.0 beta è stata verificata con 2.382 test sia su Linux sia su Windows, con gli smoke GUI completi e con il portabile nativo. [Collaudi e limiti](validation-078.md). Il dialogo TOST è stato collaudato a 1024×768 e 1920×1200 reali. Questa evidenza riguarda i casi provati e non equivale a una validazione per qualsiasi impiego. Vedi [validazione e responsabilità](legal.md) e [rapporto TOST](validation-tost-086.md).
 
 La regressione lineare offre anche [stime di Y a X fissata e intervalli inversi di X a Y fissata](linear-point-estimates.md), compresi gli intervalli asimmetrici dell’intercetta X.
 

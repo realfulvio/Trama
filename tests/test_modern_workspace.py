@@ -47,9 +47,16 @@ class ModernWorkspaceTests(unittest.TestCase):
 
     def wait(self):
         until = time.monotonic()+10
-        while self.app.pending is not None and time.monotonic()<until:
-            self.root.update()
-            time.sleep(.02)
+        def poll():
+            if self.app.pending is None or time.monotonic() >= until:
+                self.root.quit()
+            else:
+                self.root.after(20, poll)
+
+        # Use the application's actual event loop, so worker-triggered Tk
+        # finalizers can dispatch to the UI thread within the same time limit.
+        self.root.after(0, poll)
+        self.root.mainloop()
         self.root.update()
         self.assertIsNone(self.app.pending)
 

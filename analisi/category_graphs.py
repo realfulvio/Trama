@@ -597,6 +597,8 @@ def category_graph(frame, options, *, grouped=False):
         if anchors:
             register_anchors(axes, anchors)
     axes.set_xticks(*ticks, rotation=30 if len(ticks[1]) > 8 else 0)
+    axes._tramastat_numeric_axes = ("y",)
+    axes._tramastat_categorical_axes = ("x",)
     for label in axes.get_xticklabels():
         label.set_parse_math(False)
     if legend:

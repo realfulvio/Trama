@@ -271,7 +271,8 @@ GROUPS = {
                                     "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX,
                                     "Histogram", FREQUENCY, GOODNESS_OF_FIT,
                                     "Area under curve", "Principal component analysis",
-                                    "Adjust a stack of p values", "Smooth / differentiate / integrate"),
+                                    "Adjust a stack of p values", "Control false discoveries",
+                                    "Smooth / differentiate / integrate"),
     "Regression and Curves": ("Linear regression", COMPARE_LINES, "Deming regression", "Multiple regression",
                               "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
@@ -448,6 +449,8 @@ def _distribution(method, frame, o):
             raise ValueError("A violin plot requires at least two distinct values per group.")
         axes.violinplot(values, showmedians=True)
     axes.set_xticks(range(1, len(groups) + 1), [str(label) for label, _ in groups], rotation=20)
+    axes._tramastat_numeric_axes = ("y",)
+    axes._tramastat_categorical_axes = ("x",)
     return Result({"Group summary": pd.DataFrame({"Group": [label for label, _ in groups],
                                                   "N": [len(v) for v in values],
                                                   "Median": [np.median(v) for v in values]})}, figure)
@@ -824,6 +827,7 @@ def _preview_figure(image):
     axes = figure.add_axes((0, 0, 1, 1))
     axes.imshow(image)
     axes.set_axis_off()
+    axes._tramastat_non_native = True
     return figure
 
 
@@ -867,6 +871,7 @@ def _imported_layout(options, layout_data=None):
             axes.imshow(render_binary_graph(preview, crop=False), extent=(x0, x1, y1, y0), origin="upper")
     axes.set(xlim=(left, right), ylim=(bottom, top), aspect="equal")
     axes.set_axis_off()
+    axes._tramastat_non_native = True
     return figure
 
 

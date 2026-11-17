@@ -1002,3 +1002,18 @@ CAPTIONS.update({
     "Two-sided test; first complete group minus second. Groups must be independent. Summary data cannot assess pairing, normality or outliers.":
         "Test bilaterale: primo gruppo completo meno secondo. I gruppi devono essere indipendenti. I riepiloghi non consentono di valutare appaiamento, normalità o valori anomali.",
 })
+
+# False-discovery control. Canonical recipes stay English; these captions are display text.
+CAPTIONS.update({
+    "Control false discoveries": "Controllo delle false scoperte",
+    "p columns": "Colonne dei valori p",
+    "Family columns": "Colonne della famiglia",
+    "Family scope": "Ambito della famiglia",
+    "Each column separately": "Ogni colonna separatamente",
+    "Pool selected columns": "Accorpa le colonne selezionate",
+    "FDR method": "Metodo FDR",
+    "Benjamini–Yekutieli": "Benjamini–Yekutieli",
+    "Two-stage Benjamini–Krieger–Yekutieli": "Benjamini–Krieger–Yekutieli a due stadi",
+    "Desired FDR (%)": "FDR desiderato (%)",
+    "Show diagnostic plot": "Mostra il grafico diagnostico",
+})
