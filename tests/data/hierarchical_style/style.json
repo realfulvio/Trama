@@ -1,0 +1,51 @@
+{
+  "row": {
+    "color_mode": "cluster",
+    "palette": [
+      "blue",
+      "red"
+    ],
+    "mixed_color": "#222222",
+    "width": 2.5,
+    "alpha": 0.6,
+    "line_style": "dashed",
+    "labels": {
+      "rotation": 30,
+      "size": 9,
+      "color": "black",
+      "interval": 1
+    },
+    "distance": {
+      "visible": true,
+      "minimum": 0,
+      "maximum": 20,
+      "step": 5,
+      "reversed": true
+    }
+  },
+  "column": {
+    "color_mode": "single",
+    "color": "#663399",
+    "width": 0.8,
+    "labels": {
+      "rotation": -45,
+      "size": 13,
+      "color": "#103050",
+      "interval": 1
+    }
+  },
+  "heatmap": {
+    "cmap": "plasma",
+    "reverse": true,
+    "minimum": -2,
+    "maximum": 12,
+    "colorbar": true,
+    "orientation": "horizontal",
+    "title": "Signal $ literal",
+    "cell_aspect": "auto"
+  },
+  "layout": {
+    "row_tree_ratio": 0.4,
+    "column_tree_ratio": 0.15
+  }
+}
