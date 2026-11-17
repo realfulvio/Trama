@@ -130,7 +130,27 @@ def _anova_post_tests(frame, post, response, factors):
     }
 
 
-def _factorial(frame, content, _results):
+def _anova_effect_options(results, term_count):
+    """Use a complete saved effect-size report to select the native calculations."""
+    if not isinstance(results, dict) or results.get("version") != "0.0.0":
+        return {}
+    try:
+        model = results["content"]["ordinaryModel"]
+        terms = model["anovaTable"]["fixedEffects"]
+        if model["status"] != "VALID" or not isinstance(terms, list) or len(terms) != term_count:
+            return {}
+        values = [term[key] for term in terms for key in ("variation", "partialEta2", "CohenF")]
+        levels = [term["fTest"]["pValue"]["level"] for term in terms]
+    except (KeyError, TypeError):
+        return {}
+    if any(type(value) not in {int, float} or not 0 <= value < float("inf") for value in values):
+        return {}
+    if any(type(level) not in {int, float} or not 0 < level < 1 for level in levels) or len(set(levels)) != 1:
+        return {}
+    return {"Effect sizes": True, "Alpha": levels[0]}
+
+
+def _factorial(frame, content, results):
     model, post = content["model"], content["postTests"]
     response = _column(frame, model["response"]["variable"]["id"])
     if (model["response"]["definition"] != ""
@@ -158,6 +178,7 @@ def _factorial(frame, content, _results):
         return None
     return "Multifactor ANOVA", {
         "Response": response, "Factors": factors, "Interaction order": order,
+        **_anova_effect_options(results, len(terms) - 1),
         **_anova_post_tests(frame, post, response, factors),
     }
 
