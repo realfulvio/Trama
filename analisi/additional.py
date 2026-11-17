@@ -15,6 +15,7 @@ from .reporting import Result, _plot, _report
 from .repeated_workbench import METHODS as REPEATED_METHODS, global_analysis, mixed_analysis
 from . import custom_fit, global_custom_fit, spline_fit
 from .stats import complete
+from . import fdr_control
 
 MULTIPLE, OPTIONAL, OPTIONAL_MULTIPLE = "Multiple", "Optional", "Multiple (optional)"
 CORRECTIONS = {"Holm": "holm", "Bonferroni": "bonferroni", "FDR (Benjamini–Hochberg)": "fdr_bh",
@@ -105,6 +106,9 @@ EXTRA_METHODS = {
     "Multiple t-tests": {"Variables": MULTIPLE, "Group": None, "Subject": OPTIONAL,
                          "Design": ("Welch", "Student", "Paired"), "Correction": tuple(CORRECTIONS)},
     "Adjust a stack of p values": {"p value": None, "Correction": tuple(CORRECTIONS)},
+    fdr_control.METHOD: {fdr_control.P_COLUMNS: MULTIPLE, fdr_control.FAMILY_COLUMNS: OPTIONAL_MULTIPLE,
+                         fdr_control.SCOPE: fdr_control.SCOPES, fdr_control.FDR_METHOD: fdr_control.FDR_METHODS,
+                         fdr_control.LEVEL: 5.0, fdr_control.PLOT: False},
     "Normalize": {"Variables": MULTIPLE,
                   "Method": ("Percent of range", "Z score", "Percent of first value", "Subtract first value")},
     "Transform": {"Variables": MULTIPLE,
@@ -491,6 +495,8 @@ def extra_analysis(method, frame, o):
         return Result({method: table}, fig)
     if method == "Adjust a stack of p values":
         return Result({"Adjusted p values": operations.adjust_p(frame, o["p value"], CORRECTIONS[o["Correction"]])})
+    if method == fdr_control.METHOD:
+        return fdr_control.analysis(frame, o)
     if method == "Normalize":
         return Result({"Normalized": operations.normalize(frame, o["Variables"], o["Method"])})
     if method == "Transform":
