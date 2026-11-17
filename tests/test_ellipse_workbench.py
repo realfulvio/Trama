@@ -1,7 +1,10 @@
 """Regression tests for scatter overlay geometry and appearance."""
 
 import math
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -10,7 +13,11 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Polygon
 
-from analisi.ellipse_workbench import draw_confidence_overlays, ellipse_visibility
+from analisi import ui_theme
+from analisi.data import Dataset, load_project, save_project
+from analisi.ellipse_workbench import GROUP_STYLES, draw_confidence_overlays, ellipse_visibility
+from analisi.workbench import analyse
+from tests.test_graph_i18n import TkCase
 
 
 SQUARE = pd.DataFrame({"x": [-1, 1, 1, -1], "y": [-1, -1, 1, 1]})
@@ -20,6 +27,41 @@ BASE = {"X": "x", "Y": "y", "Ellipse": "Data ellipse"}
 class ConfidenceOverlayTests(unittest.TestCase):
     def setUp(self):
         self.axes = Figure().add_subplot()
+
+    def test_ellipse_group_style_controls_each_contour_independently(self):
+        frame = pd.concat([SQUARE.assign(cohort=1), SQUARE.assign(x=SQUARE.x + 4, cohort="1")])
+        options = {**BASE, "Group": "cohort", "Fill": "By group", "Border": "By group",
+                   "Ellipse group styles": {"cohort": {
+                       "int:1": {"Fill color": "#0060a0", "Fill opacity (%)": 30,
+                                 "Border color": "#804020", "Border style": "Dotted",
+                                 "Border width": 2.5, "Border opacity (%)": 55},
+                       "str:1": {"Fill opacity (%)": 0, "Border color": "#00aa40"},
+                   }}}
+        summary = draw_confidence_overlays(self.axes, frame, options, {1: "blue", "1": "red"})
+        polygon, = self.axes.patches
+        first, second = self.axes.lines
+        self.assertEqual(polygon.get_facecolor(), to_rgba("#0060a0", .3))
+        self.assertEqual(to_rgba(first.get_color()), to_rgba("#804020"))
+        self.assertEqual(first.get_alpha(), .55)
+        self.assertEqual(first.get_linewidth(), 2.5)
+        self.assertEqual(first.get_linestyle(), ":")
+        self.assertEqual(to_rgba(second.get_color()), to_rgba("#00aa40"))
+        np.testing.assert_allclose(summary["Center X"], [0, 4])
+
+        axes = Figure().add_subplot()
+        draw_confidence_overlays(axes, frame, {**options, "Fill": "None", "Border": "Single color",
+                                             "Border color": "#202020"}, {})
+        self.assertEqual(len(axes.patches), 0)
+        self.assertEqual([to_rgba(line.get_color()) for line in axes.lines], [to_rgba("#202020")] * 2)
+
+    def test_invalid_group_style_is_rejected_before_drawing(self):
+        cohort = SQUARE.assign(cohort="A")
+        options = {**BASE, "Group": "cohort", "Border": "By group", "Ellipse group styles": {
+            "cohort": {"str:A": {"Border width": 0}},
+        }}
+        with self.assertRaisesRegex(ValueError, "Border width"):
+            draw_confidence_overlays(self.axes, cohort, options, {})
+        self.assertEqual(len(self.axes.lines) + len(self.axes.patches), 0)
 
     def test_legacy_option_uses_point_group_colors_and_data_ellipse_scale(self):
         frame = pd.concat([SQUARE.assign(points="A"), SQUARE.assign(x=SQUARE.x + 8, points="B")])
@@ -142,6 +184,82 @@ class ConfidenceOverlayTests(unittest.TestCase):
         self.assertTrue(visible["Fill opacity (%)"])
         self.assertFalse(visible["Fill color"])
         self.assertTrue(visible["Center size"])
+
+
+class EllipseGroupDialogTests(TkCase):
+    def test_group_styles_save_cancel_and_roundtrip_from_the_analysis_dialog(self):
+        from analisi.ellipse_style_dialog import EllipseStyleDialog
+        from tramastat import AnalysisDialog
+
+        method = "Scatter / confidence ellipse"
+        frame = pd.concat([SQUARE.assign(cohort=1), SQUARE.assign(x=SQUARE.x + 4, cohort="1")], ignore_index=True)
+        options = {**BASE, "Group": "cohort", "Fill": "By group", "Border": "By group"}
+        self.use("it")
+        ui_theme.configure(self.root)
+        failures = []
+        self.root.deiconify()
+
+        def child(action):
+            dialog = next(item for item in parent.winfo_children() if isinstance(item, EllipseStyleDialog))
+            try:
+                action(dialog)
+            except Exception as error:
+                failures.append(error)
+                dialog.cancel()
+
+        def change(dialog):
+            self.assertEqual(dialog.title(), "Stili delle ellissi per gruppo")
+            self.assertEqual(tuple(dialog.groups["values"]), ("1 (Numero)", "1 (Testo)"))
+            dialog.variables["Border width"].set("0")
+            with patch("analisi.ellipse_style_dialog.messagebox.showerror") as error:
+                self.assertFalse(dialog.validate())
+                self.assertIn("0,1", error.call_args.args[1])
+            dialog.variables["Border width"].set("2,5")
+            dialog.variables["Fill color"].set("#005050")
+            dialog.groups.current(1)
+            dialog._select_group()
+            dialog.variables["Border style"].set("Dotted")
+            dialog.variables["Border color"].set("#804020")
+            dialog.ok()
+
+        def cancel(dialog):
+            dialog.variables["Fill color"].set("#ff0000")
+            dialog.cancel()
+
+        def drive():
+            nonlocal parent
+            parent = next(item for item in self.root.winfo_children() if isinstance(item, AnalysisDialog))
+            try:
+                button = parent.field_rows[GROUP_STYLES][1]
+                parent.fields.select(button.master)
+                self.root.after(80, lambda: child(change))
+                button.invoke()
+                self.root.after(80, lambda: child(cancel))
+                button.invoke()
+                parent.ok()
+            except Exception as error:
+                failures.append(error)
+                parent.cancel()
+
+        parent = None
+        self.root.after(100, drive)
+        dialog = AnalysisDialog(self.root, frame, current=(method, options), only=method)
+        if failures:
+            raise failures[0]
+        styles = dialog.result[1][GROUP_STYLES]["cohort"]
+        self.assertEqual(styles["int:1"], {"Fill color": "#005050", "Border width": 2.5})
+        self.assertEqual(styles["str:1"], {"Border color": "#804020", "Border style": "Dotted"})
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "groups.alab"
+            save_project(path, {"Example": Dataset(frame, analyses=[dialog.result])})
+            reopened = load_project(path)["Example"]
+        self.assertEqual(reopened.analyses[0], dialog.result)
+        reopened.raw.loc[0, "y"] = -2
+        result = analyse(method, reopened.frame(), reopened.analyses[0][1])
+        self.assertEqual(result.tables["Confidence overlays"]["Center Y"].tolist(), [-.25, 0.])
+        first, second = result.figure.axes[0].lines
+        self.assertEqual(first.get_linewidth(), 2.5)
+        self.assertEqual(second.get_linestyle(), ":")
 
 
 if __name__ == "__main__":
