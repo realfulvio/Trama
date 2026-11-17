@@ -2095,13 +2095,19 @@ class AnalysisDialog(simpledialog.Dialog):
         direction = value("Direction")
         rows, columns = direction != "Columns", direction != "Rows"
         row_cut, column_cut = value("Row cut"), value("Column cut")
+        graph = value("Graph output")
+        tree_graph = graph != "Elbow plot"
         return {
             "Row cut": rows, "Clusters": rows and row_cut == "Count",
             "Row cut height": rows and row_cut == "Cut height",
             "Column cut": columns, "Column clusters": columns and column_cut == "Count",
             "Column cut height": columns and column_cut == "Cut height",
-            "Dendrogram orientation": value("Graph output") == "Dendrogram",
-            "Show cut line": (rows and row_cut == "Cut height") or (columns and column_cut == "Cut height"),
+            "Dendrogram orientation": graph == "Dendrogram",
+            "Show cut line": tree_graph and (
+                (rows and row_cut == "Cut height") or (columns and column_cut == "Cut height")),
+            "Elbow data": tree_graph,
+            **dict.fromkeys(("Branch appearance", "Branch width", "Branch style", "Branch opacity (%)",
+                             "Label type", "First label", "Label interval (0 = automatic)", "Label angle"), tree_graph),
             "Matrix format": value("Distance matrix") or value("Cophenetic distances"),
         }
 

@@ -25,7 +25,7 @@ def _project(path):
                                "columns": {"method": "NUMBER_OF_CLUSTERS", "clusterCount": 2}},
             "report": {"standardizedData": True, "distanceMatrix": True, "mergeMap": True,
                        "outputFullMatrix": False},
-            "graph": {"plots": ["HEATMAP"]},
+            "graph": {"plots": ["HEATMAP", "ELBOW_PLOT"]},
         },
     }
     with ZipFile(path, "w") as archive:
@@ -86,6 +86,7 @@ def check_hierarchical_import(root, app, directory, kit):
         initial_map = app.runs[index].result.tables["Row Merge map"].copy()
         assert initial_map["Node 1"].tolist() == ["Aster", "Cluster 1", "Cedar"]
         assert initial_map["Node 2"].tolist() == ["Birch", "Dahlia", "Cluster 2"]
+        assert app.runs[index].result.tables["Row Elbow data"]["Number of clusters"].tolist() == [1, 2, 3]
         capture(root, "window-imported-clustering-en.png")
 
         def edit(dialog):
@@ -164,11 +165,26 @@ def check_hierarchical_import(root, app, directory, kit):
         app.edit_analysis()
         finish()
         assert app.runs[index].options == options
+
+        def choose_elbow(dialog):
+            dialog.controls["Graph output"][1].set("Elbow plot")
+            assert not dialog.hierarchical_visibility()["Branch width"]
+            dialog.focus_field("Graph output")
+        kit.drive_dialog(kit.AnalysisDialog, choose_elbow)
+        app.edit_analysis()
+        finish()
+        elbow = app.runs[index].result
+        row_line, = elbow.figure.axes[0].lines
+        np.testing.assert_array_equal(row_line.get_xdata(), [1, 2])
+        np.testing.assert_allclose(row_line.get_ydata(), elbow.tables["Row Elbow data"]["WCSS"])
+        app.show("graph", index)
+        capture(root, "window-imported-elbow-it.png")
         (out/"report.json").write_text(json.dumps({
             "directions": "Rows and columns", "row_centering": True, "column_clusters": 3,
             "edited_data": True, "excluded_row": 1, "roundtrip": True, "saved_snapshot_unchanged": True,
             "style_preserved": True, "screen": [root.winfo_screenwidth(), root.winfo_screenheight()],
             "merge_map_imported_recalculated_exported_reopened": True,
+            "elbow_data_imported_and_dual_plot_switch": True,
         }, indent=2), encoding="utf-8")
     finally:
         set_language(language)
