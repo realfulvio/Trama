@@ -51,12 +51,14 @@ def _number(text, what="graph.inspector.enter_number"):
 
 class GraphInspector(ttk.Frame):
     def __init__(self, parent, run, canvas, toolbar, *, confirmed, commit, closed, remember=None, element=None,
-                 colors=None, qq_panels=None):
+                 colors=None, qq_panels=None, hierarchical_style=None):
         """``confirmed()`` returns the saved style, ``commit(style)`` stores a validated one,
         ``closed()`` tells the owner that the user closed the panel and ``remember(key)`` keeps the selection.
-        ``colors()`` opens the color and legend editor of a heat map; ``qq_panels()`` opens the Q–Q panel editor."""
+        ``colors()`` opens the color and legend editor of a heat map; ``qq_panels()`` opens the Q–Q panel editor.
+        ``hierarchical_style()`` opens the dendrogram and heat-map editor."""
         self._colors = colors
         self._qq_panels = qq_panels
+        self._hierarchical_style = hierarchical_style
         self.width = ui_theme.px(WIDTH)
         super().__init__(parent, width=self.width, padding=0)
         self.pack_propagate(False)
@@ -112,6 +114,11 @@ class GraphInspector(ttk.Frame):
         if getattr(self.run.result, "style_warning", None):
             ttk.Label(self.body, text=tr("graph.inspector.review", warning=self.run.result.style_warning),
                       wraplength=self.width - 40, foreground=ERROR, justify="left").pack(fill="x", pady=(0, 6))
+        if self._hierarchical_style is not None:
+            self.hierarchical_button = ttk.Button(
+                self.body, text=tr("hierarchy.style.button"), command=self._hierarchical_style)
+            self.hierarchical_button.pack(fill="x", pady=(0, 6))
+            self.widgets["hierarchical_style"] = self.hierarchical_button
         self._data_section()
         self._axes_section()
         self._page_section()

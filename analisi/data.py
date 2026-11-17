@@ -1,7 +1,7 @@
 """File readers and a restricted evaluator for calculated columns."""
 import ast
 from collections.abc import Mapping
-from copy import copy
+from copy import copy, deepcopy
 import csv
 from dataclasses import dataclass, field
 from io import StringIO
@@ -312,6 +312,8 @@ class Dataset:
         self.table_format = self.raw.attrs.get("table_format", self.table_format)
         if not self.analyses:
             self.analyses = list(self.raw.attrs.get("prism_recipes", []))
+            if self.analyses and not self.graph_styles:
+                self.graph_styles = deepcopy(self.raw.attrs.get("prism_graph_styles", {}))
         imported = self.raw.attrs.get("prism_formulas", {})
         imported = {name: recipe for name, recipe in imported.items() if name in self.raw}
         if imported and not self.formulas:
