@@ -543,11 +543,11 @@ class HierarchicalStyleIntegrationTests(unittest.TestCase):
         style = {
             "title": "Keep literal",
             "tick_size": 11,
-            "legend_options": {"entries": [{"label": "A"}]},
+            "legend_options": {"title": "Kept legend", "frame": False},
             "hierarchical": {"row": {"width": 4, "color": "green"}},
         }
         validated_style(style)
-        self.assertEqual(style["legend_options"], {"entries": [{"label": "A"}]})
+        self.assertEqual(style["legend_options"], {"title": "Kept legend", "frame": False})
         self.assertEqual(style["hierarchical"]["row"]["color"], "#008000")
         self.assertEqual(style["title"], "Keep literal")
         figure = _heat()
