@@ -68,7 +68,10 @@ def _parse_optional_int(raw_text, field, message):
         return None
     if not cleaned.isdigit() and not (cleaned.startswith(("+", "-")) and cleaned[1:].isdigit()):
         raise _LegendFieldError(field, message)
-    value = int(cleaned)
+    try:
+        value = int(cleaned)
+    except (ValueError, OverflowError):
+        raise _LegendFieldError(field, message) from None
     if not (1 <= value <= MAX_LEGEND_COLUMNS):
         raise _LegendFieldError(field, message)
     return value
