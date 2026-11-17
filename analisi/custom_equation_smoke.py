@@ -153,7 +153,11 @@ def check_custom_equation(root, app, directory, tools):
         assert dialog.winfo_exists()
         message = report.call_args.args[1]
         assert (contains or field) in message, message
-        assert dialog.fields.select() == str(dialog.field_rows[field][1].master), field
+        # The notebook page that holds the field (0.81: the Equation page scrolls, so its fields sit one canvas deeper).
+        page = dialog.field_rows[field][1].master
+        while page.master is not dialog.fields:
+            page = page.master
+        assert dialog.fields.select() == str(page), field
         if shot_name:
             shot(dialog, shot_name)
         return message

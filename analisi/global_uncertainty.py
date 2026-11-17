@@ -44,6 +44,7 @@ from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.colors import to_rgba
 from scipy import stats
 
+from .custom_equations import ConditionError
 from .field_error import FieldError
 from .fit_weights import INVERSE_VARIANCE, UNWEIGHTED
 
@@ -463,6 +464,18 @@ def prediction_table(compiled, solved, packed, rows, settings):
         pending.setdefault(series, []).append((record, row))
     for series, items in pending.items():
         x = np.array([row["x"] for _, row in items])
+        broken = _undefined_conditions(compiled, solved["maps"][series], x)
+        if broken.any():
+            # A query X where a condition of if(...) is not a finite comparison gets its own outcome; the
+            # other rows of the series keep theirs.
+            for (record, row), bad in zip(items, broken):
+                if bad:
+                    record.update(Status=UNDEFINED, Reason=f"A condition of if(...) is not defined at X = {row['x']:g} "
+                                                           "for this series.")
+            items = [item for item, bad in zip(items, broken) if not bad]
+            x = x[~broken]
+            if not items:
+                continue
         if interval != NONE and reason is None:
             predicted, variance, why = response(compiled, solved, series, x)
             k = np.array([row["k"] for _, row in items]) if interval == PREDICTION else 1.
@@ -500,6 +513,23 @@ def prediction_table(compiled, solved, packed, rows, settings):
     if table.empty:
         table["Source row"] = table["Source row"].astype("int64")
     return table
+
+
+def _undefined_conditions(compiled, parameters, x):
+    """Elements of ``x`` where a condition of if(...) cannot be evaluated (always none without if)."""
+    broken = np.zeros(len(x), dtype=bool)
+    if not getattr(compiled, "branches", 0) or not len(x):
+        return broken
+    try:
+        compiled.evaluate(x, parameters)
+    except ConditionError:
+        # Rare, and bounded by the query budget: find every failing element, not only the first.
+        for index, value in enumerate(x):
+            try:
+                compiled.evaluate(x[index:index + 1], parameters)
+            except ConditionError:
+                broken[index] = True
+    return broken
 
 
 def _runs(ok):

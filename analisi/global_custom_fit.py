@@ -31,15 +31,17 @@ Numerical conventions, inherited and stated here so a later change can be checke
   covariance is empty.
 """
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 from scipy import optimize, stats
 
-from .custom_equations import MAX_PARAMETERS, compile_equation
+from .custom_equations import (ARITHMETIC, CONDITIONAL, MAX_PARAMETERS, SYNTAXES, ConditionError, compile_equation,
+                               curve_with_breaks, syntax_of)
 from .custom_fit import (
-    DEFAULT_EQUATION, EQUATION_TEXT, LEVEL, MAX_GROUPS, MAX_PAIRS, MIN_POINTS, MAX_POINTS,
-    POINTS, SD_COLUMN, _bound, _number, _values,
+    BRANCH, DEFAULT_EQUATION, EQUATION_TEXT, LEVEL, MAX_GROUPS, MAX_PAIRS, MIN_POINTS, MAX_POINTS,
+    POINTS, SD_COLUMN, SYNTAX, _bound, _number, _values,
 )
 from . import global_uncertainty as uncertainty
 from .field_error import FieldError
@@ -68,7 +70,7 @@ EXAMPLE_PARAMETERS = (
     {"name": "B", "start": 1.0, "lower": None, "upper": None, "fixed": False, "shared": True},
 )
 OPTIONS = {
-    "X": None, "Y": None, "Group": None, "Equation": EQUATION_TEXT, "Parameters": PARAMETER_LIST,
+    "X": None, "Y": None, "Group": None, SYNTAX: SYNTAXES, "Equation": EQUATION_TEXT, "Parameters": PARAMETER_LIST,
     "Series constraints": SERIES_LIST, "Weighting": WEIGHTINGS, SD_COLUMN: "Optional",
     LEVEL: DEFAULT_LEVEL, POINTS: DEFAULT_POINTS, INTERVAL_METHOD: INTERVAL_METHODS,
     # 0.70: response bands. "None" comes first, so a recipe without these keys keeps the five sheets.
@@ -80,7 +82,7 @@ OPTIONS = {
     uncertainty.EXTRAPOLATE: False,
 }
 TABS = {
-    "Equation": ("Equation",), "Parameters": ("Parameters",),
+    "Equation": (SYNTAX, "Equation"), "Parameters": ("Parameters",),
     "Series constraints": ("Series constraints",), "Output": (INTERVAL_METHOD, LEVEL, POINTS),
     # 0.70: bands of the fitted response and predictions for new X, on a page of their own.
     "Response": (uncertainty.CURVE_BAND, uncertainty.RESPONSE_LEVEL, uncertainty.BAND_DRAWING, uncertainty.PREDICT,
@@ -119,6 +121,7 @@ class Settings:
     drawing: str = uncertainty.FILLED
     queries: object = None
     intervals: str = WALD
+    syntax: str = ARITHMETIC
 
 
 def _flag(record, name, key):
@@ -127,7 +130,7 @@ def _flag(record, name, key):
     return bool(record[key])
 
 
-def coefficients_from(records):
+def coefficients_from(records, syntax=ARITHMETIC):
     """Validate Parameters: names, finite starts, strict limits, and exactly one of local/shared/fixed."""
     if not isinstance(records, (list, tuple)):
         raise FieldError("Parameters", "Parameters must be a list of coefficients.")
@@ -139,7 +142,7 @@ def coefficients_from(records):
             raise FieldError("Parameters", "Each coefficient needs a name, a starting value and its limits.")
         name = record.get("name")
         from .custom_equations import check_name
-        check_name(name)
+        check_name(name, syntax)
         if name in seen:
             raise FieldError("Parameters", f"The coefficient {name} appears more than once.")
         seen.add(name)
@@ -201,8 +204,12 @@ def resolve(frame, options):
     if (not _number(points) or not np.isfinite(points) or float(points) != int(points)
             or not MIN_POINTS <= int(points) <= MAX_POINTS):
         raise FieldError(POINTS, f"Curve points must be a whole number from {MIN_POINTS} to {MAX_POINTS}.")
-    coefficients = coefficients_from(options.get("Parameters", ()))
-    compile_equation(options.get("Equation"), [c.name for c in coefficients])
+    syntax = syntax_of(options.get(SYNTAX))
+    coefficients = coefficients_from(options.get("Parameters", ()), syntax)
+    compiled = compile_equation(options.get("Equation"), [c.name for c in coefficients], syntax=syntax)
+    # A shared coefficient cannot be fixed per series, so in a condition it must be Fixed now. A local one may
+    # instead be fixed for every series in Series constraints; _bind checks that once the series are known.
+    _free_conditions(compiled, [c.name for c in coefficients if c.shared and not c.fixed])
     constraints = _constraints_from(options.get("Series constraints", []))
     band, response_level, drawing = uncertainty.band_options(options, weighting)
     queries = uncertainty.query_options(options, columns, weighting)
@@ -210,7 +217,27 @@ def resolve(frame, options):
     if intervals not in INTERVAL_METHODS:
         raise FieldError(INTERVAL_METHOD, 'Choose Symmetric (Wald) or Profile likelihood.')
     return Settings(x, y, group, sd, str(options.get("Equation")).strip(), coefficients, weighting,
-                    float(level), int(points), constraints, band, response_level, drawing, queries, intervals)
+                    float(level), int(points), constraints, band, response_level, drawing, queries, intervals, syntax)
+
+
+def _free_conditions(compiled, free_names, series=None):
+    free = [name for name in compiled.condition_parameters if name in set(free_names)]
+    if free and series is None:
+        raise FieldError("Parameters", f"{', '.join(free)} appears in a condition of if(...) and must be Fixed: "
+                                       "a shared coefficient cannot be a threshold to estimate. This fit uses known "
+                                       "thresholds and does not estimate change points.")
+    if free:
+        raise FieldError("Parameters", f"{', '.join(free)} appears in a condition of if(...) and is not fixed for "
+                                       f"series {series!r}: this fit uses known thresholds and does not estimate "
+                                       "change points. Mark it Fixed, or give it a fixed value for every series in "
+                                       "Series constraints.")
+
+
+def _condition_coefficients(s):
+    """Coefficients read inside a condition (none for Arithmetic recipes)."""
+    if s.syntax != CONDITIONAL:
+        return ()
+    return compile_equation(s.equation, [c.name for c in s.coefficients], syntax=s.syntax).condition_parameters
 
 
 def _limits(lower, upper):
@@ -276,6 +303,7 @@ def _bind(s, labels):
             fixed[label][c.name] = c.start if c.fixed else None
             starts[label][c.name] = c.start
     known = set(labels)
+    conditioned = set(_condition_coefficients(s))
     for label, parameters in s.constraints:
         text = str(label)
         if text not in known:
@@ -345,6 +373,8 @@ def _bind(s, labels):
         elif not c.fixed:
             for label in labels:
                 lo, hi = lower[label][c.name], upper[label][c.name]
+                if c.name in conditioned and fixed[label][c.name] is None:
+                    _free_conditions(SimpleNamespace(condition_parameters=(c.name,)), [c.name], label)
                 if fixed[label][c.name] is None and not lo <= starts[label][c.name] <= hi:
                     raise FieldError("Series constraints",
                                      f"Series {label!r}, {c.name}: the starting value {starts[label][c.name]:g} "
@@ -399,6 +429,22 @@ def _defined(predicted, data, at_start):
     raise FieldError("Equation", f"Group {label}: the equation is not defined {when} at "
                                  f"X = {data['X'][position]:g} (source row {data['rows'][position]}). "
                                  "Check divisions, logarithms and roots.")
+
+
+def _condition_error(part, error):
+    raise FieldError("Equation", f"Group {part['label']}: A condition of if(...) is not defined at "
+                                 f"X = {error.x:g} (source row {_source(part['rows'][error.position])}): one side of "
+                                 "a comparison is not a finite number. Check divisions, logarithms and roots in "
+                                 "the condition.") from None
+
+
+def _evaluate_part(compiled, part, parameters):
+    """Predictions of one series; a condition that cannot be evaluated names its group and source row."""
+    try:
+        with np.errstate(all="ignore"):
+            return np.asarray(compiled.evaluate(part["X"], parameters), dtype=float)
+    except ConditionError as error:
+        _condition_error(part, error)
 
 
 def _arrays(groups):
@@ -508,10 +554,7 @@ def _solve(compiled, packed, s, labels, lower, upper, fixed, starts, *, cancel=N
 
     def predict_all(values):
         maps = _parameter_maps(s, labels, fixed, values, mapping, scale)
-        pieces = []
-        for part, parameters in zip(packed, maps):
-            with np.errstate(all="ignore"):
-                pieces.append(np.asarray(compiled.evaluate(part["X"], parameters), dtype=float))
+        pieces = [_evaluate_part(compiled, part, parameters) for part, parameters in zip(packed, maps)]
         return maps, pieces
 
     def residual(values):
@@ -522,10 +565,11 @@ def _solve(compiled, packed, s, labels, lower, upper, fixed, starts, *, cancel=N
         value = (y - stacked) / (sd_unit * factor_holder["reference"])
         return np.where(np.isfinite(value), value, 1e150)
 
+    if n_free or reference == 0:
+        _, initial = predict_all(seeds / scale)
     if reference == 0:
-        _, pieces = predict_all(seeds / scale if n_free else np.empty(0))
         with np.errstate(all="ignore"):
-            guess = np.concatenate(pieces) if pieces else np.empty(0)
+            guess = np.concatenate(initial) if initial else np.empty(0)
             reference = float(np.max(np.abs(guess / sd_unit))) if len(guess) else 0.0
     if not np.isfinite(reference) or reference == 0:
         reference = 1.0
@@ -539,11 +583,9 @@ def _solve(compiled, packed, s, labels, lower, upper, fixed, starts, *, cancel=N
     start_u = start / scale if n_free else start
     if n_free:
         # Confirm the starting point itself is defined, before the solver replaces bad steps.
-        _, pieces = predict_all(seeds / scale)
-        stacked = np.concatenate(pieces)
+        stacked = np.concatenate(initial)
         if not np.isfinite(stacked).all():
-            offset = 0
-            for part, piece in zip(packed, pieces):
+            for part, piece in zip(packed, initial):
                 if not np.isfinite(piece).all():
                     _defined(piece, part, True)
             _defined(stacked, packed[0], True)
@@ -614,10 +656,15 @@ def _source(value):
     return value.item() if hasattr(value, "item") else value
 
 
-def _curve(compiled, parameters, x, points):
+def _curve(compiled, parameters, x, points, label=None):
     grid = np.linspace(float(np.min(x)), float(np.max(x)), points)
-    with np.errstate(all="ignore"):
-        predicted = np.asarray(compiled.evaluate(grid, parameters), dtype=float)
+    try:
+        with np.errstate(all="ignore"):
+            predicted = np.asarray(compiled.evaluate(grid, parameters), dtype=float)
+    except ConditionError as error:
+        prefix = "" if label is None else f"Group {label}: "
+        raise FieldError("Equation", f"{prefix}A condition of if(...) is not defined on the drawn curve at "
+                                     f"X = {error.x:g}.") from None
     if not np.isfinite(predicted).all():
         bad = int(np.flatnonzero(~np.isfinite(predicted))[0])
         raise FieldError("Equation", f"The equation is not defined on the drawn curve at X = {grid[bad]:g}.")
@@ -672,16 +719,24 @@ def _tables(compiled, packed, solved, s, queries=None):
     else:
         empty = pd.MultiIndex.from_arrays([[], [], []], names=_INDEX)
         covariance = pd.DataFrame(index=empty, columns=empty)
-    residual_rows, curve_rows, curves = [], [], []
+    residual_rows, curve_rows, curves, branches = [], [], [], []
     for part, parameters_map, piece in zip(packed, solved["maps"], solved["pieces"]):
         for row, x, y, pred, scale in zip(part["rows"], part["X"], part["Y"], piece, part["SD"]):
             residual_rows.append({"Source row": _source(row), "Group": part["label"], "X": float(x), "Y": float(y),
                                   "Predicted": float(pred), "Residual": float(y - pred),
                                   "SD": 1.0 if s.sd is None else float(scale)})
-        grid, curve = _curve(compiled, parameters_map, part["X"], s.points)
+        grid, curve = _curve(compiled, parameters_map, part["X"], s.points, part["label"])
         curves.append((part["label"], grid, curve))
-        for x, pred in zip(grid, curve):
-            curve_rows.append({"Group": part["label"], "X": float(x), "Predicted": float(pred)})
+        if s.syntax == CONDITIONAL:
+            # Path labels, not estimates; the fixed thresholds decide them.
+            codes = compiled.branch_codes(grid, parameters_map)
+            branches.append(codes)
+            for x, pred, code in zip(grid, curve, codes):
+                curve_rows.append({"Group": part["label"], "X": float(x), "Predicted": float(pred),
+                                   BRANCH: int(code)})
+        else:
+            for x, pred in zip(grid, curve):
+                curve_rows.append({"Group": part["label"], "X": float(x), "Predicted": float(pred)})
     tables = {
         "Parameters": parameters,
         "Global fit": summary,
@@ -692,6 +747,11 @@ def _tables(compiled, packed, solved, s, queries=None):
     drawn = None
     if s.band != uncertainty.NONE:
         bands, settings, drawn = uncertainty.band_tables(compiled, solved, curves, s.band, s.response_level)
+        if branches:
+            # The band follows the branches of its curve: no polygon or edge crosses a jump.
+            bands.insert(bands.columns.get_loc("Predicted") + 1, BRANCH, np.concatenate(branches).astype(int))
+            drawn = [(label, *curve_with_breaks(grid, lower, codes), curve_with_breaks(grid, upper, codes)[1])
+                     for (label, grid, lower, upper), codes in zip(drawn, branches)]
         tables[uncertainty.BANDS_SHEET] = bands
         tables[uncertainty.BAND_SETTINGS_SHEET] = settings
     if queries is not None:
@@ -699,9 +759,12 @@ def _tables(compiled, packed, solved, s, queries=None):
                                                                              s.queries)
     figure, axes = _plot("Global fit custom equation", s.x, s.y)
     lines = []
-    for part, (_, grid, curve) in zip(packed, curves):
+    for index, (part, (_, grid, curve)) in enumerate(zip(packed, curves)):
         color = axes._get_lines.get_next_color()
         axes.scatter(part["X"], part["Y"], color=color, label=part["label"])
+        if branches:
+            # Separators only in the drawn line; the Curve sheet keeps the sampled points.
+            grid, curve = curve_with_breaks(grid, curve, branches[index])
         lines.extend(axes.plot(grid, curve, color=color))
     if drawn is not None:
         uncertainty.draw_bands(axes, drawn, lines, s.drawing)
@@ -729,15 +792,14 @@ def check_options(frame, options):
                                        "Use fewer rows or share more coefficients.")
     _, propagated = _queries(frame, s, [label for label, _ in groups])
     uncertainty.check_budget(len(groups), s.points, s.band, propagated, n_free)
-    compiled = compile_equation(s.equation, [c.name for c in s.coefficients])
+    compiled = compile_equation(s.equation, [c.name for c in s.coefficients], syntax=s.syntax)
     packed = _arrays(groups)
     scale = _rest[1]
     mapping = _rest[0]
     seeds = _rest[4]
     maps = _parameter_maps(s, labels, fixed, seeds / scale if n_free else np.empty(0), mapping, scale)
     for part, parameters in zip(packed, maps):
-        with np.errstate(all="ignore"):
-            predicted = np.asarray(compiled.evaluate(part["X"], parameters), dtype=float)
+        predicted = _evaluate_part(compiled, part, parameters)
         if len(predicted) and not np.isfinite(predicted).all():
             _defined(predicted, part, True)
     return s
@@ -768,7 +830,7 @@ def global_custom_fit(frame, options, *, cancel=None):
         if cancel is not None and cancel.is_set():
             raise MonteCarloCancelled('Parameter profile calculation cancelled.')
     uncertainty.check_budget(len(groups), s.points, s.band, propagated, len(coordinates))
-    compiled = compile_equation(s.equation, [c.name for c in s.coefficients])
+    compiled = compile_equation(s.equation, [c.name for c in s.coefficients], syntax=s.syntax)
     packed = _arrays(groups)
     solved = _solve(compiled, packed, s, labels, lower, upper, fixed, starts,
                     cancel=cancel if s.intervals == PROFILE else None)

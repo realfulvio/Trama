@@ -7,8 +7,8 @@ import re
 import tkinter as tk
 from tkinter import ttk
 
-from .custom_equations import MAX_PARAMETERS, RESERVED
-from .custom_equation_dialog import translate_error as translate_custom_error
+from .custom_equations import ARITHMETIC, MAX_PARAMETERS
+from .custom_equation_dialog import reserved_names, translate_error as translate_custom_error
 from .data import decimal_comma
 from .field_error import FieldError
 from .graph_dialog import ChoiceBinding
@@ -66,12 +66,13 @@ def _scope(record):
     return "Local"
 
 
-def names_in(equation):
-    """Coefficient-like names in the formula. Calls and reserved words are not coefficients."""
+def names_in(equation, syntax=ARITHMETIC):
+    """Coefficient-like names in the formula. Calls and reserved words (if/and/or/not in Conditional) are not."""
     found = []
+    reserved = reserved_names(syntax)
     for match in _NAME.finditer(equation or ""):
         name = match.group()
-        if name in RESERVED or equation[match.end():].lstrip().startswith("(") or name in found:
+        if name in reserved or equation[match.end():].lstrip().startswith("(") or name in found:
             continue
         found.append(name)
     return found
@@ -82,9 +83,10 @@ class GlobalCoefficientTable(ttk.Frame):
 
     COLUMNS = (("name", 88), ("scope", 88), ("start", 88), ("lower", 72), ("upper", 72))
 
-    def __init__(self, parent, records, *, equation):
+    def __init__(self, parent, records, *, equation, syntax=lambda: ARITHMETIC):
         super().__init__(parent)
         self.equation = equation
+        self.syntax = syntax
         self.rows = []
         for record in records if isinstance(records, (list, tuple)) else ():
             if isinstance(record, dict):
@@ -198,14 +200,14 @@ class GlobalCoefficientTable(ttk.Frame):
         self.mark_unused()
 
     def mark_unused(self):
-        present = names_in(self.equation())
+        present = names_in(self.equation(), self.syntax())
         unused = [row["name"].strip() for row in self.rows if row["name"].strip() and row["name"].strip() not in present]
         self.unused.configure(text=tr("gfit.unused", names=", ".join(unused)) if unused else "")
 
     def free_name(self):
         used = {row["name"] for row in self.rows}
         for letter in "ABCDEFGHIJKLMNOPQRSTUVWZ":
-            if letter not in used and letter not in RESERVED:
+            if letter not in used and letter not in reserved_names(self.syntax()):
                 return letter
         return f"P{len(self.rows) + 1}"
 
@@ -230,7 +232,7 @@ class GlobalCoefficientTable(ttk.Frame):
 
     def from_equation(self):
         present = {row["name"] for row in self.rows}
-        for name in names_in(self.equation()):
+        for name in names_in(self.equation(), self.syntax()):
             if name in present or len(self.rows) >= MAX_PARAMETERS:
                 continue
             present.add(name)
