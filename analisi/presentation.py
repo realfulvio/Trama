@@ -28,6 +28,8 @@ from .probability_scale import PROBABILITY_SCALES
 from .qq_panels import (PANEL_KEY, POINTS_ATTR, POINTS_KEY, REFERENCE_ATTR, REFERENCE_KEY,
                         normalize_panel_styles, panel_axes)
 from .graph_annotations import ANNOTATIONS, draw_annotations, validate_annotations
+from .graph_legend import (LEGEND_OPTIONS_KEY, apply_legend_options, is_non_native_figure,
+                           restore_legend_snapshots, validate_legend_options)
 from .graph_shapes import SHAPES, draw_shapes, validate_shapes
 from .layout_geometry import (AUTO_PAPER, LABEL_PAD, LABEL_SIZE, PAPER_SIZES, PT, WHITE, layout_frame, page_ink,
                               page_size, panel_boxes)
@@ -187,7 +189,7 @@ def _check_groups(groups):
 
 def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
-                    "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", "series",
+                    "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", LEGEND_OPTIONS_KEY, "series",
                     "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY},
             "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
@@ -215,6 +217,8 @@ def validated_style(style):
             raise ValueError("Enter font sizes between 4 and 72 points.")
     if "legend" in style and style["legend"] not in LEGEND_LOCATIONS:
         raise ValueError("Choose a valid legend position.")
+    if LEGEND_OPTIONS_KEY in style:
+        validate_legend_options(style[LEGEND_OPTIONS_KEY])
     axes = _record(style.get("axis", {}), {"x", "y"}, "Invalid graph axis.")
     for dimension, options in axes.items():
         _check_axis_options(options, style.get(dimension + "scale"))
@@ -526,6 +530,8 @@ def validate_graph_style(axes, style):
         xscale=xscale,
         yscale=yscale,
     )
+    if style.get(LEGEND_OPTIONS_KEY) and is_non_native_figure(axes.figure):
+        raise ValueError("Legend formatting is not supported on raster or archived preview figures without native artists.")
     return style
 
 
@@ -912,6 +918,8 @@ def apply_style(figure, style):
     capture_defaults(figure)
     defaults = axes._tramastat_defaults
     previous = getattr(axes, "_tramastat_style", {})
+    if LEGEND_OPTIONS_KEY in style or LEGEND_OPTIONS_KEY in previous:
+        restore_legend_snapshots(figure)
     clear_axis_guides_and_bands(axes)
     for artist in (*getattr(axes, "_tramastat_references", ()), *getattr(axes, "_tramastat_annotations", ()),
                    *getattr(axes, "_tramastat_shapes", ())):
@@ -978,6 +986,8 @@ def apply_style(figure, style):
         normalise_bands(list(style.get(AXIS_BANDS, ()))),
     )
     _apply_qq_panels(figure, style, axes)
+    if style.get(LEGEND_OPTIONS_KEY):
+        apply_legend_options(figure, style[LEGEND_OPTIONS_KEY])
     axes._tramastat_style = deepcopy(style)
     # Annotations that depend on the formatted axis (pairwise brackets) are removed and drawn again.
     after = getattr(axes, "_tramastat_after_style", None)
