@@ -8,6 +8,7 @@ Screenshots are real window captures. A message box is patched only so a modal e
 the analysis dialog itself stays open on the field that failed.
 """
 import json
+import os
 import sys
 import threading
 import time
@@ -106,6 +107,8 @@ def check_correlation_details(root, app, directory, tools):
         app.tables[TIES].raw.index = pd.Index(pd.read_csv(FIXTURES / "ties.csv")["Source"].tolist())
 
         def shot(window, name):
+            if sys.platform != "win32" and not os.environ.get("TRAMASTAT_SMOKE_SCREENSHOTS"):
+                return
             window.attributes("-topmost", True)
             window.lift()
             window.update()
