@@ -1001,7 +1001,7 @@ def apply_style(figure, style):
     # Hierarchical presentation is explicit and wins over the generic axis it shares labels with.
     from .hierarchical_style import apply_hierarchical_style, describe_hierarchical_artists
 
-    if describe_hierarchical_artists(figure) or style.get("hierarchical"):
+    if describe_hierarchical_artists(figure):
         apply_hierarchical_style(figure, style.get("hierarchical", {}))
 
 

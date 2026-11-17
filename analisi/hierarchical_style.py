@@ -43,6 +43,7 @@ TREE_FIELDS = ("visible", "color_mode", "color", "mixed_color", "palette", "widt
                "labels", "distance")
 LABEL_FIELDS = ("visible", "rotation", "size", "color", "first", "interval")
 DISTANCE_FIELDS = ("visible", "minimum", "maximum", "step", "reversed")
+MAX_DISTANCE_TICKS = 200
 HEAT_FIELDS = ("cmap", "reverse", "minimum", "maximum", "colorbar", "title", "orientation", "cell_aspect")
 LAYOUT_FIELDS = ("row_tree_ratio", "column_tree_ratio")
 # Collapsed colorbar column. The axis stays in the figure; it just stops taking space.
@@ -267,8 +268,8 @@ def _layout(value):
     return out
 
 
-def validate_hierarchical_style(options):
-    """Return a canonical copy. The input is not modified."""
+def validate_hierarchical_style(options, *, figure=None):
+    """Return a canonical copy and check distance settings against the current tree, if present."""
     if not isinstance(options, dict):
         _fail("hierarchical", "Expected an object of presentation settings.")
     _unknown(options, ROOT_KEYS, "")
@@ -281,6 +282,20 @@ def validate_hierarchical_style(options):
         canonical["heatmap"] = _heatmap(options["heatmap"])
     if "layout" in options:
         canonical["layout"] = _layout(options["layout"])
+    if figure is not None:
+        components = _require(figure)["components"]
+        for name in TREE_KEYS:
+            comp = components.get(name)
+            distance = canonical.get(name, {}).get("distance")
+            if comp is not None and distance:
+                merged = _merge(comp["baseline"]["distance"], distance)
+                low, high = _distance_limits(comp, merged)
+                field = f"{name}.distance"
+                if low >= high:
+                    endpoint = "minimum" if "minimum" in distance and "maximum" not in distance else "maximum"
+                    _fail(f"{field}.{endpoint}", "The distance maximum must be greater than the minimum.")
+                if merged["step"] is not None and (high - low) / merged["step"] >= MAX_DISTANCE_TICKS:
+                    _fail(f"{field}.step", "The distance step would draw more than 200 ticks.")
     return canonical
 
 
@@ -604,13 +619,19 @@ def _show_distance_only(axes, dimension):
         axes.xaxis.label.set_visible(False)
 
 
+def _distance_limits(comp, distance):
+    captured = comp["captured"]
+    low = captured["distance_min"] if distance["minimum"] is None else distance["minimum"]
+    high = captured["distance_max"] if distance["maximum"] is None else distance["maximum"]
+    return low, high
+
+
 def _apply_distance(comp, merged):
     axes = comp["axes"]
     dimension = comp["distance_dimension"]
     captured = comp["captured"]
     distance = merged["distance"]
-    low = captured["distance_min"] if distance["minimum"] is None else float(distance["minimum"])
-    high = captured["distance_max"] if distance["maximum"] is None else float(distance["maximum"])
+    low, high = _distance_limits(comp, distance)
     limits = (high, low) if distance["reversed"] else (low, high)
     if dimension == "x":
         axes.set_xlim(*limits)
@@ -772,7 +793,7 @@ def _apply_layout(meta, canonical, heat_merged):
 
 def apply_hierarchical_style(figure, options):
     """Apply a validated override. Invalid input raises before any artist changes."""
-    canonical = validate_hierarchical_style(options)
+    canonical = validate_hierarchical_style(options, figure=figure)
     meta = _require(figure)
     if not canonical and not meta.get("applied"):
         return
