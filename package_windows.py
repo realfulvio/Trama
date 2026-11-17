@@ -18,8 +18,8 @@ def main():
     for name in ("README.en.md", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(root / name, bundle / name)
     for name in ("features.md", "getting-started.md", "compatibility.md", "development.md", "legal.md",
-                 "release-076.md", "validation-076.md", "startup-screen.md", "release-075.md", "validation-075.md", "release-074.md", "validation-074.md", "release-history.md", "release-071.md", "release-072.md", "release-073.md", "validation-073.md", "interface-themes.md", "summary-unequal-anova.md", "validation-tost-086.md", "linear-point-estimates.md",
-                 "nonlinear-parameter-intervals.md", "custom-parameter-profiles.md", "global-custom-070.md", "lognormal-tests-070.md", "equivalence-tost-071.md", "pca-selection-070.md",
+                 "release-077.md", "validation-077.md", "release-076.md", "validation-076.md", "startup-screen.md", "release-075.md", "validation-075.md", "release-074.md", "validation-074.md", "release-history.md", "release-071.md", "release-072.md", "release-073.md", "validation-073.md", "interface-themes.md", "summary-unequal-anova.md", "validation-tost-086.md", "linear-point-estimates.md",
+                 "nonlinear-parameter-intervals.md", "custom-parameter-profiles.md", "global-custom-parameter-profiles.md", "global-custom-070.md", "lognormal-tests-070.md", "equivalence-tost-071.md", "pca-selection-070.md",
                  "weighted-multiple-regression-070.md", "anova-diagnostics-070.md", "variance-assumptions-070.md",
                  "heatmap-colors-072.md", "robust-curve-073.md", "reference-normalization.md",
                  "nonlinear-inverse-intervals-073.md", "heatmap-layout.md", "correlation-details.md", "spearman-exact-extended.md", "lognormality.md", "summary-anova.md", "qq-panels.md", "lognormal-anova.md", "summary-ttest.md"):
@@ -37,7 +37,7 @@ def main():
     shutil.rmtree(bundle / "docs" / "media", ignore_errors=True)
     # Product media only. Raw extracted resources and historical imported
     # drawings are research evidence, not approved redistribution assets.
-    for folder in ("startup", "custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
+    for folder in ("startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
                    "anova-diagnostics-070", "variance-assumptions-070", "reference-normalization"):
         source = root / "docs" / "media" / folder
         if source.is_dir():
