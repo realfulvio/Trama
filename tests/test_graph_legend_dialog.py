@@ -14,6 +14,7 @@ from analisi.graph_legend import LEGEND_OPTIONS_KEY, typed_group_token
 from analisi.graph_legend_dialog import FRAME_HIDDEN, FRAME_SHOWN, LegendEditorDialog
 from analisi.i18n import active_language, set_language
 from analisi.presentation import apply_style
+from analisi.normality import normality
 from analisi.workbench import _preview_figure
 
 
@@ -86,6 +87,30 @@ class LegendDialogGuiTests(unittest.TestCase):
         for btn in buttons:
             self.assertTrue(btn.winfo_viewable(), btn)
             self.assertLessEqual(btn.winfo_rooty() + btn.winfo_height(), bottom + 2)
+
+    def test_two_qq_panels_have_independent_edit_widgets(self):
+        import pandas as pd
+
+        figure = normality(pd.DataFrame({"Value": [1., 2., 3., 4., 5., 6.]}), {
+            "Variables": ["Value"], "Distribution": "Both", "Q–Q plot": True,
+            "Q–Q variable": "Value", "Q–Q reference line": True,
+        }).figure
+        errors = []
+
+        def drive(dialog):
+            self.assertEqual(len(dialog.entries), 4)
+            self.assertEqual(len(dialog.entry_vars), 4)
+            wanted = next(entry for entry in dialog.entries
+                          if entry.scope == "qq:normal" and "reference" in entry.label)
+            dialog.entry_vars[wanted.key].set("Normal model only")
+            dialog.ok()
+
+        self._drive_modal(self.root, LegendEditorDialog, drive, errors)
+        dialog = LegendEditorDialog(self.root, figure)
+        self.assertFalse(errors, errors)
+        apply_style(figure, {LEGEND_OPTIONS_KEY: dialog.result})
+        self.assertIn("Normal model only", [t.get_text() for t in figure.axes[0].get_legend().get_texts()])
+        self.assertNotIn("Normal model only", [t.get_text() for t in figure.axes[1].get_legend().get_texts()])
 
     def test_inline_error_focus_recovery_reset_and_cancel_en_and_it(self):
         for lang, theme in (("en", "standard"), ("it", "modern")):

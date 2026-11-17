@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from math import isfinite
 import re
 from sys import float_info
+from urllib.parse import quote, unquote
 
 import numpy as np
 from matplotlib.colors import is_color_like, to_hex
@@ -34,6 +35,7 @@ MAX_LEGEND_BORDER_WIDTH = 10.0
 #   - FDR keys:          fdr:(threshold|discovery|other)
 #   - Artist GID keys:   gid:<artist_gid>
 #   - Scoped fallbacks:  entry:<legend_scope>#<creation_index>
+#   - Panel entries:     scope:<URL-encoded legend_scope>:<original entry key>
 _ENTRY_KEY_PATTERNS = (
     re.compile(r"(line|errorbar|scatter|bar|xy):[1-9][0-9]*:.*", re.DOTALL),
     re.compile(r"(box|violin|pair|trajectory|trajectory-mean):.+", re.DOTALL),
@@ -78,7 +80,23 @@ def is_valid_entry_key(key):
     """Return True if ``key`` matches the documented stable legend entry key grammar."""
     if not isinstance(key, str) or not (1 <= len(key) <= MAX_LEGEND_KEY_LENGTH):
         return False
+    if key.startswith("scope:"):
+        encoded, separator, original = key[6:].partition(":")
+        scope = unquote(encoded)
+        if not separator or quote(scope, safe="") != encoded:
+            return False
+        if not re.fullmatch(r"axes:[0-9]+:(main|extra:[0-9]+|gid:.+)|qq:(normal|lognormal)|figure:([0-9]+|gid:.+)", scope):
+            return False
+        return any(pattern.fullmatch(original) is not None for pattern in _ENTRY_KEY_PATTERNS)
     return any(pattern.fullmatch(key) is not None for pattern in _ENTRY_KEY_PATTERNS)
+
+
+def _panel_entry_key(scope, key):
+    # Retain published single-legend identities. Q–Q names must remain stable
+    # even if the other distribution is removed and the axes indices change.
+    if scope in {"axes:0:main", "figure:0"} or key.startswith(("entry:", "scope:")):
+        return key
+    return f"scope:{quote(scope, safe='')}:{key}"
 
 
 def _finite_number(value):
@@ -303,6 +321,15 @@ def _resolve_entry_keys(figure, scope, axes, legend):
         for candidate_artist in (source, proxy):
             if candidate_artist is None:
                 continue
+            if scope.startswith("qq:") and axes is not None:
+                # The reference label includes fitted coefficients in a single
+                # panel, so its text cannot serve as identity after recalculation.
+                if candidate_artist is getattr(axes, "_trama_qq_points", None):
+                    key = "gid:qq-points"
+                    break
+                if candidate_artist is getattr(axes, "_trama_qq_reference", None):
+                    key = "gid:qq-reference"
+                    break
             explicit_key = getattr(candidate_artist, "_tramastat_legend_key", None)
             if is_valid_entry_key(explicit_key):
                 key = explicit_key
@@ -370,6 +397,7 @@ def _snapshot_legend(figure, scope, axes, legend):
     keys = _resolve_entry_keys(figure, scope, axes, legend)
     if len(keys) != len(items):
         keys = [f"entry:{scope}#{idx}" for idx in range(len(items))]
+    keys = [_panel_entry_key(scope, key) for key in keys]
     frame = legend.get_frame()
     title_artist = legend.get_title()
     snapshot = {
@@ -492,6 +520,16 @@ def collect_legend_entries(figure):
     labels = [item[2] for item in raw_items]
     for scope, key, label, legend in raw_items:
         display = _disambiguate_label(label, key) if labels.count(label) > 1 else label
+        if labels.count(label) > 1 and len({item[0] for item in raw_items if item[2] == label}) > 1:
+            from .i18n import tr
+
+            if scope.startswith("qq:"):
+                panel = tr("legend_editor.panel." + scope.split(":", 1)[1])
+            elif scope.startswith("axes:"):
+                panel = tr("legend_editor.panel", number=int(scope.split(":")[1]) + 1)
+            else:
+                panel = tr("legend_editor.figure")
+            display = f"{label} ({panel})"
         collected.append(LegendEntry(scope=scope, key=key, label=label, display_name=display, legend=legend))
     return collected
 

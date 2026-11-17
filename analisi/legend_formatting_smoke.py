@@ -100,6 +100,10 @@ def _run(kit):
             "Show diagnostic plot": True,
         },
     ))
+    dataset.analyses.append(("Normality tests", {
+        "Variables": ["Control"], "Distribution": "Both", "Q–Q plot": True,
+        "Q–Q variable": "Control", "Q–Q reference line": True,
+    }))
     save_project(alab, {TITLE: dataset})
 
     # --- Part 1: EN + Standard theme + Format Graph + shared LegendEditorDialog ---
@@ -312,3 +316,39 @@ def _run(kit):
     with patch.object(kit.filedialog, "asksaveasfilename", return_value=str(layout_png)):
         app.export()
     assert layout_png.exists() and layout_png.stat().st_size > 0
+
+    # Independent native panels must have separate editor widgets and saved labels.
+    app.open_sheet(("graph", 2))
+    wait()
+
+    def drive_qq_format(fdlg):
+        def drive_qq_legend(ldlg):
+            assert len(ldlg.entry_vars) == len(ldlg.entries) == 4
+            entry = next(e for e in ldlg.entries if e.scope == "qq:lognormal" and "reference" in e.label)
+            ldlg.entry_vars[entry.key].set("Log model only")
+            assert ldlg.preview()
+            capture(ldlg, "window-legend-qq-dialog-it.png")
+            ldlg.ok()
+
+        drive_mapped_dialog(fdlg, LegendEditorDialog, drive_qq_legend, errors)
+        fdlg.legend_button.invoke()
+        assert not errors, errors
+        fdlg.ok()
+
+    drive_mapped_dialog(root, GraphFormatDialog, drive_qq_format, errors)
+    app.format_graph()
+    assert not errors, errors
+    app.path = alab
+    assert app.save()
+    app.import_file(alab)
+    app.open_sheet(("graph", 2))
+    wait()
+    fig = app.runs[2].result.figure
+    labels = {ax._trama_qq_panel: [text.get_text() for text in ax.get_legend().get_texts()]
+              for ax in fig.axes}
+    assert "Log model only" in labels["lognormal"]
+    assert "Log model only" not in labels["normal"]
+    capture(root, "window-legend-qq-independent-it.png")
+    svg = out / "legend-independent-panels.svg"
+    fig.savefig(svg, format="svg")
+    assert "Log model only" in svg.read_text(encoding="utf-8")

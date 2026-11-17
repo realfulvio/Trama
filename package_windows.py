@@ -18,6 +18,7 @@ def main():
     for name in ("README.en.md", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(root / name, bundle / name)
     for name in ("features.md", "getting-started.md", "compatibility.md", "development.md", "legal.md",
+                 "graph-legends.md", "release-082.md", "validation-082.md",
                  "release-081.md", "validation-081.md", "experiment-families.md", "variance-ratio-079.md",
                  "release-080.md", "validation-080.md", "hierarchical-import.md",
                  "release-079.md", "validation-079.md", "analysis-chains.md",
