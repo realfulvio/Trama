@@ -2,7 +2,9 @@
 
 [Presentazione](../README.md) · [Guida rapida](getting-started.md) · [Compatibilità](compatibility.md)
 
-Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.80.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
+Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.81.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
+
+Il [confronto di due varianze](variance-ratio-079.md) offre intervalli esatti e una figura facoltativa.
 
 Le [famiglie di esperimenti](experiment-families.md) si duplicano o si salvano come progetto autonomo con tutto ciò da cui dipendono.
 
