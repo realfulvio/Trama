@@ -2,9 +2,11 @@
 
 [Presentazione](../README.md) · [Guida rapida](getting-started.md) · [Compatibilità](compatibility.md)
 
-Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.79.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
+Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.80.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
 
 Le [analisi collegate](analysis-chains.md) usano una tabella di risultati come ingresso di un’analisi successiva e propagano le modifiche alla sorgente. La copia indipendente **Usa risultato come dati** rimane disponibile.
+
+Le [ricette gerarchiche ZIP supportate](hierarchical-import.md) diventano analisi native modificabili: trasformazioni, clustering di righe e colonne, heat map e report si ricalcolano dai dati importati. La formattazione nativa non riproduce ogni dettaglio del documento originale.
 
 ## Interfaccia
 
@@ -68,7 +70,7 @@ Layout fino a 12 pannelli; export PNG, TIFF, SVG, PDF e PDF multipagina. Le porz
 
 L’importazione dei formati legacy è parziale e dipende dalla struttura del documento: vedi [formati e limiti](compatibility.md). L'[archivio delle versioni](release-history.md) conserva i dettagli storici; la [documentazione tecnica](coverage.md) approfondisce metodi e scelte numeriche.
 
-La 0.79.0 beta è stata verificata con 2.415 test sia su Linux sia su Windows, con gli smoke GUI completi e con il portabile nativo. [Collaudi e limiti](validation-079.md). Il dialogo TOST è stato collaudato a 1024×768 e 1920×1200 reali. Questa evidenza riguarda i casi provati e non equivale a una validazione per qualsiasi impiego. Vedi [validazione e responsabilità](legal.md) e [rapporto TOST](validation-tost-086.md).
+La 0.80.0 beta è stata verificata con 2.421 test sia su Linux sia su Windows, con gli smoke GUI completi e con il portabile nativo. [Collaudi e limiti](validation-080.md). Il dialogo TOST è stato collaudato a 1024×768 e 1920×1200 reali. Questa evidenza riguarda i casi provati e non equivale a una validazione per qualsiasi impiego. Vedi [validazione e responsabilità](legal.md) e [rapporto TOST](validation-tost-086.md).
 
 La regressione lineare offre anche [stime di Y a X fissata e intervalli inversi di X a Y fissata](linear-point-estimates.md), compresi gli intervalli asimmetrici dell’intercetta X.
 
