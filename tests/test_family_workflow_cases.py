@@ -346,7 +346,7 @@ class Persistence(TestCase):
             save_project(current, tables)
             before = current.read_bytes()
             link = Path(folder) / 'alias.alab'
-            link.symlink_to(current)
+            os.link(current, link)
             for target in (current, link, Path(folder) / '.' / 'current.alab', Path(folder) / 'sub' / '..' / 'current.alab'):
                 with self.subTest(target=str(target)), self.assertRaises(FamilyError) as raised:
                     save_family(target, tables, [], [], ('data', 'A'), source_path=current)
@@ -354,6 +354,25 @@ class Persistence(TestCase):
             self.assertEqual(current.read_bytes(), before)
             with self.assertRaises(FamilyError):
                 save_family(Path(folder) / 'not-a-project.txt', tables, [], [], ('data', 'A'))
+
+    def test_the_current_project_path_is_refused_through_a_symbolic_link(self):
+        tables = {'A': simple()}
+        with tempfile.TemporaryDirectory() as folder:
+            current = Path(folder) / 'current.alab'
+            save_project(current, tables)
+            before = current.read_bytes()
+            link = Path(folder) / 'symbolic.alab'
+            try:
+                link.symlink_to(current)
+            except OSError as error:
+                if os.name == 'nt' and error.winerror == 1314:
+                    self.skipTest('Windows test account cannot create symbolic links (WinError 1314).')
+                raise
+            with self.assertRaises(FamilyError) as raised:
+                save_family(link, tables, [], [], ('data', 'A'), source_path=current)
+            self.assertEqual(raised.exception.code, 'current-path')
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(current.read_bytes(), before)
 
     def test_a_saved_family_needs_nothing_from_the_original_project(self):
         a = simple([str(uuid4())])
