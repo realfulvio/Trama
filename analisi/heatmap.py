@@ -661,6 +661,7 @@ def _render_heat_map(table, options, levels):
                 label = format_cell_label(raw_value, label_settings, categorical=categorical)
                 axes.text(xcenter, ycenter, label, ha="center", va="center",
                           color=text_color, parse_math=False, **font_kwargs)
+    axes._tramastat_categorical_axes = ("x", "y")
     return figure, geometry, legacy
 
 
