@@ -27,6 +27,7 @@ from scipy import stats
 from .category_graphs import COLORS
 from .field_error import FieldError
 from .reporting import Result, _plot, _report
+from .variance_ratio import SHOW as VARIANCE_SHOW, attach_lognormal
 
 LOGNORMAL = "Lognormal t-test"
 DESIGN = "Design"
@@ -49,7 +50,7 @@ PAIRING = "Pairing correlation"
 # The first entry of each choice is its default in the dialog.
 OPTIONS = {DESIGN: DESIGNS, FIRST: None, SECOND: None, REPORT_RATIO: ORIENTATIONS, NULL_RATIO: 1.0,
            REFERENCE: 1.0, LEVEL: 95.0, ALTERNATIVE: ALTERNATIVES, LOG_BASE: LOG_BASES, GRAPH: GRAPHS,
-           PAIRING: True}
+           PAIRING: True, VARIANCE_SHOW: False}
 # Fields that belong on the Data tab; the others sit on the Test and graph tab.
 DATA_FIELDS = (DESIGN, FIRST, SECOND, REPORT_RATIO, REFERENCE)
 
@@ -78,7 +79,8 @@ _EPS = np.finfo(float).eps
 
 def visibility(design):
     """Fields that apply to the chosen design; the others are inactive and never validated."""
-    return {SECOND: design != ONE_SAMPLE, REFERENCE: design == ONE_SAMPLE, PAIRING: design == PAIRED}
+    return {SECOND: design != ONE_SAMPLE, REFERENCE: design == ONE_SAMPLE, PAIRING: design == PAIRED,
+            VARIANCE_SHOW: design in (WELCH, STUDENT)}
 
 
 # ----- options -------------------------------------------------------------------------------------------------------
@@ -368,6 +370,7 @@ def lognormal_test(frame, options):
     if graph != NO_GRAPH:
         figure = _figure(graph, design, first_name, second_name, ratio_text, base, orientation, level, null, reference,
                          row, data, la, lb, differences, divisor)
+    attach_lognormal(tables, data["a"], data["b"], options, design, level)
     return Result(tables, figure)
 
 

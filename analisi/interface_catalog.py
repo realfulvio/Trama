@@ -77,6 +77,10 @@ Normality tests|Test di normalità
 t-test|Test t
 Paired t-test (columns)|Test t appaiato (colonne)
 Lognormal t-test|Test t lognormale
+Compare two variances|Confronta due varianze
+Show variance comparison|Mostra il confronto delle varianze
+Variance ratio|Rapporto tra le varianze
+SD ratio|Rapporto tra le DS
 Equivalence test (TOST)|Test di equivalenza (TOST)
 Lower margin|Margine inferiore
 Upper margin|Margine superiore
