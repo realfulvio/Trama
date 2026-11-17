@@ -2,7 +2,7 @@
 
 [Presentazione](../README.md) · [Guida rapida](getting-started.md) · [Compatibilità](compatibility.md)
 
-Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.82.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
+Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.83.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
 
 Il [confronto di due varianze](variance-ratio-079.md) offre intervalli esatti e una figura facoltativa.
 
@@ -43,6 +43,7 @@ Sono disponibili normalità e Q–Q, screening di outlier ROUT su modello costan
 - [Profili dei parametri per equazioni personalizzate](custom-parameter-profiles.md), con coefficienti fissi, vincoli, SD relative, stati per ogni estremo e annullamento.
 - [Profili congiunti delle equazioni globali personalizzate](global-custom-parameter-profiles.md): coefficienti condivisi o locali, vincoli per serie e gradi di libertà dell'intero fit; calcolo annullabile con stati distinti per radici, vincoli e limiti non determinati.
 - Fit globali del catalogo con parametri condivisi e vincoli per singola serie; equazioni personalizzate e fit globali personalizzati, con bande puntuali di confidenza o predizione e previsioni per nuove X per serie dal fit congiunto.
+- [Equazioni condizionali](conditional-equations-081.md) nei fit personalizzati, singoli e globali: modelli a tratti con `if(...)` e soglie note tenute fisse (i punti di cambio non vengono stimati), colonna del ramo e curve senza tratti fra i rami.
 - Confronti fra modelli, AICc, calibrazione diretta e inversa con intervalli nei modelli supportati, spline e LOWESS.
 - Adattamento robusto di curve (perdita Cauchy, Huber o Soft L1, scala fissa o MAD pilota), con pesi di influenza per punto, confronto facoltativo con il fit ordinario e grafico di curva, residui o pesi; descrittivo, senza errori standard né p ([guida](robust-curve-073.md)).
 

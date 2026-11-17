@@ -29,6 +29,37 @@ class HierarchicalWorkbenchTests(unittest.TestCase):
         np.testing.assert_equal(ax.lines[0].get_xdata(), [2, 2])
         self.assertEqual(len(ax.collections[0].get_segments()), 3)
 
+    def test_elbow_uses_within_cluster_sums_on_the_fitted_tree(self):
+        data = pd.DataFrame({"X": [0., 1., 3.]})
+        options = {"Variables": ["X"], "Clusters": 1, "Graph output": "Elbow plot"}
+        for offset in (0., 2.**40):
+            with self.subTest(offset=offset):
+                result = hierarchical_result(data + offset, options)
+                table = result.tables["Elbow data"]
+                self.assertEqual(table["Number of clusters"].tolist(), [1, 2])
+                np.testing.assert_allclose(table["WCSS"], [14/3, .5], rtol=0, atol=1e-14)
+                line, = result.figure.axes[0].lines
+                np.testing.assert_array_equal(line.get_xdata(), [1, 2])
+                np.testing.assert_allclose(line.get_ydata(), [14/3, .5], rtol=0, atol=1e-14)
+
+    def test_optional_elbow_data_reports_rows_and_columns_with_existing_graph(self):
+        options = {**self.options, "Direction": "Rows and columns", "Elbow data": True}
+        result = hierarchical_result(self.frame, options)
+        row = result.tables["Row Elbow data"]
+        col = result.tables["Column Elbow data"]
+        for axis, values, output in [("rows", self.frame.iloc[:, 1:].to_numpy(), row),
+                                     ("columns", self.frame.iloc[:, 1:].to_numpy().T, col)]:
+            self.assertEqual(len(output), len(values) - 1)
+            expected = np.square(values - values.mean(axis=0)).sum()
+            self.assertAlmostEqual(output["WCSS"].iloc[0], expected)
+            self.assertTrue(np.all(np.diff(output["WCSS"]) <= 0))
+        self.assertEqual(result.figure.axes[0].get_title(), "Dendrogram of rows")
+
+    def test_finite_elbow_data_near_largest_float(self):
+        data = pd.DataFrame({"X": [0., 1.4e154]})
+        result = hierarchical_result(data, {"Variables": ["X"], "Distance": "cityblock", "Elbow data": True})
+        self.assertAlmostEqual(result.tables["Elbow data"]["WCSS"].iloc[0] / 1e307, 9.8)
+
     def test_dual_heatmap_axes_align_and_values_follow_both_leaf_orders(self):
         options = {**self.options, "Direction": "Rows and columns", "Graph output": "Heat map",
                    "Column clusters": 2, "Scale columns": "Center", "Scaled data": True}
