@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.76 beta:** an animated loading screen and asymmetric parameter profiles for custom equations, including fixed coefficients, bounds and relative SDs. [Changes and limits](docs/release-076.md) · [Verification](docs/validation-076.md).
+**New in 0.77 beta:** joint parameter profiles for global custom equations, including shared coefficients, per-series constraints and cancellation. [Changes and limits](docs/release-077.md) · [Verification](docs/validation-077.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 

@@ -6,8 +6,8 @@ imply every possible option or design. There is no audited overall completion pe
 
 ## Current acceptance
 
-The released 0.76 beta passes 2,304 unit tests on Linux and 2,304 on native Windows.
-See [0.76 validation](validation-076.md) for complete Linux GUI and targeted native portable checks,
+The released 0.77 beta passes 2,325 unit tests on Linux and 2,325 on native Windows.
+See [0.77 validation](validation-077.md) for complete Linux GUI and targeted native portable checks,
 [features](features.md), and [format compatibility](compatibility.md).
 Tests document particular cases and are not a clinical or regulatory certification.
 

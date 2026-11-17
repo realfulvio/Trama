@@ -9,6 +9,8 @@ Il valore predefinito **Symmetric (Wald)** conserva i risultati precedenti. Le
 ricette salvate senza questa opzione continuano a usare quel percorso e non
 acquisiscono la nuova chiave solo perché vengono aperte e confermate.
 
+![Scelta italiana dei profili globali nel portabile Windows, con dati sintetici.](media/global-custom-parameter-profiles/options-it.png)
+
 ## Un unico obiettivo per tutte le serie
 
 Il fit iniziale stima contemporaneamente i coefficienti di tutte le serie:
@@ -59,6 +61,8 @@ Il calcolo avviene sul worker. **Cancel** interrompe anche la ricerca dei
 profili e conserva l'ultimo risultato completato quando si modifica uno
 studio esistente. La scelta è salvata in forma canonica nel `.alab`, anche
 con interfaccia italiana.
+
+![Risultati dei coefficienti condivisi e locali nel portabile Windows, su dati sintetici.](media/global-custom-parameter-profiles/results.png)
 
 ## Limiti del metodo
 
