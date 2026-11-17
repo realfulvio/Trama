@@ -341,6 +341,8 @@ def _figure(design, orientation, data, row):
         axes.set_xlabel(axes.get_xlabel() + f" · displayed values × 2^{exponent}")
     _plain(axes.title, axes.xaxis.label)
     axes.set_yticks([])
+    axes._tramastat_numeric_axes = ("x",)
+    axes._tramastat_categorical_axes = ("y",)
     axes.spines["left"].set_visible(False)
     axes.set_ylim(-1, 1)
     zone = axes.axvspan(lower, upper, color="#2f7d6b", alpha=.12, zorder=0, linewidth=0,

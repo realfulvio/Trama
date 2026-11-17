@@ -132,6 +132,7 @@ def _heat_map(coefficients, names):
     image = axes.imshow(squared, cmap=cmap, vmin=0., vmax=1.)
     axes.set_xticks(range(len(names)), names, rotation=40, ha="right")
     axes.set_yticks(range(len(names)), names)
+    axes._tramastat_categorical_axes = ("x", "y")
     axes.tick_params(length=0)
     divider = make_axes_locatable(axes)
     colorbar = divider.append_axes("right", size="4%", pad=.24)
