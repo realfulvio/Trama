@@ -48,4 +48,4 @@ Analyses can carry a persistent literal name, stored in an optional `analysis_la
 
 ## Limiti e prove
 
-Non sono prove di Windows né di uso manuale con mouse e tastiera: gli smoke pilotano i widget Tk veri, in inglese e italiano, con Tema Standard e Moderno, sotto Xvfb. I budget sono limiti di validazione del formato, non una promessa di prestazioni a quella dimensione. **Duplica solo grafico** (una copia che aggiunge un’altra analisi) è un comando diverso e non è incluso.
+Le [verifiche della 0.81 beta](validation-081.md) includono il portabile Windows e Linux/Xvfb, in inglese e italiano con Tema Standard e Moderno. Gli smoke pilotano widget reali e non costituiscono un collaudo manuale esaustivo. I budget sono limiti di validazione del formato, non una promessa di prestazioni a quella dimensione. **Duplica solo grafico** (una copia che aggiunge un’altra analisi) è un comando diverso e non è incluso.

@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.80 beta:** supported hierarchical analyses in ZIP projects become editable. Row and column clustering, transforms, heat maps and selected reports recalculate from imported data. [Guide and limits](docs/hierarchical-import.md) · [Changes](docs/release-080.md) · [Verification](docs/validation-080.md).
+**New in 0.81 beta:** duplicate or export independent experiment families and compare two sample variances with exact intervals and an optional plot. [What’s new](docs/release-081.md) · [Verification](docs/validation-081.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
