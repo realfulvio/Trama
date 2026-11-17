@@ -139,8 +139,10 @@ def _choose_next(dialog, field, expected):
     # Down posts the list. The popdown is a Tcl toplevel, so the following keys
     # go to its listbox path instead of a Tkinter child.
     box.event_generate("<Down>")
-    box.update_idletasks()
+    # Windows delivers the focus change after the popdown has been mapped.
+    box.update()
     listbox = f"{box._w}.popdown.f.l"
+    assert str(box.tk.call("focus")) == listbox, "The choices did not receive keyboard focus."
     box.tk.call("event", "generate", listbox, "<Down>")
     box.tk.call("event", "generate", listbox, "<Return>")
     dialog.update()
