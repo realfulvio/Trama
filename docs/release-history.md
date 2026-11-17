@@ -3,6 +3,7 @@
 The public repository begins with **Trama 0.73.0 beta**. All 0.x versions are
 beta builds; no final stable release has been declared.
 
+- [0.80 beta: editable hierarchical ZIP-project analyses](release-080.md) · [Verification](validation-080.md).
 - [0.79 beta: live analyses from result worksheets](release-079.md) · [Verification](validation-079.md).
 - [0.78 beta: grouped FDR and editable axis guides](release-078.md) · [Verification](validation-078.md).
 - [0.77 beta: joint profiles for global custom equations](release-077.md) · [Verification](validation-077.md).
