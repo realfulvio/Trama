@@ -6,13 +6,14 @@ from numbers import Integral
 
 import numpy as np
 import pandas as pd
-from patsy import build_design_matrices
 from scipy import linalg, optimize, stats
 from scipy.spatial.distance import cdist, pdist, squareform
 from statsmodels.stats.multitest import multipletests
 
 from . import cluster_consensus as consensus
-from .stats import Clusters, _anova_model, _cluster_data, kmeans
+from .anova_terms import CONTROL_FIELD
+from .field_error import FieldError
+from .stats import Clusters, _anova_model, _cluster_data, _design_grid, kmeans
 
 
 _CLUSTER_METRICS = {
@@ -272,7 +273,7 @@ def _format_levels(factors, levels):
 
 
 def anova_comparisons(frame, response, factors, order, compare, *, within=(), method="holm",
-                      family="separate", confidence=.95, control=None, reverse=False):
+                      family="separate", confidence=.95, control=None, reverse=False, terms=None):
     """Compare equal-weight estimated means from the ordinary factorial model.
 
     Select one compared factor for main/simple effects or multiple factors for
@@ -280,7 +281,13 @@ def anova_comparisons(frame, response, factors, order, compare, *, within=(), me
     are averaged. Separate families adjust within strata; a pooled family
     adjusts across them. Reverse swaps the two levels in each contrast.
     Sequential Holm adjustments have no CI here.
+
+    ``terms`` (Selected terms, 0.83) uses the design of exactly those terms. The averaged factors
+    are then the other factors of that model, and factors outside it are not part of the model.
     """
+    if terms is not None:
+        from .anova_terms import active_factors, canonical_terms
+        factors = active_factors(list(factors), canonical_terms(terms, factors))
     compared = (compare,) if isinstance(compare, str) else tuple(compare)
     within = (within,) if isinstance(within, str) else tuple(within)
     selected = (*within, *compared)
@@ -291,9 +298,9 @@ def anova_comparisons(frame, response, factors, order, compare, *, within=(), me
     if method == "tukey" and (control is not None or (within and family == "pooled")):
         raise ValueError("Tukey requires all pairwise comparisons within each stratum.")
     if method == "dunnett" and control is None:
-        raise ValueError("Dunnett requires a control level or cell.")
+        raise FieldError(CONTROL_FIELD, "Dunnett requires a control level or cell.")
 
-    data, keys, _, design, beta, error, df = _anova_model(frame, response, factors, order)
+    data, keys, _, design, beta, error, df = _anova_model(frame, response, factors, order, terms=terms)
     key_by_factor = dict(zip(factors, keys))
     grid_factors = (*selected, *(factor for factor in factors if factor not in selected))
     grid_keys = [key_by_factor[factor] for factor in grid_factors]
@@ -318,14 +325,14 @@ def anova_comparisons(frame, response, factors, order, compare, *, within=(), me
         raw_levels = control if isinstance(control, (tuple, list)) else (control,)
         control_levels = tuple(map(str, raw_levels))
         if control_levels not in labels:
-            raise ValueError("The selected control level or cell does not exist.")
+            raise FieldError(CONTROL_FIELD, "The selected control level or cell does not exist.")
         control_idx = labels.index(control_levels)
         pairs = [(i, control_idx) for i in range(groups) if i != control_idx]
     if reverse:
         pairs = [(b, a) for a, b in pairs]
 
     balanced = pd.DataFrame(product(*levels), columns=grid_keys)
-    grid = np.asarray(build_design_matrices([design.design_info], balanced)[0])
+    grid = _design_grid(design, balanced)
     means = grid.reshape(strata * groups, -1, len(beta)).mean(axis=1)
     # If X = QR, then L(X'X)^-1 L' = (R^-T L')'(R^-T L').
     triangular = np.linalg.qr(design.to_numpy(), mode="r")

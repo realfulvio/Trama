@@ -180,7 +180,12 @@ def linear(frame, x, y):
             "Slope CI 95% low": lower, "Slope CI 95% high": upper}
 
 
-def _anova_model(frame, response, factors, order):
+def _anova_model(frame, response, factors, order, *, terms=None):
+    if terms is not None:
+        # Selected terms (0.83): its own sum-coded design, built from internal keys. The Full hierarchy
+        # fit below is untouched, so recipes without the new options reproduce the earlier results.
+        from .anova_terms import fit_model
+        return fit_model(frame, response, factors, terms)
     data = complete(frame, [response], factors)
     if not factors or len(factors) > 8 or not 1 <= order <= min(3, len(factors)):
         raise ValueError("Select up to eight factors and an interaction order from 1 to 3.")
@@ -236,22 +241,26 @@ def _anova_type_iii(data, factors, design, error, df):
     return table, summary
 
 
-def factorial_anova(frame, response, factors, order=1):
-    return factorial_anova_fit(frame, response, factors, order)[0]
+def factorial_anova(frame, response, factors, order=1, *, terms=None):
+    return factorial_anova_fit(frame, response, factors, order, terms=terms)[0]
 
 
-def factorial_anova_fit(frame, response, factors, order=1):
+def factorial_anova_fit(frame, response, factors, order=1, *, terms=None):
     """Type III table and the summary of the same fit: effective N, residual df, centered SST and SSE."""
-    return _factorial_anova_components(frame, response, factors, order)[:2]
+    return _factorial_anova_components(frame, response, factors, order, terms=terms)[:2]
 
 
-def _factorial_anova_components(frame, response, factors, order=1):
+def _factorial_anova_components(frame, response, factors, order=1, *, terms=None):
     """One full fit, its Type III table, and the design used for that fit.
 
     Callers that also need diagnostics reuse ``design``, ``beta``, ``error`` and ``df``.
     The public ``factorial_anova`` and ``factorial_anova_fit`` returns stay the historical pair.
+    ``terms`` (Selected terms, 0.83) fits exactly those terms instead of the Full hierarchy of ``order``.
     """
-    data, _, _, design, beta, error, df = _anova_model(frame, response, factors, order)
+    data, _, _, design, beta, error, df = _anova_model(frame, response, factors, order, terms=terms)
+    if terms is not None:
+        from .anova_terms import active_factors, canonical_terms
+        factors = active_factors(list(factors), canonical_terms(terms, factors))
     table, summary = _anova_type_iii(data, factors, design, error, df)
     return table, summary, data, design, beta, error, df
 
@@ -275,14 +284,27 @@ def anova_effect_sizes(table, fit, alpha=0.05):
     return effects, model
 
 
-def marginal_comparisons(frame, response, factors, order, compare, method="holm"):
-    data, keys, _, design, beta, error, df = _anova_model(frame, response, factors, order)
+def _design_grid(design, table):
+    """Design rows of a table of internal keys, from the design that was fitted (Patsy or selected terms)."""
+    from .anova_terms import TermDesign
+    if isinstance(design, TermDesign):
+        return design.rows(table)
+    return np.asarray(build_design_matrices([design.design_info], table)[0])
+
+
+def marginal_comparisons(frame, response, factors, order, compare, method="holm", *, terms=None):
+    data, keys, _, design, beta, error, df = _anova_model(frame, response, factors, order, terms=terms)
+    if terms is not None:
+        from .anova_terms import active_factors, canonical_terms
+        factors = active_factors(list(factors), canonical_terms(terms, factors))
+        if compare not in factors:
+            raise ValueError("Select a comparison factor from the model terms.")
     idx = factors.index(compare)
     levels = [sorted(data[key].unique()) for key in keys]
     if np.prod([len(values) for values in levels], dtype=np.int64) > 4096 or len(levels[idx]) > 30:
         raise ValueError("Too many combinations for marginal comparisons.")
     balanced = pd.DataFrame(product(*levels), columns=keys)
-    grid = np.asarray(build_design_matrices([design.design_info], balanced)[0])
+    grid = _design_grid(design, balanced)
     covariance = np.linalg.pinv(design.to_numpy().T @ design.to_numpy(), hermitian=True) * error / df
     means = {label: grid[balanced[keys[idx]] == label].mean(axis=0) for label in levels[idx]}
     rows = []

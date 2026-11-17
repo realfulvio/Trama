@@ -2799,6 +2799,82 @@ _ANOVA_DIAG_IT = {
 _EN.update(_ANOVA_DIAG_EN)
 _IT.update(_ANOVA_DIAG_IT)
 
+# Multifactor ANOVA term selection (0.83). Saved option values stay the English names.
+_ANOVA_TERMS_EN = {
+    "anova.terms.field.selection": "Term selection",
+    "anova.terms.field.terms": "Model terms",
+    "anova.terms.choice.full": "Full hierarchy",
+    "anova.terms.choice.selected": "Selected terms",
+    "anova.terms.group.main": "Main effects",
+    "anova.terms.group.two": "Two-way interactions",
+    "anova.terms.group.three": "Three-way interactions",
+    "anova.terms.select_all": "Select all",
+    "anova.terms.clear": "Clear",
+    "anova.terms.add_required": "Add required terms",
+    "anova.terms.summary": "Model: {model}",
+    "anova.terms.summary_none": "No terms are selected.",
+    "anova.terms.outside": "Not in the model: {factors}",
+    "anova.terms.needs": "{term} needs {missing}.",
+    "anova.terms.full_note": "Full hierarchy fits every main effect and every interaction up to the Interaction order.",
+    "anova.terms.selected_note": "The model has an intercept and only the terms ticked here. An interaction needs all of its "
+                                 "lower-order terms. A factor with no term is not used.",
+    "anova.terms.no_factors": "Choose the Factors on the Variables tab first.",
+    "anova.terms.error.empty": "Select at least one model term.",
+    "anova.terms.error.empty_term": "A model term needs at least one factor.",
+    "anova.terms.error.type": "Model terms must be a list of terms, and each term a list of factor names.",
+    "anova.terms.error.unknown": "Model term {term} uses {factor}, which is not among the selected Factors.",
+    "anova.terms.error.repeat": "Model term {term} repeats a factor.",
+    "anova.terms.error.order": "Model term {term} has more than three factors. Interactions go up to order 3.",
+    "anova.terms.error.duplicate": "Model term {term} is listed more than once.",
+    "anova.terms.error.hierarchy": "Model term {term} needs {missing} in the model (strong hierarchy).",
+    "anova.terms.error.factors": "Select from one to eight Factors.",
+    "anova.terms.error.selection": "Choose Full hierarchy or Selected terms.",
+    "anova.terms.error.levels": "Factor {factor} must have between 2 and 128 levels in the rows used by the model.",
+    "anova.terms.error.size": "The selected model is too large or has no residual degrees of freedom.",
+    "anova.terms.error.rank": "The selected model cannot be identified. Check empty cells and redundant terms.",
+    "anova.terms.error.variance": "The fitted model has no measurable residual variance.",
+    "anova.terms.error.absent": "{factor} is not in the model terms, so it cannot be used here.",
+    "anova.terms.error.absent_many": "{factor} are not in the model terms, so they cannot be used here.",
+}
+_ANOVA_TERMS_IT = {
+    "anova.terms.field.selection": "Selezione dei termini",
+    "anova.terms.field.terms": "Termini del modello",
+    "anova.terms.choice.full": "Gerarchia completa",
+    "anova.terms.choice.selected": "Termini scelti",
+    "anova.terms.group.main": "Effetti principali",
+    "anova.terms.group.two": "Interazioni a due fattori",
+    "anova.terms.group.three": "Interazioni a tre fattori",
+    "anova.terms.select_all": "Seleziona tutto",
+    "anova.terms.clear": "Deseleziona",
+    "anova.terms.add_required": "Aggiungi i termini richiesti",
+    "anova.terms.summary": "Modello: {model}",
+    "anova.terms.summary_none": "Nessun termine selezionato.",
+    "anova.terms.outside": "Fuori dal modello: {factors}",
+    "anova.terms.needs": "{term} richiede {missing}.",
+    "anova.terms.full_note": "La gerarchia completa stima ogni effetto principale e ogni interazione fino all’Ordine delle interazioni.",
+    "anova.terms.selected_note": "Il modello ha l’intercetta e solo i termini spuntati qui. Un’interazione richiede tutti i suoi "
+                                 "termini di ordine inferiore. Un fattore senza termini non viene usato.",
+    "anova.terms.no_factors": "Scegli prima i Fattori nella scheda Variabili.",
+    "anova.terms.error.empty": "Seleziona almeno un termine del modello.",
+    "anova.terms.error.empty_term": "Un termine del modello richiede almeno un fattore.",
+    "anova.terms.error.type": "I termini del modello devono essere un elenco di termini, ciascuno un elenco di nomi di fattori.",
+    "anova.terms.error.unknown": "Il termine {term} usa {factor}, che non è tra i Fattori selezionati.",
+    "anova.terms.error.repeat": "Il termine {term} ripete un fattore.",
+    "anova.terms.error.order": "Il termine {term} ha più di tre fattori. Le interazioni arrivano fino all’ordine 3.",
+    "anova.terms.error.duplicate": "Il termine {term} è elencato più di una volta.",
+    "anova.terms.error.hierarchy": "Il termine {term} richiede {missing} nel modello (gerarchia forte).",
+    "anova.terms.error.factors": "Seleziona da uno a otto Fattori.",
+    "anova.terms.error.selection": "Scegli Gerarchia completa o Termini scelti.",
+    "anova.terms.error.levels": "Il fattore {factor} deve avere da 2 a 128 livelli nelle righe usate dal modello.",
+    "anova.terms.error.size": "Il modello scelto è troppo grande o non ha gradi di libertà residui.",
+    "anova.terms.error.rank": "Il modello scelto non è identificabile. Controlla le celle vuote e i termini ridondanti.",
+    "anova.terms.error.variance": "Il modello stimato non ha varianza residua misurabile.",
+    "anova.terms.error.absent": "{factor} non è nei termini del modello, quindi non si può usare qui.",
+    "anova.terms.error.absent_many": "{factor} non sono nei termini del modello, quindi non si possono usare qui.",
+}
+_EN.update(_ANOVA_TERMS_EN)
+_IT.update(_ANOVA_TERMS_IT)
+
 # One-way variance homogeneity. Saved option keys stay the English names.
 _VARIANCE_ASSUMPTIONS_EN = {
     "variance.assumptions.tab": "Diagnostics/Assumptions",
