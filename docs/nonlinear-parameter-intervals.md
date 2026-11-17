@@ -23,11 +23,11 @@ Cambiare i dati o escludere una cella ricalcola stime e intervalli. Metodo e liv
 
 ## Limiti della beta
 
-Sono supportati **Unweighted**, una colonna di SD relative positive, **1/abs(Y)**, **1/Y²**, **1/abs(Yfit)** e **1/Yfit²**. Le SD sono precisioni relative, non varianze assolute note. Cambiare la loro unità comune non cambia gli intervalli.
+Sono supportati **Unweighted**, una colonna di SD relative positive, **1/abs(Y)**, **1/Y²**, **1/abs(Yfit)** e **1/Yfit²**. Le SD definiscono scale di errore relative, non varianze assolute note. Cambiare la loro unità comune non cambia gli intervalli.
 
 I pesi osservati restano quelli delle Y usate; con IRLS vengono conservate esattamente le scale dell’ultimo refit accettato. Non vengono ricostruite dal rapporto fra residui, che sarebbe indefinito dove un residuo è zero, né ricalcolate dalla curva per ciascun tentativo. Per i fit pesati il foglio degli stati aggiunge **Weighting** e **Inference**. **Final frozen weights** identifica l’inferenza condizionata ai pesi finali IRLS: l’incertezza dei pesi non viene propagata.
 
-Con le SD inserite, un valore invalido in una riga completa dà errore sul campo SD column; con i pesi osservati, Y=0 dà errore sul campo Weighting. Le righe incomplete o escluse non entrano in questi controlli. I profili possono essere calcolati anche quando non è possibile una banda della curva: sono usi diversi delle SD.
+Con le SD inserite, un valore invalido in una riga completa dà errore sul campo SD column; con i pesi osservati, Y=0 dà errore sul campo Weighting. Le osservazioni incomplete o escluse in X, Y o nei raggruppamenti non entrano in questi controlli. Una SD mancante per un’osservazione altrimenti usata rimane invece un errore sul campo SD column. I profili possono essere calcolati anche quando non è possibile una banda della curva: sono usi diversi delle SD.
 
 Restano necessari gradi di libertà residui positivi, dispersione residua misurabile e incertezza finita e non nulla dei coefficienti. Le ricette con profili pesati richiedono la 0.75 o successiva per essere ricalcolate.
 
