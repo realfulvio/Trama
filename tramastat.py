@@ -12823,6 +12823,19 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "variance-ratio":
+            # The two-sample variance comparison alone:
+            # TRAMASTAT_SMOKE_ONLY=variance-ratio python tramastat.py --smoke DIR
+            from analisi.variance_ratio_smoke import check_variance_ratio
+            check_variance_ratio(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+                drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+                wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "anova-trend":
             # The ordinal ANOVA trend check alone:
             # TRAMASTAT_SMOKE_ONLY=anova-trend python tramastat.py --smoke DIR
@@ -13478,6 +13491,11 @@ def smoke(root, app, directory, legacy_reference=None):
         check_fdr_control(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
             select_columns=select_columns,
+            drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+            wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
+        from analisi.variance_ratio_smoke import check_variance_ratio
+        check_variance_ratio(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
             drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
             wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
         from analisi.fit_quality_smoke import check_fit_quality
