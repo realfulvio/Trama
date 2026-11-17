@@ -1,6 +1,6 @@
 # Trama 0.73.0 beta
 
-Questa è una build beta: alcune funzionalità sono incomplete e possono esserci errori. Il repository resta privato. Le immagini usano dati sintetici.
+Questa è una build beta: alcune funzionalità sono incomplete e possono esserci errori. Le immagini usano dati sintetici.
 
 ## Un nuovo spazio di lavoro, facoltativo
 
