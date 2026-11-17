@@ -29,7 +29,7 @@ HIERARCHICAL_OPTIONS = {
     "Label type": ("Values", "Numbers", "Letters"),
     "First label": 1, "Label interval (0 = automatic)": 0,
     "Label angle": 0.0, "Show cut line": True,
-    "Scaled data": False, "Distance matrix": False, "Cophenetic distances": False,
+    "Scaled data": False, "Distance matrix": False, "Merge map": False, "Cophenetic distances": False,
     "Cophenetic correlation": False, "Matrix format": ("Full", "Lower triangle"),
 }
 HIERARCHICAL_TABS = {
@@ -37,7 +37,8 @@ HIERARCHICAL_TABS = {
     "Graph": ("Graph output", "Dendrogram orientation", "Branch appearance", "Label type",
               "Branch width", "Branch style", "Branch opacity (%)", "First label",
               "Label interval (0 = automatic)", "Label angle", "Show cut line"),
-    "Output": ("Scaled data", "Distance matrix", "Cophenetic distances", "Cophenetic correlation", "Matrix format"),
+    "Output": ("Scaled data", "Distance matrix", "Merge map", "Cophenetic distances",
+               "Cophenetic correlation", "Matrix format"),
 }
 PALETTE = ("#156978", "#b65a39", "#5b5aa7", "#36815b", "#a77b25", "#b34c73", "#456e9a", "#626b35")
 MIXED_BRANCH = "#637584"
@@ -209,6 +210,23 @@ def _matrix(distances, names, lower):
     return pd.DataFrame(values, index=pd.Index(labels, name="Observation"), columns=labels)
 
 
+def _merge_map(tree, names):
+    """Name each child by its observation label or its earlier merge number."""
+    n = len(names)
+    last_leaf = list(range(n))
+    labels = list(names)
+    rows = []
+    for step, (left, right, height, _) in enumerate(tree, 1):
+        first, second = int(left), int(right)
+        # The report orders children by the last source observation they contain.
+        if last_leaf[first] > last_leaf[second]:
+            first, second = second, first
+        rows.append((step, labels[first], labels[second], height))
+        last_leaf.append(last_leaf[second])
+        labels.append(f"Cluster {step}")
+    return pd.DataFrame(rows, columns=["Merge order", "Node 1", "Node 2", "Cophenetic distance"])
+
+
 def _diagnostics(fit, names, options):
     outputs = {}
     distance = options.get("Distance matrix", False)
@@ -219,6 +237,8 @@ def _diagnostics(fit, names, options):
     lower = options.get("Matrix format") == "Lower triangle"
     if distance:
         outputs["Distance matrix"] = _matrix(fit.distances, names, lower)
+    if options.get("Merge map", False):
+        outputs["Merge map"] = _merge_map(fit.tree, names)
     if coph_distance or coph_correlation:
         coph = cophenet(fit.tree)
         if coph_distance:

@@ -61,6 +61,7 @@ def _hierarchical(frame, content, _results):
             options[count_field] = count
     report = content.get("report", {})
     for saved, native in (("standardizedData", "Scaled data"), ("distanceMatrix", "Distance matrix"),
+                          ("mergeMap", "Merge map"),
                           ("copheneticDistanceMatrix", "Cophenetic distances"),
                           ("copheneticCorrelation", "Cophenetic correlation")):
         value = report.get(saved, False)
