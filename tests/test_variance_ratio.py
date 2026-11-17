@@ -216,6 +216,16 @@ class DialogResult(unittest.TestCase):
         self.assertIn("Not a Wald interval", settings["Interval"])
         self.assertEqual(settings[LEVEL], 90)
 
+    def test_italian_figure_uses_the_catalog(self):
+        set_language("it")
+        try:
+            figure = analysis(pd.DataFrame({"A": A, "B": B}), _options(**{GRAPH: GRAPH_VARIANCE})).figure
+        finally:
+            set_language("en")
+        axes = figure.axes[0]
+        self.assertIn("Confronta due varianze", axes.get_title())
+        self.assertIn("Rapporto tra le varianze", axes.get_xlabel())
+        self.assertIn("Riferimento = 1", axes.get_legend().get_texts()[0].get_text())
 
 
 class AlongsideMeanTests(unittest.TestCase):
