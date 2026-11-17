@@ -2,7 +2,7 @@
 
 One predictor X, one response Y, optional grouping with an independent fit per group. Coefficients are
 free or fixed, with optional bounds and starting values. Intervals are asymptotic t intervals from the
-scaled Jacobian at the solution; there is no bootstrap and no profile interval. The equation text is
+scaled Jacobian at the solution, or optional extra-SS profile intervals. The equation text is
 parsed by :mod:`custom_equations`; nothing user-written is ever executed, and the recipe stores only
 plain numbers, strings and booleans.
 
@@ -35,6 +35,9 @@ from .custom_equations import MAX_PARAMETERS, check_name, compile_equation
 from .field_error import FieldError
 from .fit_weights import INVERSE_VARIANCE, UNWEIGHTED
 from .reporting import Result, _plot, _report
+from .parameter_intervals import (METHOD as INTERVAL_METHOD, METHODS as INTERVAL_METHODS,
+                                  WALD, PROFILE, MAX_PARAMETERS as PROFILE_PARAMETERS,
+                                  MAX_POINTS as PROFILE_POINTS, ProfileBudget)
 
 CUSTOM_EQUATION = "Fit custom equation"
 PARAMETER_LIST = "Coefficient list"  # Dialog kind of the Parameters field.
@@ -51,8 +54,9 @@ EXAMPLE_PARAMETERS = ({"name": "A", "start": 1.0, "lower": None, "upper": None, 
 DEFAULT_EQUATION = "A + B*X"
 # "Optional" is the dialog's own kind name for an optional column (see workbench).
 OPTIONS = {"X": None, "Y": None, "Group": "Optional", "Equation": EQUATION_TEXT, "Parameters": PARAMETER_LIST,
-           "Weighting": WEIGHTINGS, SD_COLUMN: "Optional", LEVEL: DEFAULT_LEVEL, POINTS: DEFAULT_POINTS}
-TABS = {"Equation": ("Equation",), "Parameters": ("Parameters",), "Output": (LEVEL, POINTS)}
+           "Weighting": WEIGHTINGS, SD_COLUMN: "Optional", INTERVAL_METHOD: INTERVAL_METHODS,
+           LEVEL: DEFAULT_LEVEL, POINTS: DEFAULT_POINTS}
+TABS = {"Equation": ("Equation",), "Parameters": ("Parameters",), "Output": (INTERVAL_METHOD, LEVEL, POINTS)}
 
 
 @dataclass(frozen=True)
@@ -75,6 +79,7 @@ class Settings:
     weighting: str
     level: float
     points: int
+    intervals: str
 
 
 def _number(value):
@@ -157,9 +162,14 @@ def resolve(frame, options):
             or not MIN_POINTS <= points <= MAX_POINTS):
         raise FieldError(POINTS, f"Curve points must be a whole number from {MIN_POINTS} to {MAX_POINTS}.")
     coefficients = coefficients_from(options.get("Parameters", ()))
+    intervals = options.get(INTERVAL_METHOD, WALD)
+    if intervals not in INTERVAL_METHODS:
+        raise FieldError(INTERVAL_METHOD, "Choose Symmetric (Wald) or Profile likelihood.")
+    if intervals == PROFILE and sum(not c.fixed for c in coefficients) > PROFILE_PARAMETERS:
+        raise FieldError(INTERVAL_METHOD, f"Profile intervals support at most {PROFILE_PARAMETERS} free parameters per fit.")
     equation = options.get("Equation")
     compile_equation(equation, [c.name for c in coefficients])
-    return Settings(x, y, group, sd, equation.strip(), coefficients, weighting, float(level), int(points))
+    return Settings(x, y, group, sd, equation.strip(), coefficients, weighting, float(level), int(points), intervals)
 
 
 def _values(series, field, label, rows):
@@ -209,6 +219,8 @@ def prepare(frame, s):
         data = pd.DataFrame({"X": x[keep], "Y": y[keep]})
         if sd is not None:
             data["SD"] = sd[keep]
+        if s.intervals == PROFILE and any(not c.fixed for c in s.coefficients) and len(data) > PROFILE_POINTS:
+            raise FieldError(INTERVAL_METHOD, f"Profile intervals support at most {PROFILE_POINTS} complete observations per fit.")
         groups.append((label, data, int((member & ~used).sum())))
     return groups
 
@@ -353,23 +365,34 @@ def _fit_group(label, data, s, compiled):
     if not np.isfinite(curve).all():
         bad = int(np.flatnonzero(~np.isfinite(curve))[0])
         raise FieldError("Equation", _where(label, f"The equation is not defined on the drawn curve at X = {grid[bad]:g}."))
-    return {"parameters": parameters, "summary": summary, "residuals": residual_table,
-            "curve": pd.DataFrame({"X": grid, "Predicted": curve}), "data": data}
+    fit = {"parameters": parameters, "summary": summary, "residuals": residual_table,
+           "curve": pd.DataFrame({"X": grid, "Predicted": curve}), "data": data}
+    if s.intervals == PROFILE and p:
+        # Curvature supplies search units even when a coefficient is on a
+        # bound. Its displayed Wald SE remains unavailable; a one-sided
+        # profile still refits all nuisance coefficients inside their limits.
+        fit["profile_units"] = np.sqrt(np.diag(covariance))
+    return fit
 
 
 def _title(text):
     return "Custom equation: " + (text if len(text) <= 70 else text[:67] + "…")
 
 
-def custom_fit(frame, options):
+def custom_fit(frame, options, *, cancel=None):
     """The analysis behind ``analyse("Fit custom equation", …)``."""
     s = resolve(frame, options)
+    budget = ProfileBudget(cancel)
     compiled = compile_equation(s.equation, [c.name for c in s.coefficients])
     groups = prepare(frame, s)
     figure, axes = _plot(_title(s.equation), s.x, s.y)
     tables = {}
     for label, data, skipped in groups:
         fit = _fit_group(label, data, s, compiled)
+        profile_status = None
+        if s.intervals == PROFILE:
+            from .custom_profiles import apply_profiles
+            profile_status = apply_profiles(fit, s, compiled, budget)
         fit["summary"]["Skipped rows"] = skipped
         dots = axes.scatter(fit["data"]["X"], fit["data"]["Y"], label=label)
         axes.plot(fit["curve"]["X"], fit["curve"]["Predicted"], color=dots.get_facecolor()[0])
@@ -377,6 +400,8 @@ def custom_fit(frame, options):
         tables[f"Fit: {label}"] = _report(fit["summary"]).rename_axis("Metric")
         tables[f"Residuals: {label}"] = fit["residuals"]
         tables[f"Curve: {label}"] = fit["curve"]
+        if profile_status is not None:
+            tables[f"Parameter CI status: {label}"] = profile_status
     if len(groups) > 1:
         axes.legend()
     return Result(tables, figure)

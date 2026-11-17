@@ -41,7 +41,7 @@ from .summary_ttest import METHOD as SUMMARY_TTEST, OPTIONS as SUMMARY_TTEST_OPT
 from .model_selection import COMPARE_MODELS, OPTIONS as COMPARE_MODELS_OPTIONS, model_selection
 from .nonlinear_bands import OPTIONS as BAND_OPTIONS, band_outputs, band_settings
 from .monte_carlo import MONTE_CARLO, OPTIONS as MONTE_CARLO_OPTIONS, monte_carlo
-from .custom_fit import CUSTOM_EQUATION
+from .custom_fit import CUSTOM_EQUATION, custom_fit
 from .global_custom_fit import GLOBAL_CUSTOM_EQUATION
 from .plot_function import PLOT_FUNCTION
 from .robust_curve import OPTIONS as ROBUST_CURVE_OPTIONS, ROBUST_CURVE, robust_curve
@@ -971,6 +971,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         parameter_ci_settings(o)
         check_fit_options(o)
         return _classic_analysis(method, frame, o, "X", partial(_nonlinear, parameter_budget=ProfileBudget(cancel)))
+    if method == CUSTOM_EQUATION:
+        return custom_fit(frame, o, cancel=cancel)
     if method == "Compare nonlinear models":
         pair = next(pair for pair in engine.NESTED_MODELS if " → ".join(pair) == o["Nested models"])
         return Result({"Extra sum-of-squares F test": engine.compare_nonlinear(
