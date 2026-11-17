@@ -215,7 +215,7 @@ def _anova_model(frame, response, factors, order, *, terms=None):
     return data, keys, terms, design, beta, error, df
 
 
-def _anova_type_iii(data, factors, design, error, df):
+def _anova_type_iii(data, factors, design, error, df, *, term_label=":".join):
     """Type III rows from one full fit. Reduced fits stay; the full model is not fitted again."""
     x, y = design.to_numpy(), data["response"].to_numpy()
     total = np.sum((y - y.mean())**2)
@@ -231,7 +231,7 @@ def _anova_type_iii(data, factors, design, error, df):
         numerator_df = bounds.stop - bounds.start
         ms = ss / numerator_df
         statistic = ms / (error / df)
-        name = ":".join(display[part] for part in term.split(":"))
+        name = term_label(display[part] for part in term.split(":"))
         rows.append({"Term": name, "SS": ss, "df": numerator_df, "MS": ms, "F": statistic,
                      "p": stats.f.sf(statistic, numerator_df, df), "Eta²": ss / total,
                      "Partial eta²": ss / (ss + error)})
@@ -258,10 +258,12 @@ def _factorial_anova_components(frame, response, factors, order=1, *, terms=None
     ``terms`` (Selected terms, 0.83) fits exactly those terms instead of the Full hierarchy of ``order``.
     """
     data, _, _, design, beta, error, df = _anova_model(frame, response, factors, order, terms=terms)
-    if terms is not None:
-        from .anova_terms import active_factors, canonical_terms
+    if terms is None:
+        table, summary = _anova_type_iii(data, factors, design, error, df)
+    else:
+        from .anova_terms import active_factors, canonical_terms, label
         factors = active_factors(list(factors), canonical_terms(terms, factors))
-    table, summary = _anova_type_iii(data, factors, design, error, df)
+        table, summary = _anova_type_iii(data, factors, design, error, df, term_label=label)
     return table, summary, data, design, beta, error, df
 
 

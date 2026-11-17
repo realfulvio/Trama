@@ -179,6 +179,16 @@ class SelectedTermFit(unittest.TestCase):
         fit = result.tables["Model fit"]["Value"]
         np.testing.assert_allclose(fit["R²"], 1 - error / total, rtol=1e-9)
 
+    def test_report_labels_distinguish_literal_factor_names_from_terms(self):
+        factors = ["Residual", "B", "Residual:B"]
+        frame = synthetic().rename(columns=dict(zip(FACTORS, factors)))
+        terms = [(name,) for name in factors] + [("Residual", "B")]
+        result = analyse("Multifactor ANOVA", frame, options(terms, Factors=factors))
+        labels = ['"Residual"', "B", '"Residual:B"', '"Residual":B']
+        self.assertEqual(list(result.tables["ANOVA (type III)"].index), [*labels, "Residual"])
+        self.assertEqual(list(result.tables["Model terms"].index), labels)
+        self.assertEqual(list(result.tables["Effect sizes"].index), labels)
+
 
 class SelectionRules(unittest.TestCase):
     def rejected(self, raw, field=MODEL_TERMS, factors=None):
