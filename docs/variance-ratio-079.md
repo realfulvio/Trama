@@ -12,6 +12,8 @@ Il p a due code è `min(1, 2·min(F.cdf(r), F.sf(r)))` con i gradi di libertà o
 
 Servono almeno due valori finiti per gruppo e varianze campionarie positive. I mancanti si tolgono dentro ciascun campione, non a coppie. Testo non numerico, booleani e infiniti sono rifiutati. `Lognormal` usa i logaritmi naturali dei valori strettamente positivi. `Normal` è il default.
 
+L’inferenza F presuppone campioni indipendenti da popolazioni normali; con `Lognormal` questa assunzione riguarda i logaritmi dei dati. Il test è sensibile agli scostamenti dalla normalità. [Riferimento del metodo: NIST](https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/f_test.htm).
+
 Un campione costante è un errore sul campo, senza p o intervallo inventati. Una varianza non rappresentabile come float finito resta mancante nel foglio; il rapporto si riporta lo stesso se è rappresentabile. Se il rapporto o l’intervallo non sono rappresentabili, il calcolo dice perché e non scrive 0 o infinito.
 
 ## Fogli e figura
