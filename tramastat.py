@@ -12172,6 +12172,17 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "axis-guides":
+            from analisi.axis_guides_smoke import check_axis_guides
+            check_axis_guides(SimpleNamespace(
+                app=app, root=root, directory=directory, capture=capture, drive_dialog=drive_dialog,
+                wait_for_calculation=wait_for_calculation, filedialog=filedialog,
+                LayoutDialog=LayoutDialog, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "graph-shapes":
             # The 0.61 native shapes check alone: TRAMASTAT_SMOKE_ONLY=graph-shapes python tramastat.py --smoke DIR
             from analisi.graph_shape_smoke import check_graph_shapes
@@ -13161,6 +13172,11 @@ def smoke(root, app, directory, legacy_reference=None):
             drive_dialog=drive_dialog, filedialog=filedialog, messagebox=messagebox,
             pick_method=pick_method, save_project=save_project, select_columns=select_columns,
             wait_for_calculation=wait_for_calculation, errors=errors))
+        from analisi.axis_guides_smoke import check_axis_guides
+        check_axis_guides(SimpleNamespace(
+            app=app, root=root, directory=directory, capture=capture, drive_dialog=drive_dialog,
+            wait_for_calculation=wait_for_calculation, filedialog=filedialog,
+            LayoutDialog=LayoutDialog, errors=errors))
         check_reference_normalization_smoke()
         assert app.nav.winfo_ismapped()
         assert not errors, errors
