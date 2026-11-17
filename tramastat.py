@@ -6229,7 +6229,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return
         name = name.strip()
         value = simpledialog.askstring(
-            "Formula", 'Example: =COL("Sample mass") / 10\nFunctions include IF, ABS, SQRT, LN, MEAN and SUM.',
+            "Formula", 'Example: =COL("Sample mass") / 10\n'
+                       'Group mean: =MEAN(COL("Response")) OVER COL("Group")',
             initialvalue=data.formulas.get(name, ""), parent=self.root)
         if value:
             before = self.worksheet_state(data)
@@ -13274,8 +13275,15 @@ def smoke(root, app, directory, legacy_reference=None):
         app.import_file(path)
         app.tables["fixture"].set_formula("doubled", "=x*2")
         app.invalidate()
+        with patch.object(simpledialog, "askstring", side_effect=(
+                "Lower-range mean", "MEAN(y) WHERE x <= 2")):
+            app.add_formula()
+        assert app.tables["fixture"].frame()["Lower-range mean"].eq(4).all()
         app.edit_cell(0, 0, "1.5")
         assert app.tables["fixture"].frame()["doubled"].iloc[0] == 3
+        app.edit_cell(1, 0, "2.5")
+        assert app.tables["fixture"].frame()["Lower-range mean"].eq(3).all()
+        app.edit_cell(1, 0, "2")
         app.edit_cell(0, 0, "1")
         app.current_grid.active_cell = (0, 0)
         app.toggle_exclusion()
@@ -13331,6 +13339,7 @@ def smoke(root, app, directory, legacy_reference=None):
         assert app.save()
         app.import_file(app.path)
         assert app.tables["fixture"].frame()["doubled"].iloc[0] == 2
+        assert app.tables["fixture"].frame()["Lower-range mean"].eq(4).all()
         assert len(app.runs) == 2 and len(app.layouts) == 1
         app.open_gallery("Graphs")
         assert len(app.gallery.cards) == 2 and app.gallery.rendered_previews == 0
