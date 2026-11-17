@@ -139,6 +139,7 @@ class GraphFormatDialog(simpledialog.Dialog):
         self._axis_guides = deepcopy(style.get(AXIS_GUIDES, []))
         self._axis_bands = deepcopy(style.get(AXIS_BANDS, []))
         self._legend_options = deepcopy(style.get(LEGEND_OPTIONS_KEY, {}))
+        self._hierarchical = None
         self._guides_previewed = False
         self._legend_previewed = False
         self.error_widget = None
@@ -217,6 +218,11 @@ class GraphFormatDialog(simpledialog.Dialog):
             self._appearance_widgets[key] = entry
         ttk.Label(fonts, text=tr("graph.field.font_hint"), wraplength=490, justify="left").grid(
             row=2, column=0, columnspan=4, padx=6, sticky="w")
+        from .hierarchical_style import describe_hierarchical_artists
+
+        if describe_hierarchical_artists(self.axes.figure):
+            ttk.Button(tab, text=tr("hierarchy.style.button"), command=self._edit_hierarchical).grid(
+                row=9, column=0, columnspan=2, sticky="w", pady=(8, 0))
         if "accent" in self.style:
             self.inputs["accent"], self._appearance_widgets["accent"] = self._field(
                 tab, 8, tr("graph.field.accent"), to_hex(self.style["accent"], keep_alpha=True))
@@ -522,6 +528,29 @@ class GraphFormatDialog(simpledialog.Dialog):
             self._axis_bands = dialog.result
             self._refresh_guide_summaries()
 
+    def _hierarchical_section(self):
+        """The section edited in this dialog, otherwise the one the graph already confirmed."""
+        if self._hierarchical is not None:
+            return deepcopy(self._hierarchical) if self._hierarchical else None
+        if self.style.get("hierarchical"):
+            return deepcopy(self.style["hierarchical"])
+        return None
+
+    def _edit_hierarchical(self):
+        from .hierarchical_style_dialog import HierarchicalStyleDialog
+
+        current = deepcopy(self.style)
+        if self._hierarchical is not None:
+            current.pop("hierarchical", None)
+            if self._hierarchical:
+                current["hierarchical"] = deepcopy(self._hierarchical)
+        dialog = HierarchicalStyleDialog(
+            self, self.axes.figure, getattr(self.axes.figure, "canvas", None), current)
+        if dialog.touched:
+            self._guides_previewed = True
+        if dialog.result is not None:
+            self._hierarchical = deepcopy(dialog.result.get("hierarchical", {}))
+
     def cancel(self, event=None):
         if (self._guides_previewed or self._legend_previewed) and self.result is None:
             figure = getattr(self.axes, "figure", None)
@@ -551,6 +580,9 @@ class GraphFormatDialog(simpledialog.Dialog):
 
     def _reset(self):
         style = {key: deepcopy(self.style[key]) for key in (ANNOTATIONS, SHAPES, PANEL_KEY) if self.style.get(key)}
+        section = self._hierarchical_section()
+        if section:
+            style["hierarchical"] = section
         if self.xy is not None:
             options = {key: value for key, value in self.xy["options"].items() if key not in RECIPE_KEYS}
             try:
@@ -567,6 +599,9 @@ class GraphFormatDialog(simpledialog.Dialog):
         for key in ("groups", ANNOTATIONS, SHAPES, PANEL_KEY):
             if self.style.get(key):
                 style[key] = deepcopy(self.style[key])
+        section = self._hierarchical_section()
+        if section:
+            style["hierarchical"] = section
         style["grid"] = self.grid_lines.get()
         style["grid_minor"] = self.minor_grid.get()
         for key, variable in self.appearance.items():
