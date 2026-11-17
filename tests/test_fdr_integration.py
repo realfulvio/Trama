@@ -73,9 +73,17 @@ class FDRRetainedResultTests(TkCase):
 
     def wait(self):
         deadline = time.monotonic()+12
-        while self.app.pending is not None and time.monotonic() < deadline:
-            self.root.update()
-            time.sleep(.01)
+        def poll():
+            if self.app.pending is None or time.monotonic() >= deadline:
+                self.root.quit()
+            else:
+                self.root.after(10, poll)
+
+        # Worker-triggered collection can finalize Tk fonts from earlier
+        # figures. Tk must be inside its real main loop to service that call,
+        # just as it is during normal application use (update() alone is not).
+        self.root.after(0, poll)
+        self.root.mainloop()
         self.root.update()
         self.assertIsNone(self.app.pending)
 
