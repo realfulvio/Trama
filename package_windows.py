@@ -39,7 +39,7 @@ def main():
     shutil.rmtree(bundle / "docs" / "media", ignore_errors=True)
     # Product media only. Raw extracted resources and historical imported
     # drawings are research evidence, not approved redistribution assets.
-    for folder in ("fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
+    for folder in ("analysis-chains", "fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
                    "anova-diagnostics-070", "variance-assumptions-070", "reference-normalization"):
         source = root / "docs" / "media" / folder
         if source.is_dir():
