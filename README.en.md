@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.75 beta:** parameter profiles now support weighted independent fits, preserving supplied relative SDs, observed weights and final IRLS weights. [Changes and limits](docs/release-075.md) · [Verification](docs/validation-075.md).
+**New in 0.76 beta:** an animated loading screen and asymmetric parameter profiles for custom equations, including fixed coefficients, bounds and relative SDs. [Changes and limits](docs/release-076.md) · [Verification](docs/validation-076.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
