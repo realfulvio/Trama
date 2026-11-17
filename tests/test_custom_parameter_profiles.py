@@ -130,6 +130,7 @@ class CustomParameterProfileTests(TestCase):
         self.assertEqual(status.loc['A', 'Lower status'], 'Parameter bound')
         self.assertEqual(status.loc['A', 'Upper status'], 'Profile root')
         self.assertTrue(np.isfinite(table.loc['B', ['CI lower', 'CI upper']].to_numpy(float)).all())
+        self.assertIn('Wald', r.tables['Fit: All'].loc['Note', 'Value'])
 
     def test_exhausted_budget_reports_unavailable_limits_and_keeps_point_estimates(self):
         old = analyse(CUSTOM_EQUATION, FRAME, RECIPE)
