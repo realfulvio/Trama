@@ -35,6 +35,20 @@ class PrismRecipeTests(unittest.TestCase):
         self.assertEqual(restore_recipe(*args), ("source", "Multifactor ANOVA",
                                                 {"Response": "Value", "Factors": ["Factor", "Factor (2)"],
                                                  "Interaction order": 2}))
+        term = {"variation": 0.1, "partialEta2": 0.2, "CohenF": 0.5,
+                "fTest": {"pValue": {"level": 0.025}}}
+        terms = [dict(term) for _ in range(3)]
+        results = {"version": "0.0.0", "content": {"ordinaryModel": {
+            "status": "VALID", "anovaTable": {"fixedEffects": terms}}}}
+        _, _, options = restore_recipe(*args, results)
+        self.assertTrue(options["Effect sizes"])
+        self.assertEqual(options["Alpha"], 0.025)
+
+        # Incomplete or inconsistent cache metadata must leave the supported base recipe usable.
+        terms[-1]["fTest"] = {"pValue": {"level": 0.05}}
+        self.assertEqual(restore_recipe(*args, results), restore_recipe(*args))
+        terms[-1].pop("CohenF")
+        self.assertEqual(restore_recipe(*args, results), restore_recipe(*args))
         predictor["definition"].remove([ty])
         self.assertIsNone(restore_recipe(*args))
 
