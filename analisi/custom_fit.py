@@ -340,7 +340,9 @@ def _fit_group(label, data, s, compiled):
                 if limit is not None and abs(estimates[c.name] - limit) <= margin:
                     status[c.name] = "At bound"
                     se[c.name] = np.nan
-                    notes.append(f"{c.name} is at its {word} limit ({limit:g}); no SE or interval is reported for it.")
+                    inference_note = ("no Wald SE is reported for it; see the profile endpoint status."
+                                      if s.intervals == PROFILE else "no SE or interval is reported for it.")
+                    notes.append(f"{c.name} is at its {word} limit ({limit:g}); {inference_note}")
     half = stats.t.ppf((1 + s.level / 100) / 2, df) if df > 0 else np.nan
     names = [c.name for c in s.coefficients]
     parameters = pd.DataFrame({
