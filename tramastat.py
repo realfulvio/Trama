@@ -27,6 +27,7 @@ import pandas as pd
 from analisi._version import VERSION, RELEASE_CHANNEL
 from analisi.analysis_chain import MAX_ANALYSIS_NODES, ResultSource
 from analisi.analysis_chain_app import AnalysisChainMixin
+from analisi.family_workflow_app import FamilyWorkflowMixin
 from analisi.windows_dpi import configure_native_dpi, window_dpi
 from analisi.window_geometry import keep_native_window_on_screen
 from analisi.shape_canvas import ShapeCanvas, ShapeHistory, render_shapes
@@ -3554,6 +3555,7 @@ class Run:
     calculation_error: str | None = field(default=None, repr=False, compare=False)
     uid: str = field(default_factory=lambda: str(uuid4()), repr=False)
     source: ResultSource | None = None
+    label: str | None = None
 
     @property
     def reference(self):
@@ -3562,7 +3564,7 @@ class Run:
     @property
     def name(self):
         source_title = self.source.table if self.source is not None else self.title
-        return self.options.get(PRISM_TITLE) or f"{self.method} of {source_title}"
+        return self.label or self.options.get(PRISM_TITLE) or f"{self.method} of {source_title}"
 
 
 @dataclass
@@ -3578,7 +3580,7 @@ class AnalysisRecovery:
     only: object = None
 
 
-class App(AnalysisChainMixin):
+class App(AnalysisChainMixin, FamilyWorkflowMixin):
     @staticmethod
     def make_chain_control():
         return CalculationControl()
@@ -3687,7 +3689,8 @@ class App(AnalysisChainMixin):
                        ("Family gallery", lambda: self.open_gallery("Family")),
                        ("Linked Info sheet", lambda: self.show_section("info")),
                        ("Analysis results", lambda: self.show_section("result")),
-                       ("Graphs", lambda: self.show_section("graph"))],
+                       ("Graphs", lambda: self.show_section("graph")),
+                       ("Duplicate family…", self.duplicate_family), ("Save family as…", self.save_family_as)],
             "Tools": [("Power and sample size…", lambda: self.standalone("Power and sample size")),
                       ("Simulate data…", lambda: self.standalone("Simulate data")),
                       ("Monte Carlo study…", lambda: self.choose_analysis(only=(MONTE_CARLO_METHOD,))),
@@ -3770,6 +3773,12 @@ class App(AnalysisChainMixin):
         self.nav_menu.add_separator()
         self.nav_menu.add_command(label=tr("nav.expand_all"), command=lambda: self.expand_navigator(True))
         self.nav_menu.add_command(label=tr("nav.collapse_all"), command=lambda: self.expand_navigator(False))
+        self.nav_menu.add_separator()
+        self.nav_menu_ref = None  # the sheet under the pointer when the menu opened; the selection is untouched
+        self.nav_menu.add_command(label=ui("Duplicate family…"),
+                                  command=lambda: self.duplicate_family(self.nav_menu_ref))
+        self.nav_menu.add_command(label=ui("Save family as…"),
+                                  command=lambda: self.save_family_as(self.nav_menu_ref))
         self.nav.bind("<<TreeviewSelect>>", self.navigate)
         self.nav.bind("<ButtonRelease-1>", self.activate_nav_action)
         self.nav.bind("<Return>", self.activate_nav_action)
@@ -3987,7 +3996,7 @@ class App(AnalysisChainMixin):
         short = {"Global nonlinear regression": "Global fit",
                  "Mixed-effects model (REML)": "Mixed model"}.get(run.method)
         source_title = run.source.table if run.source is not None else run.title
-        return f"{short} · {source_title}" if short and not run.options.get(PRISM_TITLE) else name
+        return f"{short} · {source_title}" if short and not (run.label or run.options.get(PRISM_TITLE)) else name
 
     def navigator_section(self, name, needle):
         node = f"section:{name}"
@@ -4081,9 +4090,17 @@ class App(AnalysisChainMixin):
     def toggle_combined_navigator(self):
         self.set_combined_navigator(not self.combined_navigator)
 
-    def navigator_menu(self, event):
+    def update_nav_menu(self, row):
+        """Prepare the context menu for the navigator row under the pointer (None: empty space)."""
         label = tr("nav.hide_data_results") if self.combined_navigator else tr("nav.show_data_results")
         self.nav_menu.entryconfigure(0, label=label)
+        self.nav_menu_ref = self.nodes.get(row)
+        state = "normal" if self.family_ref(self.nav_menu_ref) is not None else "disabled"
+        for entry in (5, 6):
+            self.nav_menu.entryconfigure(entry, state=state)
+
+    def navigator_menu(self, event):
+        self.update_nav_menu(self.nav.identify_row(event.y))
         try:
             self.nav_menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -4182,6 +4199,9 @@ class App(AnalysisChainMixin):
         if entries:
             menu.add_separator()
         menu.add_command(label=tr("bar.view_family_gallery"), command=lambda: self.open_gallery("Family"))
+        menu.add_separator()
+        menu.add_command(label=ui("Duplicate family…"), command=self.duplicate_family)
+        menu.add_command(label=ui("Save family as…"), command=self.save_family_as)
         try:
             menu.tk_popup(self.family_button.winfo_rootx(), self.family_button.winfo_rooty())
         finally:
@@ -5357,6 +5377,14 @@ class App(AnalysisChainMixin):
         else:
             self.home()
 
+    @staticmethod
+    def runs_for(title, dataset):
+        """The Run of every stored analysis of a table, with the identity, source and name it was saved with."""
+        return [Run(method, title, options, slot=index, style=dataset.graph_styles.get(index),
+                    uid=dataset.analysis_ids.get(index, str(uuid4())), source=dataset.analysis_sources.get(index),
+                    label=dataset.analysis_labels.get(index))
+                for index, (method, options) in enumerate(dataset.analyses)]
+
     def _add_tables(self, tables, info_sheets=()):
         if not tables and not info_sheets:
             raise ValueError("No data tables were found.")
@@ -5373,10 +5401,7 @@ class App(AnalysisChainMixin):
             titles.append(title)
             dataset = self.tables[title] = Dataset(frame.reset_index(drop=True),
                                                    info=contexts.get(title, contexts[None]))
-            self.runs.extend(Run(method, title, options, slot=i,
-                                 uid=dataset.analysis_ids.get(i, str(uuid4())),
-                                 source=dataset.analysis_sources.get(i))
-                             for i, (method, options) in enumerate(dataset.analyses))
+            self.runs.extend(self.runs_for(title, dataset))
             skipped.extend(frame.attrs.get("skipped", []))
             warnings.extend(frame.attrs.get("import_warnings", []))
         self.dirty = True
@@ -5424,10 +5449,7 @@ class App(AnalysisChainMixin):
             loaded, layouts, info_sheets = load_workspace(filename, include_info=True)
             self.tables, self.path, self.layouts = loaded, Path(filename), layouts
             self.info_sheets = {sheet.uid: sheet for sheet in info_sheets}
-            self.runs = [Run(method, name, options, slot=index, style=table.graph_styles.get(index),
-                             uid=table.analysis_ids.get(index, str(uuid4())), source=table.analysis_sources.get(index))
-                         for name, table in loaded.items()
-                         for index, (method, options) in enumerate(table.analyses)]
+            self.runs = [run for name, table in loaded.items() for run in self.runs_for(name, table)]
             self.selected = None
             self.active_data = None
             self.history.clear()
@@ -6418,6 +6440,8 @@ class App(AnalysisChainMixin):
     def start_analysis(self, run, frame, index=None, *, result=None, recovery=None, source_override=False):
         if index is not None and self.runs[index] is not run:
             run.uid = self.runs[index].uid
+            if run.label is None:
+                run.label = self.runs[index].label
             if not source_override:
                 run.source = self.runs[index].source
         if run.source is not None or getattr(self, '_chain_node_ids', ()):
@@ -6500,6 +6524,8 @@ class App(AnalysisChainMixin):
             index = len(self.runs) - 1
         elif self.runs[index] is not run:
             run.uid = self.runs[index].uid
+            if run.label is None:
+                run.label = self.runs[index].label
             self.runs[index] = run
             recipes[run.slot] = run.method, run.options
             self.dirty = True
@@ -12123,6 +12149,11 @@ def smoke(root, app, directory, legacy_reference=None):
             drive_dialog=drive_dialog, pick_method=pick_method, select_columns=select_columns,
             wait_for_calculation=wait_for_calculation, filedialog=filedialog, errors=errors))
 
+    def check_family_workflow_smoke():
+        from analisi.family_workflow_smoke import check_family_workflow
+        check_family_workflow(root, app, directory, SimpleNamespace(
+            App=App, capture=capture, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     try:
         screen = (root.winfo_screenwidth(), root.winfo_screenheight())
         (directory / "display.json").write_text(json.dumps({"width": screen[0], "height": screen[1],
@@ -12133,6 +12164,14 @@ def smoke(root, app, directory, legacy_reference=None):
                 "On Linux use xvfb-run -a -s '-screen 0 1024x768x24'.")
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "analysis-chains":
             check_analysis_chains_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "family-workflow":
+            # The experiment-family check alone: TRAMASTAT_SMOKE_ONLY=family-workflow python tramastat.py --smoke DIR
+            check_family_workflow_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -13455,6 +13494,7 @@ def smoke(root, app, directory, legacy_reference=None):
             LayoutDialog=LayoutDialog, errors=errors))
         check_reference_normalization_smoke()
         check_analysis_chains_smoke()
+        check_family_workflow_smoke()
         assert app.nav.winfo_ismapped()
         assert not errors, errors
         (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
