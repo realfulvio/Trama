@@ -10,6 +10,28 @@ from analisi.normality import normality
 
 
 class LegendPanelIdentityTests(unittest.TestCase):
+    def test_duplicate_figure_legend_labels_have_distinct_editor_captions(self):
+        fig = Figure()
+        ax = fig.subplots()
+        first, = ax.plot([0, 1], [0, 1])
+        second, = ax.plot([0, 1], [1, 0])
+        fig.legend([first], ["Same"])
+        fig.legend([second], ["Same"])
+        entries = collect_legend_entries(fig)
+        self.assertEqual(len({entry.key for entry in entries}), 2)
+        self.assertEqual(len({entry.display_name for entry in entries}), 2)
+
+    def test_duplicate_extra_legend_labels_have_distinct_editor_captions(self):
+        fig = Figure()
+        ax = fig.subplots()
+        first, = ax.plot([0, 1], [0, 1])
+        second, = ax.plot([0, 1], [1, 0])
+        ax.add_artist(ax.legend([first], ["Same"]))
+        ax.legend([second], ["Same"])
+        entries = collect_legend_entries(fig)
+        self.assertEqual(len({entry.key for entry in entries}), 2)
+        self.assertEqual(len({entry.display_name for entry in entries}), 2)
+
     def test_same_named_series_in_two_panels_can_be_renamed_independently(self):
         fig = Figure()
         for ax in fig.subplots(1, 2):

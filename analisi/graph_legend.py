@@ -518,6 +518,7 @@ def collect_legend_entries(figure):
         for entry in snapshot["entries"]:
             raw_items.append((scope, entry["key"], entry["label"], legend))
     labels = [item[2] for item in raw_items]
+    scopes = list(dict.fromkeys(item[0] for item in raw_items))
     for scope, key, label, legend in raw_items:
         display = _disambiguate_label(label, key) if labels.count(label) > 1 else label
         if labels.count(label) > 1 and len({item[0] for item in raw_items if item[2] == label}) > 1:
@@ -525,10 +526,8 @@ def collect_legend_entries(figure):
 
             if scope.startswith("qq:"):
                 panel = tr("legend_editor.panel." + scope.split(":", 1)[1])
-            elif scope.startswith("axes:"):
-                panel = tr("legend_editor.panel", number=int(scope.split(":")[1]) + 1)
             else:
-                panel = tr("legend_editor.figure")
+                panel = tr("legend_editor.legend", number=scopes.index(scope) + 1)
             display = f"{label} ({panel})"
         collected.append(LegendEntry(scope=scope, key=key, label=label, display_name=display, legend=legend))
     return collected
