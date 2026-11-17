@@ -75,6 +75,19 @@ class FamilyWorkflowMixin:
         lines.append(("counts", tr("family.counts", tables=len(plan.tables), analyses=plan.analysis_count,
                                    layouts=len(plan.layouts), infos=infos_count)))
 
+        notes = []
+        if plan.shared_panels and not export:
+            notes.append(("note", tr("family.note.shared_panels", count=plan.shared_panels)))
+        if not export and plan.snapshot:
+            notes.append(("note", tr("family.note.snapshot")))
+        elif not export and plan.global_infos:
+            notes.append(("note", tr("family.note.global_info")))
+        if export:
+            notes.append(("note", tr("family.note.export_standalone")))
+            if plan.layouts:
+                notes.append(("note", tr("family.note.export_layouts")))
+        lines.extend(notes)
+
         def section(key, entries):
             if not entries:
                 return
@@ -106,16 +119,6 @@ class FamilyWorkflowMixin:
             section("family.section.constants", [
                 f"{infos[uid].title}: " + ", ".join(label for label, _ in infos[uid].fields)
                 for uid in plan.global_infos])
-        if plan.shared_panels and not export:
-            lines.append(("note", tr("family.note.shared_panels", count=plan.shared_panels)))
-        if not export and plan.snapshot:
-            lines.append(("note", tr("family.note.snapshot")))
-        elif not export and plan.global_infos:
-            lines.append(("note", tr("family.note.global_info")))
-        if export:
-            lines.append(("note", tr("family.note.export_standalone")))
-            if plan.layouts:
-                lines.append(("note", tr("family.note.export_layouts")))
         return lines
 
     def family_describer(self, selected, *, export):
