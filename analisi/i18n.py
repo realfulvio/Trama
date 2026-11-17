@@ -2748,3 +2748,4 @@ _IT.update({
     "parameter_ci.error.level": "Scegli un livello di confidenza finito, strettamente compreso tra 0 e 100.",
     "parameter_ci.error.weighting": "Gli intervalli con profilo di verosimiglianza richiedono per ora una regressione non pesata.",
 })
+KEY_BY_LABEL[_EN["parameter_ci.level"]] = "parameter_ci.level"
