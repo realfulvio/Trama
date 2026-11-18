@@ -3397,6 +3397,12 @@ _IT.update({
     "cr.error.cause": "{field}: {cause} non è uno dei codici dell’evento.",
 })
 
+# Restricted mean survival time (0.93): captions, hints and the engine messages, kept in a leaf module.
+from .rmst_text import EN as _RMST_EN, IT as _RMST_IT
+
+_EN.update(_RMST_EN)
+_IT.update(_RMST_IT)
+
 # Common dialog captions and analysis selectors are translated only at explicit
 # rendering boundaries. No widget hooks touch user titles, columns or data.
 from .interface_catalog import CAPTIONS as _INTERFACE_CAPTIONS, MESSAGES as _INTERFACE_MESSAGES

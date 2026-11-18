@@ -343,8 +343,10 @@ def check_horizon(settings, dataset):
 
 def horizon_limit(frame, options):
     """The largest usable horizon for the dialog hint, or None while the other fields are incomplete."""
+    levels = group_levels(frame, options)
     try:
-        settings = Settings({**options, HORIZON: 1.0})
+        # The limit does not depend on which group is the reference; a stale choice does not hide it.
+        settings = Settings({**options, HORIZON: 1.0, REFERENCE: levels[0] if levels else None})
         dataset = prepare(frame, settings)
     except (FieldError, TypeError):
         return None

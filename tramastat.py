@@ -218,6 +218,17 @@ from analisi.competing_risks_workbench import (
     visibility as competing_visibility)
 from analisi.competing_risks_dialog import (CodeListEditor, TimeListEditor, describe_error as describe_competing_error,
                                             translate_error as translate_competing_error)
+from analisi.rmst import (CENSOR_CODE as RMST_CENSOR, EVENT_CODE as RMST_EVENT, GROUP as RMST_GROUP,
+                          HORIZON as RMST_HORIZON, REFERENCE as RMST_REFERENCE, SHOW_GRAPH as RMST_SHOW_GRAPH,
+                          STATUS as RMST_STATUS, TIME as RMST_TIME, group_levels as rmst_group_levels,
+                          horizon_limit as rmst_horizon_limit)
+from analisi.rmst_workbench import (
+    DATA_FIELDS as RMST_DATA, DEFAULTS as RMST_DEFAULTS, ESTIMATE_FIELDS as RMST_ESTIMATES, HINT_KEYS as RMST_HINTS,
+    LABEL_KEYS as RMST_LABEL_KEYS, NUMBER_FIELDS as RMST_NUMBER_FIELDS, RMST, TAB_KEYS as RMST_TAB_KEYS,
+    check_options as check_rmst_options, visibility as rmst_visibility)
+from analisi.rmst_dialog import (describe_error as describe_rmst_error, limit_hint as rmst_limit_hint,
+                                 read_number as read_rmst_number, shown_number as rmst_shown_number,
+                                 translate_error as translate_rmst_error)
 from analisi.global_custom_dialog import (GlobalCoefficientTable, SeriesConstraintEditor,
                                           translate_error as translate_global_error)
 from analisi.global_custom_fit import (EXAMPLE_PARAMETERS as GLOBAL_EXAMPLE, GLOBAL_CUSTOM_EQUATION,
@@ -1014,6 +1025,7 @@ class AnalysisDialog(simpledialog.Dialog):
                   else 470 if self.method == NORMALITY
                   else 470 if self.method == REFERENCE_NORMALIZATION
                   else 400 if self.method == COMPETING_RISKS
+                  else 390 if self.method == RMST
                   else 440 if self.method in {"Nonlinear regression", ROBUST_CURVE} else 352)
         # Keep the title bar, the heading, an error banner and the buttons on the screen of a 1024x768 monitor.
         room = max(240, self.winfo_screenheight() - ui_theme.px(230))
@@ -1195,6 +1207,12 @@ class AnalysisDialog(simpledialog.Dialog):
             fields_by_tab.update(dict.fromkeys(COMPETING_DATA, variables))
             fields_by_tab.update(dict.fromkeys(COMPETING_ESTIMATES, options))
             tabs = {tr(COMPETING_TAB_KEYS["Graph"]): COMPETING_GRAPH_FIELDS}
+        elif self.method == RMST:
+            # Data (columns, reference group, horizon) / Codes and estimate (status codes, level, graph).
+            self.fields.tab(variables, text=tr(RMST_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(RMST_TAB_KEYS["Options"]))
+            fields_by_tab.update(dict.fromkeys(RMST_DATA, variables))
+            fields_by_tab.update(dict.fromkeys(RMST_ESTIMATES, options))
         elif self.method == "Nonlinear regression":
             tabs = {tr("parameter_ci.tab"): (*PARAM_CI_OPTIONS, NL_BAND, NL_BAND_LEVEL, NL_BAND_DRAWING)}
         elif self.method == CUSTOM_EQUATION:
@@ -1292,10 +1310,12 @@ class AnalysisDialog(simpledialog.Dialog):
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
             competing_control = self.method == COMPETING_RISKS and label in COMPETING_LABEL_KEYS
+            rmst_control = self.method == RMST and label in RMST_LABEL_KEYS
             reference_control = self.method == REFERENCE_NORMALIZATION and label in REFERENCE_LABEL_KEYS
             label_text = (tr(RANK_LABEL_KEYS[label]) if rank_control
                           else tr(ROBUST_LABEL_KEYS[label]) if robust_control
                           else tr(COMPETING_LABEL_KEYS[label]) if competing_control
+                          else tr(RMST_LABEL_KEYS[label]) if rmst_control
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
                           else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
@@ -1483,6 +1503,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     default = COX_STATUS.get(label, default)
                 if self.method == COMPETING_RISKS:
                     default = COMPETING_DEFAULTS.get(label, default)
+                if self.method == RMST:
+                    default = RMST_DEFAULTS.get(label, default)
                 if self.method == HEAT_MAP:
                     default = HEAT_MAP_GRADIENT_COLORS.get(label, default)
                     if label == CELL_LABEL_COLOR:
@@ -1801,6 +1823,8 @@ class AnalysisDialog(simpledialog.Dialog):
             self.controls[COMPETING_GRAPH][1].trace_add("write", lambda *_: self.show_fields(self.competing_fields()))
             self.show_fields(self.competing_fields())
             self.refresh_competing_causes()
+        if self.method == RMST:
+            self.configure_rmst_fields(variables, options, positions)
         if self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION):
             self.bind_equation_syntax()
             self._bind_scrollable_children(fields_by_tab["Equation"])
@@ -2855,6 +2879,43 @@ class AnalysisDialog(simpledialog.Dialog):
             return {}
         return competing_visibility(self.controls[COMPETING_GRAPH][1].get())
 
+    def configure_rmst_fields(self, variables, options, positions):
+        """Reference group follows Group, Horizon shows its usable limit, and two notes explain the estimate."""
+        horizon = self.controls[RMST_HORIZON][1]
+        typed = read_rmst_number(horizon.get())
+        if isinstance(typed, float) and np.isfinite(typed):
+            horizon.set(rmst_shown_number(typed))  # a saved 6.5 reads 6,5 in Italian
+        self.rmst_limit = ttk.Label(variables, text="", foreground="#486075", justify="left")
+        self.rmst_limit.grid(row=positions[variables], column=1, sticky="w")
+        positions[variables] += 1
+        for page, keys in ((variables, ("horizon",)), (options, ("codes", "estimate"))):
+            for key in keys:
+                ttk.Label(page, text=tr(RMST_HINTS[key]), wraplength=ui_theme.px(400), foreground="#486075",
+                          justify="left").grid(row=positions[page], column=0, columnspan=2, sticky="w", pady=(8, 0))
+                positions[page] += 1
+        for name in (RMST_TIME, RMST_STATUS, RMST_GROUP, RMST_EVENT, RMST_CENSOR):
+            self.controls[name][1].trace_add("write", lambda *_: self.refresh_rmst())
+        self.refresh_rmst()
+
+    def refresh_rmst(self):
+        """Offer the groups of the complete rows; a saved reference that is no longer a group stays shown."""
+        if self.method != RMST or RMST_REFERENCE not in self.controls:
+            return
+        options = {name: self.controls[name][1].get()
+                   for name in (RMST_TIME, RMST_STATUS, RMST_GROUP, RMST_EVENT, RMST_CENSOR)}
+        levels = rmst_group_levels(self.data, options)
+        self.field_rows[RMST_REFERENCE][1].configure(values=levels)
+        reference = self.controls[RMST_REFERENCE][1]
+        if not reference.get() and levels:
+            reference.set(levels[0])
+        self.show_fields(self.rmst_fields())
+        self.rmst_limit.configure(text=rmst_limit_hint(rmst_horizon_limit(self.data, options)))
+
+    def rmst_fields(self):
+        if self.method != RMST or RMST_GROUP not in self.controls:
+            return {}
+        return rmst_visibility(self.controls[RMST_GROUP][1].get())
+
     def refresh_competing_causes(self):
         """Offer the typed event codes for the drawn cause; a value that is no longer a code stays shown, never rewritten."""
         binding = self.choice_bindings.get(COMPETING_GRAPH_CAUSE)
@@ -3308,7 +3369,7 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.monte_carlo_fields(), **self.function_fields(), **self.weighting_visibility(),
                       **self.band_fields(), **self.xy_error_fields(), **self.custom_fields(),
                       **self.global_custom_fields(), **self.robust_fields(), **self.competing_fields(),
-                      **self.reference_visibility()}
+                      **self.rmst_fields(), **self.reference_visibility()}
         try:
             for name, (kind, control) in self.controls.items():
                 if name in inactive:
@@ -3325,6 +3386,10 @@ class AnalysisDialog(simpledialog.Dialog):
                     except (TypeError, ValueError):
                         value = raw
                     options[name] = value
+                    continue
+                if self.method == RMST and name in RMST_NUMBER_FIELDS:
+                    # Decimal comma accepted; text that is not a number reaches the analysis, which names the field.
+                    options[name] = read_rmst_number(control.get())
                     continue
                 if self.method == FOREST_PLOT and name == "Study columns":
                     value = self.forest_columns()
@@ -3498,6 +3563,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == COMPETING_RISKS:
                 # Columns, codes, times, level and the size budgets; no curve is calculated here.
                 check_competing_options(self.data, options)
+            if self.method == RMST:
+                # Columns, codes, groups, reference, horizon against the follow-up and the row budget.
+                check_rmst_options(self.data, options)
             if self.method == GLOBAL_CUSTOM_EQUATION:
                 if options.get("Weighting") != INVERSE_VARIANCE:
                     options[CUSTOM_SD] = None
@@ -3613,6 +3681,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
                 message = describe_competing_error(error, field)
+            elif self.method == RMST:
+                message = describe_rmst_error(error, field)
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
@@ -4914,7 +4984,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                                 "Scatter / confidence ellipse": ("Confidence overlays…", "Ellipse"),
                                 HEAT_MAP: ("Graph settings…", self.heat_map_settings_field(run)),
                                 ROBUST_CURVE: ("Graph settings…", ROBUST_DISPLAY),
-                                COMPETING_RISKS: ("Graph settings…", COMPETING_GRAPH)}.get(run.method)
+                                COMPETING_RISKS: ("Graph settings…", COMPETING_GRAPH),
+                                RMST: ("Graph settings…", RMST_SHOW_GRAPH)}.get(run.method)
                     if shortcut is None and (run.method in CATEGORY_GRAPHS or run.method == PARTS_GRAPH):
                         shortcut = "Graph settings…", "Graph style"
                     if shortcut:
@@ -6535,7 +6606,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, RMST) or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6543,7 +6614,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
+        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, RMST)
                 or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
@@ -6553,7 +6624,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if method in kmeans_options.METHODS and options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
-                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, "Multifactor ANOVA",
+                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, RMST, "Multifactor ANOVA",
                 REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
@@ -6610,6 +6681,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_rmst_error(error) if run.method == RMST
                      else format_fdr_error(error) if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
@@ -6956,7 +7028,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
-                     else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
+                     else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_rmst_error(error) if run.method == RMST else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -7070,6 +7143,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA"
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
+                     else translate_rmst_error(run.calculation_error) if run.method == RMST
                      else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
