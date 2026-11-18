@@ -109,6 +109,8 @@ class CatalogTests(unittest.TestCase):
             "Competing risks": {"Time": "x", "Status": "Event", "Group": "Group", "Censor code": "0",
                                 "Event codes": ["1", "2"], "Gray tests": "Omnibus and pairwise",
                                 "Times": [2., 6., 40.]},
+            "Restricted mean survival time": {"Time": "x", "Status": "Event", "Group": "Group",
+                                              "Reference group": "A", "Horizon": 6.},
             "Kolmogorov–Smirnov": {"First": "x", "Second": "y"},
             "Multiple t-tests": {"Variables": ["y", "z"], "Group": "Group", "Design": "Welch", "Correction": "Holm"},
             "Multiple tests (one per row)": {"First replicates": ["x", "y"], "Second replicates": ["z", "p"]},
