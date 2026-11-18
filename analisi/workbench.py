@@ -18,6 +18,7 @@ from .anova_terms import (CHOICES as TERM_CHOICES, MODEL_TERMS, SHEET as MODEL_T
 from .additional import EXTRA_METHODS, extra_analysis
 from .category_graphs import (COLUMN_GRAPH, COLUMN_STYLES, GROUPED_GRAPH, GROUPED_OPTIONS, OPTIONS as CATEGORY_OPTIONS,
                               category_graph)
+from .ancova import ANCOVA, OPTIONS as ANCOVA_OPTIONS, ancova
 from .bubble import BUBBLE, OPTIONS as BUBBLE_OPTIONS, bubble_plot
 from .compare_lines import COMPARE_LINES, OPTIONS as COMPARE_LINES_OPTIONS, compare_lines
 from .contingency import CONTINGENCY, CONTINGENCY_OPTIONS, contingency
@@ -206,6 +207,7 @@ METHODS = {
     GOODNESS_OF_FIT: GOODNESS_OPTIONS,
     "Linear regression": {"X": None, "Y": None, **LINEAR_OPTIONS},
     COMPARE_LINES: COMPARE_LINES_OPTIONS,
+    ANCOVA: ANCOVA_OPTIONS,
     "Nonlinear regression": {"X": None, "Y columns": MULTIPLE, "Grouping variables": OPTIONAL_MULTIPLE,
                              "Model": tuple(name for name, spec in engine.MODELS.items()
                                             if not (spec.required_fixed or spec.required_shared)),
@@ -291,7 +293,7 @@ GROUPS = {
     "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
-                         "Multifactor ANOVA", "Contingency table",
+                         "Multifactor ANOVA", ANCOVA, "Contingency table",
                          "Bland–Altman", "ROC curve", "Compare paired ROC curves"),
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression"),
     "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering"),
@@ -306,7 +308,7 @@ GRAPH_METHODS = frozenset({
     *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", "Correlation", CORRELATE_CONTROL,
     COMPARE_INDEPENDENT, CORRELATION_MATRIX, "Deming regression",
     "Global nonlinear regression", "Hierarchical clustering", "Histogram", FREQUENCY, "Interpolate a standard curve",
-    "K-means clustering", "K-means model selection", "Kaplan–Meier survival", "Linear regression", COMPARE_LINES,
+    "K-means clustering", "K-means model selection", "Kaplan–Meier survival", "Linear regression", COMPARE_LINES, ANCOVA,
     "Mixed-effects model (REML)", LOGNORMAL, EQUIVALENCE, "Multiple t-tests", ROW_TESTS, "Nonlinear regression", ROBUST_CURVE, CUSTOM_EQUATION,
     GLOBAL_CUSTOM_EQUATION, "Principal component analysis",
     "ROC curve", "Compare paired ROC curves", "Smooth / differentiate / integrate", SPLINE_FIT, *NESTED_METHODS,
@@ -1018,6 +1020,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return linear_result(frame, o)
     if method == COMPARE_LINES:
         return compare_lines(frame, o)
+    if method == ANCOVA:
+        return ancova(frame, o)
     if method == "Nonlinear regression":
         parameter_ci_settings(o)
         check_fit_options(o)
