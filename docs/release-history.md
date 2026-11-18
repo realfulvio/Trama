@@ -3,6 +3,8 @@
 The public repository begins with **Trama 0.73.0 beta**. All 0.x versions are
 beta builds; no final stable release has been declared.
 
+- [0.91 beta: Editable PCA from compatible saved projects](release-091.md) · [Verification](validation-091.md).
+- [0.90 beta: Principal component regression](release-090.md) · [Verification](validation-090.md).
 - [0.89 beta: PCA score overlays](release-089.md) · [Verification](validation-089.md).
 - [0.88 beta: editable imported categorical scatter](release-088.md) · [Verification](validation-088.md).
 - [0.87 beta: PCA colors and optional reports](release-087.md) · [Verification](validation-087.md).
