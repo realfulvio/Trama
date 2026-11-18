@@ -77,7 +77,7 @@ SERIES_FIELDS = {
 SERIES_KEY = re.compile(r"(line|errorbar|scatter|bar|xy):[1-9][0-9]*:.*", re.DOTALL)
 # Box and violin groups are keyed by their source identity, not by their position in the plot.
 GROUP_FIELDS = {"color", "visible"}
-GROUP_KEY = re.compile(r"(box|violin|pair|trajectory|trajectory-mean):.+", re.DOTALL)
+GROUP_KEY = re.compile(r"(box|violin|pair|trajectory|trajectory-mean|tolerance):.+", re.DOTALL)
 MAX_GROUP_STYLES = 512
 MAX_MAJOR_TICKS = 200
 MAX_MINOR_TICKS = 800
