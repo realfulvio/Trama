@@ -133,6 +133,18 @@ class RetentionTests(unittest.TestCase):
                     _run("strong", **changes)
                 self.assertEqual(caught.exception.field, field)
 
+    def test_parallel_analysis_handles_one_thousand_simulations_for_569_rows(self):
+        rng = np.random.default_rng(2026)
+        factors = rng.normal(size=(569, 2))
+        data = factors[:, [0, 0, 0, 0, 0, 1, 1, 1, 1]] + rng.normal(scale=0.1, size=(569, 9))
+        frame = pd.DataFrame(data, columns=[f"V{i}" for i in range(9)])
+        result = analyse(METHOD, frame, {
+            "Variables": list(frame.columns), "Standardize": True, SELECTION: PARALLEL,
+            SIMULATIONS: 1000, SEED: 96423921, PERCENTILE: 95.0, SAVE: True,
+        })
+        self.assertEqual(result.tables[SETTINGS_SHEET].loc[0, "Count"], 2)
+        self.assertEqual(result.tables[PARALLEL_SHEET].shape, (1000, 10))
+
     def test_budget_and_width_fail_before_a_replicate_is_drawn(self):
         wide = pd.DataFrame(np.random.default_rng(0).normal(size=(4, 65)), columns=[f"V{i}" for i in range(65)])
         with patch("analisi.pca_retention._replicates", side_effect=AssertionError("allocated")):
@@ -147,7 +159,7 @@ class RetentionTests(unittest.TestCase):
             with self.assertRaises(FieldError) as budget:
                 analyse(METHOD, frame, {
                     "Variables": list(frame.columns), "Standardize": False, SELECTION: PARALLEL,
-                    SIMULATIONS: 200, SEED: 1, PERCENTILE: 95.0, SAVE: False,
+                    SIMULATIONS: 400, SEED: 1, PERCENTILE: 95.0, SAVE: False,
                 })
             self.assertEqual(budget.exception.field, SIMULATIONS)
 
