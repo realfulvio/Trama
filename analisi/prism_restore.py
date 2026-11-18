@@ -181,6 +181,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
     restyled = set()
     owners = {}
     view_sources = dict(sources)
+    deferred_pca = []
     for source in sources.values():
         if source.attrs["prism_x"]:
             for uid in source.attrs["prism_y"]:
@@ -206,7 +207,8 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             params_path, results_path = path + "parameters.json", path + "results.json"
             params = _json_object(archive, params_path) if params_path in names else {}
             results = _json_object(archive, results_path) if results_path in names else None
-            recipe = restore_recipe(sheet, params, sources, results)
+            is_pca = sheet.get("analysisClass") == "PCA"
+            recipe = None if is_pca else restore_recipe(sheet, params, sources, results)
             if recipe:
                 source, method, options = recipe
                 restored = sources[source].attrs.setdefault("prism_recipes", [])
@@ -222,6 +224,8 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
                                 "Recalculates the supported hierarchy and restores selected saved heat map "
                                 "and dendrogram settings. Other settings use Trama formatting.")
                     restored.append((method, {**options, PRISM_TITLE: label[:160]}))
+            elif is_pca:
+                deferred_pca.append((sheet, params, label))
             else:
                 warnings.append(f"Recalculation unavailable for {label}.")
             for record in _list(sheet.get("resultSheets", [])):
@@ -230,6 +234,16 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
                 restore_view(archive, names, path, record, label, sheet, add, owners, view_sources, MAX_CELLS - cells)
         except (KeyError, TypeError, ValueError, csv.Error):
             warnings.append(f"Some saved analysis content could not be read for {label}.")
+    # The saved input may be a multivariable table emitted by a later analysis in the document.
+    for sheet, params, label in deferred_pca:
+        recipe = restore_recipe(sheet, params, view_sources)
+        if recipe is None:
+            warnings.append(f"Recalculation unavailable for {label}.")
+            continue
+        source, method, options = recipe
+        restored = view_sources[source].attrs.setdefault("prism_recipes", [])
+        if len(restored) < 256:
+            restored.append((method, {**options, PRISM_TITLE: label[:160]}))
     for entry in _list(sheets.get("graphs", [])):
         label = str(entry)
         try:
@@ -463,6 +477,8 @@ def restore_view(archive, names, path, record, analysis_title, analysis, add, ow
     name = view.get("name") or record.get("title") or view_id
     if not view.get("isVisible") and not frame.attrs["prism_x"]:
         return
+    if frame.attrs.get("table_format") == "multivariable":
+        frame.attrs["prism_snapshot_source_format"] = "multivariable"
     frame.attrs["table_format"] = "Prism result snapshot"
     if not add(f"Prism result · {analysis_title} · {name}", frame):
         return
