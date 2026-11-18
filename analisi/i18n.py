@@ -2802,7 +2802,7 @@ _AXIS_BREAKS_IT = {
         "I pannelli possono avere una scala fisica diversa anche quando mostrano la stessa unità: la quota di un "
         "segmento è lo spazio che gli assegni, non la sua lunghezza in unità dei dati."),
     "axis_breaks.note.limits": (
-        "Disponibile per XY series e XY error bars con asse X lineare o Y sinistro lineare. Non è disponibile con un "
+        "Disponibile per Serie XY e Barre di errore XY con asse X lineare o Y sinistro lineare. Non è disponibile con un "
         "asse Y destro, con l'asse interrotto logaritmico o invertito, né con disegni posti in frazioni del grafico. "
         "Un'impostazione salvata che una modifica successiva rende impossibile viene conservata e ignorata, e il "
         "motivo compare nella barra di stato."),
@@ -2836,7 +2836,7 @@ _AXIS_BREAKS_IT = {
         "Segmento {row}: inserisci un intervallo principale maggiore di 0, oppure lascia vuoto per tacche automatiche."),
     "axis_breaks.error.m_ticks": "Segmento {row}: l'intervallo principale metterebbe più di 200 tacche.",
     "axis_breaks.error.p_support": (
-        "Le interruzioni sono disponibili solo per i grafici XY series e XY error bars."),
+        "Le interruzioni sono disponibili solo per i grafici Serie XY e Barre di errore XY."),
     "axis_breaks.error.p_native": "Le interruzioni richiedono un grafico nativo, non un'immagine importata.",
     "axis_breaks.error.p_right": (
         "Le interruzioni non si combinano con un asse Y destro. Sposta prima tutte le serie sull'asse sinistro."),
