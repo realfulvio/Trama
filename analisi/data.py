@@ -19,6 +19,7 @@ import pandas as pd
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
 from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, valid_analysis_id
 from .analysis_labels import validate_labels
+from .distribution_formulas import DISTRIBUTION_FUNCTIONS, argument_count_message
 from .formula_windows import WINDOW_FUNCTION, lower_window_clauses, worksheet_statistic
 
 MAX_ENTRY = 32 * 1024 * 1024
@@ -192,6 +193,8 @@ FUNCTIONS = {
     "COUNT": (1, lambda v: len(_numeric_present(v))),
     "AVERAGEIF": (3, _average_if), "IF": (3, _conditional),
     "AND": (2, np.logical_and), "OR": (2, np.logical_or), "NOT": (1, np.logical_not),
+    # Probability, density and quantile functions accept a range of argument counts.
+    **DISTRIBUTION_FUNCTIONS,
 }
 
 
@@ -294,8 +297,10 @@ def formula(frame, expression, *, info=None):
                                            order=ordering, ascending=ascending.value, bounds=bounds)
             if name in FUNCTIONS:
                 arity, function = FUNCTIONS[name]
-                if len(node.args) == arity:
+                if len(node.args) in (arity if isinstance(arity, range) else (arity,)):
                     return function(*(evaluate(arg, filter_text=filter_text) for arg in node.args))
+                if isinstance(arity, range):
+                    raise ValueError(argument_count_message(name, arity))
         raise ValueError("Unsupported expression in calculated column.")
 
     def absent(node):
