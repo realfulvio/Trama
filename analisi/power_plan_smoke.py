@@ -76,6 +76,8 @@ def check_power_plan(root, app, directory, tools):
 
     original_language = i18n.active_language()
     i18n.set_language("en")
+    # The check gives back the project tabs it opens: the application allows six and later checks open their own.
+    home_tab, tabs_before = app.active_project, set(app.projects)
     app.dirty = False
     app.new_project()
     assert app.active_data is None and not app.tables
@@ -351,4 +353,11 @@ def check_power_plan(root, app, directory, tools):
         shot(root, "window-power-result-it" + suffix + ".png")
     finally:
         i18n.set_language(original_language)
+    # Leave the project tabs as they were found.
+    app.dirty = False
+    assert app.switch_project(home_tab)
+    for key in [key for key in app.projects if key not in tabs_before]:
+        app.projects[key].dirty = False
+        app.remove_project_tab(key)
+    assert set(app.projects) == tabs_before and app.active_project == home_tab, (set(app.projects), tabs_before)
     (out / "status.txt").write_text("PASS\n", encoding="utf-8")
