@@ -13531,6 +13531,20 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "rm-two-way-sphericity":
+            # The Greenhouse–Geisser correction of two within-subject factors alone:
+            # TRAMASTAT_SMOKE_ONLY=rm-two-way-sphericity python tramastat.py --smoke DIR
+            from analisi.rm_sphericity_smoke import check_rm_two_way_sphericity
+            check_rm_two_way_sphericity(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+                select_columns=select_columns,
+                drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+                wait_for_calculation=wait_for_calculation))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "confidence-overlays":
             check_confidence_overlays()
             assert not errors, errors
@@ -14370,6 +14384,12 @@ def smoke(root, app, directory, legacy_reference=None):
             wait_for_calculation=wait_for_calculation))
         from analisi.anova_terms_smoke import check_anova_selected_terms
         check_anova_selected_terms(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+            select_columns=select_columns,
+            drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+            wait_for_calculation=wait_for_calculation))
+        from analisi.rm_sphericity_smoke import check_rm_two_way_sphericity
+        check_rm_two_way_sphericity(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
             select_columns=select_columns,
             drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
