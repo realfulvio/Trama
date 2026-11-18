@@ -6224,14 +6224,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if data.table_format in EDITABLE_PRISM_FIXED_VALUES:
             self.error("Edit the recovered values directly in this worksheet.")
             return
-        name = simpledialog.askstring("Calculated column", "New or existing calculated column name", parent=self.root)
+        name = simpledialog.askstring(ui("Calculated column"), ui("New or existing calculated column name"),
+                                      parent=self.root)
         if not name:
             return
         name = name.strip()
-        value = simpledialog.askstring(
-            "Formula", 'Example: =COL("Sample mass") / 10\n'
-                       'Group mean: =MEAN(COL("Response")) OVER COL("Group")',
-            initialvalue=data.formulas.get(name, ""), parent=self.root)
+        value = simpledialog.askstring("Formula", tr("worksheet.formula.examples"),
+                                        initialvalue=data.formulas.get(name, ""), parent=self.root)
         if value:
             before = self.worksheet_state(data)
             try:
@@ -7430,8 +7429,10 @@ def smoke(root, app, directory, legacy_reference=None):
             "Mean through visit 2": "MEANIF(Response, Visit <= 2) OVER Cohort",
         }
         for name, recipe in recipes.items():
-            with patch.object(simpledialog, "askstring", side_effect=(name, recipe)):
+            with patch.object(simpledialog, "askstring", side_effect=(name, recipe)) as prompts:
                 app.add_formula()
+            assert prompts.call_args_list[0].args[0] == ui("Calculated column")
+            assert "ROWS UNBOUNDED PRECEDING" in prompts.call_args_list[1].args[1]
 
         def assert_values(cumulative, means):
             data = app.tables[title].frame(mask_excluded=True)

@@ -68,7 +68,15 @@ def _statistic_arguments(nodes, conditional):
 
 
 def _clauses(nodes):
-    starts = [(index, _word(node)) for index, node in enumerate(nodes) if _word(node) in WINDOW_CLAUSES]
+    starts = []
+    for index, node in enumerate(nodes):
+        name = _word(node)
+        # ORDER starts a clause at the beginning or as part of ORDER BY.
+        # Otherwise it can be an ordinary column in a value expression.
+        if name == "ORDER" and index and (index + 1 == len(nodes) or _word(nodes[index + 1]) != "BY"):
+            continue
+        if name in WINDOW_CLAUSES:
+            starts.append((index, name))
     if not starts:
         return {}
     order = [_CLAUSE_ORDER.index(name) for _, name in starts]
