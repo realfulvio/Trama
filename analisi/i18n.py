@@ -2647,6 +2647,132 @@ _MLR_WEIGHT_IT = {
 _EN.update(_MLR_WEIGHT_EN)
 _IT.update(_MLR_WEIGHT_IT)
 
+# Negative binomial regression (NB2, 0.93): dialog captions, choices, the hint and the engine messages.
+# Error texts match the English strings of analisi/nb2_regression.py exactly; recipes and sheets stay English.
+_EN.update({
+    "nb2.field.response": "Response", "nb2.field.predictors": "Predictors",
+    "nb2.field.categories": "Categorical predictors", "nb2.field.exposure": "Exposure",
+    "nb2.field.mode": "Dispersion mode", "nb2.field.alpha": "Dispersion alpha",
+    "nb2.field.level": "Confidence level (%)", "nb2.field.plot": "Residual plot",
+    "nb2.choice.estimated": "Estimated ML", "nb2.choice.fixed": "Fixed",
+    "nb2.hint": "NB2 model: log μ = Xβ + log(exposure), Var(Y) = μ + αμ². Estimated ML fits α with the "
+                "coefficients; Fixed uses the α you enter. Coefficients and IRR use Wald intervals.",
+    "nb2.reason.not finite": "not finite", "nb2.reason.not positive definite": "not positive definite",
+    "nb2.reason.nearly singular": "nearly singular",
+    "nb2.error.choose": "Choose a column for {field}.",
+    "nb2.error.select": "Select at least one column for {field}.",
+    "nb2.error.column": 'Column "{column}" is not in the table.',
+    "nb2.error.columns": "{field}: choose columns of the table.",
+    "nb2.error.once": "{field}: choose each column once.",
+    "nb2.error.number": "{field} must be a number.",
+    "nb2.error.finite": "{field} must be finite.",
+    "nb2.error.predictors": "Choose from 1 to 8 predictors.",
+    "nb2.error.response_predictor": "The response cannot also be a predictor.",
+    "nb2.error.categories": "Categorical predictors must be chosen among the predictors.",
+    "nb2.error.exposure_distinct": "Exposure must be a column distinct from the response and the predictors.",
+    "nb2.error.mode": "Choose Estimated ML or Fixed.",
+    "nb2.error.alpha": "Dispersion alpha must be from 0.000001 to 1000.",
+    "nb2.error.level": "Confidence level (%) must be strictly between 0 and 100.",
+    "nb2.error.plot": "Residual plot must be on or off.",
+    "nb2.error.complex": 'Column "{column}" contains complex data.',
+    "nb2.error.counts": 'Response "{column}" needs whole counts of 0 or more (row {row}: {value}).',
+    "nb2.error.numbers": 'Predictor "{column}" needs finite numbers (row {row}: {value}).',
+    "nb2.error.exposure": 'Exposure "{column}" needs finite values greater than 0 (row {row}: {value}).',
+    "nb2.error.no_rows": "No row has a response, every predictor and the exposure.",
+    "nb2.error.rows": "The model would use {rows} complete rows; the limit is 50,000.",
+    "nb2.error.event": "Negative binomial regression needs at least one observed event (a count above 0).",
+    "nb2.error.levels": 'Categorical predictor "{column}" must have 2 to 100 levels among the complete rows.',
+    "nb2.error.coefficients": "The model has {count} coefficients; the limit is 32.",
+    "nb2.error.too_few": "The model has {count} coefficients for {rows} complete rows. Use fewer predictors or "
+                         "more rows.",
+    "nb2.error.rank": "The model is rank deficient. Remove redundant predictors.",
+    "nb2.error.duplicate": 'Duplicate model term "{term}". Rename the source column.',
+    "nb2.error.parameters": "Model has too many parameters for these data.",
+    "nb2.error.converge": "The regression did not converge. Check categories or predictor ranges whose counts are "
+                          "all zero.",
+    "nb2.error.ml_converge": "Estimated ML did not converge: the coefficients do not settle. Check categories or "
+                             "predictor ranges whose counts are all zero.",
+    "nb2.error.ml_finite": "Estimated ML did not converge: the likelihood is not finite over the range of alpha.",
+    "nb2.error.poisson": "Estimated ML has no interior maximum: the likelihood keeps increasing toward alpha = 0, "
+                         "the Poisson boundary (the counts are not overdispersed). Use Fixed dispersion or Poisson "
+                         "regression.",
+    "nb2.error.upper": "Estimated ML has no interior maximum: the likelihood keeps increasing beyond alpha = 1000. "
+                       "Use Fixed dispersion.",
+    "nb2.error.solve": "Estimated ML did not converge while solving for alpha.",
+    "nb2.error.limit": "Estimated ML stopped at alpha = {alpha}, a limit of the supported range, so it is not an "
+                       "estimate. Use Fixed dispersion.",
+    "nb2.error.fisher": "The Fisher information is {reason} at the estimate, so the standard errors are not "
+                        "identifiable for these data.",
+    "nb2.error.hessian": "Estimated ML: the Hessian is {reason} at the estimate, so alpha and the standard errors "
+                         "are not identifiable for these data.",
+    "nb2.error.range": "The estimates or their exponentials are outside the supported numeric range. Rescale the "
+                       "predictors.",
+    "nb2.error.fitted": "The fitted values are outside the supported numeric range. Rescale the predictors or the "
+                        "exposure.",
+})
+_IT.update({
+    "nb2.field.response": "Risposta", "nb2.field.predictors": "Predittori",
+    "nb2.field.categories": "Predittori categorici", "nb2.field.exposure": "Esposizione",
+    "nb2.field.mode": "Dispersione", "nb2.field.alpha": "Alfa di dispersione",
+    "nb2.field.level": "Livello di confidenza (%)", "nb2.field.plot": "Grafico dei residui",
+    "nb2.choice.estimated": "Stimata (ML)", "nb2.choice.fixed": "Fissa",
+    "nb2.hint": "Modello NB2: log μ = Xβ + log(esposizione), Var(Y) = μ + αμ². Stimata (ML) stima α insieme ai "
+                "coefficienti; Fissa usa l’α indicato. Coefficienti e IRR hanno intervalli di Wald.",
+    "nb2.reason.not finite": "non finita", "nb2.reason.not positive definite": "non definita positiva",
+    "nb2.reason.nearly singular": "quasi singolare",
+    "nb2.error.choose": "Scegli una colonna per {field}.",
+    "nb2.error.select": "Seleziona almeno una colonna per {field}.",
+    "nb2.error.column": 'La colonna "{column}" non è nella tabella.',
+    "nb2.error.columns": "{field}: scegli colonne della tabella.",
+    "nb2.error.once": "{field}: scegli ogni colonna una sola volta.",
+    "nb2.error.number": "{field}: inserisci un numero.",
+    "nb2.error.finite": "{field}: inserisci un numero finito.",
+    "nb2.error.predictors": "Scegli da 1 a 8 predittori.",
+    "nb2.error.response_predictor": "La risposta non può essere anche un predittore.",
+    "nb2.error.categories": "I predittori categorici vanno scelti fra i predittori.",
+    "nb2.error.exposure_distinct": "L’esposizione deve essere una colonna diversa dalla risposta e dai predittori.",
+    "nb2.error.mode": "Scegli Stimata (ML) o Fissa.",
+    "nb2.error.alpha": "L’alfa di dispersione deve essere compreso fra 0,000001 e 1000.",
+    "nb2.error.level": "Il livello di confidenza (%) deve essere strettamente compreso fra 0 e 100.",
+    "nb2.error.plot": "Il grafico dei residui deve essere attivo o disattivo.",
+    "nb2.error.complex": 'La colonna "{column}" contiene numeri complessi.',
+    "nb2.error.counts": 'La risposta "{column}" richiede conteggi interi pari ad almeno 0 (riga {row}: {value}).',
+    "nb2.error.numbers": 'Il predittore "{column}" richiede numeri finiti (riga {row}: {value}).',
+    "nb2.error.exposure": 'L’esposizione "{column}" richiede valori finiti maggiori di 0 (riga {row}: {value}).',
+    "nb2.error.no_rows": "Nessuna riga ha la risposta, tutti i predittori e l’esposizione.",
+    "nb2.error.rows": "Il modello userebbe {rows} righe complete; il limite è 50.000.",
+    "nb2.error.event": "La regressione binomiale negativa richiede almeno un evento osservato (un conteggio "
+                       "maggiore di 0).",
+    "nb2.error.levels": 'Il predittore categorico "{column}" deve avere da 2 a 100 livelli nelle righe complete.',
+    "nb2.error.coefficients": "Il modello ha {count} coefficienti; il limite è 32.",
+    "nb2.error.too_few": "Il modello ha {count} coefficienti per {rows} righe complete. Usa meno predittori o più "
+                         "righe.",
+    "nb2.error.rank": "Il modello è a rango deficiente. Rimuovi i predittori ridondanti.",
+    "nb2.error.duplicate": 'Termine del modello duplicato "{term}". Rinomina la colonna sorgente.',
+    "nb2.error.parameters": "Il modello ha troppi parametri per questi dati.",
+    "nb2.error.converge": "La regressione non converge. Controlla le categorie o gli intervalli dei predittori con "
+                          "conteggi tutti nulli.",
+    "nb2.error.ml_converge": "La stima ML non converge: i coefficienti non si stabilizzano. Controlla le categorie o "
+                             "gli intervalli dei predittori con conteggi tutti nulli.",
+    "nb2.error.ml_finite": "La stima ML non converge: la verosimiglianza non è finita nell’intervallo di alfa.",
+    "nb2.error.poisson": "La stima ML non ha un massimo interno: la verosimiglianza continua a crescere verso "
+                         "alfa = 0, il bordo di Poisson (i conteggi non sono sovradispersi). Usa la dispersione Fissa "
+                         "o la regressione di Poisson.",
+    "nb2.error.upper": "La stima ML non ha un massimo interno: la verosimiglianza continua a crescere oltre "
+                       "alfa = 1000. Usa la dispersione Fissa.",
+    "nb2.error.solve": "La stima ML non converge nella ricerca di alfa.",
+    "nb2.error.limit": "La stima ML si è fermata ad alfa = {alpha}, un limite dell’intervallo supportato, quindi non "
+                       "è una stima. Usa la dispersione Fissa.",
+    "nb2.error.fisher": "L’informazione di Fisher è {reason} nella stima, quindi gli errori standard non sono "
+                        "identificabili per questi dati.",
+    "nb2.error.hessian": "Stima ML: l’Hessiana è {reason} nella stima, quindi alfa e gli errori standard non sono "
+                         "identificabili per questi dati.",
+    "nb2.error.range": "Le stime o i loro esponenziali sono fuori dall’intervallo numerico supportato. Riscala i "
+                       "predittori.",
+    "nb2.error.fitted": "I valori stimati sono fuori dall’intervallo numerico supportato. Riscala i predittori o "
+                        "l’esposizione.",
+})
+
 # Inverse intervals on a nonlinear standard curve. Error texts match the engine strings.
 _EN.update({
     "calib.inverse_nonlinear.note": (

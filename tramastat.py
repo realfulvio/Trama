@@ -209,6 +209,10 @@ from analisi.robust_curve import (COMPARE as ROBUST_COMPARE, DEFAULTS as ROBUST_
 from analisi.robust_curve_dialog import (CHOICE_KEYS as ROBUST_CHOICE_KEYS, LABEL_KEYS as ROBUST_LABEL_KEYS,
                                          TAB_KEYS as ROBUST_TAB_KEYS, InitialParameters, describe_error as describe_robust_error,
                                          visibility as robust_visibility)
+from analisi.nb2_regression import (MODE as NB2_MODE, NB2, check_options as check_nb2_options,
+                                    visibility as nb2_visibility)
+from analisi.nb2_dialog import (CHOICE_KEYS as NB2_CHOICE_KEYS, HINT_KEY as NB2_HINT, LABEL_KEYS as NB2_LABEL_KEYS,
+                                describe_error as describe_nb2_error, translate_error as translate_nb2_error)
 from analisi.competing_risks_workbench import (
     CAUSE_CHOICE as COMPETING_CAUSE, CHOICE_KEYS as COMPETING_CHOICE_KEYS, CODE_LIST as COMPETING_CODE_LIST,
     COMPETING_RISKS, DATA_FIELDS as COMPETING_DATA, DEFAULTS as COMPETING_DEFAULTS, ESTIMATE_FIELDS as COMPETING_ESTIMATES,
@@ -1292,10 +1296,12 @@ class AnalysisDialog(simpledialog.Dialog):
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
             competing_control = self.method == COMPETING_RISKS and label in COMPETING_LABEL_KEYS
+            nb2_control = self.method == NB2 and label in NB2_LABEL_KEYS
             reference_control = self.method == REFERENCE_NORMALIZATION and label in REFERENCE_LABEL_KEYS
             label_text = (tr(RANK_LABEL_KEYS[label]) if rank_control
                           else tr(ROBUST_LABEL_KEYS[label]) if robust_control
                           else tr(COMPETING_LABEL_KEYS[label]) if competing_control
+                          else tr(NB2_LABEL_KEYS[label]) if nb2_control
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
                           else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
@@ -1564,6 +1570,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ROBUST_CHOICE_KEYS)
                     elif competing_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, COMPETING_CHOICE_KEYS)
+                    elif nb2_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, NB2_CHOICE_KEYS)
                     elif self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and label == CUSTOM_SYNTAX:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, SYNTAX_CHOICE_KEYS)
                     elif self.method == CUSTOM_EQUATION and label == "Weighting":
@@ -1801,6 +1809,12 @@ class AnalysisDialog(simpledialog.Dialog):
             self.controls[COMPETING_GRAPH][1].trace_add("write", lambda *_: self.show_fields(self.competing_fields()))
             self.show_fields(self.competing_fields())
             self.refresh_competing_causes()
+        if self.method == NB2:
+            # Dispersion alpha is shown (and validated) only for Fixed; the model note sits under the options.
+            self.controls[NB2_MODE][1].trace_add("write", lambda *_: self.show_fields(self.nb2_fields()))
+            ttk.Label(options, text=tr(NB2_HINT), wraplength=ui_theme.px(400), foreground="#486075",
+                      justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.show_fields(self.nb2_fields())
         if self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION):
             self.bind_equation_syntax()
             self._bind_scrollable_children(fields_by_tab["Equation"])
@@ -2719,6 +2733,9 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method == ROBUST_CURVE:
             # A usable hidden residual scale stays in the recipe; an invalid one is omitted instead of blocking.
             return {name for name, shown in self.robust_fields().items() if not shown}
+        if self.method == NB2:
+            # The same for a hidden Dispersion alpha under Estimated ML.
+            return {name for name, shown in self.nb2_fields().items() if not shown}
         if self.method != "Principal component analysis" or PCA_GRAPH not in self.controls:
             return set()
         inactive = {name for name, shown in self.selection_visibility().items() if not shown}
@@ -2849,6 +2866,11 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method != ROBUST_CURVE or ROBUST_SCALE_METHOD not in self.controls:
             return {}
         return robust_visibility(self.controls[ROBUST_SCALE_METHOD][1].get())
+
+    def nb2_fields(self):
+        if self.method != NB2 or NB2_MODE not in self.controls:
+            return {}
+        return nb2_visibility(self.controls[NB2_MODE][1].get())
 
     def competing_fields(self):
         if self.method != COMPETING_RISKS or COMPETING_GRAPH not in self.controls:
@@ -3498,6 +3520,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == COMPETING_RISKS:
                 # Columns, codes, times, level and the size budgets; no curve is calculated here.
                 check_competing_options(self.data, options)
+            if self.method == NB2:
+                # Recipe, cells, budgets and the rank of the design; the fit itself runs on the worker.
+                check_nb2_options(self.data, options)
             if self.method == GLOBAL_CUSTOM_EQUATION:
                 if options.get("Weighting") != INVERSE_VARIANCE:
                     options[CUSTOM_SD] = None
@@ -3613,6 +3638,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
                 message = describe_competing_error(error, field)
+            elif self.method == NB2:
+                message = describe_nb2_error(error, field)
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
@@ -6535,7 +6562,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, NB2) or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6543,7 +6570,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
+        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, NB2)
                 or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
@@ -6554,7 +6581,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
                 CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, "Multifactor ANOVA",
-                REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
+                REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, NB2):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if (method == "Multiple regression" and options.get("Family") == "Linear"
@@ -6610,6 +6637,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_nb2_error(error) if run.method == NB2
                      else format_fdr_error(error) if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
@@ -6956,7 +6984,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
-                     else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
+                     else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_nb2_error(error) if run.method == NB2 else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -7070,6 +7099,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA"
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
+                     else translate_nb2_error(run.calculation_error) if run.method == NB2
                      else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
