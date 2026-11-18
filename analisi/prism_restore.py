@@ -7,7 +7,11 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 
+from .analysis_chain import ResultSource
 from .data import EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_STACKS, EDITABLE_PRISM_XY, MAX_CELLS
+from .kmeans_options import SELECTION
+from .kmeans_reports import ASSIGNMENTS_TABLE, assignment_column
+from .pca_graphs import COLOR_GROUPS
 from .prism_import import _identifier, _json_object, _store_table, _zip_table
 from .prism_recipes import restore_recipe
 from .prism_mv_scatter import APPEARANCE, saved_scatter
@@ -175,6 +179,38 @@ def _saved_xy(graph, owners, remaining_cells):
     return points
 
 
+def _link_clustered_pca(producer, slot, cached, method, options):
+    """Restore a result dependency when the saved view has the verified assignments schema."""
+    recipes = producer.attrs["prism_recipes"]
+    if len(recipes) >= 256 or not cached.iloc[:, :len(producer.columns)].equals(producer):
+        return False
+    saved_options = recipes[slot][1]
+    columns = cached.columns[len(producer.columns):]
+    counts = range(saved_options["Minimum k"], saved_options["Maximum k"] + 1)
+    if list(columns) != [f"{count} clusters" for count in counts]:
+        return False
+    mapping = {name: name for name in producer}
+    for count, name in zip(counts, columns, strict=True):
+        values = cached[name].dropna()
+        labels = set(values.unique())
+        numbers = set(range(1, count + 1))
+        if labels != numbers and labels != {f"Cluster {label}" for label in numbers}:
+            return False
+        mapping[name] = assignment_column(producer, count)
+    color = options[COLOR_GROUPS]
+    options = {**options, "Variables": [mapping[name] for name in options["Variables"]],
+               COLOR_GROUPS: mapping[color] if color is not None else None,
+               PRISM_NOTES: ("Uses the live K-means assignments as input. Trama recalculates standardized PCA "
+                             "and the saved color grouping with its own samples from the saved seed.")}
+    ids = producer.attrs.setdefault("prism_analysis_ids", {})
+    parent = ids.setdefault(slot, str(uuid4()))
+    consumer = len(recipes)
+    ids[consumer] = str(uuid4())
+    producer.attrs.setdefault("prism_analysis_sources", {})[consumer] = ResultSource(parent, ASSIGNMENTS_TABLE)
+    recipes.append((method, options))
+    return True
+
+
 def restore_sheets(archive, names, sheets, sources, tables, cells):
     """Add non-executable snapshots and supported native analysis recipes."""
     warnings = []
@@ -182,6 +218,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
     owners = {}
     view_sources = dict(sources)
     deferred_pca = []
+    clustered_views = {}
     for source in sources.values():
         if source.attrs["prism_x"]:
             for uid in source.attrs["prism_y"]:
@@ -209,6 +246,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             results = _json_object(archive, results_path) if results_path in names else None
             is_pca = sheet.get("analysisClass") == "PCA"
             recipe = None if is_pca else restore_recipe(sheet, params, sources, results)
+            producer = None
             if recipe:
                 source, method, options = recipe
                 restored = sources[source].attrs.setdefault("prism_recipes", [])
@@ -224,6 +262,8 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
                                 "Recalculates the supported hierarchy and restores selected saved heat map "
                                 "and dendrogram settings. Other settings use Trama formatting.")
                     restored.append((method, {**options, PRISM_TITLE: label[:160]}))
+                    if method == SELECTION:
+                        producer = sources[source], len(restored) - 1
             elif is_pca:
                 deferred_pca.append((sheet, params, label))
             else:
@@ -231,7 +271,12 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             for record in _list(sheet.get("resultSheets", [])):
                 if not isinstance(record, dict):
                     continue
-                restore_view(archive, names, path, record, label, sheet, add, owners, view_sources, MAX_CELLS - cells)
+                saved = restore_view(archive, names, path, record, label, sheet, add, owners, view_sources,
+                                     MAX_CELLS - cells)
+                if producer is not None and saved is not None:
+                    view_uid, name, frame = saved
+                    if name == "Clustered data" and view_sources[view_uid] is frame:
+                        clustered_views[view_uid] = producer
         except (KeyError, TypeError, ValueError, csv.Error):
             warnings.append(f"Some saved analysis content could not be read for {label}.")
     # The saved input may be a multivariable table emitted by a later analysis in the document.
@@ -241,9 +286,13 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             warnings.append(f"Recalculation unavailable for {label}.")
             continue
         source, method, options = recipe
+        options = {**options, PRISM_TITLE: label[:160]}
+        if source in clustered_views and _link_clustered_pca(
+                *clustered_views[source], view_sources[source], method, options):
+            continue
         restored = view_sources[source].attrs.setdefault("prism_recipes", [])
         if len(restored) < 256:
-            restored.append((method, {**options, PRISM_TITLE: label[:160]}))
+            restored.append((method, options))
     for entry in _list(sheets.get("graphs", [])):
         label = str(entry)
         try:
@@ -489,3 +538,4 @@ def restore_view(archive, names, path, record, analysis_title, analysis, add, ow
             geometry = "step"
         for dataset in frame.attrs["prism_y"]:
             owners.setdefault(dataset, []).append((frame, geometry))
+    return uid, name, frame

@@ -17,3 +17,5 @@ Apri la scheda **Risultati** per scegliere le tabelle aggiuntive. La ricerca di 
 L'importazione recupera le opzioni dei report dove riconosciute. Trama ricalcola tabelle e misure sulla propria partizione. Per confrontare con una partizione salvata, usa le tabelle archiviate del progetto originale.
 
 Nella scheda **Grafico** della selezione di k puoi affiancare al criterio scelto il gomito della WSS, la silhouette media e la statistica Gap con barre di un errore standard. Le curve usano le stesse partizioni delle tabelle. Attivare il grafico Gap calcola i campioni di riferimento anche con un altro criterio di scelta. Una ricetta importata compatibile recupera le tre opzioni di visualizzazione e le rende in un’unica figura Trama. Le viste importate conservano la presentazione archiviata dove disponibile.
+
+Quando la PCA salvata usa il foglio delle assegnazioni compatibile, Trama la collega a **Assegnazioni per ogni k**. Modifica il foglio di origine per ricalcolare in ordine clustering e PCA. **Analisi sorgente** apre le assegnazioni correnti. Per le viste che non corrispondono al foglio di origine, la PCA compatibile resta disponibile sui dati archiviati.

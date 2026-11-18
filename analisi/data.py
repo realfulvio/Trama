@@ -357,6 +357,9 @@ class Dataset:
             self.analyses = list(self.raw.attrs.get("prism_recipes", []))
             if self.analyses and not self.graph_styles:
                 self.graph_styles = deepcopy(self.raw.attrs.get("prism_graph_styles", {}))
+            if self.analyses and not self.analysis_ids and not self.analysis_sources:
+                self.analysis_ids = dict(self.raw.attrs.get("prism_analysis_ids", {}))
+                self.analysis_sources = dict(self.raw.attrs.get("prism_analysis_sources", {}))
         imported = self.raw.attrs.get("prism_formulas", {})
         imported = {name: recipe for name, recipe in imported.items() if name in self.raw}
         if imported and not self.formulas:

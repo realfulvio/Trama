@@ -12,6 +12,7 @@ DISTANCES = "Report assigned distances"
 CENTROIDS = "Report initial centroids"
 ANOVA = "Report cluster ANOVA"
 ASSIGNMENTS = "Report assignments for every k"
+ASSIGNMENTS_TABLE = "Assignments by k"
 GAP = "Report Gap statistics"
 COMMON = (DETAILS, SCALED, DISTANCES, CENTROIDS, ANOVA)
 SCAN = (*COMMON, ASSIGNMENTS, GAP)
@@ -42,6 +43,10 @@ def _unique_column(frame, label):
     return label
 
 
+def assignment_column(frame, count):
+    return _unique_column(frame, f"Cluster (k={count})")
+
+
 def _gap_table(metrics):
     columns = [name for name in ("WSS", "Gap", "Gap SE") if name in metrics]
     table = metrics.loc[:, columns].copy()
@@ -68,7 +73,7 @@ def result_tables(fits, raw, fitting_data, active, *, metrics=None):
         if assignments is not None:
             memberships = pd.array(np.full(len(raw), np.nan), dtype="Int64")
             memberships[complete] = fit.labels.to_numpy()
-            assignments[_unique_column(assignments, f"Cluster (k={k})")] = memberships
+            assignments[assignment_column(assignments, k)] = memberships
         labels = fit.labels.to_numpy() - 1
         centers = fit.centers.to_numpy()
         sizes = np.bincount(labels, minlength=k)
@@ -111,7 +116,7 @@ def result_tables(fits, raw, fitting_data, active, *, metrics=None):
 
     tables = {"Cluster variation": pd.DataFrame(summary).set_index("k")}
     if assignments is not None:
-        tables["Assignments by k"] = assignments
+        tables[ASSIGNMENTS_TABLE] = assignments
     if SCALED in active:
         tables["Standardized observations"] = fitting_data
     if details:
