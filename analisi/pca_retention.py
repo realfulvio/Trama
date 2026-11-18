@@ -92,7 +92,7 @@ _SCALE = 1e-10
 MIN_SIMULATIONS, MAX_SIMULATIONS = 10, 10_000
 MAX_SEED = 2**32 - 1
 MAX_VARIABLES = 64
-BUDGET = 2_000_000
+BUDGET = 6_000_000
 
 
 class Retention:
@@ -278,6 +278,11 @@ def _alive(eigenvalues):
     if not len(values):
         return np.zeros(0, dtype=bool)
     return values > float(np.max(values)) * _SCALE
+
+
+def living(eigenvalues):
+    """Flags of the components with a numerically positive eigenvalue, the rule used by every retention criterion."""
+    return _alive(eigenvalues)
 
 
 def _prefix(passed):

@@ -18,6 +18,7 @@ def main():
     for name in ("README.en.md", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(root / name, bundle / name)
     for name in ("features.md", "getting-started.md", "compatibility.md", "development.md", "legal.md",
+                 "pca-regression-087.md", "release-090.md", "validation-090.md",
                  "release-089.md", "validation-089.md", "release-088.md", "validation-088.md",
                  "release-087.md", "validation-087.md",
                  "pca-reports.md", "release-086.md", "validation-086.md",
@@ -48,7 +49,7 @@ def main():
     shutil.rmtree(bundle / "docs" / "media", ignore_errors=True)
     # Product media only. Raw extracted resources and historical imported
     # drawings are research evidence, not approved redistribution assets.
-    for folder in ("pca-overlays-089", "categorical-scatter-088", "pca-reports-087", "anova-ellipses-085", "anova-terms-083", "hierarchical-style-084", "conditional-hierarchical", "graph-legends", "experiment-families", "variance-ratio-079", "hierarchical-import", "analysis-chains", "fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
+    for folder in ("pca-regression-090", "pca-regression-087", "pca-overlays-089", "categorical-scatter-088", "pca-reports-087", "anova-ellipses-085", "anova-terms-083", "hierarchical-style-084", "conditional-hierarchical", "graph-legends", "experiment-families", "variance-ratio-079", "hierarchical-import", "analysis-chains", "fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
                    "anova-diagnostics-070", "variance-assumptions-070", "reference-normalization"):
         source = root / "docs" / "media" / folder
         if source.is_dir():
