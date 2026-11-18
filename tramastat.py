@@ -12578,6 +12578,13 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_paired_proportions_smoke():
+        from analisi.paired_proportions_smoke import check_paired_proportions
+        check_paired_proportions(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, LayoutDialog=LayoutDialog, GraphFormatDialog=GraphFormatDialog,
+            capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_summary_ttest_smoke():
         from analisi.summary_ttest_smoke import check_summary_ttest
         check_summary_ttest(root, app, directory, SimpleNamespace(
@@ -13302,6 +13309,14 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "equivalence":
             # The 0.71 Equivalence test (TOST) check alone: TRAMASTAT_SMOKE_ONLY=equivalence python tramastat.py --smoke DIR
             check_equivalence_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "paired-proportions":
+            # The Paired proportions (McNemar) check alone: TRAMASTAT_SMOKE_ONLY=paired-proportions python tramastat.py --smoke DIR
+            check_paired_proportions_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14068,6 +14083,7 @@ def smoke(root, app, directory, legacy_reference=None):
             filedialog=filedialog))
         check_lognormal_tests_smoke()
         check_equivalence_smoke()
+        check_paired_proportions_smoke()
         check_lognormality_smoke()
         check_lognormal_anova_smoke()
         check_summary_anova_smoke()
