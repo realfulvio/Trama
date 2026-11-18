@@ -1,0 +1,49 @@
+{
+  "one_sample": {
+    "N": 28,
+    "Total N": 28,
+    "Power": 0.8035250051904417,
+    "Effect size": 0.5517241379310344
+  },
+  "paired": {
+    "N": 36,
+    "Total N": 36,
+    "Power": 0.9049311841795319,
+    "Effect size": 0.6142951168339511,
+    "Difference SD": 3.2557641192199416,
+    "Target power": 0.9
+  },
+  "allocation": {
+    "N": 54,
+    "Total N": 135,
+    "Power": 0.8066126132756494,
+    "Effect size": 0.5,
+    "N A": 54,
+    "N B": 81,
+    "Allocation A:B": "2:3",
+    "Target power": 0.8
+  },
+  "allocation_power": {
+    "N": 52,
+    "Total N": 130,
+    "Power": 0.7915685747906802,
+    "Effect size": 0.5,
+    "N A": 52,
+    "N B": 78,
+    "Allocation A:B": "2:3"
+  },
+  "anova": {
+    "N": 35,
+    "Total N": 140,
+    "Power": 0.8560976541041775,
+    "Effect size": 0.30310889132455354,
+    "Target power": 0.85
+  },
+  "legacy": {
+    "N": 64,
+    "Total N": 128,
+    "Power": 0.801459557922254,
+    "Effect size": 0.5,
+    "Target power": 0.8
+  }
+}

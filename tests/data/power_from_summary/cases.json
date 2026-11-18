@@ -1,0 +1,28 @@
+{
+  "one_sample": {
+    "Design": "One-sample t", "Goal": "Power", "Effect input": "Means and SD",
+    "Null mean": 10, "Mean A": 11.6, "Common SD": 2.9, "Alpha": 0.05,
+    "N (per group, if independent)": 28
+  },
+  "paired": {
+    "Design": "Paired t", "Goal": "Sample size", "Effect input": "Means and SD",
+    "Mean A": 10, "Mean B": 12, "Paired SD input": "Marginal SDs and correlation",
+    "SD A": 3, "SD B": 4, "Pair correlation": 0.6, "Alpha": 0.025,
+    "Target power": 0.9
+  },
+  "allocation": {
+    "Design": "Independent t", "Goal": "Sample size", "Effect input": "Means and SD",
+    "Mean A": 5, "Mean B": 7, "Common SD": 4, "Allocation A:B": "2:3",
+    "Alpha": 0.05, "Target power": 0.8
+  },
+  "allocation_power": {
+    "Design": "Independent t", "Goal": "Power", "Effect input": "Standardized effect",
+    "Standardized effect": 0.5, "Allocation A:B": "2:3", "Alpha": 0.05,
+    "N (per group, if independent)": 52
+  },
+  "anova": {
+    "Design": "One-way ANOVA", "Goal": "Sample size", "Effect input": "Means and SD",
+    "Group means": "12; 13.5; 15; 16", "Common SD": 5, "Alpha": 0.05,
+    "Target power": 0.85
+  }
+}

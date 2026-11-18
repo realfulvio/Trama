@@ -4,7 +4,7 @@ from matplotlib.ticker import PercentFormatter
 from scipy import stats
 
 from . import (auc_peaks, cox_outputs, design, exploration, inference, logistic_diagnostics, lognormal_anova, mlr_weighting,
-               models, ols_diagnostics, operations, pca_graphs, pca_overlays, pca_regression, pca_reports,
+               models, ols_diagnostics, operations, pca_graphs, pca_overlays, pca_regression, pca_reports, power_plan,
                pca_retention, trend_anova, unequal_anova, variance_assumptions, roc as roc_module)
 from . import plot_function as function_plot
 from .deming import identity_limits, jackknife_deming
@@ -121,10 +121,9 @@ EXTRA_METHODS = {
     "Row statistics": {"Variables": MULTIPLE},
     "Reshape replicates": {"Variables": MULTIPLE, "Row label": OPTIONAL},
     "Outlier test (Grubbs)": {"Response": None, "Alpha": .05},
-    "Power and sample size": {"Goal": ("Sample size", "Power"),
-                              "Design": ("One-sample t", "Paired t", "Independent t", "One-way ANOVA"),
-                              "Standardized effect": .5, "Alpha": .05, "Target power": .8,
-                              "N (per group, if independent)": 30, "ANOVA groups": 3},
+    # Legacy recipes keep working: the keys they lack (Effect input, Allocation A:B, Show power curve) default to
+    # the standardized effect, a 1:1 allocation and no curve.
+    power_plan.METHOD: power_plan.OPTIONS,
     "Simulate data": {"Distribution": ("Normal", "XY with normal noise", "2 × 2 contingency"),
                       "N": 30, "Seed": 42, "Mean": 0., "SD": 1., "X minimum": 0., "X maximum": 1.,
                       "Intercept": 0., "Slope": 1., "Success probability A": .5, "Success probability B": .5},
@@ -518,15 +517,8 @@ def extra_analysis(method, frame, o):
         return Result({"Long format": operations.reshape_replicates(frame, o["Variables"], o.get("Row label"))})
     if method == "Outlier test (Grubbs)":
         return Result({"Grubbs' test": _report(operations.grubbs(frame, o["Response"], o["Alpha"]))})
-    if method == "Power and sample size":
-        label = {"One-sample t": "one-sample", "Paired t": "paired",
-                 "Independent t": "independent", "One-way ANOVA": "anova"}[o["Design"]]
-        args = {"alpha": o["Alpha"], "groups": o["ANOVA groups"]}
-        if o["Goal"] == "Sample size":
-            report = design.sample_size(label, o["Standardized effect"], target=o["Target power"], **args)
-        else:
-            report = design.power(label, o["Standardized effect"], o["N (per group, if independent)"], **args)
-        return Result({method: _report(report)})
+    if method == power_plan.METHOD:
+        return power_plan.analysis(o)
     if method == "Simulate data":
         kind = {"Normal": "normal", "XY with normal noise": "xy", "2 × 2 contingency": "contingency"}[o["Distribution"]]
         values = design.simulate(kind, o["N"], seed=o["Seed"], mean=o["Mean"], sd=o["SD"],
