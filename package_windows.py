@@ -18,7 +18,7 @@ def main():
     for name in ("README.en.md", "THIRD_PARTY_NOTICES.md"):
         shutil.copy2(root / name, bundle / name)
     for name in ("features.md", "getting-started.md", "compatibility.md", "development.md", "legal.md",
-                 "confidence-ellipses.md", "anova-terms-083.md",
+                 "formula-windows.md", "confidence-ellipses.md", "anova-terms-083.md",
                  "release-084.md", "validation-084.md", "hierarchical-style-081.md", "release-083.md", "validation-083.md",
                  "conditional-equations-081.md", "graph-legends.md", "release-082.md", "validation-082.md",
                  "release-081.md", "validation-081.md", "experiment-families.md", "variance-ratio-079.md",
