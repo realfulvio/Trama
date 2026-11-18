@@ -10,7 +10,7 @@ import pandas as pd
 
 from .data import Dataset, save_project
 from .i18n import active_language, set_language
-from . import pca_reports
+from . import pca_overlays, pca_reports
 from .pca_graphs import (
     BIPLOT, COLOR_GROUPS, GRAPH, HORIZONTAL, LABEL, LOADINGS, POINT_VIEWS,
     PROPORTION, SCORES, SCREE, SHOW_LABELS, VERTICAL,
@@ -105,6 +105,9 @@ def _check(root, app, directory, capture, drive, pick, select, wait, messagebox,
         reports_tab = dialog.field_rows[pca_reports.INPUT][0].master
         assert dialog.fields.tab(reports_tab, "text") == "Risultati"
         assert dialog.field_rows[pca_reports.CASES][0].cget("text") == "Contributi delle osservazioni"
+        overlays_tab = dialog.field_rows[pca_overlays.KIND][0].master
+        assert dialog.fields.tab(overlays_tab, "text") == "Contorni"
+        assert "Ellisse dei dati" in dialog.field_rows[pca_overlays.KIND][1].cget("values")
         tab = dialog.field_rows[GRAPH][0].master
         assert dialog.fields.tab(tab, "text") == "Grafico"
         dialog.ok = dialog.cancel
@@ -299,3 +302,69 @@ def _check(root, app, directory, capture, drive, pick, select, wait, messagebox,
     assert old.result.figure.axes[0].get_xlabel() == "PC1"
     assert old.result.figure.axes[0].get_ylabel() == "PC2"
     np.testing.assert_allclose(old.result.tables["Explained variance"]["Eigenvalue"], [1.6, 0.4])
+    _check_overlays(root, app, directory, capture, drive, pick, select, wait, messagebox, filedialog)
+
+
+def _check_overlays(root, app, directory, capture, drive, pick, select, wait, messagebox, filedialog):
+    frame = pd.DataFrame({
+        "Mass": [1.1, 2.1, 2.8, 1.3, 2.0, 1.4, 3.7, 4.1, 5.2, 4.4, 4.8, 3.9],
+        "Signal": [1.7, 1.4, 1.8, 2.4, 2.2, 1.1, 2.2, 3.7, 3.1, 2.7, 2.1, 3.0],
+        "Cohort": ["Reference"] * 6 + ["Treatment"] * 6,
+    })
+    path = directory / "pca-overlays.alab"
+    save_project(path, {"Measurements": Dataset(frame)})
+    app.import_file(path)
+
+    def configure(dialog):
+        pick(dialog, "Principal component analysis")
+        select(dialog, "Variables", {"Mass", "Signal"})
+        inputs = {GRAPH: SCORES, COLOR_GROUPS: "Cohort", pca_overlays.KIND: "Confidence region of mean",
+                  pca_overlays.GROUPING: pca_overlays.BY_POINTS, pca_overlays.LEVEL: "100"}
+        for key, value in inputs.items():
+            dialog.controls[key][1].set(value)
+        with patch.object(messagebox, "showerror"):
+            assert dialog.validate() is False
+        assert str(dialog.fields.select()) == str(dialog.field_rows[pca_overlays.LEVEL][0].master)
+        dialog.controls[pca_overlays.LEVEL][1].set("90,5")
+        capture(dialog, "window-pca-overlays-options.png")
+
+    drive(configure)
+    app.choose_analysis()
+    wait()
+    run = app.runs[0]
+    assert run.result.tables[pca_overlays.SHEET]["N"].tolist() == [6, 6]
+    assert run.result.tables[pca_overlays.SHEET]["Level (%)"].tolist() == [90.5, 90.5]
+    contours = run.result.figure.axes[0].patches
+    assert len(contours) == 2
+    app.show("graph", 0)
+    capture(root, "window-pca-score-overlays.png")
+    for suffix in ("svg", "png"):
+        target = directory / f"pca-score-overlays.{suffix}"
+        with patch.object(filedialog, "asksaveasfilename", return_value=str(target)):
+            app.export()
+        assert target.stat().st_size > 1000
+    app.show("data", "Measurements")
+    app.current_grid.select((1, 0))
+    app.toggle_exclusion()
+    wait()
+    assert app.runs[0].result.tables[pca_overlays.SHEET]["N"].tolist() == [5, 6]
+    assert app.save()
+    app.import_file(app.path)
+    app.open_sheet(("graph", 0))
+    wait()
+    actual = app.runs[0].result.tables[pca_overlays.SHEET]
+    assert actual["N"].tolist() == [5, 6]
+    assert actual["Level (%)"].tolist() == [90.5, 90.5]
+
+    for view in (SCREE, BIPLOT):
+        def switch(dialog):
+            dialog.controls[GRAPH][1].set(view)
+            expected = "disabled" if view == SCREE else "readonly"
+            assert str(dialog.field_rows[pca_overlays.KIND][1].cget("state")) == expected
+
+        drive(switch)
+        app.edit_analysis()
+        wait()
+        run = app.runs[0]
+        assert run.options[pca_overlays.LEVEL] == 90.5
+        assert (pca_overlays.SHEET in run.result.tables) == (view == BIPLOT)
