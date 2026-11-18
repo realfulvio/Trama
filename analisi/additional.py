@@ -7,7 +7,8 @@ from . import (auc_peaks, cox_outputs, design, exploration, inference, logistic_
                models, ols_diagnostics, operations, pca_graphs, pca_overlays, pca_regression, pca_reports,
                pca_retention, trend_anova, unequal_anova, variance_assumptions, roc as roc_module)
 from . import plot_function as function_plot
-from .deming import identity_limits, jackknife_deming
+from . import deming as deming_module
+from .deming_plot import deming_result
 from . import nonlinear_calibration as calibration
 from .nonlinear_calibration import CURVES, INVERSE_MODELS, interpolate_standard_curve
 from .processing import METHODS as PROCESSING_METHODS, processing_analysis
@@ -52,7 +53,11 @@ EXTRA_METHODS = {
                      exploration.COVERAGE: exploration.DEFAULT_PERCENT,
                      exploration.CONFIDENCE: exploration.DEFAULT_PERCENT,
                      exploration.LIMIT_INTERVALS: False, exploration.CONFIDENCE_BANDS: False},
-    "Deming regression": {"X": None, "Y": None, "Y / X error variance": 1.0,
+    "Deming regression": {"X": None, "Y": None, deming_module.Y_SERIES: OPTIONAL_MULTIPLE,
+                          # Variance ratio is first, so a recipe without these keys keeps the historical fit.
+                          deming_module.UNCERTAINTY: deming_module.UNCERTAINTY_CHOICES,
+                          "Y / X error variance": 1.0, deming_module.X_SD: 1.0, deming_module.Y_SD: 1.0,
+                          deming_module.PROJECTIONS: False,
                           # None is first so a saved recipe without this key keeps the point fit.
                           "Parameter intervals": ("None", "Jackknife (t)"),
                           "Confidence level (%)": 95.0, "Identity line": False},
@@ -197,32 +202,11 @@ def _bland_altman(frame, o):
     return Result({"Agreement": _report(report), "Paired values": points}, fig)
 
 
-def _deming_result(frame, o, fig, ax):
-    x, y = o["X"], o["Y"]
-    report, points, pairs = jackknife_deming(
-        frame, x, y, o["Y / X error variance"],
-        intervals=o.get("Parameter intervals", "None"), level=o.get("Confidence level (%)", 95.0))
-    ax.scatter(points[x], points[y])
-    slope, intercept = report["Slope"], report["Intercept"]
-    if o.get("Identity line"):
-        low, high = identity_limits(points[x], points[y])
-        domain = np.array([low, high])
-        ax.plot(domain, intercept + slope * domain, label="Deming fit")
-        ax.plot(domain, domain, linestyle="--", color="#81919b", label="Identity")
-        ax.set_xlim(low, high)
-        ax.set_ylim(low, high)
-        ax.legend()
-    else:
-        domain = np.array([points[x].min(), points[x].max()])
-        ax.plot(domain, intercept + slope * domain)
-    return Result({"Deming regression": _report(report), "Data": points, "Pairs": pairs}, fig)
-
-
 def _xy(method, frame, o):
+    if method == "Deming regression":
+        return deming_result(frame, o)
     x, y = o["X"], o["Y"]
     fig, ax = _plot(method, x, y)
-    if method == "Deming regression":
-        return _deming_result(frame, o, fig, ax)
     report, points = exploration.area_under_curve(frame, x, y, o["Baseline"])
     ax.plot(points[x], points[y], "o-")
     ax.axhline(o["Baseline"], color="#aaa")
