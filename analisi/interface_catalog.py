@@ -1044,3 +1044,19 @@ CAPTIONS.update({
     "Fill opacity (%) must be between 0 and 100.": "L’opacità del riempimento deve essere tra 0 e 100.",
     "Border opacity (%) must be between 0 and 100.": "L’opacità del bordo deve essere tra 0 e 100.",
 })
+
+# Compare independent ROC curves: the method, its fields and its fixed choices. Recipes keep the English values.
+CAPTIONS.update({
+    "Compare independent ROC curves": "Confronta curve ROC indipendenti",
+    "Area and inference": "Area e inferenza",
+    "Area": "Area",
+    "Partial": "Parziale",
+    "Standardized partial": "Parziale standardizzata",
+    "Maximum FPR": "FPR massimo",
+    "Inference": "Inferenza",
+    "DeLong": "DeLong",
+    "Percentile bootstrap": "Bootstrap percentile",
+    "Bootstrap replicates": "Repliche bootstrap",
+    "Bootstrap seed": "Seme del bootstrap",
+    "Save bootstrap": "Salva le repliche bootstrap",
+})

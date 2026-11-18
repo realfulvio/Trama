@@ -47,6 +47,7 @@ from .summary_ttest import METHOD as SUMMARY_TTEST, OPTIONS as SUMMARY_TTEST_OPT
 from .model_selection import COMPARE_MODELS, OPTIONS as COMPARE_MODELS_OPTIONS, model_selection
 from .nonlinear_bands import OPTIONS as BAND_OPTIONS, band_outputs, band_settings
 from .monte_carlo import MONTE_CARLO, OPTIONS as MONTE_CARLO_OPTIONS, monte_carlo
+from .independent_roc import METHOD as INDEPENDENT_ROC, independent_roc
 from .custom_fit import CUSTOM_EQUATION, custom_fit
 from .global_custom_fit import GLOBAL_CUSTOM_EQUATION, global_custom_fit
 from .plot_function import PLOT_FUNCTION
@@ -292,7 +293,7 @@ GROUPS = {
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
                          "Multifactor ANOVA", "Contingency table",
-                         "Bland–Altman", "ROC curve", "Compare paired ROC curves"),
+                         "Bland–Altman", "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC),
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression"),
     "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering"),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
@@ -309,7 +310,8 @@ GRAPH_METHODS = frozenset({
     "K-means clustering", "K-means model selection", "Kaplan–Meier survival", "Linear regression", COMPARE_LINES,
     "Mixed-effects model (REML)", LOGNORMAL, EQUIVALENCE, "Multiple t-tests", ROW_TESTS, "Nonlinear regression", ROBUST_CURVE, CUSTOM_EQUATION,
     GLOBAL_CUSTOM_EQUATION, "Principal component analysis",
-    "ROC curve", "Compare paired ROC curves", "Smooth / differentiate / integrate", SPLINE_FIT, *NESTED_METHODS,
+    "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC, "Smooth / differentiate / integrate", SPLINE_FIT,
+    *NESTED_METHODS,
     REFERENCE_NORMALIZATION, SUMMARY_ANOVA, SUMMARY_TTEST,
 })
 
@@ -1078,6 +1080,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return identify_outliers(frame, o)
     if method == MONTE_CARLO:
         return monte_carlo(frame, o)
+    if method == INDEPENDENT_ROC:
+        return independent_roc(frame, o, cancel=cancel)
     if method == "Histogram":
         return _distribution(method, frame, o)
     if method == REFERENCE_NORMALIZATION:
