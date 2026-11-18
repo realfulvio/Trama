@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.84 beta:** a hierarchical graph editor and restoration of selected styles and effect-size requests in compatible imports. [What’s new](docs/release-084.md) · [Verification](docs/validation-084.md).
+**New in 0.85 beta:** select multifactor ANOVA terms and format confidence ellipses by group. [What’s new](docs/release-085.md) · [Verification](docs/validation-085.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
