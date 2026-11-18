@@ -3156,6 +3156,11 @@ _IT.update(_CORR_IT)
 _EN["normality.lognormal.note"] = "Lognormal tests require positive observations and test their logarithms. Relative weights compare only the normal and lognormal fits; they are not p values or probabilities that a model is true."
 _IT["normality.lognormal.note"] = "I test lognormali richiedono osservazioni positive e ne analizzano i logaritmi. I pesi relativi confrontano solo i due modelli; non sono valori p né probabilità che un modello sia vero."
 
+# Curve pipeline (0.93): the dialog notes and the engine messages; the captions are in the interface catalog.
+from .curve_pipeline_text import EN as _CURVE_PIPELINE_EN, IT as _CURVE_PIPELINE_IT
+_EN.update(_CURVE_PIPELINE_EN)
+_IT.update(_CURVE_PIPELINE_IT)
+
 # Lognormal one-way ANOVA. Recipes keep the English field names and choice values.
 _EN.update({
     "anova.lognormal.field.distribution": "Distribution",
