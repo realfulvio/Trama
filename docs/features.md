@@ -2,7 +2,7 @@
 
 [Presentazione](../README.md) · [Guida rapida](getting-started.md) · [Compatibilità](compatibility.md)
 
-Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.87.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
+Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.88.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
 
 Il [confronto di due varianze](variance-ratio-079.md) offre intervalli esatti e una figura facoltativa.
 
@@ -76,6 +76,8 @@ Formattazione di assi, serie, gruppi e legende; Inspector con anteprima; confron
 Layout fino a 12 pannelli; export PNG, TIFF, SVG, PDF e PDF multipagina. Le porzioni vettoriali compatibili restano vettoriali negli export nativi; una heat map rasterizzata o una vista importata non diventa automaticamente un disegno nativo.
 
 ## Interoperabilità e verifiche
+
+I [grafici a dispersione importati compatibili](release-088.md) conservano coordinate modificabili, colori per categoria e assi lineari.
 
 L’importazione dei formati legacy è parziale e dipende dalla struttura del documento: vedi [formati e limiti](compatibility.md). L'[archivio delle versioni](release-history.md) conserva i dettagli storici; la [documentazione tecnica](coverage.md) approfondisce metodi e scelte numeriche.
 
