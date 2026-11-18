@@ -107,6 +107,14 @@ Lloyd|Lloyd
 Hartigan–Wong|Hartigan–Wong
 Hartigan–Wong iteration limit|Limite di iterazioni Hartigan–Wong
 Initial worksheet rows|Righe iniziali del foglio
+Report cluster details|Mostra i dettagli dei gruppi
+Report standardized observations|Mostra le osservazioni standardizzate
+Report assigned distances|Mostra le distanze dal centro assegnato
+Report initial centroids|Mostra i centri iniziali
+Report cluster ANOVA|Mostra l’ANOVA descrittiva dei gruppi
+Report assignments for every k|Mostra le assegnazioni per ogni k
+Report Gap statistics|Mostra le statistiche Gap
+Choose whether to include this report.|Scegli se includere questo report.
 Enter a whole number from 1 to 1000.|Inserisci un intero da 1 a 1000.
 Enter one distinct worksheet row per cluster, separated by commas.|Inserisci una riga distinta del foglio per ogni gruppo, separando i numeri con virgole.
 Each initial worksheet row must exist and have all selected values.|Ogni riga iniziale deve esistere e contenere tutti i valori selezionati.
