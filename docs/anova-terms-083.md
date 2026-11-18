@@ -50,7 +50,7 @@ When the ticked terms are the Full hierarchy of the chosen Factors, the numbers 
 
 ## Result sheets
 
-Selected terms inserts one sheet, `Model terms`, right after `ANOVA (type III)`. The other sheets keep their names and order. Sheet names stay canonical English in both languages, so a saved project, an exported CSV and `Use Result as Data` do not depend on the language. Full hierarchy adds no sheet.
+Selected terms inserts one sheet, `Model terms`, right after the ANOVA sheet (`ANOVA (type III)` by default; `ANOVA (type I)` or `ANOVA (type II)` when [another type of sums of squares](anova-ss-types.md) is chosen). The other sheets keep their names and order. Sheet names stay canonical English in both languages, so a saved project, an exported CSV and `Use Result as Data` do not depend on the language. Full hierarchy adds no sheet.
 
 ## Project file
 
@@ -66,7 +66,7 @@ A `.alab` project keeps the recipe, with `Term selection` and `Model terms` in t
 ## Not covered
 
 * Weak hierarchy, nested terms, covariates and terms of order higher than 3. The dialog still takes one to eight Factors, each with 2 to 128 levels in the rows the model uses.
-* Type I and Type II sums of squares.
+* Type I and Type II sums of squares are described in [anova-ss-types.md](anova-ss-types.md); this page describes the Type III default.
 * Windows and native Windows DPI were not available while this was written: **NON PROVATO**. Linux/Xvfb runs are not a Windows result.
 
 ## Checks
