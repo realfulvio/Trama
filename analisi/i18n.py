@@ -3926,3 +3926,12 @@ _IT.update({
     "hierarchy.style.error.figure": "Questo grafico non è un clustering gerarchico nativo.",
     "hierarchy.style.error.whole": "Inserisci un numero intero.",
 })
+
+# Meta-analysis of effect estimates (0.93): captions, choices, notes and the exact engine messages.
+from .meta_analysis_text import EN as _META_EN, IT as _META_IT  # noqa: E402
+
+_EN.update(_META_EN)
+_IT.update(_META_IT)
+for _key, _text in _META_EN.items():
+    if _key.startswith(("meta.field.", "meta.choice.", "meta.tab.")):
+        KEY_BY_LABEL.setdefault(_text, _key)

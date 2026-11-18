@@ -85,6 +85,8 @@ class CatalogTests(unittest.TestCase):
             "Before/after": {"Pairs": [{"Before": "x", "After": "y", "Title": ""}], "Subject": "Subject"},
             "Subject trajectories": {"Input": "Separate columns", "X": "x", "Y columns": ["y", "z"]},
             "Forest plot": {"Study": "Group", "Estimate": "x", "Lower limit": "p", "Upper limit": "y"},
+            "Meta-analysis of effect estimates": {"Study": "Group", "Estimate": "z", "Standard error": "p",
+                                                  "Show graph": False},
             "One-way ANOVA": {"Response": "y", "Group": "Group", "Method": "Welch", "Post-hoc": "Games–Howell"},
             "Repeated measures ANOVA": {"Response": "y", "Factors": ["Group"], "Subject": "Subject",
                                         "Sphericity correction": "None"},
