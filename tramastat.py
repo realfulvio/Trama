@@ -229,6 +229,15 @@ from analisi.global_uncertainty import (BAND_DRAWING as GLOBAL_DRAWING, CURVE_BA
                                         QUERY_GROUP as GLOBAL_QUERY_GROUP, QUERY_INTERVAL as GLOBAL_QUERY_INTERVAL,
                                         QUERY_K as GLOBAL_QUERY_K, QUERY_X as GLOBAL_QUERY_X,
                                         RESPONSE_LEVEL as GLOBAL_RESPONSE_LEVEL)
+from analisi.cohen_kappa import ORDER as KAPPA_ORDER, SHOW_GRAPH as KAPPA_SHOW_GRAPH, WEIGHTING as KAPPA_WEIGHTING
+from analisi.cohen_kappa_workbench import (
+    CHOICE_KEYS as KAPPA_CHOICE_KEYS, COHEN_KAPPA, HINT_KEYS as KAPPA_HINTS, INTERVAL_FIELDS as KAPPA_INTERVAL_FIELDS,
+    LABEL_KEYS as KAPPA_LABEL_KEYS, ORDER_LIST as KAPPA_ORDER_LIST, RATING_FIELDS as KAPPA_RATING_FIELDS,
+    TAB_KEYS as KAPPA_TAB_KEYS, TYPED_FIELDS as KAPPA_TYPED_FIELDS, cancellable as kappa_cancellable,
+    check_options as check_kappa_options, visibility as kappa_visibility)
+from analisi.cohen_kappa_dialog import (CategoryOrderEditor, defaults as kappa_defaults,
+                                        describe_error as describe_kappa_error, preview as kappa_preview,
+                                        read_typed as read_kappa_typed, translate_error as translate_kappa_error)
 from analisi.select_transform import CALCULATED, FILTERS, SELECT_TRANSFORM
 from analisi.select_transform_dialog import CalculatedVariables, RowFilters
 from analisi.transpose_dialog import TransposeSets
@@ -1010,6 +1019,7 @@ class AnalysisDialog(simpledialog.Dialog):
         wanted = (430 if self.method == GLOBAL_CUSTOM_EQUATION
                   else 470 if self.method == "Multiple regression"
                   else 500 if self.method == "One-way ANOVA"
+                  else 500 if self.method == COHEN_KAPPA
                   else 470 if self.method == HEAT_MAP
                   else 470 if self.method == NORMALITY
                   else 470 if self.method == REFERENCE_NORMALIZATION
@@ -1180,6 +1190,20 @@ class AnalysisDialog(simpledialog.Dialog):
             fields_by_tab.update(dict.fromkeys(XY_ERROR_TABS["X errors"], variables))
             fields_by_tab.update(dict.fromkeys(XY_ERROR_TABS["Y errors"], options))
             tabs = {tr(XY_ERROR_TAB_KEYS["Error appearance"]): XY_ERROR_TABS["Error appearance"]}
+        elif self.method == COHEN_KAPPA:
+            # Ratings (columns, weights, category order) / Interval and graph (bootstrap and figure). The Ratings
+            # page scrolls, so the order editor and its notes never push Run Analysis off a 1024×768 screen.
+            self.fields.forget(variables)
+            variables.destroy()
+            ratings_outer = ttk.Frame(self.fields)
+            self.fields.insert(0, ratings_outer, text=tr(KAPPA_TAB_KEYS["Ratings"]))
+            self.fields.select(ratings_outer)
+            variables = self._make_scrollable_tab(ratings_outer)
+            positions = {variables: 0, options: 0}
+            self.fields.tab(options, text=tr(KAPPA_TAB_KEYS["Interval and graph"]))
+            fields_by_tab.update(dict.fromkeys(KAPPA_RATING_FIELDS, variables))
+            fields_by_tab.update(dict.fromkeys(KAPPA_INTERVAL_FIELDS, options))
+            saved = {**kappa_defaults(self.data), **saved}
         elif self.method == ROBUST_CURVE:
             # Variables (data, model, starting values) / Loss and scale / Output.
             self.fields.tab(variables, text=tr(ROBUST_TAB_KEYS["variables"]))
@@ -1291,10 +1315,12 @@ class AnalysisDialog(simpledialog.Dialog):
             tost_control = self.method == EQUIVALENCE and label in TOST_LABEL_KEYS
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
+            kappa_control = self.method == COHEN_KAPPA and label in KAPPA_LABEL_KEYS
             competing_control = self.method == COMPETING_RISKS and label in COMPETING_LABEL_KEYS
             reference_control = self.method == REFERENCE_NORMALIZATION and label in REFERENCE_LABEL_KEYS
             label_text = (tr(RANK_LABEL_KEYS[label]) if rank_control
                           else tr(ROBUST_LABEL_KEYS[label]) if robust_control
+                          else tr(KAPPA_LABEL_KEYS[label]) if kappa_control
                           else tr(COMPETING_LABEL_KEYS[label]) if competing_control
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
                           else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
@@ -1360,6 +1386,13 @@ class AnalysisDialog(simpledialog.Dialog):
                     field = CodeListEditor(parent, saved.get(label), on_change=self.refresh_competing_causes)
                 else:
                     field = TimeListEditor(parent, saved.get(label))
+                field.grid(row=row, column=1, sticky="ew", pady=3)
+                self.controls[label] = (kind, field)
+                self.field_rows[label] = heading, field
+                continue
+            if kind == KAPPA_ORDER_LIST:
+                # The saved order is shown as it is; the categories of the data are compared with it, not merged.
+                field = CategoryOrderEditor(parent, saved.get(label) or [])
                 field.grid(row=row, column=1, sticky="ew", pady=3)
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
@@ -1562,6 +1595,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOST_CHOICE_KEYS)
                     elif robust_control and isinstance(kind, tuple) and label != ROBUST_MODEL:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ROBUST_CHOICE_KEYS)
+                    elif kappa_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, KAPPA_CHOICE_KEYS)
                     elif competing_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, COMPETING_CHOICE_KEYS)
                     elif self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and label == CUSTOM_SYNTAX:
@@ -1797,6 +1832,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 hint = ttk.Label(tab, text=tr(key), wraplength=ui_theme.px(400), foreground="#486075", justify="left")
                 hint.grid(row=positions[tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.show_fields(self.robust_fields())
+        if self.method == COHEN_KAPPA:
+            self.configure_kappa_fields(variables, options, positions)
         if self.method == COMPETING_RISKS:
             self.controls[COMPETING_GRAPH][1].trace_add("write", lambda *_: self.show_fields(self.competing_fields()))
             self.show_fields(self.competing_fields())
@@ -2845,6 +2882,33 @@ class AnalysisDialog(simpledialog.Dialog):
         self.clipboard_clear()
         self.clipboard_append(self.controls[MONTE_CARLO_SEED][1].get().strip())
 
+    def configure_kappa_fields(self, variables, options, positions):
+        """The order editor follows the two columns and the weighting; the bootstrap fields follow the interval."""
+        for label in ("First rating", "Second rating"):
+            self.controls[label][1].trace_add("write", lambda *_: self.refresh_kappa_order())
+        self.controls[KAPPA_WEIGHTING][1].trace_add(
+            "write", lambda *_: self.controls[KAPPA_ORDER][1].set_weighting(self.controls[KAPPA_WEIGHTING][1].get()))
+        self.controls["Confidence interval"][1].trace_add("write", lambda *_: self.show_fields(self.kappa_fields()))
+        for page, key in ((variables, "ratings"), (options, "interval")):
+            ttk.Label(page, text=tr(KAPPA_HINTS[key]), wraplength=ui_theme.px(410), foreground="#486075",
+                      justify="left").grid(row=positions[page], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            positions[page] += 1
+        self.controls[KAPPA_ORDER][1].set_weighting(self.controls[KAPPA_WEIGHTING][1].get())
+        self.refresh_kappa_order()
+        self.show_fields(self.kappa_fields())
+        self._bind_scrollable_children(variables)
+
+    def refresh_kappa_order(self):
+        if self.method != COHEN_KAPPA or KAPPA_ORDER not in self.controls:
+            return
+        first, second = (self.controls[name][1].get() for name in ("First rating", "Second rating"))
+        self.controls[KAPPA_ORDER][1].set_observed(*kappa_preview(self.data, first, second))
+
+    def kappa_fields(self):
+        if self.method != COHEN_KAPPA or "Confidence interval" not in self.controls:
+            return {}
+        return kappa_visibility(self.controls["Confidence interval"][1].get())
+
     def robust_fields(self):
         if self.method != ROBUST_CURVE or ROBUST_SCALE_METHOD not in self.controls:
             return {}
@@ -3318,6 +3382,10 @@ class AnalysisDialog(simpledialog.Dialog):
                     continue
                 if not visibility.get(name, True):
                     continue
+                if self.method == COHEN_KAPPA and (kind == KAPPA_ORDER_LIST or name in KAPPA_TYPED_FIELDS):
+                    # Hidden bootstrap fields stay in the recipe as typed; the analysis reads them only when used.
+                    options[name] = control.values() if kind == KAPPA_ORDER_LIST else read_kappa_typed(control.get())
+                    continue
                 if self.method == "One-way ANOVA" and name == VARIANCE_ALPHA and type(kind) is float:
                     raw = control.get()
                     try:
@@ -3492,6 +3560,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 # Like the interval method: an Arithmetic recipe stays exactly the recipe of earlier versions.
                 if CUSTOM_SYNTAX not in saved and options.get(CUSTOM_SYNTAX) == "Arithmetic":
                     options.pop(CUSTOM_SYNTAX, None)
+            if self.method == COHEN_KAPPA:
+                # Columns, categories, order, bootstrap fields and the size budgets; the bootstrap runs on the worker.
+                check_kappa_options(self.data, options)
             if self.method == ROBUST_CURVE:
                 # Columns, limits, the domain and the starting values; the fits run on the worker.
                 check_robust_options(self.data, options)
@@ -3609,6 +3680,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = ui(field) if field else ""
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
+            elif self.method == COHEN_KAPPA:
+                message = describe_kappa_error(error, field)
             elif self.method == ROBUST_CURVE:
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
@@ -3961,9 +4034,10 @@ class Run:
 
 
 def cancellable_run(method, options):
-    """Runs that report their progress or can be cancelled: Monte Carlo studies, exact Spearman and Gray tests."""
+    """Runs that report their progress or can be cancelled: Monte Carlo studies, exact Spearman, Gray tests and the
+    bootstrap of Cohen's kappa."""
     return (method == MONTE_CARLO_METHOD or extended_request(method, options)
-            or competing_cancellable(method, options))
+            or competing_cancellable(method, options) or kappa_cancellable(method, options))
 
 
 @dataclass
@@ -4913,6 +4987,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     shortcut = {"Kaplan–Meier survival": ("Graph settings…", SURVIVAL_CURVE),
                                 "Scatter / confidence ellipse": ("Confidence overlays…", "Ellipse"),
                                 HEAT_MAP: ("Graph settings…", self.heat_map_settings_field(run)),
+                                COHEN_KAPPA: ("Graph settings…", KAPPA_SHOW_GRAPH),
                                 ROBUST_CURVE: ("Graph settings…", ROBUST_DISPLAY),
                                 COMPETING_RISKS: ("Graph settings…", COMPETING_GRAPH)}.get(run.method)
                     if shortcut is None and (run.method in CATEGORY_GRAPHS or run.method == PARTS_GRAPH):
@@ -6346,9 +6421,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 self.status.set(f"{len(failures)} linked analyses need attention. {failures[0]}")
             elif recovered:
                 pass
-            elif cancelled and all(run.method == COMPETING_RISKS for run, _ in affected if cancellable_run(
-                    run.method, run.options)):
-                self.status.set(f"{COMPETING_RISKS} recalculation cancelled. Open the analysis to calculate again.")
+            elif cancelled and all(run.method in (COMPETING_RISKS, COHEN_KAPPA) for run, _ in affected
+                                   if cancellable_run(run.method, run.options)):
+                method = next(run.method for run, _ in affected if cancellable_run(run.method, run.options))
+                self.status.set(f"{method} recalculation cancelled. Open the analysis to calculate again.")
             elif cancelled:
                 self.status.set("Monte Carlo recalculation cancelled. Open the study to calculate again.")
             else:
@@ -6538,6 +6614,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
+                or run.method == COHEN_KAPPA
                 or getattr(run, 'source', None) is not None
                 or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
@@ -6545,6 +6622,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
         return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
                 or self._pca_regression(run)
+                or run.method == COHEN_KAPPA
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
 
@@ -6561,6 +6639,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 and options.get(mlr_weighting.GAUSSIAN_WEIGHTING, mlr_weighting.UNWEIGHTED)
                 != mlr_weighting.UNWEIGHTED):
             # A fixed Gaussian weight can become invalid after a data edit; the dialog reopens on its field.
+            return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
+        if method == COHEN_KAPPA:
+            # An edited or excluded cell can change the categories, so the order is fixed in the reopened dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "One-way ANOVA":
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
@@ -6608,6 +6689,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         formatted = (format_anova_error(error) if run.method == "Multifactor ANOVA"
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
+                     else describe_kappa_error(error) if run.method == COHEN_KAPPA
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
                      else format_fdr_error(error) if run.method == FDR_METHOD
@@ -6944,7 +7026,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.add_result(run, future.result(), index, reveal=reveal)
         except MonteCarloCancelled:
             # Nothing is recorded: a new study adds no recipe and an existing one keeps its last results.
-            noun = "analysis" if run.method == COMPETING_RISKS else "study"
+            noun = "analysis" if run.method in (COMPETING_RISKS, COHEN_KAPPA) else "study"
             if index is None:
                 detail = f"No {noun} was added."
             elif self.runs[index].result is not None:
@@ -6954,6 +7036,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.status.set(f"{run.method} cancelled. {detail}")
         except Exception as error:
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
+                     else describe_kappa_error(error) if run.method == COHEN_KAPPA
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
                      else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
@@ -7069,6 +7152,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      if run.method == VARIANCE_RATIO
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA"
+                     else translate_kappa_error(run.calculation_error) if run.method == COHEN_KAPPA
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
                      else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
@@ -12743,6 +12827,12 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, errors=errors))
 
+    def check_cohen_kappa_smoke():
+        from analisi.cohen_kappa_smoke import check_cohen_kappa
+        check_cohen_kappa(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_correlation_details_smoke():
         from analisi.correlation_details_smoke import check_correlation_details
         check_correlation_details(root, app, directory, SimpleNamespace(
@@ -13407,6 +13497,14 @@ def smoke(root, app, directory, legacy_reference=None):
             return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "spearman-extended":
             check_spearman_extended_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cohen-kappa":
+            # The Cohen's kappa check alone: TRAMASTAT_SMOKE_ONLY=cohen-kappa python tramastat.py --smoke DIR
+            check_cohen_kappa_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14215,6 +14313,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_correlation_details_smoke()
         check_spearman_extended_smoke()
         check_robust_curve_smoke()
+        check_cohen_kappa_smoke()
         check_competing_risks_smoke()
         check_nonlinear_weighting_smoke()
         check_global_irls_smoke()

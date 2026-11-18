@@ -3417,6 +3417,18 @@ for _key, _english in _EN.items():
 # The one-way field is new. English on screen must stay exactly this string.
 KEY_BY_LABEL.setdefault("Ratio direction", "anova.lognormal.field.direction")
 
+# Cohen's kappa (0.93): captions, choices, hints and the engine messages, kept in a leaf module. Merged after the
+# label map above, so its generic captions (Linear, None, Up) do not change how other dialogs translate them; only
+# the method name and the four field captions no other method uses join the map.
+from .cohen_kappa_text import EN as _KAPPA_EN, IT as _KAPPA_IT
+
+_EN.update(_KAPPA_EN)
+_IT.update(_KAPPA_IT)
+KEY_BY_LABEL.setdefault("Cohen's kappa", "interface.Cohen's kappa")
+for _english, _key in (("First rating", "kappa.field.first"), ("Second rating", "kappa.field.second"),
+                       ("Category order", "kappa.field.order"), ("Resamples", "kappa.field.resamples")):
+    KEY_BY_LABEL.setdefault(_english, _key)
+
 
 def fixed_choice_keys(values):
     """Catalog keys for a control's fixed canonical choices; unknown values stay literal.
