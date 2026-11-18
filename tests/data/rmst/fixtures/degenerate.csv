@@ -1,0 +1,10 @@
+Time,Event,Group
+1,0,All censored
+3,0,All censored
+5,0,All censored
+0,1,Immediate event
+0,1,Immediate event
+0,1,Immediate event
+1,1,Terminal event
+2,1,Terminal event
+3,1,Terminal event

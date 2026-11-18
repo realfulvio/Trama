@@ -44,6 +44,7 @@ from .linear_diagnostics import LINEAR_OPTIONS, linear_result
 from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, equivalence_test
 from .competing_risks_workbench import (COMPETING_RISKS, OPTIONS as COMPETING_RISKS_OPTIONS,
                                         competing_risks)
+from .rmst_workbench import OPTIONS as RMST_OPTIONS, RMST, rmst
 from .lognormal_tests import LOGNORMAL, OPTIONS as LOGNORMAL_OPTIONS, lognormal_test
 from .variance_ratio import METHOD as VARIANCE_RATIO, SHOW as VARIANCE_SHOW, analysis as variance_ratio_analysis, attach_ttest
 from .summary_anova import METHOD as SUMMARY_ANOVA, OPTIONS as SUMMARY_ANOVA_OPTIONS, summary_anova
@@ -195,6 +196,7 @@ METHODS = {
                      "Graph": ("None", "Variance ratio", "SD ratio")},
     EQUIVALENCE: EQUIVALENCE_OPTIONS,
     COMPETING_RISKS: COMPETING_RISKS_OPTIONS,
+    RMST: RMST_OPTIONS,
     SUMMARY_ANOVA: SUMMARY_ANOVA_OPTIONS,
     SUMMARY_TTEST: SUMMARY_TTEST_OPTIONS,
     MANN_WHITNEY: RANK_OPTIONS[MANN_WHITNEY],
@@ -304,7 +306,7 @@ GROUPS = {
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
                          "Multifactor ANOVA", "Contingency table",
                          "Bland–Altman", "ROC curve", "Compare paired ROC curves"),
-    "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS),
+    "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS, RMST),
     "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering"),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
                  PARTS_GRAPH, "Box / violin plot", BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
@@ -321,7 +323,7 @@ GRAPH_METHODS = frozenset({
     "Mixed-effects model (REML)", LOGNORMAL, EQUIVALENCE, "Multiple t-tests", ROW_TESTS, "Nonlinear regression", ROBUST_CURVE, CUSTOM_EQUATION,
     GLOBAL_CUSTOM_EQUATION, "Principal component analysis",
     "ROC curve", "Compare paired ROC curves", "Smooth / differentiate / integrate", SPLINE_FIT, *NESTED_METHODS,
-    REFERENCE_NORMALIZATION, SUMMARY_ANOVA, SUMMARY_TTEST,
+    REFERENCE_NORMALIZATION, SUMMARY_ANOVA, SUMMARY_TTEST, RMST,
 })
 
 
@@ -1040,6 +1042,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return equivalence_test(frame, o)
     if method == COMPETING_RISKS:
         return competing_risks(frame, o, cancel=cancel)
+    if method == RMST:
+        return rmst(frame, o)
     if method == SUMMARY_ANOVA:
         return summary_anova(frame, o)
     if method == SUMMARY_TTEST:

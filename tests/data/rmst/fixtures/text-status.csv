@@ -1,0 +1,12 @@
+Time,Status,Cohort
+1,event,Ref
+2,lost,Ref
+4,event,Ref
+6,lost,Ref
+1,lost,Active
+2,event,Active
+4,lost,Active
+7,event,Active
+3,,Ref
+,lost,Active
+3,event,
