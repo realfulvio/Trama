@@ -44,6 +44,7 @@ from .linear_diagnostics import LINEAR_OPTIONS, linear_result
 from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, equivalence_test
 from .competing_risks_workbench import (COMPETING_RISKS, OPTIONS as COMPETING_RISKS_OPTIONS,
                                         competing_risks)
+from .cox_exact import METHOD as COX_REGRESSION, cox_exact_result, is_exact as is_cox_exact
 from .lognormal_tests import LOGNORMAL, OPTIONS as LOGNORMAL_OPTIONS, lognormal_test
 from .variance_ratio import METHOD as VARIANCE_RATIO, SHOW as VARIANCE_SHOW, analysis as variance_ratio_analysis, attach_ttest
 from .summary_anova import METHOD as SUMMARY_ANOVA, OPTIONS as SUMMARY_ANOVA_OPTIONS, summary_anova
@@ -1040,6 +1041,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return equivalence_test(frame, o)
     if method == COMPETING_RISKS:
         return competing_risks(frame, o, cancel=cancel)
+    if method == COX_REGRESSION and is_cox_exact(o):
+        return cox_exact_result(frame, o, cancel=cancel)
     if method == SUMMARY_ANOVA:
         return summary_anova(frame, o)
     if method == SUMMARY_TTEST:
