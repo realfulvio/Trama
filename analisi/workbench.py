@@ -61,6 +61,7 @@ from .outlier_screening import OPTIONS as OUTLIER_OPTIONS, OUTLIERS, identify_ou
 from .parameter_intervals import (OPTIONS as PARAMETER_CI_OPTIONS, settings as parameter_ci_settings,
                                   parameter_outputs, ProfileBudget)
 from .normality import NORMALITY, OPTIONS as NORMALITY_OPTIONS, is_legacy as legacy_normality, normality
+from .paired_proportions import OPTIONS as PAIRED_PROPORTIONS_OPTIONS, PAIRED_PROPORTIONS, paired_proportions
 from .nested import METHODS as NESTED_METHODS, NESTED_ANOVA, NESTED_T, nested_analysis
 from .select_transform import SELECT_OPTIONS, SELECT_TRANSFORM, select_transform
 from .parts_of_whole import GOODNESS_OF_FIT, GOODNESS_OPTIONS, PARTS_GRAPH, PARTS_OPTIONS, goodness_of_fit, parts_graph
@@ -204,6 +205,7 @@ METHODS = {
     ROW_TESTS: ROW_TEST_OPTIONS,
     **NESTED_METHODS,
     CONTINGENCY: CONTINGENCY_OPTIONS,
+    PAIRED_PROPORTIONS: PAIRED_PROPORTIONS_OPTIONS,
     PARTS_GRAPH: PARTS_OPTIONS,
     GOODNESS_OF_FIT: GOODNESS_OPTIONS,
     "Linear regression": {"X": None, "Y": None, **LINEAR_OPTIONS},
@@ -299,6 +301,7 @@ GROUPS = {
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
                          "Multifactor ANOVA", "Contingency table",
+                         PAIRED_PROPORTIONS,
                          "Bland–Altman", "ROC curve", "Compare paired ROC curves"),
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression"),
     "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering"),
@@ -1029,6 +1032,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return heat_map(frame, o)
     if method == CONTINGENCY:
         return contingency(frame, o)
+    if method == PAIRED_PROPORTIONS:
+        return paired_proportions(frame, o)
     if method == PARTS_GRAPH:
         return parts_graph(frame, o)
     if method == GOODNESS_OF_FIT:

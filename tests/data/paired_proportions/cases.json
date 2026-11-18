@@ -1,0 +1,92 @@
+{
+  "direction": {
+    "counts": [
+      4,
+      9,
+      2,
+      2
+    ],
+    "level": 95,
+    "method": "Exact"
+  },
+  "reversed": {
+    "counts": [
+      4,
+      2,
+      9,
+      2
+    ],
+    "level": 95,
+    "method": "Exact"
+  },
+  "mid": {
+    "counts": [
+      4,
+      9,
+      2,
+      2
+    ],
+    "level": 90,
+    "method": "Mid-p"
+  },
+  "continuity": {
+    "counts": [
+      4,
+      9,
+      2,
+      2
+    ],
+    "level": 95,
+    "method": "Chi-square with continuity correction"
+  },
+  "one-way-gains": {
+    "counts": [
+      4,
+      6,
+      0,
+      2
+    ],
+    "level": 95,
+    "method": "Exact"
+  },
+  "one-way-losses": {
+    "counts": [
+      4,
+      0,
+      6,
+      2
+    ],
+    "level": 95,
+    "method": "Exact"
+  },
+  "no-discordance": {
+    "counts": [
+      4,
+      0,
+      0,
+      5
+    ],
+    "level": 95,
+    "method": "Exact"
+  },
+  "even-middle": {
+    "counts": [
+      4,
+      3,
+      3,
+      2
+    ],
+    "level": 95,
+    "method": "Mid-p"
+  },
+  "adjacent": {
+    "counts": [
+      4,
+      2,
+      3,
+      2
+    ],
+    "level": 95,
+    "method": "Chi-square with continuity correction"
+  }
+}
