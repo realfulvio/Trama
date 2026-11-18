@@ -134,9 +134,10 @@ from analisi.xy_errors import (ERROR_COLOR as XY_ERROR_COLOR, XY_ERRORS, XY_ERRO
 from analisi.xy_series import (XY_METHOD, assign_colors, check_xy_options, prune_options,
                                style_after_parameter_change as xy_style, xy_series)
 from analisi.parameter_dialog import GlobalParameters, SeriesConstraints
+from analisi.exact_binomial import EXACT as EXACT_BINOMIAL, LEVEL_FIELD as BINOMIAL_LEVEL
 from analisi.parts_of_whole import (APPLY_SEGMENT_STYLES, BORDER_COLOR, BORDER_WIDTH, CLOCKWISE, DONUT, DOTS,
                                     EXPECTED as EXPECTED_DISTRIBUTIONS, GOODNESS_OF_FIT, PARTS_GRAPH, PIE,
-                                    SEGMENT_STYLES, SLICE_LABELS, START_ANGLE, pie_value_is_default)
+                                    SEGMENT_STYLES, SLICE_LABELS, START_ANGLE, TEST_METHOD, pie_value_is_default)
 from analisi.graph_inspector import GraphInspector
 from analisi.presentation import Layout, apply_style, compose_layout, graph_groups, graph_series
 from analisi.qq_panel_dialog import QQPanelsDialog
@@ -1858,6 +1859,13 @@ class AnalysisDialog(simpledialog.Dialog):
                     self.controls[BORDER_COLOR][1].set("white")
             label = "Graph style" if self.method == PARTS_GRAPH else "Expected distribution"
             self.controls[label][1].trace_add("write", lambda *_: self.show_parts_fields())
+            if self.method == GOODNESS_OF_FIT:
+                # One line under the Options fields: what the exact test reports, or that the switch reset a value.
+                self.goodness_note = ttk.Label(options, wraplength=ui_theme.px(400), foreground="#486075",
+                                               justify="left")
+                self.goodness_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+                self.controls[TEST_METHOD][1].trace_add("write", lambda *_: self.show_goodness_fields())
+                self.show_goodness_fields()
             self.show_parts_fields()
         if self.method in NESTED_METHODS:
             self.show_fields(self.nested_visibility())
@@ -3009,11 +3017,26 @@ class AnalysisDialog(simpledialog.Dialog):
                     START_ANGLE: pie, CLOCKWISE: pie, SLICE_LABELS: pie, BORDER_COLOR: pie,
                     BORDER_WIDTH: pie, SEGMENT_STYLES: True}
         if self.method == GOODNESS_OF_FIT:
-            return {"Expected values": self.controls["Expected distribution"][1].get() != EXPECTED_DISTRIBUTIONS[0]}
+            exact = self.controls[TEST_METHOD][1].get() == EXACT_BINOMIAL
+            return {"Expected values": self.controls["Expected distribution"][1].get() != EXPECTED_DISTRIBUTIONS[0],
+                    "Estimated parameters": not exact, BINOMIAL_LEVEL: exact}
         return {}
 
     def show_parts_fields(self):
         self.show_fields(self.parts_visibility())
+
+    def show_goodness_fields(self):
+        """Switching to the exact test sets Estimated parameters back to 0 in plain view, then shows the right fields."""
+        note = ""
+        if self.controls[TEST_METHOD][1].get() == EXACT_BINOMIAL:
+            estimated = self.controls["Estimated parameters"][1]
+            if estimated.get().strip() not in ("", "0"):
+                estimated.set("0")
+                note = tr("goodness.note.reset")
+            else:
+                note = tr("goodness.note.exact")
+        self.goodness_note.configure(text=note)
+        self.show_parts_fields()
 
     def _install_segment_styles(self, saved, positions):
         parent = self.field_rows["Graph style"][0].master
@@ -3559,6 +3582,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     or self.method in PROCESSING_METHODS
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
                     or self.method == PARTS_GRAPH
+                    or (self.method == GOODNESS_OF_FIT and options.get(TEST_METHOD) == EXACT_BINOMIAL)
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
                                        BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
                                        "One-way ANOVA", REFERENCE_NORMALIZATION,
@@ -3628,6 +3652,11 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = translate_message(message, "parameter_ci.error.")
                 label = tr(PARAM_CI_LABELS[field]) if field in PARAM_CI_LABELS else ui(field)
                 if label and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == GOODNESS_OF_FIT:
+                message = ui(translate_message(message, "goodness.error."))
+                label = ui(field) if field else ""
+                if label and label.casefold() not in message.casefold():
                     message = f"{label}: {message}"
             elif self.method in (NORMALITY, SUMMARY_ANOVA, SUMMARY_TTEST, *kmeans_options.METHODS):
                 message = ui(message)
@@ -12879,6 +12908,13 @@ def smoke(root, app, directory, legacy_reference=None):
             drive_dialog=drive_dialog, pick_method=pick_method, select_columns=select_columns,
             wait_for_calculation=wait_for_calculation, filedialog=filedialog, errors=errors))
 
+    def check_binomial_goodness_smoke():
+        from analisi.binomial_goodness_smoke import check_binomial_goodness
+        check_binomial_goodness(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+            select_columns=select_columns, drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+            wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset, errors=errors))
+
     def check_family_workflow_smoke():
         from analisi.family_workflow_smoke import check_family_workflow
         check_family_workflow(root, app, directory, SimpleNamespace(
@@ -13633,6 +13669,15 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "binomial-goodness":
+            # The 0.93 exact binomial test of Compare observed distribution with expected, alone:
+            # TRAMASTAT_SMOKE_ONLY=binomial-goodness python tramastat.py --smoke DIR
+            check_binomial_goodness_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "variance-ratio":
             # The two-sample variance comparison alone:
             # TRAMASTAT_SMOKE_ONLY=variance-ratio python tramastat.py --smoke DIR
@@ -14360,6 +14405,7 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
             drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
             wait_for_calculation=wait_for_calculation, save_project=save_project, Dataset=Dataset))
+        check_binomial_goodness_smoke()
         from analisi.fit_quality_smoke import check_fit_quality
         check_fit_quality(root, app, directory, SimpleNamespace(
             capture=capture, pick_method=pick_method, select_columns=select_columns,
