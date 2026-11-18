@@ -3,7 +3,7 @@ import numpy as np
 from matplotlib.ticker import PercentFormatter
 from scipy import stats
 
-from . import (auc_peaks, cox_outputs, design, exploration, inference, logistic_diagnostics, lognormal_anova, mlr_weighting,
+from . import (auc_peaks, cox_outputs, design, exploration, independent_roc, inference, logistic_diagnostics, lognormal_anova, mlr_weighting,
                models, ols_diagnostics, operations, pca_graphs, pca_overlays, pca_regression, pca_reports,
                pca_retention, trend_anova, unequal_anova, variance_assumptions, roc as roc_module)
 from . import plot_function as function_plot
@@ -48,6 +48,7 @@ EXTRA_METHODS = {
                                   "Direction A": roc_module.PAIRED_DIRECTIONS,
                                   "Direction B": roc_module.PAIRED_DIRECTIONS,
                                   "Confidence level (%)": roc_module.DEFAULT_LEVEL},
+    independent_roc.METHOD: independent_roc.OPTIONS,
     "Bland–Altman": {"First": None, "Second": None, "Method": exploration.AGREEMENT_METHODS,
                      exploration.COVERAGE: exploration.DEFAULT_PERCENT,
                      exploration.CONFIDENCE: exploration.DEFAULT_PERCENT,
