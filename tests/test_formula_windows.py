@@ -82,8 +82,8 @@ class WindowFormulaTests(unittest.TestCase):
         np.testing.assert_allclose(leading, [80, 80, 80, 80, 80, 80])
 
     def test_tied_sort_values_keep_source_order(self):
-        frame = pd.DataFrame({"X": [2, 20, 4, 40], "Visit": [1, 2, 1, 2]})
-        np.testing.assert_allclose(formula(frame, "SUM(X) ORDER BY Visit DESC ROWS UNBOUNDED PRECEDING"),
+        frame = pd.DataFrame({"X": [2, 20, 4, 40], "Order": [1, 2, 1, 2]})
+        np.testing.assert_allclose(formula(frame, "SUM(X) ORDER BY Order DESC ROWS UNBOUNDED PRECEDING"),
                                    [62, 20, 66, 60])
 
     def test_project_reopens_with_live_exclusions_and_formula(self):
