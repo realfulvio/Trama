@@ -1,0 +1,17 @@
+Visit,Treatment,Signal
+Week $2$,Drug,3
+Week $2$,Placebo,10
+Baseline,Drug,1
+Week $2$,Drug,5
+Week $2$,Placebo,12
+Baseline,Drug,3
+Week $2$,Drug,7
+Week $2$,Placebo,14
+Baseline,Drug,3
+Week $2$,Drug,9
+Week $2$,Placebo,18
+Baseline,Drug,7
+,Drug,91
+Baseline,,92
+Week $2$,Placebo,
+Week $2$,Drug,11

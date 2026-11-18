@@ -1,0 +1,52 @@
+{
+  "Group summary": [
+    {
+      "Group": "Week $2$",
+      "N": 9,
+      "Median": 10.0,
+      "Minimum": 3.0,
+      "Q1": 6.0,
+      "Q3": 13.0,
+      "Maximum": 18.0,
+      "Mean": 9.88888888888889,
+      "Lower whisker": 3.0,
+      "Upper whisker": 18.0,
+      "Outside whiskers": 0,
+      "Note": ""
+    },
+    {
+      "Group": "Baseline",
+      "N": 5,
+      "Median": 3.0,
+      "Minimum": 1.0,
+      "Q1": 2.0,
+      "Q3": 49.5,
+      "Maximum": 92.0,
+      "Mean": 21.2,
+      "Lower whisker": 1.0,
+      "Upper whisker": 92.0,
+      "Outside whiskers": 0,
+      "Note": ""
+    }
+  ],
+  "Settings": [
+    {
+      "Value": "Single response"
+    },
+    {
+      "Value": "Box"
+    },
+    {
+      "Value": "Quartiles and percentiles: rank (N + 1) p, linear interpolation, saturated at min and max."
+    },
+    {
+      "Value": "Median and range."
+    },
+    {
+      "Value": "Tukey"
+    },
+    {
+      "Value": "Most extreme observation within Q1 − 1.5 IQR and Q3 + 1.5 IQR, limits included."
+    }
+  ]
+}
