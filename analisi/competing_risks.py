@@ -39,6 +39,7 @@ from scipy import stats
 
 from .field_error import FieldError
 from .monte_carlo import MonteCarloCancelled
+from .processing import _check_integer_precision
 
 CENSORED = 0
 MAX_ROWS = 100_000
@@ -120,10 +121,9 @@ def parse_code(text, field, numeric):
         code = Decimal("NaN")
     if not code.is_finite() or code != code.to_integral_value():
         raise FieldError(field, f"{field}: {text!r} must be a whole number for a numeric status column.")
-    code = int(code)
     if not -(2**63) <= code < 2**63:
         raise FieldError(field, f"{field}: {text!r} is outside the 64-bit integer range.")
-    return code
+    return int(code)
 
 
 def _unique_key(value):
@@ -197,8 +197,19 @@ def prepare(frame, time, status, group, censor, events):
         raise FieldError("Time", f'Column "{time}" must be numeric.')
     try:
         values = raw.to_numpy(dtype=float)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         raise FieldError("Time", f'Column "{time}" must be numeric.') from None
+    if is_integer_dtype(raw.dtype):
+        _check_integer_precision(raw, values, "Time")
+    elif raw.dtype == object:
+        if any(isinstance(value, (bool, np.bool_)) for value in raw):
+            raise FieldError("Time", f'Column "{time}" must be numeric.')
+        large = np.isfinite(values) & (values >= 2**53)
+        for original, value in zip(raw.iloc[large], values[large], strict=True):
+            if isinstance(original, (str, int, np.integer, Decimal)):
+                exact = Decimal(str(original))
+                if exact != Decimal(value):
+                    raise FieldError("Time", f'Column "{time}" contains integers outside the supported precision.')
     bad = ~np.isfinite(values) | (values < 0)
     if bad.any():
         at = int(np.flatnonzero(bad)[0])

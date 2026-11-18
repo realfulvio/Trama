@@ -382,3 +382,11 @@ class FigureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NumericBoundsTests(unittest.TestCase):
+    def test_unrepresentable_number_names_its_field(self):
+        for field, value in ((cr.LEVEL, 10**500), (cr.TIMES, [10**500])):
+            with self.subTest(field=field), self.assertRaises(FieldError) as caught:
+                cr.Settings({field: value})
+            self.assertEqual(caught.exception.field, field)
