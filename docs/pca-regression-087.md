@@ -1,7 +1,5 @@
 # Regressione sulle componenti principali (PCR)
 
-Nota del ramo `claude/project-thread-h92kuz`: incarico della 0.87, rebasato su main 0.88 beta. Non è una release: versione, README principale, portabile Windows e pubblicazione restano al coordinatore.
-
 In **Analyze → Principal component analysis**, scegli due o più colonne numeriche come predittori e apri la scheda **Regression** (in italiano **Regressione**). Con **Principal component regression** attivo l'analisi stima la PCA come sempre e, in più, regredisce una risposta numerica sulle componenti trattenute. Coefficienti, stime per riga, intervalli e grafici si leggono nelle unità delle colonne originali.
 
 ![Scheda Regression del dialogo PCA](media/pca-regression-087/dialog-en.png)
@@ -72,7 +70,7 @@ I grafici si aprono nelle viste normali di Trama e supportano Inspector, esporta
 ## Casi limite
 
 - **Risposta costante** (SST = 0): `R squared`, `Adjusted R squared`, `F` e `p` globale restano vuoti.
-- **Fit esatto** (SSE = 0): gli intervalli si riducono alla stima, gli errori standard sono zero, `t` e `p` dei coefficienti restano vuoti dove il rapporto non è definito. Con SST positivo, `F` è infinito e `p` è 0. Un residuo sotto 64 volte l'epsilon macchina per la scala della risposta è trattato come esatto.
+- **Fit esatto** (SSE = 0): gli intervalli si riducono alla stima, gli errori standard sono zero, `t` e `p` dei coefficienti restano vuoti dove il rapporto non è definito. Con SST positivo, `F` è infinito e `p` è 0. La soglia di arrotondamento usa 64 volte l’epsilon macchina per la scala della risposta dopo aver sottratto il primo valore usato nel fit.
 - **Rango**: la matrice di progetto è rifiutata quando il valore singolare minimo scalato scende sotto 16·max(*n*, *k* + 1) volte l'epsilon macchina. Nel caso *pcr-response-rank* il rango basta nella PCA e si perde solo sul sottoinsieme con risposta.
 - **Dominio numerico**: dati che escono dal campo finito danno un errore esplicito sul campo risposta, non risultati non finiti.
 
