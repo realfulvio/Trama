@@ -165,6 +165,7 @@ Fit custom equation|Adatta un’equazione personalizzata
 Global fit custom equation|Adattamento globale di un’equazione personalizzata
 Principal component analysis|Analisi delle componenti principali
 Multiple regression|Regressione multipla
+Negative binomial regression|Regressione binomiale negativa
 Cox regression|Regressione di Cox
 Competing risks|Rischi competitivi
 Multiple t-tests|Test t multipli

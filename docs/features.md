@@ -37,7 +37,7 @@ Sono disponibili normalità e Q–Q, screening di outlier ROUT su modello costan
 
 ## Regressioni, curve e calibrazione
 
-- Regressione lineare, confronto fra rette, Deming, regressioni multiple OLS (anche pesate con pesi fissi gaussiani: 1/|Y|, 1/Y², 1/|Y|^K, 1/SD² o colonna di pesi), logistiche e Poisson con esposizione e diagnostica.
+- Regressione lineare, confronto fra rette, Deming, regressioni multiple OLS (anche pesate con pesi fissi gaussiani: 1/|Y|, 1/Y², 1/|Y|^K, 1/SD² o colonna di pesi), logistiche e Poisson con esposizione e diagnostica. [Regressione binomiale negativa (NB2)](nb2-regression.md) per conteggi sovradispersi: esposizione, predittori categorici, α stimata per massima verosimiglianza o fissa, IRR con intervalli di Wald e residui di Pearson.
 - 118 equazioni a catalogo in 14 famiglie; pesi osservati e IRLS dove supportati, vincoli, diagnostica e bande puntuali.
 - [Intervalli dei parametri nei fit non lineari](nonlinear-parameter-intervals.md): Wald a livello configurabile e profili extra-SS asimmetrici nei fit indipendenti, inclusi i pesi osservati e quelli finali congelati IRLS, con stati per ciascun estremo e annullamento.
 - [Profili dei parametri per equazioni personalizzate](custom-parameter-profiles.md), con coefficienti fissi, vincoli, SD relative, stati per ogni estremo e annullamento.
