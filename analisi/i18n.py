@@ -3153,6 +3153,94 @@ _CORR_IT.update({
 _EN.update(_CORR_EN)
 _IT.update(_CORR_IT)
 
+# Repeated-measures correlation (0.93). Recipes keep the English field names and choices; engine messages are
+# translated by pattern, so every placeholder name is unique within its message.
+_RMCORR_EN = {
+    "rmcorr.field.subject": "Subject", "rmcorr.field.x": "X", "rmcorr.field.y": "Y",
+    "rmcorr.field.interval": "Confidence interval", "rmcorr.field.level": "Confidence level (%)",
+    "rmcorr.field.replicates": "Bootstrap replicates", "rmcorr.field.seed": "Seed",
+    "rmcorr.field.graph": "Show graph",
+    "rmcorr.choice.none": "None", "rmcorr.choice.bootstrap": "Subject bootstrap",
+    "rmcorr.note.model": "Long data: one row per measurement, with the subject in its own column. The coefficient "
+                         "measures the association within subjects: every subject keeps its own intercept and all "
+                         "subjects share one slope (common-slope assumption). It is not Pearson's r of the pooled "
+                         "rows or of the subject means, which mix the differences between subjects into the "
+                         "coefficient. A subject with a single complete pair stays in the sheets but not in the fit.",
+    "rmcorr.note.bootstrap": "Subject bootstrap resamples whole subjects with their pairs. The percentile interval "
+                             "is approximate; the level and seed are saved with the results. 100 to 10,000 "
+                             "replicates, at most 2,000,000 subjects × replicates. A style change never repeats "
+                             "the resampling.",
+    "rmcorr.error.column": "Choose a column for {field}.",
+    "rmcorr.error.missing_column": 'Column "{name}" is not in the table.',
+    "rmcorr.error.distinct": "Choose three different columns for Subject, X and Y.",
+    "rmcorr.error.choice": "Choose a valid {field}.",
+    "rmcorr.error.flag": "{field} must be on or off.",
+    "rmcorr.error.whole": "{field} must be a whole number from {low} to {high}.",
+    "rmcorr.error.level": "{field} must be a finite number strictly between 0 and 100.",
+    "rmcorr.error.numbers": 'Column "{name}" must contain numbers.',
+    "rmcorr.error.value": 'Column "{name}" has a value that is not a finite number in row {row}.',
+    "rmcorr.error.range": 'Column "{name}" has a value outside −1e100 to 1e100 in row {row}.',
+    "rmcorr.error.precision_integer": 'Column "{name}" contains integers outside the supported precision.',
+    "rmcorr.error.subject": "Row {row} has an X or Y value but no subject.",
+    "rmcorr.error.pairs_limit": "At most {limit} complete pairs are supported; {count} were found.",
+    "rmcorr.error.subjects_limit": "At most {limit} subjects with two or more complete pairs are supported; "
+                                   "{count} were found.",
+    "rmcorr.error.subjects": "At least two subjects with two or more complete pairs are required; {count} were found.",
+    "rmcorr.error.df": "The fit needs N − S − 1 > 0; N = {pairs} and S = {subjects}.",
+    "rmcorr.error.constant": 'Column "{name}" does not vary within any subject with two or more complete pairs.',
+    "rmcorr.error.precision": 'Column "{name}" varies within subjects by less than the precision of its values. '
+                              "Subtract a constant or change the unit.",
+    "rmcorr.error.budget": "Subjects × replicates is {work}; the limit is {limit}. Use fewer replicates.",
+    # Typed-entry checks of the shared dialog, before the engine reads the recipe.
+    "rmcorr.error.dialog_whole": "{field} must be a whole number.",
+    "rmcorr.error.dialog_number": "{field} must be a number.",
+    "rmcorr.error.dialog_finite": "{field} must be finite.",
+}
+_RMCORR_IT = {
+    "rmcorr.field.subject": "Soggetto", "rmcorr.field.x": "X", "rmcorr.field.y": "Y",
+    "rmcorr.field.interval": "Intervallo di confidenza", "rmcorr.field.level": "Livello di confidenza (%)",
+    "rmcorr.field.replicates": "Repliche bootstrap", "rmcorr.field.seed": "Seme casuale",
+    "rmcorr.field.graph": "Mostra grafico",
+    "rmcorr.choice.none": "Nessuno", "rmcorr.choice.bootstrap": "Bootstrap per soggetti",
+    "rmcorr.note.model": "Dati in formato lungo: una riga per misura, con il soggetto in una colonna propria. Il "
+                         "coefficiente misura l’associazione entro i soggetti: ogni soggetto mantiene la propria "
+                         "intercetta e tutti condividono la stessa pendenza (assunzione di pendenza comune). Non è la "
+                         "r di Pearson sulle righe aggregate né sulle medie dei soggetti, che mescolano nel "
+                         "coefficiente le differenze tra soggetti. Un soggetto con una sola coppia completa resta nei "
+                         "fogli ma non entra nell’adattamento.",
+    "rmcorr.note.bootstrap": "Il bootstrap per soggetti ricampiona soggetti interi con le loro coppie. L’intervallo "
+                             "percentile è approssimato; livello e seme sono salvati con i risultati. Da 100 a 10.000 "
+                             "repliche, al massimo 2.000.000 di soggetti × repliche. Un cambio di stile non ripete "
+                             "il ricampionamento.",
+    "rmcorr.error.column": "Scegli una colonna per {field}.",
+    "rmcorr.error.missing_column": 'La colonna "{name}" non è nella tabella.',
+    "rmcorr.error.distinct": "Scegli tre colonne diverse per Soggetto, X e Y.",
+    "rmcorr.error.choice": "Scegli un valore valido per {field}.",
+    "rmcorr.error.flag": "{field} deve essere attivo o disattivo.",
+    "rmcorr.error.whole": "{field} deve essere un numero intero da {low} a {high}.",
+    "rmcorr.error.level": "{field} deve essere un numero finito strettamente compreso tra 0 e 100.",
+    "rmcorr.error.numbers": 'La colonna "{name}" deve contenere numeri.',
+    "rmcorr.error.value": 'La colonna "{name}" ha un valore che non è un numero finito alla riga {row}.',
+    "rmcorr.error.range": 'La colonna "{name}" ha un valore fuori da −1e100…1e100 alla riga {row}.',
+    "rmcorr.error.precision_integer": 'La colonna "{name}" contiene interi fuori dalla precisione supportata.',
+    "rmcorr.error.subject": "La riga {row} ha un valore di X o Y ma nessun soggetto.",
+    "rmcorr.error.pairs_limit": "Sono supportate al massimo {limit} coppie complete; ne risultano {count}.",
+    "rmcorr.error.subjects_limit": "Sono supportati al massimo {limit} soggetti con due o più coppie complete; ne "
+                                   "risultano {count}.",
+    "rmcorr.error.subjects": "Servono almeno due soggetti con due o più coppie complete; ne risultano {count}.",
+    "rmcorr.error.df": "L’adattamento richiede N − S − 1 > 0; N = {pairs} e S = {subjects}.",
+    "rmcorr.error.constant": 'La colonna "{name}" non varia all’interno di nessun soggetto con due o più coppie '
+                             "complete.",
+    "rmcorr.error.precision": 'La colonna "{name}" varia all’interno dei soggetti meno della precisione dei suoi '
+                              "valori. Sottrai una costante o cambia unità di misura.",
+    "rmcorr.error.budget": "Soggetti × repliche vale {work}; il limite è {limit}. Usa meno repliche.",
+    "rmcorr.error.dialog_whole": "{field} deve essere un numero intero.",
+    "rmcorr.error.dialog_number": "{field} deve essere un numero.",
+    "rmcorr.error.dialog_finite": "{field} deve essere un numero finito.",
+}
+_EN.update(_RMCORR_EN)
+_IT.update(_RMCORR_IT)
+
 _EN["normality.lognormal.note"] = "Lognormal tests require positive observations and test their logarithms. Relative weights compare only the normal and lognormal fits; they are not p values or probabilities that a model is true."
 _IT["normality.lognormal.note"] = "I test lognormali richiedono osservazioni positive e ne analizzano i logaritmi. I pesi relativi confrontano solo i due modelli; non sono valori p né probabilità che un modello sia vero."
 

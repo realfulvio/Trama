@@ -27,6 +27,7 @@ from .distribution_graphs import BOX_VIOLIN, OPTIONS as BOX_VIOLIN_OPTIONS, box_
 from .correlation_details import (COMPARE_INDEPENDENT, CONTROL_OPTIONS, CORRELATE_CONTROL, INDEPENDENT_OPTIONS,
                                   SINGLE_EXTRA, control_result, correlation_result, independent_result)
 from .correlation_matrix import CORRELATION_MATRIX, OPTIONS as CORRELATION_MATRIX_OPTIONS, correlation_matrix
+from .rmcorr import OPTIONS as RMCORR_OPTIONS, RMCORR, analyse as rmcorr_analysis
 from .ellipse_workbench import ELLIPSE_OPTIONS, NONE, SEPARATE_GROUP, draw_confidence_overlays
 from .extract_rearrange import (COMPLETE, EXTRACT_FIELDS, EXTRACT_FORMATS, EXTRACT_OPTIONAL_FIELDS, EXTRACT_REARRANGE,
                                 OUTPUT, PREFIX, extract_rearrange)
@@ -203,6 +204,7 @@ METHODS = {
     "Correlation": {"X": None, "Y": None, "Method": ("Pearson", "Spearman", "Kendall"), **SINGLE_EXTRA},
     CORRELATE_CONTROL: CONTROL_OPTIONS,
     COMPARE_INDEPENDENT: INDEPENDENT_OPTIONS,
+    RMCORR: RMCORR_OPTIONS,
     CORRELATION_MATRIX: {"Variables": MULTIPLE, **CORRELATION_MATRIX_OPTIONS},
     ROW_TESTS: ROW_TEST_OPTIONS,
     **NESTED_METHODS,
@@ -290,7 +292,7 @@ GROUPS = {
                         "Reshape replicates", TRANSPOSE_XY,
                         "Outlier test (Grubbs)", OUTLIERS),
     "Data Exploration and Summary": ("Descriptive statistics", "Row statistics", NORMALITY,
-                                    "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX,
+                                    "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX, RMCORR,
                                     "Histogram", FREQUENCY, GOODNESS_OF_FIT,
                                     "Area under curve", "Principal component analysis",
                                     "Adjust a stack of p values", "Control false discoveries",
@@ -1066,6 +1068,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return control_result(frame, o, cancel=cancel)
     if method == COMPARE_INDEPENDENT:
         return independent_result(frame, o)
+    if method == RMCORR:
+        return rmcorr_analysis(frame, o, cancel=cancel)
     if method == CORRELATION_MATRIX:
         return correlation_matrix(frame, o)
     if method == ROW_TESTS:
