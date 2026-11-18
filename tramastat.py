@@ -265,6 +265,7 @@ from analisi.trend_anova import ORDER as TREND_ORDER, ORDER_KIND as TREND_ORDER_
 from analisi.fit_quality import (REPLICATES as FIT_REPLICATES, RESIDUAL_VIEW as FIT_RESIDUALS,
                                  RUNS as FIT_RUNS, check_options as check_fit_quality_options)
 from analisi.field_error import FieldError
+from analisi import kmeans_options
 from analisi import lognormal_anova
 from analisi.unequal_anova import check_one_way_options, one_way_visibility
 from analisi.variance_assumptions import (ALPHA as VARIANCE_ALPHA, BARTLETT as VARIANCE_BARTLETT,
@@ -1591,9 +1592,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 if label in self.controls:
                     self.controls[label][1].trace_add("write", lambda *_: self.show_processing_fields())
             self.show_processing_fields()
-        if self.method == "K-means model selection":
-            criterion = self.controls["Criterion"][1]
-            criterion.trace_add("write", lambda *_: self.show_fields(self.kmeans_visibility()))
+        if self.method in kmeans_options.METHODS:
+            for name in (kmeans_options.ALGORITHM, "Criterion"):
+                if name in self.controls:
+                    self.controls[name][1].trace_add("write", lambda *_: self.show_fields(self.kmeans_visibility()))
             self.show_fields(self.kmeans_visibility())
         if self.method == "Hierarchical clustering":
             for label in ("Direction", "Row cut", "Column cut", "Graph output", "Distance matrix", "Cophenetic distances"):
@@ -2216,10 +2218,15 @@ class AnalysisDialog(simpledialog.Dialog):
         self.show_fields(self.processing_visibility())
 
     def kmeans_visibility(self):
-        if self.method != "K-means model selection":
+        if self.method not in kmeans_options.METHODS:
             return {}
+        hartigan = self.controls[kmeans_options.ALGORITHM][1].get() == kmeans_options.HARTIGAN
+        options = {kmeans_options.MAX_ITERATIONS: hartigan}
+        if self.method == kmeans_options.CLUSTERING:
+            return {**options, kmeans_options.INITIAL_ROWS: hartigan}
         from analisi.cluster_consensus import KL_SCALING
-        return {KL_SCALING: self.controls["Criterion"][1].get() == "Consensus (17 indices)"}
+
+        return {**options, KL_SCALING: self.controls["Criterion"][1].get() == "Consensus (17 indices)"}
 
     def hierarchical_visibility(self):
         if self.method != "Hierarchical clustering":
@@ -3295,6 +3302,9 @@ class AnalysisDialog(simpledialog.Dialog):
                         parsed_size = parse_label_font_size(value, name)
                         options[name] = "" if parsed_size is None else parsed_size
                         continue
+                    if self.method in kmeans_options.METHODS and name == kmeans_options.MAX_ITERATIONS:
+                        options[name] = value
+                        continue
                     numeric_kind = type(kind)
                     if numeric_kind in (int, float):
                         try:
@@ -3317,6 +3327,12 @@ class AnalysisDialog(simpledialog.Dialog):
                 options[ELLIPSE_GROUP_STYLES] = self.ellipse_group_styles
             if self.method == "Kaplan–Meier survival":
                 check_survival_options(self.data, options)
+            if self.method in kmeans_options.METHODS:
+                request = kmeans_options.fit_options(self.method, self.data, options)
+                if request:
+                    options[kmeans_options.MAX_ITERATIONS] = request["max_iterations"]
+                else:
+                    options.pop(kmeans_options.ALGORITHM, None)
             if self.method == NORMALITY:
                 check_normality_options(self.data, options)
             if self.method == SUMMARY_ANOVA:
@@ -3537,7 +3553,7 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = tr(PARAM_CI_LABELS[field]) if field in PARAM_CI_LABELS else ui(field)
                 if label and label not in message:
                     message = f"{label}: {message}"
-            elif self.method in (NORMALITY, SUMMARY_ANOVA, SUMMARY_TTEST):
+            elif self.method in (NORMALITY, SUMMARY_ANOVA, SUMMARY_TTEST, *kmeans_options.METHODS):
                 message = ui(message)
                 label = ui(field) if field else ""
                 if label and label not in message:
@@ -6434,15 +6450,21 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
                 or run.method == FDR_METHOD or run.method == VARIANCE_RATIO or self._pca_regression(run)
+                or (run.method in kmeans_options.METHODS
+                    and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
                 or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO) or self._pca_regression(run)
+        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO) or self._pca_regression(run)
+                or (run.method in kmeans_options.METHODS
+                    and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
 
     def weighting_recovery(self, method, options, index, only=None):
         """Reopen the dialog when a field error is first known on the worker."""
+        if method in kmeans_options.METHODS and options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
+            return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
                 CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, "Multifactor ANOVA",
                 REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
@@ -6495,7 +6517,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                    else translate_calibration_error(error) if run.method == "Interpolate a standard curve"
                    else ui(str(error)) if run.method in (SUMMARY_ANOVA, SUMMARY_TTEST)
                    else translate_heat_map_error(error) if run.method == HEAT_MAP
-                   else str(error))
+                   else ui(str(error)) if run.method in kmeans_options.METHODS else str(error))
         formatted = (format_anova_error(error) if run.method == "Multifactor ANOVA"
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
@@ -6512,7 +6534,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else tr(MLR_LABEL_KEYS[error.field]) if run.method == "Multiple regression"
                      and error.field in MLR_LABEL_KEYS
                      else field_caption_for_reference(error.field) if run.method == REFERENCE_NORMALIZATION
-                     else ui(error.field) if run.method in (HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST) or run.method in CORRELATION_METHODS
+                     else ui(error.field) if run.method in (HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, *kmeans_options.METHODS, *CORRELATION_METHODS)
                      else error.field)
             if not label or label == "gfit.field." + error.field:
                 label = error.field
@@ -12056,6 +12078,70 @@ def smoke(root, app, directory, legacy_reference=None):
         assert "Cumulative events (%)" in result.tables[f"Curve: {order[0]}"]
         capture(root, "window-survival-cumulative.png")
 
+    def check_hartigan_wong():
+        from unittest.mock import patch
+
+        choice = kmeans_options
+        title = "Synthetic clusters"
+        source = pd.DataFrame({"Signal": [0., 1., float("nan"), 2., 9., 10., 11., 19., 20., 21.]})
+        path = directory / "hartigan-wong.alab"
+        save_project(path, {title: Dataset(source)})
+        app.import_file(path)
+
+        def configure(dialog, method):
+            pick_method(dialog, method)
+            select_columns(dialog, "Variables", {"Signal"})
+            assert not dialog.field_rows[choice.MAX_ITERATIONS][1].winfo_manager()
+            dialog.controls[choice.ALGORITHM][1].set(choice.HARTIGAN)
+            assert dialog.field_rows[choice.MAX_ITERATIONS][1].winfo_manager()
+            dialog.controls["Standardize"][1].set(False)
+
+        def pick_fit(dialog):
+            configure(dialog, choice.CLUSTERING)
+            dialog.controls["Clusters"][1].set(3)
+            rows = dialog.controls[choice.INITIAL_ROWS][1]
+            rows.set("1, 3, 8")
+            with patch.object(messagebox, "showerror") as error:
+                assert not dialog.validate() and error.called
+            rows.set("1, 5, 8")
+            capture(dialog, "window-hartigan-wong-analysis.png")
+
+        def pick_scan(dialog):
+            configure(dialog, choice.SELECTION)
+            dialog.controls["Criterion"][1].set("Consensus (17 indices)")
+            dialog.controls["Gap simulations"][1].set(5)
+            dialog.controls["Maximum k"][1].set(4)
+
+        def verify():
+            fit, scan = app.runs
+            assert fit.options[choice.INITIAL_ROWS] == "1, 5, 8"
+            assert scan.options[choice.ALGORITHM] == choice.HARTIGAN
+            np.testing.assert_allclose(fit.result.tables["Centers (fitting scale)"].iloc[:, 0], [1, 10, 20])
+            assert fit.result.tables["Fit"].loc["Within-cluster SS", "Value"] == 6
+            assert scan.result.tables["Selection"].loc["Suggested k", "Value"] == 3
+            assert scan.result.tables["Cluster metrics"].loc[3, "WSS"] == 6
+            assert np.isfinite(scan.result.tables["Cluster metrics"].loc[3, "Gap"])
+
+        app.show("data", title)
+        drive_dialog(AnalysisDialog, pick_fit)
+        app.choose_analysis()
+        wait_for_calculation()
+        app.show("data", title)
+        drive_dialog(AnalysisDialog, pick_scan)
+        app.choose_analysis()
+        wait_for_calculation()
+        verify()
+        assert app.save()
+        app.import_file(path)
+        for index in range(2):
+            app.open_sheet(("graph", index))
+            wait_for_calculation()
+        verify()
+        app.show("graph", 0)
+        capture(root, "window-hartigan-wong-plot.png")
+        app.show("graph", 1)
+        capture(root, "window-hartigan-wong-consensus.png")
+
     def check_kmeans_consensus():
         from analisi.cluster_consensus import KL_SCALING, UNSCALED_WSS, WSS_DROP_RATIO
 
@@ -13454,6 +13540,13 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "hartigan-wong":
+            check_hartigan_wong()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "kmeans-consensus":
             check_kmeans_consensus()
             assert not errors, errors
@@ -13776,6 +13869,7 @@ def smoke(root, app, directory, legacy_reference=None):
         np.testing.assert_allclose(fit[["Log EC50", "Hill slope", "Asymmetry"]], [-7.8, 1.3, 1.5], rtol=1e-5)
 
         check_kmeans_consensus()
+        check_hartigan_wong()
 
         source = directory / "saved-graph.prism"
         with ZipFile(source, "w") as archive:

@@ -65,7 +65,7 @@ def _cluster_scores(values, distances, fit):
     return silhouettes.mean(), calinski, davies
 
 
-def _gap_scores(metrics, values, columns, seed, replicates, *, allow_failed_references=False):
+def _gap_scores(metrics, values, columns, seed, replicates, *, allow_failed_references=False, fit_options):
     metrics["Gap"] = np.nan
     metrics["Gap SE"] = np.nan
     eligible = metrics.index[(metrics.index < len(values)) & (metrics["WSS"] > 0)]
@@ -81,7 +81,7 @@ def _gap_scores(metrics, values, columns, seed, replicates, *, allow_failed_refe
             if index in failed:
                 continue
             try:
-                inertia = kmeans(reference, columns, count, seed=seed).inertia
+                inertia = kmeans(reference, columns, count, seed=seed, **fit_options).inertia
             except ValueError:
                 if not allow_failed_references:
                     raise
@@ -123,8 +123,22 @@ def _recommend_clusters(metrics, criterion):
     return int(metrics.index[offset]) if gaps[offset] > 1e-12 else None
 
 
+def _check_scan_budget(n, dimensions, candidates, pairwise, *, simulate_gap, gap_replicates):
+    fit_cost = n * dimensions * sum(candidates)
+    if n > 3000 or fit_cost > 1_000_000 or (pairwise and n * n * dimensions > 40_000_000):
+        raise ValueError("K-means scan exceeds its work budget. Reduce rows, variables, or maximum k.")
+    if simulate_gap:
+        if (isinstance(gap_replicates, bool) or not isinstance(gap_replicates, Integral)
+                or not 5 <= gap_replicates <= 100):
+            raise ValueError("Gap reference datasets must be an integer between 5 and 100.")
+        reference_cost = n * dimensions * sum(k for k in candidates if k < n) * gap_replicates
+        if reference_cost > 3_000_000:
+            raise ValueError("Gap reference fits exceed the work budget. Reduce rows, variables, k, or references.")
+
+
 def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="silhouette",
-                *, min_k=1, gap_replicates=20, kl_scaling=consensus.DIMENSION_ADJUSTED):
+                *, min_k=1, gap_replicates=20, kl_scaling=consensus.DIMENSION_ADJUSTED,
+                algorithm="lloyd", max_iterations=10):
     """Compare fits from min_k through max_k, capped at the distinct row count.
 
     The silhouette, Calinski–Harabasz and Davies–Bouldin scores require
@@ -161,22 +175,15 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     candidates = range(min_k, upper + 1)
     score_distances = max(2, min_k) <= min(upper, n - 1)
     score_consensus = criterion == "consensus" and max(2, min_k) <= upper
-    fit_cost = n * dimensions * sum(candidates)
-    if n > 3000 or fit_cost > 1_000_000 or ((score_distances or score_consensus) and n * n * dimensions > 40_000_000):
-        raise ValueError("K-means scan exceeds its work budget. Reduce rows, variables, or maximum k.")
     simulate_gap = criterion in {"gap", "consensus"}
-    if simulate_gap:
-        if (isinstance(gap_replicates, bool) or not isinstance(gap_replicates, Integral)
-                or not 5 <= gap_replicates <= 100):
-            raise ValueError("Gap reference datasets must be an integer between 5 and 100.")
-        reference_cost = n * dimensions * sum(k for k in candidates if k < n) * gap_replicates
-        if reference_cost > 3_000_000:
-            raise ValueError("Gap reference fits exceed the work budget. Reduce rows, variables, k, or references.")
+    _check_scan_budget(n, dimensions, candidates, score_distances or score_consensus,
+                       simulate_gap=simulate_gap, gap_replicates=gap_replicates)
     pairs = consensus.PairDistances(values) if score_consensus else None
     distances = squareform(pairs.distances if pairs is not None else pdist(values)) if score_distances else None
     rows, fits, partitions = [], {}, {}
+    fit_options = {"algorithm": algorithm, "max_iterations": max_iterations}
     for count in candidates:
-        fit = kmeans(data, columns, count, standardize, seed)
+        fit = kmeans(data, columns, count, standardize, seed, **fit_options)
         fits[count] = fit
         scores = _cluster_scores(values, distances, fit) if 1 < count < n else (np.nan,) * 3
         rows.append((count, fit.inertia, *scores))
@@ -185,7 +192,8 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
                                                             silhouette_value=scores[0])
     metrics = pd.DataFrame(rows, columns=["k", "WSS", *_CLUSTER_METRICS.values()]).set_index("k")
     if simulate_gap:
-        _gap_scores(metrics, values, columns, seed, gap_replicates, allow_failed_references=criterion == "consensus")
+        _gap_scores(metrics, values, columns, seed, gap_replicates,
+                    allow_failed_references=criterion == "consensus", fit_options=fit_options)
     if criterion == "consensus":
         return _consensus_scan(metrics, partitions, fits, n, dimensions, kl_scaling=kl_scaling)
     recommended = _recommend_clusters(metrics, criterion)

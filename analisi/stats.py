@@ -820,7 +820,7 @@ def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloy
 
 
 def _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows):
-    from .hartigan_wong import fit_hartigan_wong
+    from .hartigan_wong import IterationLimitError, fit_hartigan_wong
 
     data, values = _cluster_data(frame, columns, count, standardize)
     distinct = np.sort(np.unique(values, axis=0, return_index=True)[1])
@@ -832,7 +832,7 @@ def _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, i
             raise ValueError("Choose one initial row per cluster.")
         fit = fit_hartigan_wong(values, supplied, max_iterations)
         if not fit.converged:
-            raise ValueError("Hartigan-Wong reached the maximum number of iterations.")
+            raise IterationLimitError("Hartigan–Wong reached the maximum number of iterations.")
     else:
         rng = np.random.default_rng(seed)
         fit = None
@@ -844,7 +844,7 @@ def _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, i
             if count == 1 or count == len(values):
                 break
         if fit is None:
-            raise ValueError("Hartigan-Wong reached the maximum number of iterations.")
+            raise IterationLimitError("Hartigan–Wong reached the maximum number of iterations.")
     return Clusters(data, pd.Series(fit.labels + 1, index=data.index, name="Cluster"),
                     pd.DataFrame(fit.centers, columns=columns), float(fit.within.sum()))
 
