@@ -833,6 +833,16 @@ Use the same codes for all selected status columns. Text matches as written.|Usa
 
 CAPTIONS = dict(line.split("|", 1) for line in _TEXT.strip().splitlines())
 
+# Deming regression (0.93). Canonical recipes stay English; these captions are display text.
+CAPTIONS.update({
+    "Uncertainty input": "Specifica dell’incertezza",
+    "Known SDs": "SD note",
+    "X error SD": "SD dell’errore X",
+    "Y error SD": "SD dell’errore Y",
+    "Y series": "Serie Y",
+    "Show projections": "Mostra le proiezioni",
+})
+
 CAPTIONS.update({
     "Geometric mean and 95% CI": "Media geometrica e IC al 95%",
     "Shapiro–Wilk": "Shapiro–Wilk", "D’Agostino–Pearson": "D’Agostino–Pearson",

@@ -3426,6 +3426,78 @@ def fixed_choice_keys(values):
     """
     return {value: KEY_BY_LABEL[value] for value in values if value in KEY_BY_LABEL}
 
+# Deming regression (0.93): known SDs, several Y series and projections. Recipes keep the English keys.
+_EN.update({
+    "deming.note.series": "Each Y series is fitted on its own against X, with the same uncertainty settings. "
+                          "A shared ratio only makes sense when the responses can share units and measurement "
+                          "precision. With no series selected, the Y column above is used.",
+    "deming.note.sds": "Enter the measurement-error SD of each axis in that axis's own units, not the spread of "
+                       "your data. The fit uses lambda = (Y error SD / X error SD)².",
+    "deming.error.positive": "{field} must be finite and greater than 0.",
+    "deming.error.number": "{field} must be a number.",
+    "deming.error.finite": "{field} must be finite.",
+    "deming.error.sd_required": "{field} is required with Known SDs.",
+    "deming.error.ratio_required": "Y / X error variance is required.",
+    "deming.error.ratio_range": "The squared ratio of the error SDs cannot be represented. "
+                                "Check Y error SD against X error SD.",
+    "deming.error.uncertainty": "Uncertainty input must be Variance ratio or Known SDs.",
+    "deming.error.projections": "Show projections must be on or off.",
+    "deming.error.intervals": 'Parameter intervals must be "None" or "Jackknife (t)".',
+    "deming.error.level": "Confidence level (%) must be finite and strictly between 0 and 100.",
+    "deming.error.series_type": "Y series must be a list of column names.",
+    "deming.error.series_limit": "Y series accepts at most {limit} columns.",
+    "deming.error.series_repeated": 'Y series lists "{name}" more than once.',
+    "deming.error.series_x": 'Y series cannot include the X column "{name}".',
+    "deming.error.series_missing": 'Y series column "{name}" is not in the worksheet.',
+    "deming.error.x_missing": 'X column "{name}" is not in the worksheet.',
+    "deming.error.series_few": 'Series "{name}" has {count} complete pairs of X and Y; at least 3 are needed.',
+    "deming.error.series_degenerate": 'Series "{name}" cannot be fitted: X and Y must both vary, with a nonzero '
+                                      "covariance.",
+    "deming.error.series_range": 'Series "{name}" has values outside the range the Deming fit can represent.',
+    "deming.error.series_data": 'Series "{name}" contains non-numeric or infinite data.',
+    "deming.error.series_projected": 'The projected points of series "{name}" are outside the representable range.',
+    "deming.error.projected": "The projected points are outside the representable range.",
+    "deming.error.pairs": "Deming regression requires at least three pairs and a positive error variance ratio.",
+    "deming.error.vary": "Deming regression needs varying variables with nonzero covariance.",
+})
+_IT.update({
+    "deming.note.series": "Ogni serie Y viene adattata da sola contro X, con le stesse impostazioni di "
+                          "incertezza. Un rapporto condiviso ha senso solo se le risposte possono condividere "
+                          "unità e precisione di misura. Senza serie selezionate si usa la colonna Y indicata "
+                          "sopra.",
+    "deming.note.sds": "Inserisci la SD dell’errore di misura di ciascun asse, nelle unità di quell’asse e non la "
+                       "dispersione dei dati. Il fit usa lambda = (SD errore Y / SD errore X)².",
+    "deming.error.positive": "{field}: deve essere un numero finito maggiore di 0.",
+    "deming.error.number": "{field}: deve essere un numero.",
+    "deming.error.finite": "{field}: deve essere finito.",
+    "deming.error.sd_required": "{field}: è obbligatoria con SD note.",
+    "deming.error.ratio_required": "La varianza dell’errore Y / X è obbligatoria.",
+    "deming.error.ratio_range": "Il quadrato del rapporto tra le SD degli errori non è rappresentabile. "
+                                "Controlla SD dell’errore Y rispetto a SD dell’errore X.",
+    "deming.error.uncertainty": "La specifica dell’incertezza deve essere Rapporto tra le varianze oppure SD note.",
+    "deming.error.projections": "Mostra le proiezioni deve essere attivo o disattivo.",
+    "deming.error.intervals": "Gli intervalli dei parametri devono essere Nessuno oppure Jackknife (t).",
+    "deming.error.level": "Il livello di confidenza (%) deve essere finito e compreso tra 0 e 100, estremi esclusi.",
+    "deming.error.series_type": "Le serie Y devono essere un elenco di nomi di colonna.",
+    "deming.error.series_limit": "Le serie Y ammettono al massimo {limit} colonne.",
+    "deming.error.series_repeated": 'Le serie Y elencano "{name}" più di una volta.',
+    "deming.error.series_x": 'Le serie Y non possono includere la colonna X "{name}".',
+    "deming.error.series_missing": 'La colonna "{name}" delle serie Y non è nel foglio dati.',
+    "deming.error.x_missing": 'La colonna X "{name}" non è nel foglio dati.',
+    "deming.error.series_few": 'La serie "{name}" ha {count} coppie complete di X e Y; ne servono almeno 3.',
+    "deming.error.series_degenerate": 'La serie "{name}" non può essere adattata: X e Y devono variare entrambe, '
+                                      "con covarianza diversa da zero.",
+    "deming.error.series_range": 'La serie "{name}" ha valori fuori dall’intervallo che il fit di Deming può '
+                                 "rappresentare.",
+    "deming.error.series_data": 'La serie "{name}" contiene dati non numerici o infiniti.',
+    "deming.error.series_projected": 'I punti proiettati della serie "{name}" sono fuori dall’intervallo '
+                                     "rappresentabile.",
+    "deming.error.projected": "I punti proiettati sono fuori dall’intervallo rappresentabile.",
+    "deming.error.pairs": "La regressione di Deming richiede almeno tre coppie e un rapporto positivo tra le "
+                          "varianze degli errori.",
+    "deming.error.vary": "La regressione di Deming richiede variabili che variano, con covarianza diversa da zero.",
+})
+
 # Interface themes are local preferences, never translated recipe values.
 _EN.update({
     "theme.settings": "Settings", "theme.title": "Theme", "theme.command": "Theme…",

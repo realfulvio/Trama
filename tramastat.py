@@ -237,6 +237,7 @@ from analisi.transpose_xy import (ROW_TITLE as TRANSPOSE_TITLE, SETS_LIST, TRANS
                                   propose_sets, proposed_x)
 from analisi.survival_input import CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_DEFAULTS
 from analisi.cox_dialog import TABS as COX_TABS, ProfileEditor, model_terms
+from analisi import deming_dialog
 from analisi.ols_diagnostics import (LINEAR_CI, LINEAR_DIAGNOSTICS, LINEAR_PROFILES, LINEAR_RESIDUAL_PLOT,
                                      TABS as OLS_TABS, check_weighted_profiles)
 from analisi import mlr_weighting
@@ -1195,6 +1196,10 @@ class AnalysisDialog(simpledialog.Dialog):
             fields_by_tab.update(dict.fromkeys(COMPETING_DATA, variables))
             fields_by_tab.update(dict.fromkeys(COMPETING_ESTIMATES, options))
             tabs = {tr(COMPETING_TAB_KEYS["Graph"]): COMPETING_GRAPH_FIELDS}
+        elif self.method == deming_dialog.METHOD:
+            # Variables / Uncertainty / Output: the input choice, the ratio and the SDs stay together.
+            self.fields.tab(options, text=ui(deming_dialog.UNCERTAINTY_TAB))
+            tabs = deming_dialog.TABS
         elif self.method == "Nonlinear regression":
             tabs = {tr("parameter_ci.tab"): (*PARAM_CI_OPTIONS, NL_BAND, NL_BAND_LEVEL, NL_BAND_DRAWING)}
         elif self.method == CUSTOM_EQUATION:
@@ -1975,10 +1980,11 @@ class AnalysisDialog(simpledialog.Dialog):
                       foreground="#486075", justify="left").grid(
                 row=positions[options], column=0, columnspan=2, sticky="w", pady=(4, 0))
             positions[options] += 1
-        if self.method == "Deming regression":
-            self.controls["Parameter intervals"][1].trace_add(
-                "write", lambda *_: self.show_fields(self.deming_visibility()))
-            self.show_fields(self.deming_visibility())
+        if self.method == deming_dialog.METHOD:
+            self.deming_sd_note = deming_dialog.add_notes(variables, positions[variables], options, positions[options])
+            for label in (deming_dialog.UNCERTAINTY, "Parameter intervals"):
+                self.controls[label][1].trace_add("write", lambda *_: self.show_deming_fields())
+            self.show_deming_fields()
         if self.method == COX:
             self.configure_cox_fields()
         if self.method == "Multiple regression":
@@ -3117,20 +3123,22 @@ class AnalysisDialog(simpledialog.Dialog):
         self.weighting_note.configure(text=tr(NOTE_KEYS.get(choice, NOTE_KEYS[UNWEIGHTED])))
 
     def deming_visibility(self):
-        if self.method != "Deming regression":
+        if self.method != deming_dialog.METHOD:
             return {}
-        return {"Confidence level (%)": self.controls["Parameter intervals"][1].get() == "Jackknife (t)"}
+        return deming_dialog.visibility(self.controls[deming_dialog.UNCERTAINTY][1].get(),
+                                        self.controls["Parameter intervals"][1].get())
+
+    def show_deming_fields(self):
+        """The ratio or the SDs, according to the input; the SD note goes with the SDs."""
+        visible = self.deming_visibility()
+        self.show_fields(visible)
+        if visible[deming_dialog.X_SD]:
+            self.deming_sd_note.grid()
+        else:
+            self.deming_sd_note.grid_remove()
 
     def _check_deming(self, options):
-        ratio = options["Y / X error variance"]
-        if not np.isfinite(ratio) or ratio <= 0:
-            raise FieldError("Y / X error variance",
-                             "Y / X error variance must be finite and greater than 0.")
-        if options.get("Parameter intervals") == "Jackknife (t)":
-            level = options.get("Confidence level (%)")
-            if level is None or not np.isfinite(level) or not 0 < level < 100:
-                raise FieldError("Confidence level (%)",
-                                 "Confidence level (%) must be finite and strictly between 0 and 100.")
+        deming_dialog.check_options(options, self.data)
 
     def lognormal_fields(self):
         """Second, the hypothetical geometric mean and the pairing correlation depend on the design."""
@@ -3444,8 +3452,10 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == MONTE_CARLO_METHOD:
                 # Numbers, fields and the value budget only: the simulation runs once, on the worker.
                 check_monte_carlo_options(self.data, options)
-            if self.method == "Deming regression":
+            if self.method == deming_dialog.METHOD:
                 self._check_deming(options)
+                saved = self.current[1] if self.current and self.current[0] == self.method else {}
+                deming_dialog.prune_options(options, saved)
             name = None
             if self.method in CORRELATION_METHODS:
                 # Budget and column checks stay in the dialog. Permutations run on the worker.
@@ -3558,6 +3568,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     or forward_calibration or (inverse_intervals and not nonlinear_inverse)
                     or self.method in PROCESSING_METHODS
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
+                    or (self.method == deming_dialog.METHOD and deming_dialog.extended(options))
                     or self.method == PARTS_GRAPH
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
                                        BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
@@ -3639,6 +3650,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = ui(field) if field else ""
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
+            elif self.method == deming_dialog.METHOD:
+                message = deming_dialog.format_error(error, field)
             elif self.method == "Interpolate a standard curve":
                 message = translate_calibration_error(error)
             elif self.method == "Multifactor ANOVA" and (formatted := format_anova_error(error)):
@@ -12399,7 +12412,8 @@ def smoke(root, app, directory, legacy_reference=None):
             dialog.controls["X"][1].set("X")
             dialog.controls["Y"][1].set("Y")
             assert dialog.controls["Parameter intervals"][1].get() == "None", dialog.controls["Parameter intervals"][1].get()
-            assert dialog.deming_visibility() == {"Confidence level (%)": False}, dialog.deming_visibility()
+            assert dialog.deming_visibility() == {"Y / X error variance": True, "X error SD": False, "Y error SD": False,
+                                                  "Confidence level (%)": False}, dialog.deming_visibility()
             dialog.controls["Y / X error variance"][1].set("0")
             with patch.object(messagebox, "showerror") as shown:
                 assert dialog.validate() is False, "zero ratio was accepted"
