@@ -1,0 +1,5410 @@
+{
+  "full": {
+    "ROC comparison": [
+      {
+        "Area A": 0.7777777777777778,
+        "Area B": 0.8303571428571429,
+        "Raw area A": 0.7777777777777778,
+        "Raw area B": 0.8303571428571429,
+        "Difference": -0.05257936507936508,
+        "Control A N": 6,
+        "Patient A N": 6,
+        "Control B N": 8,
+        "Patient B N": 7,
+        "Variance of difference": 0.030543604677320667,
+        "SE": 0.17476728720593185,
+        "Z": -0.30085358604559526,
+        "p": 0.7635261444243495,
+        "Lower": -0.39511695367875915,
+        "Upper": 0.28995822352002903
+      }
+    ],
+    "ROC curve A": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 9,
+        "False positive rate": 0.0,
+        "True positive rate": 0.16666666666666666
+      },
+      {
+        "Threshold": 7,
+        "False positive rate": 0.0,
+        "True positive rate": 0.3333333333333333
+      },
+      {
+        "Threshold": 5,
+        "False positive rate": 0.16666666666666666,
+        "True positive rate": 0.5
+      },
+      {
+        "Threshold": 4,
+        "False positive rate": 0.3333333333333333,
+        "True positive rate": 0.6666666666666666
+      },
+      {
+        "Threshold": 2,
+        "False positive rate": 0.6666666666666666,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 0.8333333333333334,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ],
+    "ROC curve B": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 0.0,
+        "True positive rate": 0.14285714285714285
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 0.0,
+        "True positive rate": 0.2857142857142857
+      },
+      {
+        "Threshold": 3,
+        "False positive rate": 0.0,
+        "True positive rate": 0.42857142857142855
+      },
+      {
+        "Threshold": 4,
+        "False positive rate": 0.125,
+        "True positive rate": 0.7142857142857143
+      },
+      {
+        "Threshold": 5,
+        "False positive rate": 0.375,
+        "True positive rate": 0.7142857142857143
+      },
+      {
+        "Threshold": 6,
+        "False positive rate": 0.5,
+        "True positive rate": 0.8571428571428571
+      },
+      {
+        "Threshold": 7,
+        "False positive rate": 0.75,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 8,
+        "False positive rate": 0.875,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 9,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ]
+  },
+  "zero_variance": {
+    "ROC comparison": [
+      {
+        "Area A": 1.0,
+        "Area B": 1.0,
+        "Raw area A": 1.0,
+        "Raw area B": 1.0,
+        "Difference": 0.0,
+        "Control A N": 4,
+        "Patient A N": 4,
+        "Control B N": 4,
+        "Patient B N": 4,
+        "Variance of difference": 0.0,
+        "SE": 0.0,
+        "Z": null,
+        "p": null,
+        "Lower": null,
+        "Upper": null
+      }
+    ],
+    "ROC curve A": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 7,
+        "False positive rate": 0.0,
+        "True positive rate": 0.25
+      },
+      {
+        "Threshold": 6,
+        "False positive rate": 0.0,
+        "True positive rate": 0.5
+      },
+      {
+        "Threshold": 5,
+        "False positive rate": 0.0,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 3,
+        "False positive rate": 0.25,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 2,
+        "False positive rate": 0.5,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ],
+    "ROC curve B": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 7,
+        "False positive rate": 0.0,
+        "True positive rate": 0.25
+      },
+      {
+        "Threshold": 6,
+        "False positive rate": 0.0,
+        "True positive rate": 0.5
+      },
+      {
+        "Threshold": 5,
+        "False positive rate": 0.0,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 4,
+        "False positive rate": 0.25,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 3,
+        "False positive rate": 0.5,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 2,
+        "False positive rate": 0.75,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ]
+  },
+  "partial": {
+    "ROC comparison": [
+      {
+        "Area A": 0.1,
+        "Area B": 0.05,
+        "Raw area A": 0.1,
+        "Raw area B": 0.05,
+        "Difference": 0.05,
+        "Control A N": 5,
+        "Patient A N": 5,
+        "Control B N": 5,
+        "Patient B N": 5,
+        "Variance of difference": 0.009299793997668464,
+        "SE": 0.0964354395316808,
+        "Lower": -0.10031250000000003,
+        "Upper": 0.21946874999999996,
+        "Z": null,
+        "p": null
+      }
+    ],
+    "ROC curve A": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 3,
+        "False positive rate": 0.2,
+        "True positive rate": 0.4
+      },
+      {
+        "Threshold": 2,
+        "False positive rate": 0.4,
+        "True positive rate": 0.4
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 0.6,
+        "True positive rate": 0.8
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ],
+    "ROC curve B": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 4,
+        "False positive rate": 0.2,
+        "True positive rate": 0.2
+      },
+      {
+        "Threshold": 3,
+        "False positive rate": 0.6,
+        "True positive rate": 0.2
+      },
+      {
+        "Threshold": 2,
+        "False positive rate": 0.8,
+        "True positive rate": 0.6
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 0.8,
+        "True positive rate": 0.8
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ],
+    "ROC bootstrap": [
+      {
+        "Replicate": 1,
+        "Area A": 0.086875,
+        "Area B": 0.030625,
+        "Difference": 0.05625
+      },
+      {
+        "Replicate": 2,
+        "Area A": 0.14,
+        "Area B": 0.07,
+        "Difference": 0.07
+      },
+      {
+        "Replicate": 3,
+        "Area A": 0.030625,
+        "Area B": 0.0,
+        "Difference": 0.030625
+      },
+      {
+        "Replicate": 4,
+        "Area A": 0.13375,
+        "Area B": 0.19,
+        "Difference": -0.05625
+      },
+      {
+        "Replicate": 5,
+        "Area A": 0.1,
+        "Area B": 0.1,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 6,
+        "Area A": 0.07,
+        "Area B": 0.1,
+        "Difference": -0.03
+      },
+      {
+        "Replicate": 7,
+        "Area A": 0.21,
+        "Area B": 0.05,
+        "Difference": 0.16
+      },
+      {
+        "Replicate": 8,
+        "Area A": 0.0,
+        "Area B": 0.0,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 9,
+        "Area A": 0.091875,
+        "Area B": 0.05,
+        "Difference": 0.041875
+      },
+      {
+        "Replicate": 10,
+        "Area A": 0.015,
+        "Area B": 0.05,
+        "Difference": -0.035
+      },
+      {
+        "Replicate": 11,
+        "Area A": 0.0,
+        "Area B": 0.07,
+        "Difference": -0.07
+      },
+      {
+        "Replicate": 12,
+        "Area A": 0.05,
+        "Area B": 0.0,
+        "Difference": 0.05
+      },
+      {
+        "Replicate": 13,
+        "Area A": 0.05,
+        "Area B": 0.05,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 14,
+        "Area A": 0.030625,
+        "Area B": 0.06125,
+        "Difference": -0.030625
+      },
+      {
+        "Replicate": 15,
+        "Area A": 0.1,
+        "Area B": 0.030625,
+        "Difference": 0.069375
+      },
+      {
+        "Replicate": 16,
+        "Area A": 0.06125,
+        "Area B": 0.030625,
+        "Difference": 0.030625
+      },
+      {
+        "Replicate": 17,
+        "Area A": 0.2,
+        "Area B": 0.095625,
+        "Difference": 0.104375
+      },
+      {
+        "Replicate": 18,
+        "Area A": 0.28,
+        "Area B": 0.07,
+        "Difference": 0.21
+      },
+      {
+        "Replicate": 19,
+        "Area A": 0.29225,
+        "Area B": 0.1,
+        "Difference": 0.19225
+      },
+      {
+        "Replicate": 20,
+        "Area A": 0.05,
+        "Area B": 0.0,
+        "Difference": 0.05
+      },
+      {
+        "Replicate": 21,
+        "Area A": 0.1,
+        "Area B": 0.0,
+        "Difference": 0.1
+      },
+      {
+        "Replicate": 22,
+        "Area A": 0.14,
+        "Area B": 0.05,
+        "Difference": 0.09
+      },
+      {
+        "Replicate": 23,
+        "Area A": 0.06125,
+        "Area B": 0.030625,
+        "Difference": 0.030625
+      },
+      {
+        "Replicate": 24,
+        "Area A": 0.15,
+        "Area B": 0.0,
+        "Difference": 0.15
+      },
+      {
+        "Replicate": 25,
+        "Area A": 0.25083333333333335,
+        "Area B": 0.1,
+        "Difference": 0.15083333333333335
+      },
+      {
+        "Replicate": 26,
+        "Area A": 0.020416666666666666,
+        "Area B": 0.1,
+        "Difference": -0.07958333333333334
+      },
+      {
+        "Replicate": 27,
+        "Area A": 0.091875,
+        "Area B": 0.05,
+        "Difference": 0.041875
+      },
+      {
+        "Replicate": 28,
+        "Area A": 0.020416666666666666,
+        "Area B": 0.07,
+        "Difference": -0.04958333333333333
+      },
+      {
+        "Replicate": 29,
+        "Area A": 0.05,
+        "Area B": 0.05,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 30,
+        "Area A": 0.05,
+        "Area B": 0.030625,
+        "Difference": 0.019375
+      },
+      {
+        "Replicate": 31,
+        "Area A": 0.06125,
+        "Area B": 0.07,
+        "Difference": -0.00875
+      },
+      {
+        "Replicate": 32,
+        "Area A": 0.21,
+        "Area B": 0.21,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 33,
+        "Area A": 0.05,
+        "Area B": 0.07,
+        "Difference": -0.02
+      },
+      {
+        "Replicate": 34,
+        "Area A": 0.2,
+        "Area B": 0.0,
+        "Difference": 0.2
+      },
+      {
+        "Replicate": 35,
+        "Area A": 0.06125,
+        "Area B": 0.1,
+        "Difference": -0.03875
+      },
+      {
+        "Replicate": 36,
+        "Area A": 0.06125,
+        "Area B": 0.1,
+        "Difference": -0.03875
+      },
+      {
+        "Replicate": 37,
+        "Area A": 0.091875,
+        "Area B": 0.07,
+        "Difference": 0.021875
+      },
+      {
+        "Replicate": 38,
+        "Area A": 0.21,
+        "Area B": 0.030625,
+        "Difference": 0.179375
+      },
+      {
+        "Replicate": 39,
+        "Area A": 0.2828125,
+        "Area B": 0.0,
+        "Difference": 0.2828125
+      },
+      {
+        "Replicate": 40,
+        "Area A": 0.15,
+        "Area B": 0.0925,
+        "Difference": 0.0575
+      },
+      {
+        "Replicate": 41,
+        "Area A": 0.11125,
+        "Area B": 0.0,
+        "Difference": 0.11125
+      },
+      {
+        "Replicate": 42,
+        "Area A": 0.21,
+        "Area B": 0.05,
+        "Difference": 0.16
+      },
+      {
+        "Replicate": 43,
+        "Area A": 0.0,
+        "Area B": 0.05,
+        "Difference": -0.05
+      },
+      {
+        "Replicate": 44,
+        "Area A": 0.2828125,
+        "Area B": 0.14,
+        "Difference": 0.1428125
+      },
+      {
+        "Replicate": 45,
+        "Area A": 0.1,
+        "Area B": 0.0,
+        "Difference": 0.1
+      },
+      {
+        "Replicate": 46,
+        "Area A": 0.05,
+        "Area B": 0.0,
+        "Difference": 0.05
+      },
+      {
+        "Replicate": 47,
+        "Area A": 0.175625,
+        "Area B": 0.0,
+        "Difference": 0.175625
+      },
+      {
+        "Replicate": 48,
+        "Area A": 0.08125,
+        "Area B": 0.05,
+        "Difference": 0.03125
+      },
+      {
+        "Replicate": 49,
+        "Area A": 0.07,
+        "Area B": 0.07,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 50,
+        "Area A": 0.1725,
+        "Area B": 0.0,
+        "Difference": 0.1725
+      },
+      {
+        "Replicate": 51,
+        "Area A": 0.16125,
+        "Area B": 0.14,
+        "Difference": 0.02125
+      },
+      {
+        "Replicate": 52,
+        "Area A": 0.17375,
+        "Area B": 0.06125,
+        "Difference": 0.1125
+      },
+      {
+        "Replicate": 53,
+        "Area A": 0.0,
+        "Area B": 0.0,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 54,
+        "Area A": 0.1,
+        "Area B": 0.06125,
+        "Difference": 0.03875
+      },
+      {
+        "Replicate": 55,
+        "Area A": 0.285625,
+        "Area B": 0.07,
+        "Difference": 0.215625
+      },
+      {
+        "Replicate": 56,
+        "Area A": 0.086875,
+        "Area B": 0.0,
+        "Difference": 0.086875
+      },
+      {
+        "Replicate": 57,
+        "Area A": 0.135625,
+        "Area B": 0.07,
+        "Difference": 0.065625
+      },
+      {
+        "Replicate": 58,
+        "Area A": 0.15,
+        "Area B": 0.0,
+        "Difference": 0.15
+      },
+      {
+        "Replicate": 59,
+        "Area A": 0.23,
+        "Area B": 0.0,
+        "Difference": 0.23
+      },
+      {
+        "Replicate": 60,
+        "Area A": 0.33,
+        "Area B": 0.0,
+        "Difference": 0.33
+      },
+      {
+        "Replicate": 61,
+        "Area A": 0.05,
+        "Area B": 0.05,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 62,
+        "Area A": 0.21,
+        "Area B": 0.1,
+        "Difference": 0.11
+      },
+      {
+        "Replicate": 63,
+        "Area A": 0.21,
+        "Area B": 0.00375,
+        "Difference": 0.20625
+      },
+      {
+        "Replicate": 64,
+        "Area A": 0.1725,
+        "Area B": 0.14,
+        "Difference": 0.0325
+      },
+      {
+        "Replicate": 65,
+        "Area A": 0.21,
+        "Area B": 0.21,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 66,
+        "Area A": 0.1828125,
+        "Area B": 0.0,
+        "Difference": 0.1828125
+      },
+      {
+        "Replicate": 67,
+        "Area A": 0.091875,
+        "Area B": 0.15,
+        "Difference": -0.058125
+      },
+      {
+        "Replicate": 68,
+        "Area A": 0.153125,
+        "Area B": 0.0,
+        "Difference": 0.153125
+      },
+      {
+        "Replicate": 69,
+        "Area A": 0.1428125,
+        "Area B": 0.1,
+        "Difference": 0.0428125
+      },
+      {
+        "Replicate": 70,
+        "Area A": 0.10375,
+        "Area B": 0.0,
+        "Difference": 0.10375
+      },
+      {
+        "Replicate": 71,
+        "Area A": 0.06125,
+        "Area B": 0.0,
+        "Difference": 0.06125
+      },
+      {
+        "Replicate": 72,
+        "Area A": 0.15125,
+        "Area B": 0.07,
+        "Difference": 0.08125
+      },
+      {
+        "Replicate": 73,
+        "Area A": 0.03375,
+        "Area B": 0.14,
+        "Difference": -0.10625
+      },
+      {
+        "Replicate": 74,
+        "Area A": 0.030625,
+        "Area B": 0.0225,
+        "Difference": 0.008125
+      },
+      {
+        "Replicate": 75,
+        "Area A": 0.05,
+        "Area B": 0.1,
+        "Difference": -0.05
+      },
+      {
+        "Replicate": 76,
+        "Area A": 0.30041666666666667,
+        "Area B": 0.0,
+        "Difference": 0.30041666666666667
+      },
+      {
+        "Replicate": 77,
+        "Area A": 0.1225,
+        "Area B": 0.1,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 78,
+        "Area A": 0.14,
+        "Area B": 0.0,
+        "Difference": 0.14
+      },
+      {
+        "Replicate": 79,
+        "Area A": 0.1,
+        "Area B": 0.0,
+        "Difference": 0.1
+      },
+      {
+        "Replicate": 80,
+        "Area A": 0.27,
+        "Area B": 0.0,
+        "Difference": 0.27
+      },
+      {
+        "Replicate": 81,
+        "Area A": 0.135625,
+        "Area B": 0.0,
+        "Difference": 0.135625
+      },
+      {
+        "Replicate": 82,
+        "Area A": 0.1428125,
+        "Area B": 0.0,
+        "Difference": 0.1428125
+      },
+      {
+        "Replicate": 83,
+        "Area A": 0.05,
+        "Area B": 0.28,
+        "Difference": -0.23
+      },
+      {
+        "Replicate": 84,
+        "Area A": 0.1,
+        "Area B": 0.030625,
+        "Difference": 0.069375
+      },
+      {
+        "Replicate": 85,
+        "Area A": 0.086875,
+        "Area B": 0.0,
+        "Difference": 0.086875
+      },
+      {
+        "Replicate": 86,
+        "Area A": 0.086875,
+        "Area B": 0.0,
+        "Difference": 0.086875
+      },
+      {
+        "Replicate": 87,
+        "Area A": 0.091875,
+        "Area B": 0.0,
+        "Difference": 0.091875
+      },
+      {
+        "Replicate": 88,
+        "Area A": 0.2028125,
+        "Area B": 0.07,
+        "Difference": 0.1328125
+      },
+      {
+        "Replicate": 89,
+        "Area A": 0.086875,
+        "Area B": 0.06125,
+        "Difference": 0.025625
+      },
+      {
+        "Replicate": 90,
+        "Area A": 0.1,
+        "Area B": 0.0,
+        "Difference": 0.1
+      },
+      {
+        "Replicate": 91,
+        "Area A": 0.06125,
+        "Area B": 0.0,
+        "Difference": 0.06125
+      },
+      {
+        "Replicate": 92,
+        "Area A": 0.0153125,
+        "Area B": 0.01125,
+        "Difference": 0.0040625
+      },
+      {
+        "Replicate": 93,
+        "Area A": 0.1,
+        "Area B": 0.05,
+        "Difference": 0.05
+      },
+      {
+        "Replicate": 94,
+        "Area A": 0.030625,
+        "Area B": 0.0,
+        "Difference": 0.030625
+      },
+      {
+        "Replicate": 95,
+        "Area A": 0.2028125,
+        "Area B": 0.030625,
+        "Difference": 0.1721875
+      },
+      {
+        "Replicate": 96,
+        "Area A": 0.04083333333333333,
+        "Area B": 0.15125,
+        "Difference": -0.11041666666666666
+      },
+      {
+        "Replicate": 97,
+        "Area A": 0.1,
+        "Area B": 0.0925,
+        "Difference": 0.0075
+      },
+      {
+        "Replicate": 98,
+        "Area A": 0.1428125,
+        "Area B": 0.030625,
+        "Difference": 0.1121875
+      },
+      {
+        "Replicate": 99,
+        "Area A": 0.07,
+        "Area B": 0.05,
+        "Difference": 0.02
+      },
+      {
+        "Replicate": 100,
+        "Area A": 0.15,
+        "Area B": 0.0,
+        "Difference": 0.15
+      },
+      {
+        "Replicate": 101,
+        "Area A": 0.29,
+        "Area B": 0.06125,
+        "Difference": 0.22875
+      },
+      {
+        "Replicate": 102,
+        "Area A": 0.07,
+        "Area B": 0.04083333333333333,
+        "Difference": 0.029166666666666667
+      },
+      {
+        "Replicate": 103,
+        "Area A": 0.1,
+        "Area B": 0.1,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 104,
+        "Area A": 0.116875,
+        "Area B": 0.020416666666666666,
+        "Difference": 0.09645833333333333
+      },
+      {
+        "Replicate": 105,
+        "Area A": 0.0,
+        "Area B": 0.07,
+        "Difference": -0.07
+      },
+      {
+        "Replicate": 106,
+        "Area A": 0.091875,
+        "Area B": 0.285625,
+        "Difference": -0.19375
+      },
+      {
+        "Replicate": 107,
+        "Area A": 0.15,
+        "Area B": 0.0,
+        "Difference": 0.15
+      },
+      {
+        "Replicate": 108,
+        "Area A": 0.2428125,
+        "Area B": 0.05,
+        "Difference": 0.1928125
+      },
+      {
+        "Replicate": 109,
+        "Area A": 0.22125,
+        "Area B": 0.0,
+        "Difference": 0.22125
+      },
+      {
+        "Replicate": 110,
+        "Area A": 0.045,
+        "Area B": 0.0,
+        "Difference": 0.045
+      },
+      {
+        "Replicate": 111,
+        "Area A": 0.1,
+        "Area B": 0.07,
+        "Difference": 0.03
+      },
+      {
+        "Replicate": 112,
+        "Area A": 0.06125,
+        "Area B": 0.145625,
+        "Difference": -0.084375
+      },
+      {
+        "Replicate": 113,
+        "Area A": 0.1428125,
+        "Area B": 0.1,
+        "Difference": 0.0428125
+      },
+      {
+        "Replicate": 114,
+        "Area A": 0.04083333333333333,
+        "Area B": 0.170625,
+        "Difference": -0.12979166666666667
+      },
+      {
+        "Replicate": 115,
+        "Area A": 0.0153125,
+        "Area B": 0.14,
+        "Difference": -0.1246875
+      },
+      {
+        "Replicate": 116,
+        "Area A": 0.05,
+        "Area B": 0.0,
+        "Difference": 0.05
+      },
+      {
+        "Replicate": 117,
+        "Area A": 0.231875,
+        "Area B": 0.21,
+        "Difference": 0.021875
+      },
+      {
+        "Replicate": 118,
+        "Area A": 0.155625,
+        "Area B": 0.21,
+        "Difference": -0.054375
+      },
+      {
+        "Replicate": 119,
+        "Area A": 0.21125,
+        "Area B": 0.0,
+        "Difference": 0.21125
+      },
+      {
+        "Replicate": 120,
+        "Area A": 0.05,
+        "Area B": 0.05,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 121,
+        "Area A": 0.0925,
+        "Area B": 0.1,
+        "Difference": -0.0075
+      },
+      {
+        "Replicate": 122,
+        "Area A": 0.1,
+        "Area B": 0.0,
+        "Difference": 0.1
+      },
+      {
+        "Replicate": 123,
+        "Area A": 0.030625,
+        "Area B": 0.0,
+        "Difference": 0.030625
+      },
+      {
+        "Replicate": 124,
+        "Area A": 0.1075,
+        "Area B": 0.1,
+        "Difference": 0.0075
+      },
+      {
+        "Replicate": 125,
+        "Area A": 0.15,
+        "Area B": 0.0,
+        "Difference": 0.15
+      },
+      {
+        "Replicate": 126,
+        "Area A": 0.05,
+        "Area B": 0.05,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 127,
+        "Area A": 0.091875,
+        "Area B": 0.0,
+        "Difference": 0.091875
+      },
+      {
+        "Replicate": 128,
+        "Area A": 0.1,
+        "Area B": 0.08125,
+        "Difference": 0.01875
+      },
+      {
+        "Replicate": 129,
+        "Area A": 0.091875,
+        "Area B": 0.0,
+        "Difference": 0.091875
+      },
+      {
+        "Replicate": 130,
+        "Area A": 0.0725,
+        "Area B": 0.05,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 131,
+        "Area A": 0.1475,
+        "Area B": 0.07,
+        "Difference": 0.0775
+      },
+      {
+        "Replicate": 132,
+        "Area A": 0.1,
+        "Area B": 0.05,
+        "Difference": 0.05
+      },
+      {
+        "Replicate": 133,
+        "Area A": 0.030625,
+        "Area B": 0.1,
+        "Difference": -0.069375
+      },
+      {
+        "Replicate": 134,
+        "Area A": 0.095625,
+        "Area B": 0.030625,
+        "Difference": 0.065
+      },
+      {
+        "Replicate": 135,
+        "Area A": 0.075625,
+        "Area B": 0.0,
+        "Difference": 0.075625
+      },
+      {
+        "Replicate": 136,
+        "Area A": 0.195625,
+        "Area B": 0.06125,
+        "Difference": 0.134375
+      },
+      {
+        "Replicate": 137,
+        "Area A": 0.04083333333333333,
+        "Area B": 0.15,
+        "Difference": -0.10916666666666666
+      },
+      {
+        "Replicate": 138,
+        "Area A": 0.030625,
+        "Area B": 0.0925,
+        "Difference": -0.061875
+      },
+      {
+        "Replicate": 139,
+        "Area A": 0.23,
+        "Area B": 0.0,
+        "Difference": 0.23
+      },
+      {
+        "Replicate": 140,
+        "Area A": 0.15,
+        "Area B": 0.0,
+        "Difference": 0.15
+      },
+      {
+        "Replicate": 141,
+        "Area A": 0.030625,
+        "Area B": 0.1,
+        "Difference": -0.069375
+      },
+      {
+        "Replicate": 142,
+        "Area A": 0.065,
+        "Area B": 0.07,
+        "Difference": -0.005
+      },
+      {
+        "Replicate": 143,
+        "Area A": 0.28,
+        "Area B": 0.05,
+        "Difference": 0.23
+      },
+      {
+        "Replicate": 144,
+        "Area A": 0.0,
+        "Area B": 0.07,
+        "Difference": -0.07
+      },
+      {
+        "Replicate": 145,
+        "Area A": 0.0,
+        "Area B": 0.1,
+        "Difference": -0.1
+      },
+      {
+        "Replicate": 146,
+        "Area A": 0.21,
+        "Area B": 0.15,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 147,
+        "Area A": 0.145625,
+        "Area B": 0.14,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 148,
+        "Area A": 0.17,
+        "Area B": 0.0,
+        "Difference": 0.17
+      },
+      {
+        "Replicate": 149,
+        "Area A": 0.020416666666666666,
+        "Area B": 0.15,
+        "Difference": -0.12958333333333333
+      },
+      {
+        "Replicate": 150,
+        "Area A": 0.21,
+        "Area B": 0.0,
+        "Difference": 0.21
+      },
+      {
+        "Replicate": 151,
+        "Area A": 0.030625,
+        "Area B": 0.0728125,
+        "Difference": -0.0421875
+      },
+      {
+        "Replicate": 152,
+        "Area A": 0.06125,
+        "Area B": 0.0,
+        "Difference": 0.06125
+      },
+      {
+        "Replicate": 153,
+        "Area A": 0.15,
+        "Area B": 0.0,
+        "Difference": 0.15
+      },
+      {
+        "Replicate": 154,
+        "Area A": 0.05,
+        "Area B": 0.04083333333333333,
+        "Difference": 0.009166666666666667
+      },
+      {
+        "Replicate": 155,
+        "Area A": 0.091875,
+        "Area B": 0.05,
+        "Difference": 0.041875
+      },
+      {
+        "Replicate": 156,
+        "Area A": 0.15125,
+        "Area B": 0.05,
+        "Difference": 0.10125
+      },
+      {
+        "Replicate": 157,
+        "Area A": 0.21,
+        "Area B": 0.06125,
+        "Difference": 0.14875
+      },
+      {
+        "Replicate": 158,
+        "Area A": 0.0,
+        "Area B": 0.07,
+        "Difference": -0.07
+      },
+      {
+        "Replicate": 159,
+        "Area A": 0.07,
+        "Area B": 0.07,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 160,
+        "Area A": 0.10375,
+        "Area B": 0.21,
+        "Difference": -0.10625
+      },
+      {
+        "Replicate": 161,
+        "Area A": 0.1625,
+        "Area B": 0.0,
+        "Difference": 0.1625
+      },
+      {
+        "Replicate": 162,
+        "Area A": 0.16125,
+        "Area B": 0.0575,
+        "Difference": 0.10375
+      },
+      {
+        "Replicate": 163,
+        "Area A": 0.1575,
+        "Area B": 0.100625,
+        "Difference": 0.056875
+      },
+      {
+        "Replicate": 164,
+        "Area A": 0.0725,
+        "Area B": 0.0,
+        "Difference": 0.0725
+      },
+      {
+        "Replicate": 165,
+        "Area A": 0.15,
+        "Area B": 0.05,
+        "Difference": 0.1
+      },
+      {
+        "Replicate": 166,
+        "Area A": 0.0,
+        "Area B": 0.0,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 167,
+        "Area A": 0.1,
+        "Area B": 0.0,
+        "Difference": 0.1
+      },
+      {
+        "Replicate": 168,
+        "Area A": 0.05,
+        "Area B": 0.07,
+        "Difference": -0.02
+      },
+      {
+        "Replicate": 169,
+        "Area A": 0.08166666666666667,
+        "Area B": 0.07,
+        "Difference": 0.011666666666666667
+      },
+      {
+        "Replicate": 170,
+        "Area A": 0.1,
+        "Area B": 0.1,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 171,
+        "Area A": 0.06125,
+        "Area B": 0.0,
+        "Difference": 0.06125
+      },
+      {
+        "Replicate": 172,
+        "Area A": 0.1,
+        "Area B": 0.0,
+        "Difference": 0.1
+      },
+      {
+        "Replicate": 173,
+        "Area A": 0.2,
+        "Area B": 0.030625,
+        "Difference": 0.169375
+      },
+      {
+        "Replicate": 174,
+        "Area A": 0.25,
+        "Area B": 0.030625,
+        "Difference": 0.219375
+      },
+      {
+        "Replicate": 175,
+        "Area A": 0.2428125,
+        "Area B": 0.086875,
+        "Difference": 0.1559375
+      },
+      {
+        "Replicate": 176,
+        "Area A": 0.15,
+        "Area B": 0.07,
+        "Difference": 0.08
+      },
+      {
+        "Replicate": 177,
+        "Area A": 0.0,
+        "Area B": 0.07,
+        "Difference": -0.07
+      },
+      {
+        "Replicate": 178,
+        "Area A": 0.05,
+        "Area B": 0.030625,
+        "Difference": 0.019375
+      },
+      {
+        "Replicate": 179,
+        "Area A": 0.0,
+        "Area B": 0.0,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 180,
+        "Area A": 0.06125,
+        "Area B": 0.030625,
+        "Difference": 0.030625
+      },
+      {
+        "Replicate": 181,
+        "Area A": 0.0,
+        "Area B": 0.15,
+        "Difference": -0.15
+      },
+      {
+        "Replicate": 182,
+        "Area A": 0.19,
+        "Area B": 0.0,
+        "Difference": 0.19
+      },
+      {
+        "Replicate": 183,
+        "Area A": 0.07,
+        "Area B": 0.030625,
+        "Difference": 0.039375
+      },
+      {
+        "Replicate": 184,
+        "Area A": 0.06125,
+        "Area B": 0.05,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 185,
+        "Area A": 0.35,
+        "Area B": 0.07,
+        "Difference": 0.28
+      },
+      {
+        "Replicate": 186,
+        "Area A": 0.21,
+        "Area B": 0.07,
+        "Difference": 0.14
+      },
+      {
+        "Replicate": 187,
+        "Area A": 0.2,
+        "Area B": 0.07375,
+        "Difference": 0.12625
+      },
+      {
+        "Replicate": 188,
+        "Area A": 0.15,
+        "Area B": 0.1,
+        "Difference": 0.05
+      },
+      {
+        "Replicate": 189,
+        "Area A": 0.06125,
+        "Area B": 0.05,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 190,
+        "Area A": 0.0,
+        "Area B": 0.05,
+        "Difference": -0.05
+      },
+      {
+        "Replicate": 191,
+        "Area A": 0.1,
+        "Area B": 0.0075,
+        "Difference": 0.0925
+      },
+      {
+        "Replicate": 192,
+        "Area A": 0.04083333333333333,
+        "Area B": 0.0,
+        "Difference": 0.04083333333333333
+      },
+      {
+        "Replicate": 193,
+        "Area A": 0.15,
+        "Area B": 0.05,
+        "Difference": 0.1
+      },
+      {
+        "Replicate": 194,
+        "Area A": 0.21,
+        "Area B": 0.15,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 195,
+        "Area A": 0.1828125,
+        "Area B": 0.05,
+        "Difference": 0.1328125
+      },
+      {
+        "Replicate": 196,
+        "Area A": 0.05,
+        "Area B": 0.0,
+        "Difference": 0.05
+      },
+      {
+        "Replicate": 197,
+        "Area A": 0.05,
+        "Area B": 0.05,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 198,
+        "Area A": 0.0,
+        "Area B": 0.05,
+        "Difference": -0.05
+      },
+      {
+        "Replicate": 199,
+        "Area A": 0.21,
+        "Area B": 0.05,
+        "Difference": 0.16
+      },
+      {
+        "Replicate": 200,
+        "Area A": 0.153125,
+        "Area B": 0.05,
+        "Difference": 0.103125
+      }
+    ]
+  },
+  "standardized": {
+    "ROC comparison": [
+      {
+        "Area A": 0.5670995670995671,
+        "Area B": 0.4805194805194805,
+        "Raw area A": 0.1,
+        "Raw area B": 0.05,
+        "Difference": 0.08658008658008658,
+        "Control A N": 5,
+        "Patient A N": 5,
+        "Control B N": 5,
+        "Patient B N": 5,
+        "Variance of difference": 0.027884916692471173,
+        "SE": 0.16698777408083257,
+        "Lower": -0.17370129870129872,
+        "Upper": 0.38003246753246744,
+        "Z": null,
+        "p": null
+      }
+    ],
+    "ROC curve A": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 3,
+        "False positive rate": 0.2,
+        "True positive rate": 0.4
+      },
+      {
+        "Threshold": 2,
+        "False positive rate": 0.4,
+        "True positive rate": 0.4
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 0.6,
+        "True positive rate": 0.8
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ],
+    "ROC curve B": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 4,
+        "False positive rate": 0.2,
+        "True positive rate": 0.2
+      },
+      {
+        "Threshold": 3,
+        "False positive rate": 0.6,
+        "True positive rate": 0.2
+      },
+      {
+        "Threshold": 2,
+        "False positive rate": 0.8,
+        "True positive rate": 0.6
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 0.8,
+        "True positive rate": 0.8
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ],
+    "ROC bootstrap": [
+      {
+        "Replicate": 1,
+        "Area A": 0.5443722943722944,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.09740259740259741
+      },
+      {
+        "Replicate": 2,
+        "Area A": 0.6363636363636364,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.12121212121212122
+      },
+      {
+        "Replicate": 3,
+        "Area A": 0.44696969696969696,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.05303030303030303
+      },
+      {
+        "Replicate": 4,
+        "Area A": 0.6255411255411255,
+        "Area B": 0.7229437229437229,
+        "Difference": -0.09740259740259741
+      },
+      {
+        "Replicate": 5,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 6,
+        "Area A": 0.5151515151515151,
+        "Area B": 0.5670995670995671,
+        "Difference": -0.05194805194805195
+      },
+      {
+        "Replicate": 7,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.27705627705627706
+      },
+      {
+        "Replicate": 8,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 9,
+        "Area A": 0.553030303030303,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.07251082251082251
+      },
+      {
+        "Replicate": 10,
+        "Area A": 0.4199134199134199,
+        "Area B": 0.4805194805194805,
+        "Difference": -0.06060606060606061
+      },
+      {
+        "Replicate": 11,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.5151515151515151,
+        "Difference": -0.12121212121212122
+      },
+      {
+        "Replicate": 12,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.08658008658008658
+      },
+      {
+        "Replicate": 13,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 14,
+        "Area A": 0.44696969696969696,
+        "Area B": 0.5,
+        "Difference": -0.05303030303030303
+      },
+      {
+        "Replicate": 15,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.12012987012987013
+      },
+      {
+        "Replicate": 16,
+        "Area A": 0.5,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.05303030303030303
+      },
+      {
+        "Replicate": 17,
+        "Area A": 0.7402597402597403,
+        "Area B": 0.5595238095238095,
+        "Difference": 0.18073593073593072
+      },
+      {
+        "Replicate": 18,
+        "Area A": 0.8787878787878788,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.36363636363636365
+      },
+      {
+        "Replicate": 19,
+        "Area A": 0.9,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.3329004329004329
+      },
+      {
+        "Replicate": 20,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.08658008658008658
+      },
+      {
+        "Replicate": 21,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.17316017316017315
+      },
+      {
+        "Replicate": 22,
+        "Area A": 0.6363636363636364,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.15584415584415584
+      },
+      {
+        "Replicate": 23,
+        "Area A": 0.5,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.05303030303030303
+      },
+      {
+        "Replicate": 24,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2597402597402597
+      },
+      {
+        "Replicate": 25,
+        "Area A": 0.8282828282828283,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.2611832611832612
+      },
+      {
+        "Replicate": 26,
+        "Area A": 0.4292929292929293,
+        "Area B": 0.5670995670995671,
+        "Difference": -0.1378066378066378
+      },
+      {
+        "Replicate": 27,
+        "Area A": 0.553030303030303,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.07251082251082251
+      },
+      {
+        "Replicate": 28,
+        "Area A": 0.4292929292929293,
+        "Area B": 0.5151515151515151,
+        "Difference": -0.08585858585858586
+      },
+      {
+        "Replicate": 29,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 30,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.03354978354978355
+      },
+      {
+        "Replicate": 31,
+        "Area A": 0.5,
+        "Area B": 0.5151515151515151,
+        "Difference": -0.015151515151515152
+      },
+      {
+        "Replicate": 32,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.7575757575757576,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 33,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.5151515151515151,
+        "Difference": -0.03463203463203463
+      },
+      {
+        "Replicate": 34,
+        "Area A": 0.7402597402597403,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.3463203463203463
+      },
+      {
+        "Replicate": 35,
+        "Area A": 0.5,
+        "Area B": 0.5670995670995671,
+        "Difference": -0.0670995670995671
+      },
+      {
+        "Replicate": 36,
+        "Area A": 0.5,
+        "Area B": 0.5670995670995671,
+        "Difference": -0.0670995670995671
+      },
+      {
+        "Replicate": 37,
+        "Area A": 0.553030303030303,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.03787878787878788
+      },
+      {
+        "Replicate": 38,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.3106060606060606
+      },
+      {
+        "Replicate": 39,
+        "Area A": 0.8836580086580087,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.4897186147186147
+      },
+      {
+        "Replicate": 40,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.5541125541125541,
+        "Difference": 0.09956709956709957
+      },
+      {
+        "Replicate": 41,
+        "Area A": 0.5865800865800865,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.19264069264069264
+      },
+      {
+        "Replicate": 42,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.27705627705627706
+      },
+      {
+        "Replicate": 43,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.4805194805194805,
+        "Difference": -0.08658008658008658
+      },
+      {
+        "Replicate": 44,
+        "Area A": 0.8836580086580087,
+        "Area B": 0.6363636363636364,
+        "Difference": 0.2472943722943723
+      },
+      {
+        "Replicate": 45,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.17316017316017315
+      },
+      {
+        "Replicate": 46,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.08658008658008658
+      },
+      {
+        "Replicate": 47,
+        "Area A": 0.698051948051948,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.3041125541125541
+      },
+      {
+        "Replicate": 48,
+        "Area A": 0.5346320346320347,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.05411255411255411
+      },
+      {
+        "Replicate": 49,
+        "Area A": 0.5151515151515151,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 50,
+        "Area A": 0.6926406926406926,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2987012987012987
+      },
+      {
+        "Replicate": 51,
+        "Area A": 0.6731601731601732,
+        "Area B": 0.6363636363636364,
+        "Difference": 0.0367965367965368
+      },
+      {
+        "Replicate": 52,
+        "Area A": 0.6948051948051948,
+        "Area B": 0.5,
+        "Difference": 0.19480519480519481
+      },
+      {
+        "Replicate": 53,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 54,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.5,
+        "Difference": 0.0670995670995671
+      },
+      {
+        "Replicate": 55,
+        "Area A": 0.8885281385281385,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.37337662337662336
+      },
+      {
+        "Replicate": 56,
+        "Area A": 0.5443722943722944,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.15043290043290045
+      },
+      {
+        "Replicate": 57,
+        "Area A": 0.6287878787878788,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.11363636363636363
+      },
+      {
+        "Replicate": 58,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2597402597402597
+      },
+      {
+        "Replicate": 59,
+        "Area A": 0.7922077922077922,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.39826839826839827
+      },
+      {
+        "Replicate": 60,
+        "Area A": 0.9653679653679653,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.5714285714285714
+      },
+      {
+        "Replicate": 61,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 62,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.19047619047619047
+      },
+      {
+        "Replicate": 63,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.4004329004329004,
+        "Difference": 0.35714285714285715
+      },
+      {
+        "Replicate": 64,
+        "Area A": 0.6926406926406926,
+        "Area B": 0.6363636363636364,
+        "Difference": 0.05627705627705628
+      },
+      {
+        "Replicate": 65,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.7575757575757576,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 66,
+        "Area A": 0.7104978354978355,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.31655844155844154
+      },
+      {
+        "Replicate": 67,
+        "Area A": 0.553030303030303,
+        "Area B": 0.6536796536796536,
+        "Difference": -0.10064935064935066
+      },
+      {
+        "Replicate": 68,
+        "Area A": 0.6590909090909091,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.26515151515151514
+      },
+      {
+        "Replicate": 69,
+        "Area A": 0.6412337662337663,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.07413419913419914
+      },
+      {
+        "Replicate": 70,
+        "Area A": 0.5735930735930735,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.17965367965367965
+      },
+      {
+        "Replicate": 71,
+        "Area A": 0.5,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.10606060606060606
+      },
+      {
+        "Replicate": 72,
+        "Area A": 0.6558441558441559,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.1406926406926407
+      },
+      {
+        "Replicate": 73,
+        "Area A": 0.4523809523809524,
+        "Area B": 0.6363636363636364,
+        "Difference": -0.18398268398268397
+      },
+      {
+        "Replicate": 74,
+        "Area A": 0.44696969696969696,
+        "Area B": 0.4329004329004329,
+        "Difference": 0.01406926406926407
+      },
+      {
+        "Replicate": 75,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.5670995670995671,
+        "Difference": -0.08658008658008658
+      },
+      {
+        "Replicate": 76,
+        "Area A": 0.9141414141414141,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.5202020202020202
+      },
+      {
+        "Replicate": 77,
+        "Area A": 0.6060606060606061,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.03896103896103896
+      },
+      {
+        "Replicate": 78,
+        "Area A": 0.6363636363636364,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.24242424242424243
+      },
+      {
+        "Replicate": 79,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.17316017316017315
+      },
+      {
+        "Replicate": 80,
+        "Area A": 0.8614718614718615,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.4675324675324675
+      },
+      {
+        "Replicate": 81,
+        "Area A": 0.6287878787878788,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.23484848484848486
+      },
+      {
+        "Replicate": 82,
+        "Area A": 0.6412337662337663,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2472943722943723
+      },
+      {
+        "Replicate": 83,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.8787878787878788,
+        "Difference": -0.39826839826839827
+      },
+      {
+        "Replicate": 84,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.12012987012987013
+      },
+      {
+        "Replicate": 85,
+        "Area A": 0.5443722943722944,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.15043290043290045
+      },
+      {
+        "Replicate": 86,
+        "Area A": 0.5443722943722944,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.15043290043290045
+      },
+      {
+        "Replicate": 87,
+        "Area A": 0.553030303030303,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.1590909090909091
+      },
+      {
+        "Replicate": 88,
+        "Area A": 0.7451298701298701,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.22997835497835498
+      },
+      {
+        "Replicate": 89,
+        "Area A": 0.5443722943722944,
+        "Area B": 0.5,
+        "Difference": 0.044372294372294376
+      },
+      {
+        "Replicate": 90,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.17316017316017315
+      },
+      {
+        "Replicate": 91,
+        "Area A": 0.5,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.10606060606060606
+      },
+      {
+        "Replicate": 92,
+        "Area A": 0.42045454545454547,
+        "Area B": 0.4134199134199134,
+        "Difference": 0.007034632034632035
+      },
+      {
+        "Replicate": 93,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.08658008658008658
+      },
+      {
+        "Replicate": 94,
+        "Area A": 0.44696969696969696,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.05303030303030303
+      },
+      {
+        "Replicate": 95,
+        "Area A": 0.7451298701298701,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.2981601731601732
+      },
+      {
+        "Replicate": 96,
+        "Area A": 0.46464646464646464,
+        "Area B": 0.6558441558441559,
+        "Difference": -0.1911976911976912
+      },
+      {
+        "Replicate": 97,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.5541125541125541,
+        "Difference": 0.012987012987012988
+      },
+      {
+        "Replicate": 98,
+        "Area A": 0.6412337662337663,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.19426406926406928
+      },
+      {
+        "Replicate": 99,
+        "Area A": 0.5151515151515151,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.03463203463203463
+      },
+      {
+        "Replicate": 100,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2597402597402597
+      },
+      {
+        "Replicate": 101,
+        "Area A": 0.8961038961038961,
+        "Area B": 0.5,
+        "Difference": 0.3961038961038961
+      },
+      {
+        "Replicate": 102,
+        "Area A": 0.5151515151515151,
+        "Area B": 0.46464646464646464,
+        "Difference": 0.050505050505050504
+      },
+      {
+        "Replicate": 103,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 104,
+        "Area A": 0.5963203463203464,
+        "Area B": 0.4292929292929293,
+        "Difference": 0.16702741702741702
+      },
+      {
+        "Replicate": 105,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.5151515151515151,
+        "Difference": -0.12121212121212122
+      },
+      {
+        "Replicate": 106,
+        "Area A": 0.553030303030303,
+        "Area B": 0.8885281385281385,
+        "Difference": -0.3354978354978355
+      },
+      {
+        "Replicate": 107,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2597402597402597
+      },
+      {
+        "Replicate": 108,
+        "Area A": 0.8143939393939394,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.3338744588744589
+      },
+      {
+        "Replicate": 109,
+        "Area A": 0.7770562770562771,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.38311688311688313
+      },
+      {
+        "Replicate": 110,
+        "Area A": 0.47186147186147187,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.07792207792207792
+      },
+      {
+        "Replicate": 111,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.05194805194805195
+      },
+      {
+        "Replicate": 112,
+        "Area A": 0.5,
+        "Area B": 0.6461038961038961,
+        "Difference": -0.1461038961038961
+      },
+      {
+        "Replicate": 113,
+        "Area A": 0.6412337662337663,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.07413419913419914
+      },
+      {
+        "Replicate": 114,
+        "Area A": 0.46464646464646464,
+        "Area B": 0.6893939393939394,
+        "Difference": -0.22474747474747475
+      },
+      {
+        "Replicate": 115,
+        "Area A": 0.42045454545454547,
+        "Area B": 0.6363636363636364,
+        "Difference": -0.2159090909090909
+      },
+      {
+        "Replicate": 116,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.08658008658008658
+      },
+      {
+        "Replicate": 117,
+        "Area A": 0.7954545454545454,
+        "Area B": 0.7575757575757576,
+        "Difference": 0.03787878787878788
+      },
+      {
+        "Replicate": 118,
+        "Area A": 0.6634199134199135,
+        "Area B": 0.7575757575757576,
+        "Difference": -0.09415584415584416
+      },
+      {
+        "Replicate": 119,
+        "Area A": 0.7597402597402597,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.3658008658008658
+      },
+      {
+        "Replicate": 120,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 121,
+        "Area A": 0.5541125541125541,
+        "Area B": 0.5670995670995671,
+        "Difference": -0.012987012987012988
+      },
+      {
+        "Replicate": 122,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.17316017316017315
+      },
+      {
+        "Replicate": 123,
+        "Area A": 0.44696969696969696,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.05303030303030303
+      },
+      {
+        "Replicate": 124,
+        "Area A": 0.5800865800865801,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.012987012987012988
+      },
+      {
+        "Replicate": 125,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2597402597402597
+      },
+      {
+        "Replicate": 126,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 127,
+        "Area A": 0.553030303030303,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.1590909090909091
+      },
+      {
+        "Replicate": 128,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.5346320346320347,
+        "Difference": 0.032467532467532464
+      },
+      {
+        "Replicate": 129,
+        "Area A": 0.553030303030303,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.1590909090909091
+      },
+      {
+        "Replicate": 130,
+        "Area A": 0.5194805194805194,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.03896103896103896
+      },
+      {
+        "Replicate": 131,
+        "Area A": 0.6493506493506493,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.1341991341991342
+      },
+      {
+        "Replicate": 132,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.08658008658008658
+      },
+      {
+        "Replicate": 133,
+        "Area A": 0.44696969696969696,
+        "Area B": 0.5670995670995671,
+        "Difference": -0.12012987012987013
+      },
+      {
+        "Replicate": 134,
+        "Area A": 0.5595238095238095,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.11255411255411256
+      },
+      {
+        "Replicate": 135,
+        "Area A": 0.5248917748917749,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.13095238095238096
+      },
+      {
+        "Replicate": 136,
+        "Area A": 0.7326839826839827,
+        "Area B": 0.5,
+        "Difference": 0.2326839826839827
+      },
+      {
+        "Replicate": 137,
+        "Area A": 0.46464646464646464,
+        "Area B": 0.6536796536796536,
+        "Difference": -0.18903318903318903
+      },
+      {
+        "Replicate": 138,
+        "Area A": 0.44696969696969696,
+        "Area B": 0.5541125541125541,
+        "Difference": -0.10714285714285714
+      },
+      {
+        "Replicate": 139,
+        "Area A": 0.7922077922077922,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.39826839826839827
+      },
+      {
+        "Replicate": 140,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2597402597402597
+      },
+      {
+        "Replicate": 141,
+        "Area A": 0.44696969696969696,
+        "Area B": 0.5670995670995671,
+        "Difference": -0.12012987012987013
+      },
+      {
+        "Replicate": 142,
+        "Area A": 0.5064935064935064,
+        "Area B": 0.5151515151515151,
+        "Difference": -0.008658008658008658
+      },
+      {
+        "Replicate": 143,
+        "Area A": 0.8787878787878788,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.39826839826839827
+      },
+      {
+        "Replicate": 144,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.5151515151515151,
+        "Difference": -0.12121212121212122
+      },
+      {
+        "Replicate": 145,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.5670995670995671,
+        "Difference": -0.17316017316017315
+      },
+      {
+        "Replicate": 146,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.6536796536796536,
+        "Difference": 0.1038961038961039
+      },
+      {
+        "Replicate": 147,
+        "Area A": 0.6461038961038961,
+        "Area B": 0.6363636363636364,
+        "Difference": 0.00974025974025974
+      },
+      {
+        "Replicate": 148,
+        "Area A": 0.6883116883116883,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2943722943722944
+      },
+      {
+        "Replicate": 149,
+        "Area A": 0.4292929292929293,
+        "Area B": 0.6536796536796536,
+        "Difference": -0.22438672438672438
+      },
+      {
+        "Replicate": 150,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.36363636363636365
+      },
+      {
+        "Replicate": 151,
+        "Area A": 0.44696969696969696,
+        "Area B": 0.520021645021645,
+        "Difference": -0.07305194805194805
+      },
+      {
+        "Replicate": 152,
+        "Area A": 0.5,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.10606060606060606
+      },
+      {
+        "Replicate": 153,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2597402597402597
+      },
+      {
+        "Replicate": 154,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.46464646464646464,
+        "Difference": 0.015873015873015872
+      },
+      {
+        "Replicate": 155,
+        "Area A": 0.553030303030303,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.07251082251082251
+      },
+      {
+        "Replicate": 156,
+        "Area A": 0.6558441558441559,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.17532467532467533
+      },
+      {
+        "Replicate": 157,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.5,
+        "Difference": 0.25757575757575757
+      },
+      {
+        "Replicate": 158,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.5151515151515151,
+        "Difference": -0.12121212121212122
+      },
+      {
+        "Replicate": 159,
+        "Area A": 0.5151515151515151,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 160,
+        "Area A": 0.5735930735930735,
+        "Area B": 0.7575757575757576,
+        "Difference": -0.18398268398268397
+      },
+      {
+        "Replicate": 161,
+        "Area A": 0.6753246753246753,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.2813852813852814
+      },
+      {
+        "Replicate": 162,
+        "Area A": 0.6731601731601732,
+        "Area B": 0.4935064935064935,
+        "Difference": 0.17965367965367965
+      },
+      {
+        "Replicate": 163,
+        "Area A": 0.6666666666666666,
+        "Area B": 0.5681818181818182,
+        "Difference": 0.09848484848484848
+      },
+      {
+        "Replicate": 164,
+        "Area A": 0.5194805194805194,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.12554112554112554
+      },
+      {
+        "Replicate": 165,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.17316017316017315
+      },
+      {
+        "Replicate": 166,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 167,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.17316017316017315
+      },
+      {
+        "Replicate": 168,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.5151515151515151,
+        "Difference": -0.03463203463203463
+      },
+      {
+        "Replicate": 169,
+        "Area A": 0.5353535353535354,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.020202020202020204
+      },
+      {
+        "Replicate": 170,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 171,
+        "Area A": 0.5,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.10606060606060606
+      },
+      {
+        "Replicate": 172,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.17316017316017315
+      },
+      {
+        "Replicate": 173,
+        "Area A": 0.7402597402597403,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.29329004329004327
+      },
+      {
+        "Replicate": 174,
+        "Area A": 0.8268398268398268,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.37987012987012986
+      },
+      {
+        "Replicate": 175,
+        "Area A": 0.8143939393939394,
+        "Area B": 0.5443722943722944,
+        "Difference": 0.270021645021645
+      },
+      {
+        "Replicate": 176,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.13852813852813853
+      },
+      {
+        "Replicate": 177,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.5151515151515151,
+        "Difference": -0.12121212121212122
+      },
+      {
+        "Replicate": 178,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.03354978354978355
+      },
+      {
+        "Replicate": 179,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 180,
+        "Area A": 0.5,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.05303030303030303
+      },
+      {
+        "Replicate": 181,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.6536796536796536,
+        "Difference": -0.2597402597402597
+      },
+      {
+        "Replicate": 182,
+        "Area A": 0.7229437229437229,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.329004329004329
+      },
+      {
+        "Replicate": 183,
+        "Area A": 0.5151515151515151,
+        "Area B": 0.44696969696969696,
+        "Difference": 0.06818181818181818
+      },
+      {
+        "Replicate": 184,
+        "Area A": 0.5,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.01948051948051948
+      },
+      {
+        "Replicate": 185,
+        "Area A": 1.0,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.48484848484848486
+      },
+      {
+        "Replicate": 186,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.5151515151515151,
+        "Difference": 0.24242424242424243
+      },
+      {
+        "Replicate": 187,
+        "Area A": 0.7402597402597403,
+        "Area B": 0.5216450216450217,
+        "Difference": 0.21861471861471862
+      },
+      {
+        "Replicate": 188,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.5670995670995671,
+        "Difference": 0.08658008658008658
+      },
+      {
+        "Replicate": 189,
+        "Area A": 0.5,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.01948051948051948
+      },
+      {
+        "Replicate": 190,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.4805194805194805,
+        "Difference": -0.08658008658008658
+      },
+      {
+        "Replicate": 191,
+        "Area A": 0.5670995670995671,
+        "Area B": 0.4069264069264069,
+        "Difference": 0.16017316017316016
+      },
+      {
+        "Replicate": 192,
+        "Area A": 0.46464646464646464,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.0707070707070707
+      },
+      {
+        "Replicate": 193,
+        "Area A": 0.6536796536796536,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.17316017316017315
+      },
+      {
+        "Replicate": 194,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.6536796536796536,
+        "Difference": 0.1038961038961039
+      },
+      {
+        "Replicate": 195,
+        "Area A": 0.7104978354978355,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.22997835497835498
+      },
+      {
+        "Replicate": 196,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.3939393939393939,
+        "Difference": 0.08658008658008658
+      },
+      {
+        "Replicate": 197,
+        "Area A": 0.4805194805194805,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 198,
+        "Area A": 0.3939393939393939,
+        "Area B": 0.4805194805194805,
+        "Difference": -0.08658008658008658
+      },
+      {
+        "Replicate": 199,
+        "Area A": 0.7575757575757576,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.27705627705627706
+      },
+      {
+        "Replicate": 200,
+        "Area A": 0.6590909090909091,
+        "Area B": 0.4805194805194805,
+        "Difference": 0.17857142857142858
+      }
+    ]
+  },
+  "diagonal_cutoff": {
+    "ROC comparison": [
+      {
+        "Area A": 0.0225,
+        "Area B": 0.01125,
+        "Raw area A": 0.0225,
+        "Raw area B": 0.01125,
+        "Difference": 0.01125,
+        "Control A N": 5,
+        "Patient A N": 5,
+        "Control B N": 5,
+        "Patient B N": 5,
+        "Variance of difference": 0.0014587074320822865,
+        "SE": 0.038193028579601884,
+        "Lower": -0.057210937499999996,
+        "Upper": 0.09997500000000005,
+        "Z": null,
+        "p": null
+      }
+    ],
+    "ROC curve A": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 3,
+        "False positive rate": 0.2,
+        "True positive rate": 0.4
+      },
+      {
+        "Threshold": 2,
+        "False positive rate": 0.4,
+        "True positive rate": 0.4
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 0.6,
+        "True positive rate": 0.8
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ],
+    "ROC curve B": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 4,
+        "False positive rate": 0.2,
+        "True positive rate": 0.2
+      },
+      {
+        "Threshold": 3,
+        "False positive rate": 0.6,
+        "True positive rate": 0.2
+      },
+      {
+        "Threshold": 2,
+        "False positive rate": 0.8,
+        "True positive rate": 0.6
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 0.8,
+        "True positive rate": 0.8
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ],
+    "ROC bootstrap": [
+      {
+        "Replicate": 1,
+        "Area A": 0.03,
+        "Area B": 0.005625,
+        "Difference": 0.024375
+      },
+      {
+        "Replicate": 2,
+        "Area A": 0.06,
+        "Area B": 0.03,
+        "Difference": 0.03
+      },
+      {
+        "Replicate": 3,
+        "Area A": 0.005625,
+        "Area B": 0.0,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 4,
+        "Area A": 0.0225,
+        "Area B": 0.0225,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 5,
+        "Area A": 0.0225,
+        "Area B": 0.0225,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 6,
+        "Area A": 0.03,
+        "Area B": 0.0225,
+        "Difference": 0.0075
+      },
+      {
+        "Replicate": 7,
+        "Area A": 0.09,
+        "Area B": 0.01125,
+        "Difference": 0.07875
+      },
+      {
+        "Replicate": 8,
+        "Area A": 0.0,
+        "Area B": 0.0,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 9,
+        "Area A": 0.016875,
+        "Area B": 0.01125,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 10,
+        "Area A": 0.0,
+        "Area B": 0.01125,
+        "Difference": -0.01125
+      },
+      {
+        "Replicate": 11,
+        "Area A": 0.0,
+        "Area B": 0.03,
+        "Difference": -0.03
+      },
+      {
+        "Replicate": 12,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 13,
+        "Area A": 0.01125,
+        "Area B": 0.01125,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 14,
+        "Area A": 0.005625,
+        "Area B": 0.01125,
+        "Difference": -0.005625
+      },
+      {
+        "Replicate": 15,
+        "Area A": 0.0225,
+        "Area B": 0.005625,
+        "Difference": 0.016875
+      },
+      {
+        "Replicate": 16,
+        "Area A": 0.01125,
+        "Area B": 0.005625,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 17,
+        "Area A": 0.045,
+        "Area B": 0.0,
+        "Difference": 0.045
+      },
+      {
+        "Replicate": 18,
+        "Area A": 0.12,
+        "Area B": 0.03,
+        "Difference": 0.09
+      },
+      {
+        "Replicate": 19,
+        "Area A": 0.12225,
+        "Area B": 0.0225,
+        "Difference": 0.09975
+      },
+      {
+        "Replicate": 20,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 21,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 22,
+        "Area A": 0.06,
+        "Area B": 0.01125,
+        "Difference": 0.04875
+      },
+      {
+        "Replicate": 23,
+        "Area A": 0.01125,
+        "Area B": 0.005625,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 24,
+        "Area A": 0.03375,
+        "Area B": 0.0,
+        "Difference": 0.03375
+      },
+      {
+        "Replicate": 25,
+        "Area A": 0.0975,
+        "Area B": 0.0225,
+        "Difference": 0.075
+      },
+      {
+        "Replicate": 26,
+        "Area A": 0.00375,
+        "Area B": 0.0225,
+        "Difference": -0.01875
+      },
+      {
+        "Replicate": 27,
+        "Area A": 0.016875,
+        "Area B": 0.01125,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 28,
+        "Area A": 0.00375,
+        "Area B": 0.03,
+        "Difference": -0.02625
+      },
+      {
+        "Replicate": 29,
+        "Area A": 0.01125,
+        "Area B": 0.01125,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 30,
+        "Area A": 0.01125,
+        "Area B": 0.005625,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 31,
+        "Area A": 0.01125,
+        "Area B": 0.03,
+        "Difference": -0.01875
+      },
+      {
+        "Replicate": 32,
+        "Area A": 0.09,
+        "Area B": 0.09,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 33,
+        "Area A": 0.01125,
+        "Area B": 0.03,
+        "Difference": -0.01875
+      },
+      {
+        "Replicate": 34,
+        "Area A": 0.045,
+        "Area B": 0.0,
+        "Difference": 0.045
+      },
+      {
+        "Replicate": 35,
+        "Area A": 0.01125,
+        "Area B": 0.0225,
+        "Difference": -0.01125
+      },
+      {
+        "Replicate": 36,
+        "Area A": 0.01125,
+        "Area B": 0.0225,
+        "Difference": -0.01125
+      },
+      {
+        "Replicate": 37,
+        "Area A": 0.016875,
+        "Area B": 0.03,
+        "Difference": -0.013125
+      },
+      {
+        "Replicate": 38,
+        "Area A": 0.09,
+        "Area B": 0.005625,
+        "Difference": 0.084375
+      },
+      {
+        "Replicate": 39,
+        "Area A": 0.12,
+        "Area B": 0.0,
+        "Difference": 0.12
+      },
+      {
+        "Replicate": 40,
+        "Area A": 0.03375,
+        "Area B": 0.03,
+        "Difference": 0.00375
+      },
+      {
+        "Replicate": 41,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 42,
+        "Area A": 0.09,
+        "Area B": 0.01125,
+        "Difference": 0.07875
+      },
+      {
+        "Replicate": 43,
+        "Area A": 0.0,
+        "Area B": 0.01125,
+        "Difference": -0.01125
+      },
+      {
+        "Replicate": 44,
+        "Area A": 0.12,
+        "Area B": 0.06,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 45,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 46,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 47,
+        "Area A": 0.06,
+        "Area B": 0.0,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 48,
+        "Area A": 0.03,
+        "Area B": 0.01125,
+        "Difference": 0.01875
+      },
+      {
+        "Replicate": 49,
+        "Area A": 0.03,
+        "Area B": 0.03,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 50,
+        "Area A": 0.03375,
+        "Area B": 0.0,
+        "Difference": 0.03375
+      },
+      {
+        "Replicate": 51,
+        "Area A": 0.03375,
+        "Area B": 0.06,
+        "Difference": -0.02625
+      },
+      {
+        "Replicate": 52,
+        "Area A": 0.06,
+        "Area B": 0.01125,
+        "Difference": 0.04875
+      },
+      {
+        "Replicate": 53,
+        "Area A": 0.0,
+        "Area B": 0.0,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 54,
+        "Area A": 0.0225,
+        "Area B": 0.01125,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 55,
+        "Area A": 0.12,
+        "Area B": 0.03,
+        "Difference": 0.09
+      },
+      {
+        "Replicate": 56,
+        "Area A": 0.03,
+        "Area B": 0.0,
+        "Difference": 0.03
+      },
+      {
+        "Replicate": 57,
+        "Area A": 0.03,
+        "Area B": 0.03,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 58,
+        "Area A": 0.03375,
+        "Area B": 0.0,
+        "Difference": 0.03375
+      },
+      {
+        "Replicate": 59,
+        "Area A": 0.06,
+        "Area B": 0.0,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 60,
+        "Area A": 0.13125,
+        "Area B": 0.0,
+        "Difference": 0.13125
+      },
+      {
+        "Replicate": 61,
+        "Area A": 0.01125,
+        "Area B": 0.01125,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 62,
+        "Area A": 0.09,
+        "Area B": 0.0225,
+        "Difference": 0.0675
+      },
+      {
+        "Replicate": 63,
+        "Area A": 0.09,
+        "Area B": 0.0,
+        "Difference": 0.09
+      },
+      {
+        "Replicate": 64,
+        "Area A": 0.03375,
+        "Area B": 0.06,
+        "Difference": -0.02625
+      },
+      {
+        "Replicate": 65,
+        "Area A": 0.09,
+        "Area B": 0.09,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 66,
+        "Area A": 0.03375,
+        "Area B": 0.0,
+        "Difference": 0.03375
+      },
+      {
+        "Replicate": 67,
+        "Area A": 0.016875,
+        "Area B": 0.03375,
+        "Difference": -0.016875
+      },
+      {
+        "Replicate": 68,
+        "Area A": 0.028125,
+        "Area B": 0.0,
+        "Difference": 0.028125
+      },
+      {
+        "Replicate": 69,
+        "Area A": 0.01125,
+        "Area B": 0.0225,
+        "Difference": -0.01125
+      },
+      {
+        "Replicate": 70,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 71,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 72,
+        "Area A": 0.06,
+        "Area B": 0.03,
+        "Difference": 0.03
+      },
+      {
+        "Replicate": 73,
+        "Area A": 0.0,
+        "Area B": 0.06,
+        "Difference": -0.06
+      },
+      {
+        "Replicate": 74,
+        "Area A": 0.005625,
+        "Area B": 0.0,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 75,
+        "Area A": 0.01125,
+        "Area B": 0.0225,
+        "Difference": -0.01125
+      },
+      {
+        "Replicate": 76,
+        "Area A": 0.12375,
+        "Area B": 0.0,
+        "Difference": 0.12375
+      },
+      {
+        "Replicate": 77,
+        "Area A": 0.0225,
+        "Area B": 0.0225,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 78,
+        "Area A": 0.06,
+        "Area B": 0.0,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 79,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 80,
+        "Area A": 0.09,
+        "Area B": 0.0,
+        "Difference": 0.09
+      },
+      {
+        "Replicate": 81,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 82,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 83,
+        "Area A": 0.01125,
+        "Area B": 0.12,
+        "Difference": -0.10875
+      },
+      {
+        "Replicate": 84,
+        "Area A": 0.0225,
+        "Area B": 0.005625,
+        "Difference": 0.016875
+      },
+      {
+        "Replicate": 85,
+        "Area A": 0.03,
+        "Area B": 0.0,
+        "Difference": 0.03
+      },
+      {
+        "Replicate": 86,
+        "Area A": 0.03,
+        "Area B": 0.0,
+        "Difference": 0.03
+      },
+      {
+        "Replicate": 87,
+        "Area A": 0.016875,
+        "Area B": 0.0,
+        "Difference": 0.016875
+      },
+      {
+        "Replicate": 88,
+        "Area A": 0.06,
+        "Area B": 0.03,
+        "Difference": 0.03
+      },
+      {
+        "Replicate": 89,
+        "Area A": 0.03,
+        "Area B": 0.01125,
+        "Difference": 0.01875
+      },
+      {
+        "Replicate": 90,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 91,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 92,
+        "Area A": 0.0028125,
+        "Area B": 0.0,
+        "Difference": 0.0028125
+      },
+      {
+        "Replicate": 93,
+        "Area A": 0.0225,
+        "Area B": 0.01125,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 94,
+        "Area A": 0.005625,
+        "Area B": 0.0,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 95,
+        "Area A": 0.06,
+        "Area B": 0.005625,
+        "Difference": 0.054375
+      },
+      {
+        "Replicate": 96,
+        "Area A": 0.0075,
+        "Area B": 0.06,
+        "Difference": -0.0525
+      },
+      {
+        "Replicate": 97,
+        "Area A": 0.0225,
+        "Area B": 0.03,
+        "Difference": -0.0075
+      },
+      {
+        "Replicate": 98,
+        "Area A": 0.01125,
+        "Area B": 0.005625,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 99,
+        "Area A": 0.03,
+        "Area B": 0.01125,
+        "Difference": 0.01875
+      },
+      {
+        "Replicate": 100,
+        "Area A": 0.03375,
+        "Area B": 0.0,
+        "Difference": 0.03375
+      },
+      {
+        "Replicate": 101,
+        "Area A": 0.09375,
+        "Area B": 0.01125,
+        "Difference": 0.0825
+      },
+      {
+        "Replicate": 102,
+        "Area A": 0.03,
+        "Area B": 0.0075,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 103,
+        "Area A": 0.0225,
+        "Area B": 0.0225,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 104,
+        "Area A": 0.0225,
+        "Area B": 0.00375,
+        "Difference": 0.01875
+      },
+      {
+        "Replicate": 105,
+        "Area A": 0.0,
+        "Area B": 0.03,
+        "Difference": -0.03
+      },
+      {
+        "Replicate": 106,
+        "Area A": 0.016875,
+        "Area B": 0.12,
+        "Difference": -0.103125
+      },
+      {
+        "Replicate": 107,
+        "Area A": 0.03375,
+        "Area B": 0.0,
+        "Difference": 0.03375
+      },
+      {
+        "Replicate": 108,
+        "Area A": 0.09,
+        "Area B": 0.01125,
+        "Difference": 0.07875
+      },
+      {
+        "Replicate": 109,
+        "Area A": 0.09,
+        "Area B": 0.0,
+        "Difference": 0.09
+      },
+      {
+        "Replicate": 110,
+        "Area A": 0.0,
+        "Area B": 0.0,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 111,
+        "Area A": 0.0225,
+        "Area B": 0.03,
+        "Difference": -0.0075
+      },
+      {
+        "Replicate": 112,
+        "Area A": 0.01125,
+        "Area B": 0.06,
+        "Difference": -0.04875
+      },
+      {
+        "Replicate": 113,
+        "Area A": 0.01125,
+        "Area B": 0.0225,
+        "Difference": -0.01125
+      },
+      {
+        "Replicate": 114,
+        "Area A": 0.0075,
+        "Area B": 0.065625,
+        "Difference": -0.058125
+      },
+      {
+        "Replicate": 115,
+        "Area A": 0.0028125,
+        "Area B": 0.06,
+        "Difference": -0.0571875
+      },
+      {
+        "Replicate": 116,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 117,
+        "Area A": 0.076875,
+        "Area B": 0.09,
+        "Difference": -0.013125
+      },
+      {
+        "Replicate": 118,
+        "Area A": 0.03375,
+        "Area B": 0.09,
+        "Difference": -0.05625
+      },
+      {
+        "Replicate": 119,
+        "Area A": 0.045,
+        "Area B": 0.0,
+        "Difference": 0.045
+      },
+      {
+        "Replicate": 120,
+        "Area A": 0.01125,
+        "Area B": 0.01125,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 121,
+        "Area A": 0.03,
+        "Area B": 0.0225,
+        "Difference": 0.0075
+      },
+      {
+        "Replicate": 122,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 123,
+        "Area A": 0.005625,
+        "Area B": 0.0,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 124,
+        "Area A": 0.0225,
+        "Area B": 0.0225,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 125,
+        "Area A": 0.03375,
+        "Area B": 0.0,
+        "Difference": 0.03375
+      },
+      {
+        "Replicate": 126,
+        "Area A": 0.01125,
+        "Area B": 0.01125,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 127,
+        "Area A": 0.016875,
+        "Area B": 0.0,
+        "Difference": 0.016875
+      },
+      {
+        "Replicate": 128,
+        "Area A": 0.0225,
+        "Area B": 0.03,
+        "Difference": -0.0075
+      },
+      {
+        "Replicate": 129,
+        "Area A": 0.016875,
+        "Area B": 0.0,
+        "Difference": 0.016875
+      },
+      {
+        "Replicate": 130,
+        "Area A": 0.01125,
+        "Area B": 0.01125,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 131,
+        "Area A": 0.06,
+        "Area B": 0.03,
+        "Difference": 0.03
+      },
+      {
+        "Replicate": 132,
+        "Area A": 0.0225,
+        "Area B": 0.01125,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 133,
+        "Area A": 0.005625,
+        "Area B": 0.0225,
+        "Difference": -0.016875
+      },
+      {
+        "Replicate": 134,
+        "Area A": 0.0,
+        "Area B": 0.005625,
+        "Difference": -0.005625
+      },
+      {
+        "Replicate": 135,
+        "Area A": 0.03,
+        "Area B": 0.0,
+        "Difference": 0.03
+      },
+      {
+        "Replicate": 136,
+        "Area A": 0.07125,
+        "Area B": 0.01125,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 137,
+        "Area A": 0.0075,
+        "Area B": 0.03375,
+        "Difference": -0.02625
+      },
+      {
+        "Replicate": 138,
+        "Area A": 0.005625,
+        "Area B": 0.03,
+        "Difference": -0.024375
+      },
+      {
+        "Replicate": 139,
+        "Area A": 0.06,
+        "Area B": 0.0,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 140,
+        "Area A": 0.03375,
+        "Area B": 0.0,
+        "Difference": 0.03375
+      },
+      {
+        "Replicate": 141,
+        "Area A": 0.005625,
+        "Area B": 0.0225,
+        "Difference": -0.016875
+      },
+      {
+        "Replicate": 142,
+        "Area A": 0.01125,
+        "Area B": 0.03,
+        "Difference": -0.01875
+      },
+      {
+        "Replicate": 143,
+        "Area A": 0.12,
+        "Area B": 0.01125,
+        "Difference": 0.10875
+      },
+      {
+        "Replicate": 144,
+        "Area A": 0.0,
+        "Area B": 0.03,
+        "Difference": -0.03
+      },
+      {
+        "Replicate": 145,
+        "Area A": 0.0,
+        "Area B": 0.0225,
+        "Difference": -0.0225
+      },
+      {
+        "Replicate": 146,
+        "Area A": 0.09,
+        "Area B": 0.03375,
+        "Difference": 0.05625
+      },
+      {
+        "Replicate": 147,
+        "Area A": 0.06,
+        "Area B": 0.06,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 148,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 149,
+        "Area A": 0.00375,
+        "Area B": 0.03375,
+        "Difference": -0.03
+      },
+      {
+        "Replicate": 150,
+        "Area A": 0.09,
+        "Area B": 0.0,
+        "Difference": 0.09
+      },
+      {
+        "Replicate": 151,
+        "Area A": 0.005625,
+        "Area B": 0.03,
+        "Difference": -0.024375
+      },
+      {
+        "Replicate": 152,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 153,
+        "Area A": 0.03375,
+        "Area B": 0.0,
+        "Difference": 0.03375
+      },
+      {
+        "Replicate": 154,
+        "Area A": 0.01125,
+        "Area B": 0.0075,
+        "Difference": 0.00375
+      },
+      {
+        "Replicate": 155,
+        "Area A": 0.016875,
+        "Area B": 0.01125,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 156,
+        "Area A": 0.06,
+        "Area B": 0.01125,
+        "Difference": 0.04875
+      },
+      {
+        "Replicate": 157,
+        "Area A": 0.09,
+        "Area B": 0.01125,
+        "Difference": 0.07875
+      },
+      {
+        "Replicate": 158,
+        "Area A": 0.0,
+        "Area B": 0.03,
+        "Difference": -0.03
+      },
+      {
+        "Replicate": 159,
+        "Area A": 0.03,
+        "Area B": 0.03,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 160,
+        "Area A": 0.0225,
+        "Area B": 0.09,
+        "Difference": -0.0675
+      },
+      {
+        "Replicate": 161,
+        "Area A": 0.06,
+        "Area B": 0.0,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 162,
+        "Area A": 0.03375,
+        "Area B": 0.01125,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 163,
+        "Area A": 0.03375,
+        "Area B": 0.035625,
+        "Difference": -0.001875
+      },
+      {
+        "Replicate": 164,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 165,
+        "Area A": 0.03375,
+        "Area B": 0.01125,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 166,
+        "Area A": 0.0,
+        "Area B": 0.0,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 167,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 168,
+        "Area A": 0.01125,
+        "Area B": 0.03,
+        "Difference": -0.01875
+      },
+      {
+        "Replicate": 169,
+        "Area A": 0.015,
+        "Area B": 0.03,
+        "Difference": -0.015
+      },
+      {
+        "Replicate": 170,
+        "Area A": 0.0225,
+        "Area B": 0.0225,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 171,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 172,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 173,
+        "Area A": 0.045,
+        "Area B": 0.005625,
+        "Difference": 0.039375
+      },
+      {
+        "Replicate": 174,
+        "Area A": 0.05625,
+        "Area B": 0.005625,
+        "Difference": 0.050625
+      },
+      {
+        "Replicate": 175,
+        "Area A": 0.09,
+        "Area B": 0.03,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 176,
+        "Area A": 0.03375,
+        "Area B": 0.03,
+        "Difference": 0.00375
+      },
+      {
+        "Replicate": 177,
+        "Area A": 0.0,
+        "Area B": 0.03,
+        "Difference": -0.03
+      },
+      {
+        "Replicate": 178,
+        "Area A": 0.01125,
+        "Area B": 0.005625,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 179,
+        "Area A": 0.0,
+        "Area B": 0.0,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 180,
+        "Area A": 0.01125,
+        "Area B": 0.005625,
+        "Difference": 0.005625
+      },
+      {
+        "Replicate": 181,
+        "Area A": 0.0,
+        "Area B": 0.03375,
+        "Difference": -0.03375
+      },
+      {
+        "Replicate": 182,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 183,
+        "Area A": 0.03,
+        "Area B": 0.005625,
+        "Difference": 0.024375
+      },
+      {
+        "Replicate": 184,
+        "Area A": 0.01125,
+        "Area B": 0.01125,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 185,
+        "Area A": 0.15,
+        "Area B": 0.03,
+        "Difference": 0.12
+      },
+      {
+        "Replicate": 186,
+        "Area A": 0.09,
+        "Area B": 0.03,
+        "Difference": 0.06
+      },
+      {
+        "Replicate": 187,
+        "Area A": 0.045,
+        "Area B": 0.03,
+        "Difference": 0.015
+      },
+      {
+        "Replicate": 188,
+        "Area A": 0.03375,
+        "Area B": 0.0225,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 189,
+        "Area A": 0.01125,
+        "Area B": 0.01125,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 190,
+        "Area A": 0.0,
+        "Area B": 0.01125,
+        "Difference": -0.01125
+      },
+      {
+        "Replicate": 191,
+        "Area A": 0.0225,
+        "Area B": 0.0,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 192,
+        "Area A": 0.0075,
+        "Area B": 0.0,
+        "Difference": 0.0075
+      },
+      {
+        "Replicate": 193,
+        "Area A": 0.03375,
+        "Area B": 0.01125,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 194,
+        "Area A": 0.09,
+        "Area B": 0.03375,
+        "Difference": 0.05625
+      },
+      {
+        "Replicate": 195,
+        "Area A": 0.03375,
+        "Area B": 0.01125,
+        "Difference": 0.0225
+      },
+      {
+        "Replicate": 196,
+        "Area A": 0.01125,
+        "Area B": 0.0,
+        "Difference": 0.01125
+      },
+      {
+        "Replicate": 197,
+        "Area A": 0.01125,
+        "Area B": 0.01125,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 198,
+        "Area A": 0.0,
+        "Area B": 0.01125,
+        "Difference": -0.01125
+      },
+      {
+        "Replicate": 199,
+        "Area A": 0.09,
+        "Area B": 0.01125,
+        "Difference": 0.07875
+      },
+      {
+        "Replicate": 200,
+        "Area A": 0.028125,
+        "Area B": 0.01125,
+        "Difference": 0.016875
+      }
+    ]
+  },
+  "full_bootstrap": {
+    "ROC comparison": [
+      {
+        "Area A": 0.7777777777777778,
+        "Area B": 0.8303571428571429,
+        "Raw area A": 0.7777777777777778,
+        "Raw area B": 0.8303571428571429,
+        "Difference": -0.05257936507936508,
+        "Control A N": 6,
+        "Patient A N": 6,
+        "Control B N": 8,
+        "Patient B N": 7,
+        "Variance of difference": 0.022483573845828605,
+        "SE": 0.14994523615583324,
+        "Lower": -0.3421626984126984,
+        "Upper": 0.21944444444444453,
+        "Z": null,
+        "p": null
+      }
+    ],
+    "ROC curve A": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 9,
+        "False positive rate": 0.0,
+        "True positive rate": 0.16666666666666666
+      },
+      {
+        "Threshold": 7,
+        "False positive rate": 0.0,
+        "True positive rate": 0.3333333333333333
+      },
+      {
+        "Threshold": 5,
+        "False positive rate": 0.16666666666666666,
+        "True positive rate": 0.5
+      },
+      {
+        "Threshold": 4,
+        "False positive rate": 0.3333333333333333,
+        "True positive rate": 0.6666666666666666
+      },
+      {
+        "Threshold": 2,
+        "False positive rate": 0.6666666666666666,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 0.8333333333333334,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ],
+    "ROC curve B": [
+      {
+        "Threshold": null,
+        "False positive rate": 0.0,
+        "True positive rate": 0.0
+      },
+      {
+        "Threshold": 0,
+        "False positive rate": 0.0,
+        "True positive rate": 0.14285714285714285
+      },
+      {
+        "Threshold": 1,
+        "False positive rate": 0.0,
+        "True positive rate": 0.2857142857142857
+      },
+      {
+        "Threshold": 3,
+        "False positive rate": 0.0,
+        "True positive rate": 0.42857142857142855
+      },
+      {
+        "Threshold": 4,
+        "False positive rate": 0.125,
+        "True positive rate": 0.7142857142857143
+      },
+      {
+        "Threshold": 5,
+        "False positive rate": 0.375,
+        "True positive rate": 0.7142857142857143
+      },
+      {
+        "Threshold": 6,
+        "False positive rate": 0.5,
+        "True positive rate": 0.8571428571428571
+      },
+      {
+        "Threshold": 7,
+        "False positive rate": 0.75,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 8,
+        "False positive rate": 0.875,
+        "True positive rate": 1.0
+      },
+      {
+        "Threshold": 9,
+        "False positive rate": 1.0,
+        "True positive rate": 1.0
+      }
+    ],
+    "ROC bootstrap": [
+      {
+        "Replicate": 1,
+        "Area A": 0.8611111111111112,
+        "Area B": 0.7410714285714286,
+        "Difference": 0.12003968253968254
+      },
+      {
+        "Replicate": 2,
+        "Area A": 0.6666666666666666,
+        "Area B": 0.9017857142857143,
+        "Difference": -0.23511904761904762
+      },
+      {
+        "Replicate": 3,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.8392857142857143,
+        "Difference": -0.11706349206349206
+      },
+      {
+        "Replicate": 4,
+        "Area A": 0.7083333333333334,
+        "Area B": 0.7678571428571429,
+        "Difference": -0.05952380952380952
+      },
+      {
+        "Replicate": 5,
+        "Area A": 0.7916666666666666,
+        "Area B": 0.7678571428571429,
+        "Difference": 0.023809523809523808
+      },
+      {
+        "Replicate": 6,
+        "Area A": 0.7638888888888888,
+        "Area B": 0.8482142857142857,
+        "Difference": -0.08432539682539683
+      },
+      {
+        "Replicate": 7,
+        "Area A": 0.8333333333333334,
+        "Area B": 1.0,
+        "Difference": -0.16666666666666666
+      },
+      {
+        "Replicate": 8,
+        "Area A": 0.8333333333333334,
+        "Area B": 0.9196428571428571,
+        "Difference": -0.08630952380952381
+      },
+      {
+        "Replicate": 9,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.8125,
+        "Difference": 0.11805555555555555
+      },
+      {
+        "Replicate": 10,
+        "Area A": 1.0,
+        "Area B": 0.5892857142857143,
+        "Difference": 0.4107142857142857
+      },
+      {
+        "Replicate": 11,
+        "Area A": 0.5972222222222222,
+        "Area B": 0.75,
+        "Difference": -0.1527777777777778
+      },
+      {
+        "Replicate": 12,
+        "Area A": 0.7638888888888888,
+        "Area B": 0.7410714285714286,
+        "Difference": 0.022817460317460316
+      },
+      {
+        "Replicate": 13,
+        "Area A": 0.5555555555555556,
+        "Area B": 0.9375,
+        "Difference": -0.3819444444444444
+      },
+      {
+        "Replicate": 14,
+        "Area A": 0.8888888888888888,
+        "Area B": 0.9642857142857143,
+        "Difference": -0.07539682539682539
+      },
+      {
+        "Replicate": 15,
+        "Area A": 0.6111111111111112,
+        "Area B": 0.8660714285714286,
+        "Difference": -0.25496031746031744
+      },
+      {
+        "Replicate": 16,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.10515873015873016
+      },
+      {
+        "Replicate": 17,
+        "Area A": 0.9861111111111112,
+        "Area B": 0.7857142857142857,
+        "Difference": 0.2003968253968254
+      },
+      {
+        "Replicate": 18,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.09126984126984126
+      },
+      {
+        "Replicate": 19,
+        "Area A": 0.6111111111111112,
+        "Area B": 0.375,
+        "Difference": 0.2361111111111111
+      },
+      {
+        "Replicate": 20,
+        "Area A": 0.9722222222222222,
+        "Area B": 0.9107142857142857,
+        "Difference": 0.061507936507936505
+      },
+      {
+        "Replicate": 21,
+        "Area A": 0.5694444444444444,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.3412698412698413
+      },
+      {
+        "Replicate": 22,
+        "Area A": 0.75,
+        "Area B": 0.7232142857142857,
+        "Difference": 0.026785714285714284
+      },
+      {
+        "Replicate": 23,
+        "Area A": 0.8888888888888888,
+        "Area B": 1.0,
+        "Difference": -0.1111111111111111
+      },
+      {
+        "Replicate": 24,
+        "Area A": 0.5555555555555556,
+        "Area B": 0.6339285714285714,
+        "Difference": -0.07837301587301587
+      },
+      {
+        "Replicate": 25,
+        "Area A": 0.7916666666666666,
+        "Area B": 0.9642857142857143,
+        "Difference": -0.17261904761904762
+      },
+      {
+        "Replicate": 26,
+        "Area A": 0.9027777777777778,
+        "Area B": 0.875,
+        "Difference": 0.027777777777777776
+      },
+      {
+        "Replicate": 27,
+        "Area A": 0.7638888888888888,
+        "Area B": 0.9464285714285714,
+        "Difference": -0.18253968253968253
+      },
+      {
+        "Replicate": 28,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.9285714285714286,
+        "Difference": 0.001984126984126984
+      },
+      {
+        "Replicate": 29,
+        "Area A": 0.6666666666666666,
+        "Area B": 0.8928571428571429,
+        "Difference": -0.2261904761904762
+      },
+      {
+        "Replicate": 30,
+        "Area A": 0.5972222222222222,
+        "Area B": 0.8482142857142857,
+        "Difference": -0.2509920634920635
+      },
+      {
+        "Replicate": 31,
+        "Area A": 0.8888888888888888,
+        "Area B": 0.8928571428571429,
+        "Difference": -0.003968253968253968
+      },
+      {
+        "Replicate": 32,
+        "Area A": 0.5694444444444444,
+        "Area B": 0.8482142857142857,
+        "Difference": -0.2787698412698413
+      },
+      {
+        "Replicate": 33,
+        "Area A": 0.6111111111111112,
+        "Area B": 0.875,
+        "Difference": -0.2638888888888889
+      },
+      {
+        "Replicate": 34,
+        "Area A": 0.9166666666666666,
+        "Area B": 0.7678571428571429,
+        "Difference": 0.1488095238095238
+      },
+      {
+        "Replicate": 35,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.9464285714285714,
+        "Difference": -0.015873015873015872
+      },
+      {
+        "Replicate": 36,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.9196428571428571,
+        "Difference": -0.11408730158730158
+      },
+      {
+        "Replicate": 37,
+        "Area A": 0.8888888888888888,
+        "Area B": 0.7857142857142857,
+        "Difference": 0.10317460317460317
+      },
+      {
+        "Replicate": 38,
+        "Area A": 0.8472222222222222,
+        "Area B": 0.7321428571428571,
+        "Difference": 0.11507936507936507
+      },
+      {
+        "Replicate": 39,
+        "Area A": 0.6666666666666666,
+        "Area B": 0.8214285714285714,
+        "Difference": -0.15476190476190477
+      },
+      {
+        "Replicate": 40,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.9642857142857143,
+        "Difference": -0.24206349206349206
+      },
+      {
+        "Replicate": 41,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.7678571428571429,
+        "Difference": 0.037698412698412696
+      },
+      {
+        "Replicate": 42,
+        "Area A": 0.5972222222222222,
+        "Area B": 0.8214285714285714,
+        "Difference": -0.22420634920634921
+      },
+      {
+        "Replicate": 43,
+        "Area A": 0.7361111111111112,
+        "Area B": 0.75,
+        "Difference": -0.013888888888888888
+      },
+      {
+        "Replicate": 44,
+        "Area A": 0.9444444444444444,
+        "Area B": 0.9732142857142857,
+        "Difference": -0.028769841269841268
+      },
+      {
+        "Replicate": 45,
+        "Area A": 0.5416666666666666,
+        "Area B": 0.6339285714285714,
+        "Difference": -0.09226190476190477
+      },
+      {
+        "Replicate": 46,
+        "Area A": 0.875,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.03571428571428571
+      },
+      {
+        "Replicate": 47,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.09126984126984126
+      },
+      {
+        "Replicate": 48,
+        "Area A": 0.9861111111111112,
+        "Area B": 0.8303571428571429,
+        "Difference": 0.15575396825396826
+      },
+      {
+        "Replicate": 49,
+        "Area A": 0.75,
+        "Area B": 0.8035714285714286,
+        "Difference": -0.05357142857142857
+      },
+      {
+        "Replicate": 50,
+        "Area A": 0.7083333333333334,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.20238095238095238
+      },
+      {
+        "Replicate": 51,
+        "Area A": 0.4166666666666667,
+        "Area B": 0.7678571428571429,
+        "Difference": -0.35119047619047616
+      },
+      {
+        "Replicate": 52,
+        "Area A": 0.6527777777777778,
+        "Area B": 0.8928571428571429,
+        "Difference": -0.2400793650793651
+      },
+      {
+        "Replicate": 53,
+        "Area A": 0.7638888888888888,
+        "Area B": 0.9821428571428571,
+        "Difference": -0.21825396825396826
+      },
+      {
+        "Replicate": 54,
+        "Area A": 0.9027777777777778,
+        "Area B": 0.9285714285714286,
+        "Difference": -0.025793650793650792
+      },
+      {
+        "Replicate": 55,
+        "Area A": 0.6805555555555556,
+        "Area B": 0.8035714285714286,
+        "Difference": -0.12301587301587301
+      },
+      {
+        "Replicate": 56,
+        "Area A": 0.7222222222222222,
+        "Area B": 1.0,
+        "Difference": -0.2777777777777778
+      },
+      {
+        "Replicate": 57,
+        "Area A": 0.9027777777777778,
+        "Area B": 0.7232142857142857,
+        "Difference": 0.17956349206349206
+      },
+      {
+        "Replicate": 58,
+        "Area A": 0.875,
+        "Area B": 0.9375,
+        "Difference": -0.0625
+      },
+      {
+        "Replicate": 59,
+        "Area A": 0.4722222222222222,
+        "Area B": 1.0,
+        "Difference": -0.5277777777777778
+      },
+      {
+        "Replicate": 60,
+        "Area A": 0.6527777777777778,
+        "Area B": 0.7321428571428571,
+        "Difference": -0.07936507936507936
+      },
+      {
+        "Replicate": 61,
+        "Area A": 0.8611111111111112,
+        "Area B": 0.9196428571428571,
+        "Difference": -0.05853174603174603
+      },
+      {
+        "Replicate": 62,
+        "Area A": 0.9166666666666666,
+        "Area B": 0.9196428571428571,
+        "Difference": -0.002976190476190476
+      },
+      {
+        "Replicate": 63,
+        "Area A": 0.7777777777777778,
+        "Area B": 0.9553571428571429,
+        "Difference": -0.1775793650793651
+      },
+      {
+        "Replicate": 64,
+        "Area A": 0.6805555555555556,
+        "Area B": 0.7678571428571429,
+        "Difference": -0.0873015873015873
+      },
+      {
+        "Replicate": 65,
+        "Area A": 0.6111111111111112,
+        "Area B": 0.8571428571428571,
+        "Difference": -0.24603174603174602
+      },
+      {
+        "Replicate": 66,
+        "Area A": 0.9166666666666666,
+        "Area B": 0.8303571428571429,
+        "Difference": 0.08630952380952381
+      },
+      {
+        "Replicate": 67,
+        "Area A": 0.5277777777777778,
+        "Area B": 0.8482142857142857,
+        "Difference": -0.32043650793650796
+      },
+      {
+        "Replicate": 68,
+        "Area A": 0.6388888888888888,
+        "Area B": 0.5446428571428571,
+        "Difference": 0.09424603174603174
+      },
+      {
+        "Replicate": 69,
+        "Area A": 0.7777777777777778,
+        "Area B": 0.875,
+        "Difference": -0.09722222222222222
+      },
+      {
+        "Replicate": 70,
+        "Area A": 0.9166666666666666,
+        "Area B": 0.9464285714285714,
+        "Difference": -0.02976190476190476
+      },
+      {
+        "Replicate": 71,
+        "Area A": 0.75,
+        "Area B": 0.7321428571428571,
+        "Difference": 0.017857142857142856
+      },
+      {
+        "Replicate": 72,
+        "Area A": 0.7083333333333334,
+        "Area B": 0.8214285714285714,
+        "Difference": -0.1130952380952381
+      },
+      {
+        "Replicate": 73,
+        "Area A": 0.9027777777777778,
+        "Area B": 0.8482142857142857,
+        "Difference": 0.054563492063492064
+      },
+      {
+        "Replicate": 74,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.6160714285714286,
+        "Difference": 0.20337301587301587
+      },
+      {
+        "Replicate": 75,
+        "Area A": 0.9444444444444444,
+        "Area B": 0.9107142857142857,
+        "Difference": 0.03373015873015873
+      },
+      {
+        "Replicate": 76,
+        "Area A": 0.875,
+        "Area B": 0.875,
+        "Difference": 0.0
+      },
+      {
+        "Replicate": 77,
+        "Area A": 0.5694444444444444,
+        "Area B": 0.7946428571428571,
+        "Difference": -0.2251984126984127
+      },
+      {
+        "Replicate": 78,
+        "Area A": 0.6527777777777778,
+        "Area B": 0.8839285714285714,
+        "Difference": -0.23115079365079366
+      },
+      {
+        "Replicate": 79,
+        "Area A": 0.8333333333333334,
+        "Area B": 0.7142857142857143,
+        "Difference": 0.11904761904761904
+      },
+      {
+        "Replicate": 80,
+        "Area A": 0.7083333333333334,
+        "Area B": 0.8392857142857143,
+        "Difference": -0.13095238095238096
+      },
+      {
+        "Replicate": 81,
+        "Area A": 0.8333333333333334,
+        "Area B": 0.7589285714285714,
+        "Difference": 0.0744047619047619
+      },
+      {
+        "Replicate": 82,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.9017857142857143,
+        "Difference": -0.09623015873015874
+      },
+      {
+        "Replicate": 83,
+        "Area A": 0.7916666666666666,
+        "Area B": 0.9375,
+        "Difference": -0.14583333333333334
+      },
+      {
+        "Replicate": 84,
+        "Area A": 0.7916666666666666,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.11904761904761904
+      },
+      {
+        "Replicate": 85,
+        "Area A": 0.9166666666666666,
+        "Area B": 0.8214285714285714,
+        "Difference": 0.09523809523809523
+      },
+      {
+        "Replicate": 86,
+        "Area A": 0.6944444444444444,
+        "Area B": 0.6428571428571429,
+        "Difference": 0.051587301587301584
+      },
+      {
+        "Replicate": 87,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.8125,
+        "Difference": 0.006944444444444444
+      },
+      {
+        "Replicate": 88,
+        "Area A": 0.75,
+        "Area B": 0.5892857142857143,
+        "Difference": 0.16071428571428573
+      },
+      {
+        "Replicate": 89,
+        "Area A": 0.5416666666666666,
+        "Area B": 0.8839285714285714,
+        "Difference": -0.34226190476190477
+      },
+      {
+        "Replicate": 90,
+        "Area A": 0.8472222222222222,
+        "Area B": 0.8392857142857143,
+        "Difference": 0.007936507936507936
+      },
+      {
+        "Replicate": 91,
+        "Area A": 0.9444444444444444,
+        "Area B": 0.7232142857142857,
+        "Difference": 0.22123015873015872
+      },
+      {
+        "Replicate": 92,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.8392857142857143,
+        "Difference": -0.01984126984126984
+      },
+      {
+        "Replicate": 93,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.7053571428571429,
+        "Difference": 0.1001984126984127
+      },
+      {
+        "Replicate": 94,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.8035714285714286,
+        "Difference": 0.12698412698412698
+      },
+      {
+        "Replicate": 95,
+        "Area A": 0.8333333333333334,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.07738095238095238
+      },
+      {
+        "Replicate": 96,
+        "Area A": 0.6388888888888888,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.2718253968253968
+      },
+      {
+        "Replicate": 97,
+        "Area A": 0.875,
+        "Area B": 0.7857142857142857,
+        "Difference": 0.08928571428571429
+      },
+      {
+        "Replicate": 98,
+        "Area A": 0.7361111111111112,
+        "Area B": 0.9464285714285714,
+        "Difference": -0.21031746031746032
+      },
+      {
+        "Replicate": 99,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.8571428571428571,
+        "Difference": 0.07341269841269842
+      },
+      {
+        "Replicate": 100,
+        "Area A": 0.6527777777777778,
+        "Area B": 0.9196428571428571,
+        "Difference": -0.26686507936507936
+      },
+      {
+        "Replicate": 101,
+        "Area A": 0.9722222222222222,
+        "Area B": 0.8392857142857143,
+        "Difference": 0.13293650793650794
+      },
+      {
+        "Replicate": 102,
+        "Area A": 0.8472222222222222,
+        "Area B": 0.7589285714285714,
+        "Difference": 0.0882936507936508
+      },
+      {
+        "Replicate": 103,
+        "Area A": 0.7777777777777778,
+        "Area B": 0.7678571428571429,
+        "Difference": 0.00992063492063492
+      },
+      {
+        "Replicate": 104,
+        "Area A": 0.9444444444444444,
+        "Area B": 0.8571428571428571,
+        "Difference": 0.0873015873015873
+      },
+      {
+        "Replicate": 105,
+        "Area A": 0.875,
+        "Area B": 0.6875,
+        "Difference": 0.1875
+      },
+      {
+        "Replicate": 106,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.9107142857142857,
+        "Difference": 0.01984126984126984
+      },
+      {
+        "Replicate": 107,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.9196428571428571,
+        "Difference": -0.1001984126984127
+      },
+      {
+        "Replicate": 108,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.6964285714285714,
+        "Difference": 0.12301587301587301
+      },
+      {
+        "Replicate": 109,
+        "Area A": 0.6944444444444444,
+        "Area B": 0.625,
+        "Difference": 0.06944444444444445
+      },
+      {
+        "Replicate": 110,
+        "Area A": 0.8611111111111112,
+        "Area B": 0.7767857142857143,
+        "Difference": 0.08432539682539683
+      },
+      {
+        "Replicate": 111,
+        "Area A": 0.6111111111111112,
+        "Area B": 0.7053571428571429,
+        "Difference": -0.09424603174603174
+      },
+      {
+        "Replicate": 112,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.8660714285714286,
+        "Difference": -0.04662698412698413
+      },
+      {
+        "Replicate": 113,
+        "Area A": 0.6944444444444444,
+        "Area B": 0.8392857142857143,
+        "Difference": -0.14484126984126985
+      },
+      {
+        "Replicate": 114,
+        "Area A": 0.8888888888888888,
+        "Area B": 0.9375,
+        "Difference": -0.04861111111111111
+      },
+      {
+        "Replicate": 115,
+        "Area A": 0.7916666666666666,
+        "Area B": 0.7767857142857143,
+        "Difference": 0.01488095238095238
+      },
+      {
+        "Replicate": 116,
+        "Area A": 0.7916666666666666,
+        "Area B": 0.8928571428571429,
+        "Difference": -0.10119047619047619
+      },
+      {
+        "Replicate": 117,
+        "Area A": 0.7916666666666666,
+        "Area B": 0.9375,
+        "Difference": -0.14583333333333334
+      },
+      {
+        "Replicate": 118,
+        "Area A": 0.7777777777777778,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.13293650793650794
+      },
+      {
+        "Replicate": 119,
+        "Area A": 0.7916666666666666,
+        "Area B": 0.8214285714285714,
+        "Difference": -0.02976190476190476
+      },
+      {
+        "Replicate": 120,
+        "Area A": 0.7638888888888888,
+        "Area B": 0.7946428571428571,
+        "Difference": -0.030753968253968252
+      },
+      {
+        "Replicate": 121,
+        "Area A": 0.7777777777777778,
+        "Area B": 0.8214285714285714,
+        "Difference": -0.04365079365079365
+      },
+      {
+        "Replicate": 122,
+        "Area A": 0.9583333333333334,
+        "Area B": 0.9821428571428571,
+        "Difference": -0.023809523809523808
+      },
+      {
+        "Replicate": 123,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.9375,
+        "Difference": -0.11805555555555555
+      },
+      {
+        "Replicate": 124,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.8303571428571429,
+        "Difference": -0.0248015873015873
+      },
+      {
+        "Replicate": 125,
+        "Area A": 0.8888888888888888,
+        "Area B": 0.8392857142857143,
+        "Difference": 0.0496031746031746
+      },
+      {
+        "Replicate": 126,
+        "Area A": 0.5694444444444444,
+        "Area B": 0.5982142857142857,
+        "Difference": -0.028769841269841268
+      },
+      {
+        "Replicate": 127,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.8928571428571429,
+        "Difference": -0.17063492063492064
+      },
+      {
+        "Replicate": 128,
+        "Area A": 0.6527777777777778,
+        "Area B": 0.7678571428571429,
+        "Difference": -0.11507936507936507
+      },
+      {
+        "Replicate": 129,
+        "Area A": 0.9166666666666666,
+        "Area B": 0.6428571428571429,
+        "Difference": 0.27380952380952384
+      },
+      {
+        "Replicate": 130,
+        "Area A": 0.75,
+        "Area B": 0.7767857142857143,
+        "Difference": -0.026785714285714284
+      },
+      {
+        "Replicate": 131,
+        "Area A": 0.875,
+        "Area B": 0.8482142857142857,
+        "Difference": 0.026785714285714284
+      },
+      {
+        "Replicate": 132,
+        "Area A": 0.6666666666666666,
+        "Area B": 0.8482142857142857,
+        "Difference": -0.18154761904761904
+      },
+      {
+        "Replicate": 133,
+        "Area A": 0.9722222222222222,
+        "Area B": 0.9196428571428571,
+        "Difference": 0.05257936507936508
+      },
+      {
+        "Replicate": 134,
+        "Area A": 0.8333333333333334,
+        "Area B": 1.0,
+        "Difference": -0.16666666666666666
+      },
+      {
+        "Replicate": 135,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.7053571428571429,
+        "Difference": 0.11408730158730158
+      },
+      {
+        "Replicate": 136,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.5267857142857143,
+        "Difference": 0.4037698412698413
+      },
+      {
+        "Replicate": 137,
+        "Area A": 0.7361111111111112,
+        "Area B": 0.6517857142857143,
+        "Difference": 0.08432539682539683
+      },
+      {
+        "Replicate": 138,
+        "Area A": 0.8333333333333334,
+        "Area B": 0.875,
+        "Difference": -0.041666666666666664
+      },
+      {
+        "Replicate": 139,
+        "Area A": 0.6111111111111112,
+        "Area B": 0.7857142857142857,
+        "Difference": -0.1746031746031746
+      },
+      {
+        "Replicate": 140,
+        "Area A": 0.75,
+        "Area B": 0.9017857142857143,
+        "Difference": -0.15178571428571427
+      },
+      {
+        "Replicate": 141,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.9642857142857143,
+        "Difference": -0.24206349206349206
+      },
+      {
+        "Replicate": 142,
+        "Area A": 0.9166666666666666,
+        "Area B": 0.9732142857142857,
+        "Difference": -0.05654761904761905
+      },
+      {
+        "Replicate": 143,
+        "Area A": 0.8888888888888888,
+        "Area B": 0.75,
+        "Difference": 0.1388888888888889
+      },
+      {
+        "Replicate": 144,
+        "Area A": 0.7638888888888888,
+        "Area B": 0.7053571428571429,
+        "Difference": 0.05853174603174603
+      },
+      {
+        "Replicate": 145,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.8392857142857143,
+        "Difference": 0.09126984126984126
+      },
+      {
+        "Replicate": 146,
+        "Area A": 0.7777777777777778,
+        "Area B": 1.0,
+        "Difference": -0.2222222222222222
+      },
+      {
+        "Replicate": 147,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.7857142857142857,
+        "Difference": 0.01984126984126984
+      },
+      {
+        "Replicate": 148,
+        "Area A": 0.6805555555555556,
+        "Area B": 0.7142857142857143,
+        "Difference": -0.03373015873015873
+      },
+      {
+        "Replicate": 149,
+        "Area A": 0.8333333333333334,
+        "Area B": 0.8928571428571429,
+        "Difference": -0.05952380952380952
+      },
+      {
+        "Replicate": 150,
+        "Area A": 0.6388888888888888,
+        "Area B": 0.8035714285714286,
+        "Difference": -0.16468253968253968
+      },
+      {
+        "Replicate": 151,
+        "Area A": 0.8611111111111112,
+        "Area B": 0.7857142857142857,
+        "Difference": 0.07539682539682539
+      },
+      {
+        "Replicate": 152,
+        "Area A": 0.5555555555555556,
+        "Area B": 0.8571428571428571,
+        "Difference": -0.30158730158730157
+      },
+      {
+        "Replicate": 153,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.8214285714285714,
+        "Difference": -0.015873015873015872
+      },
+      {
+        "Replicate": 154,
+        "Area A": 0.8333333333333334,
+        "Area B": 0.7232142857142857,
+        "Difference": 0.11011904761904762
+      },
+      {
+        "Replicate": 155,
+        "Area A": 0.6805555555555556,
+        "Area B": 0.7589285714285714,
+        "Difference": -0.07837301587301587
+      },
+      {
+        "Replicate": 156,
+        "Area A": 0.6111111111111112,
+        "Area B": 0.8392857142857143,
+        "Difference": -0.22817460317460317
+      },
+      {
+        "Replicate": 157,
+        "Area A": 0.9444444444444444,
+        "Area B": 0.9107142857142857,
+        "Difference": 0.03373015873015873
+      },
+      {
+        "Replicate": 158,
+        "Area A": 0.5972222222222222,
+        "Area B": 0.7321428571428571,
+        "Difference": -0.1349206349206349
+      },
+      {
+        "Replicate": 159,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.875,
+        "Difference": 0.05555555555555555
+      },
+      {
+        "Replicate": 160,
+        "Area A": 0.6805555555555556,
+        "Area B": 0.7767857142857143,
+        "Difference": -0.09623015873015874
+      },
+      {
+        "Replicate": 161,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.8482142857142857,
+        "Difference": -0.1259920634920635
+      },
+      {
+        "Replicate": 162,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.7053571428571429,
+        "Difference": 0.016865079365079364
+      },
+      {
+        "Replicate": 163,
+        "Area A": 0.7777777777777778,
+        "Area B": 0.9196428571428571,
+        "Difference": -0.14186507936507936
+      },
+      {
+        "Replicate": 164,
+        "Area A": 0.6527777777777778,
+        "Area B": 0.9196428571428571,
+        "Difference": -0.26686507936507936
+      },
+      {
+        "Replicate": 165,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.6071428571428571,
+        "Difference": 0.11507936507936507
+      },
+      {
+        "Replicate": 166,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.8482142857142857,
+        "Difference": -0.1259920634920635
+      },
+      {
+        "Replicate": 167,
+        "Area A": 0.6527777777777778,
+        "Area B": 1.0,
+        "Difference": -0.3472222222222222
+      },
+      {
+        "Replicate": 168,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.8571428571428571,
+        "Difference": 0.07341269841269842
+      },
+      {
+        "Replicate": 169,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.7053571428571429,
+        "Difference": 0.1001984126984127
+      },
+      {
+        "Replicate": 170,
+        "Area A": 0.8888888888888888,
+        "Area B": 0.9285714285714286,
+        "Difference": -0.03968253968253968
+      },
+      {
+        "Replicate": 171,
+        "Area A": 0.9166666666666666,
+        "Area B": 0.9375,
+        "Difference": -0.020833333333333332
+      },
+      {
+        "Replicate": 172,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.9464285714285714,
+        "Difference": -0.12698412698412698
+      },
+      {
+        "Replicate": 173,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.625,
+        "Difference": 0.19444444444444445
+      },
+      {
+        "Replicate": 174,
+        "Area A": 0.8333333333333334,
+        "Area B": 0.75,
+        "Difference": 0.08333333333333333
+      },
+      {
+        "Replicate": 175,
+        "Area A": 0.6388888888888888,
+        "Area B": 0.8928571428571429,
+        "Difference": -0.25396825396825395
+      },
+      {
+        "Replicate": 176,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.7767857142857143,
+        "Difference": -0.054563492063492064
+      },
+      {
+        "Replicate": 177,
+        "Area A": 0.5277777777777778,
+        "Area B": 0.9464285714285714,
+        "Difference": -0.41865079365079366
+      },
+      {
+        "Replicate": 178,
+        "Area A": 0.8888888888888888,
+        "Area B": 0.7053571428571429,
+        "Difference": 0.18353174603174602
+      },
+      {
+        "Replicate": 179,
+        "Area A": 0.7083333333333334,
+        "Area B": 0.8392857142857143,
+        "Difference": -0.13095238095238096
+      },
+      {
+        "Replicate": 180,
+        "Area A": 0.7083333333333334,
+        "Area B": 0.7857142857142857,
+        "Difference": -0.07738095238095238
+      },
+      {
+        "Replicate": 181,
+        "Area A": 0.7916666666666666,
+        "Area B": 0.9375,
+        "Difference": -0.14583333333333334
+      },
+      {
+        "Replicate": 182,
+        "Area A": 0.875,
+        "Area B": 0.8035714285714286,
+        "Difference": 0.07142857142857142
+      },
+      {
+        "Replicate": 183,
+        "Area A": 0.8888888888888888,
+        "Area B": 0.9285714285714286,
+        "Difference": -0.03968253968253968
+      },
+      {
+        "Replicate": 184,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.7321428571428571,
+        "Difference": -0.00992063492063492
+      },
+      {
+        "Replicate": 185,
+        "Area A": 0.9861111111111112,
+        "Area B": 0.9196428571428571,
+        "Difference": 0.06646825396825397
+      },
+      {
+        "Replicate": 186,
+        "Area A": 1.0,
+        "Area B": 0.875,
+        "Difference": 0.125
+      },
+      {
+        "Replicate": 187,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.75,
+        "Difference": 0.05555555555555555
+      },
+      {
+        "Replicate": 188,
+        "Area A": 0.6944444444444444,
+        "Area B": 0.625,
+        "Difference": 0.06944444444444445
+      },
+      {
+        "Replicate": 189,
+        "Area A": 0.6944444444444444,
+        "Area B": 0.9732142857142857,
+        "Difference": -0.2787698412698413
+      },
+      {
+        "Replicate": 190,
+        "Area A": 0.8333333333333334,
+        "Area B": 1.0,
+        "Difference": -0.16666666666666666
+      },
+      {
+        "Replicate": 191,
+        "Area A": 0.7222222222222222,
+        "Area B": 0.7767857142857143,
+        "Difference": -0.054563492063492064
+      },
+      {
+        "Replicate": 192,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.875,
+        "Difference": 0.05555555555555555
+      },
+      {
+        "Replicate": 193,
+        "Area A": 0.8333333333333334,
+        "Area B": 0.9821428571428571,
+        "Difference": -0.1488095238095238
+      },
+      {
+        "Replicate": 194,
+        "Area A": 0.75,
+        "Area B": 0.7678571428571429,
+        "Difference": -0.017857142857142856
+      },
+      {
+        "Replicate": 195,
+        "Area A": 0.6111111111111112,
+        "Area B": 0.8928571428571429,
+        "Difference": -0.28174603174603174
+      },
+      {
+        "Replicate": 196,
+        "Area A": 0.9444444444444444,
+        "Area B": 0.8660714285714286,
+        "Difference": 0.07837301587301587
+      },
+      {
+        "Replicate": 197,
+        "Area A": 0.7638888888888888,
+        "Area B": 0.7142857142857143,
+        "Difference": 0.0496031746031746
+      },
+      {
+        "Replicate": 198,
+        "Area A": 1.0,
+        "Area B": 0.6875,
+        "Difference": 0.3125
+      },
+      {
+        "Replicate": 199,
+        "Area A": 0.9444444444444444,
+        "Area B": 0.9196428571428571,
+        "Difference": 0.0248015873015873
+      },
+      {
+        "Replicate": 200,
+        "Area A": 0.6111111111111112,
+        "Area B": 0.7321428571428571,
+        "Difference": -0.12103174603174603
+      },
+      {
+        "Replicate": 201,
+        "Area A": 0.9305555555555556,
+        "Area B": 0.8660714285714286,
+        "Difference": 0.06448412698412699
+      },
+      {
+        "Replicate": 202,
+        "Area A": 0.8055555555555556,
+        "Area B": 0.8035714285714286,
+        "Difference": 0.001984126984126984
+      },
+      {
+        "Replicate": 203,
+        "Area A": 0.5972222222222222,
+        "Area B": 0.7410714285714286,
+        "Difference": -0.14384920634920634
+      },
+      {
+        "Replicate": 204,
+        "Area A": 0.8194444444444444,
+        "Area B": 0.8571428571428571,
+        "Difference": -0.037698412698412696
+      },
+      {
+        "Replicate": 205,
+        "Area A": 0.7083333333333334,
+        "Area B": 0.9107142857142857,
+        "Difference": -0.20238095238095238
+      }
+    ]
+  }
+}

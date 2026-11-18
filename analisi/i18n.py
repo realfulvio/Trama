@@ -2139,6 +2139,66 @@ _IT.update({
     "tost.error.pairs": "Un test appaiato richiede almeno due coppie complete; ne risultano {count}.",
 })
 
+# Compare independent ROC curves: validation messages. The "iroc.error." entries match the English text raised by the
+# engine (see translate_message); the field names inside them are the dialog captions, and worksheet names stay literal.
+_EN.update({
+    "iroc.hint": "The four samples must be independent, with different people in each. To compare two markers measured "
+                 "on the same people use Compare paired ROC curves. A partial area needs the percentile bootstrap.",
+    "iroc.error.choose": "Choose a column for {field}.",
+    "iroc.error.used": 'Column "{column}" is already used for {first}. Choose four distinct columns.',
+    "iroc.error.unique": "Worksheet column names must be unique.",
+    "iroc.error.few": 'Column "{column}" needs at least 2 valid values; {count} found.',
+    "iroc.error.text": 'Column "{column}" contains text or infinite values.',
+    "iroc.error.complex": 'Column "{column}" contains complex or unsupported data.',
+    "iroc.error.precision": 'Column "{column}" contains integers outside the supported precision.',
+    "iroc.error.total": "The four columns hold {total} values; at most 100,000 are allowed.",
+    "iroc.error.budget": "Bootstrap replicates × observations = {replicates} × {total} = {work} exceeds the limit of "
+                         "5,000,000. Use fewer replicates or smaller samples.",
+    "iroc.error.direction": "Choose Higher in patients or Lower in patients.",
+    "iroc.error.area": "Choose Full, Partial or Standardized partial.",
+    "iroc.error.cutoff": "Maximum FPR must be a number greater than 0 and less than 1.",
+    "iroc.error.inference": "Choose DeLong or Percentile bootstrap.",
+    "iroc.error.partial": "A partial area has no DeLong variance. Choose Percentile bootstrap.",
+    "iroc.error.level": "Confidence level (%) must be greater than 0 and less than 100.",
+    "iroc.error.replicates": "Bootstrap replicates must be a whole number from 200 to 10,000.",
+    "iroc.error.seed": "Bootstrap seed must be a whole number from 0 to 4,294,967,295.",
+    "iroc.error.save": "Save bootstrap must be on or off.",
+    "iroc.error.cancelled": "The update was cancelled.",
+    "iroc.cancelled": "Independent ROC comparison cancelled. {kept}",
+    "iroc.kept_new": "No analysis was added.",
+    "iroc.kept_result": "The last completed results are kept.",
+    "iroc.kept_none": "Open the analysis to calculate again.",
+})
+_IT.update({
+    "iroc.hint": "I quattro campioni devono essere indipendenti, con persone diverse in ciascuno. Per confrontare "
+                 "due marcatori misurati sulle stesse persone usa Confronta curve ROC appaiate. Un'area parziale "
+                 "richiede il bootstrap percentile.",
+    "iroc.error.choose": "Scegli una colonna nel campo {field}.",
+    "iroc.error.used": 'La colonna "{column}" è già usata per {first}. Scegli quattro colonne diverse.',
+    "iroc.error.unique": "I nomi delle colonne del foglio devono essere univoci.",
+    "iroc.error.few": 'La colonna "{column}" richiede almeno 2 valori validi; ne risultano {count}.',
+    "iroc.error.text": 'La colonna "{column}" contiene testo o valori infiniti.',
+    "iroc.error.complex": 'La colonna "{column}" contiene numeri complessi o dati non supportati.',
+    "iroc.error.precision": 'La colonna "{column}" contiene interi fuori dalla precisione supportata.',
+    "iroc.error.total": "Le quattro colonne contengono {total} valori; il massimo consentito è 100.000.",
+    "iroc.error.budget": "Repliche bootstrap × osservazioni = {replicates} × {total} = {work} supera il limite di "
+                         "5.000.000. Usa meno repliche o campioni più piccoli.",
+    "iroc.error.direction": "Scegli Maggiore nei pazienti o Minore nei pazienti.",
+    "iroc.error.area": "Scegli Completa, Parziale o Parziale standardizzata.",
+    "iroc.error.cutoff": "FPR massimo deve essere un numero maggiore di 0 e minore di 1.",
+    "iroc.error.inference": "Scegli DeLong o Bootstrap percentile.",
+    "iroc.error.partial": "Un'area parziale non ha la varianza di DeLong. Scegli Bootstrap percentile.",
+    "iroc.error.level": "Livello di confidenza (%) deve essere maggiore di 0 e minore di 100.",
+    "iroc.error.replicates": "Repliche bootstrap deve essere un numero intero da 200 a 10.000.",
+    "iroc.error.seed": "Seme del bootstrap deve essere un numero intero da 0 a 4.294.967.295.",
+    "iroc.error.save": "Salva le repliche bootstrap deve essere attivo o disattivo.",
+    "iroc.error.cancelled": "L'aggiornamento è stato annullato.",
+    "iroc.cancelled": "Confronto ROC indipendente annullato. {kept}",
+    "iroc.kept_new": "Nessuna analisi è stata aggiunta.",
+    "iroc.kept_result": "Restano gli ultimi risultati completati.",
+    "iroc.kept_none": "Apri l'analisi per calcolare di nuovo.",
+})
+
 # Robust curve fit (0.73): captions, choices, editor and validation messages. The "analysis.robust_curve.error."
 # entries are the exact English messages of the engine with placeholders (see translate_message). Recipes keep the
 # English field names and values.
