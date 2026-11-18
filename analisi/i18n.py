@@ -2852,6 +2852,38 @@ def save_language(path, locale):
     return path
 
 
+# Cox regression: messages of the scaled Schoenfeld and Cox–Snell diagnostics. The engine raises the English text.
+_EN.update({
+    "cox.error.scaled_covariance": "The covariance matrix of the coefficients is not finite or has a "
+                                   "non-positive variance, so the scaled Schoenfeld residuals cannot be "
+                                   "calculated. Check the predictors for collinearity, complete separation or "
+                                   "extreme scales.",
+    "cox.error.scaled_values": "The scaled Schoenfeld residuals are not finite for these data. Center or rescale "
+                               "the continuous predictors.",
+    "cox.error.scaled_shape": "The Schoenfeld residuals do not match the coefficient covariance of the fit.",
+    "cox.error.snell_values": "A Cox–Snell residual is not finite, or is too small to be represented, for these "
+                              "data. Center or rescale the continuous predictors.",
+    "cox.error.x_axis": "Choose Event time or Source row for the Schoenfeld x axis.",
+    "cox.error.graph_choose": "Choose a graph to display.",
+    "cox.error.graph_requires": "Turn on {output} to display {view}.",
+    "cox.error.term_choose": "Choose one of the model terms: {terms}.",
+})
+_IT.update({
+    "cox.error.scaled_covariance": "La matrice di covarianza dei coefficienti non è finita o ha una varianza "
+                                   "non positiva: i residui di Schoenfeld scalati non si possono calcolare. "
+                                   "Controlla collinearità, separazione completa e scale estreme dei predittori.",
+    "cox.error.scaled_values": "I residui di Schoenfeld scalati non sono finiti per questi dati. Centra o riscala "
+                               "i predittori continui.",
+    "cox.error.scaled_shape": "I residui di Schoenfeld non corrispondono alla covarianza dei coefficienti del "
+                              "modello.",
+    "cox.error.snell_values": "Un residuo di Cox–Snell non è finito, oppure è troppo piccolo per essere "
+                              "rappresentato, per questi dati. Centra o riscala i predittori continui.",
+    "cox.error.x_axis": "Scegli Tempo dell’evento o Riga di origine per l’asse X di Schoenfeld.",
+    "cox.error.graph_choose": "Scegli il grafico da mostrare.",
+    "cox.error.graph_requires": "Attiva {output} per mostrare {view}.",
+    "cox.error.term_choose": "Scegli uno dei termini del modello: {terms}.",
+})
+
 # Multifactor ANOVA residual diagnostics. Canonical recipe values stay English.
 _ANOVA_DIAG_EN = {
     "anova.diag.tab": "Diagnostics",
