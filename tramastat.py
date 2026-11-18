@@ -7669,6 +7669,16 @@ def smoke(root, app, directory, legacy_reference=None):
         np.testing.assert_allclose(exported["Cumulative response"], expected[0])
         capture(root, "window-worksheet-statistics.png")
 
+    def check_distribution_formulas_smoke():
+        from analisi.distribution_formulas_smoke import check_distribution_formulas
+        geometry = root.geometry()
+        check_distribution_formulas(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation, filedialog=filedialog,
+            errors=errors))
+        root.geometry(geometry)
+        root.update()
+
     def check_data_grid():
         title = "Dose response worksheet"
         doses = np.array([0, .025, .05, .1, .15, .25, .4, .6, .8, 1.2, 1.6, 2.4, 3.2, 4.8, 6.4, 9.6])
@@ -13728,6 +13738,14 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "distribution-formulas":
+            # Probability and quantile formulas alone: TRAMASTAT_SMOKE_ONLY=distribution-formulas python tramastat.py --smoke DIR
+            check_distribution_formulas_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "kmeans-reports":
             check_kmeans_reports()
             assert not errors, errors
@@ -14096,6 +14114,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_data_grid()
         check_worksheet_edits()
         check_worksheet_statistics()
+        check_distribution_formulas_smoke()
         check_paste_special()
         check_text_import()
         if legacy_reference is not None:
