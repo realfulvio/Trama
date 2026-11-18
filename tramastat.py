@@ -67,6 +67,7 @@ from analisi.auc_peaks import (HEIGHT as AUC_HEIGHT, PEAKS as AUC_PEAKS, WIDTH a
 from analisi.frequency import (EXACT as EXACT_FREQUENCY, FREQUENCY, style_after_parameter_change as frequency_style,
                                visibility as frequency_visibility)
 from analisi.gallery import SheetGallery, figure_thumbnail, image_thumbnail, table_thumbnail
+from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason, segment_axes
 from analisi.graph_dialog import ChoiceBinding, GraphFormatDialog, pick_color
 from analisi.graph_annotations import ANNOTATIONS
 from analisi.graph_shapes import SHAPES, skipped_shapes
@@ -5057,7 +5058,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.shape_controller = ShapeCanvas(
                 canvas, figure.axes[0], records=lambda: deepcopy((run.style or {}).get(SHAPES, [])),
                 commit=lambda records: self.commit_canvas_shapes(run, records), status=self.status.set,
-                allowed=lambda: self.pending is None and not toolbar.mode and
+                allowed=lambda: self.pending is None and not toolbar.mode and not segment_axes(figure) and
                                 not (self.inspector is not None and self.inspector.has_draft),
                 undo=lambda redo: self.apply_shape_history(run, redo=redo), edit=self.edit_canvas_shape,
                 context=self.show_shape_context,
@@ -5193,7 +5194,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if record_shapes:
             run.shape_history.record((run.style or {}).get(SHAPES, []), style.get(SHAPES, []))
         run.style = style
-        run.result.style_warning = None
+        run.result.style_warning = self.breaks_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         # The Comparison letters sheet follows the applied visibility, never an Inspector preview.
         sync_letters_table(run.result)
@@ -5280,7 +5281,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     self.error(error)
                     return
             run.style = dialog.result
-            run.result.style_warning = None
+            run.result.style_warning = self.breaks_warning(run.result.figure, run.style)
             self.tables[run.title].graph_styles[run.slot] = run.style
             self.dirty = True
             self.show(*self.selected)
@@ -5331,6 +5332,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return False
         if self.shape_controller is None:
             self.error(tr("shape.native"))
+            return False
+        if segment_axes(self.runs[self.selected[1]].result.figure):
+            self.error(tr("axis_breaks.canvas_note"))
             return False
         if not self.settle_graph_draft("drawing shapes"):
             return False
@@ -5478,7 +5482,14 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         records = run.shape_history.apply((run.style or {}).get(SHAPES, []), redo=redo)
         if records is not None:
             try:
-                render_shapes(run.result.figure.axes[0], records)
+                if segment_axes(run.result.figure):
+                    draft = deepcopy(run.style or {})
+                    draft.pop(SHAPES, None)
+                    if records:
+                        draft[SHAPES] = records
+                    apply_style(run.result.figure, draft)
+                else:
+                    render_shapes(run.result.figure.axes[0], records)
             except (ValueError, TypeError, OverflowError) as error:
                 run.shape_history.position = position
                 self.error(error)
@@ -6840,6 +6851,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         attach_pairwise(result.figure, rows, pairwise["settings"], message=message)
 
     @staticmethod
+    def breaks_warning(figure, style):
+        """A localized note when saved axis breaks are kept but cannot be drawn on ``figure``, otherwise None."""
+        from analisi.axis_breaks_dialog import translate_breaks_error
+
+        reason = axis_breaks_reason(figure) if figure is not None and (style or {}).get(AXIS_BREAKS) else None
+        if not reason:
+            return None
+        return tr("axis_breaks.status.ignored", reason=translate_breaks_error(ValueError(reason)))
+
+    @staticmethod
     def compute(run, frame, result=None, control=None, layout_data=None, pairwise=None):
         if result is None:
             if run.method == MONTE_CARLO_METHOD and control is not None:
@@ -6854,6 +6875,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 apply_style(result.figure, run.style)
             except ValueError as error:
                 result.style_warning = str(error)
+            else:
+                result.style_warning = App.breaks_warning(result.figure, run.style)
         App.apply_pairwise(run, result, frame, pairwise)
         return result
 

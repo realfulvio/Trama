@@ -2701,6 +2701,160 @@ _IT.update({
     "calib.inverse_nonlinear.field.direction": "Direzione",
 })
 
+# Axis breaks: the editor, and the engine messages (they match analisi/axis_breaks.py word for word).
+_AXIS_BREAKS_EN = {
+    "axis_breaks.button": "Axis breaks…",
+    "axis_breaks.title": "Axis breaks",
+    "axis_breaks.summary_none": "None",
+    "axis_breaks.summary": "{axis} axis, {count} segments",
+    "axis_breaks.axis.none": "No breaks",
+    "axis_breaks.axis.x": "X axis",
+    "axis_breaks.axis.y": "Y axis (left)",
+    "axis_breaks.field.axis": "Axis",
+    "axis_breaks.field.count": "Segments",
+    "axis_breaks.field.gap": "Gap",
+    "axis_breaks.count.2": "2 segments",
+    "axis_breaks.count.3": "3 segments",
+    "axis_breaks.hint.gap": "fraction of the band (0.01 to 0.10)",
+    "axis_breaks.col.low": "Low",
+    "axis_breaks.col.high": "High",
+    "axis_breaks.col.share": "Share (%)",
+    "axis_breaks.col.major_step": "Major interval",
+    "axis_breaks.row": "Segment {row}",
+    "axis_breaks.total": "The shares add up to {total}.",
+    "axis_breaks.btn.suggest": "Suggest from the data",
+    "axis_breaks.btn.preview": "Preview",
+    "axis_breaks.btn.cancel": "Cancel",
+    "axis_breaks.btn.ok": "Apply",
+    "axis_breaks.note.scale": (
+        "Panels can have a different physical scale even when they show the same unit: the share of a segment is "
+        "the space you give it, not its length in data units."),
+    "axis_breaks.note.limits": (
+        "Available for XY series and XY error bars with a linear X or left Y axis. Not available with a right Y "
+        "axis, a logarithmic or inverted broken axis, or drawings placed in plot fractions. A saved setting that a "
+        "later change makes impossible is kept and ignored, and the reason appears in the status bar."),
+    "axis_breaks.note.numbers": (
+        "Leave the major interval empty for automatic ticks. Both limits belong to their segment. Points between "
+        "segments are not shown, but they stay in the worksheets and in the calculations. You can type a decimal "
+        "comma."),
+    "axis_breaks.axis_note": (
+        "Axis breaks are on: the segments set the {axis} range. The limits above come back when you remove them."),
+    "axis_breaks.status.ignored": "Axis breaks are saved but not drawn: {reason}",
+    "axis_breaks.canvas_note": (
+        "Drawing shapes with the mouse is off while axis breaks are on. Use Graph shapes… to edit them, or remove "
+        "the breaks."),
+    "axis_breaks.error.no_suggestion": "The data cannot be cut into this many segments.",
+    "axis_breaks.error.busy": "Wait for the current calculation to finish.",
+    "axis_breaks.error.m_type": "Axis breaks need an axis, a gap and two or three segments.",
+    "axis_breaks.error.m_axis": "Choose the X axis or the left Y axis for the breaks.",
+    "axis_breaks.error.m_gap": "The gap must be a number from 0.01 to 0.10 of the band reserved for the panels.",
+    "axis_breaks.error.m_count": "Use two or three segments.",
+    "axis_breaks.error.m_segment": "Segment {row} needs a low limit, a high limit, a share and a major interval.",
+    "axis_breaks.error.m_finite": "Segment {row}: enter finite numbers for the low and high limits.",
+    "axis_breaks.error.m_order": "Segment {row}: the low limit must be smaller than the high limit.",
+    "axis_breaks.error.m_separate": (
+        "Segment {row}: the low limit must be larger than the high limit of segment {previous}."),
+    "axis_breaks.error.m_share": "Segment {row}: enter a share greater than 0.",
+    "axis_breaks.error.m_total": "The shares must add up to 100. They add up to {total}.",
+    "axis_breaks.error.m_step": (
+        "Segment {row}: enter a major interval greater than 0, or leave it blank for automatic ticks."),
+    "axis_breaks.error.m_ticks": "Segment {row}: the major interval would place more than 200 ticks.",
+    "axis_breaks.error.p_support": "Axis breaks are available for XY series and XY error bars graphs only.",
+    "axis_breaks.error.p_native": "Axis breaks need a native graph, not an imported picture.",
+    "axis_breaks.error.p_right": (
+        "Axis breaks cannot be combined with a right Y axis. Move every series to the left axis first."),
+    "axis_breaks.error.p_layout": "Axis breaks need the standard graph layout.",
+    "axis_breaks.error.p_artists": "This graph has drawing elements that axis breaks cannot repeat on every panel.",
+    "axis_breaks.error.p_linear": "Axis breaks need a linear {axis} axis.",
+    "axis_breaks.error.p_other": "Axis breaks need a linear or logarithmic {axis} axis.",
+    "axis_breaks.error.p_numeric": "Axis breaks need a numeric {axis} axis.",
+    "axis_breaks.error.p_inverted": "Axis breaks need an {axis} axis that increases.",
+    "axis_breaks.error.p_plot_fractions": (
+        "Drawings and annotations placed in plot fractions cannot be combined with axis breaks. "
+        "Place them in data coordinates or remove them."),
+    "axis_breaks.error.p_failed": "The axis breaks could not be drawn ({kind}: {message}).",
+}
+_AXIS_BREAKS_IT = {
+    "axis_breaks.button": "Interruzioni asse…",
+    "axis_breaks.title": "Interruzioni asse",
+    "axis_breaks.summary_none": "Nessuna",
+    "axis_breaks.summary": "Asse {axis}, {count} segmenti",
+    "axis_breaks.axis.none": "Nessuna interruzione",
+    "axis_breaks.axis.x": "Asse X",
+    "axis_breaks.axis.y": "Asse Y (sinistro)",
+    "axis_breaks.field.axis": "Asse",
+    "axis_breaks.field.count": "Segmenti",
+    "axis_breaks.field.gap": "Spazio",
+    "axis_breaks.count.2": "2 segmenti",
+    "axis_breaks.count.3": "3 segmenti",
+    "axis_breaks.hint.gap": "frazione della fascia (da 0,01 a 0,10)",
+    "axis_breaks.col.low": "Da",
+    "axis_breaks.col.high": "A",
+    "axis_breaks.col.share": "Quota (%)",
+    "axis_breaks.col.major_step": "Intervallo principale",
+    "axis_breaks.row": "Segmento {row}",
+    "axis_breaks.total": "Le quote sommano {total}.",
+    "axis_breaks.btn.suggest": "Proponi dai dati",
+    "axis_breaks.btn.preview": "Anteprima",
+    "axis_breaks.btn.cancel": "Annulla",
+    "axis_breaks.btn.ok": "Applica",
+    "axis_breaks.note.scale": (
+        "I pannelli possono avere una scala fisica diversa anche quando mostrano la stessa unità: la quota di un "
+        "segmento è lo spazio che gli assegni, non la sua lunghezza in unità dei dati."),
+    "axis_breaks.note.limits": (
+        "Disponibile per XY series e XY error bars con asse X lineare o Y sinistro lineare. Non è disponibile con un "
+        "asse Y destro, con l'asse interrotto logaritmico o invertito, né con disegni posti in frazioni del grafico. "
+        "Un'impostazione salvata che una modifica successiva rende impossibile viene conservata e ignorata, e il "
+        "motivo compare nella barra di stato."),
+    "axis_breaks.note.numbers": (
+        "Lascia vuoto l'intervallo principale per tacche automatiche. Entrambi i limiti appartengono al proprio "
+        "segmento. I punti tra i segmenti non sono mostrati, ma restano nei fogli e nei calcoli. Puoi scrivere la "
+        "virgola decimale."),
+    "axis_breaks.axis_note": (
+        "Le interruzioni sono attive: i segmenti definiscono l'intervallo dell'asse {axis}. I limiti qui sopra "
+        "tornano quando le rimuovi."),
+    "axis_breaks.status.ignored": "Le interruzioni sono salvate ma non disegnate: {reason}",
+    "axis_breaks.canvas_note": (
+        "Con le interruzioni dell'asse attive non si possono disegnare forme col mouse. Usa Forme del grafico… "
+        "per modificarle, oppure togli le interruzioni."),
+    "axis_breaks.error.no_suggestion": "I dati non si possono dividere in tanti segmenti.",
+    "axis_breaks.error.busy": "Attendi il completamento del calcolo corrente.",
+    "axis_breaks.error.m_type": "Le interruzioni richiedono un asse, uno spazio e due o tre segmenti.",
+    "axis_breaks.error.m_axis": "Scegli l'asse X o l'asse Y sinistro per le interruzioni.",
+    "axis_breaks.error.m_gap": (
+        "Lo spazio deve essere un numero da 0,01 a 0,10 della fascia riservata ai pannelli."),
+    "axis_breaks.error.m_count": "Usa due o tre segmenti.",
+    "axis_breaks.error.m_segment": (
+        "Segmento {row}: servono un limite inferiore, un limite superiore, una quota e un intervallo principale."),
+    "axis_breaks.error.m_finite": "Segmento {row}: inserisci numeri finiti per i limiti inferiore e superiore.",
+    "axis_breaks.error.m_order": "Segmento {row}: il limite inferiore deve essere minore del limite superiore.",
+    "axis_breaks.error.m_separate": (
+        "Segmento {row}: il limite inferiore deve essere maggiore del limite superiore del segmento {previous}."),
+    "axis_breaks.error.m_share": "Segmento {row}: inserisci una quota maggiore di 0.",
+    "axis_breaks.error.m_total": "Le quote devono sommare 100. La somma è {total}.",
+    "axis_breaks.error.m_step": (
+        "Segmento {row}: inserisci un intervallo principale maggiore di 0, oppure lascia vuoto per tacche automatiche."),
+    "axis_breaks.error.m_ticks": "Segmento {row}: l'intervallo principale metterebbe più di 200 tacche.",
+    "axis_breaks.error.p_support": (
+        "Le interruzioni sono disponibili solo per i grafici XY series e XY error bars."),
+    "axis_breaks.error.p_native": "Le interruzioni richiedono un grafico nativo, non un'immagine importata.",
+    "axis_breaks.error.p_right": (
+        "Le interruzioni non si combinano con un asse Y destro. Sposta prima tutte le serie sull'asse sinistro."),
+    "axis_breaks.error.p_layout": "Le interruzioni richiedono il layout standard del grafico.",
+    "axis_breaks.error.p_artists": (
+        "Il grafico contiene elementi che le interruzioni non possono ripetere su ogni pannello."),
+    "axis_breaks.error.p_linear": "Le interruzioni richiedono un asse {axis} lineare.",
+    "axis_breaks.error.p_other": "Le interruzioni richiedono un asse {axis} lineare o logaritmico.",
+    "axis_breaks.error.p_numeric": "Le interruzioni richiedono un asse {axis} numerico.",
+    "axis_breaks.error.p_inverted": "Le interruzioni richiedono un asse {axis} crescente.",
+    "axis_breaks.error.p_plot_fractions": (
+        "Disegni e annotazioni posti in frazioni del grafico non si combinano con le interruzioni. "
+        "Posizionali in coordinate dei dati oppure rimuovili."),
+    "axis_breaks.error.p_failed": "Le interruzioni dell'asse non si sono potute disegnare ({kind}: {message}).",
+}
+_EN.update(_AXIS_BREAKS_EN)
+_IT.update(_AXIS_BREAKS_IT)
+
 CATALOGS = {"en": _EN, "it": _IT}
 _PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _active = DEFAULT_LANGUAGE

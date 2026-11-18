@@ -13,7 +13,7 @@ and a constrained-layout engine re-slices the band reserved for the panels after
 so the shares and gaps follow the window, the export size and the layout composer.
 """
 from copy import copy, deepcopy
-from math import floor, fsum, isfinite
+from math import ceil, floor, fsum, isfinite, log10
 from sys import float_info
 
 import numpy as np
@@ -42,6 +42,8 @@ SUPPORT_ATTR = "_tramastat_axis_breaks_support"
 STATE_ATTR = "_tramastat_axis_breaks"
 REASON_ATTR = "_tramastat_axis_breaks_reason"
 SCOPE_ATTR = "_tramastat_axis_break_scope"
+DEFAULT_GAP = 0.04
+MIN_SUGGESTED_SHARE = 15.0
 
 _RECORD_KEYS = {"axis", "gap", "segments"}
 _SEGMENT_KEYS = {"low", "high", "share", "major_step"}
@@ -459,7 +461,8 @@ def _repeat_data(primary, panel, dimension, position):
     return made
 
 
-def _data_points(primary):
+def _data_points(primary, *, between=False):
+    """Finite ``(x, y)`` arrays of every data line; with ``between`` a line also contributes its midpoints."""
     points = []
     for source in primary.lines:
         if not _is_data_line(source):
@@ -467,7 +470,7 @@ def _data_points(primary):
         x, y = np.asarray(source.get_xdata(orig=False), dtype=float), np.asarray(source.get_ydata(orig=False), dtype=float)
         finite = np.isfinite(x) & np.isfinite(y)
         x, y = x[finite], y[finite]
-        if source.get_linestyle() not in _NO_LINE and len(x) > 1:  # a line also occupies the space between its points
+        if between and source.get_linestyle() not in _NO_LINE and len(x) > 1:  # a line occupies the space between points
             x, y = np.concatenate([x, (x[1:] + x[:-1]) / 2]), np.concatenate([y, (y[1:] + y[:-1]) / 2])
         points.append((x, y))
     return points
@@ -624,7 +627,7 @@ def _build(figure, primary, record):
         _trim_panel(panel, dimension, index, count)
         setattr(panel, SCOPE_ATTR, (dimension, segment["low"], segment["high"], index, count))
     state["artists"].extend(_break_marks(primary, state["panels"], dimension))
-    state["points"] = _data_points(primary)
+    state["points"] = _data_points(primary, between=True)
     primary.set_zorder(max(saved["zorder"], 0) + count)
     if dimension == "y":
         top, title = state["panels"][-1], primary.title
@@ -706,3 +709,52 @@ def tag_new_artists(panel, before, index):
         gid = artist.get_gid()
         if gid:
             artist.set_gid(f"{GID_PREFIX}{index}:{gid}")
+
+
+# ----- a starting point ------------------------------------------------------------------------------------
+
+
+def _round_out(value, step, up):
+    return (ceil if up else floor)(value / step) * step
+
+
+def suggest_axis_breaks(axes, axis, count=3):
+    """A record that cuts ``axis`` at the widest empty stretches of the data, or None if the data cannot be cut.
+
+    Limits are padded a little and rounded outward so the symbols at the ends stay whole; the shares follow
+    the span of each segment but never fall below 15, and the major interval stays automatic.
+    """
+    values = np.concatenate([part[0 if axis == "x" else 1] for part in _data_points(axes)] or [np.empty(0)])
+    values = np.unique(values[np.isfinite(values)])
+    if count not in SEGMENT_COUNTS or len(values) < count:
+        return None
+    span = float(values[-1] - values[0])
+    if not (span > 0 and isfinite(span)):
+        return None
+    steps = np.diff(values)
+    cuts = sorted(np.argsort(steps, kind="stable")[::-1][: count - 1])
+    groups = np.split(values, [cut + 1 for cut in cuts])
+    pad = min(0.03 * span, float(steps[cuts].min()) / 3)
+    exponent = floor(log10(span / 20))
+    unit, digits = 10.0 ** exponent, max(0, -exponent)
+    limits = [(round(_round_out(float(g[0]) - pad, unit, False), digits),
+               round(_round_out(float(g[-1]) + pad, unit, True), digits)) for g in groups]
+    if any(not high < nxt for (_, high), (nxt, _) in zip(limits, limits[1:])) or any(low >= high for low, high in limits):
+        limits = [(float(g[0]), float(g[-1])) if g[0] < g[-1] else (float(g[0]) - pad, float(g[0]) + pad) for g in groups]
+    lengths = np.array([high - low for low, high in limits])
+    shares = 100 * lengths / lengths.sum()
+    for _ in range(count):
+        small = shares < MIN_SUGGESTED_SHARE
+        if not small.any() or small.all():
+            break
+        shares[small] = MIN_SUGGESTED_SHARE
+        shares[~small] *= (100 - MIN_SUGGESTED_SHARE * small.sum()) / shares[~small].sum()
+    shares = np.round(shares, 1)
+    shares[-1] = round(100 - float(shares[:-1].sum()), 1)
+    record = {"axis": axis, "gap": DEFAULT_GAP,
+              "segments": [{"low": low, "high": high, "share": float(share), "major_step": None}
+                           for (low, high), share in zip(limits, shares)]}
+    try:
+        return normalise_axis_breaks(record)
+    except AxisBreakError:
+        return None
