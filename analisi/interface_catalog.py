@@ -115,6 +115,10 @@ Report cluster ANOVA|Mostra l’ANOVA descrittiva dei gruppi
 Report assignments for every k|Mostra le assegnazioni per ogni k
 Report Gap statistics|Mostra le statistiche Gap
 Choose whether to include this report.|Scegli se includere questo report.
+Show WSS plot|Mostra il grafico WSS
+Show silhouette plot|Mostra il grafico della silhouette
+Show Gap plot|Mostra il grafico Gap
+Choose whether to show this plot.|Scegli se mostrare questo grafico.
 Enter a whole number from 1 to 1000.|Inserisci un intero da 1 a 1000.
 Enter one distinct worksheet row per cluster, separated by commas.|Inserisci una riga distinta del foglio per ogni gruppo, separando i numeri con virgole.
 Each initial worksheet row must exist and have all selected values.|Ogni riga iniziale deve esistere e contenere tutti i valori selezionati.

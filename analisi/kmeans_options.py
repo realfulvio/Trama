@@ -12,6 +12,21 @@ LLOYD, HARTIGAN = ALGORITHMS = ("Lloyd", "Hartigan–Wong")
 MAX_ITERATIONS = "Hartigan–Wong iteration limit"
 INITIAL_ROWS = "Initial worksheet rows"
 DEFAULT_ITERATIONS = 10
+WSS_PLOT = "Show WSS plot"
+SILHOUETTE_PLOT = "Show silhouette plot"
+GAP_PLOT = "Show Gap plot"
+PLOTS = {WSS_PLOT: "WSS", SILHOUETTE_PLOT: "Silhouette", GAP_PLOT: "Gap"}
+
+
+def plot_metrics(options):
+    metrics = []
+    for plot, metric in PLOTS.items():
+        value = options.get(plot, False)
+        if type(value) is not bool:
+            raise FieldError(plot, "Choose whether to show this plot.")
+        if value:
+            metrics.append(metric)
+    return metrics
 
 
 def fit_options(method, frame, options):

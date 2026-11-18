@@ -140,7 +140,8 @@ def _check_scan_budget(n, dimensions, candidates, pairwise, *, simulate_gap, gap
 
 def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="silhouette",
                 *, min_k=1, gap_replicates=20, kl_scaling=consensus.DIMENSION_ADJUSTED,
-                algorithm="lloyd", max_iterations=10, retain_fits=False, retain_initial=False):
+                algorithm="lloyd", max_iterations=10, retain_fits=False, retain_initial=False,
+                include_gap=False):
     """Compare fits from min_k through max_k, capped at the distinct row count.
 
     The silhouette, Calinski–Harabasz and Davies–Bouldin scores require
@@ -152,6 +153,7 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     WSS minus log observed WSS. Gap SE is sqrt(1 + 1/B) times the population
     SD of log reference WSS. Select the first k with Gap(k) >= Gap(k+1) minus
     Gap SE(k+1), falling back to the largest k with a finite Gap.
+    include_gap also computes these columns for display with another criterion.
 
     The "consensus" criterion reuses each observed fit to compute the 17
     indices in analisi.cluster_consensus, lets each index vote once for a
@@ -177,7 +179,7 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     candidates = range(min_k, upper + 1)
     score_distances = max(2, min_k) <= min(upper, n - 1)
     score_consensus = criterion == "consensus" and max(2, min_k) <= upper
-    simulate_gap = criterion in {"gap", "consensus"}
+    simulate_gap = include_gap or criterion in {"gap", "consensus"}
     _check_scan_budget(n, dimensions, candidates, score_distances or score_consensus,
                        simulate_gap=simulate_gap, gap_replicates=gap_replicates)
     pairs = consensus.PairDistances(values) if score_consensus else None
@@ -195,7 +197,7 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     metrics = pd.DataFrame(rows, columns=["k", "WSS", *_CLUSTER_METRICS.values()]).set_index("k")
     if simulate_gap:
         _gap_scores(metrics, values, columns, seed, gap_replicates,
-                    allow_failed_references=criterion == "consensus", fit_options=fit_options)
+                    allow_failed_references=criterion != "gap", fit_options=fit_options)
     if criterion == "consensus":
         outcome = _consensus_scan(metrics, partitions, fits, n, dimensions, kl_scaling=kl_scaling)
     else:

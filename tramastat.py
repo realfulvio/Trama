@@ -1166,6 +1166,8 @@ class AnalysisDialog(simpledialog.Dialog):
             tabs = {**OLS_TABS, **LOGISTIC_TABS}
         elif self.method in kmeans_options.METHODS:
             tabs = {"Output": kmeans_reports.SCAN if self.method == kmeans_options.SELECTION else kmeans_reports.COMMON}
+            if self.method == kmeans_options.SELECTION:
+                tabs["Graph"] = tuple(kmeans_options.PLOTS)
         elif self.method == "Principal component analysis":
             tabs = {**PCA_TABS, **PCA_SELECTION_TABS, **PCA_REPORT_TABS, **pca_overlays.TABS, **PCA_REGRESSION_TABS}
         elif self.method == SPLINE_FIT:
@@ -1637,7 +1639,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     self.controls[label][1].trace_add("write", lambda *_: self.show_processing_fields())
             self.show_processing_fields()
         if self.method in kmeans_options.METHODS:
-            for name in (kmeans_options.ALGORITHM, "Criterion", "Standardize"):
+            for name in (kmeans_options.ALGORITHM, kmeans_options.GAP_PLOT, "Criterion", "Standardize"):
                 if name in self.controls:
                     self.controls[name][1].trace_add("write", lambda *_: self.show_fields(self.kmeans_visibility()))
             self.show_fields(self.kmeans_visibility())
@@ -2276,8 +2278,9 @@ class AnalysisDialog(simpledialog.Dialog):
         from analisi.cluster_consensus import KL_SCALING
 
         criterion = self.controls["Criterion"][1].get()
+        gap = criterion in kmeans_reports.GAP_CRITERIA or self.controls[kmeans_options.GAP_PLOT][1].get()
         return {**options, KL_SCALING: criterion == "Consensus (17 indices)",
-                kmeans_reports.GAP: criterion in kmeans_reports.GAP_CRITERIA}
+                kmeans_reports.GAP: gap}
 
     def hierarchical_visibility(self):
         if self.method != "Hierarchical clustering":
@@ -3393,7 +3396,7 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == "Kaplan–Meier survival":
                 check_survival_options(self.data, options)
             if self.method in kmeans_options.METHODS:
-                for report in kmeans_reports.SCAN:
+                for report in (*kmeans_reports.SCAN, *kmeans_options.PLOTS):
                     if options.get(report) is False:
                         options.pop(report)
                 request = kmeans_options.fit_options(self.method, self.data, options)
@@ -12236,6 +12239,7 @@ def smoke(root, app, directory, legacy_reference=None):
         title = "Clustering reports"
         path = directory / "kmeans-reports.alab"
         csv_path = directory / "kmeans-cluster-details.csv"
+        svg_path = directory / "kmeans-diagnostics.svg"
         source = pd.DataFrame({"Signal": [0., 1., 2., 9., 10., 11., 19., 20., 21.]})
         save_project(path, {title: Dataset(source)})
         app.import_file(path)
@@ -12244,6 +12248,10 @@ def smoke(root, app, directory, legacy_reference=None):
             pick_method(dialog, kmeans_options.SELECTION)
             select_columns(dialog, "Variables", {"Signal"})
             dialog.controls[kmeans_options.ALGORITHM][1].set(kmeans_options.HARTIGAN)
+            dialog.controls["Criterion"][1].set("Silhouette")
+            assert not dialog.field_rows[kmeans_reports.GAP][1].winfo_manager()
+            dialog.controls[kmeans_options.GAP_PLOT][1].set(True)
+            assert dialog.field_rows[kmeans_reports.GAP][1].winfo_manager()
             dialog.controls["Criterion"][1].set("Consensus (17 indices)")
             dialog.controls["Maximum k"][1].set(4)
             dialog.controls["Gap simulations"][1].set(5)
@@ -12251,15 +12259,21 @@ def smoke(root, app, directory, legacy_reference=None):
             assert not dialog.field_rows[kmeans_reports.SCALED][1].winfo_manager()
             dialog.controls["Standardize"][1].set(True)
             assert dialog.field_rows[kmeans_reports.SCALED][1].winfo_manager()
+            for plot in kmeans_options.PLOTS:
+                dialog.controls[plot][1].set(True)
             for report in kmeans_reports.SCAN:
                 dialog.controls[report][1].set(True)
-            button = dialog.field_rows[kmeans_reports.DETAILS][1]
+            button = dialog.field_rows[kmeans_options.GAP_PLOT][1]
             dialog.fields.select(button.master)
             dialog.update_idletasks()
-            capture(dialog, "window-kmeans-report-options.png")
+            capture(dialog, "window-kmeans-plot-options.png")
 
         def verify():
-            tabs = app.runs[0].result.tables
+            result = app.runs[0].result
+            tabs = result.tables
+            assert [axes.get_title() for axes in result.figure.axes] == [
+                "K-means consensus votes", "WSS elbow", "Mean silhouette", "Gap statistic",
+            ]
             assert tabs["Assignments by k"].shape == (9, 5)
             assert len(tabs["Cluster details"]) == len(tabs["Initial centroids"]) == 10
             assert len(tabs["Cluster ANOVA"]) == len(tabs["Gap statistics"]) == 4
@@ -12281,11 +12295,19 @@ def smoke(root, app, directory, legacy_reference=None):
         with patch.object(filedialog, "asksaveasfilename", return_value=str(csv_path)):
             app.export()
         assert "Within SS" in csv_path.read_text(encoding="utf-8-sig")
+        app.show("graph", 0)
+        root.update()
+        capture(root, "window-kmeans-diagnostics.png")
+        with patch.object(filedialog, "asksaveasfilename", return_value=str(svg_path)):
+            app.export()
+        assert all(title in svg_path.read_text(encoding="utf-8") for title in ("WSS elbow", "Mean silhouette",
+                                                                               "Gap statistic"))
         assert app.save()
         app.import_file(path)
         app.open_sheet(("graph", 0))
         wait_for_calculation()
         after = verify()
+        assert all(app.runs[0].options.get(plot) is True for plot in kmeans_options.PLOTS)
         assert kmeans_reports.requested(app.runs[0].options, scan=True) == set(kmeans_reports.SCAN)
         for name in before:
             pd.testing.assert_frame_equal(before[name], after[name])

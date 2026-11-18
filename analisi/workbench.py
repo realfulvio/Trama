@@ -242,7 +242,7 @@ METHODS = {
                                 "Gap simulations": 20, KL_SCALING: KL_CHOICES,
                                 kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
                                 kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
-                                **dict.fromkeys(kmeans_reports.SCAN, False)},
+                                **dict.fromkeys((*kmeans_reports.SCAN, *kmeans_options.PLOTS), False)},
     "K-means clustering": {"Variables": MULTIPLE, "Clusters": 2, "Standardize": True, "Seed": 42,
                            kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
                            kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
@@ -552,6 +552,7 @@ def _consensus_selection(scan, o):
 
 
 def _cluster_selection(frame, o):
+    plots = kmeans_options.plot_metrics(o)
     reports = kmeans_reports.requested(o, scan=True)
     criterion = {"Silhouette": "silhouette", "Elbow": "elbow", "Calinski–Harabasz": "calinski-harabasz",
                  "Davies–Bouldin": "davies-bouldin", "Gap": "gap",
@@ -560,12 +561,37 @@ def _cluster_selection(frame, o):
                        criterion, min_k=o.get("Minimum k", 1), gap_replicates=o.get("Gap simulations", 20),
                        kl_scaling=o.get(KL_SCALING, DIMENSION_ADJUSTED), retain_fits=bool(reports),
                        retain_initial=kmeans_reports.CENTROIDS in reports,
+                       include_gap="Gap" in plots,
                        **kmeans_options.fit_options(kmeans_options.SELECTION, frame, o))
     result = _consensus_selection(scan, o) if criterion == "consensus" else _scan_result(scan, o, criterion)
     if reports:
         result.tables.update(kmeans_reports.result_tables(scan.report_fits, frame, scan.fitting_data, reports,
                                                           metrics=scan.metrics))
+    primary = {"elbow": "WSS", "consensus": None}.get(criterion, o["Criterion"])
+    extra = [metric for metric in plots if metric != primary]
+    if extra:
+        _add_kmeans_plots(result.figure, scan.metrics, extra)
     return result
+
+
+def _add_kmeans_plots(figure, metrics, extra):
+    count = len(extra) + 1
+    rows = (count + 1) // 2
+    grid = figure.add_gridspec(rows, 2)
+    figure.set_size_inches(9, 6.5 if rows == 2 else 5)
+    figure.axes[0].set_subplotspec(grid[0, :] if count == 3 else grid[0, 0])
+    slots = list(grid)[2 if count == 3 else 1:]
+    titles = {"WSS": "WSS elbow", "Silhouette": "Mean silhouette", "Gap": "Gap statistic"}
+    for metric, slot in zip(extra, slots, strict=True):
+        axes = figure.add_subplot(slot)
+        axes.set(title=titles[metric], xlabel="Number of clusters", ylabel=metric)
+        axes.spines[["right", "top"]].set_visible(False)
+        axes.xaxis.get_major_locator().set_params(integer=True)
+        values = metrics[metric].to_numpy(dtype=float)
+        if metric == "Gap":
+            axes.errorbar(metrics.index, values, yerr=metrics["Gap SE"].to_numpy(dtype=float), fmt="o-")
+        else:
+            axes.plot(metrics.index, values, "o-")
 
 
 def _scan_result(scan, o, criterion):
