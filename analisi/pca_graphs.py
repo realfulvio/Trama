@@ -14,7 +14,7 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 
-from . import exploration, pca_retention
+from . import exploration, pca_reports, pca_retention
 from .graph_legend import typed_group_token
 from .processing import FieldError
 from .reporting import Result, _plot
@@ -343,4 +343,5 @@ def pca_result(frame, options):
     tables = {"Explained variance": parts, "Eigenvectors": eigenvectors, "Scores": scores,
               COORDINATES: table, SETTINGS: settings}
     tables.update(retention.tables)
+    tables.update(pca_reports.optional_tables(frame, options, parts, eigenvectors, scores, retention))
     return Result(tables, figure)

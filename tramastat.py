@@ -237,6 +237,7 @@ from analisi.pca_graphs import (COLOR_GROUPS as PCA_COLOR_GROUPS, GRAPH as PCA_G
                                 HORIZONTAL as PCA_HORIZONTAL, LABEL as PCA_LABEL, ONE_DIMENSION as PCA_ONE_DIMENSION,
                                 POINT_VIEWS as PCA_POINT_VIEWS, SHOW_LABELS as PCA_SHOW_LABELS,
                                 TABS as PCA_TABS, VERTICAL as PCA_VERTICAL, validate as validate_pca_graph)
+from analisi.pca_reports import LABEL_KEYS as PCA_REPORT_LABELS, TABS as PCA_REPORT_TABS
 from analisi.pca_retention import (CHOICE_KEYS as PCA_CHOICE_KEYS, LABEL_KEYS as PCA_SELECT_LABELS,
                                   SELECTION as PCA_SELECTION, TABS as PCA_SELECTION_TABS,
                                   check as check_pca_selection, simulates as pca_simulates,
@@ -1115,7 +1116,7 @@ class AnalysisDialog(simpledialog.Dialog):
         elif self.method == "Multiple regression":
             tabs = {**OLS_TABS, **LOGISTIC_TABS}
         elif self.method == "Principal component analysis":
-            tabs = {**PCA_TABS, **PCA_SELECTION_TABS}
+            tabs = {**PCA_TABS, **PCA_SELECTION_TABS, **PCA_REPORT_TABS}
         elif self.method == SPLINE_FIT:
             # Method fields first; the query direction and the drawn output have their own tabs.
             self.fields.tab(options, text=ui("Method"))
@@ -1915,6 +1916,7 @@ class AnalysisDialog(simpledialog.Dialog):
                 PCA_SHOW_LABELS: "analysis.pca.show",
                 PCA_COLOR_GROUPS: "analysis.pca.color_groups",
                 **PCA_SELECT_LABELS,
+                **PCA_REPORT_LABELS,
             })
         if self.method == XY_ERRORS:
             for label in ("X error distance", "X lower error", "X upper error", "X error values",
