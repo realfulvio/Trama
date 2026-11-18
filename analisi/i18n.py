@@ -212,6 +212,7 @@ _EN = {
     "analysis.pca.vertical": "Vertical PC",
     "analysis.pca.label": "Label column",
     "analysis.pca.show": "Show row labels",
+    "analysis.pca.color_groups": "Color groups by",
     # PCA component selection. English text matches the stored option keys.
     "pca.select.selection": "Selection",
     "pca.select.retained": "Retained components",
@@ -446,6 +447,7 @@ _IT = {
     "analysis.pca.vertical": "Componente verticale",
     "analysis.pca.label": "Colonna etichette",
     "analysis.pca.show": "Mostra etichette di riga",
+    "analysis.pca.color_groups": "Colora gruppi per",
     "pca.select.selection": "Selezione",
     "pca.select.retained": "Componenti trattenute",
     "pca.select.threshold": "Soglia degli autovalori",
