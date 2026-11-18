@@ -19,7 +19,8 @@ PREFERENCES_FILE = "preferences.json"
 _EN = {
     "worksheet.formula.examples": ('Arithmetic: =COL("Sample mass") / 10\n'
                                    'Group mean: =MEAN(Response) OVER Cohort\n'
-                                   'Running total: =SUM(Response) ROWS UNBOUNDED PRECEDING'),
+                                   'Running total: =SUM(Response) ROWS UNBOUNDED PRECEDING\n'
+                                   'Upper tail: =NORMDIST(Response, 0, 1, "right")'),
     "arrange.title": "Arrange drawing objects",
     "command.arrange_shapes": "Arrange drawing objects…",
     "arrange.hint": "Select two or more drawings (Ctrl/Shift for multiple selection). Alignment uses the enclosing selected endpoint bounds; equal spacing requires three objects and enough room.",
@@ -313,7 +314,8 @@ _EN = {
 _IT = {
     "worksheet.formula.examples": ('Aritmetica: =COL("Massa campione") / 10\n'
                                    'Media per gruppo: =MEAN(Risposta) OVER Coorte\n'
-                                   'Totale cumulato: =SUM(Risposta) ROWS UNBOUNDED PRECEDING'),
+                                   'Totale cumulato: =SUM(Risposta) ROWS UNBOUNDED PRECEDING\n'
+                                   'Coda destra: =NORMDIST(Risposta, 0, 1, "right")'),
     "arrange.title": "Disponi le forme del grafico",
     "command.arrange_shapes": "Disponi forme del grafico…",
     "arrange.hint": "Seleziona almeno due forme (Ctrl/Maiusc per la selezione multipla). Allinea rispetto al rettangolo che le racchiude; per la spaziatura servono tre forme e spazio sufficiente.",

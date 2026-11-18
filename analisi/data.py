@@ -19,7 +19,7 @@ import pandas as pd
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
 from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, valid_analysis_id
 from .analysis_labels import validate_labels
-from .formula_distributions import DISTRIBUTION_FORMULA_FUNCTIONS
+from .distribution_formulas import DISTRIBUTION_FUNCTIONS, argument_count_message
 from .formula_special import SPECIAL_FORMULA_FUNCTIONS
 from .formula_windows import WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
 
@@ -226,7 +226,7 @@ def _is_blank(values):
 
 ELEMENTWISE_FORMULA_FUNCTIONS = {
     **SPECIAL_FORMULA_FUNCTIONS,
-    **DISTRIBUTION_FORMULA_FUNCTIONS,
+    **DISTRIBUTION_FUNCTIONS,
     "ISBLANK": (1, _is_blank), "IS_DEFINED": (1, lambda values: np.logical_not(_is_blank(values))),
     "CEIL": (1, np.ceil), "FLOOR": (1, np.floor), "INT": (1, np.trunc), "SGN": (1, np.sign),
     "SQR": (1, np.square),
@@ -362,6 +362,8 @@ def formula(frame, expression, *, info=None):
                 if supported:
                     return function(*(evaluate(arg, raw=name in _PRESENCE_FUNCTIONS, filter_text=filter_text)
                                       for arg in node.args))
+                if isinstance(arity, range):
+                    raise ValueError(argument_count_message(name, arity))
         raise ValueError("Unsupported expression in calculated column.")
 
     def absent(node):

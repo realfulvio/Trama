@@ -41,8 +41,6 @@ SPECIAL_FORMULA_FUNCTIONS = {
     "IGAMMAC": (2, _special("gammaincc", _incomplete_gamma_domain)),
     "BETA": (2, _special("beta", lambda a, b: (a > 0) & (b > 0))),
     "IBETA": (3, _special("betainc", lambda a, b, x: (a > 0) & (b > 0) & (x >= 0) & (x <= 1))),
-    "ERF": (1, _special("erf")),
-    "ERFC": (1, _special("erfc")),
     "BESSELJ": (2, _special("jv")),
     "BESSELY": (2, _special("yv", lambda order, x: x > 0)),
     "PERC": (1, lambda x: np.divide(x, 100)),
