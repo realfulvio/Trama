@@ -45,6 +45,7 @@ from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, 
 from .competing_risks_workbench import (COMPETING_RISKS, OPTIONS as COMPETING_RISKS_OPTIONS,
                                         competing_risks)
 from .lognormal_tests import LOGNORMAL, OPTIONS as LOGNORMAL_OPTIONS, lognormal_test
+from .ordinal_logit import ORDINAL_LOGIT, OPTIONS as ORDINAL_LOGIT_OPTIONS, ordinal_logit
 from .variance_ratio import METHOD as VARIANCE_RATIO, SHOW as VARIANCE_SHOW, analysis as variance_ratio_analysis, attach_ttest
 from .summary_anova import METHOD as SUMMARY_ANOVA, OPTIONS as SUMMARY_ANOVA_OPTIONS, summary_anova
 from .summary_ttest import METHOD as SUMMARY_TTEST, OPTIONS as SUMMARY_TTEST_OPTIONS, summary_ttest
@@ -195,6 +196,7 @@ METHODS = {
                      "Graph": ("None", "Variance ratio", "SD ratio")},
     EQUIVALENCE: EQUIVALENCE_OPTIONS,
     COMPETING_RISKS: COMPETING_RISKS_OPTIONS,
+    ORDINAL_LOGIT: ORDINAL_LOGIT_OPTIONS,
     SUMMARY_ANOVA: SUMMARY_ANOVA_OPTIONS,
     SUMMARY_TTEST: SUMMARY_TTEST_OPTIONS,
     MANN_WHITNEY: RANK_OPTIONS[MANN_WHITNEY],
@@ -298,7 +300,7 @@ GROUPS = {
     "Regression and Curves": ("Linear regression", COMPARE_LINES, "Deming regression", "Multiple regression",
                               "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
-                              "Interpolate a standard curve", SPLINE_FIT, PLOT_FUNCTION),
+                              "Interpolate a standard curve", SPLINE_FIT, PLOT_FUNCTION, ORDINAL_LOGIT),
     "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
@@ -1040,6 +1042,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return equivalence_test(frame, o)
     if method == COMPETING_RISKS:
         return competing_risks(frame, o, cancel=cancel)
+    if method == ORDINAL_LOGIT:
+        return ordinal_logit(frame, o)
     if method == SUMMARY_ANOVA:
         return summary_anova(frame, o)
     if method == SUMMARY_TTEST:

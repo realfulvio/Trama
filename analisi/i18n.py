@@ -3397,6 +3397,11 @@ _IT.update({
     "cr.error.cause": "{field}: {cause} non è uno dei codici dell’evento.",
 })
 
+# Ordinal logistic regression keeps its captions and messages in a module of its own.
+from .ordinal_logit_catalog import EN as _ORD_EN, IT as _ORD_IT
+_EN.update(_ORD_EN)
+_IT.update(_ORD_IT)
+
 # Common dialog captions and analysis selectors are translated only at explicit
 # rendering boundaries. No widget hooks touch user titles, columns or data.
 from .interface_catalog import CAPTIONS as _INTERFACE_CAPTIONS, MESSAGES as _INTERFACE_MESSAGES
