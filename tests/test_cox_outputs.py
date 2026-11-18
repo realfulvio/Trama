@@ -369,8 +369,10 @@ class GraphAndLegacyTests(unittest.TestCase):
         self.assertIn("Arm [B]", str(raised.exception))
 
     def test_visibility(self):
-        self.assertEqual(cox.cox_visibility(False, cox.AUTOMATIC), {cox.PROFILES: False, cox.GRAPH_TERM: False})
-        self.assertEqual(cox.cox_visibility(True, cox.SCHOENFELD_GRAPH), {cox.PROFILES: True, cox.GRAPH_TERM: True})
+        self.assertEqual(cox.cox_visibility(False, cox.AUTOMATIC),
+                         {cox.PROFILES: False, cox.GRAPH_TERM: False, cox.X_AXIS: False})
+        self.assertEqual(cox.cox_visibility(True, cox.SCHOENFELD_GRAPH),
+                         {cox.PROFILES: True, cox.GRAPH_TERM: True, cox.X_AXIS: False})
 
 
 if __name__ == "__main__":

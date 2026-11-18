@@ -1,0 +1,580 @@
+{
+  "Breslow": {
+    "scaled": [
+      {
+        "Source row": 2,
+        "Time": 2.0,
+        "Dose": -1.4226474471022121,
+        "Arm [B]": -1.9292069998194268
+      },
+      {
+        "Source row": 3,
+        "Time": 2.0,
+        "Dose": 1.2821189700481543,
+        "Arm [B]": 1.4076589339395893
+      },
+      {
+        "Source row": 6,
+        "Time": 4.0,
+        "Dose": 0.3384942168755246,
+        "Arm [B]": 1.7073314948075513
+      },
+      {
+        "Source row": 7,
+        "Time": 5.0,
+        "Dose": -0.09621810317473814,
+        "Arm [B]": -2.73497058783881
+      },
+      {
+        "Source row": 9,
+        "Time": 6.0,
+        "Dose": -1.8670936032954817,
+        "Arm [B]": 2.929155557167822
+      },
+      {
+        "Source row": 11,
+        "Time": 8.0,
+        "Dose": 0.7573283869865365,
+        "Arm [B]": -3.5896396643045603
+      },
+      {
+        "Source row": 12,
+        "Time": 8.0,
+        "Dose": -1.0046178350828785,
+        "Arm [B]": 2.328298518512334
+      },
+      {
+        "Source row": 15,
+        "Time": 10.0,
+        "Dose": 1.1820746614416318,
+        "Arm [B]": 0.36130899700119884
+      },
+      {
+        "Source row": 17,
+        "Time": 13.0,
+        "Dose": 0.8305607533034625,
+        "Arm [B]": -0.4799362494656985
+      }
+    ],
+    "snell": [
+      {
+        "Source row": 1,
+        "Time": 0.5,
+        "Event": 0,
+        "Cox-Snell residual": 0.0
+      },
+      {
+        "Source row": 2,
+        "Time": 2.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.08133187396380752
+      },
+      {
+        "Source row": 3,
+        "Time": 2.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.17536962847103596
+      },
+      {
+        "Source row": 4,
+        "Time": 2.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.10383204383298923
+      },
+      {
+        "Source row": 5,
+        "Time": 3.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.17852344038683507
+      },
+      {
+        "Source row": 6,
+        "Time": 4.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.23275134176005147
+      },
+      {
+        "Source row": 7,
+        "Time": 5.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.26723619546069927
+      },
+      {
+        "Source row": 9,
+        "Time": 6.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.27214276511665914
+      },
+      {
+        "Source row": 10,
+        "Time": 7.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.2770369255417364
+      },
+      {
+        "Source row": 11,
+        "Time": 8.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.7488966570333406
+      },
+      {
+        "Source row": 12,
+        "Time": 8.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.5660692145709592
+      },
+      {
+        "Source row": 13,
+        "Time": 8.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.7356665781398574
+      },
+      {
+        "Source row": 14,
+        "Time": 9.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.5762492887927381
+      },
+      {
+        "Source row": 15,
+        "Time": 10.0,
+        "Event": 1,
+        "Cox-Snell residual": 1.3097119620451667
+      },
+      {
+        "Source row": 16,
+        "Time": 12.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.7893937448570355
+      },
+      {
+        "Source row": 17,
+        "Time": 13.0,
+        "Event": 1,
+        "Cox-Snell residual": 1.6358876329549839
+      },
+      {
+        "Source row": 18,
+        "Time": 14.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.9685688331082971
+      },
+      {
+        "Source row": 19,
+        "Time": 2.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.08133187396380752
+      }
+    ],
+    "hazard": [
+      {
+        "Residual": 0.0,
+        "At risk": 18,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.0
+      },
+      {
+        "Residual": 0.08133187396380752,
+        "At risk": 17,
+        "Events": 1,
+        "Censored": 1,
+        "Cumulative hazard": 0.058823529411764705
+      },
+      {
+        "Residual": 0.10383204383298923,
+        "At risk": 15,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.058823529411764705
+      },
+      {
+        "Residual": 0.17536962847103596,
+        "At risk": 14,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.13025210084033612
+      },
+      {
+        "Residual": 0.17852344038683507,
+        "At risk": 13,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.13025210084033612
+      },
+      {
+        "Residual": 0.23275134176005147,
+        "At risk": 12,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.21358543417366943
+      },
+      {
+        "Residual": 0.26723619546069927,
+        "At risk": 11,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.3044945250827603
+      },
+      {
+        "Residual": 0.27214276511665914,
+        "At risk": 10,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.4044945250827603
+      },
+      {
+        "Residual": 0.2770369255417364,
+        "At risk": 9,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.4044945250827603
+      },
+      {
+        "Residual": 0.5660692145709592,
+        "At risk": 8,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.5294945250827603
+      },
+      {
+        "Residual": 0.5762492887927381,
+        "At risk": 7,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.5294945250827603
+      },
+      {
+        "Residual": 0.7356665781398574,
+        "At risk": 6,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.5294945250827603
+      },
+      {
+        "Residual": 0.7488966570333406,
+        "At risk": 5,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.7294945250827602
+      },
+      {
+        "Residual": 0.7893937448570355,
+        "At risk": 4,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.7294945250827602
+      },
+      {
+        "Residual": 0.9685688331082971,
+        "At risk": 3,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.7294945250827602
+      },
+      {
+        "Residual": 1.3097119620451667,
+        "At risk": 2,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 1.2294945250827602
+      },
+      {
+        "Residual": 1.6358876329549839,
+        "At risk": 1,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 2.2294945250827602
+      }
+    ]
+  },
+  "Efron": {
+    "scaled": [
+      {
+        "Source row": 2,
+        "Time": 2.0,
+        "Dose": -1.41313403646714,
+        "Arm [B]": -1.893502253429338
+      },
+      {
+        "Source row": 3,
+        "Time": 2.0,
+        "Dose": 1.2937047678200526,
+        "Arm [B]": 1.4299665308521279
+      },
+      {
+        "Source row": 6,
+        "Time": 4.0,
+        "Dose": 0.33366603052758514,
+        "Arm [B]": 1.724806638800767
+      },
+      {
+        "Source row": 7,
+        "Time": 5.0,
+        "Dose": -0.09470379161336306,
+        "Arm [B]": -2.7260591689368816
+      },
+      {
+        "Source row": 9,
+        "Time": 6.0,
+        "Dose": -1.8815951978364145,
+        "Arm [B]": 2.969923195757409
+      },
+      {
+        "Source row": 11,
+        "Time": 8.0,
+        "Dose": 0.7636598503115352,
+        "Arm [B]": -3.665828154261105
+      },
+      {
+        "Source row": 12,
+        "Time": 8.0,
+        "Dose": -1.0143808134193408,
+        "Arm [B]": 2.284923816925796
+      },
+      {
+        "Source row": 15,
+        "Time": 10.0,
+        "Dose": 1.1822454041490238,
+        "Arm [B]": 0.3623059842252983
+      },
+      {
+        "Source row": 17,
+        "Time": 13.0,
+        "Dose": 0.8305377865280605,
+        "Arm [B]": -0.4865365899340681
+      }
+    ],
+    "snell": [
+      {
+        "Source row": 1,
+        "Time": 0.5,
+        "Event": 0,
+        "Cox-Snell residual": 0.0
+      },
+      {
+        "Source row": 2,
+        "Time": 2.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.08153340879485774
+      },
+      {
+        "Source row": 3,
+        "Time": 2.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.17511097227345473
+      },
+      {
+        "Source row": 4,
+        "Time": 2.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.1030073508774812
+      },
+      {
+        "Source row": 5,
+        "Time": 3.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.180718790654013
+      },
+      {
+        "Source row": 6,
+        "Time": 4.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.2317611781772137
+      },
+      {
+        "Source row": 7,
+        "Time": 5.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.26891531259216545
+      },
+      {
+        "Source row": 9,
+        "Time": 6.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.26930388230467195
+      },
+      {
+        "Source row": 10,
+        "Time": 7.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.2779281691870809
+      },
+      {
+        "Source row": 11,
+        "Time": 8.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.7562258288622414
+      },
+      {
+        "Source row": 12,
+        "Time": 8.0,
+        "Event": 1,
+        "Cox-Snell residual": 0.5620034527226998
+      },
+      {
+        "Source row": 13,
+        "Time": 8.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.7327596630717368
+      },
+      {
+        "Source row": 14,
+        "Time": 9.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.5800012586351356
+      },
+      {
+        "Source row": 15,
+        "Time": 10.0,
+        "Event": 1,
+        "Cox-Snell residual": 1.3093537261636496
+      },
+      {
+        "Source row": 16,
+        "Time": 12.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.7948804205554804
+      },
+      {
+        "Source row": 17,
+        "Time": 13.0,
+        "Event": 1,
+        "Cox-Snell residual": 1.6338604363543543
+      },
+      {
+        "Source row": 18,
+        "Time": 14.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.9611027399789057
+      },
+      {
+        "Source row": 19,
+        "Time": 2.0,
+        "Event": 0,
+        "Cox-Snell residual": 0.08153340879485774
+      }
+    ],
+    "hazard": [
+      {
+        "Residual": 0.0,
+        "At risk": 18,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.0
+      },
+      {
+        "Residual": 0.08153340879485774,
+        "At risk": 17,
+        "Events": 1,
+        "Censored": 1,
+        "Cumulative hazard": 0.058823529411764705
+      },
+      {
+        "Residual": 0.1030073508774812,
+        "At risk": 15,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.058823529411764705
+      },
+      {
+        "Residual": 0.17511097227345473,
+        "At risk": 14,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.13025210084033612
+      },
+      {
+        "Residual": 0.180718790654013,
+        "At risk": 13,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.13025210084033612
+      },
+      {
+        "Residual": 0.2317611781772137,
+        "At risk": 12,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.21358543417366943
+      },
+      {
+        "Residual": 0.26891531259216545,
+        "At risk": 11,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.3044945250827603
+      },
+      {
+        "Residual": 0.26930388230467195,
+        "At risk": 10,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.4044945250827603
+      },
+      {
+        "Residual": 0.2779281691870809,
+        "At risk": 9,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.4044945250827603
+      },
+      {
+        "Residual": 0.5620034527226998,
+        "At risk": 8,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.5294945250827603
+      },
+      {
+        "Residual": 0.5800012586351356,
+        "At risk": 7,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.5294945250827603
+      },
+      {
+        "Residual": 0.7327596630717368,
+        "At risk": 6,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.5294945250827603
+      },
+      {
+        "Residual": 0.7562258288622414,
+        "At risk": 5,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 0.7294945250827602
+      },
+      {
+        "Residual": 0.7948804205554804,
+        "At risk": 4,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.7294945250827602
+      },
+      {
+        "Residual": 0.9611027399789057,
+        "At risk": 3,
+        "Events": 0,
+        "Censored": 1,
+        "Cumulative hazard": 0.7294945250827602
+      },
+      {
+        "Residual": 1.3093537261636496,
+        "At risk": 2,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 1.2294945250827602
+      },
+      {
+        "Residual": 1.6338604363543543,
+        "At risk": 1,
+        "Events": 1,
+        "Censored": 0,
+        "Cumulative hazard": 2.2294945250827602
+      }
+    ]
+  }
+}
