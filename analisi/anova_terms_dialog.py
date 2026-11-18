@@ -51,6 +51,7 @@ class TermPicker(ttk.Frame):
         self.chosen = _clean(saved)
         self.touched = bool(self.chosen)
         self.vars, self.boxes, self.groups = {}, {}, {}
+        self.listeners = []  # called after the summary changes (the sums of squares panel shows the order of the terms)
         self._building = False
         self.columnconfigure(0, weight=1)
         tools = ttk.Frame(self)
@@ -109,6 +110,13 @@ class TermPicker(ttk.Frame):
 
     def values(self):
         return [list(term) for term in self.terms()]
+
+    def current_terms(self):
+        """The terms of the model as it stands now, in model order: the ticked terms, or the Full hierarchy."""
+        names = self.names()
+        if self.selected():
+            return self.terms()
+        return list(full_terms(names, min(self._order_value(), len(names)))) if names else []
 
     def set_values(self, saved):
         self.chosen = _clean(saved)
@@ -194,8 +202,7 @@ class TermPicker(ttk.Frame):
 
     def _describe(self):
         names, selected = self.names(), bool(self.selected())
-        terms = (self.terms() if selected
-                 else list(full_terms(names, min(self._order_value(), len(names)))) if names else [])
+        terms = self.current_terms()
         if not names:
             self._say(self.summary, tr("anova.terms.no_factors"))
             self._say(self.outside, "")
@@ -212,6 +219,8 @@ class TermPicker(ttk.Frame):
         self.all_button.state(["!disabled" if names else "disabled"])
         self.clear_button.state(["!disabled" if self.chosen else "disabled"])
         self.add_button.state(["!disabled" if prerequisites(terms, names) else "disabled"])
+        for listener in self.listeners:
+            listener()
 
     @staticmethod
     def _problems(terms):
