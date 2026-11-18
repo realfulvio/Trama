@@ -24,6 +24,8 @@ from .bubble import BUBBLE, OPTIONS as BUBBLE_OPTIONS, bubble_plot
 from .compare_lines import COMPARE_LINES, OPTIONS as COMPARE_LINES_OPTIONS, compare_lines
 from .contingency import CONTINGENCY, CONTINGENCY_OPTIONS, contingency
 from .distribution_graphs import BOX_VIOLIN, OPTIONS as BOX_VIOLIN_OPTIONS, box_violin
+from .grouped_distributions import (GROUPED_DISTRIBUTIONS, OPTIONS as GROUPED_DISTRIBUTIONS_OPTIONS,
+                                    grouped_distributions)
 from .correlation_details import (COMPARE_INDEPENDENT, CONTROL_OPTIONS, CORRELATE_CONTROL, INDEPENDENT_OPTIONS,
                                   SINGLE_EXTRA, control_result, correlation_result, independent_result)
 from .correlation_matrix import CORRELATION_MATRIX, OPTIONS as CORRELATION_MATRIX_OPTIONS, correlation_matrix
@@ -268,6 +270,7 @@ METHODS = {
     "Histogram": {"Response": None, "Bins": 10},
     FREQUENCY: FREQUENCY_OPTIONS,
     BOX_VIOLIN: BOX_VIOLIN_OPTIONS,
+    GROUPED_DISTRIBUTIONS: GROUPED_DISTRIBUTIONS_OPTIONS,
     BUBBLE: BUBBLE_OPTIONS,
     BEFORE_AFTER: BEFORE_AFTER_OPTIONS,
     TRAJECTORIES: TRAJECTORY_OPTIONS,
@@ -307,7 +310,7 @@ GROUPS = {
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS),
     "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering"),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
-                 PARTS_GRAPH, "Box / violin plot", BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
+                 PARTS_GRAPH, "Box / violin plot", GROUPED_DISTRIBUTIONS, BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
     "Study Design and Simulation": ("Power and sample size", "Simulate data", MONTE_CARLO),
 }
 
@@ -1136,6 +1139,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         if o.keys() <= {"Response", "Group", "Style"}:
             return _distribution(method, frame, o)
         return box_violin(frame, o)
+    if method == GROUPED_DISTRIBUTIONS:
+        return grouped_distributions(frame, o)
     if method == BEFORE_AFTER:
         return before_after(frame, o)
     if method == TRAJECTORIES:

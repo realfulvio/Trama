@@ -221,14 +221,14 @@ def _density(values, multiplier):
     return grid, density, bandwidth
 
 
-def _draw_box(axes, boxes):
+def _draw_box(axes, boxes, width=BOX_WIDTH):
     reduced = [group for group in boxes if group.stats["reduced"]]
     full = [group for group in boxes if not group.stats["reduced"]]
     if full:
         summaries = [{"med": g.stats["median"], "q1": g.stats["q1"], "q3": g.stats["q3"], "mean": g.stats["mean"],
                       "whislo": g.stats["low"], "whishi": g.stats["high"], "cilo": np.nan, "cihi": np.nan,
                       "fliers": g.values[g.stats["outside"]]} for g in full]
-        drawn = axes.bxp(summaries, positions=[g.x for g in full], widths=BOX_WIDTH, patch_artist=True,
+        drawn = axes.bxp(summaries, positions=[g.x for g in full], widths=width, patch_artist=True,
                          showmeans=False, showfliers=True, manage_ticks=False, flierprops={"marker": "o", "markersize": 4})
         for index, group in enumerate(full):
             color = group.color
@@ -244,12 +244,14 @@ def _draw_box(axes, boxes):
         stats, color = group.stats, group.color
         group.artists.extend((artist, "line") for artist in (
             axes.vlines(group.x, stats["min"], stats["max"], color=color, linewidth=1.3),
-            axes.hlines([stats["min"], stats["max"]], group.x - BOX_WIDTH / 8, group.x + BOX_WIDTH / 8,
+            axes.hlines([stats["min"], stats["max"]], group.x - width / 8, group.x + width / 8,
                         color=color, linewidth=1.3),
-            axes.hlines(stats["median"], group.x - BOX_WIDTH / 2, group.x + BOX_WIDTH / 2, color=color, linewidth=2.2)))
+            axes.hlines(stats["median"], group.x - width / 2, group.x + width / 2, color=color, linewidth=2.2)))
 
 
-def _draw_violin(axes, group, multiplier, median_line, quartile_lines, density_rows, widths):
+def _draw_violin(axes, group, multiplier, median_line, quartile_lines, density_rows, widths,
+                 half_width=HALF_WIDTH, labels=None):
+    """Draw one violin; ``labels`` names the leading columns of its density rows (default: Group)."""
     stats, color = group.stats, group.color
     fit = _density(group.values, multiplier)
     if fit is None:
@@ -259,14 +261,15 @@ def _draw_violin(axes, group, multiplier, median_line, quartile_lines, density_r
                 [group.x], [stats["min"]], marker="o", color=color, markersize=6, linestyle="none"))
         else:
             group.note = f"N = {stats['n']}: constant values, no density."
-            group.artists.append((axes.hlines(stats["min"], group.x - HALF_WIDTH / 2, group.x + HALF_WIDTH / 2,
+            group.artists.append((axes.hlines(stats["min"], group.x - half_width / 2, group.x + half_width / 2,
                                               color=color, linewidth=2.2), "line"))
         return None
     grid, density, bandwidth = fit
-    half = HALF_WIDTH * density / density.max()
+    half = half_width * density / density.max()
     group.artists.append((axes.fill_betweenx(grid, group.x - half, group.x + half, facecolor=to_rgba(color, .3),
                                              edgecolor=color, linewidth=1.3), "fill"))
-    density_rows.append(pd.DataFrame({"Group": group.label, "Value": grid, "Density": density, "Half-width": half}))
+    density_rows.append(pd.DataFrame({**(labels or {"Group": group.label}), "Value": grid, "Density": density,
+                                      "Half-width": half}))
     levels = []
     if median_line:
         levels.append((stats["median"], 2.2, "-"))
@@ -280,6 +283,21 @@ def _draw_violin(axes, group, multiplier, median_line, quartile_lines, density_r
         group.note = f"N = {stats['n']}: median shown, quartiles not drawn."
     widths[group.x] = bandwidth
     return bandwidth
+
+
+def rule_settings(style, whiskers, multiplier):
+    """Settings rows that state the whisker rule of a box or the density estimate of a violin."""
+    if style == BOX:
+        return {"Whiskers": whiskers,
+                "Whisker rule": ("Most extreme observation within Q1 − 1.5 IQR and Q3 + 1.5 IQR, limits included."
+                                 if whiskers == TUKEY else "Whiskers end at the interpolated percentiles."
+                                 if whiskers in PERCENTILE_WHISKERS else "Whiskers end at the minimum and maximum.")}
+    return {
+        "Bandwidth rule": "Gaussian kernel, h = multiplier × N^(−1/5) × sample SD (Scott's factor)",
+        "Bandwidth multiplier": multiplier,
+        "Density grid": f"{GRID_POINTS} equally spaced values from the observed minimum to the maximum",
+        "Width scale": "The maximum density of every violin is drawn at the same width; width does not encode N.",
+        "Density table": "Densities are not renormalized after truncation at the observed range."}
 
 
 def box_violin(frame, options):
@@ -359,18 +377,7 @@ def box_violin(frame, options):
     summary["Note"] = [g.note for g in groups]
     settings = {"Input": mode, "Style": style, "Percentiles": QUARTILE_NOTE,
                 "Displayed with fewer than 4 observations": "Median and range."}
-    if style == BOX:
-        settings["Whiskers"] = whiskers
-        settings["Whisker rule"] = ("Most extreme observation within Q1 − 1.5 IQR and Q3 + 1.5 IQR, limits included."
-                                    if whiskers == TUKEY else "Whiskers end at the interpolated percentiles."
-                                    if whiskers in PERCENTILE_WHISKERS else "Whiskers end at the minimum and maximum.")
-    else:
-        settings.update({
-            "Bandwidth rule": "Gaussian kernel, h = multiplier × N^(−1/5) × sample SD (Scott's factor)",
-            "Bandwidth multiplier": multiplier,
-            "Density grid": f"{GRID_POINTS} equally spaced values from the observed minimum to the maximum",
-            "Width scale": "The maximum density of every violin is drawn at the same width; width does not encode N.",
-            "Density table": "Densities are not renormalized after truncation at the observed range."})
+    settings.update(rule_settings(style, whiskers, multiplier))
     if omitted:
         settings["Omitted (no observations)"] = ", ".join(omitted)
     tables = {"Group summary": pd.DataFrame(summary)}
