@@ -108,7 +108,9 @@ def _show(value):
 
 def parse_code(text, field, numeric):
     """Canonical key of a typed status code: an exact int for numeric status columns, the literal text otherwise."""
-    if not isinstance(text, str) or not text.strip():
+    if not isinstance(text, str):
+        raise FieldError(field, f"{field}: a code is written as text, such as \"1\".")
+    if not text.strip():
         raise FieldError(field, f"{field}: a code cannot be empty.")
     if not numeric:
         return text
@@ -413,14 +415,12 @@ def check_gray_budget(dataset, pairwise):
     if pairwise and gray_work(dataset, sets[:1], len(dataset.causes)) <= MAX_GRAY_WORK:
         raise FieldError("Gray tests", f"Pairwise Gray tests need {work:,} units of work; the limit is "
                                        f"{MAX_GRAY_WORK:,}. Use Omnibus only.")
+    detail = f"The Gray test needs {work:,} units of work (groups² × distinct times × causes); the limit is {MAX_GRAY_WORK:,}."
     if groups > 4:
-        field, advice = "Group", "Compare fewer groups"
-    elif len(dataset.causes) > 2:
-        field, advice = "Event codes", "Declare fewer causes"
-    else:
-        field, advice = "Time", "Round the times so that fewer distinct values remain"
-    raise FieldError(field, f"The Gray test needs {work:,} units of work (groups² × distinct times × causes); "
-                            f"the limit is {MAX_GRAY_WORK:,}. {advice}.")
+        raise FieldError("Group", f"{detail} Compare fewer groups.")
+    if len(dataset.causes) > 2:
+        raise FieldError("Event codes", f"{detail} Declare fewer causes.")
+    raise FieldError("Time", f"{detail} Round the times so that fewer distinct values remain.")
 
 
 class _Track:
