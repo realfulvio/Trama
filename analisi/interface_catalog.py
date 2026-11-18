@@ -123,6 +123,7 @@ XY series|Serie XY
 Histogram|Istogramma
 Frequency distribution|Distribuzione di frequenza
 Box / violin plot|Grafico a scatola / violino
+Grouped distribution plot|Distribuzioni raggruppate
 Bubble plot|Grafico a bolle
 Before/after|Prima/dopo
 Subject trajectories|Traiettorie dei soggetti
@@ -165,6 +166,8 @@ Power and sample size|Potenza e dimensione del campione
 Simulate data|Simula dati
 Response|Risposta
 Group|Gruppo
+Category|Categoria
+Split by|Dividi per
 Subject|Soggetto
 Null mean|Media sotto l’ipotesi nulla
 First|Prima variabile
@@ -1054,4 +1057,41 @@ CAPTIONS.update({
     "Border width must be between 0.1 and 72 points.": "Lo spessore del bordo deve essere tra 0,1 e 72 punti.",
     "Fill opacity (%) must be between 0 and 100.": "L’opacità del riempimento deve essere tra 0 e 100.",
     "Border opacity (%) must be between 0 and 100.": "L’opacità del bordo deve essere tra 0 e 100.",
+})
+
+# Grouped distribution plot: engine messages in the active language (placeholders keep worksheet text literal).
+MESSAGES.update({
+    "grouped.error.unique": ("Worksheet column names must be unique.", "I nomi delle colonne del foglio devono essere univoci."),
+    "grouped.error.choose": ("Choose a column for {field}.", "Scegli una colonna per {field}."),
+    "grouped.error.exists": ("Choose an existing column for {field}.", "Scegli una colonna esistente per {field}."),
+    "grouped.error.category_same": ("Choose a category column different from the response.",
+                                    "Scegli una colonna di categoria diversa dalla risposta."),
+    "grouped.error.split_same": ("Choose a Split by column different from Response and Category.",
+                                 "Scegli per «Dividi per» una colonna diversa da Risposta e Categoria."),
+    "grouped.error.none": ("No row has a numeric Response together with every selected category.",
+                           "Nessuna riga ha una Risposta numerica insieme a tutte le categorie scelte."),
+    "grouped.error.points": ("Select fewer observations to draw this graph.",
+                             "Seleziona meno osservazioni per disegnare questo grafico."),
+    "grouped.error.density": ("Select fewer observations for the density estimate.",
+                              "Seleziona meno osservazioni per la stima della densità."),
+    "grouped.error.cells": ("Plot up to {limit} cells at once ({categories} categories × {series} series).",
+                            "Traccia fino a {limit} celle alla volta ({categories} categorie × {series} serie)."),
+    "grouped.error.text": ('Column "{name}" contains text or infinite values.',
+                           'La colonna "{name}" contiene testo o valori infiniti.'),
+    "grouped.error.complex": ('Column "{name}" contains complex data.', 'La colonna "{name}" contiene dati complessi.'),
+    "grouped.error.precision": ('Column "{name}" contains integers outside the supported precision.',
+                                'La colonna "{name}" contiene interi fuori dalla precisione supportata.'),
+    "grouped.error.range": ("The selected values exceed the numeric range for this graph.",
+                            "I valori scelti superano l'intervallo numerico di questo grafico."),
+    "grouped.error.flag": ("{field}: choose on or off.", "{field}: scegli sì o no."),
+    "grouped.error.choice": ("Choose a valid {field}.", "Scegli un valore valido per {field}."),
+    "grouped.error.bandwidth_number": ("The bandwidth multiplier must be a number.",
+                                       "Il moltiplicatore della larghezza di banda deve essere un numero."),
+    "grouped.error.bandwidth_finite": ("The bandwidth multiplier must be finite and greater than zero.",
+                                       "Il moltiplicatore della larghezza di banda deve essere finito e maggiore di zero."),
+    "grouped.error.bandwidth_range": ("The bandwidth is outside the supported numeric range.",
+                                      "La larghezza di banda è fuori dall'intervallo numerico supportato."),
+    "grouped.error.density_range": ("The density is outside the supported numeric range.",
+                                    "La densità è fuori dall'intervallo numerico supportato."),
+    "grouped.error.number": ("{field} must be a number.", "{field} deve essere un numero."),
 })

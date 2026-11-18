@@ -55,6 +55,7 @@ from analisi.compare_lines import (COMPARE_LINES, COMPARISON_SHEET as LINE_COMPA
                                    visibility as compare_lines_visibility)
 from analisi.distribution_graphs import (BOX_VIOLIN, SEPARATE as BOX_SEPARATE,
                                          visibility as box_violin_visibility)
+from analisi.grouped_distributions import GROUPED_DISTRIBUTIONS, visibility as grouped_distribution_visibility
 from analisi.paired_graphs import (AFTER, BEFORE, BEFORE_AFTER, MAX_PAIRS, PAIR_LIST, PAIRS as BEFORE_AFTER_PAIRS,
                                    TITLE as PAIR_TITLE, TRAJECTORIES, trajectory_defaults)
 from analisi.forest_plot import (BY_COLUMN as FOREST_BY_COLUMN, FOREST_PLOT, LIMITS_NOTE as FOREST_LIMITS_NOTE,
@@ -338,6 +339,12 @@ def translate_mlr_error(text):
 def translate_equivalence_error(error):
     """An Equivalence test message in the active language; its field names become the dialog captions."""
     return translate_message(str(error), TOST_ERROR_PREFIX, {"field": lambda name: tr(TOST_LABEL_KEYS.get(name, name))})
+
+
+def translate_grouped_error(error):
+    """A Grouped distribution plot message in the active language; field names become the dialog captions."""
+    known = {name.casefold(): name for name in METHODS[GROUPED_DISTRIBUTIONS]}
+    return translate_message(str(error), "grouped.error.", {"field": lambda name: ui(known.get(name.casefold(), name))})
 
 
 def translate_correlation_error(error):
@@ -1691,6 +1698,10 @@ class AnalysisDialog(simpledialog.Dialog):
             for label in ("Input", "Style", "Whiskers", "Overlay observations"):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_fields(self.box_violin_visibility()))
             self.show_fields(self.box_violin_visibility())
+        if self.method == GROUPED_DISTRIBUTIONS:
+            for label in ("Style", "Whiskers", "Overlay observations"):
+                self.controls[label][1].trace_add("write", lambda *_: self.show_fields(self.grouped_distribution_visibility()))
+            self.show_fields(self.grouped_distribution_visibility())
         if self.method == "One-way ANOVA":
             for label in ("Response", "Group", "Post-hoc", unequal_anova.FAMILY, TREND, "Method",
                           VARIANCE_BROWN, VARIANCE_BARTLETT, lognormal_anova.DISTRIBUTION):
@@ -2736,6 +2747,12 @@ class AnalysisDialog(simpledialog.Dialog):
         return box_violin_visibility(*(self.controls[name][1].get()
                                        for name in ("Input", "Style", "Whiskers", "Overlay observations")))
 
+    def grouped_distribution_visibility(self):
+        if self.method != GROUPED_DISTRIBUTIONS:
+            return {}
+        return grouped_distribution_visibility(*(self.controls[name][1].get()
+                                                 for name in ("Style", "Whiskers", "Overlay observations")))
+
     def forest_fields(self):
         if self.method != FOREST_PLOT:
             return {}
@@ -3229,7 +3246,7 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.parts_visibility(), **self.frequency_visibility(), **self.correlation_visibility(),
                       **self.correlation_details_visibility(),
                       **self.heat_map_visibility(), **self.row_test_visibility(), **self.nested_visibility(),
-                      **self.box_violin_visibility(), **self.dunn_visibility(), **self.normality_fields(),
+                      **self.box_violin_visibility(), **self.grouped_distribution_visibility(), **self.dunn_visibility(), **self.normality_fields(),
                       **self.outlier_fields(), **self.spline_fields(),
                       **self.auc_visibility(), **self.deming_visibility(), **self.linear_visibility(),
                       **self.calibration_visibility(), **self.agreement_visibility(),
@@ -3485,7 +3502,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     or self.method in PROCESSING_METHODS
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
                     or self.method == PARTS_GRAPH
-                    or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
+                    or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, GROUPED_DISTRIBUTIONS, BUBBLE, "Bland–Altman", HEAT_MAP,
                                        BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
                                        "One-way ANOVA", REFERENCE_NORMALIZATION,
                                        SPLINE_FIT, COMPARE_MODELS, XY_ERRORS}):
@@ -3562,6 +3579,11 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = translate_correlation_error(error)
                 label = ui(field) if field else ""
                 if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == GROUPED_DISTRIBUTIONS:
+                message = translate_grouped_error(error)
+                label = ui(field) if field else ""
+                if label and label not in message:
                     message = f"{label}: {message}"
             elif self.method == "Interpolate a standard curve":
                 message = translate_calibration_error(error)
