@@ -105,6 +105,12 @@ from analisi.equivalence_workbench import (CHOICE_KEYS as TOST_CHOICE_KEYS, DATA
                                            DESIGN as TOST_DESIGN, ERROR_PREFIX as TOST_ERROR_PREFIX, EQUIVALENCE,
                                            LABEL_KEYS as TOST_LABEL_KEYS, TAB_KEYS as TOST_TAB_KEYS,
                                            visibility as equivalence_visibility)
+from analisi.meta_analysis import (CHOICE_KEYS as META_CHOICE_KEYS, DATA_FIELDS as META_DATA_FIELDS,
+                                   LABEL_KEYS as META_LABEL_KEYS, META_ANALYSIS, SHOW_GRAPH as META_SHOW_GRAPH,
+                                   TAB_KEYS as META_TAB_KEYS, cancellable as meta_cancellable,
+                                   check_options as check_meta_options)
+from analisi import meta_analysis_dialog
+from analisi.meta_analysis_dialog import describe_error as describe_meta_error, translate_error as translate_meta_error
 from analisi.reference_normalization import (INPUT_FIELDS as REFERENCE_INPUT_FIELDS, METHOD as REFERENCE_NORMALIZATION,
                                              OUTPUT_FIELDS as REFERENCE_OUTPUT_FIELDS,
                                              REFERENCE_FIELDS as REFERENCE_REFERENCE_FIELDS,
@@ -1133,6 +1139,10 @@ class AnalysisDialog(simpledialog.Dialog):
             self.fields.tab(variables, text=tr(TOST_TAB_KEYS["Data"]))
             self.fields.tab(options, text=tr(TOST_TAB_KEYS["Equivalence zone"]))
             fields_by_tab.update(dict.fromkeys(TOST_DATA_FIELDS, variables))
+        elif self.method == META_ANALYSIS:
+            self.fields.tab(variables, text=tr(META_TAB_KEYS["Studies"]))
+            self.fields.tab(options, text=tr(META_TAB_KEYS["Model and output"]))
+            fields_by_tab.update(dict.fromkeys(META_DATA_FIELDS, variables))
         elif self.method == COMPARE_MODELS:
             self.fields.tab(variables, text=ui("Data"))
             self.fields.tab(options, text=ui("Output"))
@@ -1289,6 +1299,7 @@ class AnalysisDialog(simpledialog.Dialog):
             ratio_control = self.method == LOGNORMAL and label in RATIO_LABEL_KEYS
             variance_ratio_control = self.method == VARIANCE_RATIO and label in VARIANCE_RATIO_LABELS
             tost_control = self.method == EQUIVALENCE and label in TOST_LABEL_KEYS
+            meta_control = self.method == META_ANALYSIS and label in META_LABEL_KEYS
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
             competing_control = self.method == COMPETING_RISKS and label in COMPETING_LABEL_KEYS
@@ -1299,6 +1310,7 @@ class AnalysisDialog(simpledialog.Dialog):
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
                           else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
+                          else tr(META_LABEL_KEYS[label]) if meta_control
                           else tr(PARAM_CI_LABELS[label]) if parameter_ci_control
                           else tr(NL_BAND_LABELS[label]) if band_control
                           else tr(XY_ERROR_LABEL_KEYS[label]) if xy_error_control
@@ -1560,6 +1572,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, VARIANCE_RATIO_CHOICES)
                     elif tost_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOST_CHOICE_KEYS)
+                    elif meta_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, META_CHOICE_KEYS)
                     elif robust_control and isinstance(kind, tuple) and label != ROBUST_MODEL:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ROBUST_CHOICE_KEYS)
                     elif competing_control and isinstance(kind, tuple):
@@ -1910,6 +1924,8 @@ class AnalysisDialog(simpledialog.Dialog):
             self.show_fields(self.equivalence_fields())
             ttk.Label(options, text=tr("tost.hint"), wraplength=370, foreground="#486075").grid(
                 row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+        if self.method == META_ANALYSIS:
+            meta_analysis_dialog.attach(self, variables, options, positions)
         if self.method == FDR_METHOD:
             ttk.Label(options, text=tr("fdr.note"), wraplength=430, foreground="#486075", justify="left").grid(
                 row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
@@ -3303,6 +3319,7 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.regression_visibility(), **self.forest_fields(),
                       **self.compare_lines_fields(), **self.lognormal_fields(), **self.ttest_variance_fields(),
                       **self.equivalence_fields(), **self.cox_fields(),
+                      **(meta_analysis_dialog.fields(self) if self.method == META_ANALYSIS else {}),
                       **self.summary_anova_fields(),
                       **self.one_way_fields(),
                       **self.monte_carlo_fields(), **self.function_fields(), **self.weighting_visibility(),
@@ -3498,6 +3515,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == COMPETING_RISKS:
                 # Columns, codes, times, level and the size budgets; no curve is calculated here.
                 check_competing_options(self.data, options)
+            if self.method == META_ANALYSIS:
+                # Fields, cell values and the main fit; leave one out and the figure run on the worker.
+                check_meta_options(self.data, options)
             if self.method == GLOBAL_CUSTOM_EQUATION:
                 if options.get("Weighting") != INVERSE_VARIANCE:
                     options[CUSTOM_SD] = None
@@ -3613,6 +3633,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
                 message = describe_competing_error(error, field)
+            elif self.method == META_ANALYSIS:
+                message = describe_meta_error(error, field)
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
@@ -3963,7 +3985,7 @@ class Run:
 def cancellable_run(method, options):
     """Runs that report their progress or can be cancelled: Monte Carlo studies, exact Spearman and Gray tests."""
     return (method == MONTE_CARLO_METHOD or extended_request(method, options)
-            or competing_cancellable(method, options))
+            or competing_cancellable(method, options) or meta_cancellable(method, options))
 
 
 @dataclass
@@ -4370,6 +4392,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                             (run.result.figure is not None if run.result
                              else run.method in GRAPH_METHODS or (run.method == NORMALITY and run.options.get(QQ_PLOT))
                              or (run.method == COMPARE_MODELS and run.options.get(MODELS_SHOW_GRAPH, True))
+                             or (run.method == META_ANALYSIS and run.options.get(META_SHOW_GRAPH, True))
                              or (run.method == MONTE_CARLO_METHOD
                                  and run.options.get(MONTE_CARLO_GRAPH, GRAPH_NONE) != GRAPH_NONE)
                              or (run.method == "Multifactor ANOVA"
@@ -6349,6 +6372,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             elif cancelled and all(run.method == COMPETING_RISKS for run, _ in affected if cancellable_run(
                     run.method, run.options)):
                 self.status.set(f"{COMPETING_RISKS} recalculation cancelled. Open the analysis to calculate again.")
+            elif cancelled and all(run.method == META_ANALYSIS for run, _ in affected if cancellable_run(
+                    run.method, run.options)):
+                self.status.set(f"{META_ANALYSIS} recalculation cancelled. Open the analysis to calculate again.")
             elif cancelled:
                 self.status.set("Monte Carlo recalculation cancelled. Open the study to calculate again.")
             else:
@@ -6535,7 +6561,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, META_ANALYSIS) or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6543,7 +6569,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
+        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, META_ANALYSIS)
                 or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
@@ -6553,7 +6579,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if method in kmeans_options.METHODS and options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
-                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, "Multifactor ANOVA",
+                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, META_ANALYSIS, "Multifactor ANOVA",
                 REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
@@ -6610,6 +6636,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_meta_error(error) if run.method == META_ANALYSIS
                      else format_fdr_error(error) if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
@@ -6944,7 +6971,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.add_result(run, future.result(), index, reveal=reveal)
         except MonteCarloCancelled:
             # Nothing is recorded: a new study adds no recipe and an existing one keeps its last results.
-            noun = "analysis" if run.method == COMPETING_RISKS else "study"
+            noun = "analysis" if run.method in (COMPETING_RISKS, META_ANALYSIS) else "study"
             if index is None:
                 detail = f"No {noun} was added."
             elif self.runs[index].result is not None:
@@ -6956,7 +6983,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
-                     else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
+                     else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_meta_error(error) if run.method == META_ANALYSIS else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -7070,6 +7098,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA"
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
+                     else translate_meta_error(run.calculation_error) if run.method == META_ANALYSIS
                      else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
