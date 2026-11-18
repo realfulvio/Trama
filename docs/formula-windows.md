@@ -33,3 +33,9 @@ Edits and excluded source cells feed the next calculation. Saving an `.alab` pro
 Use `LN` for the natural logarithm, `LOG` or `LOG10` for base 10, and `LOG2` for base 2. Nonpositive inputs leave the log result blank.
 
 `SIN`, `COS` and `TAN` take an angle in radians. `ARCSIN`, `ARCCOS`, `ARCTAN` and `ARCTAN2(y, x)` return an angle in radians. Use `RAD` to convert degrees to radians and `DEG` for the reverse conversion. `=COS(RAD(COL("Angle")))` calculates the cosine of an angle stored in degrees. These functions also remain editable in compatible imported ZIP project formulas.
+
+## Centering, standardizing and ranking
+
+`CENTER(Column)` subtracts the mean of the usable values from each value. `STANDARDIZE(Column)` and `ZSCORE(Column)` divide the centered values by the sample standard deviation. A constant column or a single usable observation leaves standardized values blank.
+
+`RANK(Column)` assigns rank 1 to the smallest usable value and averages the ranks of ties. These functions keep the original worksheet row order. Missing or nonfinite values leave a blank on their own row and are excluded from the statistics. When recognized in an imported ZIP project, the formulas recalculate after edits and remain editable when saved as `.alab`.

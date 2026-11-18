@@ -63,6 +63,23 @@ class WindowFormulaTests(unittest.TestCase):
         self.assertTrue(np.isnan(formula(frame, "MEANIF(X, Keep > 1)")).all())
         np.testing.assert_allclose(formula(frame, "SUMIF(X, Keep > 1)"), [0] * 6)
 
+    def test_column_center_standardize_and_rank_preserve_rows(self):
+        frame = pd.DataFrame({"Dose": [3., 1., 3., 7., np.nan, np.inf]}, index=[8, 7, 6, 5, 4, 3])
+        center = [-.5, -2.5, -.5, 3.5, np.nan, np.nan]
+        np.testing.assert_allclose(formula(frame, "CENTER(Dose)"), center)
+        for name in ("STANDARDIZE", "ZSCORE"):
+            result = formula(frame, f"{name}(Dose)")
+            np.testing.assert_allclose(result, np.asarray(center) / np.sqrt(19 / 3))
+            self.assertEqual(result.index.tolist(), frame.index.tolist())
+        np.testing.assert_allclose(formula(frame, "RANK(Dose)"), [2.5, 1, 2.5, 4, np.nan, np.nan])
+        self.assertTrue(formula(frame.assign(Dose=3.), "ZSCORE(Dose)").isna().all())
+        self.assertTrue(np.isposinf(frame.loc[3, "Dose"]))
+
+    def test_centering_and_standardizing_large_finite_values(self):
+        frame = pd.DataFrame({"X": [1.6e308, 1.2e308]})
+        np.testing.assert_allclose(formula(frame, "CENTER(X)"), [2e307, -2e307])
+        np.testing.assert_allclose(formula(frame, "STANDARDIZE(X)"), [.5 ** .5, -(.5 ** .5)])
+
     def test_ordered_windows_return_to_original_row_order(self):
         frame = self.frame.assign(Visit=[2, 1, 3, 2, 1, 4])
         summed = formula(frame, "SUM(X) OVER Category ORDER BY Visit ROWS UNBOUNDED PRECEDING")

@@ -180,6 +180,36 @@ def _aggregate(fn, values):
     return fn(numbers) if len(numbers) else np.nan
 
 
+def _numeric_column(values):
+    if np.ndim(values) != 1:
+        raise ValueError("Use a column or a row-wise expression for CENTER, STANDARDIZE, ZSCORE or RANK.")
+    numbers = pd.to_numeric(pd.Series(values), errors="coerce")
+    return numbers.where(np.isfinite(numbers))
+
+
+def _center_column(values, *, standardize=False):
+    numbers = _numeric_column(values).to_numpy(dtype=float, na_value=np.nan)
+    observed = numbers[np.isfinite(numbers)]
+    if not len(observed):
+        return numbers
+    _, exponent = np.frexp(np.max(np.abs(observed)))
+    # Scaling before the mean avoids overflow and does not round away the first offset.
+    centered = np.ldexp(numbers, -exponent) - np.ldexp(observed[0], -exponent)
+    centered -= np.nanmean(centered)
+    if not standardize:
+        return np.ldexp(centered, exponent)
+    deviation = np.nanstd(centered, ddof=1) if len(observed) > 1 else 0.0
+    return centered / deviation if deviation else np.full_like(centered, np.nan)
+
+
+COLUMN_FORMULA_FUNCTIONS = {
+    "CENTER": (1, _center_column),
+    "STANDARDIZE": (1, lambda values: _center_column(values, standardize=True)),
+    "ZSCORE": (1, lambda values: _center_column(values, standardize=True)),
+    "RANK": (1, lambda values: _numeric_column(values).rank(method="average").to_numpy(dtype=float)),
+}
+
+
 ELEMENTWISE_FORMULA_FUNCTIONS = {
     "ABS": (1, np.abs), "SQRT": (1, np.sqrt), "EXP": (1, np.exp), "LN": (1, np.log),
     "LOG": (1, np.log10), "LOG10": (1, np.log10), "LOG2": (1, np.log2), "POWER": (2, np.power),
@@ -189,7 +219,7 @@ ELEMENTWISE_FORMULA_FUNCTIONS = {
 }
 
 FUNCTIONS = {
-    **ELEMENTWISE_FORMULA_FUNCTIONS, "ROUND": (1, np.round),
+    **ELEMENTWISE_FORMULA_FUNCTIONS, **COLUMN_FORMULA_FUNCTIONS, "ROUND": (1, np.round),
     "MEAN": (1, lambda v: _aggregate(np.mean, v)),
     "AVERAGE": (1, lambda v: _aggregate(np.mean, v)),
     "SUM": (1, lambda v: _aggregate(np.sum, v)),

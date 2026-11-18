@@ -103,6 +103,27 @@ class PrismImportTests(unittest.TestCase):
         self.assertEqual(restored.frame()["decimal"].iloc[0], 2)
         self.assertEqual(restored.frame()["cosine"].iloc[0], -1)
 
+    def test_zip_restores_center_standardization_and_rank_as_formulas(self):
+        source = self.path / "statistics.prismt"
+        sets = {"a": {"title": "Signal"}}
+        for column, expression in (("Centered", "center(A)"), ("Standardized", "STANDARDIZE(A)"),
+                                   ("Ranked", "RANK(A)"), ("Z", "ZSCORE(A)")):
+            sets[column] = {"title": column, "valuesStorageData": {"@class": "TransformDataSource",
+                                                                  "transform": expression}}
+        write_archive(source, {"uid": "table", "format": "multivariable", "dataFormat": "y_single",
+                               "dataSets": list(sets)}, sets,
+                      "3,99,99,99,99\n1,99,99,99,99\n3,99,99,99,99\n7,99,99,99,99\n", (4, 5))
+        data = Dataset(load_tables(source)["Experiment"])
+        self.assertEqual(set(data.formulas), {"Centered", "Standardized", "Ranked", "Z"})
+        np.testing.assert_allclose(data.frame()["Ranked"], [2.5, 1, 2.5, 4])
+        data.raw.loc[0, "Signal"] = 12
+        project = self.path / "statistics.alab"
+        save_project(project, {"Experiment": data})
+        reopened = load_project(project)["Experiment"]
+        np.testing.assert_allclose(reopened.frame()["Ranked"], [4, 1, 2, 3])
+        np.testing.assert_allclose(reopened.frame()["Centered"], [6.25, -4.75, -2.75, 1.25])
+        np.testing.assert_allclose(reopened.frame()["Standardized"], reopened.frame()["Z"])
+
     def test_legacy_wrapper_uses_sheet_sequence_dates_and_upper_lower_endpoints(self):
         source = self.path / "example.xml"
         source.write_text(
