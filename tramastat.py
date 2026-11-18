@@ -12496,6 +12496,14 @@ def smoke(root, app, directory, legacy_reference=None):
         assert not np.isclose(float(updated.tables["Deming regression"]["Value"]["Slope"]), float(summary["Slope"]))
         assert list(updated.tables) == ["Deming regression", "Data", "Pairs"], list(updated.tables)
 
+    def check_deming_multiseries_smoke():
+        from analisi.deming_smoke import check_deming_multiseries
+
+        check_deming_multiseries(SimpleNamespace(
+            app=app, root=root, directory=directory, capture=capture, pick_method=pick_method,
+            select_columns=select_columns, drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+            wait_for_calculation=wait_for_calculation, errors=errors, filedialog=filedialog, messagebox=messagebox))
+
     def check_linear_diagnostics_workflow():
         line = pd.DataFrame({"X": [0, 1, 2, 3, 4], "Y": [1, 3, 2, 5, 7]})
         exact = pd.DataFrame({"X": [0, 1, 2, 3, 4], "Y": [3, 5, 7, 9, 11]})
@@ -13002,6 +13010,15 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cox":
             # The Cox check alone: TRAMASTAT_SMOKE_ONLY=cox python tramastat.py --smoke DIR
             check_cox_outputs()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "deming-multiseries":
+            # The Deming known SDs, several series and projections check alone:
+            # TRAMASTAT_SMOKE_ONLY=deming-multiseries python tramastat.py --smoke DIR
+            check_deming_multiseries_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14307,6 +14324,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_graph_inspector()
         check_graph_inspector_groups()
         check_deming_workflow()
+        check_deming_multiseries_smoke()
         check_linear_diagnostics_workflow()
         check_linear_estimates_smoke()
         check_nonlinear_calibration_workflow()
