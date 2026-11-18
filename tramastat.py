@@ -7415,6 +7415,47 @@ def smoke(root, app, directory, legacy_reference=None):
         assert app.current_info.sheet.note_styles == note_styles
         assert app.tables[study].frame()["Adjusted"].tolist() == [30, 60]
 
+    def check_worksheet_statistics():
+        title = "Responses by cohort"
+        path = directory / "worksheet-statistics.alab"
+        source = pd.DataFrame({
+            "Response": [10, 40, 20, 60, 30, 80],
+            "Visit": [1, 2, 3, 1, 2, 3],
+            "Cohort": ["A", "B", "A", "B", "A", "B"],
+        })
+        save_project(path, {title: Dataset(source)})
+        app.import_file(path)
+        recipes = {
+            "Cumulative response": "SUM(Response) OVER Cohort ORDER BY Visit ROWS UNBOUNDED PRECEDING",
+            "Mean through visit 2": "MEANIF(Response, Visit <= 2) OVER Cohort",
+        }
+        for name, recipe in recipes.items():
+            with patch.object(simpledialog, "askstring", side_effect=(name, recipe)):
+                app.add_formula()
+
+        def assert_values(cumulative, means):
+            data = app.tables[title].frame(mask_excluded=True)
+            np.testing.assert_allclose(data["Cumulative response"], cumulative)
+            np.testing.assert_allclose(data["Mean through visit 2"], means)
+
+        assert_values([10, 100, 60, 60, 40, 180], [20, 50, 20, 50, 20, 50])
+        app.edit_cell(0, 0, "12")
+        assert_values([12, 100, 62, 60, 42, 180], [21, 50, 21, 50, 21, 50])
+        app.current_grid.active_cell = (0, 0)
+        app.toggle_exclusion()
+        expected = [0, 100, 50, 60, 30, 180], [30, 50, 30, 50, 30, 50]
+        assert_values(*expected)
+        assert app.save()
+        app.import_file(path)
+        assert app.tables[title].formulas == recipes
+        assert_values(*expected)
+        target = directory / "worksheet-statistics.csv"
+        with patch.object(filedialog, "asksaveasfilename", return_value=str(target)):
+            app.export()
+        exported = load_tables(target)["worksheet-statistics"]
+        np.testing.assert_allclose(exported["Cumulative response"], expected[0])
+        capture(root, "window-worksheet-statistics.png")
+
     def check_data_grid():
         title = "Dose response worksheet"
         doses = np.array([0, .025, .05, .1, .15, .25, .4, .6, .8, 1.2, 1.6, 2.4, 3.2, 4.8, 6.4, 9.6])
@@ -13269,6 +13310,13 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "worksheet-statistics":
+            check_worksheet_statistics()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         check_workspace_setup()
         path = directory / "fixture.csv"
         path.write_text("x,y\n1,3\n2,5\n3,7\n4,9\n5,11\n", encoding="utf-8")
@@ -13613,6 +13661,7 @@ def smoke(root, app, directory, legacy_reference=None):
 
         check_data_grid()
         check_worksheet_edits()
+        check_worksheet_statistics()
         check_paste_special()
         check_text_import()
         if legacy_reference is not None:
