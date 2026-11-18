@@ -105,6 +105,9 @@ from analisi.equivalence_workbench import (CHOICE_KEYS as TOST_CHOICE_KEYS, DATA
                                            DESIGN as TOST_DESIGN, ERROR_PREFIX as TOST_ERROR_PREFIX, EQUIVALENCE,
                                            LABEL_KEYS as TOST_LABEL_KEYS, TAB_KEYS as TOST_TAB_KEYS,
                                            visibility as equivalence_visibility)
+from analisi.tolerance_intervals import (CHOICE_KEYS as TOLERANCE_CHOICE_KEYS, ERROR_PREFIX as TOLERANCE_ERROR_PREFIX,
+                                         HINT_KEY as TOLERANCE_HINT, LABEL_KEYS as TOLERANCE_LABEL_KEYS,
+                                         SHOW_GRAPH as TOLERANCE_SHOW_GRAPH, TAB_KEYS as TOLERANCE_TAB_KEYS, TOLERANCE)
 from analisi.reference_normalization import (INPUT_FIELDS as REFERENCE_INPUT_FIELDS, METHOD as REFERENCE_NORMALIZATION,
                                              OUTPUT_FIELDS as REFERENCE_OUTPUT_FIELDS,
                                              REFERENCE_FIELDS as REFERENCE_REFERENCE_FIELDS,
@@ -347,6 +350,13 @@ def translate_mlr_error(text):
 def translate_equivalence_error(error):
     """An Equivalence test message in the active language; its field names become the dialog captions."""
     return translate_message(str(error), TOST_ERROR_PREFIX, {"field": lambda name: tr(TOST_LABEL_KEYS.get(name, name))})
+
+
+def translate_tolerance_error(error):
+    """A Tolerance intervals message in the active language; field names become the dialog captions and worksheet
+    names stay literal."""
+    return translate_message(str(error), TOLERANCE_ERROR_PREFIX,
+                             {"field": lambda name: tr(TOLERANCE_LABEL_KEYS.get(name, name))})
 
 
 def translate_correlation_error(error):
@@ -1133,6 +1143,9 @@ class AnalysisDialog(simpledialog.Dialog):
             self.fields.tab(variables, text=tr(TOST_TAB_KEYS["Data"]))
             self.fields.tab(options, text=tr(TOST_TAB_KEYS["Equivalence zone"]))
             fields_by_tab.update(dict.fromkeys(TOST_DATA_FIELDS, variables))
+        elif self.method == TOLERANCE:
+            self.fields.tab(variables, text=tr(TOLERANCE_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(TOLERANCE_TAB_KEYS["Interval"]))
         elif self.method == COMPARE_MODELS:
             self.fields.tab(variables, text=ui("Data"))
             self.fields.tab(options, text=ui("Output"))
@@ -1289,6 +1302,7 @@ class AnalysisDialog(simpledialog.Dialog):
             ratio_control = self.method == LOGNORMAL and label in RATIO_LABEL_KEYS
             variance_ratio_control = self.method == VARIANCE_RATIO and label in VARIANCE_RATIO_LABELS
             tost_control = self.method == EQUIVALENCE and label in TOST_LABEL_KEYS
+            tolerance_control = self.method == TOLERANCE and label in TOLERANCE_LABEL_KEYS
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
             competing_control = self.method == COMPETING_RISKS and label in COMPETING_LABEL_KEYS
@@ -1299,6 +1313,7 @@ class AnalysisDialog(simpledialog.Dialog):
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
                           else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
+                          else tr(TOLERANCE_LABEL_KEYS[label]) if tolerance_control
                           else tr(PARAM_CI_LABELS[label]) if parameter_ci_control
                           else tr(NL_BAND_LABELS[label]) if band_control
                           else tr(XY_ERROR_LABEL_KEYS[label]) if xy_error_control
@@ -1463,7 +1478,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 scroll.pack(side="right", fill="y")
                 box.pack(side="left", fill="both", expand=True)
                 default_columns = columns if self.method == SELECT_TRANSFORM else numeric
-                defaults = saved.get(label, default_columns if label in {"Variables", "Count columns"} else ())
+                # Tolerance intervals starts without a selection: the columns are a required choice.
+                defaults = saved.get(label, default_columns if label in {"Variables", "Count columns"}
+                                     and self.method != TOLERANCE else ())
                 offered = list(dict.fromkeys([*columns, *defaults])) if label == "Condition on factors" else columns
                 for i, name in enumerate(offered):
                     box.insert("end", name)
@@ -1560,6 +1577,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, VARIANCE_RATIO_CHOICES)
                     elif tost_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOST_CHOICE_KEYS)
+                    elif tolerance_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOLERANCE_CHOICE_KEYS)
                     elif robust_control and isinstance(kind, tuple) and label != ROBUST_MODEL:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ROBUST_CHOICE_KEYS)
                     elif competing_control and isinstance(kind, tuple):
@@ -1910,6 +1929,10 @@ class AnalysisDialog(simpledialog.Dialog):
             self.show_fields(self.equivalence_fields())
             ttk.Label(options, text=tr("tost.hint"), wraplength=370, foreground="#486075").grid(
                 row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+        if self.method == TOLERANCE:
+            # The two percentages and the difference from a confidence interval of the mean, under the fields.
+            ttk.Label(options, text=tr(TOLERANCE_HINT), wraplength=ui_theme.px(400), foreground="#486075",
+                      justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
         if self.method == FDR_METHOD:
             ttk.Label(options, text=tr("fdr.note"), wraplength=430, foreground="#486075", justify="left").grid(
                 row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
@@ -3560,7 +3583,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
                     or self.method == PARTS_GRAPH
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
-                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
+                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, TOLERANCE, COX, OUTLIERS,
                                        "One-way ANOVA", REFERENCE_NORMALIZATION,
                                        SPLINE_FIT, COMPARE_MODELS, XY_ERRORS}):
                 # Keep field errors in the dialog and reuse the successful result.
@@ -3616,6 +3639,11 @@ class AnalysisDialog(simpledialog.Dialog):
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
+                if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == TOLERANCE:
+                message = translate_tolerance_error(error)
+                label = tr(TOLERANCE_LABEL_KEYS[field]) if field in TOLERANCE_LABEL_KEYS else field
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
             elif self.method == REFERENCE_NORMALIZATION:
@@ -4370,6 +4398,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                             (run.result.figure is not None if run.result
                              else run.method in GRAPH_METHODS or (run.method == NORMALITY and run.options.get(QQ_PLOT))
                              or (run.method == COMPARE_MODELS and run.options.get(MODELS_SHOW_GRAPH, True))
+                             or (run.method == TOLERANCE and run.options.get(TOLERANCE_SHOW_GRAPH))
                              or (run.method == MONTE_CARLO_METHOD
                                  and run.options.get(MONTE_CARLO_GRAPH, GRAPH_NONE) != GRAPH_NONE)
                              or (run.method == "Multifactor ANOVA"
