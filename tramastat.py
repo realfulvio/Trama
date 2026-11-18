@@ -274,7 +274,7 @@ from analisi.trend_anova import ORDER as TREND_ORDER, ORDER_KIND as TREND_ORDER_
 from analisi.fit_quality import (REPLICATES as FIT_REPLICATES, RESIDUAL_VIEW as FIT_RESIDUALS,
                                  RUNS as FIT_RUNS, check_options as check_fit_quality_options)
 from analisi.field_error import FieldError
-from analisi import kmeans_options
+from analisi import kmeans_options, kmeans_reports
 from analisi import lognormal_anova
 from analisi.unequal_anova import check_one_way_options, one_way_visibility
 from analisi.variance_assumptions import (ALPHA as VARIANCE_ALPHA, BARTLETT as VARIANCE_BARTLETT,
@@ -1164,6 +1164,8 @@ class AnalysisDialog(simpledialog.Dialog):
             tabs = COX_TABS
         elif self.method == "Multiple regression":
             tabs = {**OLS_TABS, **LOGISTIC_TABS}
+        elif self.method in kmeans_options.METHODS:
+            tabs = {"Output": kmeans_reports.SCAN if self.method == kmeans_options.SELECTION else kmeans_reports.COMMON}
         elif self.method == "Principal component analysis":
             tabs = {**PCA_TABS, **PCA_SELECTION_TABS, **PCA_REPORT_TABS, **pca_overlays.TABS, **PCA_REGRESSION_TABS}
         elif self.method == SPLINE_FIT:
@@ -1635,7 +1637,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     self.controls[label][1].trace_add("write", lambda *_: self.show_processing_fields())
             self.show_processing_fields()
         if self.method in kmeans_options.METHODS:
-            for name in (kmeans_options.ALGORITHM, "Criterion"):
+            for name in (kmeans_options.ALGORITHM, "Criterion", "Standardize"):
                 if name in self.controls:
                     self.controls[name][1].trace_add("write", lambda *_: self.show_fields(self.kmeans_visibility()))
             self.show_fields(self.kmeans_visibility())
@@ -2267,12 +2269,15 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method not in kmeans_options.METHODS:
             return {}
         hartigan = self.controls[kmeans_options.ALGORITHM][1].get() == kmeans_options.HARTIGAN
-        options = {kmeans_options.MAX_ITERATIONS: hartigan}
+        options = {kmeans_options.MAX_ITERATIONS: hartigan,
+                   kmeans_reports.SCALED: self.controls["Standardize"][1].get()}
         if self.method == kmeans_options.CLUSTERING:
             return {**options, kmeans_options.INITIAL_ROWS: hartigan}
         from analisi.cluster_consensus import KL_SCALING
 
-        return {**options, KL_SCALING: self.controls["Criterion"][1].get() == "Consensus (17 indices)"}
+        criterion = self.controls["Criterion"][1].get()
+        return {**options, KL_SCALING: criterion == "Consensus (17 indices)",
+                kmeans_reports.GAP: criterion in kmeans_reports.GAP_CRITERIA}
 
     def hierarchical_visibility(self):
         if self.method != "Hierarchical clustering":
@@ -3388,6 +3393,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == "Kaplan–Meier survival":
                 check_survival_options(self.data, options)
             if self.method in kmeans_options.METHODS:
+                for report in kmeans_reports.SCAN:
+                    if options.get(report) is False:
+                        options.pop(report)
                 request = kmeans_options.fit_options(self.method, self.data, options)
                 if request:
                     options[kmeans_options.MAX_ITERATIONS] = request["max_iterations"]
@@ -12222,6 +12230,70 @@ def smoke(root, app, directory, legacy_reference=None):
         app.show("graph", 1)
         capture(root, "window-hartigan-wong-consensus.png")
 
+    def check_kmeans_reports():
+        from unittest.mock import patch
+
+        title = "Clustering reports"
+        path = directory / "kmeans-reports.alab"
+        csv_path = directory / "kmeans-cluster-details.csv"
+        source = pd.DataFrame({"Signal": [0., 1., 2., 9., 10., 11., 19., 20., 21.]})
+        save_project(path, {title: Dataset(source)})
+        app.import_file(path)
+
+        def choose_reports(dialog):
+            pick_method(dialog, kmeans_options.SELECTION)
+            select_columns(dialog, "Variables", {"Signal"})
+            dialog.controls[kmeans_options.ALGORITHM][1].set(kmeans_options.HARTIGAN)
+            dialog.controls["Criterion"][1].set("Consensus (17 indices)")
+            dialog.controls["Maximum k"][1].set(4)
+            dialog.controls["Gap simulations"][1].set(5)
+            dialog.controls["Standardize"][1].set(False)
+            assert not dialog.field_rows[kmeans_reports.SCALED][1].winfo_manager()
+            dialog.controls["Standardize"][1].set(True)
+            assert dialog.field_rows[kmeans_reports.SCALED][1].winfo_manager()
+            for report in kmeans_reports.SCAN:
+                dialog.controls[report][1].set(True)
+            button = dialog.field_rows[kmeans_reports.DETAILS][1]
+            dialog.fields.select(button.master)
+            dialog.update_idletasks()
+            capture(dialog, "window-kmeans-report-options.png")
+
+        def verify():
+            tabs = app.runs[0].result.tables
+            assert tabs["Assignments by k"].shape == (9, 5)
+            assert len(tabs["Cluster details"]) == len(tabs["Initial centroids"]) == 10
+            assert len(tabs["Cluster ANOVA"]) == len(tabs["Gap statistics"]) == 4
+            assert np.isclose(tabs["Standardized observations"]["Signal"].std(), 1.0)
+            for count in (1, 2, 3, 4):
+                assert np.isclose((tabs["Assigned distances"][f"Distance (k={count})"] ** 2).sum(),
+                                  tabs["Cluster metrics"].loc[count, "WSS"])
+            return tabs
+
+        app.show("data", title)
+        drive_dialog(AnalysisDialog, choose_reports)
+        app.choose_analysis()
+        wait_for_calculation()
+        before = verify()
+        app.show("result", 0)
+        app.result_tabs.select(list(before).index("Cluster details"))
+        root.update()
+        capture(root, "window-kmeans-cluster-details.png")
+        with patch.object(filedialog, "asksaveasfilename", return_value=str(csv_path)):
+            app.export()
+        assert "Within SS" in csv_path.read_text(encoding="utf-8-sig")
+        assert app.save()
+        app.import_file(path)
+        app.open_sheet(("graph", 0))
+        wait_for_calculation()
+        after = verify()
+        assert kmeans_reports.requested(app.runs[0].options, scan=True) == set(kmeans_reports.SCAN)
+        for name in before:
+            pd.testing.assert_frame_equal(before[name], after[name])
+        app.show("result", 0)
+        app.result_tabs.select(list(after).index("Assignments by k"))
+        root.update()
+        capture(root, "window-kmeans-assignments-by-k.png")
+
     def check_kmeans_consensus():
         from analisi.cluster_consensus import KL_SCALING, UNSCALED_WSS, WSS_DROP_RATIO
 
@@ -13634,6 +13706,13 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "kmeans-reports":
+            check_kmeans_reports()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "hartigan-wong":
             check_hartigan_wong()
             assert not errors, errors
@@ -13964,6 +14043,7 @@ def smoke(root, app, directory, legacy_reference=None):
 
         check_kmeans_consensus()
         check_hartigan_wong()
+        check_kmeans_reports()
 
         source = directory / "saved-graph.prism"
         with ZipFile(source, "w") as archive:

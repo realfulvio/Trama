@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from patsy import build_design_matrices, dmatrix
 from scipy import cluster, optimize, stats
-from scipy.spatial.distance import pdist
+from scipy.spatial.distance import cdist, pdist
 from statsmodels.duration.survfunc import survdiff
 from statsmodels.stats.multitest import multipletests
 
@@ -776,6 +776,7 @@ class Clusters:
     tree: np.ndarray | None = None
     scaled: pd.DataFrame | None = None
     distances: np.ndarray | None = None
+    initial_centers: pd.DataFrame | None = None
 
 
 def _cluster_data(frame, columns, count, standardize):
@@ -791,10 +792,22 @@ def _cluster_data(frame, columns, count, standardize):
     return data, values
 
 
+def _kmeans_plus_plus(values, count, rng):
+    """Sample by distance to the nearest selected center, as in the Lloyd fitter."""
+    positions = [rng.integers(len(values))]
+    nearest = np.full(len(values), np.inf)
+    while len(positions) < count:
+        distance = cdist(values[positions[-1:]], values, metric="sqeuclidean")[0]
+        nearest = np.minimum(nearest, distance)
+        weights = (nearest / nearest.sum()).cumsum()
+        positions.append(int(np.searchsorted(weights, rng.uniform())))
+    return values[positions]
+
+
 def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloyd",
-           max_iterations=10, initial_rows=None):
+           max_iterations=10, initial_rows=None, retain_initial=False):
     if algorithm == "hartigan-wong":
-        return _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows)
+        return _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows, retain_initial)
     if algorithm != "lloyd":
         raise ValueError("Choose a K-means algorithm.")
     if initial_rows is not None:
@@ -806,20 +819,23 @@ def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloy
     best = None
     for _ in range(10):
         try:
-            centers, labels = cluster.vq.kmeans2(values, count, iter=100, minit="++",
+            initial = _kmeans_plus_plus(values, count, rng) if retain_initial else None
+            centers, labels = cluster.vq.kmeans2(values, initial.copy() if initial is not None else count,
+                                                iter=100, minit="matrix" if retain_initial else "++",
                                                 missing="raise", rng=rng)
         except cluster.vq.ClusterError:
             continue
         inertia = float(np.sum((values - centers[labels])**2))
         if best is None or inertia < best.inertia:
             best = Clusters(data, pd.Series(labels + 1, index=data.index, name="Cluster"),
-                            pd.DataFrame(centers, columns=columns), inertia)
+                            pd.DataFrame(centers, columns=columns), inertia,
+                            initial_centers=None if initial is None else pd.DataFrame(initial, columns=columns))
     if best is None:
         raise ValueError("K-means did not converge to non-empty clusters.")
     return best
 
 
-def _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows):
+def _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows, retain_initial):
     from .hartigan_wong import IterationLimitError, fit_hartigan_wong
 
     data, values = _cluster_data(frame, columns, count, standardize)
@@ -831,6 +847,7 @@ def _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, i
         if supplied.shape != (count,):
             raise ValueError("Choose one initial row per cluster.")
         fit = fit_hartigan_wong(values, supplied, max_iterations)
+        chosen = supplied
         if not fit.converged:
             raise IterationLimitError("Hartigan–Wong reached the maximum number of iterations.")
     else:
@@ -841,12 +858,14 @@ def _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, i
             candidate = fit_hartigan_wong(values, positions, max_iterations)
             if candidate.converged and (fit is None or candidate.within.sum() < fit.within.sum()):
                 fit = candidate
+                chosen = positions
             if count == 1 or count == len(values):
                 break
         if fit is None:
             raise IterationLimitError("Hartigan–Wong reached the maximum number of iterations.")
     return Clusters(data, pd.Series(fit.labels + 1, index=data.index, name="Cluster"),
-                    pd.DataFrame(fit.centers, columns=columns), float(fit.within.sum()))
+                    pd.DataFrame(fit.centers, columns=columns), float(fit.within.sum()),
+                    initial_centers=pd.DataFrame(values[chosen], columns=columns) if retain_initial else None)
 
 
 def _scale_cluster_axis(values, mode, axis):
