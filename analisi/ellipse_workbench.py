@@ -186,11 +186,12 @@ def _contour(points, overlay, level):
     return contour
 
 
-def draw_confidence_overlays(axes, frame, options, point_colors):
+def draw_confidence_overlays(axes, frame, options, point_colors, *, allow_unavailable=False):
     """Draw contours from source XY data and summarize each observed contour group.
 
     Point colors are keyed by the original grouping value, or "All" when
     points are ungrouped. Pass the source frame before any point-group filtering.
+    PCA can keep the report when every group has insufficient geometry.
     """
     overlay = _choice(options, "Ellipse")
     if overlay == NONE:
@@ -289,7 +290,7 @@ def draw_confidence_overlays(axes, frame, options, point_colors):
         if not (face_alpha or edge_alpha or marker):
             row["Status"] = "Hidden by style"
         calculated += 1
-    if not calculated:
+    if not calculated and not allow_unavailable:
         raise ValueError(f"No confidence overlay could be drawn. {rows[0]['Status']}")
     for center_x, center_y, color in centers:
         axes.plot([center_x], [center_y], marker=marker, markersize=size, linestyle="none", color=color, zorder=3)

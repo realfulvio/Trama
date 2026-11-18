@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.88 beta:** compatible imported scatter plots retain editable coordinates, category colors and linear axes. [What’s new](docs/release-088.md) · [Verification](docs/validation-088.md).
+**New in 0.89 beta:** mean confidence regions, data ellipses, and convex hulls in PCA scores and biplots. [What’s new](docs/release-089.md) · [Verification](docs/validation-089.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 

@@ -63,6 +63,15 @@ class PcaReportsTests(unittest.TestCase):
         for name in (pca_reports.VARIABLES, pca_reports.CORRELATIONS):
             self.assertEqual(list(report[name]), ["Variable", "PC1"])
 
+    def test_one_dimensional_graphs_keep_the_requested_reports(self):
+        flags = dict.fromkeys(pca_reports.OPTIONS, True)
+        baseline = self.run_pca(True, **flags)
+        for view in (pca_graphs.SCREE, pca_graphs.PROPORTION):
+            with self.subTest(view=view):
+                result = self.run_pca(True, **{pca_graphs.GRAPH: view, **flags})
+                for name in baseline.tables:
+                    pd.testing.assert_frame_equal(result.tables[name], baseline.tables[name])
+
     def test_literal_names_and_switches_are_preserved(self):
         self.frame = self.frame.rename(columns={"Time": "Source row", "Response": "Variable"})
         off = self.run_pca(False, **dict(pca_reports.OPTIONS)).tables
