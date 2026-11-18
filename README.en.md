@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.89 beta:** mean confidence regions, data ellipses, and convex hulls in PCA scores and biplots. [What’s new](docs/release-089.md) · [Verification](docs/validation-089.md).
+**New in 0.91 beta:** restore compatible standardized PCA recipes with parallel analysis, reports, and group colors. [What’s new](docs/release-091.md) · [Verification](docs/validation-091.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
