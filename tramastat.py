@@ -265,6 +265,13 @@ from analisi.trend_anova import ORDER as TREND_ORDER, ORDER_KIND as TREND_ORDER_
 from analisi.fit_quality import (REPLICATES as FIT_REPLICATES, RESIDUAL_VIEW as FIT_RESIDUALS,
                                  RUNS as FIT_RUNS, check_options as check_fit_quality_options)
 from analisi.field_error import FieldError
+from analisi.power_plan import (ALLOCATION as POWER_ALLOCATION, DESIGN as POWER_DESIGN, EFFECT_INPUT as POWER_EFFECT_INPUT,
+                                GOAL as POWER_GOAL, GROUP_MEANS as POWER_GROUP_MEANS, METHOD as POWER_METHOD,
+                                NUMBER_FIELDS as POWER_NUMBER_FIELDS, PAIRED_SD_INPUT as POWER_PAIRED_SD_INPUT,
+                                SHOW_CURVE as POWER_SHOW_CURVE, TABS as POWER_TABS, TEXT_DEFAULTS as POWER_TEXT_DEFAULTS,
+                                check_options as check_power_options, normalized_options as power_options,
+                                visibility as power_visibility)
+from analisi.power_plan_dialog import MultilineEntry
 from analisi import kmeans_options
 from analisi import lognormal_anova
 from analisi.unequal_anova import check_one_way_options, one_way_visibility
@@ -333,6 +340,13 @@ def translate_mlr_error(text):
     for field, key in MLR_LABEL_KEYS.items():
         text = text.replace(field, tr(key))
     return text
+
+
+def translate_power_error(error):
+    """A Power and sample size message in the active language; field names become captions, numbers Italian."""
+    thousands = lambda value: value.replace(",", ".")
+    return translate_message(str(error), "power.error.", {"field": ui, "low": thousands, "high": thousands,
+                                                          "limit": thousands, "count": thousands})
 
 
 def translate_equivalence_error(error):
@@ -1119,6 +1133,12 @@ class AnalysisDialog(simpledialog.Dialog):
             self.fields.tab(variables, text=tr(RATIO_TAB_KEYS["Data"]))
             self.fields.tab(options, text=tr(RATIO_TAB_KEYS["Test and graph"]))
             fields_by_tab.update(dict.fromkeys(RATIO_DATA_FIELDS, variables))
+        elif self.method == POWER_METHOD:
+            # Design and goal on the first page, the expected effect on the second, the curve on a third.
+            self.fields.tab(variables, text=ui("Design"))
+            self.fields.tab(options, text=ui("Effect"))
+            fields_by_tab.update(dict.fromkeys(POWER_TABS["Design"], variables))
+            tabs = {"Curve": POWER_TABS["Curve"]}
         elif self.method == EQUIVALENCE:
             self.fields.tab(variables, text=tr(TOST_TAB_KEYS["Data"]))
             self.fields.tab(options, text=tr(TOST_TAB_KEYS["Equivalence zone"]))
@@ -1443,9 +1463,13 @@ class AnalysisDialog(simpledialog.Dialog):
                     default = HEAT_MAP_GRADIENT_COLORS.get(label, default)
                     if label == CELL_LABEL_COLOR:
                         default = DEFAULT_LABEL_COLOR
+                if self.method == POWER_METHOD:
+                    default = POWER_TEXT_DEFAULTS.get(label, default)
                 raw_saved = saved.get(label, default)
                 variable = tk.StringVar(value=str(default if raw_saved is None else raw_saved))
-                if self.method == HEAT_MAP and label == CELL_LABEL_COLOR:
+                if self.method == POWER_METHOD and label == POWER_GROUP_MEANS:
+                    field = MultilineEntry(parent, variable)
+                elif self.method == HEAT_MAP and label == CELL_LABEL_COLOR:
                     field = ttk.Frame(parent)
                     swatch = tk.Label(field, width=3, relief="solid", borderwidth=1)
                     swatch.pack(side="left", padx=(0, 6))
@@ -1855,6 +1879,20 @@ class AnalysisDialog(simpledialog.Dialog):
                       foreground="#486075", justify="left").grid(
                 row=positions[options], column=0, columnspan=2, sticky="ew", pady=(8, 4))
             self._bind_scrollable_children(options)
+        if self.method == POWER_METHOD:
+            self.power_allocation_note = None
+            for label, note in ((POWER_ALLOCATION, "power.note.design"), (POWER_GROUP_MEANS, "power.note.effect"),
+                                (POWER_SHOW_CURVE, "power.note.curve")):
+                tab = fields_by_tab.get(label) or options
+                caption = ttk.Label(tab, text=tr(note), wraplength=ui_theme.px(400), foreground="#486075",
+                                    justify="left")
+                caption.grid(row=positions[tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
+                positions[tab] += 1
+                if label == POWER_ALLOCATION:
+                    self.power_allocation_note = caption
+            for label in (POWER_GOAL, POWER_DESIGN, POWER_EFFECT_INPUT, POWER_PAIRED_SD_INPUT):
+                self.controls[label][1].trace_add("write", lambda *_: self.show_power_fields())
+            self.show_power_fields()
         if self.method == EQUIVALENCE:
             self.controls[TOST_DESIGN][1].trace_add("write", lambda *_: self.show_fields(self.equivalence_fields()))
             self.show_fields(self.equivalence_fields())
@@ -3098,6 +3136,23 @@ class AnalysisDialog(simpledialog.Dialog):
         else:
             note.grid_remove()
 
+    def power_fields(self):
+        """Only the inputs of the chosen goal, design and effect input; hidden ones never block the calculation."""
+        if self.method != POWER_METHOD or POWER_GOAL not in self.controls:
+            return {}
+        return power_visibility({label: self.controls[label][1].get()
+                                 for label in (POWER_GOAL, POWER_DESIGN, POWER_EFFECT_INPUT, POWER_PAIRED_SD_INPUT)})
+
+    def show_power_fields(self):
+        visibility = self.power_fields()
+        self.show_fields(visibility)
+        # The allocation note belongs to the allocation field: it follows it.
+        if self.power_allocation_note is not None:
+            if visibility.get(POWER_ALLOCATION):
+                self.power_allocation_note.grid()
+            else:
+                self.power_allocation_note.grid_remove()
+
     def equivalence_fields(self):
         """Response and Reference belong to One-sample, First and Second to the other designs."""
         if self.method != EQUIVALENCE or TOST_DESIGN not in self.controls:
@@ -3239,7 +3294,8 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.equivalence_fields(), **self.cox_fields(),
                       **self.summary_anova_fields(),
                       **self.one_way_fields(),
-                      **self.monte_carlo_fields(), **self.function_fields(), **self.weighting_visibility(),
+                      **self.monte_carlo_fields(), **self.power_fields(), **self.function_fields(),
+                      **self.weighting_visibility(),
                       **self.band_fields(), **self.xy_error_fields(), **self.custom_fields(),
                       **self.global_custom_fields(), **self.robust_fields(), **self.reference_visibility()}
         try:
@@ -3258,6 +3314,10 @@ class AnalysisDialog(simpledialog.Dialog):
                     except (TypeError, ValueError):
                         value = raw
                     options[name] = value
+                    continue
+                if self.method == POWER_METHOD and name in POWER_NUMBER_FIELDS:
+                    # The text goes to the checks, which name the field and read a decimal comma like a point.
+                    options[name] = control.get()
                     continue
                 if self.method == FOREST_PLOT and name == "Study columns":
                     value = self.forest_columns()
@@ -3373,6 +3433,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == MONTE_CARLO_METHOD:
                 # Numbers, fields and the value budget only: the simulation runs once, on the worker.
                 check_monte_carlo_options(self.data, options)
+            if self.method == POWER_METHOD:
+                # Every active field is checked here and the recipe keeps canonical numbers whatever the language.
+                options = power_options(options, check_power_options(options))
             if self.method == "Deming regression":
                 self._check_deming(options)
             name = None
@@ -3483,7 +3546,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     or logistic_validation or pca_validation or self.method in RANK_METHODS
                     or forward_calibration or (inverse_intervals and not nonlinear_inverse)
                     or self.method in PROCESSING_METHODS
-                    or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
+                    or self.method in {PLOT_FUNCTION, TRANSPOSE_XY, POWER_METHOD}
                     or self.method == PARTS_GRAPH
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
                                        BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
@@ -3540,6 +3603,11 @@ class AnalysisDialog(simpledialog.Dialog):
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
+                if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == POWER_METHOD:
+                message = translate_power_error(error)
+                label = ui(field) if field else ""
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
             elif self.method == REFERENCE_NORMALIZATION:
@@ -4008,7 +4076,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                        ("Analysis results", lambda: self.show_section("result")),
                        ("Graphs", lambda: self.show_section("graph")),
                        ("Duplicate family…", self.duplicate_family), ("Save family as…", self.save_family_as)],
-            "Tools": [("Power and sample size…", lambda: self.standalone("Power and sample size")),
+            "Tools": [("Power and sample size…", self.power_planning),
                       ("Simulate data…", lambda: self.standalone("Simulate data")),
                       ("Monte Carlo study…", lambda: self.choose_analysis(only=(MONTE_CARLO_METHOD,))),
                       ("Transpose X and Y…", lambda: self.choose_analysis(only=(TRANSPOSE_XY,))),
@@ -4288,6 +4356,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                             (run.result.figure is not None if run.result
                              else run.method in GRAPH_METHODS or (run.method == NORMALITY and run.options.get(QQ_PLOT))
                              or (run.method == COMPARE_MODELS and run.options.get(MODELS_SHOW_GRAPH, True))
+                             or (run.method == POWER_METHOD and run.options.get(POWER_SHOW_CURVE))
                              or (run.method == MONTE_CARLO_METHOD
                                  and run.options.get(MONTE_CARLO_GRAPH, GRAPH_NONE) != GRAPH_NONE)
                              or (run.method == "Multifactor ANOVA"
@@ -6389,6 +6458,36 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.error("A table supports up to 256 analyses.")
             return
         self.start_analysis(Run(PLOT_FUNCTION, self.active_data, dialog.result[1]), frame,
+                            result=dialog.processing_result)
+
+    def power_planning(self):
+        """Tools → Power and sample size…: a native result, attached to the active table or to an empty table.
+
+        It works in a project without a data table, like Plot a function. The sheet, the optional power curve and
+        its graph are an ordinary analysis, so they are saved with the project, reopened with their recipe and
+        usable in layouts and with Use Result as Data.
+        """
+        if self.pending is not None:
+            self.error("Wait for the current calculation to finish.")
+            return
+        dataset = None
+        if self.active_data is not None:
+            dataset = self.get_dataset()
+            if dataset is None:
+                return
+        frame = dataset.frame(mask_excluded=True) if dataset is not None else pd.DataFrame()
+        dialog = AnalysisDialog(self.root, frame, current=(POWER_METHOD, {}), only=POWER_METHOD)
+        if not dialog.result:
+            return
+        if dataset is None:
+            title = self._unique_title("Power analysis")
+            self._add_tables({title: pd.DataFrame({"A": pd.Series(dtype=float)})})
+            dataset = self.tables[title]
+            self.active_data = title
+        if len(dataset.analyses) >= 256:
+            self.error("A table supports up to 256 analyses.")
+            return
+        self.start_analysis(Run(POWER_METHOD, self.active_data, dialog.result[1]), frame,
                             result=dialog.processing_result)
 
     def choose_analysis(self, only=None, *, prefer_worksheet_graph=False):
