@@ -752,6 +752,16 @@ Reject|Rifiuta
 Average|Media
 Differentiate|Deriva
 Cumulative integral|Integrale cumulativo
+Curve pipeline|Pipeline della curva
+Identity|Identità
+First difference|Differenza prima
+Second difference|Differenza seconda
+Cumulative trapezoid|Integrale cumulato (trapezi)
+Smoothing|Smussamento
+Savitzky–Golay|Savitzky–Golay
+Initial integral|Integrale iniziale
+Half-window|Semilarghezza
+Polynomial degree|Grado del polinomio
 Geometric|Geometrico
 Confidence|Confidenza
 Scores|Punteggi

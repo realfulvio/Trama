@@ -45,6 +45,7 @@ Sono disponibili normalità e Q–Q, screening di outlier ROUT su modello costan
 - Fit globali del catalogo con parametri condivisi e vincoli per singola serie; equazioni personalizzate e fit globali personalizzati, con bande puntuali di confidenza o predizione e previsioni per nuove X per serie dal fit congiunto.
 - [Equazioni condizionali](conditional-equations-081.md) nei fit personalizzati, singoli e globali: modelli a tratti con `if(...)` e soglie note tenute fisse (i punti di cambio non vengono stimati), colonna del ramo e curve senza tratti fra i rami.
 - Confronti fra modelli, AICc, calibrazione diretta e inversa con intervalli nei modelli supportati, spline e LOWESS.
+- [Pipeline di operazioni su curve XY](curve-pipeline.md) in Smussa / deriva / integra: differenze prime e seconde ai punti medi, integrale cumulato con trapezi rispetto a una baseline e smussamento Savitzky–Golay combinabile, per blocchi separati dalle righe senza Y; risultato con righe sorgente, unità e note, descrittivo e non un modello adattato.
 - Adattamento robusto di curve (perdita Cauchy, Huber o Soft L1, scala fissa o MAD pilota), con pesi di influenza per punto, confronto facoltativo con il fit ordinario e grafico di curva, residui o pesi; descrittivo, senza errori standard né p ([guida](robust-curve-073.md)).
 
 L'identificabilità, il dominio del modello, i vincoli attivi e il metodo di pesatura possono rendere indisponibile un intervallo anche quando la stima è calcolabile. Le note dei risultati distinguono questi casi.

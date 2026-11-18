@@ -185,6 +185,9 @@ from analisi.outlier_screening import (METHOD as OUTLIER_METHOD, OUTLIERS,
                                        visibility as outlier_visibility)
 from analisi.spline_fit import (DIRECTION as SPLINE_DIRECTION, METHOD as SPLINE_METHOD, METHOD_NOTE as SPLINE_NOTE,
                                 SPLINE_FIT, TABS as SPLINE_TABS, visibility as spline_visibility)
+from analisi import curve_pipeline
+from analisi.curve_pipeline_dialog import (NOTE_KEYS as CURVE_NOTE_KEYS, describe_error as describe_curve_error,
+                                           notes_visibility as curve_notes_visibility)
 from analisi.monte_carlo import (COMMON as MONTE_CARLO_COMMON, GRAPH as MONTE_CARLO_GRAPH, GRAPH_NONE, MAX_SEED,
                                  MONTE_CARLO as MONTE_CARLO_METHOD, REPEATABLE, SEED as MONTE_CARLO_SEED,
                                  STUDY as MONTE_CARLO_STUDY,
@@ -1013,7 +1016,7 @@ class AnalysisDialog(simpledialog.Dialog):
                   else 470 if self.method == HEAT_MAP
                   else 470 if self.method == NORMALITY
                   else 470 if self.method == REFERENCE_NORMALIZATION
-                  else 400 if self.method == COMPETING_RISKS
+                  else 400 if self.method in {COMPETING_RISKS, curve_pipeline.CURVE_METHOD}
                   else 440 if self.method in {"Nonlinear regression", ROBUST_CURVE} else 352)
         # Keep the title bar, the heading, an error banner and the buttons on the screen of a 1024x768 monitor.
         room = max(240, self.winfo_screenheight() - ui_theme.px(230))
@@ -1788,6 +1791,15 @@ class AnalysisDialog(simpledialog.Dialog):
             for label in (SPLINE_METHOD, SPLINE_DIRECTION):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_fields(self.spline_fields()))
             self.show_fields(self.spline_fields())
+        if self.method == curve_pipeline.CURVE_METHOD:
+            # The two notes sit under the fields: the pipeline note, then the smoothing note.
+            self.curve_notes = [ttk.Label(options, text=tr(key), wraplength=ui_theme.px(430), foreground="#486075",
+                                          justify="left") for key in CURVE_NOTE_KEYS]
+            for offset, note in enumerate(self.curve_notes):
+                note.grid(row=positions[options] + offset, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            for label in ("Method", curve_pipeline.OPERATION, curve_pipeline.SMOOTHING):
+                self.controls[label][1].trace_add("write", lambda *_: self.show_curve_fields())
+            self.show_curve_fields()
         if self.method == ROBUST_CURVE:
             model, editor = self.controls[ROBUST_MODEL][1], self.controls[ROBUST_INITIAL][1]
             model.trace_add("write", lambda *_: editor.set_model(model.get()))
@@ -2975,6 +2987,23 @@ class AnalysisDialog(simpledialog.Dialog):
         else:
             editor.show(tr("gfit.check_ok"), True)
 
+    def curve_fields(self):
+        """The Curve pipeline fields for Method = Curve pipeline, the LOWESS fraction for the three older choices."""
+        if self.method != curve_pipeline.CURVE_METHOD:
+            return {}
+        return curve_pipeline.visibility(*(self.controls[label][1].get() for label in (
+            "Method", curve_pipeline.OPERATION, curve_pipeline.SMOOTHING)))
+
+    def show_curve_fields(self):
+        self.show_fields(self.curve_fields())
+        shown = curve_notes_visibility(self.controls["Method"][1].get(), self.controls[curve_pipeline.SMOOTHING][1].get(),
+                                       curve_pipeline.PIPELINE, curve_pipeline.SAVITZKY_GOLAY)
+        for note, visible in zip(self.curve_notes, shown):
+            if visible:
+                note.grid()
+            else:
+                note.grid_remove()
+
     def spline_fields(self):
         """Knots for the smoothing spline, fraction and iterations for LOWESS, Query for a query direction."""
         if self.method != SPLINE_FIT:
@@ -3296,7 +3325,7 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.correlation_details_visibility(),
                       **self.heat_map_visibility(), **self.row_test_visibility(), **self.nested_visibility(),
                       **self.box_violin_visibility(), **self.dunn_visibility(), **self.normality_fields(),
-                      **self.outlier_fields(), **self.spline_fields(),
+                      **self.outlier_fields(), **self.spline_fields(), **self.curve_fields(),
                       **self.auc_visibility(), **self.deming_visibility(), **self.linear_visibility(),
                       **self.calibration_visibility(), **self.agreement_visibility(),
                       **self.anova_fields(), **self.anova_term_fields(), **self.anova_diagnostic_fields(),
@@ -3558,6 +3587,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     or forward_calibration or (inverse_intervals and not nonlinear_inverse)
                     or self.method in PROCESSING_METHODS
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
+                    or (self.method == curve_pipeline.CURVE_METHOD and options.get("Method") == curve_pipeline.PIPELINE)
                     or self.method == PARTS_GRAPH
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
                                        BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
@@ -3613,6 +3643,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
                 message = describe_competing_error(error, field)
+            elif self.method == curve_pipeline.CURVE_METHOD and self.controls["Method"][1].get() == curve_pipeline.PIPELINE:
+                message = describe_curve_error(error, field)
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
@@ -13061,6 +13093,17 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "curve-pipeline":
+            # The 0.93 Curve pipeline check alone: TRAMASTAT_SMOKE_ONLY=curve-pipeline python tramastat.py --smoke DIR
+            from analisi.curve_pipeline_smoke import check_curve_pipeline
+            check_curve_pipeline(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+                wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "letters":
             # The 0.57 compact letter display check alone: TRAMASTAT_SMOKE_ONLY=letters python tramastat.py --smoke DIR
             from analisi.letters_smoke import check_compact_letters
@@ -14195,6 +14238,10 @@ def smoke(root, app, directory, legacy_reference=None):
         check_spline_fit(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
+        from analisi.curve_pipeline_smoke import check_curve_pipeline
+        check_curve_pipeline(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
         from analisi.pairwise_smoke import check_pairwise_comparisons
         check_pairwise_comparisons(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, PairwiseDialog=PairwiseDialog, capture=capture, drive_dialog=drive_dialog,
