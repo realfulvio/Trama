@@ -183,6 +183,10 @@ from analisi.summary_anova import (JOINT as SUMMARY_JOINT, METHOD as SUMMARY_ANO
                                    visibility as summary_anova_visibility)
 from analisi.outlier_screening import (METHOD as OUTLIER_METHOD, OUTLIERS,
                                        visibility as outlier_visibility)
+from analisi.cluster_silhouette import (METHOD as CLUSTER_SILHOUETTE,
+                                        check_options as check_silhouette_options,
+                                        default_options as silhouette_defaults,
+                                        requested_graph as silhouette_graph)
 from analisi.spline_fit import (DIRECTION as SPLINE_DIRECTION, METHOD as SPLINE_METHOD, METHOD_NOTE as SPLINE_NOTE,
                                 SPLINE_FIT, TABS as SPLINE_TABS, visibility as spline_visibility)
 from analisi.monte_carlo import (COMMON as MONTE_CARLO_COMMON, GRAPH as MONTE_CARLO_GRAPH, GRAPH_NONE, MAX_SEED,
@@ -287,7 +291,8 @@ FIT_HEADINGS = {
     FIT_REPLICATES: "analysis.fit.heading.replicates",
     FIT_RESIDUALS: "analysis.fit.heading.residuals",
 }
-from analisi.spearman_exact_budget import FIELD as SPEARMAN_BUDGET, STANDARD as SPEARMAN_STANDARD, extended_request
+from analisi.spearman_exact_budget import (FIELD as SPEARMAN_BUDGET, STANDARD as SPEARMAN_STANDARD,
+                                           extended_request as spearman_extended_request)
 from analisi.correlation_details import (COMPARE_INDEPENDENT, CORRELATE_CONTROL, CORRELATION_METHODS,
                                          validate_request as validate_correlation_request)
 from analisi.workbench import (ANOVA_ALPHA, ANOVA_EFFECTS, CLASSIC_RESPONSES, GRAPH_METHODS, GROUP_CHOICE,
@@ -311,6 +316,13 @@ from analisi.processing import (BASELINES, COMBINED_TOTALS, DENOMINATORS, FieldE
 
 ASSETS = Path(__file__).resolve().parent / "assets"
 PRISM_GRAPH_METHODS = {SAVED_XY, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}
+
+
+def extended_request(method, options):
+    """Calculations that run on the worker with a cancel control: extended Spearman and the silhouettes."""
+    return method == CLUSTER_SILHOUETTE or spearman_extended_request(method, options)
+
+
 RUN_VIEWS = {"result", "graph", "saved-layout"}
 CATEGORY_GRAPHS = {COLUMN_GRAPH, GROUPED_GRAPH}
 # Dialogs that explain the chosen Weighting denominator under the field.
@@ -1080,6 +1092,9 @@ class AnalysisDialog(simpledialog.Dialog):
             tabs = {"Multiplicity": ("Correction", "Family alpha", "False discovery rate (%)")}
             if not saved:
                 saved = row_test_defaults(self.data)
+        elif self.method == CLUSTER_SILHOUETTE:
+            if not saved:
+                saved = silhouette_defaults(self.data)
         elif self.method in NESTED_METHODS:
             self.fields.tab(variables, text=ui("Subcolumns"))
             self.fields.tab(options, text=ui("Model and inference"))
@@ -1841,6 +1856,9 @@ class AnalysisDialog(simpledialog.Dialog):
             self.variance_ratio_note = ttk.Label(options, text=tr(VARIANCE_RATIO_NOTE), wraplength=360,
                                                  foreground="#486075", justify="left")
             self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+        if self.method == CLUSTER_SILHOUETTE:
+            ttk.Label(options, text=tr("silhouette.note"), wraplength=ui_theme.px(400), foreground="#486075",
+                      justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
         if self.method in (SUMMARY_ANOVA, SUMMARY_TTEST):
             self.controls["Input"][1].trace_add("write", lambda *_: self.show_fields(self.summary_anova_fields()))
             self.show_fields(self.summary_anova_fields())
@@ -3373,6 +3391,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == MONTE_CARLO_METHOD:
                 # Numbers, fields and the value budget only: the simulation runs once, on the worker.
                 check_monte_carlo_options(self.data, options)
+            if self.method == CLUSTER_SILHOUETTE:
+                # Roles, partition and budgets only: the distances run on the worker.
+                check_silhouette_options(self.data, options)
             if self.method == "Deming regression":
                 self._check_deming(options)
             name = None
@@ -3551,6 +3572,11 @@ class AnalysisDialog(simpledialog.Dialog):
                     or (options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE and field in {'Weighting', 'SD column'})):
                 message = translate_message(message, "parameter_ci.error.")
                 label = tr(PARAM_CI_LABELS[field]) if field in PARAM_CI_LABELS else ui(field)
+                if label and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == CLUSTER_SILHOUETTE:
+                message = translate_message(message, "silhouette.error.", convert={"field": ui})
+                label = ui(field) if field else ""
                 if label and label not in message:
                     message = f"{label}: {message}"
             elif self.method in (NORMALITY, SUMMARY_ANOVA, SUMMARY_TTEST, *kmeans_options.METHODS):
@@ -4293,7 +4319,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                              or (run.method == "Multifactor ANOVA"
                                  and run.options.get(ANOVA_DIAG_GRAPH) not in (None, "", "None"))
                              or (run.method == FDR_METHOD and run.options.get(FDR_PLOT))
-                             or (run.method == VARIANCE_RATIO and variance_ratio_shows_graph(run.options))))],
+                             or (run.method == VARIANCE_RATIO and variance_ratio_shows_graph(run.options))
+                             or (run.method == CLUSTER_SILHOUETTE and silhouette_graph(run.options))))],
              "New Graph…", self.new_graph),
             ("Layouts", [(layout.name, ("layout", i)) for i, layout in enumerate(self.layouts)]
                         + [(run.name, ("saved-layout", i)) for i, run in enumerate(self.runs)
@@ -6264,7 +6291,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             elif recovered:
                 pass
             elif cancelled:
-                self.status.set("Monte Carlo recalculation cancelled. Open the study to calculate again.")
+                self.status.set("Monte Carlo recalculation cancelled. Open the study to calculate again."
+                                if any(run.method == MONTE_CARLO_METHOD for run, _ in affected)
+                                else "Recalculation cancelled. Open the analysis to calculate again.")
             else:
                 self.status.set(f"Updated {len(affected)} linked analysis result(s).")
 
