@@ -13197,6 +13197,14 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "categorical-scatter-import":
+            from analisi.prism_mv_scatter_smoke import check_saved_scatter
+            check_saved_scatter(root, app, directory, capture, wait_for_calculation)
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "pca-graphs":
             # The PCA graph check alone:
             # TRAMASTAT_SMOKE_ONLY=pca-graphs python tramastat.py --smoke DIR
@@ -13994,6 +14002,8 @@ def smoke(root, app, directory, legacy_reference=None):
         check_hierarchical_style_smoke()
         check_family_workflow_smoke()
         check_piecewise_equations_smoke()
+        from analisi.prism_mv_scatter_smoke import check_saved_scatter
+        check_saved_scatter(root, app, directory, capture, wait_for_calculation)
         assert app.nav.winfo_ismapped()
         assert not errors, errors
         (directory / "status.txt").write_text("PASS\n", encoding="utf-8")

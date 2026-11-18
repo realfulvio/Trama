@@ -1,81 +1,15 @@
-import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from zipfile import ZipFile
 
 from matplotlib.colors import to_rgba
 import numpy as np
 
 from analisi.data import Dataset, load_project, load_tables, save_project
 from analisi.prism_mv_scatter import APPEARANCE
+from analisi.prism_mv_scatter_smoke import COLORS, PLOT, archive_fixture
 from analisi.prism_restore import SAVED_XY
 from analisi.workbench import analyse
-
-PLOT = "Prism graph · Grouped scatter"
-COLORS = {"Run $A": "#33996680", "_Run B": "#8b3366c0"}
-
-
-def _title(text):
-    return {"text": {"string": text}}
-
-
-def _axis(label, orientation, low, high, start, step, reversed=False):
-    return {"orientation": orientation, "title": _title(label), "segments": [{
-        "@class": "LinearAxisSegment", "lowerLimit": low, "upperLimit": high,
-        "startTicksValue": start, "interval": step, "isReversed": reversed,
-    }]}
-
-
-def archive_fixture(path, *, change=None):
-    details = {
-        "@class": "MVGraph", "dataSheet": "scatter-input",
-        "xVariables": ["scatter-x"], "yVariables": ["scatter-y"],
-        "gdoTypes": {"defaults": ["symbols"]}, "gdoTypesExt": {"defaults": ["symbols"]},
-        "gdoSettings": {"symbols": {
-            "@class": "BubblesFigure::Settings", "colorVariable": "scatter-cohort",
-            "colormap": {"@class": "CategoricalColormap", "colors": {
-                "1": COLORS["_Run B"], "0": COLORS["Run $A"]}},
-            "isColorLegendEnabled": True,
-            "sizeEvaluator": {"@class": "SymbolSizeEvaluator", "symbolSize": 5},
-            "rowSymbolSettings": {"common": {
-                "symbolShape": "circleFill", "symbolBorderColor": "#12151aff", "symbolBorderThickness": .4,
-            }},
-        }},
-        "axisX": _axis("Dose $", "horizontal", -1, 7, 0, 2),
-        "axisY": _axis("Signal", "vertical", 0, 10, 0, 2.5, reversed=True),
-        "legends": [{"@class": "CategoricalSymbolsLegend", "title": _title("Cohort"), "children": [
-            {"@class": "SymbolLegend", "title": _title(group), "symbolShape": "circleFill", "symbolFillColor": color}
-            for group, color in COLORS.items()
-        ]}],
-    }
-    if change:
-        details.update(change)
-    with ZipFile(path, "w") as archive:
-        records = {
-            "document.json": {"sheets": {"data": ["original"], "analyses": ["calculation"], "graphs": ["scatter"]}},
-            "data/sheets/original/sheet.json": {"title": "Original", "table": {
-                "uid": "raw-grid", "format": "column", "dataFormat": "y_single", "dataSets": ["raw-values"],
-            }},
-            "data/sets/raw-values.json": {"title": "Input"},
-            "analyses/calculation/sheet.json": {"title": "Cached calculation", "analysisClass": "UNKNOWN",
-                                                "resultSheets": [{"uid": "cache"}]},
-            "analyses/calculation/result_sheets/cache.json": {"name": "Coordinates", "dataSheet": "scatter-input",
-                                                              "isVisible": True},
-            "data/sheets/scatter-input/sheet.json": {"table": {
-                "uid": "scatter-grid", "format": "multivariable", "dataFormat": "y_single",
-                "dataSets": ["scatter-x", "scatter-y", "scatter-cohort"],
-            }},
-            "data/sets/scatter-x.json": {"title": "Source X", "currentType": "numeric"},
-            "data/sets/scatter-y.json": {"title": "Source Y", "currentType": "numeric"},
-            "data/sets/scatter-cohort.json": {"title": "Cohort", "currentType": "categorical"},
-            "graphs/scatter/sheet.json": {"uid": "scatter", "title": "Grouped scatter", "graph": details},
-        }
-        for name, document in records.items():
-            archive.writestr(name, json.dumps(document))
-        archive.writestr("data/tables/raw-grid/data.csv", "1\n2\n")
-        archive.writestr("data/tables/scatter-grid/data.csv", "2,5,_Run B\n3,6,Run $A\n5,2,Run $A\n,6,_Run B\n")
-
 
 class SavedCategoricalScatterTests(unittest.TestCase):
     def test_view_uses_exact_ids_and_saves_editable_coordinates(self):
