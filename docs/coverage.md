@@ -6,8 +6,8 @@ imply every possible option or design. There is no audited overall completion pe
 
 ## Current acceptance
 
-The 0.86 beta candidate passes 2,661 unit tests on Linux and 2,660 on native Windows. The Windows account lacked permission to create a symbolic link, so one check was skipped.
-See [0.86 validation](validation-086.md) for complete GUI regressions and native portable checks,
+The 0.87 beta candidate passes 2,666 unit tests on Linux and 2,665 on native Windows. The Windows account lacked permission to create a symbolic link, so one check was skipped.
+See [0.87 validation](validation-087.md) for complete GUI regressions and native portable checks,
 [features](features.md), and [format compatibility](compatibility.md).
 Tests document particular cases and are not a clinical or regulatory certification.
 

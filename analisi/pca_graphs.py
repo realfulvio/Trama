@@ -9,10 +9,13 @@ The symmetric TramaStat biplot puts rows at U √D and variables at V √D. Thei
 over every component reconstructs A. A numerically zero singular value is zero in both
 sets of coordinates, so the scaling never divides by zero.
 """
+from collections import Counter
+
 import numpy as np
 import pandas as pd
 
-from . import exploration, pca_retention
+from . import exploration, pca_reports, pca_retention
+from .graph_legend import typed_group_token
 from .processing import FieldError
 from .reporting import Result, _plot
 
@@ -21,17 +24,20 @@ HORIZONTAL = "Horizontal PC"
 VERTICAL = "Vertical PC"
 LABEL = "Label column"
 SHOW_LABELS = "Show row labels"
+COLOR_GROUPS = "Color groups by"
 SCORES, LOADINGS, BIPLOT = "Scores", "Loadings", "Biplot"
 SCREE, PROPORTION = "Scree", "Proportion of variance"
 VIEWS = (SCORES, LOADINGS, BIPLOT, SCREE, PROPORTION)
 ONE_DIMENSION = (SCREE, PROPORTION)
+POINT_VIEWS = (SCORES, BIPLOT)
 COORDINATES = "PC graph coordinates"
 SETTINGS = "Settings"
-TABS = {"Graph": (GRAPH, HORIZONTAL, VERTICAL, LABEL, SHOW_LABELS)}
-_KEYS = (GRAPH, HORIZONTAL, VERTICAL, LABEL, SHOW_LABELS)
+TABS = {"Graph": (GRAPH, HORIZONTAL, VERTICAL, LABEL, SHOW_LABELS, COLOR_GROUPS)}
+_KEYS = TABS["Graph"]
 # Below this fraction of the leading eigenvalue, a component is numerically empty.
 _VARIANCE_SCALE = 1e-10
 _LABEL_LIMIT = 60
+MAX_COLOR_GROUPS = 40
 _BIPLOT = ("Symmetric biplot: row coordinates are U·sqrt(D) and variable coordinates are V·sqrt(D), "
            "using the canonical eigenvector signs. The product of the two matrices over every component "
            "reconstructs the centered data matrix, after standardization when that option is on. "
@@ -110,14 +116,24 @@ def _complete_mask(frame, variables):
     return mask
 
 
-def _labels(frame, variables, column):
-    mask = _complete_mask(frame, variables)
+def _labels(frame, mask, column):
     source = frame.index.to_numpy()[mask]
     if column is None:
         label = np.array([""] * int(mask.sum()), dtype=object)
     else:
         label = np.array(["" if pd.isna(value) else str(value) for value in frame.loc[mask, column]], dtype=object)
     return source, label
+
+
+def _color_data(frame, options, view, mask):
+    column = options.get(COLOR_GROUPS)
+    if view not in POINT_VIEWS or column in (None, ""):
+        return None, None
+    if not isinstance(column, str) or column not in frame:
+        raise FieldError(COLOR_GROUPS, "Choose a color grouping column from this table.")
+    values = frame.loc[mask, column].to_numpy(dtype=object)
+    return column, [None if pd.isna(value) or isinstance(value, str) and not value.strip() else value
+                    for value in values]
 
 
 def _dead(eigenvalues):
@@ -172,8 +188,34 @@ def _annotate(axes, x, y, text):
     axes.annotate(_literal(text), (x, y), textcoords="offset points", xytext=(4, 4), fontsize=8, zorder=4)
 
 
+def _observation_points(axes, coordinates, group_column, values):
+    if group_column is None:
+        axes.scatter(coordinates[:, 0], coordinates[:, 1], zorder=3)
+        return
+    groups = {}
+    for row, value in enumerate(values):
+        key = f"group:{typed_group_token(value)}" if value is not None else "gid:pca-missing-color-group"
+        caption = str(value) if value is not None else "Missing group"
+        groups.setdefault(key, (caption, []))[1].append(row)
+    if len(groups) > MAX_COLOR_GROUPS:
+        raise FieldError(COLOR_GROUPS, f"Choose a column with at most {MAX_COLOR_GROUPS} color groups.")
+    collisions = Counter(caption for caption, _ in groups.values())
+    artists, captions = [], []
+    for key, (caption, rows) in groups.items():
+        if collisions[caption] > 1:
+            identity = "missing" if key.startswith("gid:") else key.split(":")[1]
+            caption = f"{caption} ({identity})"
+        label = _literal(caption)
+        artist = axes.scatter(coordinates[rows, 0], coordinates[rows, 1], label=label, zorder=3)
+        artist._tramastat_legend_key = key
+        artists.append(artist)
+        captions.append(label)
+    legend = axes.legend(artists, captions, title=_literal(group_column), ncols=(len(artists) + 9) // 10)
+    legend._tramastat_legend_keys = tuple(groups)
+
+
 def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, variable_xy, row_labels,
-            variable_names, show_rows, parallel=None):
+            variable_names, show_rows, parallel=None, *, group_column=None, group_values=None):
     if view == SCREE:
         figure, axes = _plot("Scree", "Principal component", "Eigenvalue")
         # The observed series stays unlabeled so its style key remains the historical line.
@@ -201,8 +243,8 @@ def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, va
     figure, axes = _plot(titles[view], xlabel, ylabel)
     axes.axhline(0, color="#d0d5dd", linewidth=.8, zorder=0)
     axes.axvline(0, color="#d0d5dd", linewidth=.8, zorder=0)
-    if view in (SCORES, BIPLOT):
-        axes.scatter(row_xy[:, 0], row_xy[:, 1], zorder=3)
+    if view in POINT_VIEWS:
+        _observation_points(axes, row_xy, group_column, group_values)
         if show_rows:
             for x, y, label in zip(row_xy[:, 0], row_xy[:, 1], row_labels):
                 if label:
@@ -243,7 +285,9 @@ def pca_result(frame, options):
     eigenvalues = parts["Eigenvalue"].to_numpy(dtype=float)
     variance = parts["Variance (%)"].to_numpy(dtype=float)
     names = list(parts.index)
-    source, labels = _labels(frame, variables, column)
+    mask = _complete_mask(frame, variables)
+    source, labels = _labels(frame, mask, column)
+    group_column, group_values = _color_data(frame, options, view, mask)
     if len(source) != len(scores):
         raise ValueError("PCA row filter did not match the score rows.")
     loadings, rows, variable_coordinates = _coordinates(scores, eigenvectors, eigenvalues)
@@ -292,10 +336,16 @@ def pca_result(frame, options):
             "Vertical": [*rows[:, vertical], *variable_coordinates[:, vertical]],
         })
         drawn_rows, drawn_variables = rows, variable_coordinates
+    settings = _settings(view, bool(options["Standardize"]), omitted)
+    if group_column is not None:
+        values = group_values if view == SCORES else [*group_values, *([None] * len(variables))]
+        table["Color group"] = pd.Series(values, dtype=object)
+        settings.loc[COLOR_GROUPS, "Value"] = group_column
     figure = _figure(view, names, variance, eigenvalues, horizontal, vertical,
                      drawn_rows[:, [horizontal, vertical]], drawn_variables[:, [horizontal, vertical]],
-                     labels, variables, drawn, parallel)
+                     labels, variables, drawn, parallel, group_column=group_column, group_values=group_values)
     tables = {"Explained variance": parts, "Eigenvectors": eigenvectors, "Scores": scores,
-              COORDINATES: table, SETTINGS: _settings(view, bool(options["Standardize"]), omitted)}
+              COORDINATES: table, SETTINGS: settings}
     tables.update(retention.tables)
+    tables.update(pca_reports.optional_tables(frame, options, parts, eigenvectors, scores, retention))
     return Result(tables, figure)
