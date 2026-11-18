@@ -51,6 +51,7 @@ class CatalogTests(unittest.TestCase):
             "Correlation": {"X": "x", "Y": "y", "Method": "Pearson"},
             "Correlate against control": {"X": "x", "Variables": ["y", "z"]},
             "Compare independent correlations": {"X": "x", "Y": "y", "Group": "Group"},
+            "Repeated-measures correlation": {"Subject": "Subject", "X": "x", "Y": "y", "Show graph": False},
             "Correlation matrix": {"Variables": ["x", "y", "z"]},
             "Contingency table": {"Rows": "Group", "Columns": "Factor"},
             "Linear regression": {"X": "x", "Y": "y"},

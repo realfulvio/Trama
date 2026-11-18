@@ -847,6 +847,8 @@ CAPTIONS.update({
     "Exact": "Esatto", "Holm": "Holm", "Benjamini–Hochberg": "Benjamini–Hochberg",
     "Correlate against control": "Correla con un controllo",
     "Compare independent correlations": "Confronta correlazioni indipendenti",
+    "Repeated-measures correlation": "Correlazione a misure ripetute",
+    "Subject bootstrap": "Bootstrap per soggetti", "Bootstrap replicates": "Repliche bootstrap",
     "Number of dots": "Numero di punti", "Start angle": "Angolo iniziale", "Clockwise": "Senso orario",
     "Slice labels": "Etichette dei settori", "Control level(s), separated by |": "Livelli di controllo, separati da |",
     "Gehan–Breslow–Wilcoxon": "Gehan–Breslow–Wilcoxon", "X error distance": "Distanza dell’errore X",
