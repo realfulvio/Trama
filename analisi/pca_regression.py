@@ -71,7 +71,7 @@ NOTE = ("The PCA is estimated once, on every row that is complete in the predict
 
 # A design whose smallest scaled singular value falls below this multiple of the roundoff is rank deficient.
 _RANK_FACTOR = 16
-# A residual below this multiple of the response magnitude, in units of the roundoff, is an exact fit.
+# A residual below this multiple of the shifted response scale is numerical roundoff.
 _EXACT_FACTOR = 64
 
 
@@ -256,21 +256,29 @@ def regress(frame, options, config, parts, eigenvectors, scores, retention):
     response = _response_values(frame, mask, config)
     used = np.isfinite(response)
 
-    design_all = np.column_stack((np.ones(len(projected)), projected))
-    coefficients, w = _least_squares(design_all[used], response[used])
     y = response[used]
+    # An intercept absorbs this translation. Working in the shifted units keeps measurable
+    # residuals even when the response varies by only a few units in the last place.
+    origin = y[0] if len(y) else 0.0
+    with np.errstate(over="ignore", invalid="ignore"):
+        shifted = y - origin
+    if not np.isfinite(shifted).all():
+        raise _range_error()
+    design_all = np.column_stack((np.ones(len(projected)), projected))
+    coefficients, w = _least_squares(design_all[used], shifted)
     df = len(y) - count - 1
 
     with np.errstate(all="ignore"):
-        fitted = design_all @ coefficients
-        residual = y - fitted[used]
-        scale = float(np.max(np.abs(y)))
+        shifted_fitted = design_all @ coefficients
+        fitted = origin + shifted_fitted
+        residual = shifted - shifted_fitted[used]
+        scale = float(np.max(np.abs(shifted)))
         exact = bool(np.max(np.abs(residual)) <= _EXACT_FACTOR * np.finfo(float).eps * scale)
         if exact:
             residual = np.zeros_like(residual)
         sse = float(residual @ residual)
         mse = sse / df
-        sst = 0.0 if np.ptp(y) == 0 else float(np.sum((y - y.mean()) ** 2))
+        sst = float(np.sum((shifted - shifted.mean()) ** 2))
 
         slopes = basis / divisors[:, None]
         transform = np.zeros((len(predictors) + 1, count + 1))
@@ -278,6 +286,8 @@ def regress(frame, options, config, parts, eigenvectors, scores, retention):
         transform[0, 1:] = -(means @ slopes)
         transform[1:, 1:] = slopes
         original = transform @ coefficients
+        original[0] += origin
+        coefficients[0] += origin
         original_variance = mse * np.sum((transform @ w) ** 2, axis=1)
         score_variance = mse * np.sum(w ** 2, axis=1)
         projection = design_all @ w
@@ -297,7 +307,7 @@ def regress(frame, options, config, parts, eigenvectors, scores, retention):
                 f_value = max(sst - sse, 0.0) / count / mse
                 p_value = float(stats.f.sf(f_value, count, df))
     finite = (coefficients, original, original_variance, score_variance, fitted, mean_half, prediction_half,
-              np.array([sse, mse, critical]))
+              np.array([sse, mse, sst, critical]))
     if not all(np.isfinite(values).all() for values in finite):
         raise _range_error()
 

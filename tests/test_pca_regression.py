@@ -341,6 +341,22 @@ class NumericTests(unittest.TestCase):
             self.assertTrue(np.isnan(model[name]), name)
         close(run(constant, True, **ON).tables[FITTED]["Fitted"], np.full(11, 0.1))
 
+    def test_large_response_origin_keeps_measurable_residuals(self):
+        x = np.arange(-4., 5.)
+        other = np.array([-1, 1, 1, -1, 0, -1, 1, 1, -1], dtype=float)
+        noise = np.array([-1, -1, 0, 1, 2, 1, 0, -1, -1], dtype=float)
+        shifted = 1e12 + 2 * x + .004 * noise
+        relative = shifted - 1e12
+        design = np.column_stack((np.ones(len(x)), x, other))
+        residuals = relative - design @ np.linalg.lstsq(design, relative, rcond=None)[0]
+        frame = pd.DataFrame({PREDICTORS[0]: x, PREDICTORS[1]: other, "Response": shifted})
+
+        result = run(frame, False, **ON).tables
+
+        np.testing.assert_allclose(result[FITTED]["Residual"], residuals, atol=1e-12, rtol=1e-10)
+        self.assertAlmostEqual(result[MODEL].loc[0, "SSE"], residuals @ residuals, places=14)
+        self.assertTrue((result[FITTED]["Prediction upper"] > result[FITTED]["Prediction lower"]).all())
+
 
 class PlotTests(unittest.TestCase):
     def setUp(self):
@@ -367,11 +383,17 @@ class PlotTests(unittest.TestCase):
                     self.assertTrue(any(np.all(np.asarray(line.get_ydata()) == 0) for line in axes.lines))
 
     def test_keep_pca_leaves_the_pca_figure_alone(self):
-        base = run(self.data, True, Selection="All", **{pca_graphs.GRAPH: pca_graphs.SCORES})
-        kept = run(self.data, True, **{**ON, PLOT: "Keep PCA"}, Selection="All", **{pca_graphs.GRAPH: pca_graphs.SCORES})
+        view = {pca_graphs.GRAPH: pca_graphs.SCORES, "PCA overlay": "Confidence region of mean",
+                pca_reports.INPUT: True}
+        base = run(self.data, True, Selection="All", **view)
+        kept = run(self.data, True, Selection="All", **view, **ON)
         a, b = base.figure.axes[0], kept.figure.axes[0]
         self.assertEqual((a.get_title(), a.get_xlabel(), a.get_ylabel()), (b.get_title(), b.get_xlabel(), b.get_ylabel()))
         close(a.collections[0].get_offsets(), b.collections[0].get_offsets())
+        close(a.patches[0].get_xy(), b.patches[0].get_xy())
+        for name in ("Confidence overlays", pca_reports.INPUT_SHEET):
+            pd.testing.assert_frame_equal(base.tables[name], kept.tables[name])
+        self.assertIn(FITTED, kept.tables)
 
     def test_plot_replaces_every_pca_view_including_the_flat_ones_and_the_legacy_branch(self):
         for graph in ({}, {pca_graphs.GRAPH: pca_graphs.BIPLOT}, {pca_graphs.GRAPH: pca_graphs.SCREE}):
