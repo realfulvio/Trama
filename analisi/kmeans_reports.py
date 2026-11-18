@@ -4,6 +4,7 @@ import pandas as pd
 from scipy.stats import f
 
 from .field_error import FieldError
+from .kmeans_options import GAP_PLOT
 
 DETAILS = "Report cluster details"
 SCALED = "Report standardized observations"
@@ -27,7 +28,7 @@ def requested(options, *, scan=False):
             active.add(name)
     if not options.get("Standardize", False):
         active.discard(SCALED)
-    if options.get("Criterion") not in GAP_CRITERIA:
+    if options.get("Criterion") not in GAP_CRITERIA and options.get(GAP_PLOT) is not True:
         active.discard(GAP)
     return active
 

@@ -72,6 +72,34 @@ class KmeansReportTests(unittest.TestCase):
         self.assertTrue(result.tables["Cluster ANOVA"]["Nominal p"].isna().all())
         self.assertTrue(result.tables["Cluster variation"]["Explained variation (%)"].isna().all())
 
+    def test_diagnostic_panels_reuse_consensus_fits_metrics_and_gap_uncertainty(self):
+        options = {**self.fit, "Maximum k": 3, "Criterion": "Consensus (17 indices)", "Gap simulations": 5,
+                   "Show WSS plot": True, "Show silhouette plot": True, "Show Gap plot": True}
+        with patch.object(advanced, "kmeans", wraps=advanced.kmeans) as fit:
+            result = analyse(k.SELECTION, self.frame, options)
+        self.assertEqual(fit.call_count, 3 + 5 * 3)
+        self.assertEqual(len(result.figure.axes), 4)
+        self.assertEqual(result.figure.axes[0].get_title(), "K-means consensus votes")
+        metrics = result.tables["Cluster metrics"]
+        for panel, column in zip(result.figure.axes[1:], ("WSS", "Silhouette", "Gap"), strict=True):
+            np.testing.assert_array_equal(panel.lines[0].get_xdata(), metrics.index)
+            np.testing.assert_allclose(panel.lines[0].get_ydata(), metrics[column], equal_nan=True)
+        intervals = result.figure.axes[3].containers[0].lines[2][0].get_segments()
+        for index, segment in zip(metrics.index, intervals, strict=True):
+            value, error = metrics.loc[index, ["Gap", "Gap SE"]]
+            np.testing.assert_allclose(segment[:, 1], [value - error, value + error])
+
+    def test_gap_plot_adds_references_without_changing_the_silhouette_choice(self):
+        options = {**self.fit, "Maximum k": 3, "Criterion": "Silhouette", "Gap simulations": 5}
+        old = analyse(k.SELECTION, self.frame, options)
+        result = analyse(k.SELECTION, self.frame, {**options, "Show silhouette plot": True, "Show Gap plot": True})
+        pd.testing.assert_frame_equal(result.tables["Selection"], old.tables["Selection"])
+        pd.testing.assert_frame_equal(result.tables["Model metrics"][old.tables["Model metrics"].columns],
+                                      old.tables["Model metrics"])
+        self.assertEqual(len(result.figure.axes), 2)
+        self.assertIn("Gap", result.tables["Model metrics"])
+        self.assertEqual(len(old.figure.axes), 1)
+
     def test_archive_restores_flags_for_reports_on_editable_recipe(self):
         content = {"data": {"variables": [var("signal")]},
                    "calc": {"algorithm": "HARTIGAN_WONG", "transform": "STANDARDIZE",
@@ -80,11 +108,12 @@ class KmeansReportTests(unittest.TestCase):
                             "randomSeed": {"value": 42}},
                    "report": {"clusterDetails": True, "transformedData": True, "distances": True,
                               "initialCentroids": True, "anovaTable": False},
-                   "graph": {"gapPlot": True}}
+                   "graph": {"elbowPlot": True, "silhouettePlot": True, "gapPlot": True}}
         sheet, parameters, frames = source("K_MEANS_CLUSTERING", "0.0.0", content, self.frame,
                                             {"signal": ["x"]})
         _, method, options = restore_recipe(sheet, parameters, frames)
         self.assertEqual(method, k.SELECTION)
+        self.assertTrue(all(options.get(flag) for flag in ("Show WSS plot", "Show silhouette plot", "Show Gap plot")))
         self.assertEqual(reports.requested(options, scan=True), set(reports.SCAN) - {reports.ANOVA})
         result = analyse(method, self.frame, options).tables
         self.assertNotIn("Cluster ANOVA", result)

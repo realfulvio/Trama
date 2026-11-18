@@ -393,7 +393,15 @@ def _kmeans(frame, content, _results):
             return None
         if flag:
             reports[native] = True
-    if content.get("graph", {}).get("gapPlot") is True:
+    saved_graphs = content.get("graph", {})
+    for saved, native in (("elbowPlot", selection.WSS_PLOT), ("silhouettePlot", selection.SILHOUETTE_PLOT),
+                          ("gapPlot", selection.GAP_PLOT)):
+        flag = saved_graphs.get(saved, False)
+        if type(flag) is not bool:
+            return None
+        if flag:
+            reports[native] = True
+    if reports.get(selection.GAP_PLOT):
         reports[kmeans_reports.GAP] = True
     return selection.SELECTION, {
         "Variables": variables, "Minimum k": low, "Maximum k": high, "Standardize": True, "Seed": seed,
@@ -401,7 +409,8 @@ def _kmeans(frame, content, _results):
         selection.ALGORITHM: selection.HARTIGAN, selection.MAX_ITERATIONS: iterations, **reports,
         "Prism import notes": (
             "Recalculates the saved Hartigan–Wong settings with Trama initial centers and 20 Gap simulations. "
-            "Saved partitions, tables and additional plots remain in archived views where available."
+            "Recreates enabled WSS, silhouette and Gap plots with native formatting. "
+            "Saved partitions, tables and plots remain in archived views where available."
         ),
     }
 
