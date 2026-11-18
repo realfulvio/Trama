@@ -209,6 +209,15 @@ from analisi.robust_curve import (COMPARE as ROBUST_COMPARE, DEFAULTS as ROBUST_
 from analisi.robust_curve_dialog import (CHOICE_KEYS as ROBUST_CHOICE_KEYS, LABEL_KEYS as ROBUST_LABEL_KEYS,
                                          TAB_KEYS as ROBUST_TAB_KEYS, InitialParameters, describe_error as describe_robust_error,
                                          visibility as robust_visibility)
+from analisi.competing_risks_workbench import (
+    CAUSE_CHOICE as COMPETING_CAUSE, CHOICE_KEYS as COMPETING_CHOICE_KEYS, CODE_LIST as COMPETING_CODE_LIST,
+    COMPETING_RISKS, DATA_FIELDS as COMPETING_DATA, DEFAULTS as COMPETING_DEFAULTS, ESTIMATE_FIELDS as COMPETING_ESTIMATES,
+    EVENTS as COMPETING_EVENTS, GRAPH as COMPETING_GRAPH, GRAPH_CAUSE as COMPETING_GRAPH_CAUSE,
+    GRAPH_FIELDS as COMPETING_GRAPH_FIELDS, LABEL_KEYS as COMPETING_LABEL_KEYS, TAB_KEYS as COMPETING_TAB_KEYS,
+    TIME_LIST as COMPETING_TIME_LIST, cancellable as competing_cancellable, check_options as check_competing_options,
+    visibility as competing_visibility)
+from analisi.competing_risks_dialog import (CodeListEditor, TimeListEditor, describe_error as describe_competing_error,
+                                            translate_error as translate_competing_error)
 from analisi.global_custom_dialog import (GlobalCoefficientTable, SeriesConstraintEditor,
                                           translate_error as translate_global_error)
 from analisi.global_custom_fit import (EXAMPLE_PARAMETERS as GLOBAL_EXAMPLE, GLOBAL_CUSTOM_EQUATION,
@@ -1004,6 +1013,7 @@ class AnalysisDialog(simpledialog.Dialog):
                   else 470 if self.method == HEAT_MAP
                   else 470 if self.method == NORMALITY
                   else 470 if self.method == REFERENCE_NORMALIZATION
+                  else 400 if self.method == COMPETING_RISKS
                   else 440 if self.method in {"Nonlinear regression", ROBUST_CURVE} else 352)
         # Keep the title bar, the heading, an error banner and the buttons on the screen of a 1024x768 monitor.
         room = max(240, self.winfo_screenheight() - ui_theme.px(230))
@@ -1174,6 +1184,13 @@ class AnalysisDialog(simpledialog.Dialog):
             tabs = {tr(ROBUST_TAB_KEYS["output"]): ROBUST_OUTPUT}
             starts = {ROBUST_X: numeric[0], ROBUST_Y: [numeric[1]]} if len(numeric) > 1 else {}
             saved = {**ROBUST_DEFAULTS, **starts, **saved}
+        elif self.method == COMPETING_RISKS:
+            # Data (columns and codes) / Estimates (times, level, Gray tests) / Graph.
+            self.fields.tab(variables, text=tr(COMPETING_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(COMPETING_TAB_KEYS["Estimates"]))
+            fields_by_tab.update(dict.fromkeys(COMPETING_DATA, variables))
+            fields_by_tab.update(dict.fromkeys(COMPETING_ESTIMATES, options))
+            tabs = {tr(COMPETING_TAB_KEYS["Graph"]): COMPETING_GRAPH_FIELDS}
         elif self.method == "Nonlinear regression":
             tabs = {tr("parameter_ci.tab"): (*PARAM_CI_OPTIONS, NL_BAND, NL_BAND_LEVEL, NL_BAND_DRAWING)}
         elif self.method == CUSTOM_EQUATION:
@@ -1270,9 +1287,11 @@ class AnalysisDialog(simpledialog.Dialog):
             tost_control = self.method == EQUIVALENCE and label in TOST_LABEL_KEYS
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
+            competing_control = self.method == COMPETING_RISKS and label in COMPETING_LABEL_KEYS
             reference_control = self.method == REFERENCE_NORMALIZATION and label in REFERENCE_LABEL_KEYS
             label_text = (tr(RANK_LABEL_KEYS[label]) if rank_control
                           else tr(ROBUST_LABEL_KEYS[label]) if robust_control
+                          else tr(COMPETING_LABEL_KEYS[label]) if competing_control
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
                           else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
@@ -1329,6 +1348,25 @@ class AnalysisDialog(simpledialog.Dialog):
                 field = EquationEditor(parent, saved.get(label, ""), on_check=checker)
                 field.grid(row=row + 1, column=0, columnspan=2, sticky="nsew", pady=3)
                 self.controls[label] = (kind, field)
+                self.field_rows[label] = heading, field
+                continue
+            if kind in (COMPETING_CODE_LIST, COMPETING_TIME_LIST):
+                # One value per line, kept as typed; a change of the event codes refreshes the drawn-cause choices.
+                if kind == COMPETING_CODE_LIST:
+                    field = CodeListEditor(parent, saved.get(label), on_change=self.refresh_competing_causes)
+                else:
+                    field = TimeListEditor(parent, saved.get(label))
+                field.grid(row=row, column=1, sticky="ew", pady=3)
+                self.controls[label] = (kind, field)
+                self.field_rows[label] = heading, field
+                continue
+            if kind == COMPETING_CAUSE:
+                # The empty value means the first cause. Other values are literal codes, never translated.
+                variable = tk.StringVar(value=saved.get(label) or "")
+                field = ttk.Combobox(parent, textvariable=variable, state="readonly", width=27)
+                self.choice_bindings[label] = ChoiceBinding(field, variable, [""], {"": COMPETING_CHOICE_KEYS[""]})
+                field.grid(row=row, column=1, sticky="ew", pady=3)
+                self.controls[label] = (kind, variable)
                 self.field_rows[label] = heading, field
                 continue
             if kind == PARAMETER_LIST:
@@ -1439,6 +1477,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     default = STATUS_DEFAULTS.get(label, default)
                 if self.method == COX:
                     default = COX_STATUS.get(label, default)
+                if self.method == COMPETING_RISKS:
+                    default = COMPETING_DEFAULTS.get(label, default)
                 if self.method == HEAT_MAP:
                     default = HEAT_MAP_GRADIENT_COLORS.get(label, default)
                     if label == CELL_LABEL_COLOR:
@@ -1518,6 +1558,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOST_CHOICE_KEYS)
                     elif robust_control and isinstance(kind, tuple) and label != ROBUST_MODEL:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ROBUST_CHOICE_KEYS)
+                    elif competing_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, COMPETING_CHOICE_KEYS)
                     elif self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and label == CUSTOM_SYNTAX:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, SYNTAX_CHOICE_KEYS)
                     elif self.method == CUSTOM_EQUATION and label == "Weighting":
@@ -1751,6 +1793,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 hint = ttk.Label(tab, text=tr(key), wraplength=ui_theme.px(400), foreground="#486075", justify="left")
                 hint.grid(row=positions[tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.show_fields(self.robust_fields())
+        if self.method == COMPETING_RISKS:
+            self.controls[COMPETING_GRAPH][1].trace_add("write", lambda *_: self.show_fields(self.competing_fields()))
+            self.show_fields(self.competing_fields())
+            self.refresh_competing_causes()
         if self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION):
             self.bind_equation_syntax()
             self._bind_scrollable_children(fields_by_tab["Equation"])
@@ -2796,6 +2842,18 @@ class AnalysisDialog(simpledialog.Dialog):
             return {}
         return robust_visibility(self.controls[ROBUST_SCALE_METHOD][1].get())
 
+    def competing_fields(self):
+        if self.method != COMPETING_RISKS or COMPETING_GRAPH not in self.controls:
+            return {}
+        return competing_visibility(self.controls[COMPETING_GRAPH][1].get())
+
+    def refresh_competing_causes(self):
+        """Offer the typed event codes for the drawn cause; a value that is no longer a code stays shown, never rewritten."""
+        binding = self.choice_bindings.get(COMPETING_GRAPH_CAUSE)
+        editor = self.controls.get(COMPETING_EVENTS)
+        if binding is not None and editor is not None:
+            binding.set_values(["", *editor[1].codes()])
+
     def robust_proposal(self):
         """Catalog starting values of the first fit with the columns and the model now chosen; {} when unknown."""
         box = self.controls[ROBUST_Y][1]
@@ -3241,7 +3299,8 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.one_way_fields(),
                       **self.monte_carlo_fields(), **self.function_fields(), **self.weighting_visibility(),
                       **self.band_fields(), **self.xy_error_fields(), **self.custom_fields(),
-                      **self.global_custom_fields(), **self.robust_fields(), **self.reference_visibility()}
+                      **self.global_custom_fields(), **self.robust_fields(), **self.competing_fields(),
+                      **self.reference_visibility()}
         try:
             for name, (kind, control) in self.controls.items():
                 if name in inactive:
@@ -3267,7 +3326,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         raise ValueError(f"Select at least one column for {name}.")
                 elif kind in (GROUP_ORDER, TREND_ORDER_KIND, DUNN_PAIR_LIST, PAIR_LIST, PROFILE_LIST, CURVE_LIST,
                               SETS_LIST, MODEL_LIST, EQUATION_TEXT, PARAMETER_LIST, INITIAL_LIST,
-                              GLOBAL_PARAMETER_LIST, GLOBAL_SERIES_LIST, CATEGORY_COLOR_LIST, TERM_LIST):
+                              GLOBAL_PARAMETER_LIST, GLOBAL_SERIES_LIST, CATEGORY_COLOR_LIST, TERM_LIST,
+                              COMPETING_CODE_LIST, COMPETING_TIME_LIST):
                     value = control.values()
                 else:
                     value = control.get()
@@ -3424,6 +3484,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == ROBUST_CURVE:
                 # Columns, limits, the domain and the starting values; the fits run on the worker.
                 check_robust_options(self.data, options)
+            if self.method == COMPETING_RISKS:
+                # Columns, codes, times, level and the size budgets; no curve is calculated here.
+                check_competing_options(self.data, options)
             if self.method == GLOBAL_CUSTOM_EQUATION:
                 if options.get("Weighting") != INVERSE_VARIANCE:
                     options[CUSTOM_SD] = None
@@ -3537,6 +3600,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     message = f"{label}: {message}"
             elif self.method == ROBUST_CURVE:
                 message = describe_robust_error(error, field)
+            elif self.method == COMPETING_RISKS:
+                message = describe_competing_error(error, field)
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
@@ -3882,6 +3947,12 @@ class Run:
     def name(self):
         source_title = self.source.table if self.source is not None else self.title
         return self.label or self.options.get(PRISM_TITLE) or f"{self.method} of {source_title}"
+
+
+def cancellable_run(method, options):
+    """Runs that report their progress or can be cancelled: Monte Carlo studies, exact Spearman and Gray tests."""
+    return (method == MONTE_CARLO_METHOD or extended_request(method, options)
+            or competing_cancellable(method, options))
 
 
 @dataclass
@@ -4831,7 +4902,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     shortcut = {"Kaplan–Meier survival": ("Graph settings…", SURVIVAL_CURVE),
                                 "Scatter / confidence ellipse": ("Confidence overlays…", "Ellipse"),
                                 HEAT_MAP: ("Graph settings…", self.heat_map_settings_field(run)),
-                                ROBUST_CURVE: ("Graph settings…", ROBUST_DISPLAY)}.get(run.method)
+                                ROBUST_CURVE: ("Graph settings…", ROBUST_DISPLAY),
+                                COMPETING_RISKS: ("Graph settings…", COMPETING_GRAPH)}.get(run.method)
                     if shortcut is None and (run.method in CATEGORY_GRAPHS or run.method == PARTS_GRAPH):
                         shortcut = "Graph settings…", "Graph style"
                     if shortcut:
@@ -6200,7 +6272,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         affected = sorted(affected, key=lambda item: PAIRWISE_SECTION in item[0].options)
         snapshots = [self.pairwise_snapshot(run) for run, _ in affected]
         self.status.set(f"Updating {len(affected)} linked analysis result(s)…")
-        control = CalculationControl() if any(run.method == MONTE_CARLO_METHOD or extended_request(run.method, run.options) for run, _ in affected) else None
+        control = CalculationControl() if any(cancellable_run(run.method, run.options) for run, _ in affected) else None
 
         def calculate():
             results, fresh = [], {}
@@ -6234,7 +6306,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             failures = []
             recovered = False
             for run, result, error in future.result():
-                if cancelled and (run.method == MONTE_CARLO_METHOD or extended_request(run.method, run.options)):
+                if cancelled and cancellable_run(run.method, run.options):
                     continue
                 run.result = result
                 run.calculation_error = str(error) if error and self._keeps_failed_result(run) else None
@@ -6263,6 +6335,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 self.status.set(f"{len(failures)} linked analyses need attention. {failures[0]}")
             elif recovered:
                 pass
+            elif cancelled and all(run.method == COMPETING_RISKS for run, _ in affected if cancellable_run(
+                    run.method, run.options)):
+                self.status.set(f"{COMPETING_RISKS} recalculation cancelled. Open the analysis to calculate again.")
             elif cancelled:
                 self.status.set("Monte Carlo recalculation cancelled. Open the study to calculate again.")
             else:
@@ -6449,7 +6524,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method == FDR_METHOD or run.method == VARIANCE_RATIO or self._pca_regression(run)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6457,7 +6532,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO) or self._pca_regression(run)
+        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
+                or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
 
@@ -6466,7 +6542,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if method in kmeans_options.METHODS and options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
-                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, "Multifactor ANOVA",
+                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, "Multifactor ANOVA",
                 REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
@@ -6522,6 +6598,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
+                     else describe_competing_error(error) if run.method == COMPETING_RISKS
                      else format_fdr_error(error) if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
@@ -6831,8 +6908,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         # A Monte Carlo study reports its blocks and stops between them when cancelled.
         parameter_profile = (run.method in ("Nonlinear regression", CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION)
                              and run.options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE)
-        control = CalculationControl() if (run.method == MONTE_CARLO_METHOD or parameter_profile
-                                           or extended_request(run.method, run.options)) else None
+        control = CalculationControl() if (parameter_profile or cancellable_run(run.method, run.options)) else None
         layout_data = self.layout_panel_data(run) if run.method == SAVED_BINARY_LAYOUT else None
         self.pending = self.worker.submit(self.compute, run, frame, None, control, layout_data, pairwise)
         self.begin_calculation(control)
@@ -6857,17 +6933,19 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.add_result(run, future.result(), index, reveal=reveal)
         except MonteCarloCancelled:
             # Nothing is recorded: a new study adds no recipe and an existing one keeps its last results.
+            noun = "analysis" if run.method == COMPETING_RISKS else "study"
             if index is None:
-                detail = "No study was added."
+                detail = f"No {noun} was added."
             elif self.runs[index].result is not None:
                 detail = "The last completed results are kept."
             else:
-                detail = "Open the study to calculate again."
+                detail = f"Open the {noun} to calculate again."
             self.status.set(f"{run.method} cancelled. {detail}")
         except Exception as error:
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
-                     else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO else error)
+                     else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
+                     else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -6979,7 +7057,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'variance.ratio.error.')
                      if run.method == VARIANCE_RATIO
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
-                     if run.method == "One-way ANOVA" else translate_reference_error(run.calculation_error))
+                     if run.method == "One-way ANOVA"
+                     else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
+                     else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
 
@@ -12583,6 +12663,12 @@ def smoke(root, app, directory, legacy_reference=None):
             select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
             filedialog=filedialog, errors=errors))
 
+    def check_competing_risks_smoke():
+        from analisi.competing_risks_smoke import check_competing_risks
+        check_competing_risks(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_reference_normalization_smoke():
         from analisi.reference_normalization_smoke import check_reference_normalization
         check_reference_normalization(root, app, directory, SimpleNamespace(
@@ -13244,6 +13330,14 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "equivalence":
             # The 0.71 Equivalence test (TOST) check alone: TRAMASTAT_SMOKE_ONLY=equivalence python tramastat.py --smoke DIR
             check_equivalence_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "competing-risks":
+            # The Competing risks check alone: TRAMASTAT_SMOKE_ONLY=competing-risks python tramastat.py --smoke DIR
+            check_competing_risks_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14019,6 +14113,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_correlation_details_smoke()
         check_spearman_extended_smoke()
         check_robust_curve_smoke()
+        check_competing_risks_smoke()
         check_nonlinear_weighting_smoke()
         check_global_irls_smoke()
         check_nonlinear_bands_smoke()

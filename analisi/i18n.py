@@ -3278,6 +3278,123 @@ _IT.update({
     "variance.ratio.error.flag": "Scegli sì o no.",
 })
 
+# Competing risks: captions, choices, hints and validation messages. The "cr.error." entries are the exact
+# English messages of the engine and the workbench with placeholders (see translate_message); field names inside
+# them are converted to the captions below, and worksheet text is copied literally. Recipes keep the English keys.
+_EN.update({
+    "cr.tab.data": "Data", "cr.tab.estimates": "Estimates", "cr.tab.graph": "Graph",
+    "cr.field.time": "Time", "cr.field.status": "Status", "cr.field.group": "Group",
+    "cr.field.censor": "Censor code", "cr.field.events": "Event codes", "cr.field.times": "Times",
+    "cr.field.level": "Confidence level (%)", "cr.field.gray": "Gray tests", "cr.field.graph": "Graph",
+    "cr.field.graph_cause": "Graph cause", "cr.field.display": "Display", "cr.field.bands": "Show confidence bands",
+    "cr.choice.off": "Off", "cr.choice.omnibus": "Omnibus", "cr.choice.pairwise": "Omnibus and pairwise",
+    "cr.choice.selected": "Selected cause", "cr.choice.all": "All causes", "cr.choice.fraction": "Fraction",
+    "cr.choice.percent": "Percent", "cr.choice.first_cause": "First cause",
+    "cr.hint.codes": "One code per line, in the order of the tables. A code is read exactly as typed, spaces "
+                     "included; the censor code and the event codes must all differ.",
+    "cr.hint.times": "Optional. One time per line: the estimates are also reported at these times. Blank lines "
+                     "are ignored.",
+    "cr.error.choose": "Choose a column for {role}.",
+    "cr.error.exists": 'Choose an existing column for {role}: "{name}" is not in the worksheet.',
+    "cr.error.unique": "Worksheet column names must be unique.",
+    "cr.error.code_text": '{field}: a code is written as text, such as "1".',
+    "cr.error.code_empty": "{field}: a code cannot be empty.",
+    "cr.error.code_whole": "{field}: {text} must be a whole number for a numeric status column.",
+    "cr.error.code_range": "{field}: {text} is outside the 64-bit integer range.",
+    "cr.error.status_type": 'Column "{name}" must hold whole-number codes or text, not booleans or complex numbers.',
+    "cr.error.status_value": 'Column "{name}" must hold whole-number codes or text; {value} is not allowed.',
+    "cr.error.status_mixed": 'Column "{name}" mixes numbers and text. Use one kind of status code.',
+    "cr.error.rows": "Competing risks reads up to {limit} rows; this worksheet has {count}.",
+    "cr.error.different": "Choose different columns for {first} and {role}.",
+    "cr.error.events_count": "{field}: enter 1 to {limit} codes.",
+    "cr.error.censor_missing": "{field}: enter a code.",
+    "cr.error.no_complete": "No complete rows: every row misses the time, the status or the group.",
+    "cr.error.time_numeric": 'Column "{name}" must be numeric.',
+    "cr.error.time_value": "Source row {row}: time {value} must be a finite number of 0 or more.",
+    "cr.error.censor_same": "Censor code and event code {text} are the same status. Use different codes.",
+    "cr.error.event_repeat": "{field}: {text} repeats an earlier code (the same status written twice).",
+    "cr.error.status_not_allowed": "Status {value} is not allowed.",
+    "cr.error.status_unknown": "Source row {row}: status {value} is neither the censor code nor one of the event "
+                               "codes.",
+    "cr.error.group_distinct": "Group names must stay distinct when written as text.",
+    "cr.error.groups": "Competing risks compares up to {limit} groups; column {name} has {count}.",
+    "cr.error.curve_rows": "The curve sheet would have {rows} rows (groups × distinct times × causes); the limit is "
+                           "{limit}. Round the times or use fewer causes or groups.",
+    "cr.error.gray_pairwise": "Pairwise Gray tests need {work} units of work; the limit is {limit}. Use Omnibus only.",
+    "cr.error.gray_groups": "The Gray test needs {work} units of work (groups² × distinct times × causes); the "
+                            "limit is {limit}. Compare fewer groups.",
+    "cr.error.gray_causes": "The Gray test needs {work} units of work (groups² × distinct times × causes); the "
+                            "limit is {limit}. Declare fewer causes.",
+    "cr.error.gray_times": "The Gray test needs {work} units of work (groups² × distinct times × causes); the "
+                           "limit is {limit}. Round the times so that fewer distinct values remain.",
+    "cr.error.bands": "{field} must be on or off.",
+    "cr.error.level": "{field} must be a number greater than 0 and less than 100.",
+    "cr.error.choice": "{field}: choose one of the listed options.",
+    "cr.error.times_list": "{field}: enter a list of times.",
+    "cr.error.times_many": "{field}: enter at most {limit} times; {count} were given.",
+    "cr.error.times_value": "{field}: value {position} ({shown}) must be a finite number of 0 or more.",
+    "cr.error.cause": "{field}: {cause} is not one of the event codes.",
+})
+_IT.update({
+    "cr.tab.data": "Dati", "cr.tab.estimates": "Stime", "cr.tab.graph": "Grafico",
+    "cr.field.time": "Tempo", "cr.field.status": "Stato", "cr.field.group": "Gruppo",
+    "cr.field.censor": "Codice di censura", "cr.field.events": "Codici dell’evento", "cr.field.times": "Tempi richiesti",
+    "cr.field.level": "Livello di confidenza (%)", "cr.field.gray": "Test di Gray", "cr.field.graph": "Grafico",
+    "cr.field.graph_cause": "Causa nel grafico", "cr.field.display": "Visualizzazione",
+    "cr.field.bands": "Mostra le bande di confidenza",
+    "cr.choice.off": "Disattivati", "cr.choice.omnibus": "Globale (omnibus)", "cr.choice.pairwise": "Globale e a coppie",
+    "cr.choice.selected": "Causa scelta", "cr.choice.all": "Tutte le cause", "cr.choice.fraction": "Frazione",
+    "cr.choice.percent": "Percentuale", "cr.choice.first_cause": "Prima causa",
+    "cr.hint.codes": "Un codice per riga, nell’ordine delle tabelle. Un codice si legge esattamente come scritto, "
+                     "spazi compresi; il codice di censura e i codici dell’evento devono essere tutti diversi.",
+    "cr.hint.times": "Facoltativo. Un tempo per riga: le stime sono riportate anche a questi tempi. Le righe vuote "
+                     "sono ignorate.",
+    "cr.error.choose": "Scegli una colonna per {role}.",
+    "cr.error.exists": 'Scegli una colonna esistente per {role}: "{name}" non è nel foglio.',
+    "cr.error.unique": "I nomi delle colonne del foglio devono essere univoci.",
+    "cr.error.code_text": '{field}: un codice si scrive come testo, per esempio "1".',
+    "cr.error.code_empty": "{field}: un codice non può essere vuoto.",
+    "cr.error.code_whole": "{field}: {text} deve essere un numero intero per una colonna di stato numerica.",
+    "cr.error.code_range": "{field}: {text} è fuori dall’intervallo degli interi a 64 bit.",
+    "cr.error.status_type": 'La colonna "{name}" deve contenere codici interi o testo, non valori booleani o '
+                            "complessi.",
+    "cr.error.status_value": 'La colonna "{name}" deve contenere codici interi o testo; {value} non è ammesso.',
+    "cr.error.status_mixed": 'La colonna "{name}" mescola numeri e testo. Usa un solo tipo di codice di stato.',
+    "cr.error.rows": "Rischi competitivi legge fino a {limit} righe; questo foglio ne ha {count}.",
+    "cr.error.different": "Scegli colonne diverse per {first} e {role}.",
+    "cr.error.events_count": "{field}: inserisci da 1 a {limit} codici.",
+    "cr.error.censor_missing": "{field}: inserisci un codice.",
+    "cr.error.no_complete": "Nessuna riga completa: in ogni riga mancano il tempo, lo stato o il gruppo.",
+    "cr.error.time_numeric": 'La colonna "{name}" deve essere numerica.',
+    "cr.error.time_value": "Riga origine {row}: il tempo {value} deve essere un numero finito pari ad almeno 0.",
+    "cr.error.censor_same": "Il codice di censura e il codice dell’evento {text} indicano lo stesso stato. "
+                            "Usa codici diversi.",
+    "cr.error.event_repeat": "{field}: {text} ripete un codice precedente (lo stesso stato scritto due volte).",
+    "cr.error.status_not_allowed": "Lo stato {value} non è ammesso.",
+    "cr.error.status_unknown": "Riga origine {row}: lo stato {value} non è né il codice di censura né uno dei "
+                               "codici dell’evento.",
+    "cr.error.group_distinct": "I nomi dei gruppi devono restare distinti quando sono scritti come testo.",
+    "cr.error.groups": "Rischi competitivi confronta fino a {limit} gruppi; la colonna {name} ne ha {count}.",
+    "cr.error.curve_rows": "Il foglio delle curve avrebbe {rows} righe (gruppi × tempi distinti × cause); il "
+                           "limite è {limit}. Arrotonda i tempi o usa meno cause o gruppi.",
+    "cr.error.gray_pairwise": "I test di Gray a coppie richiedono {work} unità di lavoro; il limite è {limit}. "
+                              "Usa solo il test globale.",
+    "cr.error.gray_groups": "Il test di Gray richiede {work} unità di lavoro (gruppi² × tempi distinti × cause); "
+                            "il limite è {limit}. Confronta meno gruppi.",
+    "cr.error.gray_causes": "Il test di Gray richiede {work} unità di lavoro (gruppi² × tempi distinti × cause); "
+                            "il limite è {limit}. Dichiara meno cause.",
+    "cr.error.gray_times": "Il test di Gray richiede {work} unità di lavoro (gruppi² × tempi distinti × cause); "
+                           "il limite è {limit}. Arrotonda i tempi in modo che restino meno valori distinti.",
+    "cr.error.bands": "{field} deve essere attivo o disattivo.",
+    "cr.error.level": "{field} deve essere un numero maggiore di 0 e minore di 100.",
+    "cr.error.choice": "{field}: scegli una delle opzioni elencate.",
+    "cr.error.times_list": "{field}: inserisci un elenco di tempi.",
+    "cr.error.times_many": "{field}: inserisci al massimo {limit} tempi; ne hai dati {count}.",
+    "cr.error.times_value": "{field}: il valore {position} ({shown}) deve essere un numero finito pari ad "
+                            "almeno 0.",
+    "cr.error.cause": "{field}: {cause} non è uno dei codici dell’evento.",
+})
+
 # Common dialog captions and analysis selectors are translated only at explicit
 # rendering boundaries. No widget hooks touch user titles, columns or data.
 from .interface_catalog import CAPTIONS as _INTERFACE_CAPTIONS, MESSAGES as _INTERFACE_MESSAGES
