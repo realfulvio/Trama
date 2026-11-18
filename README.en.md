@@ -12,7 +12,7 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-**New in 0.87 beta:** category colors and five optional principal component analysis reports. [What’s new](docs/release-087.md) · [Verification](docs/validation-087.md).
+**New in 0.88 beta:** compatible imported scatter plots retain editable coordinates, category colors and linear axes. [What’s new](docs/release-088.md) · [Verification](docs/validation-088.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
