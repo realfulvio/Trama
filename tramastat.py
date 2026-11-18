@@ -12923,6 +12923,17 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "power-from-summary":
+            # The Tools → Power and sample size check alone: TRAMASTAT_SMOKE_ONLY=power-from-summary python tramastat.py --smoke DIR
+            from analisi.power_plan_smoke import check_power_plan
+            check_power_plan(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+                wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "model-selection":
             # The Compare models (AICc) check alone: TRAMASTAT_SMOKE_ONLY=model-selection python tramastat.py --smoke DIR
             from analisi.model_selection_smoke import check_model_selection
@@ -14074,6 +14085,10 @@ def smoke(root, app, directory, legacy_reference=None):
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
         from analisi.plot_function_smoke import check_plot_function
         check_plot_function(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
+        from analisi.power_plan_smoke import check_power_plan
+        check_power_plan(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
         from analisi.model_selection_smoke import check_model_selection

@@ -35,6 +35,10 @@ I test esatti hanno limiti di calcolo dichiarati; quando è prevista una scelta 
 
 Sono disponibili normalità e Q–Q, screening di outlier ROUT su modello costante e Grubbs, tabelle di contingenza e misure diagnostiche. Per le tabelle 2×2 sono disponibili, fra gli altri, intervalli Koopman per il rischio relativo e Baptista–Pike per l'odds ratio.
 
+### Potenza e numerosità da medie e SD
+
+**Tools → Power and sample size…** pianifica uno studio con t a un campione, t appaiato, t indipendente (con allocazione esatta A:B) o ANOVA a una via bilanciata, partendo dalle medie e dalle SD attese oppure da un effetto standardizzato. Cerca la numerosità minima o calcola la potenza e può disegnare la curva di potenza come grafico nativo. [Conversione, allocazione e assunzioni](power-from-summary.md).
+
 ## Regressioni, curve e calibrazione
 
 - Regressione lineare, confronto fra rette, Deming, regressioni multiple OLS (anche pesate con pesi fissi gaussiani: 1/|Y|, 1/Y², 1/|Y|^K, 1/SD² o colonna di pesi), logistiche e Poisson con esposizione e diagnostica.
