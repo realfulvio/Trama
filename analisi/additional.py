@@ -4,7 +4,8 @@ from matplotlib.ticker import PercentFormatter
 from scipy import stats
 
 from . import (auc_peaks, cox_outputs, design, exploration, inference, logistic_diagnostics, lognormal_anova, mlr_weighting,
-               models, ols_diagnostics, operations, pca_graphs, pca_reports, pca_retention, trend_anova, unequal_anova,
+               models, ols_diagnostics, operations, pca_graphs, pca_regression, pca_reports, pca_retention, trend_anova,
+               unequal_anova,
                variance_assumptions, roc as roc_module)
 from . import plot_function as function_plot
 from .deming import identity_limits, jackknife_deming
@@ -79,7 +80,11 @@ EXTRA_METHODS = {
                                     pca_graphs.HORIZONTAL: 1, pca_graphs.VERTICAL: 2,
                                     pca_graphs.LABEL: OPTIONAL, pca_graphs.SHOW_LABELS: False,
                                     pca_graphs.COLOR_GROUPS: OPTIONAL,
-                                    **pca_retention.OPTIONS, **pca_reports.OPTIONS},
+                                    **pca_retention.OPTIONS, **pca_reports.OPTIONS,
+                                    # Off (and missing keys) keeps every PCA output; the rest is read only when on.
+                                    pca_regression.ENABLE: False, pca_regression.RESPONSE: OPTIONAL,
+                                    pca_regression.CONFIDENCE: pca_regression.DEFAULT_CONFIDENCE,
+                                    pca_regression.PLOT: pca_regression.PLOTS},
     "Multiple regression": {"Response": None, "Predictors": MULTIPLE,
                             "Categorical predictors": OPTIONAL_MULTIPLE, "Family": ("Linear", "Logistic", "Poisson"),
                             # Poisson only; older recipes carry none of these keys and keep unit exposure.
@@ -292,6 +297,7 @@ def _pca(frame, o):
     # Recipes without the graph keys keep the historical sheets and the PC1/PC2 scatter.
     if pca_graphs.present(o):
         return pca_graphs.pca_result(frame, o)
+    regression = pca_regression.settings(frame, o)
     parts, loadings, scores = exploration.pca(frame, o["Variables"], o["Standardize"])
     retention = pca_retention.assess(frame, o, parts, loadings, scores)
     fig, ax = _plot("Principal component scores", "PC1", "PC2")
@@ -299,6 +305,10 @@ def _pca(frame, o):
     tables = {"Explained variance": parts, "Eigenvectors": loadings, "Scores": scores}
     tables.update(retention.tables)
     tables.update(pca_reports.optional_tables(frame, o, parts, loadings, scores, retention))
+    if regression is not None:
+        found = pca_regression.regress(frame, o, regression, parts, loadings, scores, retention)
+        tables.update(found.tables)
+        fig = found.figure or fig
     return Result(tables, fig)
 
 
