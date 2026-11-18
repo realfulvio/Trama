@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from analisi.distribution_graphs import MAX_POINTS
+from analisi import i18n
 from analisi.grouped_distributions import (CELLS_SHEET, DENSITY_SHEET, GROUPED_DISTRIBUTIONS, MAX_CELLS,
                                            OBSERVATIONS_SHEET, cell_identity, parse_identity, visibility)
 from analisi.graph_legend import collect_legend_entries, is_valid_entry_key, typed_group_token
@@ -386,6 +387,46 @@ class Legend(unittest.TestCase):
 
     def test_an_unsplit_plot_has_no_legend(self):
         self.assertIsNone(grouped(self.frame, **{"Split by": ""}).figure.axes[0].get_legend())
+
+
+class Translation(unittest.TestCase):
+    """Every message of the engine has an Italian text that keeps worksheet names literal."""
+
+    def setUp(self):
+        self.previous = i18n.active_language()
+        i18n.set_language("it")
+        self.addCleanup(i18n.set_language, self.previous)
+
+    def italian(self, frame, **options):
+        with self.assertRaises(FieldError) as raised:
+            analyse(METHOD, frame, {"Response": "y", "Category": "c", **options})
+        english = str(raised.exception)
+        i18n.set_language("en")
+        try:
+            self.assertEqual(i18n.translate_message(english, "grouped.error.", {"field": i18n.ui}), english)
+        finally:
+            i18n.set_language("it")
+        return english, i18n.translate_message(english, "grouped.error.", {"field": i18n.ui})
+
+    def test_engine_messages_are_translated_and_worksheet_names_stay_literal(self):
+        frame = pd.DataFrame({"y": [1., 2., 3., 4.], "c": list("aabb"), "$s$": list("xyxy"), "t": list("abcd")})
+        cases = (({"Category": "y"}, "diversa dalla risposta"), ({"Category": ""}, "Scegli una colonna per Categoria"),
+                 ({"Category": "zz"}, "colonna esistente"), ({"Split by": "c"}, "diversa da Risposta e Categoria"),
+                 ({"Response": "t"}, '"t"'), ({"Style": "Violin", "Bandwidth multiplier": -1}, "maggiore di zero"),
+                 ({"Style": "Cone"}, "valore valido"), ({"Show mean": 3}, "sì o no"))
+        for options, fragment in cases:
+            english, text = self.italian(frame, **options)
+            self.assertNotEqual(text, english, options)
+            self.assertIn(fragment, text, (options, text))
+            self.assertNotIn("{", text, options)
+        english, text = self.italian(pd.DataFrame({"y": np.arange(41.), "c": np.arange(41)}))
+        self.assertEqual(text, "Traccia fino a 40 celle alla volta (41 categorie × 1 serie).")
+
+    def test_catalog_captions_for_the_dialog(self):
+        self.assertEqual(i18n.ui(METHOD), "Distribuzioni raggruppate")
+        self.assertEqual((i18n.ui("Category"), i18n.ui("Split by")), ("Categoria", "Dividi per"))
+        for field in METHODS[METHOD]:
+            self.assertIn(field, i18n.KEY_BY_LABEL, field)
 
 
 class Export(unittest.TestCase):

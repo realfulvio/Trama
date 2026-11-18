@@ -12536,6 +12536,13 @@ def smoke(root, app, directory, legacy_reference=None):
             capture=capture, drive_dialog=drive_dialog, wait_for_calculation=wait_for_calculation,
             messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_grouped_distributions_smoke():
+        from analisi.grouped_distributions_smoke import check_grouped_distributions
+        check_grouped_distributions(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, LayoutDialog=LayoutDialog, capture=capture, drive_dialog=drive_dialog,
+            pick_method=pick_method, select_columns=select_columns, wait_for_calculation=wait_for_calculation,
+            messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_equivalence_smoke():
         from analisi.equivalence_smoke import check_equivalence
         check_equivalence(root, app, directory, SimpleNamespace(
@@ -13258,6 +13265,14 @@ def smoke(root, app, directory, legacy_reference=None):
             # Detailed correlation, control and independent correlations:
             # TRAMASTAT_SMOKE_ONLY=correlation-details python tramastat.py --smoke DIR
             check_correlation_details_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "grouped-distributions":
+            # The grouped box and violin plots check alone: TRAMASTAT_SMOKE_ONLY=grouped-distributions python tramastat.py --smoke DIR
+            check_grouped_distributions_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14113,6 +14128,7 @@ def smoke(root, app, directory, legacy_reference=None):
             app=app, root=root, directory=directory, capture=capture, pick_method=pick_method,
             select_columns=select_columns, drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
             wait_for_calculation=wait_for_calculation))
+        check_grouped_distributions_smoke()
         check_box_violin()
         check_rank_comparisons()
         check_graph_inspector()

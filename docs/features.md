@@ -67,7 +67,7 @@ Trasformazioni, normalizzazione, baseline anche con repliche, frazioni del total
 
 ## Grafici e figure
 
-Grafici XY con più serie e due assi Y, barre d'errore anche asimmetriche, Column e Grouped, pile e pile al 100%, punti individuali, box e violini, prima/dopo e traiettorie, forest plot, bubble plot e grafici di composizione.
+Grafici XY con più serie e due assi Y, barre d'errore anche asimmetriche, Column e Grouped, pile e pile al 100%, punti individuali, box e violini (anche raggruppati per categoria e serie), prima/dopo e traiettorie, forest plot, bubble plot e grafici di composizione.
 
 Formattazione di assi, serie, gruppi e legende; Inspector con anteprima; confronti statistici collegati al grafico, parentesi, stelle e lettere nei metodi supportati. Annotazioni e forme native, selezione e disposizione degli oggetti, tratteggi, frecce, riempimenti e colori distinti.
 
