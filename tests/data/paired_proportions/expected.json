@@ -1,0 +1,110 @@
+{
+  "direction": {
+    "N pairs": 17,
+    "Before positive fraction": 0.23529411764705882,
+    "After positive fraction": 0.6470588235294118,
+    "Difference (after − before)": 0.4117647058823529,
+    "Discordant pairs": 11,
+    "Chi-square": null,
+    "p": 0.0654296875,
+    "Matched odds ratio": 4.5,
+    "OR CI lower": 0.9314122581937677,
+    "OR CI upper": 42.7997159352678
+  },
+  "reversed": {
+    "N pairs": 17,
+    "Before positive fraction": 0.6470588235294118,
+    "After positive fraction": 0.23529411764705882,
+    "Difference (after − before)": -0.4117647058823529,
+    "Discordant pairs": 11,
+    "Chi-square": null,
+    "p": 0.0654296875,
+    "Matched odds ratio": 0.2222222222222222,
+    "OR CI lower": 0.02336464105304921,
+    "OR CI upper": 1.0736384358299518
+  },
+  "mid": {
+    "N pairs": 17,
+    "Before positive fraction": 0.23529411764705882,
+    "After positive fraction": 0.6470588235294118,
+    "Difference (after − before)": 0.4117647058823529,
+    "Discordant pairs": 11,
+    "Chi-square": null,
+    "p": 0.03857421875,
+    "Matched odds ratio": 4.5,
+    "OR CI lower": 1.1272667123037368,
+    "OR CI upper": 29.012709466264116
+  },
+  "continuity": {
+    "N pairs": 17,
+    "Before positive fraction": 0.23529411764705882,
+    "After positive fraction": 0.6470588235294118,
+    "Difference (after − before)": 0.4117647058823529,
+    "Discordant pairs": 11,
+    "Chi-square": 3.272727272727273,
+    "p": 0.070440429272088,
+    "Matched odds ratio": 4.5,
+    "OR CI lower": 0.9314122581937677,
+    "OR CI upper": 42.7997159352678
+  },
+  "one-way-gains": {
+    "N pairs": 12,
+    "Before positive fraction": 0.16666666666666666,
+    "After positive fraction": 0.6666666666666666,
+    "Difference (after − before)": 0.5,
+    "Discordant pairs": 6,
+    "Chi-square": null,
+    "p": 0.03125,
+    "Matched odds ratio": "+inf",
+    "OR CI lower": 1.1774247257241781,
+    "OR CI upper": "+inf"
+  },
+  "one-way-losses": {
+    "N pairs": 12,
+    "Before positive fraction": 0.6666666666666666,
+    "After positive fraction": 0.16666666666666666,
+    "Difference (after − before)": -0.5,
+    "Discordant pairs": 6,
+    "Chi-square": null,
+    "p": 0.03125,
+    "Matched odds ratio": 0.0,
+    "OR CI lower": 0.0,
+    "OR CI upper": 0.8493111942973236
+  },
+  "no-discordance": {
+    "N pairs": 9,
+    "Before positive fraction": 0.5555555555555556,
+    "After positive fraction": 0.5555555555555556,
+    "Difference (after − before)": 0.0,
+    "Discordant pairs": 0,
+    "Chi-square": null,
+    "p": 1.0,
+    "Matched odds ratio": null,
+    "OR CI lower": null,
+    "OR CI upper": null
+  },
+  "even-middle": {
+    "N pairs": 12,
+    "Before positive fraction": 0.4166666666666667,
+    "After positive fraction": 0.4166666666666667,
+    "Difference (after − before)": 0.0,
+    "Discordant pairs": 6,
+    "Chi-square": null,
+    "p": 1.0,
+    "Matched odds ratio": 1.0,
+    "OR CI lower": 0.1339375881777302,
+    "OR CI upper": 7.466164006724067
+  },
+  "adjacent": {
+    "N pairs": 11,
+    "Before positive fraction": 0.45454545454545453,
+    "After positive fraction": 0.36363636363636365,
+    "Difference (after − before)": -0.09090909090909091,
+    "Discordant pairs": 5,
+    "Chi-square": 0.0,
+    "p": 1.0,
+    "Matched odds ratio": 0.6666666666666666,
+    "OR CI lower": 0.05568188900721432,
+    "OR CI upper": 5.819756578960775
+  }
+}
