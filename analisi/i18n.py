@@ -2968,6 +2968,111 @@ _ANOVA_TERMS_IT = {
 _EN.update(_ANOVA_TERMS_EN)
 _IT.update(_ANOVA_TERMS_IT)
 
+# Repeated measures ANOVA: Greenhouse–Geisser correction for one or two within-subject factors (0.93).
+# The recipe keeps the English choice names; these texts only change what the dialog shows.
+_RM_SPHERICITY_EN = {
+    "rm.sphericity.choice.legacy": "Geisser–Greenhouse (one-way, saved recipe)",
+    "rm.sphericity.note.none": "No correction: the F tests use the unadjusted degrees of freedom and assume sphericity.",
+    "rm.sphericity.note.gg": "Each effect gets its own Greenhouse–Geisser epsilon from the contrast scores of that effect. "
+                             "Epsilon shrinks the degrees of freedom of its F test, so they can be fractional. "
+                             "The corrected p values are for the omnibus tests. This choice adds no post-hoc "
+                             "correction, no Mauchly test, no Huynh–Feldt correction and no REML mixed model. "
+                             "It needs a complete design: one numeric Response from every subject in every cell of "
+                             "one or two within-subject Factors.",
+    "rm.sphericity.note.legacy": "Saved recipe: the one-way Geisser–Greenhouse correction for a single Factor. "
+                                 "Choose Geisser–Greenhouse to correct one or two Factors.",
+    "rm.sphericity.error.choice": "Choose None or Geisser–Greenhouse.",
+    "rm.sphericity.error.legacy_two": "The one-way Geisser–Greenhouse choice applies to a single Factor. "
+                                      "Choose Geisser–Greenhouse to correct two Factors.",
+    "rm.sphericity.error.factors": "Choose one or two within-subject Factors.",
+    "rm.sphericity.error.roles": "Column {column} is chosen for more than one role. Response, Factors and Subject "
+                                 "need different columns.",
+    "rm.sphericity.error.empty": "There are no rows with data in the selected columns.",
+    "rm.sphericity.error.subject_blank": "Rows without a Subject: {count}. Every measurement needs a subject.",
+    "rm.sphericity.error.factor_empty": "{factor} has no levels: the column is empty in every row.",
+    "rm.sphericity.error.factor_blank": "Rows without a level of {factor}: {count}. Every measurement needs a "
+                                        "level of each Factor.",
+    "rm.sphericity.error.nonnumeric": "Response must be numeric and finite, but {value} was found for subject "
+                                      "{subject} (non-numeric or infinite values in all: {count}).",
+    "rm.sphericity.error.blank": "Response is empty for subject {subject} in {cell} (empty values in all: {count}). "
+                                 "Each subject needs one numeric Response in each of the {cells} combinations of "
+                                 "{factors}; nothing is imputed or excluded pairwise.",
+    "rm.sphericity.error.levels": "{factor} needs at least two levels, but the data have {count}.",
+    "rm.sphericity.error.subjects": "At least two subjects are needed, but the data have {count}.",
+    "rm.sphericity.error.duplicate": "Subject {subject} has {count} measurements for {cell}. Each subject needs "
+                                     "exactly one Response in each of the {cells} combinations of {factors}.",
+    "rm.sphericity.error.incomplete": "Subject {subject} has no measurement for {cell} (subjects with missing "
+                                      "cells: {count}). Each subject needs one Response in each of the {cells} "
+                                      "combinations of {factors}. Between-subject and mixed designs are not "
+                                      "supported.",
+    "rm.sphericity.error.structure": "Every subject lacks some of the {cells} combinations of {factors}; for "
+                                     "example subject {subject} has no measurement for {cell}. Each subject needs "
+                                     "one Response in each combination, so check the Factors for levels that occur "
+                                     "only for some subjects. Between-subject and mixed designs are not supported.",
+    "rm.sphericity.error.scale": "Response values are too large to analyse reliably (largest magnitude {value}). "
+                                 "Divide the Response by a constant, for example by changing the units, and run "
+                                 "the analysis again.",
+    "rm.sphericity.error.small": "Differences between the measurements of a subject are too small to analyse "
+                                 "reliably (largest difference {value}). Multiply the Response by a constant, for "
+                                 "example by changing the units, and run the analysis again.",
+    "rm.sphericity.error.residual": "No measurable subject-by-effect residual variance for \"{term}\". Every "
+                                    "subject shows the same pattern for this effect, so its F ratio has no error "
+                                    "term.",
+}
+_RM_SPHERICITY_IT = {
+    "rm.sphericity.choice.legacy": "Geisser–Greenhouse (una via, ricetta salvata)",
+    "rm.sphericity.note.none": "Nessuna correzione: i test F usano i gradi di libertà non corretti e presuppongono "
+                               "la sfericità.",
+    "rm.sphericity.note.gg": "Ogni effetto ha un proprio epsilon di Greenhouse–Geisser, calcolato dai punteggi dei "
+                             "suoi contrasti. L’epsilon riduce i gradi di libertà del test F, che possono quindi "
+                             "essere frazionari. I valori p corretti sono quelli dei test omnibus. Questa scelta "
+                             "non aggiunge correzioni post-hoc, test di Mauchly, correzione di Huynh–Feldt né un "
+                             "modello misto REML. Richiede un disegno completo: una Risposta numerica di ogni "
+                             "soggetto in ogni cella di uno o due Fattori entro soggetto.",
+    "rm.sphericity.note.legacy": "Ricetta salvata: correzione di Geisser–Greenhouse a una via per un solo Fattore. "
+                                 "Scegli Geisser–Greenhouse per correggere uno o due Fattori.",
+    "rm.sphericity.error.choice": "Scegli Nessuno o Geisser–Greenhouse.",
+    "rm.sphericity.error.legacy_two": "La scelta Geisser–Greenhouse a una via vale per un solo Fattore. "
+                                      "Scegli Geisser–Greenhouse per correggere due Fattori.",
+    "rm.sphericity.error.factors": "Scegli uno o due Fattori entro soggetto.",
+    "rm.sphericity.error.roles": "La colonna {column} è scelta per più di un ruolo. Risposta, Fattori e Soggetto "
+                                 "richiedono colonne diverse.",
+    "rm.sphericity.error.empty": "Non ci sono righe con dati nelle colonne scelte.",
+    "rm.sphericity.error.subject_blank": "Righe senza Soggetto: {count}. Ogni misura richiede un soggetto.",
+    "rm.sphericity.error.factor_empty": "{factor} non ha livelli: la colonna è vuota in ogni riga.",
+    "rm.sphericity.error.factor_blank": "Righe senza un livello di {factor}: {count}. Ogni misura richiede un "
+                                        "livello per ogni Fattore.",
+    "rm.sphericity.error.nonnumeric": "La Risposta deve essere numerica e finita, ma per il soggetto {subject} è "
+                                      "stato trovato {value} (valori non numerici o infiniti in tutto: {count}).",
+    "rm.sphericity.error.blank": "La Risposta è vuota per il soggetto {subject} in {cell} (valori vuoti in tutto: "
+                                 "{count}). Ogni soggetto richiede una Risposta numerica in ciascuna delle {cells} "
+                                 "combinazioni di {factors}; non si imputa nulla e non si esclude a coppie.",
+    "rm.sphericity.error.levels": "{factor} richiede almeno due livelli, ma i dati ne hanno {count}.",
+    "rm.sphericity.error.subjects": "Servono almeno due soggetti, ma i dati ne hanno {count}.",
+    "rm.sphericity.error.duplicate": "Il soggetto {subject} ha {count} misure per {cell}. Ogni soggetto richiede "
+                                     "esattamente una Risposta in ciascuna delle {cells} combinazioni di {factors}.",
+    "rm.sphericity.error.incomplete": "Il soggetto {subject} non ha una misura per {cell} (soggetti con celle "
+                                      "mancanti: {count}). Ogni soggetto richiede una Risposta in ciascuna delle "
+                                      "{cells} combinazioni di {factors}. I disegni fra soggetti e quelli misti "
+                                      "non sono supportati.",
+    "rm.sphericity.error.structure": "Ogni soggetto manca di alcune delle {cells} combinazioni di {factors}; per "
+                                     "esempio il soggetto {subject} non ha una misura per {cell}. Ogni soggetto "
+                                     "richiede una Risposta in ogni combinazione: controlla i Fattori per livelli "
+                                     "presenti solo per alcuni soggetti. I disegni fra soggetti e quelli misti non "
+                                     "sono supportati.",
+    "rm.sphericity.error.scale": "I valori della Risposta sono troppo grandi per un’analisi affidabile (massima "
+                                 "grandezza {value}). Dividi la Risposta per una costante, per esempio cambiando "
+                                 "l’unità di misura, e riesegui l’analisi.",
+    "rm.sphericity.error.small": "Le differenze fra le misure di un soggetto sono troppo piccole per un’analisi "
+                                 "affidabile (differenza massima {value}). Moltiplica la Risposta per una "
+                                 "costante, per esempio cambiando l’unità di misura, e riesegui l’analisi.",
+    "rm.sphericity.error.residual": "Nessuna varianza residua misurabile soggetto per effetto per \"{term}\". "
+                                    "Ogni soggetto mostra lo stesso andamento per questo effetto, quindi il suo "
+                                    "rapporto F non ha un termine d’errore.",
+}
+_EN.update(_RM_SPHERICITY_EN)
+_IT.update(_RM_SPHERICITY_IT)
+
 # One-way variance homogeneity. Saved option keys stay the English names.
 _VARIANCE_ASSUMPTIONS_EN = {
     "variance.assumptions.tab": "Diagnostics/Assumptions",

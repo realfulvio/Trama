@@ -315,6 +315,8 @@ from analisi.anova_terms import (FULL as ANOVA_FULL_TERMS, MODEL_TERMS as ANOVA_
                                  TERM_SELECTION as ANOVA_TERM_SELECTION, active_factors as anova_active_factors,
                                  check_comparison_controls as check_anova_comparisons, check_options as check_anova_terms)
 from analisi.anova_terms_dialog import ANOVA_MODEL_TAB, TermPicker
+from analisi import rm_sphericity
+from analisi.rm_sphericity import format_error as format_rm_error
 from analisi.processing import (BASELINES, COMBINED_TOTALS, DENOMINATORS, FieldError, INTERVALS,
                                 METHODS as PROCESSING_METHODS, PRUNE_MODES, WILSON_BROWN)
 
@@ -1007,6 +1009,7 @@ class AnalysisDialog(simpledialog.Dialog):
         self.global_series = None
         self.mlr_note = None
         self.reference_replicate_note = None
+        self.sphericity_note = None
         wanted = (430 if self.method == GLOBAL_CUSTOM_EQUATION
                   else 470 if self.method == "Multiple regression"
                   else 500 if self.method == "One-way ANOVA"
@@ -1525,6 +1528,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 choices = (kind if isinstance(kind, tuple) else [] if kind == GROUP_CHOICE
                            else forest_labels if kind == FOREST_ROW_CHOICE
                            else [""] + columns if kind == OPTIONAL else columns)
+                if self.method == rm_sphericity.METHOD and label == rm_sphericity.FIELD:
+                    # The one-way spelling is offered only when the opened recipe already uses it.
+                    choices = rm_sphericity.choices_for(saved)
                 if kind == FOREST_ROW_CHOICE:
                     default = forest_rows.get(label, "")
                 elif kind is None and label in category_roles and categorical:
@@ -1605,6 +1611,10 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(
                             field, variable, choices,
                             fixed_choice_keys((*SUMMARY_ORDINARY_POSTHOC, *SUMMARY_UNEQUAL_POSTHOC)))
+                    elif self.method == rm_sphericity.METHOD and label == rm_sphericity.FIELD:
+                        self.choice_bindings[label] = ChoiceBinding(
+                            field, variable, choices,
+                            {**fixed_choice_keys(choices), rm_sphericity.LEGACY: "rm.sphericity.choice.legacy"})
                     elif isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, fixed_choice_keys(choices))
             field.grid(row=row, column=1, sticky="ew", pady=3)
@@ -1706,6 +1716,13 @@ class AnalysisDialog(simpledialog.Dialog):
                       foreground="#486075", justify="left").grid(
                 row=positions[output_tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.show_reference_fields()
+        if self.method == rm_sphericity.METHOD:
+            # A note under the choice says what each correction does and what it does not add.
+            self.sphericity_note = ttk.Label(options, text="", wraplength=ui_theme.px(420), foreground="#486075",
+                                             justify="left")
+            self.sphericity_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.controls[rm_sphericity.FIELD][1].trace_add("write", lambda *_: self.show_sphericity_note())
+            self.show_sphericity_note()
         if self.method == CORRELATION_MATRIX:
             self.controls["Method"][1].trace_add("write", lambda *_: self.show_fields(self.correlation_visibility()))
             self.show_fields(self.correlation_visibility())
@@ -2551,6 +2568,15 @@ class AnalysisDialog(simpledialog.Dialog):
                 alpha = None
             if alpha is not None and np.isfinite(alpha) and 0 < alpha < 1:
                 options[VARIANCE_ALPHA] = alpha
+
+    def show_sphericity_note(self):
+        note = self.sphericity_note
+        if note is None or not note.winfo_exists() or rm_sphericity.FIELD not in self.controls:
+            return
+        key = {rm_sphericity.NONE: "rm.sphericity.note.none",
+               rm_sphericity.LEGACY: "rm.sphericity.note.legacy"}.get(
+            self.controls[rm_sphericity.FIELD][1].get(), "rm.sphericity.note.gg")
+        note.configure(text=tr(key))
 
     def anova_fields(self):
         if self.method != "Multifactor ANOVA":
@@ -3561,7 +3587,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     or self.method == PARTS_GRAPH
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
                                        BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
-                                       "One-way ANOVA", REFERENCE_NORMALIZATION,
+                                       "One-way ANOVA", REFERENCE_NORMALIZATION, rm_sphericity.METHOD,
                                        SPLINE_FIT, COMPARE_MODELS, XY_ERRORS}):
                 # Keep field errors in the dialog and reuse the successful result.
                 self.configure(cursor="watch")
@@ -3642,6 +3668,8 @@ class AnalysisDialog(simpledialog.Dialog):
             elif self.method == "Interpolate a standard curve":
                 message = translate_calibration_error(error)
             elif self.method == "Multifactor ANOVA" and (formatted := format_anova_error(error)):
+                message = formatted
+            elif self.method == rm_sphericity.METHOD and (formatted := format_rm_error(error)):
                 message = formatted
             elif self.method == "One-way ANOVA" and (
                     formatted := lognormal_anova.format_error(error) or format_variance_error(error)):
@@ -6554,7 +6582,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
                 CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, "Multifactor ANOVA",
-                REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
+                REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, rm_sphericity.METHOD):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if (method == "Multiple regression" and options.get("Family") == "Linear"
@@ -6606,6 +6634,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                    else translate_heat_map_error(error) if run.method == HEAT_MAP
                    else ui(str(error)) if run.method in kmeans_options.METHODS else str(error))
         formatted = (format_anova_error(error) if run.method == "Multifactor ANOVA"
+                     else format_rm_error(error) if run.method == rm_sphericity.METHOD
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
@@ -6647,7 +6676,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if self.refresh_chain_calculations([(run, None)], inputs_changed=False):
             return
         recovery = (self.weighting_recovery(run.method, run.options, index)
-                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO}
+                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO,
+                                      rm_sphericity.METHOD}
                     or self._pca_regression(run) else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
@@ -13501,6 +13531,20 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "rm-two-way-sphericity":
+            # The Greenhouse–Geisser correction of two within-subject factors alone:
+            # TRAMASTAT_SMOKE_ONLY=rm-two-way-sphericity python tramastat.py --smoke DIR
+            from analisi.rm_sphericity_smoke import check_rm_two_way_sphericity
+            check_rm_two_way_sphericity(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+                select_columns=select_columns,
+                drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+                wait_for_calculation=wait_for_calculation))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "confidence-overlays":
             check_confidence_overlays()
             assert not errors, errors
@@ -14340,6 +14384,12 @@ def smoke(root, app, directory, legacy_reference=None):
             wait_for_calculation=wait_for_calculation))
         from analisi.anova_terms_smoke import check_anova_selected_terms
         check_anova_selected_terms(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+            select_columns=select_columns,
+            drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+            wait_for_calculation=wait_for_calculation))
+        from analisi.rm_sphericity_smoke import check_rm_two_way_sphericity
+        check_rm_two_way_sphericity(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
             select_columns=select_columns,
             drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),

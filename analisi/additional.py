@@ -15,7 +15,7 @@ from .reporting import Result, _plot, _report
 from .repeated_workbench import METHODS as REPEATED_METHODS, global_analysis, mixed_analysis
 from . import custom_fit, global_custom_fit, spline_fit
 from .stats import complete
-from . import fdr_control
+from . import fdr_control, rm_sphericity
 
 MULTIPLE, OPTIONAL, OPTIONAL_MULTIPLE = "Multiple", "Optional", "Multiple (optional)"
 CORRECTIONS = {"Holm": "holm", "Bonferroni": "bonferroni", "FDR (Benjamini–Hochberg)": "fdr_bh",
@@ -38,7 +38,7 @@ EXTRA_METHODS = {
                       variance_assumptions.BROWN: False, variance_assumptions.BARTLETT: False,
                       variance_assumptions.ALPHA: variance_assumptions.DEFAULT_ALPHA},
     "Repeated measures ANOVA": {"Response": None, "Factors": MULTIPLE, "Subject": None,
-                                "Sphericity correction": ("None", "Geisser–Greenhouse (one-way)")},
+                                rm_sphericity.FIELD: rm_sphericity.CHOICES},
     "Friedman": {"Response": None, "Group": None, "Subject": None,
                  inference.FRIEDMAN_P: inference.KRUSKAL_P_METHODS, **inference.DUNN_OPTIONS},
     "ROC curve": {"Control": None, "Patient": None, "Direction": roc_module.DIRECTIONS,
@@ -460,8 +460,9 @@ def extra_analysis(method, frame, o):
         return Result(tables)
     if method == "Repeated measures ANOVA":
         lognormal_anova.reject_repeated(o)
+        correction = rm_sphericity.correction(o, len(o["Factors"]))
         return Result(inference.repeated_measures_anova(frame, o["Response"], o["Factors"], o["Subject"],
-                                                        correction=None if o["Sphericity correction"] == "None" else "gg"))
+                                                        correction=correction))
     if method == "Friedman":
         return Result(inference.friedman(frame, o["Response"], o["Group"], o["Subject"], comparisons=o))
     if method == "ROC curve":
