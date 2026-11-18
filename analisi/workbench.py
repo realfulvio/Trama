@@ -14,6 +14,8 @@ from .anova_diagnostics import OPTIONS as ANOVA_DIAG_OPTIONS
 from .anova_diagnostics import active as anova_diagnostics_active, build as build_anova_diagnostics
 from .anova_diagnostics import ensure_graph_budget as ensure_anova_graph_budget, graph_choice as anova_graph_choice
 from .anova_diagnostics import validate as validate_anova_diagnostics
+from .anova_ss import CHOICES as SS_CHOICES, KEY as SUMS_OF_SQUARES, SHEETS as ANOVA_SHEETS
+from .anova_ss import sums_of_squares as anova_sums_of_squares
 from .anova_terms import (CHOICES as TERM_CHOICES, MODEL_TERMS, SHEET as MODEL_TERMS_SHEET, TERM_LIST, TERM_SELECTION,
                           active_factors as anova_active_factors, check_comparison_controls as check_anova_comparisons,
                           selection as anova_term_selection, terms_table as anova_terms_table)
@@ -222,7 +224,7 @@ METHODS = {
     COMPARE_MODELS: COMPARE_MODELS_OPTIONS,
     ROBUST_CURVE: ROBUST_CURVE_OPTIONS,
     "Multifactor ANOVA": {"Response": None, "Factors": MULTIPLE, TERM_SELECTION: TERM_CHOICES, "Interaction order": 1,
-                         MODEL_TERMS: TERM_LIST,
+                         SUMS_OF_SQUARES: SS_CHOICES, MODEL_TERMS: TERM_LIST,
                          "Compare marginal means by": OPTIONAL, "Cell comparison factors": OPTIONAL_MULTIPLE,
                          "Within factors (simple effects)": OPTIONAL_MULTIPLE, "Control level(s), separated by |": TEXT,
                          "Families": ("Separate", "Pooled"), "Reverse comparisons": False,
@@ -386,6 +388,8 @@ def _anova(frame, o):
     y, factors = o["Response"], o["Factors"]
     # Selected terms (0.83): None means Full hierarchy, whose Interaction order and Patsy fit are unchanged.
     terms = anova_term_selection(o)
+    # Sums of squares: Type III (also when the key is absent), Type I or Type II. All three share one fit.
+    kind = anova_sums_of_squares(o)
     order = o.get("Interaction order", 1) if terms is not None else o["Interaction order"]
     alpha = check_anova_options(o)
     # Field errors name the diagnostic control. The full fit still happens once, on this call.
@@ -398,8 +402,8 @@ def _anova(frame, o):
         if count is not None:
             ensure_anova_graph_budget(count, graph)
     table, fit, data, design, beta, error, df = engine._factorial_anova_components(
-        frame, y, factors, order, terms=terms)
-    tables = {"ANOVA (type III)": table}
+        frame, y, factors, order, terms=terms, sums_of_squares=kind)
+    tables = {ANOVA_SHEETS[kind]: table}
     if terms is not None:
         tables[MODEL_TERMS_SHEET] = anova_terms_table(terms, anova_active_factors(factors, terms), data)
     if alpha is not None:

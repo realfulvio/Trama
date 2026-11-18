@@ -311,6 +311,9 @@ from analisi.anova_diagnostics import (ALPHA as ANOVA_DIAG_ALPHA, ASSUMPTIONS as
                                        format_anova_error, graph_choice as anova_graph_choice,
                                        validate as validate_anova_diagnostics,
                                        visibility as anova_diagnostic_visibility)
+from analisi.anova_ss import KEY as ANOVA_SUMS_OF_SQUARES, TYPE_III as ANOVA_TYPE_III
+from analisi.anova_ss import sums_of_squares as anova_sums_of_squares
+from analisi.anova_ss_dialog import SumsOfSquaresPanel
 from analisi.anova_terms import (FULL as ANOVA_FULL_TERMS, MODEL_TERMS as ANOVA_MODEL_TERMS, TERM_LIST,
                                  TERM_SELECTION as ANOVA_TERM_SELECTION, active_factors as anova_active_factors,
                                  check_comparison_controls as check_anova_comparisons, check_options as check_anova_terms)
@@ -1001,6 +1004,7 @@ class AnalysisDialog(simpledialog.Dialog):
         self.controls.clear()
         self.field_rows = {}
         self.choice_bindings = {}
+        self.anova_order = None
         self.select_editors = {}
         self.parameters = None
         self.series_parameters = None
@@ -1070,7 +1074,8 @@ class AnalysisDialog(simpledialog.Dialog):
             fields_by_tab["Input"] = variables
         elif self.method == "Multifactor ANOVA":
             # The Model page (term selection, order, term checkboxes) scrolls and sits right after Variables.
-            tabs = {ANOVA_MODEL_TAB: (ANOVA_TERM_SELECTION, "Interaction order", ANOVA_MODEL_TERMS),
+            tabs = {ANOVA_MODEL_TAB: (ANOVA_TERM_SELECTION, "Interaction order", ANOVA_SUMS_OF_SQUARES,
+                                      ANOVA_MODEL_TERMS),
                     "Effect sizes": (ANOVA_EFFECTS, ANOVA_ALPHA), **ANOVA_DIAG_TABS}
         elif self.method == "Hierarchical clustering":
             saved = saved_hierarchical_options(saved)
@@ -1610,6 +1615,8 @@ class AnalysisDialog(simpledialog.Dialog):
             field.grid(row=row, column=1, sticky="ew", pady=3)
             self.controls[label] = (kind, variable)
             self.field_rows[label] = heading, field
+            if self.method == "Multifactor ANOVA" and label == ANOVA_SUMS_OF_SQUARES:
+                positions[parent] += 1  # the notes and the factor order of Type I use the next row
         if self.method in INPUT_FIELDS:
             input_format = self.controls["Input format"][1]
             input_format.trace_add("write", lambda *_: self.show_input_fields())
@@ -1763,11 +1770,22 @@ class AnalysisDialog(simpledialog.Dialog):
             self.controls["Factors"][1].bind("<<ListboxSelect>>", lambda _e: picker.refresh(), add="+")
             self.controls["Interaction order"][1].trace_add("write", lambda *_: picker.refresh())
             self.controls["Response"][1].trace_add("write", lambda *_: picker.sync())
+            # Sums of squares: the note of the type, the order of the factors for Type I and the order of the terms.
+            selector = self.field_rows[ANOVA_SUMS_OF_SQUARES][1]
+            self.anova_order = SumsOfSquaresPanel(
+                selector.master, saved.get("Factors"), kind=self.controls[ANOVA_SUMS_OF_SQUARES][1].get,
+                factors=self.anova_listed, terms=picker.current_terms, on_order=picker.refresh)
+            self.anova_order.grid(row=selector.grid_info()["row"] + 1, column=0, columnspan=2, sticky="ew", pady=(0, 3))
+            self.controls["Factors"][1].bind("<<ListboxSelect>>", lambda _e: self.anova_order.refresh(), add="+")
+            self.controls[ANOVA_SUMS_OF_SQUARES][1].trace_add("write", lambda *_: self.anova_order.sync())
+            picker.listeners.append(self.anova_order.describe)
+            picker.refresh()  # the term checkboxes now follow the order of the recipe being edited
             self.show_anova_fields()
             self._translate_analysis_labels(ANOVA_DIAG_LABEL_KEYS)
             model_page = self.field_rows[ANOVA_TERM_SELECTION][0].master
             self._bind_scrollable_children(model_page)
             self._bind_scrollable_widgets(model_page, picker.static_widgets())
+            self._bind_scrollable_widgets(model_page, self.anova_order.static_widgets())
         if self.method == FOREST_PLOT:
             self.forest_order = [name for name in saved.get("Study columns", ()) if name in columns]
             self.controls["Study columns"][1].bind("<<ListboxSelect>>", lambda _: self.forest_columns())
@@ -2583,10 +2601,15 @@ class AnalysisDialog(simpledialog.Dialog):
         # The checkboxes follow the mode; an untouched picker starts Selected terms from the Full hierarchy.
         self.controls[ANOVA_MODEL_TERMS][1].sync()
 
-    def anova_factors(self):
-        """The names ticked in Factors, in the order of the list."""
+    def anova_listed(self):
+        """The names ticked in Factors, in the order of the worksheet list."""
         box = self.controls["Factors"][1]
         return [box.get(index) for index in box.curselection()]
+
+    def anova_factors(self):
+        """The names ticked in Factors, in the order chosen on the Model page: the order of Factors in the recipe."""
+        names = self.anova_listed()
+        return self.anova_order.arrange(names) if self.anova_order is not None else names
 
     def agreement_visibility(self):
         if self.method != "Bland–Altman":
@@ -3329,7 +3352,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 if self.method == FOREST_PLOT and name == "Study columns":
                     value = self.forest_columns()
                 elif kind in (MULTIPLE, OPTIONAL_MULTIPLE):
-                    value = [control.get(i) for i in control.curselection()]
+                    value = (self.anova_factors() if self.method == "Multifactor ANOVA" and name == "Factors"
+                             else [control.get(i) for i in control.curselection()])
                     if kind == MULTIPLE and not value:
                         raise ValueError(f"Select at least one column for {name}.")
                 elif kind in (GROUP_ORDER, TREND_ORDER_KIND, DUNN_PAIR_LIST, PAIR_LIST, PROFILE_LIST, CURVE_LIST,
@@ -3413,6 +3437,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == "Multifactor ANOVA":
                 saved_terms = self.current[1] if self.current and self.current[0] == self.method else {}
                 chosen_terms = check_anova_terms(options)
+                if (anova_sums_of_squares(options) == ANOVA_TYPE_III
+                        and ANOVA_SUMS_OF_SQUARES not in saved_terms):
+                    options.pop(ANOVA_SUMS_OF_SQUARES, None)  # Type III is the default of a recipe without the key
                 if chosen_terms is None:
                     # Full hierarchy keeps the recipe free of the 0.83 keys unless the recipe already had them.
                     options.pop(ANOVA_MODEL_TERMS, None)
@@ -13501,6 +13528,20 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "anova-ss-types":
+            # The multifactor ANOVA sums of squares check alone:
+            # TRAMASTAT_SMOKE_ONLY=anova-ss-types python tramastat.py --smoke DIR
+            from analisi.anova_ss_smoke import check_anova_ss_types
+            check_anova_ss_types(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+                select_columns=select_columns,
+                drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+                wait_for_calculation=wait_for_calculation))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "confidence-overlays":
             check_confidence_overlays()
             assert not errors, errors
@@ -14340,6 +14381,12 @@ def smoke(root, app, directory, legacy_reference=None):
             wait_for_calculation=wait_for_calculation))
         from analisi.anova_terms_smoke import check_anova_selected_terms
         check_anova_selected_terms(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+            select_columns=select_columns,
+            drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+            wait_for_calculation=wait_for_calculation))
+        from analisi.anova_ss_smoke import check_anova_ss_types
+        check_anova_ss_types(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
             select_columns=select_columns,
             drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
