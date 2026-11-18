@@ -10,7 +10,10 @@ import pandas as pd
 
 from .data import Dataset, save_project
 from .i18n import active_language, set_language
-from .pca_graphs import BIPLOT, GRAPH, HORIZONTAL, LABEL, LOADINGS, PROPORTION, SCORES, SCREE, SHOW_LABELS, VERTICAL
+from .pca_graphs import (
+    BIPLOT, COLOR_GROUPS, GRAPH, HORIZONTAL, LABEL, LOADINGS, POINT_VIEWS,
+    PROPORTION, SCORES, SCREE, SHOW_LABELS, VERTICAL,
+)
 
 VIEWS = (SCORES, LOADINGS, BIPLOT, SCREE, PROPORTION)
 ONE_DIMENSION = {SCREE, PROPORTION}
@@ -42,6 +45,8 @@ def _state(dialog, view):
     assert ("disabled" if inactive else "normal") in str(horizontal.cget("state")), view
     label_state = "disabled" if inactive else "readonly"
     assert label_state in str(dialog.field_rows[LABEL][1].cget("state")), view
+    group_state = "readonly" if view in POINT_VIEWS else "disabled"
+    assert group_state in str(dialog.field_rows[COLOR_GROUPS][1].cget("state")), view
     show_state = "disabled" if inactive else "normal"
     assert show_state in str(dialog.field_rows[SHOW_LABELS][1].cget("state")), view
 
@@ -86,6 +91,7 @@ def _check(root, app, directory, capture, drive, pick, select, wait, messagebox,
         "A": [1.4142135623730951, -1.4142135623730951, 0.7071067811865476, -0.7071067811865476, 0.0, 0.0, np.nan],
         "B": [1.4142135623730951, -1.4142135623730951, -0.7071067811865476, 0.7071067811865476, 0.0, 0.0, 9.0],
         "Label": ["città A", "città B", "gruppo $C", "gruppo <D>", "centro", "centro", "incompleta"],
+        "Cohort": ["Control", "Control", "Treated $", "Treated $", None, None, "Unused"],
     })
     save_project(path, {title: Dataset(frame)})
     app.import_file(path)
@@ -94,6 +100,7 @@ def _check(root, app, directory, capture, drive, pick, select, wait, messagebox,
         pick(dialog, "Principal component analysis")
         assert dialog.field_rows[GRAPH][0].cget("text") == "Vista del grafico"
         assert dialog.field_rows[SHOW_LABELS][0].cget("text") == "Mostra etichette di riga"
+        assert dialog.field_rows[COLOR_GROUPS][0].cget("text") == "Colora gruppi per"
         tab = dialog.field_rows[GRAPH][0].master
         assert dialog.fields.tab(tab, "text") == "Grafico"
         dialog.ok = dialog.cancel
@@ -164,6 +171,28 @@ def _check(root, app, directory, capture, drive, pick, select, wait, messagebox,
         wait()
         _expect(app.runs[0], view, frame)
 
+    ordinary = app.runs[0].result.tables
+
+    def color_groups(dialog):
+        _state(dialog, BIPLOT)
+        dialog.controls[COLOR_GROUPS][1].set("Cohort")
+        assert dialog.validate() is True
+        dialog.result = None
+
+    drive(color_groups)
+    app.show("graph", 0)
+    app.edit_analysis()
+    wait()
+    colored = app.runs[0].result
+    for name in ("Explained variance", "Eigenvectors", "Scores"):
+        pd.testing.assert_frame_equal(ordinary[name], colored.tables[name])
+    pd.testing.assert_frame_equal(
+        ordinary["PC graph coordinates"], colored.tables["PC graph coordinates"].drop(columns="Color group"),
+    )
+    legend = colored.figure.axes[0].get_legend()
+    assert legend.get_title().get_text() == "Cohort"
+    assert len(legend.get_texts()) == 3
+
     app.show("graph", 0)
     capture(root, "window-pca-biplot.png")
     svg_path, png_path = directory / "pca-biplot.svg", directory / "pca-biplot.png"
@@ -212,6 +241,8 @@ def _check(root, app, directory, capture, drive, pick, select, wait, messagebox,
     wait()
     reopened = app.runs[0]
     assert reopened.options[LABEL] == "Label"
+    assert reopened.options[COLOR_GROUPS] == "Cohort"
+    assert reopened.result.figure.axes[0].get_legend().get_title().get_text() == "Cohort"
     pd.testing.assert_frame_equal(reopened.result.tables["PC graph coordinates"], saved)
 
     app.show("result", 0)

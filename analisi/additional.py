@@ -78,6 +78,7 @@ EXTRA_METHODS = {
                                     pca_graphs.GRAPH: pca_graphs.VIEWS,
                                     pca_graphs.HORIZONTAL: 1, pca_graphs.VERTICAL: 2,
                                     pca_graphs.LABEL: OPTIONAL, pca_graphs.SHOW_LABELS: False,
+                                    pca_graphs.COLOR_GROUPS: OPTIONAL,
                                     **pca_retention.OPTIONS},
     "Multiple regression": {"Response": None, "Predictors": MULTIPLE,
                             "Categorical predictors": OPTIONAL_MULTIPLE, "Family": ("Linear", "Logistic", "Poisson"),
