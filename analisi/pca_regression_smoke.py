@@ -78,8 +78,9 @@ def _reachable(dialog, root, text):
     dialog.update_idletasks()
     assert button.winfo_ismapped(), text
     bounds = root.winfo_rootx() + root.winfo_width(), root.winfo_rooty() + root.winfo_height()
-    assert button.winfo_rootx() + button.winfo_width() <= bounds[0] + 1, text
-    assert button.winfo_rooty() + button.winfo_height() <= bounds[1] + 1, text
+    button_end = button.winfo_rootx() + button.winfo_width(), button.winfo_rooty() + button.winfo_height()
+    assert button_end[0] <= bounds[0] + 1 and button_end[1] <= bounds[1] + 1, (
+        text, button_end, bounds, dialog.geometry(), root.geometry())
     return button
 
 

@@ -29,7 +29,7 @@ from analisi.analysis_chain import MAX_ANALYSIS_NODES, ResultSource
 from analisi.analysis_chain_app import AnalysisChainMixin
 from analisi.family_workflow_app import FamilyWorkflowMixin
 from analisi.windows_dpi import configure_native_dpi, window_dpi
-from analisi.window_geometry import keep_native_window_on_screen
+from analisi.window_geometry import clamp_rect, keep_native_window_on_screen
 from analisi.shape_canvas import ShapeCanvas, ShapeHistory, render_shapes
 from analisi.layout_geometry import AUTO_PAPER, PAPER_SIZES, WHITE, page_size
 from analisi.category_graphs import (BARS, COLUMN_GRAPH, GROUPED_GRAPH, GROUPED_STYLES, PAIRED, POINTS, RANGE,
@@ -966,9 +966,20 @@ class AnalysisDialog(simpledialog.Dialog):
         if not self.winfo_ismapped():
             return
         self.update_idletasks()
+        width, height = self.winfo_reqwidth(), self.winfo_reqheight()
+        if self.method == "Principal component analysis":
+            # Selecting PCA can widen the notebook after the analysis picker is already mapped.
+            parent = self.parent.winfo_toplevel()
+            left, top = parent.winfo_rootx(), parent.winfo_rooty()
+            if left >= 0 and top >= 0 and width <= parent.winfo_width() and height <= parent.winfo_height():
+                x, y = self.winfo_x(), self.winfo_y()
+                parent_rect = (left, top, left + parent.winfo_width(), top + parent.winfo_height())
+                position = clamp_rect((x, y, x + width, y + height), parent_rect)
+                if position != (x, y):
+                    self.geometry(f"+{position[0]}+{position[1]}")
+                    self.update_idletasks()
         if keep_native_window_on_screen(self):
             return
-        width, height = self.winfo_reqwidth(), self.winfo_reqheight()
         x = max(0, min(self.winfo_x(), self.winfo_screenwidth() - width))
         y = max(0, min(self.winfo_y(), self.winfo_screenheight() - height))
         if (x, y) != (self.winfo_x(), self.winfo_y()):
