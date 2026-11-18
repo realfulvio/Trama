@@ -3628,13 +3628,13 @@ class AnalysisDialog(simpledialog.Dialog):
             elif self.method == "Principal component analysis" and (
                     field == PCA_COLOR_GROUPS or field in PCA_REGRESSION_LABELS or field == PCA_SELECTION):
                 message = format_pca_error(error, field)
+            elif self.method == MEAN_PERMUTATION:
+                message = describe_permutation_error(error, field)
             elif self.method == HEAT_MAP:
                 message = translate_heat_map_error(error)
                 label = ui(field) if field else ""
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
-            elif self.method == MEAN_PERMUTATION:
-                message = describe_permutation_error(error, field)
             elif self.method == ROBUST_CURVE:
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
@@ -6567,8 +6567,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
-                or run.method == MEAN_PERMUTATION
                 or getattr(run, 'source', None) is not None
+                or run.method == MEAN_PERMUTATION
                 or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
     def _reopens_field_error(self, run):
@@ -6642,10 +6642,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         formatted = (format_anova_error(error) if run.method == "Multifactor ANOVA"
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
-                     else describe_permutation_error(error) if run.method == MEAN_PERMUTATION
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
                      else format_fdr_error(error) if run.method == FDR_METHOD
+                     else describe_permutation_error(error) if run.method == MEAN_PERMUTATION
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
         if formatted:
@@ -6989,8 +6989,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.status.set(f"{run.method} cancelled. {detail}")
         except Exception as error:
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
-                     else describe_permutation_error(error) if run.method == MEAN_PERMUTATION
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
+                     else describe_permutation_error(error) if run.method == MEAN_PERMUTATION
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
                      else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
             # Manual recalculation uses the confirmed Run itself. A failed

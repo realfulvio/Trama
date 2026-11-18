@@ -195,10 +195,10 @@ METHODS = {
                      "Distribution": ("Normal", "Lognormal"),
                      "Graph": ("None", "Variance ratio", "SD ratio")},
     EQUIVALENCE: EQUIVALENCE_OPTIONS,
-    MEAN_PERMUTATION: MEAN_PERMUTATION_OPTIONS,
     COMPETING_RISKS: COMPETING_RISKS_OPTIONS,
     SUMMARY_ANOVA: SUMMARY_ANOVA_OPTIONS,
     SUMMARY_TTEST: SUMMARY_TTEST_OPTIONS,
+    MEAN_PERMUTATION: MEAN_PERMUTATION_OPTIONS,
     MANN_WHITNEY: RANK_OPTIONS[MANN_WHITNEY],
     WILCOXON: RANK_OPTIONS[WILCOXON],
     "Kruskal–Wallis": {"Response": None, "Group": None, KRUSKAL_P: KRUSKAL_P_METHODS, **DUNN_OPTIONS},
@@ -1041,14 +1041,14 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return variance_ratio_analysis(frame, o)
     if method == EQUIVALENCE:
         return equivalence_test(frame, o)
-    if method == MEAN_PERMUTATION:
-        return permutation_test(frame, o, cancel=cancel)
     if method == COMPETING_RISKS:
         return competing_risks(frame, o, cancel=cancel)
     if method == SUMMARY_ANOVA:
         return summary_anova(frame, o)
     if method == SUMMARY_TTEST:
         return summary_ttest(frame, o)
+    if method == MEAN_PERMUTATION:
+        return permutation_test(frame, o, cancel=cancel)
     if method in {MANN_WHITNEY, WILCOXON} and not legacy_rank_test(o):
         return rank_test(method, frame, o)
     if method in {MANN_WHITNEY, WILCOXON, "Kruskal–Wallis"}:
