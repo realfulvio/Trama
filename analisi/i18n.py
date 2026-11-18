@@ -2968,6 +2968,45 @@ _ANOVA_TERMS_IT = {
 _EN.update(_ANOVA_TERMS_EN)
 _IT.update(_ANOVA_TERMS_IT)
 
+# Multifactor ANOVA sums of squares (Type I, II, III). Saved option values stay the English names.
+_ANOVA_SS_EN = {
+    "anova.ss.field": "Sums of squares",
+    "anova.ss.type1": "Type I",
+    "anova.ss.type2": "Type II",
+    "anova.ss.type3": "Type III",
+    "anova.ss.note.1": "Type I adds the terms in the order shown below. Each term is tested after the ones before "
+                       "it, so the order of the Factors can change the result when the design is unbalanced.",
+    "anova.ss.note.2": "Type II tests each term after the terms that do not contain it. With interactions in the model, "
+                       "a main effect is tested without the interactions that contain it, so read it with care "
+                       "when one of them matters.",
+    "anova.ss.order": "Factor order",
+    "anova.ss.order.help": "Select a factor and move it with Up or Down.",
+    "anova.ss.preview": "Terms enter in this order: {terms}",
+    "anova.ss.error.kind": "Choose Type I, Type II or Type III sums of squares.",
+    "anova.ss.error.numeric": "The sums of squares could not be computed reliably for this model. "
+                              "Check the scale of the response and the model terms.",
+}
+_ANOVA_SS_IT = {
+    "anova.ss.field": "Somme dei quadrati",
+    "anova.ss.type1": "Tipo I",
+    "anova.ss.type2": "Tipo II",
+    "anova.ss.type3": "Tipo III",
+    "anova.ss.note.1": "Il tipo I aggiunge i termini nell’ordine mostrato qui sotto. Ogni termine è verificato dopo "
+                       "quelli che lo precedono, quindi l’ordine dei Fattori può cambiare il risultato se il disegno "
+                       "è sbilanciato.",
+    "anova.ss.note.2": "Il tipo II verifica ogni termine dopo i termini che non lo contengono. Con interazioni nel "
+                       "modello, un effetto principale è verificato senza le interazioni che lo contengono: "
+                       "leggilo con cautela se una di esse conta.",
+    "anova.ss.order": "Ordine dei fattori",
+    "anova.ss.order.help": "Seleziona un fattore e spostalo con Su o Giù.",
+    "anova.ss.preview": "I termini entrano in quest’ordine: {terms}",
+    "anova.ss.error.kind": "Scegli le somme dei quadrati di Tipo I, Tipo II o Tipo III.",
+    "anova.ss.error.numeric": "Le somme dei quadrati non si sono potute calcolare in modo affidabile per questo modello. "
+                              "Controlla la scala della risposta e i termini del modello.",
+}
+_EN.update(_ANOVA_SS_EN)
+_IT.update(_ANOVA_SS_IT)
+
 # One-way variance homogeneity. Saved option keys stay the English names.
 _VARIANCE_ASSUMPTIONS_EN = {
     "variance.assumptions.tab": "Diagnostics/Assumptions",

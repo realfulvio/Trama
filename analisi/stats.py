@@ -241,36 +241,44 @@ def _anova_type_iii(data, factors, design, error, df, *, term_label=":".join):
     return table, summary
 
 
-def factorial_anova(frame, response, factors, order=1, *, terms=None):
-    return factorial_anova_fit(frame, response, factors, order, terms=terms)[0]
+def factorial_anova(frame, response, factors, order=1, *, terms=None, sums_of_squares=None):
+    return factorial_anova_fit(frame, response, factors, order, terms=terms, sums_of_squares=sums_of_squares)[0]
 
 
-def factorial_anova_fit(frame, response, factors, order=1, *, terms=None):
-    """Type III table and the summary of the same fit: effective N, residual df, centered SST and SSE."""
-    return _factorial_anova_components(frame, response, factors, order, terms=terms)[:2]
+def factorial_anova_fit(frame, response, factors, order=1, *, terms=None, sums_of_squares=None):
+    """ANOVA table (Type III unless asked otherwise) and the summary of the same fit: N, residual df, SST, SSE."""
+    return _factorial_anova_components(frame, response, factors, order, terms=terms,
+                                       sums_of_squares=sums_of_squares)[:2]
 
 
-def _factorial_anova_components(frame, response, factors, order=1, *, terms=None):
-    """One full fit, its Type III table, and the design used for that fit.
+def _factorial_anova_components(frame, response, factors, order=1, *, terms=None, sums_of_squares=None):
+    """One full fit, its ANOVA table, and the design used for that fit.
 
     Callers that also need diagnostics reuse ``design``, ``beta``, ``error`` and ``df``.
     The public ``factorial_anova`` and ``factorial_anova_fit`` returns stay the historical pair.
     ``terms`` (Selected terms, 0.83) fits exactly those terms instead of the Full hierarchy of ``order``.
+    ``sums_of_squares`` is ``"Type I"`` or ``"Type II"``; ``None`` and ``"Type III"`` keep the historical
+    Type III table. The types share the fit, so the residual SS, df and MS never depend on the type.
     """
     data, _, _, design, beta, error, df = _anova_model(frame, response, factors, order, terms=terms)
-    if terms is None:
-        table, summary = _anova_type_iii(data, factors, design, error, df)
-    else:
+    options = {"term_label": ":".join}
+    if terms is not None:
         from .anova_terms import active_factors, canonical_terms, label
         factors = active_factors(list(factors), canonical_terms(terms, factors))
-        table, summary = _anova_type_iii(data, factors, design, error, df, term_label=label)
+        options = {"term_label": label}
+    if sums_of_squares in (None, "Type III"):
+        table, summary = _anova_type_iii(data, factors, design, error, df, **options)
+    else:
+        from .anova_ss import anova_table
+        table, summary = anova_table(sums_of_squares, data, factors, design, error, df, **options)
     return table, summary, data, design, beta, error, df
 
 
 def anova_effect_sizes(table, fit, alpha=0.05):
-    """Effect sizes per term and the model fit, from one Type III table and the SST and SSE of its fit.
+    """Effect sizes per term and the model fit, from one ANOVA table and the SST and SSE of its fit.
 
-    In an unbalanced design the Type III SS of the terms can overlap, so they need not add up to SST − SSE.
+    The table is the one of the active sums of squares. Type I terms add up to SST − SSE; in an unbalanced
+    design the Type II and Type III SS of the terms can overlap, so they need not.
     """
     terms = table.drop(index="Residual")
     error, total, n, df = fit["SSE"], fit["SST"], fit["N"], fit["df"]
