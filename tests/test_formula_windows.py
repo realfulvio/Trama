@@ -37,9 +37,9 @@ class WindowFormulaTests(unittest.TestCase):
         np.testing.assert_allclose(formula(frame, 'COUNT(Lab) OVER Category'), [1, 1, 1, 1, 1, np.nan])
         np.testing.assert_allclose(formula(frame, 'COUNTA(Lab) OVER Category'), [2, 2, 1, 1, 1, np.nan])
 
-    def test_order_and_invalid_clauses_are_rejected_as_a_whole(self):
-        with self.assertRaisesRegex(ValueError, "ORDER BY and ROWS"):
-            formula(self.frame, "MEAN(X) OVER Category ORDER BY Keep ROWS 1 PRECEDING")
+    def test_invalid_clauses_are_rejected_as_a_whole(self):
+        with self.assertRaisesRegex(ValueError, "nonnegative integer"):
+            formula(self.frame, "MEAN(X) OVER Category ORDER BY Keep ROWS -1 PRECEDING")
         with self.assertRaisesRegex(ValueError, "after OVER or WHERE"):
             formula(self.frame, "MEAN(X) OVER Category WHERE")
         with self.assertRaisesRegex(ValueError, "requires a logical expression"):
@@ -63,6 +63,29 @@ class WindowFormulaTests(unittest.TestCase):
         self.assertTrue(np.isnan(formula(frame, "MEANIF(X, Keep > 1)")).all())
         np.testing.assert_allclose(formula(frame, "SUMIF(X, Keep > 1)"), [0] * 6)
 
+    def test_ordered_windows_return_to_original_row_order(self):
+        frame = self.frame.assign(Visit=[2, 1, 3, 2, 1, 4])
+        summed = formula(frame, "SUM(X) OVER Category ORDER BY Visit ROWS UNBOUNDED PRECEDING")
+        np.testing.assert_allclose(summed, [40, 30, 90, 50, 0, np.nan])
+        remaining = formula(frame, "COUNT(X) OVER Category ORDER BY Visit DESC ROWS UNBOUNDED PRECEDING")
+        np.testing.assert_allclose(remaining, [1, 2, 1, 2, 2, np.nan])
+        whole = formula(frame, "MEAN(X) OVER Category ORDER BY Visit")
+        np.testing.assert_allclose(whole, [20, 20, 45, 45, 45, np.nan])
+
+    def test_window_boundaries_clip_and_filter_before_counting_rows(self):
+        frame = pd.DataFrame({"X": [2, 20, 4, 40, 8, 80], "Keep": [1, 0, 1, 0, 1, 0]})
+        averaged = formula(frame, "MEAN(X) WHERE Keep = 1 ROWS 1 PRECEDING 1 FOLLOWING")
+        np.testing.assert_allclose(averaged, [3, np.nan, 14 / 3, np.nan, 6, np.nan])
+        deviation = formula(frame, "STDERR(X) WHERE Keep = 1 ROWS 1 FOLLOWING")
+        np.testing.assert_allclose(deviation, [1, np.nan, 2, np.nan, np.nan, np.nan])
+        leading = formula(frame, "MAX(X) ROWS UNBOUNDED FOLLOWING")
+        np.testing.assert_allclose(leading, [80, 80, 80, 80, 80, 80])
+
+    def test_tied_sort_values_keep_source_order(self):
+        frame = pd.DataFrame({"X": [2, 20, 4, 40], "Visit": [1, 2, 1, 2]})
+        np.testing.assert_allclose(formula(frame, "SUM(X) ORDER BY Visit DESC ROWS UNBOUNDED PRECEDING"),
+                                   [62, 20, 66, 60])
+
     def test_project_reopens_with_live_exclusions_and_formula(self):
         data = Dataset(self.frame)
         data.set_formula("Group mean", "MEAN(X) OVER Category")
@@ -83,7 +106,7 @@ class WindowFormulaTests(unittest.TestCase):
                 metadata("document.json", {"sheets": {"data": ["live"]}})
                 metadata("data/sheets/live/sheet.json", {"title": "Measurements", "table": {
                     "uid": "values", "format": "multivariable", "dataFormat": "y_single",
-                    "dataSets": ["a", "b", "c", "d"],
+                    "dataSets": ["a", "b", "c", "d", "e"],
                 }})
                 metadata("data/sets/a.json", {"title": "Value"})
                 metadata("data/sets/b.json", {"title": "2nd group", "currentType": "categorical"})
@@ -93,10 +116,15 @@ class WindowFormulaTests(unittest.TestCase):
                 metadata("data/sets/d.json", {"title": "Filtered average", "valuesStorageData": {
                     "@class": "TransformDataSource", "transform": 'MEANIF(A, AND(A >= 2, B <> "skip")) OVER B',
                 }})
-                archive.writestr("data/tables/values/data.csv", "1,x,999,999\n3,x,999,999\n7,y,999,999\n9,y,999,999\n")
+                metadata("data/sets/e.json", {"title": "Running count", "valuesStorageData": {
+                    "@class": "TransformDataSource",
+                    "transform": "COUNT(A) OVER B ORDER BY A DESC ROWS UNBOUNDED PRECEDING",
+                }})
+                archive.writestr("data/tables/values/data.csv",
+                                 "1,x,999,999,999\n3,x,999,999,999\n7,y,999,999,999\n9,y,999,999,999\n")
             data = Dataset(load_tables(project)["Measurements"])
-        calculated = ["Group average", "Filtered average"]
+        calculated = ["Group average", "Filtered average", "Running count"]
         self.assertEqual(set(data.formulas), set(calculated))
-        np.testing.assert_allclose(data.frame()[calculated], [[3, 3], [3, 3], [8, 8], [8, 8]])
+        np.testing.assert_allclose(data.frame()[calculated], [[3, 3, 2], [3, 3, 1], [8, 8, 2], [8, 8, 1]])
         data.raw.loc[2, "Value"] = 5
-        np.testing.assert_allclose(data.frame()[calculated], [[3, 3], [3, 3], [7, 7], [7, 7]])
+        np.testing.assert_allclose(data.frame()[calculated], [[3, 3, 2], [3, 3, 1], [7, 7, 2], [7, 7, 1]])
