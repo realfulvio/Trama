@@ -257,6 +257,8 @@ from analisi.pca_retention import (CHOICE_KEYS as PCA_CHOICE_KEYS, LABEL_KEYS as
                                   SELECTION as PCA_SELECTION, TABS as PCA_SELECTION_TABS,
                                   check as check_pca_selection, simulates as pca_simulates,
                                   visible_fields as pca_visible_fields)
+from analisi.cox_exact import (EXACT as COX_EXACT, TIES as COX_TIES, check_outputs as check_cox_exact_outputs,
+                               is_exact as cox_is_exact, translate_error as translate_cox_exact_error)
 from analisi.cox_outputs import (METHOD as COX, GRAPH as COX_GRAPH, GRAPH_TERM as COX_TERM, PREDICT as COX_PREDICT, PROFILE_LIST,
                                  PROFILES as COX_PROFILES, STATUS_DEFAULTS as COX_STATUS, cox_visibility)
 from analisi.survival_plot import CURVE as SURVIVAL_CURVE, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS
@@ -2606,6 +2608,25 @@ class AnalysisDialog(simpledialog.Dialog):
         for label in (COX_PREDICT, COX_GRAPH):
             self.controls[label][1].trace_add("write", lambda *_: self.update_cox_terms())
         self.update_cox_terms()
+        # Exact (conditional) ties fit the coefficient and model sheets only. The notes name that on the tabs of the
+        # outputs it refuses; a profile list or a turned-on output stays in the dialog and is refused on Run.
+        self.cox_notes = []
+        for label, key in ((COX_TIES, "cox.exact.hint"), (COX_PREDICT, "cox.exact.unavailable"),
+                           ("Cox diagnostics", "cox.exact.unavailable")):
+            page = self.field_rows[label][0].master
+            note = ttk.Label(page, text=tr(key), wraplength=ui_theme.px(420), foreground="#9a3412", justify="left")
+            note.grid(row=99, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.cox_notes.append(note)
+        self.controls[COX_TIES][1].trace_add("write", lambda *_: self.update_cox_notes())
+        self.update_cox_notes()
+
+    def update_cox_notes(self):
+        exact = cox_is_exact({COX_TIES: self.controls[COX_TIES][1].get()})
+        for note in self.cox_notes:
+            if exact:
+                note.grid()
+            else:
+                note.grid_remove()
 
     def update_cox_terms(self):
         def picked(label):
@@ -3552,15 +3573,20 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == FDR_METHOD:
                 # Columns, domains and budgets stay in the dialog. Adjustment and the figure run on the worker.
                 validate_fdr_request(self.data, options)
+            cox_exact_request = self.method == COX and cox_is_exact(options)
+            if cox_exact_request:
+                # The exact fit runs on the worker, where it can be cancelled and where its row, column and work limits
+                # are checked. The dialog refuses only what the options alone decide: an output it does not build.
+                check_cox_exact_outputs(options)
             if (observed_weighting or fit_diagnostics or grouped_validation or dunn_validation or poisson_validation
                     or linear_validation
                     or logistic_validation or pca_validation or self.method in RANK_METHODS
                     or forward_calibration or (inverse_intervals and not nonlinear_inverse)
                     or self.method in PROCESSING_METHODS
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
-                    or self.method == PARTS_GRAPH
+                    or self.method == PARTS_GRAPH or (self.method == COX and not cox_exact_request)
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
-                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
+                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, OUTLIERS,
                                        "One-way ANOVA", REFERENCE_NORMALIZATION,
                                        SPLINE_FIT, COMPARE_MODELS, XY_ERRORS}):
                 # Keep field errors in the dialog and reuse the successful result.
@@ -3613,6 +3639,11 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
                 message = describe_competing_error(error, field)
+            elif self.method == COX and cox_is_exact(options):
+                message = translate_cox_exact_error(error)
+                label = ui(field) if field else ""
+                if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
@@ -3961,9 +3992,10 @@ class Run:
 
 
 def cancellable_run(method, options):
-    """Runs that report their progress or can be cancelled: Monte Carlo studies, exact Spearman and Gray tests."""
+    """Runs that report their progress or can be cancelled: Monte Carlo studies, exact Spearman, Gray tests and the
+    exact conditional Cox fit."""
     return (method == MONTE_CARLO_METHOD or extended_request(method, options)
-            or competing_cancellable(method, options))
+            or competing_cancellable(method, options) or (method == COX and cox_is_exact(options)))
 
 
 @dataclass
@@ -6318,6 +6350,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             recovered = False
             for run, result, error in future.result():
                 if cancelled and cancellable_run(run.method, run.options):
+                    if self._cox_exact(run) and previous.get(id(run)) is not None:
+                        # The last valid fit stays on screen, marked as not current until it is recalculated.
+                        run.result = previous[id(run)]
+                        run.calculation_error = "The exact Cox recalculation was cancelled."
                     continue
                 run.result = result
                 run.calculation_error = str(error) if error and self._keeps_failed_result(run) else None
@@ -6349,6 +6385,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             elif cancelled and all(run.method == COMPETING_RISKS for run, _ in affected if cancellable_run(
                     run.method, run.options)):
                 self.status.set(f"{COMPETING_RISKS} recalculation cancelled. Open the analysis to calculate again.")
+            elif cancelled and all(self._cox_exact(run) for run, _ in affected if cancellable_run(
+                    run.method, run.options)):
+                self.status.set(tr("cox.exact.cancelled.recalculation"))
             elif cancelled:
                 self.status.set("Monte Carlo recalculation cancelled. Open the study to calculate again.")
             else:
@@ -6532,10 +6571,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         """True when a confirmed PCA recipe explicitly asked for the principal component regression."""
         return run.method == "Principal component analysis" and run.options.get(PCR_ENABLE) is True
 
+    @staticmethod
+    def _cox_exact(run):
+        """True for a Cox recipe with exact conditional ties: its limits and fit errors are known on the worker."""
+        return run.method == COX and cox_is_exact(run.options)
+
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
                 or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
+                or self._cox_exact(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6544,13 +6589,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
         return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
-                or self._pca_regression(run)
+                or self._pca_regression(run) or self._cox_exact(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
 
     def weighting_recovery(self, method, options, index, only=None):
         """Reopen the dialog when a field error is first known on the worker."""
         if method in kmeans_options.METHODS and options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
+            return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
+        if method == COX and cox_is_exact(options):
+            # Row, column and work limits, separation and refused outputs are known only on the worker.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
                 CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, "Multifactor ANOVA",
@@ -6604,7 +6652,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                    else translate_calibration_error(error) if run.method == "Interpolate a standard curve"
                    else ui(str(error)) if run.method in (SUMMARY_ANOVA, SUMMARY_TTEST)
                    else translate_heat_map_error(error) if run.method == HEAT_MAP
-                   else ui(str(error)) if run.method in kmeans_options.METHODS else str(error))
+                   else ui(str(error)) if run.method in kmeans_options.METHODS
+                   else translate_cox_exact_error(error) if self._cox_exact(run) else str(error))
         formatted = (format_anova_error(error) if run.method == "Multifactor ANOVA"
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
@@ -6622,7 +6671,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else tr(MLR_LABEL_KEYS[error.field]) if run.method == "Multiple regression"
                      and error.field in MLR_LABEL_KEYS
                      else field_caption_for_reference(error.field) if run.method == REFERENCE_NORMALIZATION
-                     else ui(error.field) if run.method in (HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, *kmeans_options.METHODS, *CORRELATION_METHODS)
+                     else ui(error.field) if run.method in (HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, COX,
+                                                            *kmeans_options.METHODS, *CORRELATION_METHODS)
                      else error.field)
             if not label or label == "gfit.field." + error.field:
                 label = error.field
@@ -6648,7 +6698,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return
         recovery = (self.weighting_recovery(run.method, run.options, index)
                     if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO}
-                    or self._pca_regression(run) else None)
+                    or self._pca_regression(run) or self._cox_exact(run) else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
@@ -6944,19 +6994,24 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.add_result(run, future.result(), index, reveal=reveal)
         except MonteCarloCancelled:
             # Nothing is recorded: a new study adds no recipe and an existing one keeps its last results.
-            noun = "analysis" if run.method == COMPETING_RISKS else "study"
+            noun = "analysis" if run.method in (COMPETING_RISKS, COX) else "study"
             if index is None:
                 detail = f"No {noun} was added."
             elif self.runs[index].result is not None:
                 detail = "The last completed results are kept."
             else:
                 detail = f"Open the {noun} to calculate again."
-            self.status.set(f"{run.method} cancelled. {detail}")
+            if self._cox_exact(run):
+                self.status.set(tr("cox.exact.cancelled." + ("new" if index is None else "kept"
+                                                            if self.runs[index].result is not None else "again")))
+            else:
+                self.status.set(f"{run.method} cancelled. {detail}")
         except Exception as error:
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
-                     else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
+                     else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else translate_cox_exact_error(error) if self._cox_exact(run) else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -7070,6 +7125,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA"
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
+                     else translate_cox_exact_error(run.calculation_error) if self._cox_exact(run)
                      else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
