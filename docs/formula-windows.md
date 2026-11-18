@@ -20,9 +20,10 @@ Use `MEANIF(values, condition)`, `SUMIF`, `MINIF`, `MAXIF`, `STDEVIF`, `STDERRIF
 =SUM(Dose) OVER Subject ORDER BY Visit ROWS UNBOUNDED PRECEDING
 =MEAN(Response) OVER Subject ORDER BY Visit ROWS 1 PRECEDING 1 FOLLOWING
 =COUNT(Response) OVER Subject ORDER BY Visit DESC ROWS UNBOUNDED PRECEDING
+=SUM(Dose) OVER Subject ORDER BY Visit ASC, COL("Recorded time") DESC ROWS UNBOUNDED PRECEDING
 ```
 
-`ORDER BY` sorts each group by one expression. Add `DESC` for descending order. Ties keep worksheet order, and missing sort values go last. Results are returned to the original worksheet rows. Without `ROWS`, the statistic still uses the whole group.
+`ORDER BY` sorts each group by one or more comma-separated expressions. Each key uses ascending order unless marked `DESC`. Later keys break ties in earlier keys. Rows tied on every key keep worksheet order, and missing values sort last at each key. Results return to their original worksheet rows. Without `ROWS`, the statistic uses the whole group. When passing a window expression with several sort keys to another function, wrap the expression and its clauses in parentheses.
 
 `ROWS` takes a nonnegative number of rows or `UNBOUNDED`, followed by `PRECEDING` or `FOLLOWING`. An omitted bound ends at the current row. The first and last windows stop at the group's edges. Without `ORDER BY`, positions follow worksheet order. With a filter, only contributing rows take positions or receive results.
 

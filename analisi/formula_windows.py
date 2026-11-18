@@ -86,14 +86,32 @@ def _clauses(nodes):
     return {name: nodes[index + 1:end] for (index, name), end in zip(starts, ends)}
 
 
-def _sort_expression(nodes):
+def _sort_expressions(nodes):
+    message = "Enter ORDER BY followed by a sort expression."
     if not nodes or _word(nodes[0]) != "BY":
-        raise ValueError("Enter ORDER BY followed by a sort expression.")
-    direction = _word(nodes[-1])
-    expression = nodes[1:-1] if direction in {"ASC", "DESC"} else nodes[1:]
-    if not expression:
-        raise ValueError("Enter ORDER BY followed by a sort expression.")
-    return _clause_expression(expression), direction != "DESC"
+        raise ValueError(message)
+    expressions, directions = [], []
+    start = 1
+    separators = [index for index, node in enumerate(nodes) if node == _COMMA]
+    for end in [*separators, len(nodes)]:
+        item = nodes[start:end]
+        direction = _word(item[-1]) if item else ""
+        expression = item[:-1] if direction in {"ASC", "DESC"} else item
+        if not expression:
+            raise ValueError(message)
+        expressions.append(_clause_expression(expression))
+        directions.append([_literal(direction != "DESC")])
+        start = end + 1
+    if len(expressions) == 1:
+        return expressions[0], directions[0]
+    return _tuple_tokens(expressions), _tuple_tokens(directions)
+
+
+def _tuple_tokens(items):
+    tokens = [_OPEN]
+    for item in items:
+        tokens.extend([*item, _COMMA])
+    return [*tokens, _CLOSE]
 
 
 def _row_bounds(nodes):
@@ -121,7 +139,7 @@ def _literal(value):
     return (tokenize.NUMBER if type(value) is int else tokenize.NAME, repr(value))
 
 
-def _lower(nodes):
+def _lower(nodes, *, in_arguments=False):
     result = []
     index = 0
     while index < len(nodes):
@@ -134,7 +152,7 @@ def _lower(nodes):
         name = _word(result[-1]) if result else ""
         conditional = name in CONDITIONAL_CALLS
         if clause not in WINDOW_CLAUSES and not conditional:
-            result.extend([_OPEN, *_lower(node), _CLOSE])
+            result.extend([_OPEN, *_lower(node, in_arguments=bool(name)), _CLOSE])
             continue
         statistic = CONDITIONAL_CALLS.get(name, name)
         if statistic not in WINDOW_CALLS:
@@ -144,13 +162,24 @@ def _lower(nodes):
         clauses = {}
         if clause in WINDOW_CLAUSES:
             end = index
-            while end < len(nodes) and nodes[end] != _COMMA:
+            sort_list = False
+            while end < len(nodes):
+                token = nodes[end]
+                # Inside a call a comma still separates arguments. Parenthesize
+                # a window expression with its own sort list before combining it.
+                if token == _COMMA and (in_arguments or not sort_list):
+                    break
+                word = _word(token)
+                if word == "ORDER" and end + 1 < len(nodes) and _word(nodes[end + 1]) == "BY":
+                    sort_list = True
+                elif word == "ROWS":
+                    sort_list = False
                 end += 1
             clauses = _clauses(nodes[index:end])
             index = end
         partition = _clause_expression(clauses["OVER"]) if "OVER" in clauses else _NONE
         condition = _clause_expression(clauses["WHERE"]) if "WHERE" in clauses else _NONE
-        sort, ascending = _sort_expression(clauses["ORDER"]) if "ORDER" in clauses else (_NONE, True)
+        sort, ascending = _sort_expressions(clauses["ORDER"]) if "ORDER" in clauses else (_NONE, [_literal(True)])
         bounds = _NONE
         if "ROWS" in clauses:
             before, after = _row_bounds(clauses["ROWS"])
@@ -163,7 +192,7 @@ def _lower(nodes):
         result.extend([(tokenize.NAME, WINDOW_FUNCTION), _OPEN,
                        (tokenize.STRING, repr(statistic)), _COMMA, *values, _COMMA,
                        *partition, _COMMA, *condition, _COMMA, *sort, _COMMA,
-                       _literal(ascending), _COMMA, *bounds, _CLOSE])
+                       *ascending, _COMMA, *bounds, _CLOSE])
     return result
 
 
@@ -203,23 +232,26 @@ class _RowWindow(BaseIndexer):
         return start, stop
 
 
-def _moving_statistic(numeric, labels, selected, ordering, ascending, bounds, name, operation):
+def _moving_statistic(numeric, labels, selected, ordering, bounds, name, operation):
     result = np.full(len(numeric), np.nan)
     groups = pd.Series(np.flatnonzero(selected)).groupby(np.asarray(labels)[selected], sort=False, dropna=True)
     for _, group in groups:
         rows = group.to_numpy()
-        if ordering is not None:
-            try:
-                rows = pd.Series(ordering[rows], index=rows).sort_values(ascending=ascending, kind="stable").index.to_numpy()
-            except TypeError as error:
-                raise ValueError("ORDER BY needs comparable values within each group.") from error
+        try:
+            # Stable sorts from the least to the most significant key retain the
+            # original worksheet order whenever the complete set of keys ties.
+            for values, ascending in reversed(ordering):
+                sorted_key = pd.Series(values[rows], index=rows).sort_values(ascending=ascending, kind="stable")
+                rows = sorted_key.index.to_numpy()
+        except TypeError as error:
+            raise ValueError("ORDER BY needs comparable values within each group.") from error
         minimum = 0 if operation in {"sum", "count"} else 1
         rolling = pd.Series(numeric[rows]).rolling(_RowWindow(*bounds), min_periods=minimum)
         result[rows] = (rolling.std() / np.sqrt(rolling.count()) if name == "STDERR" else getattr(rolling, operation)())
     return result
 
 
-def worksheet_statistic(name, values, partition, condition, size, *, order=None, ascending=True, bounds=None):
+def worksheet_statistic(name, values, partition, condition, size, *, sort_keys=(), bounds=None):
     if name not in WINDOW_CALLS:
         raise ValueError("Unknown worksheet statistic.")
     values = _aligned(values, size)
@@ -240,10 +272,10 @@ def worksheet_statistic(name, values, partition, condition, size, *, order=None,
     else:
         labels = pd.Series([None if _missing(value) else (type(value), value)
                             for value in _aligned(partition, size)], dtype=object)
-    ordering = None if order is None else _aligned(order, size)
+    ordering = [(_aligned(key, size), ascending) for key, ascending in sort_keys]
     operation = {"STDEV": "std", "STDERR": "std", "COUNTA": "count"}.get(name, name.lower())
     if bounds is not None:
-        return _moving_statistic(numeric, labels, selected, ordering, ascending, bounds, name, operation)
+        return _moving_statistic(numeric, labels, selected, ordering, bounds, name, operation)
     groups = pd.Series(np.where(selected, numeric, np.nan)).groupby(labels, sort=False, dropna=True)
     if name == "STDERR":
         return (groups.transform("std") / np.sqrt(groups.transform("count"))).to_numpy()

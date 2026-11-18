@@ -117,6 +117,23 @@ class WindowFormulaTests(unittest.TestCase):
         np.testing.assert_allclose(formula(frame, "SUM(X) ORDER BY Order DESC ROWS UNBOUNDED PRECEDING"),
                                    [62, 20, 66, 60])
 
+    def test_ordered_windows_break_ties_by_multiple_expressions(self):
+        frame = pd.DataFrame({"X": [2, 20, 4, 40, 8, 80, 160],
+                              "Visit": [1, 2, 1, 2, 1, np.nan, np.nan],
+                              "Priority": [1, 1, 2, 3, 2, 1, 1]}, index=[8, 3, 2, 5, 7, 4, 1])
+        running = ("SUM(X) ORDER BY Visit ASC, IF(Priority > 1, Priority, 0) DESC"
+                   " ROWS UNBOUNDED PRECEDING")
+        result = formula(frame, running)
+        self.assertTrue(result.index.equals(frame.index))
+        np.testing.assert_allclose(result, [14, 74, 4, 54, 12, 154, 314])
+        np.testing.assert_allclose(formula(frame, f"IF(X <= 10, ({running}), 0)"),
+                                   [14, 0, 4, 0, 12, 0, 0])
+        np.testing.assert_allclose(formula(frame, "IF(X <= 10, SUM(X) ORDER BY Visit, 0)"),
+                                   [314, 0, 314, 0, 314, 0, 0])
+        np.testing.assert_allclose(formula(frame, "SUM(X) ORDER BY Visit, Priority DESC"), [314] * 7)
+        with self.assertRaisesRegex(ValueError, "sort expression"):
+            formula(frame, "SUM(X) ORDER BY Visit,, Priority DESC ROWS 1 PRECEDING")
+
     def test_project_reopens_with_live_exclusions_and_formula(self):
         data = Dataset(self.frame)
         data.set_formula("Group mean", "MEAN(X) OVER Category")
@@ -149,7 +166,7 @@ class WindowFormulaTests(unittest.TestCase):
                 }})
                 metadata("data/sets/e.json", {"title": "Running count", "valuesStorageData": {
                     "@class": "TransformDataSource",
-                    "transform": "COUNT(A) OVER B ORDER BY A DESC ROWS UNBOUNDED PRECEDING",
+                    "transform": "COUNT(A) OVER B ORDER BY B ASC, A DESC ROWS UNBOUNDED PRECEDING",
                 }})
                 archive.writestr("data/tables/values/data.csv",
                                  "1,x,999,999,999\n3,x,999,999,999\n7,y,999,999,999\n9,y,999,999,999\n")
@@ -159,3 +176,9 @@ class WindowFormulaTests(unittest.TestCase):
         np.testing.assert_allclose(data.frame()[calculated], [[3, 3, 2], [3, 3, 1], [8, 8, 2], [8, 8, 1]])
         data.raw.loc[2, "Value"] = 5
         np.testing.assert_allclose(data.frame()[calculated], [[3, 3, 2], [3, 3, 1], [7, 7, 2], [7, 7, 1]])
+        with TemporaryDirectory() as directory:
+            project = Path(directory) / "imported.alab"
+            save_project(project, {"Measurements": data})
+            reopened = load_project(project)["Measurements"]
+        self.assertEqual(reopened.formulas, data.formulas)
+        np.testing.assert_allclose(reopened.frame()[calculated], data.frame()[calculated])

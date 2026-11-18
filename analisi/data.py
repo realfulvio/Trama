@@ -319,7 +319,11 @@ def formula(frame, expression, *, info=None):
                 statistic, values, partition, condition, order, ascending, rows = node.args
                 if not isinstance(statistic, ast.Constant) or not isinstance(statistic.value, str):
                     raise ValueError("Unknown worksheet statistic.")
-                if not isinstance(ascending, ast.Constant) or type(ascending.value) is not bool:
+                keys = order.elts if isinstance(order, ast.Tuple) else [order]
+                directions = ascending.elts if isinstance(ascending, ast.Tuple) else [ascending]
+                if len(keys) != len(directions) or not keys or any(
+                        not isinstance(direction, ast.Constant) or type(direction.value) is not bool
+                        for direction in directions):
                     raise ValueError("Invalid worksheet sort direction.")
                 bounds = None
                 if not absent(rows):
@@ -331,9 +335,10 @@ def formula(frame, expression, *, info=None):
                     bounds = tuple(node.value for node in rows.elts)
                 group = None if absent(partition) else evaluate(partition, raw=True)
                 mask = None if absent(condition) else evaluate(condition, filter_text=True)
-                ordering = None if absent(order) else evaluate(order, raw=True)
+                sort_keys = [(evaluate(key, raw=True), direction.value)
+                             for key, direction in zip(keys, directions, strict=True) if not absent(key)]
                 return worksheet_statistic(statistic.value, evaluate(values, raw=True), group, mask, len(frame),
-                                           order=ordering, ascending=ascending.value, bounds=bounds)
+                                           sort_keys=sort_keys, bounds=bounds)
             if name in FUNCTIONS:
                 arity, function = FUNCTIONS[name]
                 if len(node.args) == arity:
