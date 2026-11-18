@@ -34,6 +34,12 @@ Use `LN` for the natural logarithm, `LOG` or `LOG10` for base 10, and `LOG2` for
 
 `SIN`, `COS` and `TAN` take an angle in radians. `ARCSIN`, `ARCCOS`, `ARCTAN` and `ARCTAN2(y, x)` return an angle in radians. Use `RAD` to convert degrees to radians and `DEG` for the reverse conversion. `=COS(RAD(COL("Angle")))` calculates the cosine of an angle stored in degrees. These functions also remain editable in compatible imported ZIP project formulas.
 
+The hyperbolic functions are `SINH`, `COSH` and `TANH`, with inverses `ARCSINH`, `ARCCOSH` and `ARCTANH`. `LOGIT(p)` returns the log odds for values strictly between zero and one. Values outside a function's domain leave the result blank.
+
+## Arithmetic functions
+
+`CEIL` rounds up and `FLOOR` rounds down. `INT` discards the fractional part toward zero. `SGN` gives −1, 0 or 1 according to sign, and `SQR` squares each value. The same functions are available to editable imported formulas.
+
 ## Centering, standardizing and ranking
 
 `CENTER(Column)` subtracts the mean of the usable values from each value. `STANDARDIZE(Column)` and `ZSCORE(Column)` divide the centered values by the sample standard deviation. A constant column or a single usable observation leaves standardized values blank.

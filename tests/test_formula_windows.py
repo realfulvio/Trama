@@ -75,6 +75,20 @@ class WindowFormulaTests(unittest.TestCase):
         self.assertTrue(formula(frame.assign(Dose=3.), "ZSCORE(Dose)").isna().all())
         self.assertTrue(np.isposinf(frame.loc[3, "Dose"]))
 
+    def test_scalar_transforms_preserve_domains_and_blank_rows(self):
+        frame = pd.DataFrame({"X": [-2.5, 0., .25, 1., 2.5, np.nan]})
+        np.testing.assert_allclose(formula(frame, "CEIL(X)"), [-2, 0, 1, 1, 3, np.nan])
+        np.testing.assert_allclose(formula(frame, "FLOOR(X)"), [-3, 0, 0, 1, 2, np.nan])
+        np.testing.assert_allclose(formula(frame, "INT(X)"), [-2, 0, 0, 1, 2, np.nan])
+        np.testing.assert_allclose(formula(frame, "SGN(X)"), [-1, 0, 1, 1, 1, np.nan])
+        np.testing.assert_allclose(formula(frame, "SQR(X)"), [6.25, 0, .0625, 1, 6.25, np.nan])
+        np.testing.assert_allclose(formula(frame, "LOGIT(X)"), [np.nan, np.nan, -np.log(3), np.nan, np.nan, np.nan])
+        np.testing.assert_allclose(formula(frame, "ARCSINH(SINH(X))"), frame["X"])
+        np.testing.assert_allclose(formula(frame, "ARCCOSH(COSH(X))"), frame["X"].abs(), atol=1e-14)
+        np.testing.assert_allclose(formula(frame, "ARCTANH(TANH(X))"), frame["X"])
+        np.testing.assert_allclose(formula(frame, "ARCCOSH(X)"), [np.nan, np.nan, np.nan, 0, 1.566799236972411, np.nan])
+        np.testing.assert_allclose(formula(frame, "ARCTANH(X)"), [np.nan, 0, np.log(5 / 3) / 2, np.nan, np.nan, np.nan])
+
     def test_centering_and_standardizing_large_finite_values(self):
         frame = pd.DataFrame({"X": [1.6e308, 1.2e308]})
         np.testing.assert_allclose(formula(frame, "CENTER(X)"), [2e307, -2e307])

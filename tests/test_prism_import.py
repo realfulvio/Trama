@@ -124,6 +124,22 @@ class PrismImportTests(unittest.TestCase):
         np.testing.assert_allclose(reopened.frame()["Centered"], [6.25, -4.75, -2.75, 1.25])
         np.testing.assert_allclose(reopened.frame()["Standardized"], reopened.frame()["Z"])
 
+    def test_zip_restores_scalar_transforms_with_domains(self):
+        source = self.path / "transforms.prismt"
+        sets = {"a": {"title": "Fraction"}}
+        for name, expression in (("Rounded", "CEIL(A)"), ("Hyperbolic", "ARCTANH(A)"), ("Odds", "LOGIT(A)")):
+            sets[name] = {"title": name, "valuesStorageData": {"@class": "TransformDataSource",
+                                                             "transform": expression}}
+        write_archive(source, {"uid": "table", "format": "multivariable", "dataFormat": "y_single",
+                               "dataSets": list(sets)}, sets,
+                      ".25,99,99,99\n.5,99,99,99\n1,99,99,99\n-.25,99,99,99\n", (4, 4))
+        data = Dataset(load_tables(source)["Experiment"])
+        self.assertEqual(set(data.formulas), {"Rounded", "Hyperbolic", "Odds"})
+        np.testing.assert_allclose(data.frame()["Rounded"], [1, 1, 1, 0])
+        np.testing.assert_allclose(data.frame()["Odds"], [-np.log(3), 0, np.nan, np.nan])
+        data.raw.loc[2, "Fraction"] = .75
+        self.assertAlmostEqual(data.frame()["Odds"].iloc[2], np.log(3))
+
     def test_legacy_wrapper_uses_sheet_sequence_dates_and_upper_lower_endpoints(self):
         source = self.path / "example.xml"
         source.write_text(

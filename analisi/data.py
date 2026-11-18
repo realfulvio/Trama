@@ -211,11 +211,16 @@ COLUMN_FORMULA_FUNCTIONS = {
 
 
 ELEMENTWISE_FORMULA_FUNCTIONS = {
+    "CEIL": (1, np.ceil), "FLOOR": (1, np.floor), "INT": (1, np.trunc), "SGN": (1, np.sign),
+    "SQR": (1, np.square),
     "ABS": (1, np.abs), "SQRT": (1, np.sqrt), "EXP": (1, np.exp), "LN": (1, np.log),
     "LOG": (1, np.log10), "LOG10": (1, np.log10), "LOG2": (1, np.log2), "POWER": (2, np.power),
+    "LOGIT": (1, lambda p: np.log(p) - np.log1p(-p)),
     "SIN": (1, np.sin), "COS": (1, np.cos), "TAN": (1, np.tan),
     "ARCSIN": (1, np.arcsin), "ARCCOS": (1, np.arccos), "ARCTAN": (1, np.arctan),
     "ARCTAN2": (2, np.arctan2), "RAD": (1, np.deg2rad), "DEG": (1, np.rad2deg),
+    "SINH": (1, np.sinh), "COSH": (1, np.cosh), "TANH": (1, np.tanh),
+    "ARCSINH": (1, np.arcsinh), "ARCCOSH": (1, np.arccosh), "ARCTANH": (1, np.arctanh),
 }
 
 FUNCTIONS = {
