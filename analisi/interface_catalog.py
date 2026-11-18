@@ -1030,3 +1030,15 @@ CAPTIONS.update({
     'Source analysis': 'Analisi sorgente',
     'Change input result…': 'Cambia risultato di ingresso…',
 })
+
+CAPTIONS.update({
+    "Ellipse group styles": "Stili delle ellissi per gruppo",
+    "Edit group styles…": "Modifica stili per gruppo…",
+    "Empty fields inherit the graph style.": "I campi vuoti ereditano lo stile del grafico.",
+    "The grouping column has no observed values.": "La colonna dei gruppi non contiene valori osservati.",
+    "Choose color…": "Scegli colore…",
+    "Number": "Numero",
+    "Border width must be between 0.1 and 72 points.": "Lo spessore del bordo deve essere tra 0,1 e 72 punti.",
+    "Fill opacity (%) must be between 0 and 100.": "L’opacità del riempimento deve essere tra 0 e 100.",
+    "Border opacity (%) must be between 0 and 100.": "L’opacità del bordo deve essere tra 0 e 100.",
+})

@@ -11,6 +11,9 @@ from .anova_diagnostics import OPTIONS as ANOVA_DIAG_OPTIONS
 from .anova_diagnostics import active as anova_diagnostics_active, build as build_anova_diagnostics
 from .anova_diagnostics import ensure_graph_budget as ensure_anova_graph_budget, graph_choice as anova_graph_choice
 from .anova_diagnostics import validate as validate_anova_diagnostics
+from .anova_terms import (CHOICES as TERM_CHOICES, MODEL_TERMS, SHEET as MODEL_TERMS_SHEET, TERM_LIST, TERM_SELECTION,
+                          active_factors as anova_active_factors, check_comparison_controls as check_anova_comparisons,
+                          selection as anova_term_selection, terms_table as anova_terms_table)
 from .additional import EXTRA_METHODS, extra_analysis
 from .category_graphs import (COLUMN_GRAPH, COLUMN_STYLES, GROUPED_GRAPH, GROUPED_OPTIONS, OPTIONS as CATEGORY_OPTIONS,
                               category_graph)
@@ -212,7 +215,8 @@ METHODS = {
                                  "Weighting": engine.FIT_WEIGHTINGS, "SD column": OPTIONAL},
     COMPARE_MODELS: COMPARE_MODELS_OPTIONS,
     ROBUST_CURVE: ROBUST_CURVE_OPTIONS,
-    "Multifactor ANOVA": {"Response": None, "Factors": MULTIPLE, "Interaction order": 1,
+    "Multifactor ANOVA": {"Response": None, "Factors": MULTIPLE, TERM_SELECTION: TERM_CHOICES, "Interaction order": 1,
+                         MODEL_TERMS: TERM_LIST,
                          "Compare marginal means by": OPTIONAL, "Cell comparison factors": OPTIONAL_MULTIPLE,
                          "Within factors (simple effects)": OPTIONAL_MULTIPLE, "Control level(s), separated by |": TEXT,
                          "Families": ("Separate", "Pooled"), "Reverse comparisons": False,
@@ -367,17 +371,25 @@ def _anova_row_count(frame, response, factors):
 
 
 def _anova(frame, o):
-    y, factors, order = o["Response"], o["Factors"], o["Interaction order"]
+    y, factors = o["Response"], o["Factors"]
+    # Selected terms (0.83): None means Full hierarchy, whose Interaction order and Patsy fit are unchanged.
+    terms = anova_term_selection(o)
+    order = o.get("Interaction order", 1) if terms is not None else o["Interaction order"]
     alpha = check_anova_options(o)
     # Field errors name the diagnostic control. The full fit still happens once, on this call.
     validate_anova_diagnostics(o)
+    if terms is not None:
+        check_anova_comparisons(o, factors, terms)
     graph = anova_graph_choice(o)
     if graph != "None":
-        count = _anova_row_count(frame, y, factors)
+        count = _anova_row_count(frame, y, anova_active_factors(factors, terms) if terms is not None else factors)
         if count is not None:
             ensure_anova_graph_budget(count, graph)
-    table, fit, data, design, beta, error, df = engine._factorial_anova_components(frame, y, factors, order)
+    table, fit, data, design, beta, error, df = engine._factorial_anova_components(
+        frame, y, factors, order, terms=terms)
     tables = {"ANOVA (type III)": table}
+    if terms is not None:
+        tables[MODEL_TERMS_SHEET] = anova_terms_table(terms, anova_active_factors(factors, terms), data)
     if alpha is not None:
         tables[ANOVA_EFFECTS], tables[ANOVA_MODEL_FIT] = engine.anova_effect_sizes(table, fit, alpha)
     compare = o.get("Cell comparison factors") or o.get("Compare marginal means by")
@@ -392,7 +404,7 @@ def _anova(frame, o):
         tables["Multiple comparisons"] = anova_comparisons(
             frame, y, factors, order, compare, within=within,
             method=correction, family=o.get("Families", "Separate").lower(), control=control or None,
-            reverse=o.get("Reverse comparisons", False))
+            reverse=o.get("Reverse comparisons", False), terms=terms)
     elif within or control:
         raise ValueError("Choose which factor or cells to compare.")
     figure = None

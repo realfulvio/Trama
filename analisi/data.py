@@ -66,8 +66,10 @@ def _table(headers, rows, kinds=None, *, max_columns=MAX_COLUMNS, decimal_mark="
     frame = pd.DataFrame([row + [None] * (len(headers) - len(row)) for row in rows],
                          columns=_headers(headers), dtype=object)
     for index, name in enumerate(frame.columns):
-        original = frame[name].replace("", np.nan)
         kind = kinds[index] if kinds else None
+        if kind == "mixed":
+            continue
+        original = frame[name].replace("", np.nan)
         padded_id = kind is None and any(
             isinstance(value, str) and re.fullmatch(r"[+-]?0[0-9]+", value)
             for value in original
@@ -372,6 +374,14 @@ def _decode_cell(value):
     raise ValueError("Invalid numeric marker in project table.")
 
 
+def _project_column_kind(column):
+    if pd.api.types.is_numeric_dtype(column):
+        return "numeric"
+    if pd.api.types.infer_dtype(column.to_numpy(dtype=object), skipna=True) in {"mixed", "mixed-integer"}:
+        return "mixed"
+    return "text"
+
+
 def _worksheet_roles(frame):
     if "worksheet_roles" in frame.attrs:
         return frame.attrs["worksheet_roles"]
@@ -482,8 +492,7 @@ def save_project(path, tables, *, layouts=(), info_sheets=None):
         record = {
             "title": title,
             "columns": list(raw.columns),
-            "kinds": ["numeric" if pd.api.types.is_numeric_dtype(raw[name]) else "text"
-                      for name in raw],
+            "kinds": [_project_column_kind(raw[name]) for name in raw],
             "rows": [[_encode_cell(value) for value in row] for row in raw.itertuples(index=False, name=None)],
             "formulas": list(dataset.formulas.items()),
             "analyses": dataset.analyses,
