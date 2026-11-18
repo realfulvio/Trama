@@ -10,6 +10,7 @@ import pandas as pd
 from .data import EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_STACKS, EDITABLE_PRISM_XY, MAX_CELLS
 from .prism_import import _identifier, _json_object, _store_table, _zip_table
 from .prism_recipes import restore_recipe
+from .prism_mv_scatter import APPEARANCE, saved_scatter
 
 SAVED_XY = "Imported Prism XY graph"
 SAVED_BINARY_GRAPH = "Imported Prism original graph"
@@ -179,6 +180,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
     warnings = []
     restyled = set()
     owners = {}
+    view_sources = dict(sources)
     for source in sources.values():
         if source.attrs["prism_x"]:
             for uid in source.attrs["prism_y"]:
@@ -225,7 +227,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             for record in _list(sheet.get("resultSheets", [])):
                 if not isinstance(record, dict):
                     continue
-                restore_view(archive, names, path, record, label, sheet, add, owners, MAX_CELLS - cells)
+                restore_view(archive, names, path, record, label, sheet, add, owners, view_sources, MAX_CELLS - cells)
         except (KeyError, TypeError, ValueError, csv.Error):
             warnings.append(f"Some saved analysis content could not be read for {label}.")
     for entry in _list(sheets.get("graphs", [])):
@@ -239,6 +241,16 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             if not isinstance(label, str):
                 raise ValueError("Invalid graph title.")
             points = _saved_xy({**graph, "title": label[:160]}, owners, MAX_CELLS - cells)
+            if points is None and graph.get("uid") == uid:
+                scatter = saved_scatter(graph, view_sources, MAX_CELLS - cells)
+                if scatter is not None:
+                    points, style = scatter
+                    points.attrs["table_format"] = "Prism graph snapshot"
+                    points.attrs["prism_recipes"] = [(SAVED_XY, {
+                        PRISM_TITLE: label[:160], APPEARANCE: style,
+                        PRISM_NOTES: "Editable saved scatter coordinates, category colors and axis limits. "
+                                     "Trama draws the rest of the graph with native formatting.",
+                    })]
             if points is None or not add(f"Prism graph · {label}", points):
                 warnings.append(f"Graph unavailable for {label}.")
         except (KeyError, TypeError, ValueError):
@@ -435,7 +447,7 @@ def _link_layout_panel_data(layouts, graph_links, linked):
             options[PRISM_PANEL_DATA] = links
 
 
-def restore_view(archive, names, path, record, analysis_title, analysis, add, owners, remaining_cells):
+def restore_view(archive, names, path, record, analysis_title, analysis, add, owners, view_sources, remaining_cells):
     view_id = _identifier(record.get("uid"))
     view_path = f"{path}result_sheets/{view_id}.json"
     if view_path not in names:
@@ -454,6 +466,7 @@ def restore_view(archive, names, path, record, analysis_title, analysis, add, ow
     frame.attrs["table_format"] = "Prism result snapshot"
     if not add(f"Prism result · {analysis_title} · {name}", frame):
         return
+    view_sources.setdefault(uid, frame)
     if frame.attrs["prism_x"]:
         geometry = "line" if name == "Curve" else "points"
         if analysis.get("analysisClass") == "SURVIVAL" and name == "Survival proportions":

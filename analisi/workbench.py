@@ -810,21 +810,27 @@ def _classic_analysis(method, frame, options, predict, run):
 
 
 def _imported_xy(frame, options):
+    from .prism_mv_scatter import APPEARANCE, appearance_record, apply_axes
+
+    style = appearance_record(options[APPEARANCE]) if APPEARANCE in options else None
     data = engine.complete(frame, ["X", "Y", "Dataset"], ["Series", "Geometry"])
     if data.empty:
         raise ValueError("The saved graph has no complete XY points.")
     figure, axes = _plot(options.get(PRISM_TITLE, "Prism XY graph"), options.get("X label", "X"), "Y")
     colors = {}
+    markers, captions = [], []
     error_columns = ["Y minus", "Y plus"]
     if all(column in frame for column in error_columns):
         data = data.join(frame[error_columns], validate="one_to_one")
-    for _, group in data.groupby("Dataset", sort=False):
+    for _, group in data.groupby("Dataset", sort=style is not None):
         labels, shapes = group["Series"].unique(), group["Geometry"].unique()
         if len(labels) != 1 or len(shapes) != 1:
             raise ValueError("Each saved graph series needs one label and geometry.")
         label, geometry = labels[0], shapes[0]
+        if style is not None and geometry != "points":
+            raise ValueError("This saved scatter requires point geometry.")
         display = str(label) if label not in colors else "_nolegend_"
-        color = colors.get(label)
+        color = style["palette"].get(label) if style is not None else colors.get(label)
         if geometry == "line":
             artist, = axes.plot(group["X"], group["Y"], color=color, label=display)
             color = artist.get_color()
@@ -832,7 +838,12 @@ def _imported_xy(frame, options):
             artist, = axes.step(group["X"], group["Y"], where="post", color=color, label=display)
             color = artist.get_color()
         elif geometry == "points":
-            artist = axes.scatter(group["X"], group["Y"], color=color, label=display, s=20)
+            marker = {} if style is None else {"edgecolors": style["edge"], "linewidths": style["width"]}
+            size = 20 if style is None else style["size"] ** 2
+            artist = axes.scatter(group["X"], group["Y"], color=color, label=display, s=size, **marker)
+            if style is not None and label not in colors:
+                markers.append(artist)
+                captions.append(str(label))
             color = artist.get_facecolor()[0]
         else:
             raise ValueError("Invalid geometry in a saved Prism series.")
@@ -843,7 +854,12 @@ def _imported_xy(frame, options):
                 axes.errorbar(group["X"].to_numpy()[present], group["Y"].to_numpy()[present],
                               yerr=errors[present].T, fmt="none", ecolor=color, alpha=.55)
         colors[label] = color
-    if len(colors) <= 15:
+    if style is not None:
+        apply_axes(axes, style)
+        legend = axes.legend(markers, captions, title=style["legend"], ncols=(len(markers) + 9) // 10)
+        for label in [legend.get_title(), *legend.get_texts()]:
+            label.set_parse_math(False)
+    elif len(colors) <= 15:
         axes.legend()
     return Result({"Saved XY coordinates": data}, figure)
 
