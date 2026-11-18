@@ -55,6 +55,7 @@ from .custom_fit import CUSTOM_EQUATION, custom_fit
 from .global_custom_fit import GLOBAL_CUSTOM_EQUATION, global_custom_fit
 from .plot_function import PLOT_FUNCTION
 from .robust_curve import OPTIONS as ROBUST_CURVE_OPTIONS, ROBUST_CURVE, robust_curve
+from .nb2_regression import NB2, OPTIONS as NB2_OPTIONS, analysis as nb2_analysis
 from .transpose_xy import OPTIONS as TRANSPOSE_OPTIONS, TRANSPOSE_XY, transpose_xy
 from .paired_graphs import (BEFORE_AFTER, BEFORE_AFTER_OPTIONS, TRAJECTORIES, TRAJECTORY_OPTIONS, before_after,
                             subject_trajectories)
@@ -221,6 +222,7 @@ METHODS = {
                                  "Weighting": engine.FIT_WEIGHTINGS, "SD column": OPTIONAL},
     COMPARE_MODELS: COMPARE_MODELS_OPTIONS,
     ROBUST_CURVE: ROBUST_CURVE_OPTIONS,
+    NB2: NB2_OPTIONS,
     "Multifactor ANOVA": {"Response": None, "Factors": MULTIPLE, TERM_SELECTION: TERM_CHOICES, "Interaction order": 1,
                          MODEL_TERMS: TERM_LIST,
                          "Compare marginal means by": OPTIONAL, "Cell comparison factors": OPTIONAL_MULTIPLE,
@@ -296,7 +298,7 @@ GROUPS = {
                                     "Adjust a stack of p values", "Control false discoveries",
                                     "Smooth / differentiate / integrate"),
     "Regression and Curves": ("Linear regression", COMPARE_LINES, "Deming regression", "Multiple regression",
-                              "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
+                              NB2, "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
                               "Interpolate a standard curve", SPLINE_FIT, PLOT_FUNCTION),
     "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
@@ -1101,6 +1103,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return model_selection(frame, o)
     if method == ROBUST_CURVE:
         return robust_curve(frame, o)
+    if method == NB2:
+        return nb2_analysis(frame, o)
     if method == "Multifactor ANOVA":
         return _anova(frame, o)
     if method in kmeans_options.METHODS:
