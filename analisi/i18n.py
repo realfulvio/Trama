@@ -658,6 +658,9 @@ _GRAPH_EN = {
     "graph.series.marker": "Symbol", "graph.series.marker_size": "Symbol size (pt)",
     "graph.series.marker_color": "Symbol color", "graph.series.draw_style": "Draw style",
     "graph.series.side": "Axis",
+    # Mixed XY series: Step and Bars (analisi/xy_series.py). Recipes keep the English values.
+    "graph.series.visible": "Show series", "graph.series.bar_width": "Bar cluster width",
+    "graph.series.bar_width_hint": "X units; blank is Auto",
     "graph.series.hint": "Choose a plot element. Blank fields keep their original settings.",
     "graph.series.inactive_hint": ("Choose a plot element. Blank fields keep their original settings. "
                                    "Disabled fields stay saved for the other draw styles."),
@@ -1043,6 +1046,8 @@ _GRAPH_IT = {
     "graph.series.width": "Spessore linea (pt)", "graph.series.marker": "Simbolo",
     "graph.series.marker_size": "Dimensione simbolo (pt)", "graph.series.marker_color": "Colore simbolo",
     "graph.series.draw_style": "Stile di disegno", "graph.series.side": "Asse",
+    "graph.series.visible": "Mostra la serie", "graph.series.bar_width": "Larghezza del gruppo di barre",
+    "graph.series.bar_width_hint": "unità di X; vuoto è Automatica",
     "graph.series.hint": "Scegli un elemento del grafico. I campi vuoti mantengono le impostazioni originali.",
     "graph.series.inactive_hint": ("Scegli un elemento del grafico. I campi vuoti mantengono le impostazioni "
                                    "originali; i campi disabilitati restano salvati per gli altri stili di disegno."),

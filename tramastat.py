@@ -131,8 +131,8 @@ from analisi.linear_estimates import (FORWARD as LINEAR_Y_CI, INVERSE as LINEAR_
 from analisi.xy_errors import (ERROR_COLOR as XY_ERROR_COLOR, XY_ERRORS, XY_ERROR_CHOICE_KEYS,
                                XY_ERROR_LABEL_KEYS, XY_ERROR_TABS, XY_ERROR_TAB_KEYS,
                                prune_xy_error_options, xy_error_visibility)
-from analisi.xy_series import (XY_METHOD, assign_colors, check_xy_options, prune_options,
-                               style_after_parameter_change as xy_style, xy_series)
+from analisi.xy_series import (RECIPE_KEYS as XY_RECIPE_KEYS, XY_METHOD, assign_colors, check_xy_options,
+                               prune_options, style_after_parameter_change as xy_style, xy_series)
 from analisi.parameter_dialog import GlobalParameters, SeriesConstraints
 from analisi.parts_of_whole import (APPLY_SEGMENT_STYLES, BORDER_COLOR, BORDER_WIDTH, CLOCKWISE, DONUT, DOTS,
                                     EXPECTED as EXPECTED_DISTRIBUTIONS, GOODNESS_OF_FIT, PARTS_GRAPH, PIE,
@@ -3479,7 +3479,10 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == "Interpolate a standard curve" and options.get("Curve") == "Nonlinear":
                 calibration_choice_error(self.data, options.get("X"), options.get("Y"), "Nonlinear", options.get("Model"))
             if self.method == XY_METHOD:
-                check_xy_options(self.data, options)
+                # Draw styles and the bar width stay on the saved recipe: check the graph they will draw.
+                saved = self.current[1] if self.current and self.current[0] == self.method else {}
+                check_xy_options(self.data, prune_options(
+                    {**{key: saved[key] for key in XY_RECIPE_KEYS if key in saved}, **options}))
             if self.method == XY_ERRORS:
                 saved = self.current[1] if self.current and self.current[0] == self.method else {}
                 options = prune_xy_error_options(options, saved)
@@ -3641,6 +3644,11 @@ class AnalysisDialog(simpledialog.Dialog):
                     message = f"{label}: {message}"
             elif self.method == "Interpolate a standard curve":
                 message = translate_calibration_error(error)
+            elif self.method == XY_METHOD:
+                message = translate_message(message, "xy.error.")
+                label = ui(field) if field else ""
+                if label and label not in message:
+                    message = f"{label}: {message}"
             elif self.method == "Multifactor ANOVA" and (formatted := format_anova_error(error)):
                 message = formatted
             elif self.method == "One-way ANOVA" and (
@@ -6687,8 +6695,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:
                 options["Group order"] = run.options["Group order"]
             if method == XY_METHOD:
-                for key in ("Series style", "Series side", "Series color", "Right title", "Right scale",
-                            "Right minimum", "Right maximum", "Y minimum", "Y maximum"):
+                for key in XY_RECIPE_KEYS:
                     if key in run.options and key not in options:
                         options[key] = run.options[key]
                 options = prune_options(options)
