@@ -105,6 +105,12 @@ from analisi.equivalence_workbench import (CHOICE_KEYS as TOST_CHOICE_KEYS, DATA
                                            DESIGN as TOST_DESIGN, ERROR_PREFIX as TOST_ERROR_PREFIX, EQUIVALENCE,
                                            LABEL_KEYS as TOST_LABEL_KEYS, TAB_KEYS as TOST_TAB_KEYS,
                                            visibility as equivalence_visibility)
+from analisi.paired_proportions import (CHOICE_KEYS as PAIRED_CHOICE_KEYS, DATA_FIELDS as PAIRED_DATA_FIELDS,
+                                        DEFAULT_CODES as PAIRED_DEFAULT_CODES, ERROR_PREFIX as PAIRED_ERROR_PREFIX,
+                                        FORMAT as PAIRED_FORMAT, GRAPH as PAIRED_GRAPH,
+                                        LABEL_KEYS as PAIRED_LABEL_KEYS, PAIRED_PROPORTIONS,
+                                        TAB_KEYS as PAIRED_TAB_KEYS, defaults as paired_defaults,
+                                        visibility as paired_visibility)
 from analisi.reference_normalization import (INPUT_FIELDS as REFERENCE_INPUT_FIELDS, METHOD as REFERENCE_NORMALIZATION,
                                              OUTPUT_FIELDS as REFERENCE_OUTPUT_FIELDS,
                                              REFERENCE_FIELDS as REFERENCE_REFERENCE_FIELDS,
@@ -338,6 +344,11 @@ def translate_mlr_error(text):
 def translate_equivalence_error(error):
     """An Equivalence test message in the active language; its field names become the dialog captions."""
     return translate_message(str(error), TOST_ERROR_PREFIX, {"field": lambda name: tr(TOST_LABEL_KEYS.get(name, name))})
+
+
+def translate_paired_error(error):
+    """A Paired proportions message in the active language; its field names become the dialog captions."""
+    return translate_message(str(error), PAIRED_ERROR_PREFIX, {"field": lambda name: tr(PAIRED_LABEL_KEYS.get(name, name))})
 
 
 def translate_correlation_error(error):
@@ -1123,6 +1134,12 @@ class AnalysisDialog(simpledialog.Dialog):
             self.fields.tab(variables, text=tr(TOST_TAB_KEYS["Data"]))
             self.fields.tab(options, text=tr(TOST_TAB_KEYS["Equivalence zone"]))
             fields_by_tab.update(dict.fromkeys(TOST_DATA_FIELDS, variables))
+        elif self.method == PAIRED_PROPORTIONS:
+            self.fields.tab(variables, text=tr(PAIRED_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(PAIRED_TAB_KEYS["Test and graph"]))
+            fields_by_tab.update(dict.fromkeys(PAIRED_DATA_FIELDS, variables))
+            if not saved:
+                saved = paired_defaults(self.data)
         elif self.method == COMPARE_MODELS:
             self.fields.tab(variables, text=ui("Data"))
             self.fields.tab(options, text=ui("Output"))
@@ -1268,6 +1285,7 @@ class AnalysisDialog(simpledialog.Dialog):
             ratio_control = self.method == LOGNORMAL and label in RATIO_LABEL_KEYS
             variance_ratio_control = self.method == VARIANCE_RATIO and label in VARIANCE_RATIO_LABELS
             tost_control = self.method == EQUIVALENCE and label in TOST_LABEL_KEYS
+            paired_control = self.method == PAIRED_PROPORTIONS and label in PAIRED_LABEL_KEYS
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
             reference_control = self.method == REFERENCE_NORMALIZATION and label in REFERENCE_LABEL_KEYS
@@ -1276,6 +1294,7 @@ class AnalysisDialog(simpledialog.Dialog):
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
                           else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
+                          else tr(PAIRED_LABEL_KEYS[label]) if paired_control
                           else tr(PARAM_CI_LABELS[label]) if parameter_ci_control
                           else tr(NL_BAND_LABELS[label]) if band_control
                           else tr(XY_ERROR_LABEL_KEYS[label]) if xy_error_control
@@ -1439,6 +1458,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     default = STATUS_DEFAULTS.get(label, default)
                 if self.method == COX:
                     default = COX_STATUS.get(label, default)
+                if self.method == PAIRED_PROPORTIONS:
+                    default = PAIRED_DEFAULT_CODES.get(label, default)
                 if self.method == HEAT_MAP:
                     default = HEAT_MAP_GRADIENT_COLORS.get(label, default)
                     if label == CELL_LABEL_COLOR:
@@ -1516,6 +1537,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, VARIANCE_RATIO_CHOICES)
                     elif tost_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOST_CHOICE_KEYS)
+                    elif paired_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, PAIRED_CHOICE_KEYS)
                     elif robust_control and isinstance(kind, tuple) and label != ROBUST_MODEL:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ROBUST_CHOICE_KEYS)
                     elif self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and label == CUSTOM_SYNTAX:
@@ -1860,6 +1883,18 @@ class AnalysisDialog(simpledialog.Dialog):
             self.show_fields(self.equivalence_fields())
             ttk.Label(options, text=tr("tost.hint"), wraplength=370, foreground="#486075").grid(
                 row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+        if self.method == PAIRED_PROPORTIONS:
+            self.controls[PAIRED_FORMAT][1].trace_add("write", lambda *_: self.show_paired_fields())
+            data_tab = fields_by_tab[PAIRED_FORMAT]
+            self.paired_notes = {}
+            for name in ("observations", "matrix"):
+                note = ttk.Label(data_tab, text=tr(f"paired.note.{name}"), wraplength=ui_theme.px(400),
+                                 foreground="#486075", justify="left")
+                note.grid(row=positions[data_tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
+                self.paired_notes[name] = note
+            self.show_paired_fields()
+            ttk.Label(options, text=tr("paired.hint"), wraplength=ui_theme.px(400), foreground="#486075",
+                      justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
         if self.method == FDR_METHOD:
             ttk.Label(options, text=tr("fdr.note"), wraplength=430, foreground="#486075", justify="left").grid(
                 row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
@@ -3104,6 +3139,22 @@ class AnalysisDialog(simpledialog.Dialog):
             return {}
         return equivalence_visibility(self.controls[TOST_DESIGN][1].get())
 
+    def paired_fields(self):
+        """Before, After and the two codes belong to Observations; the two count columns to Count matrix."""
+        if self.method != PAIRED_PROPORTIONS or PAIRED_FORMAT not in self.controls:
+            return {}
+        return paired_visibility(self.controls[PAIRED_FORMAT][1].get())
+
+    def show_paired_fields(self):
+        visible = self.paired_fields()
+        self.show_fields(visible)
+        matrix = not visible.get("Before", True)
+        for name, note in self.paired_notes.items():
+            if (name == "matrix") == matrix:
+                note.grid()
+            else:
+                note.grid_remove()
+
     def summary_anova_fields(self):
         if self.method not in (SUMMARY_ANOVA, SUMMARY_TTEST):
             return {}
@@ -3236,7 +3287,7 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.anova_fields(), **self.anova_term_fields(), **self.anova_diagnostic_fields(),
                       **self.regression_visibility(), **self.forest_fields(),
                       **self.compare_lines_fields(), **self.lognormal_fields(), **self.ttest_variance_fields(),
-                      **self.equivalence_fields(), **self.cox_fields(),
+                      **self.equivalence_fields(), **self.paired_fields(), **self.cox_fields(),
                       **self.summary_anova_fields(),
                       **self.one_way_fields(),
                       **self.monte_carlo_fields(), **self.function_fields(), **self.weighting_visibility(),
@@ -3486,7 +3537,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
                     or self.method == PARTS_GRAPH
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
-                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
+                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE,
+                                       PAIRED_PROPORTIONS, COX, OUTLIERS,
                                        "One-way ANOVA", REFERENCE_NORMALIZATION,
                                        SPLINE_FIT, COMPARE_MODELS, XY_ERRORS}):
                 # Keep field errors in the dialog and reuse the successful result.
@@ -3540,6 +3592,11 @@ class AnalysisDialog(simpledialog.Dialog):
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
+                if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == PAIRED_PROPORTIONS:
+                message = translate_paired_error(error)
+                label = tr(PAIRED_LABEL_KEYS[field]) if field in PAIRED_LABEL_KEYS else field
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
             elif self.method == REFERENCE_NORMALIZATION:
@@ -4293,7 +4350,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                              or (run.method == "Multifactor ANOVA"
                                  and run.options.get(ANOVA_DIAG_GRAPH) not in (None, "", "None"))
                              or (run.method == FDR_METHOD and run.options.get(FDR_PLOT))
-                             or (run.method == VARIANCE_RATIO and variance_ratio_shows_graph(run.options))))],
+                             or (run.method == VARIANCE_RATIO and variance_ratio_shows_graph(run.options))
+                             or (run.method == PAIRED_PROPORTIONS and run.options.get(PAIRED_GRAPH) is True)))],
              "New Graph…", self.new_graph),
             ("Layouts", [(layout.name, ("layout", i)) for i, layout in enumerate(self.layouts)]
                         + [(run.name, ("saved-layout", i)) for i, run in enumerate(self.runs)
