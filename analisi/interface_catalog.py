@@ -82,6 +82,7 @@ Show variance comparison|Mostra il confronto delle varianze
 Variance ratio|Rapporto tra le varianze
 SD ratio|Rapporto tra le DS
 Equivalence test (TOST)|Test di equivalenza (TOST)
+Permutation test for mean difference|Test di permutazione per la differenza tra medie
 Lower margin|Margine inferiore
 Upper margin|Margine superiore
 Wilcoxon signed-rank|Test dei ranghi con segno di Wilcoxon
