@@ -1546,6 +1546,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 if label in self.controls:
                     self.controls[label][1].trace_add("write", lambda *_: self.show_processing_fields())
             self.show_processing_fields()
+        if self.method == "K-means model selection":
+            criterion = self.controls["Criterion"][1]
+            criterion.trace_add("write", lambda *_: self.show_fields(self.kmeans_visibility()))
+            self.show_fields(self.kmeans_visibility())
         if self.method == "Hierarchical clustering":
             for label in ("Direction", "Row cut", "Column cut", "Graph output", "Distance matrix", "Cophenetic distances"):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_hierarchical_fields())
@@ -2159,6 +2163,12 @@ class AnalysisDialog(simpledialog.Dialog):
 
     def show_processing_fields(self):
         self.show_fields(self.processing_visibility())
+
+    def kmeans_visibility(self):
+        if self.method != "K-means model selection":
+            return {}
+        from analisi.cluster_consensus import KL_SCALING
+        return {KL_SCALING: self.controls["Criterion"][1].get() == "Consensus (17 indices)"}
 
     def hierarchical_visibility(self):
         if self.method != "Hierarchical clustering":
@@ -3134,7 +3144,8 @@ class AnalysisDialog(simpledialog.Dialog):
         name = None
         self.processing_result = None
         inactive = self._inactive_controls()
-        visibility = {**self.processing_visibility(), **self.hierarchical_visibility(), **self.overlay_visibility(),
+        visibility = {**self.processing_visibility(), **self.kmeans_visibility(),
+                      **self.hierarchical_visibility(), **self.overlay_visibility(),
                       **self.extract_visibility(), **self.category_visibility(), **self.contingency_visibility(),
                       **self.parts_visibility(), **self.frequency_visibility(), **self.correlation_visibility(),
                       **self.correlation_details_visibility(),
@@ -6224,13 +6235,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if data.table_format in EDITABLE_PRISM_FIXED_VALUES:
             self.error("Edit the recovered values directly in this worksheet.")
             return
-        name = simpledialog.askstring("Calculated column", "New or existing calculated column name", parent=self.root)
+        name = simpledialog.askstring(ui("Calculated column"), ui("New or existing calculated column name"),
+                                      parent=self.root)
         if not name:
             return
         name = name.strip()
-        value = simpledialog.askstring(
-            "Formula", 'Example: =COL("Sample mass") / 10\nFunctions include IF, ABS, SQRT, LN, MEAN and SUM.',
-            initialvalue=data.formulas.get(name, ""), parent=self.root)
+        value = simpledialog.askstring("Formula", tr("worksheet.formula.examples"),
+                                        initialvalue=data.formulas.get(name, ""), parent=self.root)
         if value:
             before = self.worksheet_state(data)
             try:
@@ -7413,6 +7424,49 @@ def smoke(root, app, directory, legacy_reference=None):
         assert "4 °C" in app.current_info.notes.get("1.0", "end-1c")
         assert app.current_info.sheet.note_styles == note_styles
         assert app.tables[study].frame()["Adjusted"].tolist() == [30, 60]
+
+    def check_worksheet_statistics():
+        title = "Responses by cohort"
+        path = directory / "worksheet-statistics.alab"
+        source = pd.DataFrame({
+            "Response": [10, 40, 20, 60, 30, 80],
+            "Visit": [1, 2, 3, 1, 2, 3],
+            "Cohort": ["A", "B", "A", "B", "A", "B"],
+        })
+        save_project(path, {title: Dataset(source)})
+        app.import_file(path)
+        recipes = {
+            "Cumulative response": "SUM(Response) OVER Cohort ORDER BY Visit ROWS UNBOUNDED PRECEDING",
+            "Mean through visit 2": "MEANIF(Response, Visit <= 2) OVER Cohort",
+        }
+        for name, recipe in recipes.items():
+            with patch.object(simpledialog, "askstring", side_effect=(name, recipe)) as prompts:
+                app.add_formula()
+            assert prompts.call_args_list[0].args[0] == ui("Calculated column")
+            assert "ROWS UNBOUNDED PRECEDING" in prompts.call_args_list[1].args[1]
+
+        def assert_values(cumulative, means):
+            data = app.tables[title].frame(mask_excluded=True)
+            np.testing.assert_allclose(data["Cumulative response"], cumulative)
+            np.testing.assert_allclose(data["Mean through visit 2"], means)
+
+        assert_values([10, 100, 60, 60, 40, 180], [20, 50, 20, 50, 20, 50])
+        app.edit_cell(0, 0, "12")
+        assert_values([12, 100, 62, 60, 42, 180], [21, 50, 21, 50, 21, 50])
+        app.current_grid.active_cell = (0, 0)
+        app.toggle_exclusion()
+        expected = [0, 100, 50, 60, 30, 180], [30, 50, 30, 50, 30, 50]
+        assert_values(*expected)
+        assert app.save()
+        app.import_file(path)
+        assert app.tables[title].formulas == recipes
+        assert_values(*expected)
+        target = directory / "worksheet-statistics.csv"
+        with patch.object(filedialog, "asksaveasfilename", return_value=str(target)):
+            app.export()
+        exported = load_tables(target)["worksheet-statistics"]
+        np.testing.assert_allclose(exported["Cumulative response"], expected[0])
+        capture(root, "window-worksheet-statistics.png")
 
     def check_data_grid():
         title = "Dose response worksheet"
@@ -11915,6 +11969,8 @@ def smoke(root, app, directory, legacy_reference=None):
         capture(root, "window-survival-cumulative.png")
 
     def check_kmeans_consensus():
+        from analisi.cluster_consensus import KL_SCALING, UNSCALED_WSS, WSS_DROP_RATIO
+
         offsets = np.array([[0., 0.], [6., 0.], [3., 5.]])
         jitter = np.array([[-.3, -.2], [.2, -.3], [.3, .2], [-.2, .3], [0., 0.], [.1, -.1]])
         points = (offsets[:, None, :] + jitter).reshape(-1, 2)
@@ -11929,7 +11985,9 @@ def smoke(root, app, directory, legacy_reference=None):
         def pick_consensus(dialog):
             pick_method(dialog, "K-means model selection")
             select_columns(dialog, "Variables", {"Cluster", "Marker"})
+            assert not dialog.field_rows[KL_SCALING][1].winfo_manager()
             dialog.controls["Criterion"][1].set("Consensus (17 indices)")
+            assert dialog.field_rows[KL_SCALING][1].winfo_manager()
             dialog.controls["Maximum k"][1].set("5")
             dialog.controls["Gap simulations"][1].set("5")
 
@@ -11957,13 +12015,16 @@ def smoke(root, app, directory, legacy_reference=None):
         def narrow_scan(dialog):
             assert dialog.controls["Criterion"][1].get() == "Consensus (17 indices)"
             dialog.controls["Maximum k"][1].set("4")
+            dialog.controls[KL_SCALING][1].set(UNSCALED_WSS)
 
         drive_dialog(AnalysisDialog, narrow_scan)
         app.edit_analysis()
         wait_for_calculation()
         edited = app.runs[index].result.tables["Cluster metrics"]
         assert edited.index.tolist() == [1, 2, 3, 4]
+        assert WSS_DROP_RATIO in edited
         assert app.runs[index].options["Criterion"] == "Consensus (17 indices)"
+        assert app.runs[index].options[KL_SCALING] == UNSCALED_WSS
         app.path = directory / "kmeans-consensus.alab"
         assert app.save()
         app.import_file(app.path)
@@ -13268,14 +13329,35 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "worksheet-statistics":
+            check_worksheet_statistics()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "kmeans-consensus":
+            check_kmeans_consensus()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         check_workspace_setup()
         path = directory / "fixture.csv"
         path.write_text("x,y\n1,3\n2,5\n3,7\n4,9\n5,11\n", encoding="utf-8")
         app.import_file(path)
         app.tables["fixture"].set_formula("doubled", "=x*2")
         app.invalidate()
+        with patch.object(simpledialog, "askstring", side_effect=(
+                "Lower-range mean", "MEAN(y) WHERE x <= 2")):
+            app.add_formula()
+        assert app.tables["fixture"].frame()["Lower-range mean"].eq(4).all()
         app.edit_cell(0, 0, "1.5")
         assert app.tables["fixture"].frame()["doubled"].iloc[0] == 3
+        app.edit_cell(1, 0, "2.5")
+        assert app.tables["fixture"].frame()["Lower-range mean"].eq(3).all()
+        app.edit_cell(1, 0, "2")
         app.edit_cell(0, 0, "1")
         app.current_grid.active_cell = (0, 0)
         app.toggle_exclusion()
@@ -13331,6 +13413,7 @@ def smoke(root, app, directory, legacy_reference=None):
         assert app.save()
         app.import_file(app.path)
         assert app.tables["fixture"].frame()["doubled"].iloc[0] == 2
+        assert app.tables["fixture"].frame()["Lower-range mean"].eq(4).all()
         assert len(app.runs) == 2 and len(app.layouts) == 1
         app.open_gallery("Graphs")
         assert len(app.gallery.cards) == 2 and app.gallery.rendered_previews == 0
@@ -13604,6 +13687,7 @@ def smoke(root, app, directory, legacy_reference=None):
 
         check_data_grid()
         check_worksheet_edits()
+        check_worksheet_statistics()
         check_paste_special()
         check_text_import()
         if legacy_reference is not None:

@@ -244,6 +244,7 @@ Maximum k|k massimo
 Standardize|Standardizza
 Criterion|Criterio
 Gap simulations|Simulazioni gap
+Krzanowski–Lai scaling|Scala di Krzanowski–Lai
 Clusters|Gruppi
 Observation labels|Etichette delle osservazioni
 Direction|Direzione
@@ -837,6 +838,7 @@ CAPTIONS.update({
     "First time with S ≤ 0.5": "Primo tempo con S ≤ 0,5",
     "Midpoint of recorded 50% plateau": "Punto medio del tratto registrato al 50%",
     "Elbow": "Gomito", "Consensus (17 indices)": "Consenso (17 indici)",
+    "Dimension-adjusted": "Corretto per la dimensione", "Unscaled WSS": "WSS senza riscalatura",
     "average": "media", "complete": "completo", "single": "singolo", "weighted": "ponderato",
     "centroid": "centroide", "median": "mediana", "euclidean": "euclidea", "cityblock": "Manhattan",
     "cosine": "coseno", "correlation": "correlazione", "Dendrogram": "Dendrogramma",
