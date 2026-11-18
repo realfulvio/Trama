@@ -253,6 +253,22 @@ class StatusCodingTests(unittest.TestCase):
                 prepare(frame_of([1, 2], [1, 2]), events=events, group="")
             self.assertEqual(error.exception.field, "Event codes")
 
+    def test_extreme_exponents_are_rejected_before_conversion_to_integer(self):
+        for text in ("1e100000000", "-1e100000000"):
+            with self.subTest(text=text), self.assertRaisesRegex(FieldError, "64-bit integer range"):
+                cr.parse_code(text, "Event codes", numeric=True)
+
+    def test_time_precision_loss_does_not_merge_distinct_observations(self):
+        values = [2**53, 2**53 + 1, 2**53 + 2]
+        for series in (pd.Series(values), pd.Series(values, dtype=object),
+                       pd.Series([str(value) for value in values], dtype=object)):
+            with self.subTest(dtype=series.dtype), self.assertRaises(FieldError) as error:
+                prepare(frame_of(series, [1, 2, 0]), group="")
+            self.assertEqual(error.exception.field, "Time")
+        with self.assertRaises(FieldError) as error:
+            prepare(frame_of(pd.Series([True, 2, 3], dtype=object), [1, 2, 0]), group="")
+        self.assertEqual(error.exception.field, "Time")
+
     def test_a_float_status_column_accepts_whole_numbers_written_either_way(self):
         frame = frame_of([1.0, 2.0, 3.0], [1.0, 2.0, 0.0])
         self.assertEqual(sorted(prepare(frame, events=["1", "2.0"], group="").code.tolist()), [0, 1, 2])

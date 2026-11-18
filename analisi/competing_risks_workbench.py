@@ -90,6 +90,16 @@ def _typed(value):
     return repr(value)
 
 
+def _finite_real(value):
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real):
+        return None
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    return number if np.isfinite(number) else None
+
+
 class Settings:
     """The recipe read and checked, before any worksheet value is looked at."""
 
@@ -113,10 +123,10 @@ class Settings:
 
     @staticmethod
     def _level(value):
-        if isinstance(value, (bool, np.bool_)) or not isinstance(value, Real) or not np.isfinite(float(value)) \
-                or not 0 < float(value) < 100:
+        number = _finite_real(value)
+        if number is None or not 0 < number < 100:
             raise FieldError(LEVEL, f"{LEVEL} must be a number greater than 0 and less than 100.")
-        return float(value)
+        return number
 
     @staticmethod
     def _choice(field, value, choices):
@@ -134,12 +144,11 @@ class Settings:
             raise FieldError(TIMES, f"{TIMES}: enter at most {engine.MAX_QUERIES} times; {len(value)} were given.")
         out = []
         for position, item in enumerate(value, 1):
-            ok = (not isinstance(item, (bool, np.bool_)) and isinstance(item, Real) and np.isfinite(float(item))
-                  and float(item) >= 0)
-            if not ok:
+            number = _finite_real(item)
+            if number is None or number < 0:
                 shown = item if isinstance(item, str) else _typed(item)
                 raise FieldError(TIMES, f"{TIMES}: value {position} ({shown}) must be a finite number of 0 or more.")
-            out.append(float(item))
+            out.append(number)
         return out
 
     def cause_index(self):

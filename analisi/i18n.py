@@ -3310,6 +3310,7 @@ _EN.update({
     "cr.error.censor_missing": "{field}: enter a code.",
     "cr.error.no_complete": "No complete rows: every row misses the time, the status or the group.",
     "cr.error.time_numeric": 'Column "{name}" must be numeric.',
+    "cr.error.time_precision": 'Column "{name}" contains integers outside the supported precision.',
     "cr.error.time_value": "Source row {row}: time {value} must be a finite number of 0 or more.",
     "cr.error.censor_same": "Censor code and event code {text} are the same status. Use different codes.",
     "cr.error.event_repeat": "{field}: {text} repeats an earlier code (the same status written twice).",
@@ -3366,6 +3367,7 @@ _IT.update({
     "cr.error.censor_missing": "{field}: inserisci un codice.",
     "cr.error.no_complete": "Nessuna riga completa: in ogni riga mancano il tempo, lo stato o il gruppo.",
     "cr.error.time_numeric": 'La colonna "{name}" deve essere numerica.',
+    "cr.error.time_precision": 'La colonna "{name}" contiene interi oltre la precisione supportata.',
     "cr.error.time_value": "Riga origine {row}: il tempo {value} deve essere un numero finito pari ad almeno 0.",
     "cr.error.censor_same": "Il codice di censura e il codice dell’evento {text} indicano lo stesso stato. "
                             "Usa codici diversi.",

@@ -35,8 +35,16 @@ BAND = "competing-risk-band-g{group}-c{cause}"
 
 
 def check_competing_risks(root, app, directory, tools):
-    """``tools`` carries the smoke helpers: AnalysisDialog, Run, capture, drive_dialog, pick_method,
-    wait_for_calculation, messagebox, filedialog and the shared ``errors`` list."""
+    """Exercise both locales using the supplied application and smoke helpers."""
+    language = i18n.active_language()
+    try:
+        i18n.set_language("en")
+        _check_competing_risks(root, app, directory, tools)
+    finally:
+        i18n.set_language(language)
+
+
+def _check_competing_risks(root, app, directory, tools):
     wait, errors = tools.wait_for_calculation, tools.errors
     screen = root.winfo_screenwidth(), root.winfo_screenheight()
     root.geometry(("1600x1000" if screen[0] >= 1600 and screen[1] >= 1000 else "1024x768") + "+0+0")
