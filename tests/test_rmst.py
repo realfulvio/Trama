@@ -465,6 +465,8 @@ class RegistrationTests(unittest.TestCase):
         tables = {name: json.loads(sheet.to_json(orient="split", double_precision=15))
                   for name, sheet in result.tables.items()}
         self.assertEqual(set(tables), set(legacy["tables"]))
+        for name, sheet in tables.items():
+            self.assertEqual(sheet, legacy["tables"][name], name)
         lines = [{"label": line.get_label(), "x": list(map(float, line.get_xdata())),
                   "y": list(map(float, line.get_ydata()))} for line in result.figure.axes[0].lines]
         self.assertEqual(len(lines), len(legacy["main_axes"]))
