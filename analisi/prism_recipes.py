@@ -356,7 +356,60 @@ def _extract_rearrange(frame, content, _results):
     }
 
 
+def _pca(frame, content, _results):
+    from . import pca_reports, pca_retention
+    from .pca_graphs import COLOR_GROUPS, GRAPH, SCORES
+
+    data, calc, report, graph = (content[key] for key in ("data", "calc", "report", "graph"))
+    if (calc["transform"] != "STANDARDIZE_DATA" or calc["method"] != "PARALLEL_ANALYSIS"
+            or calc["regression"]["run"] is not False or graph["scorePlot"] is not True
+            or any(graph[key] is not False for key in ("loadingPlot", "biPlot", "screePlot", "varianceProportionPlot"))):
+        return None
+    variables = _roles(frame, data["variables"], 2, pca_retention.MAX_VARIABLES)
+    if not all(is_numeric_dtype(frame[name]) for name in variables):
+        return None
+    parallel = calc["parallelAnalysis"]
+    count, seed, level = (parallel[key] for key in ("simulationCount", "randomSeed", "percentileLevel"))
+    if (type(count) is not int or not pca_retention.MIN_SIMULATIONS <= count <= pca_retention.MAX_SIMULATIONS
+            or type(seed) is not int or not 0 <= seed <= pca_retention.MAX_SEED
+            or type(level) not in (int, float) or not 0 < level < 100):
+        return None
+    complete_rows = int(frame[variables].notna().all(axis=1).sum())
+    if complete_rows < 2 or complete_rows * len(variables) * count > pca_retention.BUDGET:
+        return None
+    graph_variables = graph["variables"]
+    if any(graph_variables[key]["use"] is not False for key in ("labels", "symbolSize", "connectingLine")):
+        return None
+    color = graph_variables["symbolColor"]
+    if type(color["use"]) is not bool:
+        return None
+    group = _column(frame, color["variable"]) if color["use"] else None
+    if group in variables:
+        return None
+    options = {
+        "Variables": variables, "Standardize": True, GRAPH: SCORES, COLOR_GROUPS: group,
+        pca_retention.SELECTION: pca_retention.PARALLEL, pca_retention.SIMULATIONS: count,
+        pca_retention.SEED: seed, pca_retention.PERCENTILE: level,
+        "Prism import notes": (
+            "Recalculates standardized PCA and the saved color grouping. Trama draws the graph "
+            "with native formatting and generates its own random samples from the saved seed. "
+            "Archived results remain available."
+        ),
+    }
+    for saved, native in (("transformedData", pca_reports.INPUT),
+                          ("variablesContributionMatrix", pca_reports.VARIABLES),
+                          ("variablesComponentsCorrelationMatrix", pca_reports.CORRELATIONS),
+                          ("casesContributionMatrix", pca_reports.CASES),
+                          ("variablesCorrelationMatrix", pca_reports.MATRIX)):
+        value = report.get(saved, False)
+        if type(value) is not bool:
+            return None
+        options[native] = value
+    return "Principal component analysis", options
+
+
 _RECIPES = {
+    "PCA": ("0.0.0", _pca),
     "EXTRACT_REARRANGE": ("0.0.1", _extract_rearrange),
     "SELECT_TRANSFORM": ("0.0.2", _select_transform),
     "HIERARCHICAL_CLUSTERING": ("0.0.0", _hierarchical),
@@ -378,7 +431,9 @@ def restore_recipe(sheet, parameters, sources, results=None):
         source, = sheet["inputSheets"]
         uid = source["uid"]
         frame = sources[uid]
-        if frame.attrs.get("table_format") != "multivariable":
+        regular = frame.attrs.get("table_format") == "multivariable"
+        cached = kind == "PCA" and frame.attrs.get("prism_snapshot_source_format") == "multivariable"
+        if not (regular or cached):
             return None
         recipe = convert(frame, parameters["content"], results)
     except (KeyError, TypeError, ValueError, AttributeError):

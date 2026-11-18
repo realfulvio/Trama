@@ -13274,6 +13274,14 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "pca-import":
+            from analisi.prism_pca_smoke import check_restored_pca
+            check_restored_pca(root, app, directory, capture, wait_for_calculation)
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "categorical-scatter-import":
             from analisi.prism_mv_scatter_smoke import check_saved_scatter
             check_saved_scatter(root, app, directory, capture, wait_for_calculation)
@@ -14101,6 +14109,8 @@ def smoke(root, app, directory, legacy_reference=None):
         check_piecewise_equations_smoke()
         from analisi.prism_mv_scatter_smoke import check_saved_scatter
         check_saved_scatter(root, app, directory, capture, wait_for_calculation)
+        from analisi.prism_pca_smoke import check_restored_pca
+        check_restored_pca(root, app, directory, capture, wait_for_calculation)
         assert app.nav.winfo_ismapped()
         assert not errors, errors
         (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
