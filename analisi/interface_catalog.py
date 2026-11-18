@@ -225,6 +225,8 @@ Observed counts|Conteggi osservati
 Expected distribution|Distribuzione attesa
 Expected values|Valori attesi
 Estimated parameters|Parametri stimati
+Test method|Metodo del test
+Exact binomial|Binomiale esatto
 Residual diagnostics|Diagnostica dei residui
 Band|Banda
 Y columns|Colonne Y

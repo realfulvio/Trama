@@ -9,6 +9,8 @@ from scipy.stats import chi2
 
 from .category_graphs import COLORS
 from .contingency import MAX_TOTAL, _whole_count
+from .exact_binomial import (DEFAULT_LEVEL, EXACT, LEVEL_FIELD, MAX_TOTAL as MAX_EXACT_TOTAL, TEST_METHODS,
+                             clopper_pearson, confidence_level, null_proportion, tails, two_sided)
 from .processing import TEXT, FieldError, _column
 from .reporting import Result, _plot, _report
 
@@ -37,9 +39,11 @@ _ROW_KEY = re.compile(r"row:[1-9]\d*$")
 _COLOR = re.compile(r"#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$")
 _STYLE_FIELDS = ("color", "explode", "visible")
 _EXPLODE_LIMIT = 0.35
+# Test method comes first on the Options page. Exact binomial hides Estimated parameters and shows the level.
+TEST_METHOD = "Test method"
 GOODNESS_OPTIONS = {
-    "Observed counts": None, "Row titles": "Optional", "Expected distribution": EXPECTED,
-    "Expected values": "Optional", "Estimated parameters": 0,
+    "Observed counts": None, "Row titles": "Optional", TEST_METHOD: TEST_METHODS, "Expected distribution": EXPECTED,
+    "Expected values": "Optional", "Estimated parameters": 0, LEVEL_FIELD: DEFAULT_LEVEL,
 }
 MAX_PARTS = 128
 MAX_GRAPH_PARTS = 24
@@ -379,7 +383,64 @@ def parts_graph(frame, options):
     return Result({"Composition": table, "Total": _report({"Total": total})}, figure)
 
 
+def _expected_weights(frame, options, observed, positions, total):
+    """Weights of the observed categories and their sum, with the same checks for both test methods."""
+    mode = _choice(options, "Expected distribution", EXPECTED)
+    if mode == EXPECTED[0]:
+        weights = np.ones(len(positions))
+    else:
+        name = options.get("Expected values")
+        if name == observed:
+            raise FieldError("Expected values", "Choose a separate column of expected values.")
+        weights = _column(frame, name, "Expected values").iloc[positions].to_numpy(dtype=float)
+    if not np.isfinite(weights).all() or (weights <= 0).any():
+        raise FieldError("Expected values", "Enter a positive expected value for every observed category.")
+    denominator = _positive_total(weights, "Expected values")
+    if mode == EXPECTED[2] and not isclose(denominator, total, rel_tol=1e-10):
+        raise FieldError("Expected values", "Expected counts must sum to the observed total.")
+    return weights, denominator
+
+
+def exact_binomial_test(frame, options):
+    """Exact binomial test of the first observed category against the expected proportion."""
+    fitted = options.get("Estimated parameters", 0)
+    if type(fitted) is not int or fitted != 0:
+        raise FieldError("Estimated parameters", "The exact binomial test does not estimate parameters. "
+                         "Set Estimated parameters to 0 or choose Pearson chi-square.")
+    observed = options.get("Observed counts")
+    if not isinstance(observed, str) or observed not in frame:
+        raise FieldError("Observed counts", "Choose a column of observed counts.")
+    raw = frame[observed].replace("", np.nan)
+    positions = np.flatnonzero(raw.notna().to_numpy())
+    if len(positions) != 2:
+        raise FieldError("Observed counts", "The exact binomial test needs exactly two observed categories. "
+                         "Fill two rows or choose Pearson chi-square.")
+    numbers = [_whole_count(value, observed, field="Observed counts") for value in raw.iloc[positions]]
+    total = sum(numbers)
+    if not 0 < total <= MAX_EXACT_TOTAL:
+        raise FieldError("Observed counts", "The total count must be from 1 to 10,000,000 for the exact binomial test.")
+    weights, denominator = _expected_weights(frame, options, observed, positions, total)
+    p0 = null_proportion(weights[0], denominator)
+    if p0 is None:
+        raise FieldError("Expected values", "The expected proportion of the first category must be strictly between 0 and 1.")
+    expected = (weights / denominator) * total
+    if (expected <= 0).any():
+        raise FieldError("Expected values", "The expected values are too uneven to resolve at this precision.")
+    level = confidence_level(options.get(LEVEL_FIELD, DEFAULT_LEVEL))
+    titles = _titles(frame, positions, options)
+    successes = numbers[0]
+    lower, upper = tails(successes, total, p0)
+    low, high = clopper_pearson(successes, total, level)
+    report = _report({"Total count": total, "Null proportion": p0, "Observed proportion": successes / total,
+                      "p lower": lower, "p upper": upper, "p": two_sided(successes, total, p0),
+                      "CI lower": low, "CI upper": high, LEVEL_FIELD: level, "Method": EXACT})
+    return Result({"Test": report, "Categories": pd.DataFrame({"Category": titles, "Observed": numbers,
+                                                               "Expected": expected})})
+
+
 def goodness_of_fit(frame, options):
+    if _choice(options, TEST_METHOD, TEST_METHODS) == EXACT:
+        return exact_binomial_test(frame, options)
     observed = options.get("Observed counts")
     if not isinstance(observed, str) or observed not in frame:
         raise FieldError("Observed counts", "Choose a column of observed counts.")
@@ -391,19 +452,7 @@ def goodness_of_fit(frame, options):
     total = sum(numbers)
     if not 0 < total <= MAX_TOTAL:
         raise FieldError("Observed counts", "The total count must be positive and within the exact integer range.")
-    mode = _choice(options, "Expected distribution", EXPECTED)
-    if mode == EXPECTED[0]:
-        weights = np.ones(len(numbers))
-    else:
-        name = options.get("Expected values")
-        if name == observed:
-            raise FieldError("Expected values", "Choose a separate column of expected values.")
-        weights = _column(frame, name, "Expected values").iloc[positions].to_numpy(dtype=float)
-    if not np.isfinite(weights).all() or (weights <= 0).any():
-        raise FieldError("Expected values", "Enter a positive expected value for every observed category.")
-    denominator = _positive_total(weights, "Expected values")
-    if mode == EXPECTED[2] and not isclose(denominator, total, rel_tol=1e-10):
-        raise FieldError("Expected values", "Expected counts must sum to the observed total.")
+    weights, denominator = _expected_weights(frame, options, observed, positions, total)
     fitted = options.get("Estimated parameters", 0)
     if type(fitted) is not int or not 0 <= fitted < len(numbers) - 1:
         raise FieldError("Estimated parameters", "Choose a nonnegative parameter count that leaves positive degrees of freedom.")

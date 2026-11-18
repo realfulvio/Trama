@@ -3926,3 +3926,64 @@ _IT.update({
     "hierarchy.style.error.figure": "Questo grafico non è un clustering gerarchico nativo.",
     "hierarchy.style.error.whole": "Inserisci un numero intero.",
 })
+
+# Compare observed distribution with expected: the exact binomial test (0.93). The error texts are the
+# English sentences of analisi.parts_of_whole and analisi.exact_binomial, matched by translate_message.
+_GOODNESS_EN = {
+    "goodness.note.exact": "Exact binomial compares the first observed row with the expected proportion of the first row. "
+                           "The two-sided p adds every count that is no more probable than the observed one, so it can "
+                           "disagree with the equal-tailed Clopper–Pearson interval.",
+    "goodness.note.reset": "Estimated parameters was set back to 0: the exact binomial test estimates none.",
+    "goodness.error.fitted": "The exact binomial test does not estimate parameters. "
+                             "Set Estimated parameters to 0 or choose Pearson chi-square.",
+    "goodness.error.two": "The exact binomial test needs exactly two observed categories. "
+                          "Fill two rows or choose Pearson chi-square.",
+    "goodness.error.total": "The total count must be from 1 to 10,000,000 for the exact binomial test.",
+    "goodness.error.p0": "The expected proportion of the first category must be strictly between 0 and 1.",
+    "goodness.error.level": "Choose a confidence level strictly between 0 and 100.",
+    "goodness.error.method": "Choose a valid test method.",
+    "goodness.error.observed": "Choose a column of observed counts.",
+    "goodness.error.expected_column": "Choose a column for Expected values.",
+    "goodness.error.separate": "Choose a separate column of expected values.",
+    "goodness.error.positive": "Enter a positive expected value for every observed category.",
+    "goodness.error.positive_total": "The selected values need a positive total within the numeric range.",
+    "goodness.error.sum": "Expected counts must sum to the observed total.",
+    "goodness.error.uneven": "The expected values are too uneven to resolve at this precision.",
+    "goodness.error.whole": '"{name}" must contain whole, nonnegative counts.',
+    "goodness.error.range": "A count exceeds the supported exact integer range.",
+    "goodness.error.titles": "Choose an existing row title column.",
+    "goodness.error.categories": "Use 2 to 128 categories.",
+    "goodness.error.pearson_total": "The total count must be positive and within the exact integer range.",
+    "goodness.error.parameters": "Choose a nonnegative parameter count that leaves positive degrees of freedom.",
+    "goodness.error.statistic": "The test statistic exceeds the numeric range.",
+}
+_GOODNESS_IT = {
+    "goodness.note.exact": "Il test binomiale esatto confronta la prima riga osservata con la proporzione attesa della "
+                           "prima riga. Il p bilaterale somma tutti i conteggi non più probabili di quello osservato, "
+                           "quindi può non concordare con l’intervallo di Clopper–Pearson a code uguali.",
+    "goodness.note.reset": "I parametri stimati sono stati riportati a 0: il test binomiale esatto non ne stima.",
+    "goodness.error.fitted": "Il test binomiale esatto non stima parametri. "
+                             "Imposta Parametri stimati a 0 oppure scegli il chi quadrato di Pearson.",
+    "goodness.error.two": "Il test binomiale esatto richiede esattamente due categorie osservate. "
+                          "Compila due righe oppure scegli il chi quadrato di Pearson.",
+    "goodness.error.total": "Per il test binomiale esatto il conteggio totale deve essere da 1 a 10.000.000.",
+    "goodness.error.p0": "La proporzione attesa della prima categoria deve essere strettamente compresa tra 0 e 1.",
+    "goodness.error.level": "Scegli un livello di confidenza strettamente compreso tra 0 e 100.",
+    "goodness.error.method": "Scegli un metodo di test valido.",
+    "goodness.error.observed": "Scegli una colonna di conteggi osservati.",
+    "goodness.error.expected_column": "Scegli una colonna per i valori attesi.",
+    "goodness.error.separate": "Scegli una colonna separata di valori attesi.",
+    "goodness.error.positive": "Inserisci un valore atteso positivo per ogni categoria osservata.",
+    "goodness.error.positive_total": "I valori scelti richiedono un totale positivo nell’intervallo numerico.",
+    "goodness.error.sum": "I conteggi attesi devono sommare al totale osservato.",
+    "goodness.error.uneven": "I valori attesi sono troppo diversi per essere risolti con questa precisione.",
+    "goodness.error.whole": 'La colonna "{name}" deve contenere conteggi interi non negativi.',
+    "goodness.error.range": "Un conteggio supera l’intervallo di interi esatti supportato.",
+    "goodness.error.titles": "Scegli una colonna di titoli di riga esistente.",
+    "goodness.error.categories": "Usa da 2 a 128 categorie.",
+    "goodness.error.pearson_total": "Il conteggio totale deve essere positivo e nell’intervallo di interi esatti.",
+    "goodness.error.parameters": "Scegli un numero non negativo di parametri che lasci gradi di libertà positivi.",
+    "goodness.error.statistic": "La statistica del test supera l’intervallo numerico.",
+}
+_EN.update(_GOODNESS_EN)
+_IT.update(_GOODNESS_IT)
