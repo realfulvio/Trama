@@ -12792,6 +12792,12 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_meta_analysis_smoke():
+        from analisi.meta_analysis_smoke import check_meta_analysis
+        check_meta_analysis(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_reference_normalization_smoke():
         from analisi.reference_normalization_smoke import check_reference_normalization
         check_reference_normalization(root, app, directory, SimpleNamespace(
@@ -13461,6 +13467,14 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "competing-risks":
             # The Competing risks check alone: TRAMASTAT_SMOKE_ONLY=competing-risks python tramastat.py --smoke DIR
             check_competing_risks_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "meta-analysis":
+            # The Meta-analysis check alone: TRAMASTAT_SMOKE_ONLY=meta-analysis python tramastat.py --smoke DIR
+            check_meta_analysis_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14245,6 +14259,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_spearman_extended_smoke()
         check_robust_curve_smoke()
         check_competing_risks_smoke()
+        check_meta_analysis_smoke()
         check_nonlinear_weighting_smoke()
         check_global_irls_smoke()
         check_nonlinear_bands_smoke()
