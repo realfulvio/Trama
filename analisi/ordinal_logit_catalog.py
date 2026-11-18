@@ -22,6 +22,7 @@ EN = {
     "ord.error.response_choose": "Choose a column for Response.",
     "ord.error.response_exists": 'Choose an existing column for Response: "{name}" is not in the worksheet.',
     "ord.error.unique": "Worksheet column names must be unique.",
+    "ord.error.predictors_none": "Select at least one column for Predictors.",
     "ord.error.predictors_count": "Select 1 to {limit} columns for Predictors; {count} were chosen.",
     "ord.error.predictors_list": "Predictors must be a list of column names.",
     "ord.error.predictors_exists": 'Predictors: "{name}" is not a column of the worksheet.',
@@ -50,8 +51,8 @@ EN = {
     "ord.error.rows": "Ordinal logistic regression reads up to {limit} complete rows; this worksheet has {count}.",
     "ord.error.levels_few": "The response needs at least {minimum} distinct categories among the complete rows; "
                             "{count} found. For two outcomes use Multiple regression with the Logistic family.",
-    "ord.error.levels_many": "The response has more than {limit} distinct categories among the complete rows; "
-                             "the limit is {limit}.",
+    "ord.error.levels_many": "The response has more than {limit} distinct categories among the complete rows. "
+                             "Choose a column with fewer categories.",
     "ord.error.label_clash": 'The response mixes values of different types that print as the same label "{label}". '
                              "Use one type for each category.",
     "ord.error.order_duplicate": 'Category order lists "{name}" more than once.',
@@ -94,6 +95,7 @@ IT = {
     "ord.error.response_choose": "Scegli una colonna per Risposta.",
     "ord.error.response_exists": 'Scegli una colonna esistente per Risposta: "{name}" non è nel foglio.',
     "ord.error.unique": "I nomi delle colonne del foglio devono essere univoci.",
+    "ord.error.predictors_none": "Seleziona almeno una colonna per Predittori.",
     "ord.error.predictors_count": "Seleziona da 1 a {limit} colonne per Predittori; ne hai scelte {count}.",
     "ord.error.predictors_list": "I predittori devono essere un elenco di nomi di colonna.",
     "ord.error.predictors_exists": 'Predittori: "{name}" non è una colonna del foglio.',
@@ -126,8 +128,8 @@ IT = {
                       "{count}.",
     "ord.error.levels_few": "La risposta richiede almeno {minimum} categorie distinte tra le righe complete; ne ho "
                             "trovate {count}. Per due esiti usa la Regressione multipla con la famiglia Logistica.",
-    "ord.error.levels_many": "La risposta ha più di {limit} categorie distinte tra le righe complete; il limite è "
-                             "{limit}.",
+    "ord.error.levels_many": "La risposta ha più di {limit} categorie distinte tra le righe complete. Scegli una "
+                             "colonna con meno categorie.",
     "ord.error.label_clash": 'La risposta mescola valori di tipo diverso che si scrivono con la stessa etichetta '
                              '"{label}". Usa un solo tipo per ogni categoria.',
     "ord.error.order_duplicate": 'L’ordine delle categorie elenca "{name}" più di una volta.',
