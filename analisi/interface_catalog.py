@@ -490,6 +490,11 @@ Profiles|Profili
 Cox diagnostics|Diagnostica di Cox
 Schoenfeld residuals|Residui di Schoenfeld
 Schoenfeld term|Termine di Schoenfeld
+Scaled Schoenfeld residuals|Residui di Schoenfeld scalati
+Cox-Snell diagnostics|Diagnostica Cox–Snell
+Schoenfeld x axis|Asse X di Schoenfeld
+Event time|Tempo dell’evento
+Source row|Riga di origine
 Goal|Obiettivo
 Standardized effect|Effetto standardizzato
 Target power|Potenza desiderata
@@ -753,6 +758,8 @@ Observed vs fitted|Osservati rispetto ai valori stimati
 Predicted survival|Sopravvivenza stimata
 Deviance vs linear predictor|Devianza rispetto al predittore lineare
 Schoenfeld vs time|Schoenfeld rispetto al tempo
+Scaled Schoenfeld|Schoenfeld scalati
+Cox-Snell plot|Grafico Cox–Snell
 Percent of range|Percentuale dell’intervallo
 Z score|Punteggio Z
 Percent of first value|Percentuale del primo valore

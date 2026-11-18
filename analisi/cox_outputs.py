@@ -2,7 +2,8 @@
 
 The proportional hazards fit is the one of ``models.cox_regression``. This module adds what is built on it:
 event and censor codes read as the column's type, a Breslow baseline hazard, survival curves for explicit
-covariate profiles, and martingale, deviance and Schoenfeld residuals. Recipes without any of the new options
+covariate profiles, and martingale, deviance and Schoenfeld residuals. Scaled Schoenfeld residuals and the
+Cox–Snell diagnostics of ``cox_fit_diagnostics`` reuse the same single fit. Recipes without any of the new options
 call the original function and return exactly its sheets.
 """
 from dataclasses import dataclass
@@ -16,6 +17,10 @@ from statsmodels.duration.hazard_regression import PHReg
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 
 from . import models
+from .cox_fit_diagnostics import (COX_SNELL, SCALED, SCALED_GRAPH, SCALED_SHEET, SNELL_GRAPH, SNELL_HAZARD_SHEET,
+                                  SNELL_SHEET, X_AXES, X_AXIS, cox_snell_figure, cox_snell_hazard,
+                                  cox_snell_residuals, scaled_figure, scaled_schoenfeld, stable_expected_events,
+                                  x_axis)
 from .processing import TEXT, FieldError
 from .reporting import Result, _plot
 
@@ -29,20 +34,44 @@ LABEL, VALUES = "Label", "Values"
 MAX_PROFILES = 12
 AUTOMATIC, CURVES, DEVIANCE_GRAPH, SCHOENFELD_GRAPH = (
     "Automatic", "Predicted survival", "Deviance vs linear predictor", "Schoenfeld vs time")
-GRAPHS = (AUTOMATIC, CURVES, DEVIANCE_GRAPH, SCHOENFELD_GRAPH)
+GRAPHS = (AUTOMATIC, CURVES, DEVIANCE_GRAPH, SCHOENFELD_GRAPH, SCALED_GRAPH, SNELL_GRAPH)
 STATUS_DEFAULTS = {EVENT_VALUE: "1", CENSOR_VALUE: "0"}
 BASELINE_SHEET, PREDICTED_SHEET = "Baseline survival", "Predicted survival"
 RESIDUAL_SHEET, SCHOENFELD_SHEET = "Cox residuals", "Schoenfeld residuals"
 
-# Merged after the original Time, Event, Predictors, Categorical predictors and Ties fields.
+# Merged after the original Time, Event, Predictors, Categorical predictors and Ties fields. The scaled Schoenfeld
+# and Cox–Snell outputs are independent of the earlier checkboxes and default to off.
 OPTIONS = {EVENT_VALUE: TEXT, CENSOR_VALUE: TEXT, PREDICT: False, PROFILES: PROFILE_LIST,
-           DIAGNOSTICS: False, SCHOENFELD: False, GRAPH: GRAPHS, GRAPH_TERM: TEXT}
+           DIAGNOSTICS: False, SCHOENFELD: False, SCALED: False, COX_SNELL: False,
+           GRAPH: GRAPHS, GRAPH_TERM: TEXT, X_AXIS: X_AXES}
 NEW_OPTIONS = frozenset(OPTIONS)
+FIT_DIAGNOSTICS = (SCALED, COX_SNELL)
 
 
-def cox_visibility(predict, graph):
-    """Profiles belong to predicted survival; the term picker belongs to the Schoenfeld graph."""
-    return {PROFILES: bool(predict), GRAPH_TERM: graph == SCHOENFELD_GRAPH}
+def effective_graph(choice, predict=False, diagnostics=False, schoenfeld=False, scaled=False, snell=False):
+    """The view that will be drawn: an explicit choice, or the Automatic precedence over the active outputs.
+
+    Predicted survival comes first, then the deviance residuals, the raw Schoenfeld residuals, the scaled ones and
+    last the Cox–Snell plot. None when Automatic has no output that draws a graph.
+    """
+    if choice and choice != AUTOMATIC:
+        return choice
+    for view, active in ((CURVES, predict), (DEVIANCE_GRAPH, diagnostics), (SCHOENFELD_GRAPH, schoenfeld),
+                         (SCALED_GRAPH, scaled), (SNELL_GRAPH, snell)):
+        if active:
+            return view
+    return None
+
+
+def cox_visibility(predict, graph, diagnostics=False, schoenfeld=False, scaled=False, snell=False):
+    """Profiles belong to predicted survival; the term picker to both Schoenfeld views, the x axis to the scaled one.
+
+    A field that an error can point to is shown: the term and the axis follow the view that is really drawn, also
+    when the graph choice is Automatic.
+    """
+    view = effective_graph(graph, predict, diagnostics, schoenfeld, scaled, snell)
+    return {PROFILES: bool(predict), GRAPH_TERM: view in (SCHOENFELD_GRAPH, SCALED_GRAPH),
+            X_AXIS: view == SCALED_GRAPH}
 
 
 @dataclass
@@ -56,6 +85,8 @@ class CoxFit:
     event: np.ndarray
     ties: str
     tables: dict
+    # Covariance of the coefficients from the same fit (naive, from the information of the ties method).
+    cov: np.ndarray | None = None
 
     @property
     def eta(self):
@@ -172,7 +203,8 @@ def fit_cox(frame, options):
         raise ValueError("The Cox regression did not converge.") from error
     tables = models._report(model, design, references, len(frame), True)
     return CoxFit(data, design, references, np.asarray(model.params, dtype=float),
-                  data[time].to_numpy(dtype=float), data[event].to_numpy(dtype=float) == 1, ties, tables)
+                  data[time].to_numpy(dtype=float), data[event].to_numpy(dtype=float) == 1, ties, tables,
+                  np.asarray(model.cov_params(), dtype=float))
 
 
 def _risk_sums(fit, weights):
@@ -275,18 +307,29 @@ def _deviance(martingale, event, mu):
     return np.sign(martingale) * np.sqrt(np.maximum(argument, 0.))
 
 
-def residuals(fit, sheet, time_name, event_name):
-    """Martingale and deviance residuals in source order, with mu_i = H0(T_i) exp(eta_i)."""
+def expected_events(fit, sheet):
+    """mu_i = H0(T_i) exp(eta_i) in source order: the Breslow baseline at the row's time times its hazard ratio.
+
+    The product is formed on the log scale so that a small baseline and a large hazard ratio do not overflow
+    before they meet. A time before the first jump has a real zero.
+    """
     eta = fit.eta
     times, hazard = sheet["Time"].to_numpy(), sheet["Baseline cumulative hazard"].to_numpy()
     row_hazard = np.r_[0., hazard][np.searchsorted(times, fit.time, side="right")]
     with np.errstate(over="ignore", divide="ignore"):
         mu = np.where(row_hazard > 0, np.exp(np.log(np.where(row_hazard > 0, row_hazard, 1.)) + eta), 0.)
-    event = fit.event
-    martingale = event - mu
     if not (np.isfinite(mu).all() and np.isfinite(eta).all()):
         raise ValueError("Cox diagnostics are not finite for these data. Center or rescale the continuous "
                          "predictors.")
+    return mu
+
+
+def residuals(fit, sheet, time_name, event_name, mu=None):
+    """Martingale and deviance residuals in source order, with mu_i = H0(T_i) exp(eta_i)."""
+    eta = fit.eta
+    mu = expected_events(fit, sheet) if mu is None else mu
+    event = fit.event
+    martingale = event - mu
     deviance = _deviance(martingale, event, mu)
     with np.errstate(over="ignore"):
         ratio = np.exp(eta)
@@ -324,16 +367,18 @@ def schoenfeld(fit):
     return sheet
 
 
-def _graph(o, predict, diagnostics, scaled):
+def _graph(o, outputs):
+    """The view to draw, or None. ``outputs`` maps each output checkbox to its value."""
     choice = o.get(GRAPH, AUTOMATIC) or AUTOMATIC
     if choice not in GRAPHS:
         raise FieldError(GRAPH, "Choose a graph to display.")
     if choice == AUTOMATIC:
-        return CURVES if predict else DEVIANCE_GRAPH if diagnostics else SCHOENFELD_GRAPH if scaled else None
-    needed = {CURVES: (predict, PREDICT), DEVIANCE_GRAPH: (diagnostics, DIAGNOSTICS),
-              SCHOENFELD_GRAPH: (scaled, SCHOENFELD)}[choice]
-    if not needed[0]:
-        raise FieldError(GRAPH, f"Turn on {needed[1]} to display {choice.lower()}.")
+        return effective_graph(choice, *(outputs[name] for name in (PREDICT, DIAGNOSTICS, SCHOENFELD, SCALED,
+                                                                    COX_SNELL)))
+    needed = {CURVES: PREDICT, DEVIANCE_GRAPH: DIAGNOSTICS, SCHOENFELD_GRAPH: SCHOENFELD,
+              SCALED_GRAPH: SCALED, SNELL_GRAPH: COX_SNELL}[choice]
+    if not outputs[needed]:
+        raise FieldError(GRAPH, f"Turn on {needed} to display {choice.lower()}.")
     return choice
 
 
@@ -361,13 +406,45 @@ def _term(o, fit):
     return term
 
 
+def _guard(field, legacy, call):
+    """Run ``call``; a failure of a value that only a new output needs names that output's control.
+
+    An output that already existed (``legacy``) keeps the plain error it always raised.
+    """
+    try:
+        return call()
+    except FieldError:
+        raise
+    except ValueError as error:
+        if legacy:
+            raise
+        raise FieldError(field, str(error)) from error
+
+
+def snell_expectation(fit, sheet=None):
+    """The Cox–Snell residuals, mu_i = H0(T_i) exp(eta_i), for a recipe that did not ask for the residual sheet.
+
+    The Breslow baseline sheet gives them directly. When that sheet is not representable, or a product
+    underflows, the same quantity is formed on the log scale, which only fails when the values themselves do.
+    """
+    try:
+        mu = expected_events(fit, baseline(fit) if sheet is None else sheet)
+        if not ((mu == 0) & (fit.time >= fit.time[fit.event].min())).any():
+            return mu
+    except ValueError:
+        pass
+    return stable_expected_events(fit)
+
+
 def cox_result(frame, o):
     """Dispatcher for the Cox regression dialog."""
     if not NEW_OPTIONS & o.keys():
         return Result(models.cox_regression(frame, o["Time"], o["Event"], o["Predictors"],
                                             o["Categorical predictors"], o["Ties"].lower()))
-    predict, diagnostics, scaled = (bool(o.get(name, False)) for name in (PREDICT, DIAGNOSTICS, SCHOENFELD))
-    graph = _graph(o, predict, diagnostics, scaled)
+    outputs = {name: bool(o.get(name, False)) for name in (PREDICT, DIAGNOSTICS, SCHOENFELD, SCALED, COX_SNELL)}
+    predict, diagnostics, raw, scaled, snell = outputs.values()
+    graph = _graph(o, outputs)
+    axis = x_axis(o) if graph == SCALED_GRAPH else None
     fit = fit_cox(frame, o)
     tables = dict(fit.tables)
     sheet = baseline(fit) if predict or diagnostics else None
@@ -376,10 +453,20 @@ def cox_result(frame, o):
         labels, rows = profile_rows(fit, o.get(PROFILES), predictors, categories)
         tables[BASELINE_SHEET] = sheet
         tables[PREDICTED_SHEET] = predicted_survival(fit, sheet, labels, rows)
+    # The expected events are the Cox–Snell residuals: the residual sheet, when asked for, serves both outputs.
+    expected = expected_events(fit, sheet) if diagnostics else None
     if diagnostics:
-        tables[RESIDUAL_SHEET] = residuals(fit, sheet, o["Time"], o["Event"])
-    if scaled:
-        tables[SCHOENFELD_SHEET] = schoenfeld(fit)
+        tables[RESIDUAL_SHEET] = residuals(fit, sheet, o["Time"], o["Event"], expected)
+    if raw or scaled:
+        # One raw residual matrix for both sheets.
+        schoenfeld_sheet = _guard(SCALED, raw, lambda: schoenfeld(fit))
+        if raw:
+            tables[SCHOENFELD_SHEET] = schoenfeld_sheet
+        if scaled:
+            tables[SCALED_SHEET] = scaled_schoenfeld(fit, schoenfeld_sheet)
+    if snell:
+        tables[SNELL_SHEET] = cox_snell_residuals(fit, snell_expectation(fit, sheet) if expected is None else expected)
+        tables[SNELL_HAZARD_SHEET] = cox_snell_hazard(tables[SNELL_SHEET])
     figure = None
     if graph == CURVES:
         figure = _curves_figure(fit, tables[PREDICTED_SHEET], o["Time"])
@@ -394,4 +481,8 @@ def cox_result(frame, o):
         figure, axes = _plot(f"Schoenfeld residuals: {term}", o["Time"], f"Schoenfeld residual ({term})")
         axes.axhline(0, color="#7f8c99", linewidth=1, zorder=1)
         axes.scatter(rows["Time"], rows[term], zorder=2)
+    elif graph == SCALED_GRAPH:
+        figure = scaled_figure(tables[SCALED_SHEET], _term(o, fit), axis, o["Time"])
+    elif graph == SNELL_GRAPH:
+        figure = cox_snell_figure(tables[SNELL_HAZARD_SHEET])
     return Result(tables, figure)

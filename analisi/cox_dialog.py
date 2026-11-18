@@ -4,11 +4,24 @@ from tkinter import ttk
 
 import pandas as pd
 
-from .cox_outputs import LABEL, MAX_PROFILES, VALUES, _missing, _number
-from .i18n import tr
+from .cox_fit_diagnostics import COX_SNELL, SCALED, X_AXIS
+from .cox_outputs import GRAPHS, LABEL, MAX_PROFILES, VALUES, _missing, _number
+from .i18n import tr, translate_message, ui
 
 TABS = {"Predicted survival": ("Predict survival", "Profiles"),
-        "Diagnostics": ("Cox diagnostics", "Schoenfeld residuals", "Graph display", "Schoenfeld term")}
+        "Diagnostics": ("Cox diagnostics", "Schoenfeld residuals", SCALED, COX_SNELL, "Graph display",
+                        "Schoenfeld term", X_AXIS)}
+
+
+def _view(text):
+    """A graph view as the engine writes it in a message (lower case), in the active language."""
+    canonical = {view.lower(): view for view in GRAPHS}.get(text)
+    return ui(canonical).lower() if canonical else text
+
+
+def cox_message(error):
+    """The text of a Cox error in the active language; worksheet text and column names stay literal."""
+    return translate_message(str(error), "cox.error.", convert={"output": ui, "view": _view})
 
 
 def categories_of(data, name):
