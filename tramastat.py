@@ -3991,6 +3991,11 @@ class Run:
         return self.label or self.options.get(PRISM_TITLE) or f"{self.method} of {source_title}"
 
 
+def cox_exact_run(run):
+    """True for a Cox recipe with exact conditional ties: its limits and fit errors are known on the worker."""
+    return run.method == COX and cox_is_exact(run.options)
+
+
 def cancellable_run(method, options):
     """Runs that report their progress or can be cancelled: Monte Carlo studies, exact Spearman, Gray tests and the
     exact conditional Cox fit."""
@@ -6350,7 +6355,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             recovered = False
             for run, result, error in future.result():
                 if cancelled and cancellable_run(run.method, run.options):
-                    if self._cox_exact(run) and previous.get(id(run)) is not None:
+                    if cox_exact_run(run) and previous.get(id(run)) is not None:
                         # The last valid fit stays on screen, marked as not current until it is recalculated.
                         run.result = previous[id(run)]
                         run.calculation_error = "The exact Cox recalculation was cancelled."
@@ -6385,7 +6390,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             elif cancelled and all(run.method == COMPETING_RISKS for run, _ in affected if cancellable_run(
                     run.method, run.options)):
                 self.status.set(f"{COMPETING_RISKS} recalculation cancelled. Open the analysis to calculate again.")
-            elif cancelled and all(self._cox_exact(run) for run, _ in affected if cancellable_run(
+            elif cancelled and all(cox_exact_run(run) for run, _ in affected if cancellable_run(
                     run.method, run.options)):
                 self.status.set(tr("cox.exact.cancelled.recalculation"))
             elif cancelled:
@@ -6571,16 +6576,11 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         """True when a confirmed PCA recipe explicitly asked for the principal component regression."""
         return run.method == "Principal component analysis" and run.options.get(PCR_ENABLE) is True
 
-    @staticmethod
-    def _cox_exact(run):
-        """True for a Cox recipe with exact conditional ties: its limits and fit errors are known on the worker."""
-        return run.method == COX and cox_is_exact(run.options)
-
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
                 or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
-                or self._cox_exact(run)
+                or cox_exact_run(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6589,7 +6589,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
         return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
-                or self._pca_regression(run) or self._cox_exact(run)
+                or self._pca_regression(run) or cox_exact_run(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
 
@@ -6653,7 +6653,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                    else ui(str(error)) if run.method in (SUMMARY_ANOVA, SUMMARY_TTEST)
                    else translate_heat_map_error(error) if run.method == HEAT_MAP
                    else ui(str(error)) if run.method in kmeans_options.METHODS
-                   else translate_cox_exact_error(error) if self._cox_exact(run) else str(error))
+                   else translate_cox_exact_error(error) if cox_exact_run(run) else str(error))
         formatted = (format_anova_error(error) if run.method == "Multifactor ANOVA"
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
@@ -6698,7 +6698,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return
         recovery = (self.weighting_recovery(run.method, run.options, index)
                     if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO}
-                    or self._pca_regression(run) or self._cox_exact(run) else None)
+                    or self._pca_regression(run) or cox_exact_run(run) else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
@@ -7001,7 +7001,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 detail = "The last completed results are kept."
             else:
                 detail = f"Open the {noun} to calculate again."
-            if self._cox_exact(run):
+            if cox_exact_run(run):
                 self.status.set(tr("cox.exact.cancelled." + ("new" if index is None else "kept"
                                                             if self.runs[index].result is not None else "again")))
             else:
@@ -7011,7 +7011,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
-                     else translate_cox_exact_error(error) if self._cox_exact(run) else error)
+                     else translate_cox_exact_error(error) if cox_exact_run(run) else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -7125,7 +7125,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA"
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
-                     else translate_cox_exact_error(run.calculation_error) if self._cox_exact(run)
+                     else translate_cox_exact_error(run.calculation_error) if cox_exact_run(run)
                      else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
