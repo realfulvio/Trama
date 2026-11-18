@@ -191,19 +191,36 @@ def deming(frame, x, y, error_ratio=1.0):
             "Y / X measurement error variance": error_ratio}, data
 
 
-def pca_input(frame, columns, standardize):
-    """Return the exact transformed input, raw sample deviations and retained row index."""
+def _pca_prepared(frame, columns):
+    """Complete rows, column means, centered values and raw sample deviations of the PCA input."""
     data = complete(frame, columns)
     if len(columns) < 2 or len(columns) > 256 or len(data) < 3:
         raise ValueError("PCA needs 2 to 256 variables and at least three complete rows.")
     values = data.to_numpy()
-    centered = values - values.mean(axis=0)
+    means = values.mean(axis=0)
+    centered = values - means
     scales = centered.std(axis=0, ddof=1)
     if (scales <= 0).any():
         raise ValueError("Remove constant variables before PCA.")
+    return data, means, centered, scales
+
+
+def pca_input(frame, columns, standardize):
+    """Return the exact transformed input, raw sample deviations and retained row index."""
+    data, _, centered, scales = _pca_prepared(frame, columns)
     if standardize:
         centered /= scales
     return centered, scales, data.index
+
+
+def pca_moments(frame, columns, standardize):
+    """Column means and divisors that turn the raw columns into the PCA input, without the decomposition.
+
+    The divisors are the sample deviations when ``standardize`` is on and one otherwise, so
+    ``(x - means) / divisors`` is the matrix that :func:`pca` decomposes. Rows are the retained ones.
+    """
+    data, means, _, scales = _pca_prepared(frame, columns)
+    return means, scales if standardize else np.ones(len(columns)), data.index
 
 
 def pca(frame, columns, standardize=True):

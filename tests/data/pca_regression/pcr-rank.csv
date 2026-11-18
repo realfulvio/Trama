@@ -1,0 +1,8 @@
+Source row,Conductivity,Temperature,Response,Cohort
+A,1,15,2,Control
+B,2,20,4,Control
+C,3,25,5,Control
+D,4,30,9,Treated
+E,5,35,8,Treated
+F,6,40,11,Treated
+G,7,45,,Treated
