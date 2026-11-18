@@ -213,7 +213,7 @@ class CatalogTests(LanguageMixin, unittest.TestCase):
 class DialogCase(TkCase):
     frame = FOLLOW_UP.assign(Dose=np.arange(16) % 5 + 1.0)
 
-    def open(self, action, recipe=None, frame=None):
+    def open(self, action, recipe=None, frame=None, method=METHOD, only=METHOD):
         from tramastat import AnalysisDialog
 
         seen = {}
@@ -234,7 +234,7 @@ class DialogCase(TkCase):
         self.root.geometry("1024x768+0+0")
         self.root.after(80, drive)
         AnalysisDialog(self.root, (self.frame if frame is None else frame).copy(),
-                       current=(METHOD, recipe) if recipe else None, only=METHOD)
+                       current=(method, recipe) if recipe else None, only=only)
         self.root.withdraw()
         self.assertNotIn("error", seen, seen.get("error"))
         return seen
@@ -444,6 +444,91 @@ class EnglishDialogTests(DialogCase):
         self.assertEqual(seen["shape"], ("2.5", True))
         self.assertTrue(seen["ok"], seen["message"])
         self.assertEqual(seen["recipe"], recipe)
+
+
+class SharedProfilesFieldTests(DialogCase):
+    """Cox regression has a field with the same name, "Profiles": each method keeps its own editor and records."""
+
+    COX = "Cox regression"
+    COX_HINT = "Up to 12 profiles. Curves share the fit's baseline hazard."
+    COX_PROFILE = {"Label": "Cox arm", "Values": {"Treatment": 1.0}}
+    COX_RECIPE = {"Time": "Time", "Event": "Status", "Event value": "event", "Censor value": "censored",
+                  "Predictors": ["Treatment"], "Categorical predictors": [], "Predict survival": True,
+                  "Profiles": [COX_PROFILE]}
+    WEIBULL_PROFILE = {"Name": "Treated", "Values": {"Treatment": 1.0}}
+
+    @staticmethod
+    def switch(dialog, method):
+        dialog.query.set(method)
+        node = next(child for folder in dialog.methods.get_children()
+                    for child in dialog.methods.get_children(folder) if dialog.method_by_item.get(child) == method)
+        dialog.methods.selection_set(node)
+        dialog.select_method()
+        dialog.update()
+
+    @staticmethod
+    def editor(dialog):
+        field = dialog.controls["Profiles"][1]
+        return field, (field.label_key, field.hint, field.values())
+
+    def weibull_hint(self):
+        return i18n.tr(workbench.HINT_KEYS["profile"])
+
+    def test_a_cox_recipe_keeps_its_editor_when_the_dialog_visits_weibull_and_comes_back(self):
+        def act(dialog, seen):
+            seen["cox"] = self.editor(dialog)[1]
+            self.switch(dialog, METHOD)
+            editor, seen["weibull"] = self.editor(dialog)
+            seen["cox term picker"] = "Schoenfeld term" in dialog.controls
+            self.prepare(dialog)
+            seen["weibull inputs"] = list(editor.inputs)
+            editor.label.set("Treated")
+            editor.inputs["Treatment"].set("1")
+            editor.add()
+            seen["weibull ok"] = self.attempt(dialog)
+            seen["weibull recipe"] = dialog.result and (dialog.result[0], dialog.result[1]["Profiles"])
+            dialog.result = None
+            self.switch(dialog, self.COX)
+            editor, seen["cox again"] = self.editor(dialog)
+            self.choose(dialog, "Predictors", ["Treatment"])
+            seen["cox inputs"] = list(editor.inputs)
+            seen["cox ok"] = self.attempt(dialog)
+            seen["keep"] = dialog.result
+
+        seen = self.open(act, self.COX_RECIPE, method=self.COX, only=None)
+        self.assertEqual(seen["cox"], ("Label", self.COX_HINT, [self.COX_PROFILE]))
+        self.assertEqual(seen["weibull"], ("Name", self.weibull_hint(), []))
+        self.assertFalse(seen["cox term picker"])
+        self.assertEqual(seen["weibull inputs"], ["Treatment"])
+        self.assertEqual(seen["weibull ok"], (True, None))
+        self.assertEqual(seen["weibull recipe"], (METHOD, [self.WEIBULL_PROFILE]))
+        self.assertEqual(seen["cox again"], ("Label", self.COX_HINT, [self.COX_PROFILE]))
+        self.assertEqual(seen["cox inputs"], ["Treatment"])
+        self.assertEqual(seen["cox ok"], (True, None))
+        self.assertEqual(seen["keep"][0], self.COX)
+        self.assertEqual(seen["keep"][1]["Profiles"], [self.COX_PROFILE])
+
+    def test_a_weibull_recipe_does_not_hand_its_profiles_to_cox(self):
+        recipe = {**RECIPE, "Profiles": [self.WEIBULL_PROFILE]}
+
+        def act(dialog, seen):
+            seen["weibull"] = self.editor(dialog)[1]
+            self.switch(dialog, self.COX)
+            editor, seen["cox"] = self.editor(dialog)
+            self.choose(dialog, "Predictors", ["Treatment"])
+            seen["cox inputs"] = list(editor.inputs)
+            self.switch(dialog, METHOD)
+            seen["weibull again"] = self.editor(dialog)[1]
+            seen["ok"] = self.attempt(dialog)
+            seen["keep"] = dialog.result
+
+        seen = self.open(act, recipe, only=None)
+        self.assertEqual(seen["weibull"], ("Name", self.weibull_hint(), [self.WEIBULL_PROFILE]))
+        self.assertEqual(seen["cox"], ("Label", self.COX_HINT, []))
+        self.assertEqual(seen["cox inputs"], ["Treatment"])
+        self.assertEqual(seen["weibull again"], ("Name", self.weibull_hint(), [self.WEIBULL_PROFILE]))
+        self.assertEqual(seen["ok"], (True, None))
+        self.assertEqual(seen["keep"], (METHOD, recipe))
 
 
 class ItalianDialogTests(DialogCase):
