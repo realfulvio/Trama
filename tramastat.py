@@ -42,7 +42,8 @@ from analisi.nested import (CONFIRM as NESTED_CONFIRM, METHODS as NESTED_METHODS
 from analisi.correlation_matrix import CORRELATION_MATRIX
 from analisi.data import (EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, MAX_CELLS, MAX_COLUMNS, Dataset, _table, decimal_comma, info_references, load_project, load_tables,
                           load_workspace, save_project)
-from analisi.ellipse_workbench import ELLIPSE_TABS, ellipse_visibility
+from analisi.ellipse_workbench import (BY_GROUP as ELLIPSE_BY_GROUP, ELLIPSE_TABS, GROUP_STYLES as ELLIPSE_GROUP_STYLES,
+                                     ellipse_grouping_column, ellipse_visibility)
 from analisi.equation_dialog import EquationDialog
 from analisi.function_editor import CurveEditor
 from analisi.model_picker import ModelPicker
@@ -292,6 +293,10 @@ from analisi.anova_diagnostics import (ALPHA as ANOVA_DIAG_ALPHA, ASSUMPTIONS as
                                        format_anova_error, graph_choice as anova_graph_choice,
                                        validate as validate_anova_diagnostics,
                                        visibility as anova_diagnostic_visibility)
+from analisi.anova_terms import (FULL as ANOVA_FULL_TERMS, MODEL_TERMS as ANOVA_MODEL_TERMS, TERM_LIST,
+                                 TERM_SELECTION as ANOVA_TERM_SELECTION, active_factors as anova_active_factors,
+                                 check_comparison_controls as check_anova_comparisons, check_options as check_anova_terms)
+from analisi.anova_terms_dialog import ANOVA_MODEL_TAB, TermPicker
 from analisi.processing import (BASELINES, COMBINED_TOTALS, DENOMINATORS, FieldError, INTERVALS,
                                 METHODS as PROCESSING_METHODS, PRUNE_MODES, WILSON_BROWN)
 
@@ -1013,7 +1018,9 @@ class AnalysisDialog(simpledialog.Dialog):
         elif self.method in (SUMMARY_ANOVA, SUMMARY_TTEST):
             fields_by_tab["Input"] = variables
         elif self.method == "Multifactor ANOVA":
-            tabs = {"Effect sizes": (ANOVA_EFFECTS, ANOVA_ALPHA), **ANOVA_DIAG_TABS}
+            # The Model page (term selection, order, term checkboxes) scrolls and sits right after Variables.
+            tabs = {ANOVA_MODEL_TAB: (ANOVA_TERM_SELECTION, "Interaction order", ANOVA_MODEL_TERMS),
+                    "Effect sizes": (ANOVA_EFFECTS, ANOVA_ALPHA), **ANOVA_DIAG_TABS}
         elif self.method == "Hierarchical clustering":
             saved = saved_hierarchical_options(saved)
             fields_by_tab["Direction"] = variables
@@ -1158,8 +1165,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 outer = ttk.Frame(self.fields)
                 self.fields.add(outer, text=tr("heat.layout.tab"))
                 frame = self._make_scrollable_tab(outer)
-            elif self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and tab == "Equation":
-                # 0.81: the conditional guide can exceed the page; Check equation and its message stay on top.
+            elif ((self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and tab == "Equation")
+                  or (self.method == "Multifactor ANOVA" and tab == ANOVA_MODEL_TAB)):
+                # Scrollable pages: the conditional equation guide (0.81) and the ANOVA Model terms (0.83) can
+                # exceed the page.
                 outer = ttk.Frame(self.fields)
                 self.fields.add(outer, text=ui(tab))
                 frame = self._make_scrollable_tab(outer)
@@ -1169,6 +1178,11 @@ class AnalysisDialog(simpledialog.Dialog):
                 self.fields.add(frame, text=ui(tab))
             positions[frame] = 0
             fields_by_tab.update(dict.fromkeys(labels, frame))
+        if self.method == "Multifactor ANOVA":
+            page = fields_by_tab[ANOVA_TERM_SELECTION]
+            while page.master is not self.fields:
+                page = page.master
+            self.fields.insert(1, page)
         if self.method == "Multiple regression":
             # The Gaussian weighting stays on Options with its SD and weight columns (no extra tab keeps the dialog
             # narrow); the future precision of the profiles sits beside the profiles.
@@ -1324,6 +1338,18 @@ class AnalysisDialog(simpledialog.Dialog):
             if kind == CATEGORY_COLOR_LIST:
                 field = CategoryColorsField(parent, saved.get(label), self.heat_map_levels)
                 field.grid(row=row, column=1, sticky="ew", pady=3)
+                self.controls[label] = (kind, field)
+                self.field_rows[label] = heading, field
+                continue
+            if kind == TERM_LIST:
+                # The checkboxes sit under their heading and use the width of the page.
+                positions[parent] += 1
+                field = TermPicker(parent, saved.get(label), factors=self.anova_factors,
+                                   response=lambda: self.controls["Response"][1].get(),
+                                   selected=lambda: self.controls[ANOVA_TERM_SELECTION][1].get() != ANOVA_FULL_TERMS,
+                                   order=lambda: self.controls["Interaction order"][1].get(),
+                                   on_build=lambda widgets, page=parent: self._bind_scrollable_widgets(page, widgets))
+                field.grid(row=row + 1, column=0, columnspan=2, sticky="ew", pady=3)
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
                 continue
@@ -1525,7 +1551,15 @@ class AnalysisDialog(simpledialog.Dialog):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_hierarchical_fields())
             self.show_hierarchical_fields()
         if self.method == "Scatter / confidence ellipse":
-            for label in ("Ellipse", "Ellipse grouping", "Fill", "Border", "Center marker"):
+            parent = fields_by_tab["Fill"]
+            row = positions[parent]
+            heading = ttk.Label(parent, text=ui(ELLIPSE_GROUP_STYLES), wraplength=170)
+            heading.grid(row=row, column=0, sticky="w", pady=4, padx=(0, 10))
+            editor = ttk.Button(parent, text=ui("Edit group styles…"), command=self.edit_ellipse_group_styles)
+            editor.grid(row=row, column=1, sticky="w", pady=4)
+            self.field_rows[ELLIPSE_GROUP_STYLES] = heading, editor
+            self.ellipse_group_styles = deepcopy(saved.get(ELLIPSE_GROUP_STYLES, {}))
+            for label in ("Ellipse", "Ellipse grouping", "Group", "Ellipse group", "Fill", "Border", "Center marker"):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_ellipse_fields())
             self.show_ellipse_fields()
         if self.method in CATEGORY_GRAPHS:
@@ -1626,10 +1660,17 @@ class AnalysisDialog(simpledialog.Dialog):
             self.show_one_way_fields()
         if self.method == "Multifactor ANOVA":
             self._anova_graph = self.controls[ANOVA_DIAG_GRAPH][1].get()
-            for label in (ANOVA_EFFECTS, ANOVA_DIAGNOSTICS, ANOVA_ASSUMPTIONS, ANOVA_DIAG_GRAPH):
+            for label in (ANOVA_EFFECTS, ANOVA_DIAGNOSTICS, ANOVA_ASSUMPTIONS, ANOVA_DIAG_GRAPH, ANOVA_TERM_SELECTION):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_anova_fields())
+            picker = self.controls[ANOVA_MODEL_TERMS][1]
+            self.controls["Factors"][1].bind("<<ListboxSelect>>", lambda _e: picker.refresh(), add="+")
+            self.controls["Interaction order"][1].trace_add("write", lambda *_: picker.refresh())
+            self.controls["Response"][1].trace_add("write", lambda *_: picker.sync())
             self.show_anova_fields()
             self._translate_analysis_labels(ANOVA_DIAG_LABEL_KEYS)
+            model_page = self.field_rows[ANOVA_TERM_SELECTION][0].master
+            self._bind_scrollable_children(model_page)
+            self._bind_scrollable_widgets(model_page, picker.static_widgets())
         if self.method == FOREST_PLOT:
             self.forest_order = [name for name in saved.get("Study columns", ()) if name in columns]
             self.controls["Study columns"][1].bind("<<ListboxSelect>>", lambda _: self.forest_columns())
@@ -2048,6 +2089,20 @@ class AnalysisDialog(simpledialog.Dialog):
             if not isinstance(widget, ttk.Label):
                 widget.bind("<FocusIn>", lambda _e, w=widget, fn=reveal: fn(w), add="+")
 
+    @staticmethod
+    def _bind_scrollable_widgets(content, widgets):
+        """Wheel scrolling and focus reveal for widgets created after the page was built."""
+        wheel = getattr(content, "_scroll_wheel", None)
+        reveal = getattr(content, "_scroll_reveal", None)
+        if wheel is None or reveal is None:
+            return
+        for widget in widgets:
+            widget.bind("<MouseWheel>", lambda event, fn=wheel: fn(-1 if event.delta > 0 else 1), add="+")
+            widget.bind("<Button-4>", lambda _e, fn=wheel: fn(-1), add="+")
+            widget.bind("<Button-5>", lambda _e, fn=wheel: fn(1), add="+")
+            if not isinstance(widget, ttk.Label):
+                widget.bind("<FocusIn>", lambda _e, w=widget, fn=reveal: fn(w), add="+")
+
     def focus_field(self, name):
         """Show the tab that holds a field and move the keyboard focus to it."""
         _, widget = self.field_rows.get(name, (None, None))
@@ -2143,7 +2198,36 @@ class AnalysisDialog(simpledialog.Dialog):
     def show_ellipse_fields(self):
         self.show_fields(self.overlay_visibility())
         tab = self.field_rows["Fill"][0].master
-        self.fields.tab(tab, state="normal" if self.controls["Ellipse"][1].get() != "None" else "disabled")
+        enabled = self.controls["Ellipse"][1].get() != "None"
+        self.fields.tab(tab, state="normal" if enabled else "disabled")
+        options = self.ellipse_style_options()
+        group = ellipse_grouping_column(options)
+        visible = enabled and group in self.data and ELLIPSE_BY_GROUP in (options["Fill"], options["Border"])
+        self.show_fields({ELLIPSE_GROUP_STYLES: visible})
+
+    def ellipse_style_options(self):
+        fields = ("Group", "Ellipse grouping", "Ellipse group", "Fill", "Border")
+        return {field: self.controls[field][1].get() for field in fields}
+
+    def edit_ellipse_group_styles(self):
+        from analisi.ellipse_style_dialog import EllipseStyleDialog
+
+        options = self.ellipse_style_options()
+        column = ellipse_grouping_column(options)
+        if column not in self.data:
+            return
+        values = self.data[column].dropna().unique()
+        if not len(values):
+            messagebox.showerror(ui(ELLIPSE_GROUP_STYLES), ui("The grouping column has no observed values."), parent=self)
+            return
+        try:
+            dialog = EllipseStyleDialog(self, values, options, column, self.ellipse_group_styles)
+        except FieldError as error:
+            messagebox.showerror(ui(ELLIPSE_GROUP_STYLES), ui(str(error)), parent=self)
+            return
+        self.grab_set()
+        if dialog.result is not None:
+            self.ellipse_group_styles = dialog.result
 
     def category_visibility(self):
         if self.method not in CATEGORY_GRAPHS:
@@ -2351,6 +2435,12 @@ class AnalysisDialog(simpledialog.Dialog):
             return {}
         return anova_visibility(self.controls[ANOVA_EFFECTS][1].get())
 
+    def anova_term_fields(self):
+        """Interaction order belongs to Full hierarchy; Selected terms leaves it out of the recipe."""
+        if self.method != "Multifactor ANOVA":
+            return {}
+        return {"Interaction order": self.controls[ANOVA_TERM_SELECTION][1].get() == ANOVA_FULL_TERMS}
+
     def anova_diagnostic_fields(self):
         """Diagnostic alpha follows the assumption tests. The Q–Q line follows that graph."""
         if self.method != "Multifactor ANOVA":
@@ -2367,7 +2457,14 @@ class AnalysisDialog(simpledialog.Dialog):
         if graph == ANOVA_GRAPH_QQ and getattr(self, "_anova_graph", graph) != ANOVA_GRAPH_QQ:
             self.controls[ANOVA_QQ_LINE][1].set(True)
         self._anova_graph = graph
-        self.show_fields({**self.anova_fields(), **self.anova_diagnostic_fields()})
+        self.show_fields({**self.anova_fields(), **self.anova_term_fields(), **self.anova_diagnostic_fields()})
+        # The checkboxes follow the mode; an untouched picker starts Selected terms from the Full hierarchy.
+        self.controls[ANOVA_MODEL_TERMS][1].sync()
+
+    def anova_factors(self):
+        """The names ticked in Factors, in the order of the list."""
+        box = self.controls["Factors"][1]
+        return [box.get(index) for index in box.curselection()]
 
     def agreement_visibility(self):
         if self.method != "Bland–Altman":
@@ -3046,7 +3143,8 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.outlier_fields(), **self.spline_fields(),
                       **self.auc_visibility(), **self.deming_visibility(), **self.linear_visibility(),
                       **self.calibration_visibility(), **self.agreement_visibility(),
-                      **self.anova_fields(), **self.anova_diagnostic_fields(), **self.regression_visibility(), **self.forest_fields(),
+                      **self.anova_fields(), **self.anova_term_fields(), **self.anova_diagnostic_fields(),
+                      **self.regression_visibility(), **self.forest_fields(),
                       **self.compare_lines_fields(), **self.lognormal_fields(), **self.ttest_variance_fields(),
                       **self.equivalence_fields(), **self.cox_fields(),
                       **self.summary_anova_fields(),
@@ -3079,7 +3177,7 @@ class AnalysisDialog(simpledialog.Dialog):
                         raise ValueError(f"Select at least one column for {name}.")
                 elif kind in (GROUP_ORDER, TREND_ORDER_KIND, DUNN_PAIR_LIST, PAIR_LIST, PROFILE_LIST, CURVE_LIST,
                               SETS_LIST, MODEL_LIST, EQUATION_TEXT, PARAMETER_LIST, INITIAL_LIST,
-                              GLOBAL_PARAMETER_LIST, GLOBAL_SERIES_LIST, CATEGORY_COLOR_LIST):
+                              GLOBAL_PARAMETER_LIST, GLOBAL_SERIES_LIST, CATEGORY_COLOR_LIST, TERM_LIST):
                     value = control.values()
                 else:
                     value = control.get()
@@ -3132,6 +3230,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     elif kind is None and not value:
                         raise ValueError(f"Choose a column for {name}.")
                 options[name] = value
+            if self.method == "Scatter / confidence ellipse" and self.ellipse_group_styles:
+                options[ELLIPSE_GROUP_STYLES] = self.ellipse_group_styles
             if self.method == "Kaplan–Meier survival":
                 check_survival_options(self.data, options)
             if self.method == NORMALITY:
@@ -3141,11 +3241,23 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == SUMMARY_TTEST:
                 check_summary_ttest(self.data, options)
             if self.method == "Multifactor ANOVA":
+                saved_terms = self.current[1] if self.current and self.current[0] == self.method else {}
+                chosen_terms = check_anova_terms(options)
+                if chosen_terms is None:
+                    # Full hierarchy keeps the recipe free of the 0.83 keys unless the recipe already had them.
+                    options.pop(ANOVA_MODEL_TERMS, None)
+                    if ANOVA_TERM_SELECTION not in saved_terms:
+                        options.pop(ANOVA_TERM_SELECTION, None)
+                else:
+                    check_anova_comparisons(options, options.get("Factors") or [], chosen_terms)
                 check_anova_options(options)
                 validate_anova_diagnostics(options)
                 diagnostic_graph = anova_graph_choice(options)
                 if diagnostic_graph != "None":
-                    count = _anova_row_count(self.data, options.get("Response"), options.get("Factors") or [])
+                    count = _anova_row_count(
+                        self.data, options.get("Response"),
+                        anova_active_factors(options.get("Factors") or [], chosen_terms) if chosen_terms is not None
+                        else options.get("Factors") or [])
                     if count is not None:
                         ensure_anova_graph_budget(count, diagnostic_graph)
             if self.method == "Area under curve":
@@ -8099,6 +8211,10 @@ def smoke(root, app, directory, legacy_reference=None):
             pd.testing.assert_frame_equal(reopened.result.tables[name], expected)
 
     def check_confidence_overlays():
+        from matplotlib.colors import to_rgba
+
+        from analisi.ellipse_style_dialog import EllipseStyleDialog
+
         title, method = "Response by cohort", "Scatter / confidence ellipse"
         path = directory / "confidence-overlays.alab"
         rng = np.random.default_rng(74)
@@ -8151,6 +8267,44 @@ def smoke(root, app, directory, legacy_reference=None):
         ]
         app.show("graph", 0)
         capture(root, "window-confidence-ellipses.png")
+
+        def edit_group_styles(editor):
+            assert editor.groups.get() == "Cohort A"
+            editor.variables["Fill color"].set("#14758f")
+            editor.variables["Fill opacity (%)"].set("21")
+            editor.variables["Border width"].set("2,25")
+            editor.groups.current(1)
+            editor.groups.event_generate("<<ComboboxSelected>>")
+            assert editor.groups.get() == "Cohort B"
+            editor.variables["Fill color"].set("#d36b3a")
+            editor.variables["Fill opacity (%)"].set("13")
+            editor.variables["Border style"].set("Solid")
+            capture(editor, "window-ellipse-group-styles.png")
+
+        def edit_overlays(dialog):
+            button = dialog.field_rows[ELLIPSE_GROUP_STYLES][1]
+            dialog.fields.select(button.master)
+            drive_dialog(EllipseStyleDialog, edit_group_styles)
+            button.invoke()
+
+        def check_group_styles():
+            axis, = app.runs[0].result.figure.axes
+            assert [shape.get_facecolor() for shape in axis.patches] == [
+                to_rgba("#14758f", .21), to_rgba("#d36b3a", .13),
+            ]
+            assert [border.get_linewidth() for border in axis.lines[:2]] == [2.25, 2.5]
+            assert [border.get_linestyle() for border in axis.lines[:2]] == ["--", "-"]
+
+        drive_dialog(AnalysisDialog, edit_overlays)
+        page_button("Confidence overlays…").invoke()
+        wait_for_calculation()
+        check_group_styles()
+        capture(root, "window-confidence-group-styles.png")
+        assert app.save()
+        app.import_file(path)
+        app.open_sheet(("graph", 0))
+        wait_for_calculation()
+        check_group_styles()
 
         def use_one_overlay(dialog):
             assert dialog.fields.tab(dialog.fields.select(), "text") == "Ellipse"
@@ -12910,6 +13064,27 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "anova-selected-terms":
+            # The multifactor ANOVA selected-terms check alone:
+            # TRAMASTAT_SMOKE_ONLY=anova-selected-terms python tramastat.py --smoke DIR
+            from analisi.anova_terms_smoke import check_anova_selected_terms
+            check_anova_selected_terms(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+                select_columns=select_columns,
+                drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+                wait_for_calculation=wait_for_calculation))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "confidence-overlays":
+            check_confidence_overlays()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "anova-diagnostics":
             # The multifactor ANOVA residual-diagnostics check alone:
             # TRAMASTAT_SMOKE_ONLY=anova-diagnostics python tramastat.py --smoke DIR
@@ -13660,6 +13835,12 @@ def smoke(root, app, directory, legacy_reference=None):
             wait_for_calculation=wait_for_calculation))
         from analisi.anova_diagnostics_smoke import check_anova_diagnostics
         check_anova_diagnostics(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
+            select_columns=select_columns,
+            drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),
+            wait_for_calculation=wait_for_calculation))
+        from analisi.anova_terms_smoke import check_anova_selected_terms
+        check_anova_selected_terms(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, pick_method=pick_method,
             select_columns=select_columns,
             drive_dialog=lambda action: drive_dialog(AnalysisDialog, action),

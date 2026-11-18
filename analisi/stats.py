@@ -180,7 +180,12 @@ def linear(frame, x, y):
             "Slope CI 95% low": lower, "Slope CI 95% high": upper}
 
 
-def _anova_model(frame, response, factors, order):
+def _anova_model(frame, response, factors, order, *, terms=None):
+    if terms is not None:
+        # Selected terms (0.83): its own sum-coded design, built from internal keys. The Full hierarchy
+        # fit below is untouched, so recipes without the new options reproduce the earlier results.
+        from .anova_terms import fit_model
+        return fit_model(frame, response, factors, terms)
     data = complete(frame, [response], factors)
     if not factors or len(factors) > 8 or not 1 <= order <= min(3, len(factors)):
         raise ValueError("Select up to eight factors and an interaction order from 1 to 3.")
@@ -210,7 +215,7 @@ def _anova_model(frame, response, factors, order):
     return data, keys, terms, design, beta, error, df
 
 
-def _anova_type_iii(data, factors, design, error, df):
+def _anova_type_iii(data, factors, design, error, df, *, term_label=":".join):
     """Type III rows from one full fit. Reduced fits stay; the full model is not fitted again."""
     x, y = design.to_numpy(), data["response"].to_numpy()
     total = np.sum((y - y.mean())**2)
@@ -226,7 +231,7 @@ def _anova_type_iii(data, factors, design, error, df):
         numerator_df = bounds.stop - bounds.start
         ms = ss / numerator_df
         statistic = ms / (error / df)
-        name = ":".join(display[part] for part in term.split(":"))
+        name = term_label(display[part] for part in term.split(":"))
         rows.append({"Term": name, "SS": ss, "df": numerator_df, "MS": ms, "F": statistic,
                      "p": stats.f.sf(statistic, numerator_df, df), "Eta²": ss / total,
                      "Partial eta²": ss / (ss + error)})
@@ -236,23 +241,29 @@ def _anova_type_iii(data, factors, design, error, df):
     return table, summary
 
 
-def factorial_anova(frame, response, factors, order=1):
-    return factorial_anova_fit(frame, response, factors, order)[0]
+def factorial_anova(frame, response, factors, order=1, *, terms=None):
+    return factorial_anova_fit(frame, response, factors, order, terms=terms)[0]
 
 
-def factorial_anova_fit(frame, response, factors, order=1):
+def factorial_anova_fit(frame, response, factors, order=1, *, terms=None):
     """Type III table and the summary of the same fit: effective N, residual df, centered SST and SSE."""
-    return _factorial_anova_components(frame, response, factors, order)[:2]
+    return _factorial_anova_components(frame, response, factors, order, terms=terms)[:2]
 
 
-def _factorial_anova_components(frame, response, factors, order=1):
+def _factorial_anova_components(frame, response, factors, order=1, *, terms=None):
     """One full fit, its Type III table, and the design used for that fit.
 
     Callers that also need diagnostics reuse ``design``, ``beta``, ``error`` and ``df``.
     The public ``factorial_anova`` and ``factorial_anova_fit`` returns stay the historical pair.
+    ``terms`` (Selected terms, 0.83) fits exactly those terms instead of the Full hierarchy of ``order``.
     """
-    data, _, _, design, beta, error, df = _anova_model(frame, response, factors, order)
-    table, summary = _anova_type_iii(data, factors, design, error, df)
+    data, _, _, design, beta, error, df = _anova_model(frame, response, factors, order, terms=terms)
+    if terms is None:
+        table, summary = _anova_type_iii(data, factors, design, error, df)
+    else:
+        from .anova_terms import active_factors, canonical_terms, label
+        factors = active_factors(list(factors), canonical_terms(terms, factors))
+        table, summary = _anova_type_iii(data, factors, design, error, df, term_label=label)
     return table, summary, data, design, beta, error, df
 
 
@@ -275,14 +286,27 @@ def anova_effect_sizes(table, fit, alpha=0.05):
     return effects, model
 
 
-def marginal_comparisons(frame, response, factors, order, compare, method="holm"):
-    data, keys, _, design, beta, error, df = _anova_model(frame, response, factors, order)
+def _design_grid(design, table):
+    """Design rows of a table of internal keys, from the design that was fitted (Patsy or selected terms)."""
+    from .anova_terms import TermDesign
+    if isinstance(design, TermDesign):
+        return design.rows(table)
+    return np.asarray(build_design_matrices([design.design_info], table)[0])
+
+
+def marginal_comparisons(frame, response, factors, order, compare, method="holm", *, terms=None):
+    data, keys, _, design, beta, error, df = _anova_model(frame, response, factors, order, terms=terms)
+    if terms is not None:
+        from .anova_terms import active_factors, canonical_terms
+        factors = active_factors(list(factors), canonical_terms(terms, factors))
+        if compare not in factors:
+            raise ValueError("Select a comparison factor from the model terms.")
     idx = factors.index(compare)
     levels = [sorted(data[key].unique()) for key in keys]
     if np.prod([len(values) for values in levels], dtype=np.int64) > 4096 or len(levels[idx]) > 30:
         raise ValueError("Too many combinations for marginal comparisons.")
     balanced = pd.DataFrame(product(*levels), columns=keys)
-    grid = np.asarray(build_design_matrices([design.design_info], balanced)[0])
+    grid = _design_grid(design, balanced)
     covariance = np.linalg.pinv(design.to_numpy().T @ design.to_numpy(), hermitian=True) * error / df
     means = {label: grid[balanced[keys[idx]] == label].mean(axis=0) for label in levels[idx]}
     rows = []
@@ -881,12 +905,9 @@ def hierarchical(frame, columns, count, standardize=False, linkage="average", me
 
 def ellipse(points, level=.95, kind="mean"):
     data = np.asarray(points, dtype=float)
-    n = len(data)
-    if data.shape != (n, 2) or n < 3 or not np.isfinite(data).all() or not 0 < level < 1:
+    if data.ndim != 2 or data.shape[1] != 2 or len(data) < 3 or not np.isfinite(data).all() or not 0 < level < 1:
         raise ValueError("An ellipse needs at least three finite XY pairs and a level between 0 and 1.")
-    values, vectors = np.linalg.eigh(np.cov(data, rowvar=False))
-    if values.min() <= np.finfo(float).eps * values.max():
-        raise ValueError("The selected XY data are collinear.")
+    n = len(data)
     if kind == "mean":
         scale = 2 * (n - 1) / (n * (n - 2)) * stats.f.ppf(level, 2, n - 2)
     elif kind == "data":
@@ -895,4 +916,33 @@ def ellipse(points, level=.95, kind="mean"):
         raise ValueError("Unknown ellipse type.")
     theta = np.linspace(0, 2 * np.pi, 181)
     circle = np.column_stack([np.cos(theta), np.sin(theta)])
-    return data.mean(axis=0) + circle @ np.diag(np.sqrt(values * scale)) @ vectors.T
+    epsilon = np.finfo(float).eps
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+        # Keep the original sampling orientation for well-conditioned data.
+        covariance = np.cov(data, rowvar=False)
+        if np.isfinite(covariance).all():
+            values, vectors = np.linalg.eigh(covariance)
+            squared_radii = values * scale
+            if values[0] > epsilon * values[1] and 0 < squared_radii[0] <= squared_radii[1] < np.inf:
+                contour = data.mean(axis=0) + circle @ np.diag(np.sqrt(squared_radii)) @ vectors.T
+                if np.isfinite(contour).all():
+                    return contour
+
+        # Scale each coordinate before centering or squaring it. The spreads
+        # remove differences in units from the degeneracy check.
+        _, exponent = np.frexp(np.max(np.abs(data), axis=0))
+        scaled = np.ldexp(data, -exponent)
+        center = scaled.mean(axis=0)
+        centered = scaled - center
+        spread = np.max(np.abs(centered), axis=0)
+        if np.any(spread == 0):
+            raise ValueError("The selected XY data are collinear.")
+        normalized = centered / spread
+        values, vectors = np.linalg.eigh(normalized.T @ normalized / (n - 1))
+        if values[0] <= epsilon * values[1]:
+            raise ValueError("The selected XY data are collinear.")
+        offsets = circle @ np.diag(np.sqrt(values) * np.sqrt(scale)) @ vectors.T
+        contour = np.ldexp(center + offsets * spread, exponent)
+    if not np.isfinite(contour).all():
+        raise ValueError("The selected XY data exceed the numeric range for an ellipse.")
+    return contour
