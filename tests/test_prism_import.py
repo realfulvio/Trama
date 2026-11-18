@@ -5,6 +5,7 @@ import unittest
 import warnings
 from zipfile import ZipFile
 
+import numpy as np
 import pandas as pd
 
 from analisi.data import Dataset, load_project, load_tables, save_project
@@ -72,6 +73,35 @@ class PrismImportTests(unittest.TestCase):
         self.assertEqual(frame.iloc[0].tolist(), [2, 4, 3, 5, 6])
         self.assertFalse(Dataset(frame).formulas)
         self.assertIn("b, c, d, e", frame.attrs["import_warnings"][0])
+
+    def test_zip_recalculates_logarithms_and_angle_functions(self):
+        source = self.path / "functions.prismt"
+        formulas = {"natural": "ln(A)", "decimal": "LOG(A)", "binary": "LOG2(A)",
+                    "cosine": "COS(RAD(B))", "quadrant": "DEG(ARCTAN2(B, A))"}
+        sets = {"a": {"title": "Signal"}, "b": {"title": "Angle"}}
+        sets.update({name: {"title": name, "valuesStorageData": {"@class": "TransformDataSource",
+                                                                   "transform": expression}}
+                     for name, expression in formulas.items()})
+        write_archive(source, {"uid": "table", "format": "multivariable", "dataFormat": "y_single",
+                               "dataSets": list(sets)}, sets,
+                      "1,0,999,999,999,999,999\n8,60,999,999,999,999,999\n-1,1,999,999,999,999,999\n", (3, 7))
+        data = Dataset(load_tables(source)["Experiment"])
+        self.assertEqual(list(data.raw), ["Signal", "Angle"])
+        self.assertEqual(set(data.formulas), set(formulas))
+        rows = data.frame()
+        np.testing.assert_allclose(rows["natural"], [0, np.log(8), np.nan])
+        np.testing.assert_allclose(rows["decimal"], [0, np.log10(8), np.nan])
+        np.testing.assert_allclose(rows["binary"], [0, 3, np.nan])
+        np.testing.assert_allclose(rows["cosine"].iloc[:2], [1, .5])
+        self.assertAlmostEqual(rows["quadrant"].iloc[2], 135)
+
+        data.raw.loc[0, ["Signal", "Angle"]] = [100, 180]
+        native = self.path / "saved.alab"
+        save_project(native, {"Experiment": data})
+        restored = load_project(native)["Experiment"]
+        self.assertEqual(restored.formulas, data.formulas)
+        self.assertEqual(restored.frame()["decimal"].iloc[0], 2)
+        self.assertEqual(restored.frame()["cosine"].iloc[0], -1)
 
     def test_legacy_wrapper_uses_sheet_sequence_dates_and_upper_lower_endpoints(self):
         source = self.path / "example.xml"

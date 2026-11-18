@@ -27,3 +27,9 @@ Use `MEANIF(values, condition)`, `SUMIF`, `MINIF`, `MAXIF`, `STDEVIF`, `STDERRIF
 `ROWS` takes a nonnegative number of rows or `UNBOUNDED`, followed by `PRECEDING` or `FOLLOWING`. An omitted bound ends at the current row. The first and last windows stop at the group's edges. Without `ORDER BY`, positions follow worksheet order. With a filter, only contributing rows take positions or receive results.
 
 Edits and excluded source cells feed the next calculation. Saving an `.alab` project keeps the formula. Compatible ZIP project formulas using these clauses can reopen with their original column references mapped to the imported worksheet.
+
+## Logarithms and angles
+
+Use `LN` for the natural logarithm, `LOG` or `LOG10` for base 10, and `LOG2` for base 2. Nonpositive inputs leave the log result blank.
+
+`SIN`, `COS` and `TAN` take an angle in radians. `ARCSIN`, `ARCCOS`, `ARCTAN` and `ARCTAN2(y, x)` return an angle in radians. Use `RAD` to convert degrees to radians and `DEG` for the reverse conversion. `=COS(RAD(COL("Angle")))` calculates the cosine of an angle stored in degrees. These functions also remain editable in compatible imported ZIP project formulas.

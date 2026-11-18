@@ -180,9 +180,16 @@ def _aggregate(fn, values):
     return fn(numbers) if len(numbers) else np.nan
 
 
-FUNCTIONS = {
+ELEMENTWISE_FORMULA_FUNCTIONS = {
     "ABS": (1, np.abs), "SQRT": (1, np.sqrt), "EXP": (1, np.exp), "LN": (1, np.log),
-    "LOG10": (1, np.log10), "ROUND": (1, np.round), "POWER": (2, np.power),
+    "LOG": (1, np.log10), "LOG10": (1, np.log10), "LOG2": (1, np.log2), "POWER": (2, np.power),
+    "SIN": (1, np.sin), "COS": (1, np.cos), "TAN": (1, np.tan),
+    "ARCSIN": (1, np.arcsin), "ARCCOS": (1, np.arccos), "ARCTAN": (1, np.arctan),
+    "ARCTAN2": (2, np.arctan2), "RAD": (1, np.deg2rad), "DEG": (1, np.rad2deg),
+}
+
+FUNCTIONS = {
+    **ELEMENTWISE_FORMULA_FUNCTIONS, "ROUND": (1, np.round),
     "MEAN": (1, lambda v: _aggregate(np.mean, v)),
     "AVERAGE": (1, lambda v: _aggregate(np.mean, v)),
     "SUM": (1, lambda v: _aggregate(np.sum, v)),

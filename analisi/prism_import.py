@@ -11,7 +11,7 @@ from zipfile import BadZipFile, ZipFile, is_zipfile
 
 import numpy as np
 
-from .data import MAX_CELLS, MAX_COLUMNS, MAX_ENTRY, _member, _table, formula
+from .data import ELEMENTWISE_FORMULA_FUNCTIONS, MAX_CELLS, MAX_COLUMNS, MAX_ENTRY, _member, _table, formula
 from .formula_windows import CONDITIONAL_CALLS, WINDOW_CALLS, WINDOW_CLAUSES, WINDOW_KEYWORDS
 from .info import InfoSheet, MAX_INFO_FIELDS, MAX_INFO_SHEETS
 
@@ -28,7 +28,7 @@ _ZIP_SUMMARY = {key: _Y_SUMMARY[value] for key, value in {
     "y_plus_minus": "low-high", "y_high_low": "upper-lower-limits",
 }.items()}
 # These calls have matching semantics in the Prism and TramaStat evaluators.
-_FORMULA_CALLS = {"ABS", "SQRT", "EXP", "LOG10", "POWER"}
+_FORMULA_CALLS = set(ELEMENTWISE_FORMULA_FUNCTIONS)
 
 
 def _store_table(tables, title, frame):
