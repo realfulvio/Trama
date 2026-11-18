@@ -53,6 +53,8 @@ class CatalogTests(unittest.TestCase):
             "Compare independent correlations": {"X": "x", "Y": "y", "Group": "Group"},
             "Correlation matrix": {"Variables": ["x", "y", "z"]},
             "Contingency table": {"Rows": "Group", "Columns": "Factor"},
+            "Paired proportions": {"Input format": "Observations", "Before": "Before", "After": "After",
+                                   "Negative value": "off", "Positive value": "on", "Graph": False},
             "Linear regression": {"X": "x", "Y": "y"},
             "Compare regression lines": {"X": "x", "Y": "y", "Group": "Group"},
             "Nonlinear regression": {"X": "x", "Y": "fit", "Model": "One-phase decay"},
@@ -176,6 +178,9 @@ class CatalogTests(unittest.TestCase):
                     selected = pd.DataFrame({f"Group {group + 1} [{rep + 1}]": np.arange(4.) / 4 + 2 * group + rep
                                              for group in range(groups) for rep in range(3)})
                     selected.attrs["table_format"] = "nested"
+                if name == "Paired proportions":
+                    selected = pd.DataFrame({"Before": ["off", "off", "on", "on", "off"],
+                                             "After": ["on", "off", "off", "on", "on"]})
                 if name == "Friedman":
                     selected = pd.DataFrame({"y": [1, 2, 4, 2, 1, 4, 2, 3, 5, 4, 3, 8],
                                              "Group": list("abc") * 4, "Subject": np.repeat(np.arange(4), 3)})

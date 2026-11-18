@@ -91,6 +91,7 @@ Multiple tests (one per row)|Test multipli (uno per riga)
 Nested t test|Test t annidato
 Nested one-way ANOVA|ANOVA a una via annidata
 Contingency table|Tabella di contingenza
+Paired proportions|Proporzioni appaiate
 Parts of whole graph|Grafico delle parti di un intero
 Compare observed distribution with expected|Confronta distribuzione osservata e attesa
 Linear regression|Regressione lineare

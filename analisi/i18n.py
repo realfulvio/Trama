@@ -2139,6 +2139,106 @@ _IT.update({
     "tost.error.pairs": "Un test appaiato richiede almeno due coppie complete; ne risultano {count}.",
 })
 
+# Paired proportions (McNemar): captions, choices, the orientation notes and the validation messages. Recipes keep the
+# English names and values; the "paired.error." entries match the English text raised by the engine (translate_message).
+_EN.update({
+    "paired.tab.data": "Data", "paired.tab.test": "Test and graph",
+    "paired.field.format": "Input format", "paired.field.before": "Before", "paired.field.after": "After",
+    "paired.field.negative": "Negative value", "paired.field.positive": "Positive value",
+    "paired.field.after_negative": "After negative counts", "paired.field.after_positive": "After positive counts",
+    "paired.field.test": "Test", "paired.field.level": "Confidence level (%)", "paired.field.graph": "Graph",
+    "paired.choice.observations": "Observations", "paired.choice.count_matrix": "Count matrix",
+    "paired.choice.exact": "Exact", "paired.choice.mid_p": "Mid-p",
+    "paired.choice.chi_square": "Chi-square with continuity correction",
+    "paired.note.observations": "One pair per row. A pair with an empty or excluded cell is discarded as a whole. "
+                                "Codes are compared as written: numbers by value (1, 1.0 and 1,0 are the same), "
+                                "text exactly, with capitals. Booleans are not converted to 0 and 1.",
+    "paired.note.matrix": "Row 1 is Before negative and row 2 is Before positive; the two columns are After negative "
+                          "and After positive. Gain (negative to positive) is row 1, column 2; Loss (positive to "
+                          "negative) is row 2, column 1. Swapping Before and After swaps those two counts. Only "
+                          "the first two rows are read.",
+    "paired.hint": "Orientation: Before → After. Gain = negative before and positive after (b); Loss = positive "
+                   "before and negative after (c). Difference = positive fraction after − positive fraction "
+                   "before = (b − c) / N, with no interval. McNemar's test uses only the discordant pairs b + c "
+                   "(two-sided p). The matched odds ratio is b / c, with the exact Clopper–Pearson interval of b "
+                   "out of b + c; it is the same for all three tests and is infinite without losses, 0 without gains.",
+    "paired.error.format": "Input format: choose Observations or Count matrix.",
+    "paired.error.test": "Test: choose Exact, Mid-p or Chi-square with continuity correction.",
+    "paired.error.level": "Confidence level (%) must be a number greater than 0 and less than 100.",
+    "paired.error.graph": "Graph must be on or off.",
+    "paired.error.choose": "Choose a column for {field}.",
+    "paired.error.exists": 'Choose an existing column for {field}: "{column}" is not in the worksheet.',
+    "paired.error.unique": "Worksheet column names must be unique.",
+    "paired.error.different": "Choose different columns for Before and After.",
+    "paired.error.different_counts": "Choose different columns for After negative counts and After positive counts.",
+    "paired.error.code_type": "Enter {field} as text or as a number.",
+    "paired.error.code_empty": "Enter a code for {field}.",
+    "paired.error.same_code": 'Negative value and Positive value must be different: "{negative}" and "{positive}" '
+                              "are the same code.",
+    "paired.error.boolean": 'Column "{column}" holds a Boolean value in source row {row}; use text or numeric codes.',
+    "paired.error.unknown": 'Column "{column}" holds "{value}" in source row {row}, which is neither the negative '
+                            'code "{negative}" nor the positive code "{positive}".',
+    "paired.error.no_pairs": "No complete pair of Before and After values was found.",
+    "paired.error.two_rows": "The count matrix needs two rows: Before negative and Before positive.",
+    "paired.error.extra_row": "Only the first two rows (Before negative and Before positive) hold counts, but row "
+                              '{row} of "{column}" is not empty.',
+    "paired.error.blank": 'Enter a count for {row} in column "{column}".',
+    "paired.error.counts": '"{column}" must contain whole, nonnegative counts.',
+    "paired.error.range": "A count exceeds the supported exact integer range.",
+    "paired.error.zero": "The total count is zero: enter at least one pair.",
+    "paired.error.limit": "The total number of pairs cannot exceed 10,000,000.",
+})
+_IT.update({
+    "paired.tab.data": "Dati", "paired.tab.test": "Test e grafico",
+    "paired.field.format": "Formato dei dati", "paired.field.before": "Prima", "paired.field.after": "Dopo",
+    "paired.field.negative": "Valore negativo", "paired.field.positive": "Valore positivo",
+    "paired.field.after_negative": "Conteggi dopo negativi", "paired.field.after_positive": "Conteggi dopo positivi",
+    "paired.field.test": "Test", "paired.field.level": "Livello di confidenza (%)", "paired.field.graph": "Grafico",
+    "paired.choice.observations": "Osservazioni", "paired.choice.count_matrix": "Matrice dei conteggi",
+    "paired.choice.exact": "Esatto", "paired.choice.mid_p": "Mid-p",
+    "paired.choice.chi_square": "Chi-quadro con correzione di continuità",
+    "paired.note.observations": "Una coppia per riga. Una coppia con una cella vuota o esclusa viene scartata per "
+                                "intero. I codici si confrontano come scritti: i numeri per valore (1, 1.0 e 1,0 "
+                                "sono lo stesso), il testo esattamente, maiuscole comprese. I valori booleani non "
+                                "vengono convertiti in 0 e 1.",
+    "paired.note.matrix": "La riga 1 è Prima negativo e la riga 2 è Prima positivo; le due colonne sono Dopo "
+                          "negativo e Dopo positivo. Il passaggio a positivo (negativo → positivo) è riga 1, "
+                          "colonna 2; il passaggio a negativo (positivo → negativo) è riga 2, colonna 1. "
+                          "Scambiare Prima e Dopo scambia questi due conteggi. Si leggono solo le prime due righe.",
+    "paired.hint": "Orientamento: Prima → Dopo. Passaggio a positivo = negativo prima e positivo dopo (b); passaggio "
+                   "a negativo = positivo prima e negativo dopo (c). Differenza = frazione positiva dopo − frazione "
+                   "positiva prima = (b − c) / N, senza intervallo. Il test di McNemar usa solo le coppie "
+                   "discordanti b + c (p bilaterale). L’odds ratio appaiato è b / c, con l’intervallo esatto di "
+                   "Clopper–Pearson di b su b + c; è lo stesso per tutti e tre i test, infinito senza passaggi a "
+                   "negativo e 0 senza passaggi a positivo.",
+    "paired.error.format": "Formato dei dati: scegli Osservazioni o Matrice dei conteggi.",
+    "paired.error.test": "Test: scegli Esatto, Mid-p o Chi-quadro con correzione di continuità.",
+    "paired.error.level": "Il livello di confidenza (%) deve essere un numero maggiore di 0 e minore di 100.",
+    "paired.error.graph": "Grafico: scegli se mostrarlo o no.",
+    "paired.error.choose": "Scegli una colonna nel campo {field}.",
+    "paired.error.exists": 'Scegli una colonna esistente nel campo {field}: "{column}" non è nel foglio.',
+    "paired.error.unique": "I nomi delle colonne del foglio devono essere univoci.",
+    "paired.error.different": "Scegli colonne diverse per Prima e Dopo.",
+    "paired.error.different_counts": "Scegli colonne diverse per i conteggi dopo negativi e dopo positivi.",
+    "paired.error.code_type": "Inserisci {field} come testo o come numero.",
+    "paired.error.code_empty": "Inserisci un codice per {field}.",
+    "paired.error.same_code": 'Valore negativo e Valore positivo devono essere diversi: "{negative}" e "{positive}" '
+                              "sono lo stesso codice.",
+    "paired.error.boolean": 'La colonna "{column}" contiene un valore booleano nella riga origine {row}; usa codici '
+                           "di testo o numerici.",
+    "paired.error.unknown": 'La colonna "{column}" contiene "{value}" nella riga origine {row}, che non è né il '
+                            'codice negativo "{negative}" né il codice positivo "{positive}".',
+    "paired.error.no_pairs": "Non c’è nessuna coppia completa di valori Prima e Dopo.",
+    "paired.error.two_rows": "La matrice dei conteggi richiede due righe: Before negative e Before positive.",
+    "paired.error.extra_row": "Solo le prime due righe (Before negative e Before positive) contengono conteggi, ma "
+                              'la riga {row} di "{column}" non è vuota.',
+    "paired.error.blank": 'Inserisci un conteggio per {row} nella colonna "{column}".',
+    "paired.error.counts": '"{column}" deve contenere conteggi interi non negativi.',
+    "paired.error.range": "Un conteggio supera l’intervallo di interi esatti supportato.",
+    "paired.error.zero": "Il conteggio totale è zero: inserisci almeno una coppia.",
+    "paired.error.limit": "Il numero totale di coppie non può superare 10.000.000.",
+})
+
 # Robust curve fit (0.73): captions, choices, editor and validation messages. The "analysis.robust_curve.error."
 # entries are the exact English messages of the engine with placeholders (see translate_message). Recipes keep the
 # English field names and values.
