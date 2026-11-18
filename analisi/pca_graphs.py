@@ -14,7 +14,7 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 
-from . import exploration, pca_reports, pca_retention
+from . import exploration, pca_overlays, pca_reports, pca_retention
 from .graph_legend import typed_group_token
 from .processing import FieldError
 from .reporting import Result, _plot
@@ -52,7 +52,7 @@ _LABELS_OMITTED = ("Row labels stay in PC graph coordinates and are omitted from
 
 def present(options):
     """True when the recipe carries any graph key. Older recipes keep the PC1/PC2 scatter."""
-    return any(key in options for key in _KEYS)
+    return any(key in options for key in (*_KEYS, pca_overlays.KIND))
 
 
 def _view(options):
@@ -190,8 +190,8 @@ def _annotate(axes, x, y, text):
 
 def _observation_points(axes, coordinates, group_column, values):
     if group_column is None:
-        axes.scatter(coordinates[:, 0], coordinates[:, 1], zorder=3)
-        return
+        artist = axes.scatter(coordinates[:, 0], coordinates[:, 1], zorder=3)
+        return [("All", "All", slice(None), artist.get_facecolors()[0])]
     groups = {}
     for row, value in enumerate(values):
         key = f"group:{typed_group_token(value)}" if value is not None else "gid:pca-missing-color-group"
@@ -200,7 +200,7 @@ def _observation_points(axes, coordinates, group_column, values):
     if len(groups) > MAX_COLOR_GROUPS:
         raise FieldError(COLOR_GROUPS, f"Choose a column with at most {MAX_COLOR_GROUPS} color groups.")
     collisions = Counter(caption for caption, _ in groups.values())
-    artists, captions = [], []
+    artists, captions, point_groups = [], [], []
     for key, (caption, rows) in groups.items():
         if collisions[caption] > 1:
             identity = "missing" if key.startswith("gid:") else key.split(":")[1]
@@ -210,12 +210,14 @@ def _observation_points(axes, coordinates, group_column, values):
         artist._tramastat_legend_key = key
         artists.append(artist)
         captions.append(label)
+        point_groups.append((key, caption, rows, artist.get_facecolors()[0]))
     legend = axes.legend(artists, captions, title=_literal(group_column), ncols=(len(artists) + 9) // 10)
     legend._tramastat_legend_keys = tuple(groups)
+    return point_groups
 
 
 def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, variable_xy, row_labels,
-            variable_names, show_rows, parallel=None, *, group_column=None, group_values=None):
+            variable_names, show_rows, parallel=None, *, group_column=None, group_values=None, overlay=None):
     if view == SCREE:
         figure, axes = _plot("Scree", "Principal component", "Eigenvalue")
         # The observed series stays unlabeled so its style key remains the historical line.
@@ -227,7 +229,7 @@ def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, va
             line.set_gid(pca_retention.REFERENCE_GID)
             axes.legend()
         axes.set_xticks(np.arange(1, len(eigenvalues) + 1))
-        return figure
+        return figure, None
     if view == PROPORTION:
         figure, axes = _plot("Proportion of variance", "Principal component", "Variance (%)")
         numbers = np.arange(1, len(variance) + 1)
@@ -236,15 +238,18 @@ def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, va
         axes.plot(numbers, cumulative, marker="o", label="Cumulative (%)")
         axes.legend()
         axes.set_xticks(numbers)
-        return figure
+        return figure, None
     xlabel, ylabel = _axis(names, variance, horizontal), _axis(names, variance, vertical)
     titles = {SCORES: "Principal component scores", LOADINGS: "Principal component loadings",
               BIPLOT: "Principal component biplot"}
     figure, axes = _plot(titles[view], xlabel, ylabel)
     axes.axhline(0, color="#d0d5dd", linewidth=.8, zorder=0)
     axes.axvline(0, color="#d0d5dd", linewidth=.8, zorder=0)
+    contours = None
     if view in POINT_VIEWS:
-        _observation_points(axes, row_xy, group_column, group_values)
+        point_groups = _observation_points(axes, row_xy, group_column, group_values)
+        if overlay is not None:
+            contours = pca_overlays.draw(axes, row_xy, point_groups, overlay)
         if show_rows:
             for x, y, label in zip(row_xy[:, 0], row_xy[:, 1], row_labels):
                 if label:
@@ -255,7 +260,7 @@ def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, va
                           arrowprops={"arrowstyle": "->", "color": "#9a3412"}, zorder=2)
             _annotate(axes, x, y, name)
     axes.margins(.15)
-    return figure
+    return figure, contours
 
 
 def _settings(view, standardize, labels_omitted):
@@ -288,6 +293,7 @@ def pca_result(frame, options):
     mask = _complete_mask(frame, variables)
     source, labels = _labels(frame, mask, column)
     group_column, group_values = _color_data(frame, options, view, mask)
+    overlay = pca_overlays.configuration(options, view in POINT_VIEWS, group_column is not None)
     if len(source) != len(scores):
         raise ValueError("PCA row filter did not match the score rows.")
     loadings, rows, variable_coordinates = _coordinates(scores, eigenvectors, eigenvalues)
@@ -306,11 +312,12 @@ def pca_result(frame, options):
             "Variance (%)": variance,
             "Cumulative (%)": parts["Cumulative (%)"].to_numpy(dtype=float),
         })
-        figure = _figure(view, names, variance, eigenvalues, 0, 1, score_values, loadings, labels, variables, False,
-                         parallel)
+        figure, _ = _figure(view, names, variance, eigenvalues, 0, 1, score_values, loadings, labels, variables, False,
+                            parallel)
         tables = {"Explained variance": parts, "Eigenvectors": eigenvectors, "Scores": scores,
                   COORDINATES: table, SETTINGS: _settings(view, bool(options["Standardize"]), False)}
         tables.update(retention.tables)
+        tables.update(pca_reports.optional_tables(frame, options, parts, eigenvectors, scores, retention))
         return Result(tables, figure)
     omitted = bool(show and len(labels) > _LABEL_LIMIT)
     drawn = show and not omitted
@@ -341,11 +348,14 @@ def pca_result(frame, options):
         values = group_values if view == SCORES else [*group_values, *([None] * len(variables))]
         table["Color group"] = pd.Series(values, dtype=object)
         settings.loc[COLOR_GROUPS, "Value"] = group_column
-    figure = _figure(view, names, variance, eigenvalues, horizontal, vertical,
-                     drawn_rows[:, [horizontal, vertical]], drawn_variables[:, [horizontal, vertical]],
-                     labels, variables, drawn, parallel, group_column=group_column, group_values=group_values)
+    figure, contours = _figure(view, names, variance, eigenvalues, horizontal, vertical,
+                               drawn_rows[:, [horizontal, vertical]], drawn_variables[:, [horizontal, vertical]],
+                               labels, variables, drawn, parallel, group_column=group_column,
+                               group_values=group_values, overlay=overlay)
     tables = {"Explained variance": parts, "Eigenvectors": eigenvectors, "Scores": scores,
               COORDINATES: table, SETTINGS: settings}
     tables.update(retention.tables)
     tables.update(pca_reports.optional_tables(frame, options, parts, eigenvectors, scores, retention))
+    if contours is not None:
+        tables[pca_overlays.SHEET] = contours
     return Result(tables, figure)
