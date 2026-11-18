@@ -16,10 +16,11 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from . import i18n
+from . import i18n, ui_theme
 from . import independent_roc as engine
 from .data import Dataset, save_project
 from .graph_dialog import GraphFormatDialog
+from .presentation import Layout, compose_layout
 
 FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "data" / "independent_roc"
 EXPECTED = json.loads((FIXTURES / "expected.json").read_text(encoding="utf-8"))
@@ -56,6 +57,7 @@ def check_independent_roc(root, app, directory, tools):
     out = directory / "independent-roc"
     out.mkdir(exist_ok=True)
     (out / "screen.txt").write_text(f"{screen[0]}x{screen[1]}\n", encoding="utf-8")
+    (out / "theme.txt").write_text(("modern" if ui_theme.is_modern() else "standard") + "\n", encoding="utf-8")
     suffix = f"-{screen[0]}x{screen[1]}" if screen[0] >= 1600 else ""
     path = directory / "independent-roc.alab"
     cohorts = pd.read_csv(FIXTURES / "cohorts.csv")
@@ -160,6 +162,14 @@ def check_independent_roc(root, app, directory, tools):
     def gids(axes):
         return {child.get_gid() for child in axes.get_children() if child.get_gid()}
 
+    def assert_cutoff(index, cutoff):
+        """The band and the dotted line mark exactly the Maximum FPR of the recipe."""
+        axes = app.runs[index].result.figure.axes[0]
+        band = next(child for child in axes.get_children() if child.get_gid() == "independent-roc:band")
+        line = next(child for child in axes.lines if child.get_gid() == "independent-roc:cutoff")
+        assert abs(band.get_x()) < 1e-12 and abs(band.get_width() - cutoff) < 1e-12, (band.get_x(), band.get_width())
+        assert [float(value) for value in line.get_xdata()] == [cutoff, cutoff], line.get_xdata()
+
     # 1. Full area, DeLong: defaults, hidden fields, every invalid value on its own field in the same dialog.
     def full_dialog(dialog):
         tools.pick_method(dialog, METHOD)
@@ -215,6 +225,30 @@ def check_independent_roc(root, app, directory, tools):
     assert "independent-roc:band" not in gids(axes) and "independent-roc:cutoff" not in gids(axes)
     shot(root, "window-independent-roc-graph" + suffix + ".png")
 
+    # Title and legend styling belong to the run: they must survive every recalculation below.
+    def style_figure(dialog):
+        dialog.inputs["title"].set("AUC of two markers")
+        dialog.appearance["legend_size"].set("13")
+        dialog.appearance["legend"].set("upper left")
+
+    tools.drive_dialog(GraphFormatDialog, style_figure)
+    app.format_graph()
+    wait()
+
+    def styled(index):
+        axes = app.runs[index].result.figure.axes[0]
+        legend = axes.get_legend()
+        assert axes.get_title() == "AUC of two markers" and axes.get_xlabel() == "False positive rate", (
+            axes.get_title(), axes.get_xlabel())
+        assert {"independent-roc:curve-a", "independent-roc:curve-b"} <= gids(axes), gids(axes)
+        assert legend is not None and legend.get_texts()[0].get_fontsize() == 13, legend
+        assert app.runs[index].style["legend"] == "upper left", app.runs[index].style
+
+    styled(full_index)
+    app.show("graph", full_index)
+    root.update()
+    shot(root, "window-independent-roc-styled" + suffix + ".png")
+
     # 2. Partial area on tied scores: choosing it proposes the bootstrap; hidden values are neither validated nor saved.
     def partial_dialog(dialog):
         tools.pick_method(dialog, METHOD)
@@ -265,6 +299,7 @@ def check_independent_roc(root, app, directory, tools):
     root.update()
     axes = app.runs[partial_index].result.figure.axes[0]
     assert "pAUC" in axes.get_title() and {"independent-roc:band", "independent-roc:cutoff"} <= gids(axes), gids(axes)
+    assert_cutoff(partial_index, 0.35)
     shot(root, "window-independent-roc-partial-graph" + suffix + ".png")
 
     # 3. Standardized partial and a cutoff on the first diagonal segment, by editing the recipe; the sheet of
@@ -281,6 +316,7 @@ def check_independent_roc(root, app, directory, tools):
 
     standardized_index = analyse_with(standardized, TIES)
     assert_oracle(standardized_index, "standardized")
+    assert_cutoff(standardized_index, 0.35)
     row = summary(standardized_index)
     assert row["Raw area A"] == 0.1 and row["Raw area B"] == 0.05 and 0.4 < row["Area B"] < 0.5, row
 
@@ -295,6 +331,7 @@ def check_independent_roc(root, app, directory, tools):
     wait()
     assert app.runs[standardized_index].options["Maximum FPR"] == 0.15
     assert_oracle(standardized_index, "diagonal_cutoff")
+    assert_cutoff(standardized_index, 0.15)
 
     # 4. Zero variance: the counts stay, no p value is invented and the figure claims nothing more.
     constant_index = analyse_with(lambda d: (tools.pick_method(d, METHOD), columns(d)), CONSTANT)
@@ -322,7 +359,8 @@ def check_independent_roc(root, app, directory, tools):
     edited.loc[0, "C_A"] = 3
     np.testing.assert_allclose([summary(full_index)["Area A"], summary(full_index)["Area B"]], areas(edited),
                                rtol=1e-12)
-    assert summary(full_index)["Control A N"] == 6
+    assert [summary(full_index)[name] for name in COUNTS] == [6, 6, 8, 7], "an edit changes no count"
+    styled(full_index)
     app.show("data", COHORTS)
     app.current_grid.select((4, 1))
     app.toggle_exclusion()
@@ -331,7 +369,8 @@ def check_independent_roc(root, app, directory, tools):
     kept.loc[4, "P_A"] = np.nan
     np.testing.assert_allclose([summary(full_index)["Area A"], summary(full_index)["Area B"]], areas(kept),
                                rtol=1e-12)
-    assert summary(full_index)["Patient A N"] == 5 and summary(full_index)["Control A N"] == 6
+    assert [summary(full_index)[name] for name in COUNTS] == [6, 5, 8, 7], "only the excluded stratum shrinks"
+    styled(full_index)
     app.show("data", COHORTS)
     app.current_grid.select((4, 1))
     app.toggle_exclusion()
@@ -536,6 +575,39 @@ def check_independent_roc(root, app, directory, tools):
         app.edit_analysis()
         wait()
         assert app.runs[italian_index].options == italian_recipe
+
+        # Partial area with a decimal comma: the recipe keeps the number, and the oracle of the same cutoff matches.
+        def italian_partial(dialog):
+            tools.pick_method(dialog, METHOD)
+            dialog.field_rows["Area"][1].set("Parziale")
+            dialog.update()
+            controls = dialog.controls
+            assert controls["Inference"][1].get() == "Percentile bootstrap"
+            controls["Maximum FPR"][1].set("0")
+            rejected(dialog, "Maximum FPR", "maggiore di 0 e minore di 1", caption=i18n.ui("Maximum FPR"))
+            controls["Maximum FPR"][1].set("0,15")
+            controls["Bootstrap replicates"][1].set("200")
+            controls["Bootstrap seed"][1].set(str(SEED))
+            controls["Save bootstrap"][1].set(True)
+            dialog.fields.select(1)
+            dialog.update()
+            shot(dialog, "window-independent-roc-it-partial" + suffix + ".png")
+
+        i18n.set_language("it")
+        comma_index = analyse_with(italian_partial, TIES)
+        assert app.runs[comma_index].options == {
+            "Control A": "C_A", "Patient A": "P_A", "Control B": "C_B", "Patient B": "P_B", "Direction A": HIGHER,
+            "Direction B": HIGHER, "Area": "Partial", "Maximum FPR": 0.15, "Inference": "Percentile bootstrap",
+            "Confidence level (%)": 95.0, "Bootstrap replicates": 200, "Bootstrap seed": SEED,
+            "Save bootstrap": True}, app.runs[comma_index].options
+        assert_oracle(comma_index, "diagonal_cutoff")
+        assert_cutoff(comma_index, 0.15)
+        app.show("result", comma_index)
+        app.result_tabs.select(0)
+        shot(root, "window-independent-roc-it-result" + suffix + ".png")
+        app.show("graph", comma_index)
+        root.update()
+        shot(root, "window-independent-roc-it-partial-graph" + suffix + ".png")
     finally:
         i18n.set_language(original_language)
 
@@ -587,6 +659,31 @@ def check_independent_roc(root, app, directory, tools):
         content = target.read_bytes()
         assert (magic in content[:400] or (extension == "svg" and magic in content)) and len(content) > 1000, extension
 
+    # 11b. The figure in a layout; the paired comparison of the same worksheet keeps working beside the new one.
+    layout = compose_layout("ROC layout", 1, [app.runs[partial_index].result.figure])
+    layout.savefig(directory / "independent-roc-layout.png", dpi=80)
+    app.layouts.append(Layout("ROC layout", 1, [app.runs[partial_index].reference]))
+    app.refresh_navigator()
+    app.show("layout", len(app.layouts) - 1)
+    root.update()
+    shot(root, "window-independent-roc-layout" + suffix + ".png")
+    (directory / "independent-roc-layout.png").replace(out / "independent-roc-layout.png")
+
+    def paired_dialog(dialog):
+        tools.pick_method(dialog, "Compare paired ROC curves")
+        for name, column in (("Control A", "C_A"), ("Patient A", "P_A"), ("Control B", "C_B"), ("Patient B", "P_B")):
+            dialog.controls[name][1].set(column)
+
+    app.show("data", TIES)
+    tools.drive_dialog(tools.AnalysisDialog, paired_dialog)
+    app.choose_analysis()
+    wait()
+    paired_index = len(app.runs) - 1
+    assert app.runs[paired_index].method == "Compare paired ROC curves", app.runs[paired_index].method
+    paired_options = dict(app.runs[paired_index].options)
+    paired_tables = {k: v.copy() for k, v in app.runs[paired_index].result.tables.items()}
+    assert list(paired_tables) == ["Paired ROC comparison", "Curve points A", "Curve points B"], list(paired_tables)
+
     # 12. Save, reopen and open the graph before the worksheet: canonical recipes, same tables, same figure.
     def figure_state(run):
         axes = run.result.figure.axes[0]
@@ -597,12 +694,12 @@ def check_independent_roc(root, app, directory, tools):
     expected = {(run.title, run.slot): (dict(run.options), {k: v.copy() for k, v in run.result.tables.items()},
                                         figure_state(run))
                 for run in app.runs if run.method == METHOD and run.result is not None}
-    assert len(expected) == 7, sorted(expected)
+    assert len(expected) == 8, sorted(expected)
     app.path = directory / "independent-roc-saved.alab"
     assert app.save()
     app.import_file(app.path)
     for position, run in enumerate(app.runs):
-        if run.method == METHOD:
+        if run.method in (METHOD, "Compare paired ROC curves"):
             app.open_sheet(("graph", position))
             wait()
     reopened = {(run.title, run.slot): run for run in app.runs}
@@ -612,7 +709,12 @@ def check_independent_roc(root, app, directory, tools):
             pd.testing.assert_frame_equal(reopened[key].result.tables[name], frame, rtol=1e-9)
         if reopened[key].title != COHORTS or reopened[key].options["Area"] == "Full":
             assert figure_state(reopened[key])[:3] == figure[:3], key
-    key = next(k for k, v in expected.items() if v[0]["Area"] == "Partial" and k[0] == TIES)
+    paired_again = next(run for run in app.runs if run.method == "Compare paired ROC curves")
+    assert paired_again.options == paired_options and set(paired_again.result.tables) == set(paired_tables)
+    for name, frame in paired_tables.items():
+        pd.testing.assert_frame_equal(paired_again.result.tables[name], frame, rtol=1e-9)
+    key = next(k for k, v in expected.items() if v[0]["Area"] == "Partial" and k[0] == TIES
+               and v[0]["Maximum FPR"] == 0.35)
     reopened_index = next(i for i, run in enumerate(app.runs) if (run.title, run.slot) == key)
     assert "#9b4174" in str(reopened[key].style) and engine.BOOTSTRAP_SHEET in reopened[key].result.tables
     app.show("graph", reopened_index)
