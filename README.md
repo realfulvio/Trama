@@ -8,7 +8,7 @@
 
 Trama è un'applicazione per Windows che riunisce fogli dati, analisi statistiche e grafici scientifici. Incolla da Excel, scegli il metodo, cura la figura e conserva tutto nello stesso progetto. Un progetto indipendente per la statistica e la grafica scientifica, con codice sotto licenza MIT.
 
-**[Scarica per Windows x64](https://github.com/realfulvio/Trama/releases)** · [Guida rapida](docs/getting-started.md) · [Funzionalità](docs/features.md) · [English](README.en.md)
+**[Scarica per Windows x64](https://github.com/realfulvio/Trama/releases)** · [Guida rapida](docs/getting-started.md) · [Funzionalità](docs/features.md) · [Sito web](https://realfulvio.github.io/trama-site/) · [English](README.en.md)
 
 Windows 10/11 a 64 bit · Versione portabile · Interfaccia italiano / inglese
 
