@@ -1044,3 +1044,18 @@ CAPTIONS.update({
     "Fill opacity (%) must be between 0 and 100.": "L’opacità del riempimento deve essere tra 0 e 100.",
     "Border opacity (%) must be between 0 and 100.": "L’opacità del bordo deve essere tra 0 e 100.",
 })
+
+CAPTIONS.update({
+    "ANCOVA": "ANCOVA (medie aggiustate)",
+    "Covariate": "Covariata",
+    "Slope model": "Modello delle pendenze",
+    "Common": "Comune",
+    "Reference X": "X di riferimento",
+    "Reference domain": "Dominio del riferimento",
+    "Common range": "Intervallo comune",
+    "Against control": "Contro il controllo",
+    "Adjustment": "Correzione",
+    "Bonferroni": "Bonferroni",
+    "Fitted lines": "Rette adattate",
+    "Adjusted means": "Medie aggiustate",
+})

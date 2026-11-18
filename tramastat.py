@@ -243,6 +243,11 @@ from analisi.pca_regression import (CHOICE_KEYS as PCA_REGRESSION_CHOICE_KEYS, C
                                     TABS as PCA_REGRESSION_TABS, requested as pcr_requested,
                                     settings as pca_regression_settings)
 from analisi.pca_reports import LABEL_KEYS as PCA_REPORT_LABELS, TABS as PCA_REPORT_TABS
+from analisi.ancova import (ADJUSTMENT as ANCOVA_ADJUSTMENT, ANCOVA, COMPARISONS as ANCOVA_COMPARISONS,
+                            CONTROL_GROUP as ANCOVA_CONTROL, DATA_FIELDS as ANCOVA_DATA_FIELDS,
+                            REFERENCE_X as ANCOVA_REFERENCE, format_error as format_ancova_error,
+                            group_choices as ancova_group_choices, reference_value as ancova_reference_value,
+                            visibility as ancova_visibility)
 from analisi import pca_overlays
 from analisi.pca_retention import (CHOICE_KEYS as PCA_CHOICE_KEYS, LABEL_KEYS as PCA_SELECT_LABELS,
                                   SELECTION as PCA_SELECTION, TABS as PCA_SELECTION_TABS,
@@ -1057,6 +1062,10 @@ class AnalysisDialog(simpledialog.Dialog):
             positions[options] = 0
         elif self.method in (SUMMARY_ANOVA, SUMMARY_TTEST):
             fields_by_tab["Input"] = variables
+        elif self.method == ANCOVA:
+            # Variables / Model (slope, reference, level, graph) / Comparisons (which contrasts and their correction).
+            self.fields.tab(options, text=ui("Model"))
+            tabs = {"Comparisons": (ANCOVA_COMPARISONS, ANCOVA_CONTROL, ANCOVA_ADJUSTMENT)}
         elif self.method == "Multifactor ANOVA":
             # The Model page (term selection, order, term checkboxes) scrolls and sits right after Variables.
             tabs = {ANOVA_MODEL_TAB: (ANOVA_TERM_SELECTION, "Interaction order", ANOVA_MODEL_TERMS),
@@ -1707,6 +1716,16 @@ class AnalysisDialog(simpledialog.Dialog):
             self._translate_analysis_labels(lognormal_anova.LABEL_KEYS)
             self._bind_scrollable_children(options)
             self.show_one_way_fields()
+        if self.method == ANCOVA:
+            self.controls[ANCOVA_COMPARISONS][1].trace_add("write", lambda *_: self.show_ancova_fields())
+            for label in ANCOVA_DATA_FIELDS:
+                self.controls[label][1].trace_add("write", lambda *_: self.refresh_ancova_groups())
+            for page, note in ((options, "ancova.note.model"), (options, "ancova.note.reference"),
+                               (fields_by_tab[ANCOVA_COMPARISONS], "ancova.note.comparisons")):
+                ttk.Label(page, text=tr(note), wraplength=ui_theme.px(400), foreground="#486075",
+                          justify="left").grid(row=positions[page], column=0, columnspan=2, sticky="w", pady=(8, 0))
+                positions[page] += 1
+            self.show_ancova_fields()
         if self.method == "Multifactor ANOVA":
             self._anova_graph = self.controls[ANOVA_DIAG_GRAPH][1].get()
             for label in (ANOVA_EFFECTS, ANOVA_DIAGNOSTICS, ANOVA_ASSUMPTIONS, ANOVA_DIAG_GRAPH, ANOVA_TERM_SELECTION):
@@ -3110,6 +3129,26 @@ class AnalysisDialog(simpledialog.Dialog):
         unequal = self.controls["Method"][1].get() in (SUMMARY_WELCH, SUMMARY_JOINT)
         binding.set_values(SUMMARY_UNEQUAL_POSTHOC if unequal else SUMMARY_ORDINARY_POSTHOC)
 
+    def ancova_fields(self):
+        """The control group belongs to Against control; the adjustment to either comparison."""
+        if self.method != ANCOVA or ANCOVA_COMPARISONS not in self.controls:
+            return {}
+        return ancova_visibility(self.controls[ANCOVA_COMPARISONS][1].get())
+
+    def show_ancova_fields(self):
+        self.show_fields(self.ancova_fields())
+        self.refresh_ancova_groups()
+
+    def refresh_ancova_groups(self):
+        """Offer the groups with complete data under the chosen columns; a stale choice becomes empty."""
+        if ANCOVA_CONTROL not in self.field_rows:
+            return
+        choices = ancova_group_choices(self.data, {name: self.controls[name][1].get() for name in ANCOVA_DATA_FIELDS})
+        self.field_rows[ANCOVA_CONTROL][1].configure(values=choices)
+        control = self.controls[ANCOVA_CONTROL][1]
+        if choices and control.get() not in choices:
+            control.set("")
+
     def compare_lines_fields(self):
         if self.method != COMPARE_LINES:
             return {}
@@ -3228,7 +3267,7 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.calibration_visibility(), **self.agreement_visibility(),
                       **self.anova_fields(), **self.anova_term_fields(), **self.anova_diagnostic_fields(),
                       **self.regression_visibility(), **self.forest_fields(),
-                      **self.compare_lines_fields(), **self.lognormal_fields(), **self.ttest_variance_fields(),
+                      **self.compare_lines_fields(), **self.ancova_fields(), **self.lognormal_fields(), **self.ttest_variance_fields(),
                       **self.equivalence_fields(), **self.cox_fields(),
                       **self.summary_anova_fields(),
                       **self.one_way_fields(),
@@ -3274,6 +3313,10 @@ class AnalysisDialog(simpledialog.Dialog):
                             options[name] = float(decimal_comma(text))
                         except ValueError:
                             options[name] = text
+                        continue
+                    if self.method == ANCOVA and name == ANCOVA_REFERENCE:
+                        # Empty stays null (the mean of X); a number is stored as a number, never as text.
+                        options[name] = ancova_reference_value({name: value})
                         continue
                     if self.method == HEAT_MAP and name == HEAT_MAP_LEGEND_DECIMALS:
                         options[name] = parse_heat_map_legend_decimals(value)
@@ -3470,7 +3513,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
                     or self.method == PARTS_GRAPH
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
-                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
+                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, ANCOVA, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, COX, OUTLIERS,
                                        "One-way ANOVA", REFERENCE_NORMALIZATION,
                                        SPLINE_FIT, COMPARE_MODELS, XY_ERRORS}):
                 # Keep field errors in the dialog and reuse the successful result.
@@ -3549,6 +3592,12 @@ class AnalysisDialog(simpledialog.Dialog):
                     message = f"{label}: {message}"
             elif self.method == "Interpolate a standard curve":
                 message = translate_calibration_error(error)
+            elif self.method == ANCOVA:
+                # Sentences of the engine have catalog entries; a text typed in a number field is translated whole.
+                message = format_ancova_error(error) or ui(message)
+                label = ui(field) if field else ""
+                if label and label not in message:
+                    message = f"{label}: {message}"
             elif self.method == "Multifactor ANOVA" and (formatted := format_anova_error(error)):
                 message = formatted
             elif self.method == "One-way ANOVA" and (
@@ -6233,6 +6282,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                         failures.append(translate_reference_error(error))
                     elif run.method == HEAT_MAP and not isinstance(error, str):
                         failures.append(translate_heat_map_error(error))
+                    elif run.method == ANCOVA and not isinstance(error, str):
+                        failures.append(format_ancova_error(error) or str(error))
                     else:
                         failures.append(error if isinstance(error, str) else str(error))
             self.refresh_navigator()
@@ -6434,17 +6485,19 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
                 or run.method == FDR_METHOD or run.method == VARIANCE_RATIO or self._pca_regression(run)
+                or run.method == ANCOVA
                 or getattr(run, 'source', None) is not None
                 or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO) or self._pca_regression(run)
+        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, ANCOVA)
+                or self._pca_regression(run))
 
     def weighting_recovery(self, method, options, index, only=None):
         """Reopen the dialog when a field error is first known on the worker."""
         if method in CORRELATION_METHODS or method in (
-                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, "Multifactor ANOVA",
+                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, "Multifactor ANOVA", ANCOVA,
                 REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
@@ -6502,6 +6555,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else format_fdr_error(error) if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
+                     else format_ancova_error(error) if run.method == ANCOVA
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
         if formatted:
             message = formatted
@@ -6537,7 +6591,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if self.refresh_chain_calculations([(run, None)], inputs_changed=False):
             return
         recovery = (self.weighting_recovery(run.method, run.options, index)
-                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO}
+                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO, ANCOVA}
                     or self._pca_regression(run) else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
@@ -6845,7 +6899,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         except Exception as error:
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
-                     else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO else error)
+                     else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
+                     else format_ancova_error(error) or error if run.method == ANCOVA else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -6957,7 +7012,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'variance.ratio.error.')
                      if run.method == VARIANCE_RATIO
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
-                     if run.method == "One-way ANOVA" else translate_reference_error(run.calculation_error))
+                     if run.method == "One-way ANOVA"
+                     else translate_message(run.calculation_error, 'ancova.error.', {"field": ui})
+                     if run.method == ANCOVA else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
 
@@ -13332,6 +13389,19 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "ancova":
+            # The ANCOVA check alone: TRAMASTAT_SMOKE_ONLY=ancova python tramastat.py --smoke DIR
+            from analisi.ancova_smoke import check_ancova
+            check_ancova(root, app, directory, SimpleNamespace(
+                capture=capture, pick_method=pick_method, select_columns=select_columns,
+                wait_for_calculation=wait_for_calculation, AnalysisDialog=AnalysisDialog,
+                messagebox=messagebox, filedialog=filedialog, errors=errors,
+                screenshots=bool(os.environ.get("TRAMASTAT_SMOKE_SCREENSHOTS"))))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "variance-assumptions":
             # The one-way variance check alone:
             # TRAMASTAT_SMOKE_ONLY=variance-assumptions python tramastat.py --smoke DIR
@@ -14032,6 +14102,12 @@ def smoke(root, app, directory, legacy_reference=None):
             screenshots=bool(os.environ.get("TRAMASTAT_SMOKE_SCREENSHOTS"))))
         from analisi.pca_regression_smoke import check_pca_regression
         check_pca_regression(root, app, directory, SimpleNamespace(
+            capture=capture, pick_method=pick_method, select_columns=select_columns,
+            wait_for_calculation=wait_for_calculation, AnalysisDialog=AnalysisDialog,
+            messagebox=messagebox, filedialog=filedialog, errors=errors,
+            screenshots=bool(os.environ.get("TRAMASTAT_SMOKE_SCREENSHOTS"))))
+        from analisi.ancova_smoke import check_ancova
+        check_ancova(root, app, directory, SimpleNamespace(
             capture=capture, pick_method=pick_method, select_columns=select_columns,
             wait_for_calculation=wait_for_calculation, AnalysisDialog=AnalysisDialog,
             messagebox=messagebox, filedialog=filedialog, errors=errors,
