@@ -124,7 +124,7 @@ def _recommend_clusters(metrics, criterion):
 
 
 def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="silhouette",
-                *, min_k=1, gap_replicates=20):
+                *, min_k=1, gap_replicates=20, kl_scaling=consensus.DIMENSION_ADJUSTED):
     """Compare fits from min_k through max_k, capped at the distinct row count.
 
     The silhouette, Calinski–Harabasz and Davies–Bouldin scores require
@@ -144,6 +144,8 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     """
     if criterion not in {*_CLUSTER_METRICS, "elbow", "gap", "consensus"}:
         raise ValueError("Unknown cluster recommendation criterion.")
+    if criterion == "consensus" and kl_scaling not in consensus.KL_CHOICES:
+        raise FieldError(consensus.KL_SCALING, "Choose a supported Krzanowski–Lai scaling.")
     if (any(isinstance(k, bool) or not isinstance(k, Integral) for k in (min_k, max_k))
             or not 1 <= min_k <= max_k <= 30):
         raise ValueError("Cluster limits must be integers with 1 ≤ minimum k ≤ maximum k ≤ 30.")
@@ -185,18 +187,22 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     if simulate_gap:
         _gap_scores(metrics, values, columns, seed, gap_replicates, allow_failed_references=criterion == "consensus")
     if criterion == "consensus":
-        return _consensus_scan(metrics, partitions, fits, n, dimensions)
+        return _consensus_scan(metrics, partitions, fits, n, dimensions, kl_scaling=kl_scaling)
     recommended = _recommend_clusters(metrics, criterion)
     return ClusterScan(metrics, recommended, fits.get(recommended))
 
 
-def _consensus_scan(metrics, partitions, fits, n, dimensions):
+def _consensus_scan(metrics, partitions, fits, n, dimensions, *, kl_scaling=consensus.DIMENSION_ADJUSTED):
     # Calinski–Harabasz and Silhouette keep the values of the existing criteria.
     overrides = {name: metrics[name] for name in (consensus.CALINSKI, consensus.SILHOUETTE)}
     table, _ = consensus.consensus_table(partitions, metrics["WSS"], n, dimensions, gap=metrics["Gap"],
-                                         gap_se=metrics["Gap SE"], overrides=overrides)
+                                         gap_se=metrics["Gap SE"], overrides=overrides, kl_scaling=kl_scaling)
     votes = consensus.index_votes(table)
     selection = consensus.tally(votes, table.index)
+    if kl_scaling == consensus.UNSCALED_WSS:
+        label = {consensus.KRZANOWSKI_LAI: consensus.WSS_DROP_RATIO}
+        table = table.rename(columns=label)
+        votes = votes.rename(index=label)
     recommended = selection["recommended"]
     return ClusterScan(table, recommended, fits.get(recommended), votes, selection)
 

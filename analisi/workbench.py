@@ -7,6 +7,7 @@ from scipy import stats
 
 from . import stats as engine
 from .advanced import anova_comparisons, kmeans_scan
+from .cluster_consensus import DIMENSION_ADJUSTED, KL_CHOICES, KL_SCALING, UNSCALED_WSS
 from .anova_diagnostics import OPTIONS as ANOVA_DIAG_OPTIONS
 from .anova_diagnostics import active as anova_diagnostics_active, build as build_anova_diagnostics
 from .anova_diagnostics import ensure_graph_budget as ensure_anova_graph_budget, graph_choice as anova_graph_choice
@@ -233,7 +234,7 @@ METHODS = {
                                 "Standardize": True, "Seed": 42,
                                 "Criterion": ("Silhouette", "Elbow", "Calinski–Harabasz", "Davies–Bouldin", "Gap",
                                               "Consensus (17 indices)"),
-                                "Gap simulations": 20},
+                                "Gap simulations": 20, KL_SCALING: KL_CHOICES},
     "K-means clustering": {"Variables": MULTIPLE, "Clusters": 2, "Standardize": True, "Seed": 42},
     "Hierarchical clustering": {"Variables": MULTIPLE, "Observation labels": OPTIONAL, **HIERARCHICAL_OPTIONS},
     "Scatter / confidence ellipse": {"X": None, "Y": None, "Group": OPTIONAL, **ELLIPSE_OPTIONS},
@@ -508,6 +509,8 @@ def _consensus_selection(scan, o):
     report = {"Criterion": o["Criterion"], "Suggested k": scan.recommended_k,
               "Tied candidates": ", ".join(map(str, tied)) if len(tied) > 1 else "None",
               "Indices voting": selection["voting"], "Indices abstaining": selection["abstaining"]}
+    if o.get(KL_SCALING) == UNSCALED_WSS:
+        report[KL_SCALING] = UNSCALED_WSS
     report.update({f"Votes for k = {k}": int(votes) for k, votes in counts.items()})
     tables = {"Cluster metrics": scan.metrics, "Consensus votes": scan.votes, "Selection": _report(report)}
     if scan.fit is not None:
@@ -525,7 +528,8 @@ def _cluster_selection(frame, o):
                  "Davies–Bouldin": "davies-bouldin", "Gap": "gap",
                  "Consensus (17 indices)": "consensus"}[o["Criterion"]]
     scan = kmeans_scan(frame, o["Variables"], o["Maximum k"], o["Standardize"], o["Seed"],
-                       criterion, min_k=o.get("Minimum k", 1), gap_replicates=o.get("Gap simulations", 20))
+                       criterion, min_k=o.get("Minimum k", 1), gap_replicates=o.get("Gap simulations", 20),
+                       kl_scaling=o.get(KL_SCALING, DIMENSION_ADJUSTED))
     if criterion == "consensus":
         return _consensus_selection(scan, o)
     metric = {"elbow": "WSS", "gap": "Gap"}.get(criterion, o["Criterion"])
