@@ -14,7 +14,7 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 
-from . import exploration, pca_reports, pca_retention
+from . import exploration, pca_regression, pca_reports, pca_retention
 from .graph_legend import typed_group_token
 from .processing import FieldError
 from .reporting import Result, _plot
@@ -270,8 +270,21 @@ def validate(frame, options):
     """Raise a graph FieldError without drawing parallel replicates."""
     if not present(options):
         return
-    probe = {key: value for key, value in options.items() if key not in pca_retention.OPTION_NAMES}
+    # The probe has no selection key, so it would regress on every living component. The regression is left to the
+    # analysis itself, which has the real selection; its field checks stay in the dialog (pca_regression.settings).
+    skipped = pca_retention.OPTION_NAMES | pca_regression.OPTION_NAMES
+    probe = {key: value for key, value in options.items() if key not in skipped}
     pca_result(frame, probe)
+
+
+def _finish(tables, figure, frame, options, regression, parts, eigenvectors, scores, retention):
+    """Append the PCR sheets after the PCA ones; a PCR plot replaces the PCA figure, Keep PCA does not."""
+    if regression is not None:
+        found = pca_regression.regress(frame, options, regression, parts, eigenvectors, scores, retention)
+        tables.update(found.tables)
+        if found.figure is not None:
+            figure = found.figure
+    return Result(tables, figure)
 
 
 def pca_result(frame, options):
@@ -281,6 +294,8 @@ def pca_result(frame, options):
     flat = view in ONE_DIMENSION
     column = _label_column(frame, variables, options, not flat)
     show = _flag(options, not flat)
+    # Field errors of the regression come before any estimation; PCR is None unless it was explicitly turned on.
+    regression = pca_regression.settings(frame, options)
     parts, eigenvectors, scores = exploration.pca(frame, variables, options["Standardize"])
     eigenvalues = parts["Eigenvalue"].to_numpy(dtype=float)
     variance = parts["Variance (%)"].to_numpy(dtype=float)
@@ -311,7 +326,7 @@ def pca_result(frame, options):
         tables = {"Explained variance": parts, "Eigenvectors": eigenvectors, "Scores": scores,
                   COORDINATES: table, SETTINGS: _settings(view, bool(options["Standardize"]), False)}
         tables.update(retention.tables)
-        return Result(tables, figure)
+        return _finish(tables, figure, frame, options, regression, parts, eigenvectors, scores, retention)
     omitted = bool(show and len(labels) > _LABEL_LIMIT)
     drawn = show and not omitted
     if view == SCORES:
@@ -348,4 +363,4 @@ def pca_result(frame, options):
               COORDINATES: table, SETTINGS: settings}
     tables.update(retention.tables)
     tables.update(pca_reports.optional_tables(frame, options, parts, eigenvectors, scores, retention))
-    return Result(tables, figure)
+    return _finish(tables, figure, frame, options, regression, parts, eigenvectors, scores, retention)

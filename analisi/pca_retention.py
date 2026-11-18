@@ -280,6 +280,11 @@ def _alive(eigenvalues):
     return values > float(np.max(values)) * _SCALE
 
 
+def living(eigenvalues):
+    """Flags of the components with a numerically positive eigenvalue, the rule used by every retention criterion."""
+    return _alive(eigenvalues)
+
+
 def _prefix(passed):
     retained = np.zeros(len(passed), dtype=bool)
     for index, ok in enumerate(passed):
