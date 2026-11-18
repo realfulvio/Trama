@@ -12,7 +12,7 @@ Trama è un'applicazione per Windows che riunisce fogli dati, analisi statistich
 
 Windows 10/11 a 64 bit · Versione portabile · Interfaccia italiano / inglese
 
-**Novità 0.85 beta:** scegli i termini dell’ANOVA multifattoriale e personalizza le ellissi per gruppo. [Novità](docs/release-085.md) · [Verifiche](docs/validation-085.md).
+**Novità 0.86 beta:** statistiche per gruppo, medie mobili e totali cumulati nel foglio. [Novità](docs/release-086.md) · [Verifiche](docs/validation-086.md).
 
 ## Un foglio familiare. Un flusso di lavoro completo.
 

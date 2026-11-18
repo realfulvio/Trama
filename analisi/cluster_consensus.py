@@ -26,6 +26,10 @@ GAP = "Gap"
 GPLUS = "GPlus"
 HARTIGAN = "Hartigan"
 KRZANOWSKI_LAI = "Krzanowski–Lai"
+WSS_DROP_RATIO = "WSS-drop ratio"
+KL_SCALING = "Krzanowski–Lai scaling"
+DIMENSION_ADJUSTED, UNSCALED_WSS = "Dimension-adjusted", "Unscaled WSS"
+KL_CHOICES = (DIMENSION_ADJUSTED, UNSCALED_WSS)
 MCCLAIN_RAO = "McClain–Rao"
 POINT_BISERIAL = "Point-biserial"
 RATKOWSKY = "Ratkowsky"
@@ -216,13 +220,15 @@ def _get(series, k):
     return float(value) if pd.notna(value) else np.nan
 
 
-def sequence_indices(table, n, dimensions):
+def sequence_indices(table, n, dimensions, *, kl_scaling=DIMENSION_ADJUSTED):
     """Add indices that compare neighbouring k values to a table indexed by k."""
     table = table.sort_index()
     wss = table["WSS"]
     within, between = table[MEAN_WITHIN], table[MEAN_BETWEEN]
     columns = {name: {} for name in (BALL_HALL, FREY, HARTIGAN, KRZANOWSKI_LAI, TRACE_W)}
-    power = 2 / dimensions
+    if kl_scaling not in KL_CHOICES:
+        raise ValueError("Choose a supported Krzanowski–Lai scaling.")
+    power = 0 if kl_scaling == UNSCALED_WSS else 2 / dimensions
 
     def difference(k):
         return (k - 1)**power * _get(wss, k - 1) - k**power * _get(wss, k)
@@ -353,7 +359,8 @@ def tally(votes, candidates):
     }
 
 
-def consensus_table(partitions, wss, n, dimensions, *, gap=None, gap_se=None, overrides=None):
+def consensus_table(partitions, wss, n, dimensions, *, gap=None, gap_se=None, overrides=None,
+                    kl_scaling=DIMENSION_ADJUSTED):
     """Build the per-k table: WSS, the 17 indices, and Gap SE.
 
     ``partitions`` maps k to the result of :func:`partition_indices` (or is
@@ -369,7 +376,7 @@ def consensus_table(partitions, wss, n, dimensions, *, gap=None, gap_se=None, ov
         for name, value in measures.items():
             if name in table.columns and name != "WSS":
                 table.loc[k, name] = value
-    table = sequence_indices(table, n, dimensions)
+    table = sequence_indices(table, n, dimensions, kl_scaling=kl_scaling)
     for name, values in (overrides or {}).items():
         table[name] = pd.Series(values, dtype=float).reindex(table.index)
     table[GAP] = (pd.Series(gap, dtype=float).reindex(table.index) if gap is not None else np.nan)

@@ -396,6 +396,20 @@ class WorkbenchConsensusTests(unittest.TestCase):
         self.assertIsNone(result.tables["Selection"].loc["Suggested k", "Value"])
         self.assertIn("Cluster metrics", result.tables)
 
+    def test_unscaled_wss_drop_comparison_uses_one_vote(self):
+        native = analyse("K-means model selection", self.frame, self.options)
+        adjusted = {**self.options, cc.KL_SCALING: cc.UNSCALED_WSS}
+        result = analyse("K-means model selection", self.frame, adjusted)
+        ordinary, alternate = native.tables["Cluster metrics"], result.tables["Cluster metrics"]
+        np.testing.assert_allclose(alternate.loc[2:4, cc.WSS_DROP_RATIO],
+                                   np.abs(ordinary.WSS.diff().iloc[1:-1].to_numpy()
+                                          / ordinary.WSS.diff().iloc[2:].to_numpy()))
+        pd.testing.assert_frame_equal(ordinary.drop(columns=cc.KRZANOWSKI_LAI),
+                                      alternate.drop(columns=cc.WSS_DROP_RATIO))
+        self.assertEqual(len(result.tables["Consensus votes"]), 17)
+        self.assertIn(cc.WSS_DROP_RATIO, result.tables["Consensus votes"].index)
+        self.assertEqual(result.tables["Selection"].loc[cc.KL_SCALING, "Value"], cc.UNSCALED_WSS)
+
     def test_assignments_preserve_a_source_variable_named_cluster(self):
         frame = self.frame.rename(columns={"a": "Cluster", "b": "Cluster (assigned)"})
         options = {**self.options, "Variables": list(frame)}
