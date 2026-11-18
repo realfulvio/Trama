@@ -2,7 +2,7 @@
 
 [Presentazione](../README.md) · [Guida rapida](getting-started.md) · [Compatibilità](compatibility.md)
 
-Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.89.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
+Trama collega dati, analisi, grafici e layout in un progetto locale. Questa panoramica descrive le famiglie disponibili nella 0.90.0 beta; le opzioni e i limiti dei singoli metodi restano espliciti nei dialoghi e nei risultati.
 
 Il [confronto di due varianze](variance-ratio-079.md) offre intervalli esatti e una figura facoltativa.
 
@@ -53,7 +53,7 @@ L'identificabilità, il dominio del modello, i vincoli attivi e il metodo di pes
 
 Kaplan–Meier, tabelle a rischio, confronti log-rank e Gehan–Breslow–Wilcoxon, Cox con profili e residui. Curve ROC e confronto DeLong appaiato; Bland–Altman anche con rapporti geometrici.
 
-PCA con scree, scores, loadings e biplot, [colori per gruppo, contorni e report facoltativi](pca-reports.md); K-means con selezione del numero di gruppi e consenso a 17 indici; clustering gerarchico, dendrogrammi, heat map, matrici di correlazione ed [ellissi di confidenza con stili per gruppo](confidence-ellipses.md). Correlazione di Pearson, Spearman o Kendall con risultati dettagliati opzionali; correlazione di più risposte contro un controllo; confronto di due correlazioni di Pearson indipendenti sulla scala z di Fisher ([guida](correlation-details.md)).
+PCA con scree, scores, loadings e biplot, [colori per gruppo, contorni e report facoltativi](pca-reports.md); [regressione sulle componenti principali](pca-regression-087.md); K-means con selezione del numero di gruppi e consenso a 17 indici; clustering gerarchico, dendrogrammi, heat map, matrici di correlazione ed [ellissi di confidenza con stili per gruppo](confidence-ellipses.md). Correlazione di Pearson, Spearman o Kendall con risultati dettagliati opzionali; correlazione di più risposte contro un controllo; confronto di due correlazioni di Pearson indipendenti sulla scala z di Fisher ([guida](correlation-details.md)).
 
 Nel consenso K-means, **Scala di Krzanowski–Lai** usa di default la correzione per il numero di variabili. **WSS senza riscalatura** usa il rapporto assoluto fra due cali consecutivi della somma dei quadrati entro i gruppi. Il foglio dei risultati lo identifica come **WSS-drop ratio** e il rapporto occupa un solo voto nel consenso.
 
