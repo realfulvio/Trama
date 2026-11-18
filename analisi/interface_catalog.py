@@ -154,6 +154,7 @@ Global fit custom equation|Adattamento globale di un’equazione personalizzata
 Principal component analysis|Analisi delle componenti principali
 Multiple regression|Regressione multipla
 Cox regression|Regressione di Cox
+Competing risks|Rischi competitivi
 Multiple t-tests|Test t multipli
 Adjust a stack of p values|Correggi una serie di valori p
 Normalize|Normalizza
