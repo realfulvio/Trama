@@ -27,6 +27,9 @@ from .axis_guides import (AXIS_BANDS, AXIS_GUIDES, apply_axis_guides_and_bands, 
 from .probability_scale import PROBABILITY_SCALES
 from .qq_panels import (PANEL_KEY, POINTS_ATTR, POINTS_KEY, REFERENCE_ATTR, REFERENCE_KEY,
                         normalize_panel_styles, panel_axes)
+from .axis_breaks import (AXIS_BREAKS, GID_PREFIX as BREAK_GID_PREFIX, apply_axis_breaks, clear_axis_breaks,
+                          normalise_axis_breaks, panel_guides, plot_fraction_problem, refresh_legend, segment_axes,
+                          tag_new_artists)
 from .graph_annotations import ANNOTATIONS, draw_annotations, validate_annotations
 from .graph_legend import (LEGEND_OPTIONS_KEY, apply_legend_options, is_non_native_figure,
                            restore_legend_snapshots, validate_legend_options)
@@ -191,7 +194,7 @@ def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
                     "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", LEGEND_OPTIONS_KEY, "series",
                     "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY,
-                    "hierarchical"},
+                    "hierarchical", AXIS_BREAKS},
             "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
         if key in style and not _text(style[key]):
@@ -246,6 +249,11 @@ def validated_style(style):
         normalise_guides(style[AXIS_GUIDES])
     if AXIS_BANDS in style:
         normalise_bands(style[AXIS_BANDS])
+    if AXIS_BREAKS in style:
+        normalise_axis_breaks(style[AXIS_BREAKS])
+        problem = plot_fraction_problem(style)
+        if problem:
+            raise ValueError(problem)
     if "hierarchical" in style:
         from .hierarchical_style import validate_hierarchical_style
 
@@ -318,7 +326,8 @@ def _series(axes):
                    for line in (center, *caps) if line is not None}
     artists = [("line", artist) for artist in axes.lines
                if id(artist) not in xy_ids
-               and not str(artist.get_gid() or "").startswith(("tramastat-shape-", "trama-axis-guide:"))]
+               and not str(artist.get_gid() or "").startswith(("tramastat-shape-", "trama-axis-guide:",
+                                                                BREAK_GID_PREFIX))]
     artists.extend(("errorbar", artist) for artist in errorbars)
     artists.extend(("scatter", artist) for artist in axes.collections if isinstance(artist, PathCollection))
     artists.extend(("bar", artist) for artist in axes.containers if isinstance(artist, BarContainer) and artist.patches)
@@ -678,6 +687,38 @@ def _reference_artists(axes, references):
     return artists
 
 
+def _panel_references(references, record, index, count):
+    """A reference on the other axis crosses every panel, but its label sits on the last one only."""
+    if not record or count < 2 or index == count - 1:
+        return references
+    return [ref if ref["axis"] == record["axis"] else {**ref, "label": ""} for ref in references]
+
+
+def _draw_overlays(figure, axes, style):
+    """References, drawings, annotations, guides and bands. With axis breaks every panel draws its own copy.
+
+    The first panel is the graph's own Axes and keeps the artists the Inspector reads. The other panels
+    clip each copy to their range, so an overlay shows only where it has content.
+    """
+    record = normalise_axis_breaks(style.get(AXIS_BREAKS))
+    panels = segment_axes(figure) or [axes]
+    count = len(panels)
+    guides = normalise_guides(list(style.get(AXIS_GUIDES, ())))
+    bands = normalise_bands(list(style.get(AXIS_BANDS, ())))
+    split = count > 1
+    for index, panel in enumerate(panels):
+        before = set(panel.get_children())
+        references = _reference_artists(panel, _panel_references(style.get("reference_lines", []), record, index, count))
+        shapes = draw_shapes(panel, style.get(SHAPES, []))
+        annotations = draw_annotations(panel, style.get(ANNOTATIONS, []))
+        apply_axis_guides_and_bands(panel, panel_guides(guides, record, index, count) if split else guides, bands)
+        if index == 0:
+            axes._tramastat_references = references
+            axes._tramastat_shapes = shapes
+            axes._tramastat_annotations = annotations
+        else:
+            tag_new_artists(panel, before, index)
+
 def _apply_legend(axes, style, defaults, series_changed):
     original = defaults["legend"]
     location = style.get("legend")
@@ -926,6 +967,7 @@ def apply_style(figure, style):
     if LEGEND_OPTIONS_KEY in style or LEGEND_OPTIONS_KEY in previous:
         restore_legend_snapshots(figure)
     clear_axis_guides_and_bands(axes)
+    clear_axis_breaks(figure)
     for artist in (*getattr(axes, "_tramastat_references", ()), *getattr(axes, "_tramastat_annotations", ()),
                    *getattr(axes, "_tramastat_shapes", ())):
         artist.remove()
@@ -982,17 +1024,12 @@ def apply_style(figure, style):
             setter(style["accent"])
     _apply_legend(axes, style, defaults, bool(series_options or "accent" in style))
     _apply_xy_legend(axes, style)
-    axes._tramastat_references = _reference_artists(axes, style.get("reference_lines", []))
-    axes._tramastat_shapes = draw_shapes(axes, style.get(SHAPES, []))
-    axes._tramastat_annotations = draw_annotations(axes, style.get(ANNOTATIONS, []))
-    apply_axis_guides_and_bands(
-        axes,
-        normalise_guides(list(style.get(AXIS_GUIDES, ()))),
-        normalise_bands(list(style.get(AXIS_BANDS, ()))),
-    )
+    apply_axis_breaks(figure, normalise_axis_breaks(style.get(AXIS_BREAKS)))
+    _draw_overlays(figure, axes, style)
     _apply_qq_panels(figure, style, axes)
     if style.get(LEGEND_OPTIONS_KEY):
         apply_legend_options(figure, style[LEGEND_OPTIONS_KEY])
+    refresh_legend(figure)
     axes._tramastat_style = deepcopy(style)
     # Annotations that depend on the formatted axis (pairwise brackets) are removed and drawn again.
     after = getattr(axes, "_tramastat_after_style", None)
