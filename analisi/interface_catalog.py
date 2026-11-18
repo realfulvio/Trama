@@ -1055,3 +1055,8 @@ CAPTIONS.update({
     "Fill opacity (%) must be between 0 and 100.": "L’opacità del riempimento deve essere tra 0 e 100.",
     "Border opacity (%) must be between 0 and 100.": "L’opacità del bordo deve essere tra 0 e 100.",
 })
+
+from .cluster_silhouette_text import CAPTIONS as _SILHOUETTE_CAPTIONS, MESSAGES as _SILHOUETTE_MESSAGES
+
+CAPTIONS.update(_SILHOUETTE_CAPTIONS)
+MESSAGES.update(_SILHOUETTE_MESSAGES)
