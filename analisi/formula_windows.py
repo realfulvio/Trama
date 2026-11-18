@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 WINDOW_CALLS = {"MEAN", "SUM", "MIN", "MAX", "STDEV", "STDERR", "COUNT", "COUNTA"}
+CONDITIONAL_CALLS = {f"{name}IF": name for name in WINDOW_CALLS}
 WINDOW_CLAUSES = {"OVER", "WHERE"}
 WINDOW_FUNCTION = "_WINDOW_STATISTIC"
 _COMMA = (tokenize.OP, ",")
@@ -42,8 +43,25 @@ def _groups(tokens):
 def _clause_expression(nodes):
     if not nodes:
         raise ValueError("Enter an expression after OVER or WHERE.")
-    return [(kind, "==" if kind == tokenize.OP and value == "=" else value)
-            for kind, value in _lower(nodes)]
+    result = []
+    for kind, value in _lower(nodes):
+        if (kind, value) == (tokenize.OP, ">") and result and result[-1] == (tokenize.OP, "<"):
+            result[-1] = (tokenize.OP, "!=")
+        else:
+            result.append((kind, "==" if kind == tokenize.OP and value == "=" else value))
+    return result
+
+
+def _statistic_arguments(nodes, conditional):
+    commas = [index for index, item in enumerate(nodes) if item == _COMMA]
+    if conditional:
+        if len(commas) != 1 or commas[0] in (0, len(nodes) - 1):
+            raise ValueError("Enter one value expression and one condition for a conditional statistic.")
+        split = commas[0]
+        return _lower(nodes[:split]), _clause_expression(nodes[split + 1:])
+    if not nodes or commas:
+        raise ValueError("Use OVER or WHERE after a worksheet statistic with one argument.")
+    return _lower(nodes), _NONE
 
 
 def _lower(nodes):
@@ -55,33 +73,41 @@ def _lower(nodes):
         if not isinstance(node, list):
             result.append(node)
             continue
-        inner = _lower(node)
         clause = _word(nodes[index]) if index < len(nodes) else ""
-        if clause not in WINDOW_CLAUSES:
-            result.extend([_OPEN, *inner, _CLOSE])
-            continue
         name = _word(result[-1]) if result else ""
-        if name not in WINDOW_CALLS or not inner or _COMMA in node:
+        conditional = name in CONDITIONAL_CALLS
+        if clause not in WINDOW_CLAUSES and not conditional:
+            result.extend([_OPEN, *_lower(node), _CLOSE])
+            continue
+        statistic = CONDITIONAL_CALLS.get(name, name)
+        if statistic not in WINDOW_CALLS:
             raise ValueError("Use OVER or WHERE after a worksheet statistic with one argument.")
+        values, inline_filter = _statistic_arguments(node, conditional)
         result.pop()
-        end = index + 1
-        while end < len(nodes) and nodes[end] != _COMMA:
-            end += 1
-        terms = nodes[index + 1:end]
-        index = end
-        words = [_word(term) for term in terms]
-        if "ROWS" in words or any(a == "ORDER" and b == "BY" for a, b in zip(words, words[1:])):
-            raise ValueError("ORDER BY and ROWS are unavailable in worksheet statistics.")
         partition, condition = _NONE, _NONE
-        if clause == "OVER":
-            split = words.index("WHERE") if "WHERE" in words else len(terms)
-            partition = _clause_expression(terms[:split])
-            if split != len(terms):
-                condition = _clause_expression(terms[split + 1:])
-        else:
-            condition = _clause_expression(terms)
+        if clause in WINDOW_CLAUSES:
+            end = index + 1
+            while end < len(nodes) and nodes[end] != _COMMA:
+                end += 1
+            terms = nodes[index + 1:end]
+            index = end
+            words = [_word(term) for term in terms]
+            if "ROWS" in words or any(a == "ORDER" and b == "BY" for a, b in zip(words, words[1:])):
+                raise ValueError("ORDER BY and ROWS are unavailable in worksheet statistics.")
+            if clause == "OVER":
+                split = words.index("WHERE") if "WHERE" in words else len(terms)
+                partition = _clause_expression(terms[:split])
+                if split != len(terms):
+                    condition = _clause_expression(terms[split + 1:])
+            else:
+                condition = _clause_expression(terms)
+        if conditional:
+            if condition is _NONE:
+                condition = inline_filter
+            else:
+                condition = [(tokenize.NAME, "AND"), _OPEN, *inline_filter, _COMMA, *condition, _CLOSE]
         result.extend([(tokenize.NAME, WINDOW_FUNCTION), _OPEN,
-                       (tokenize.STRING, repr(name)), _COMMA, *inner, _COMMA,
+                       (tokenize.STRING, repr(statistic)), _COMMA, *values, _COMMA,
                        *partition, _COMMA, *condition, _CLOSE])
     return result
 
@@ -90,7 +116,8 @@ def lower_window_clauses(tokens):
     """Translate postfix clauses into the private call recognized by the AST evaluator."""
     significant = [item for item in tokens if item[0] not in
                    {tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.ENDMARKER}]
-    if not any(previous == _CLOSE and _word(current) in WINDOW_CLAUSES
+    if not any((previous == _CLOSE and _word(current) in WINDOW_CLAUSES)
+               or (_word(previous) in CONDITIONAL_CALLS and current == _OPEN)
                for previous, current in zip(significant, significant[1:])):
         return tokens
     return _lower(_groups(significant))

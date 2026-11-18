@@ -11,7 +11,7 @@ from zipfile import BadZipFile, ZipFile, is_zipfile
 import numpy as np
 
 from .data import MAX_CELLS, MAX_COLUMNS, MAX_ENTRY, _member, _table, formula
-from .formula_windows import WINDOW_CALLS, WINDOW_CLAUSES
+from .formula_windows import CONDITIONAL_CALLS, WINDOW_CALLS, WINDOW_CLAUSES
 from .info import InfoSheet, MAX_INFO_FIELDS, MAX_INFO_SHEETS
 
 _PRISM_NS = "{http://graphpad.com/prism/Prism.htm}"
@@ -69,10 +69,10 @@ def _formula_recipe(expression, columns, allowed_calls=_FORMULA_CALLS):
         raise ValueError("Unsupported Prism formula.")
     expression = expression.strip().removeprefix("=").strip()
     tokens = list(tokenize.generate_tokens(StringIO(expression).readline))
-    window_form = any(token.type == tokenize.NAME and token.string.upper() in WINDOW_CLAUSES
+    window_form = any(token.type == tokenize.NAME and token.string.upper() in (WINDOW_CLAUSES | CONDITIONAL_CALLS.keys())
                       for token in tokens)
     if window_form:
-        allowed_calls = allowed_calls | WINDOW_CALLS
+        allowed_calls = allowed_calls | WINDOW_CALLS | CONDITIONAL_CALLS.keys() | {"AND", "OR", "NOT"}
     result, dependencies = [], set()
     for i, token in enumerate(tokens):
         kind, value = token.type, token.string
