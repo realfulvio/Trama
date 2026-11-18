@@ -21,6 +21,7 @@ from .additional import EXTRA_METHODS, extra_analysis
 from .category_graphs import (COLUMN_GRAPH, COLUMN_STYLES, GROUPED_GRAPH, GROUPED_OPTIONS, OPTIONS as CATEGORY_OPTIONS,
                               category_graph)
 from .bubble import BUBBLE, OPTIONS as BUBBLE_OPTIONS, bubble_plot
+from .cluster_silhouette import METHOD as CLUSTER_SILHOUETTE, OPTIONS as SILHOUETTE_OPTIONS, cluster_silhouette
 from .compare_lines import COMPARE_LINES, OPTIONS as COMPARE_LINES_OPTIONS, compare_lines
 from .contingency import CONTINGENCY, CONTINGENCY_OPTIONS, contingency
 from .distribution_graphs import BOX_VIOLIN, OPTIONS as BOX_VIOLIN_OPTIONS, box_violin
@@ -244,6 +245,7 @@ METHODS = {
                            kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                            kmeans_options.INITIAL_ROWS: TEXT},
     "Hierarchical clustering": {"Variables": MULTIPLE, "Observation labels": OPTIONAL, **HIERARCHICAL_OPTIONS},
+    CLUSTER_SILHOUETTE: SILHOUETTE_OPTIONS,
     "Scatter / confidence ellipse": {"X": None, "Y": None, "Group": OPTIONAL, **ELLIPSE_OPTIONS},
     COLUMN_GRAPH: {"Variables": MULTIPLE, "Graph style": COLUMN_STYLES, **CATEGORY_OPTIONS},
     HEAT_MAP: HEAT_MAP_OPTIONS,
@@ -301,7 +303,7 @@ GROUPS = {
                          "Multifactor ANOVA", "Contingency table",
                          "Bland–Altman", "ROC curve", "Compare paired ROC curves"),
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression"),
-    "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering"),
+    "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering", CLUSTER_SILHOUETTE),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
                  PARTS_GRAPH, "Box / violin plot", BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
     "Study Design and Simulation": ("Power and sample size", "Simulate data", MONTE_CARLO),
@@ -1066,6 +1068,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return _classic_analysis(method, frame, o, "Time", _survival)
     if method == "Hierarchical clustering":
         return hierarchical_result(frame, o)
+    if method == CLUSTER_SILHOUETTE:
+        return cluster_silhouette(frame, o, cancel=cancel)
     if method == SELECT_TRANSFORM:
         return select_transform(frame, o)
     if method == EXTRACT_REARRANGE:

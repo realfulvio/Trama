@@ -155,6 +155,7 @@ class CatalogTests(unittest.TestCase):
                                            "Confidence level (%)": 95., "Curve points": 40},
             "Robust curve fit": {"X": "x", "Y columns": ["y"], "Model": "Straight line", "Loss": "Cauchy",
                                  "Scale method": "Pilot MAD", "Initial parameters": {}},
+            "Cluster silhouette": {"Variables": ["x", "y"], "Cluster": "Group", "Graph": False},
             "Simulate data": {"Distribution": "XY with normal noise", "N": 30, "Seed": 42,
                               "Mean": 0., "SD": 1., "X minimum": 0., "X maximum": 1.,
                               "Intercept": 0., "Slope": 1., "Success probability A": .5, "Success probability B": .5},
