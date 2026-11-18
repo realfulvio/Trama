@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from analisi.exploration import pca
+from analisi.graph_legend import collect_legend_entries
 from analisi.pca_graphs import (BIPLOT, GRAPH, HORIZONTAL, LABEL, LOADINGS, PROPORTION, SCORES, SCREE,
                                 SHOW_LABELS, VERTICAL, pca_result)
 from analisi.processing import FieldError
@@ -121,6 +122,17 @@ class PcaGraphTests(unittest.TestCase):
         with self.assertRaises(FieldError) as missing:
             _view(frame, SCORES, **{"Color groups by": "Unknown"})
         self.assertEqual(missing.exception.field, "Color groups by")
+
+    def test_group_legend_keys_are_stable_and_continuous_columns_are_bounded(self):
+        frame = fixture().assign(Cohort=["_team", "_team", "Lab B", "Lab B", None, None, "Dropped"])
+        colored = _view(frame, SCORES, **{"Color groups by": "Cohort"})
+        self.assertEqual([entry.key for entry in collect_legend_entries(colored.figure)],
+                         ["group:str:_team", "group:str:Lab B", "gid:pca-missing-color-group"])
+        frame = pd.concat([fixture()] * 8, ignore_index=True)
+        frame["Serial"] = range(len(frame))
+        with self.assertRaises(FieldError) as many_groups:
+            _view(frame, BIPLOT, **{"Color groups by": "Serial"})
+        self.assertEqual(many_groups.exception.field, "Color groups by")
 
     def test_scree_and_proportion_keep_every_component(self):
         frame = fixture()

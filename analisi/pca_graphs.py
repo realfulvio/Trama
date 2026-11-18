@@ -37,6 +37,7 @@ _KEYS = TABS["Graph"]
 # Below this fraction of the leading eigenvalue, a component is numerically empty.
 _VARIANCE_SCALE = 1e-10
 _LABEL_LIMIT = 60
+MAX_COLOR_GROUPS = 40
 _BIPLOT = ("Symmetric biplot: row coordinates are U·sqrt(D) and variable coordinates are V·sqrt(D), "
            "using the canonical eigenvector signs. The product of the two matrices over every component "
            "reconstructs the centered data matrix, after standardization when that option is on. "
@@ -196,6 +197,8 @@ def _observation_points(axes, coordinates, group_column, values):
         key = f"group:{typed_group_token(value)}" if value is not None else "gid:pca-missing-color-group"
         caption = str(value) if value is not None else "Missing group"
         groups.setdefault(key, (caption, []))[1].append(row)
+    if len(groups) > MAX_COLOR_GROUPS:
+        raise FieldError(COLOR_GROUPS, f"Choose a column with at most {MAX_COLOR_GROUPS} color groups.")
     collisions = Counter(caption for caption, _ in groups.values())
     artists, captions = [], []
     for key, (caption, rows) in groups.items():
@@ -207,7 +210,8 @@ def _observation_points(axes, coordinates, group_column, values):
         artist._tramastat_legend_key = key
         artists.append(artist)
         captions.append(label)
-    axes.legend(artists, captions, title=_literal(group_column))
+    legend = axes.legend(artists, captions, title=_literal(group_column), ncols=(len(artists) + 9) // 10)
+    legend._tramastat_legend_keys = tuple(groups)
 
 
 def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, variable_xy, row_labels,

@@ -1,6 +1,6 @@
 # Grafici e report della PCA
 
-Nella scheda **Grafico**, scegli **Colora gruppi per** per distinguere le categorie nei grafici dei punteggi e nel biplot. La legenda usa il nome della colonna. Una categoria assente ha il proprio gruppo. Il colore segue le osservazioni che entrano nella PCA e le coordinate della PCA restano identiche. La colonna **Color group** compare nel foglio delle coordinate quando attivi l’opzione.
+Nella scheda **Grafico**, scegli **Colora gruppi per** per distinguere le categorie nei grafici dei punteggi e nel biplot. La legenda usa il nome della colonna. Una categoria assente ha il proprio gruppo. Il grafico accetta fino a 40 gruppi. Il colore segue le osservazioni che entrano nella PCA e le coordinate della PCA restano identiche. La colonna **Color group** compare nel foglio delle coordinate quando attivi l’opzione.
 
 Nella scheda **Risultati**, seleziona i fogli da aggiungere.
 

@@ -3445,6 +3445,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = tr(MLR_LABEL_KEYS[field]) if field in MLR_LABEL_KEYS else field
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
+            elif self.method == "Principal component analysis" and field == PCA_COLOR_GROUPS:
+                message = translate_message(message, "pca.graph.error.")
             elif self.method == HEAT_MAP:
                 message = translate_heat_map_error(error)
                 label = ui(field) if field else ""
