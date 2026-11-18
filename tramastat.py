@@ -218,6 +218,11 @@ from analisi.competing_risks_workbench import (
     visibility as competing_visibility)
 from analisi.competing_risks_dialog import (CodeListEditor, TimeListEditor, describe_error as describe_competing_error,
                                             translate_error as translate_competing_error)
+from analisi.rmcorr import (GRAPH as RMCORR_GRAPH, INTERVAL as RMCORR_INTERVAL, LABEL_KEYS as RMCORR_LABEL_KEYS,
+                            RMCORR, SEED as RMCORR_SEED, cancellable as rmcorr_cancellable,
+                            prepare as check_rmcorr_options, visibility as rmcorr_visibility)
+from analisi.rmcorr_dialog import NOTE_BOOTSTRAP as RMCORR_NOTE_BOOTSTRAP, NOTE_MODEL as RMCORR_NOTE_MODEL
+from analisi.rmcorr_dialog import describe_error as describe_rmcorr_error
 from analisi.global_custom_dialog import (GlobalCoefficientTable, SeriesConstraintEditor,
                                           translate_error as translate_global_error)
 from analisi.global_custom_fit import (EXAMPLE_PARAMETERS as GLOBAL_EXAMPLE, GLOBAL_CUSTOM_EQUATION,
@@ -1718,6 +1723,13 @@ class AnalysisDialog(simpledialog.Dialog):
                 if label in self.controls:
                     self.controls[label][1].trace_add("write", lambda *_: self.show_correlation_details())
             self.show_correlation_details()
+        if self.method == RMCORR:
+            # The model and its difference from pooled Pearson sit under the columns; the bootstrap note on Options.
+            for tab, key in ((variables, RMCORR_NOTE_MODEL), (options, RMCORR_NOTE_BOOTSTRAP)):
+                ttk.Label(tab, text=tr(key), wraplength=ui_theme.px(420), foreground="#486075", justify="left").grid(
+                    row=positions[tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.controls[RMCORR_INTERVAL][1].trace_add("write", lambda *_: self.show_rmcorr_fields())
+            self.show_rmcorr_fields()
         if self.method == FREQUENCY:
             for label in ("Distribution", "Units"):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_frequency_fields())
@@ -2470,6 +2482,17 @@ class AnalysisDialog(simpledialog.Dialog):
         if detailed:
             self.field_rows["Spearman p values"][1].configure(state="readonly" if spearman else "disabled")
 
+    def rmcorr_fields(self):
+        """Level, replicates and seed are active only with the subject bootstrap."""
+        if self.method != RMCORR or RMCORR_INTERVAL not in self.controls:
+            return {}
+        return rmcorr_visibility(self.controls[RMCORR_INTERVAL][1].get())
+
+    def show_rmcorr_fields(self):
+        # The entries stay gridded; disabled means the chosen interval does not use them.
+        for label, active in self.rmcorr_fields().items():
+            self.field_rows[label][1].configure(state="normal" if active else "disabled")
+
     def frequency_visibility(self):
         if self.method != FREQUENCY:
             return {}
@@ -2719,6 +2742,9 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method == ROBUST_CURVE:
             # A usable hidden residual scale stays in the recipe; an invalid one is omitted instead of blocking.
             return {name for name, shown in self.robust_fields().items() if not shown}
+        if self.method == RMCORR:
+            # Without the bootstrap its level, replicates and seed are kept when they parse and never block.
+            return {name for name, active in self.rmcorr_fields().items() if not active}
         if self.method != "Principal component analysis" or PCA_GRAPH not in self.controls:
             return set()
         inactive = {name for name, shown in self.selection_visibility().items() if not shown}
@@ -3381,7 +3407,7 @@ class AnalysisDialog(simpledialog.Dialog):
                             raise ValueError(f"{name} must be a whole number." if numeric_kind is int
                                              else f"{name} must be a number.") from None
                         # Monte Carlo seeds are unsigned 64-bit; the study checks their own range.
-                        seed = self.method == MONTE_CARLO_METHOD and name == MONTE_CARLO_SEED
+                        seed = (self.method, name) in ((MONTE_CARLO_METHOD, MONTE_CARLO_SEED), (RMCORR, RMCORR_SEED))
                         if numeric_kind is int and not seed and not -(2**63) <= value < 2**63:
                             raise ValueError(f"{name} exceeds the supported integer range.")
                         if numeric_kind is float and not np.isfinite(value):
@@ -3498,6 +3524,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == COMPETING_RISKS:
                 # Columns, codes, times, level and the size budgets; no curve is calculated here.
                 check_competing_options(self.data, options)
+            if self.method == RMCORR:
+                # Columns, values, subjects, limits and the bootstrap budget; the resampling runs on the worker.
+                check_rmcorr_options(self.data, options)
             if self.method == GLOBAL_CUSTOM_EQUATION:
                 if options.get("Weighting") != INVERSE_VARIANCE:
                     options[CUSTOM_SD] = None
@@ -3613,6 +3642,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
                 message = describe_competing_error(error, field)
+            elif self.method == RMCORR:
+                message = describe_rmcorr_error(error, field)
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
@@ -3963,7 +3994,7 @@ class Run:
 def cancellable_run(method, options):
     """Runs that report their progress or can be cancelled: Monte Carlo studies, exact Spearman and Gray tests."""
     return (method == MONTE_CARLO_METHOD or extended_request(method, options)
-            or competing_cancellable(method, options))
+            or competing_cancellable(method, options) or rmcorr_cancellable(method, options))
 
 
 @dataclass
@@ -4370,6 +4401,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                             (run.result.figure is not None if run.result
                              else run.method in GRAPH_METHODS or (run.method == NORMALITY and run.options.get(QQ_PLOT))
                              or (run.method == COMPARE_MODELS and run.options.get(MODELS_SHOW_GRAPH, True))
+                             or (run.method == RMCORR and run.options.get(RMCORR_GRAPH, True))
                              or (run.method == MONTE_CARLO_METHOD
                                  and run.options.get(MONTE_CARLO_GRAPH, GRAPH_NONE) != GRAPH_NONE)
                              or (run.method == "Multifactor ANOVA"
@@ -6346,9 +6378,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 self.status.set(f"{len(failures)} linked analyses need attention. {failures[0]}")
             elif recovered:
                 pass
-            elif cancelled and all(run.method == COMPETING_RISKS for run, _ in affected if cancellable_run(
+            elif cancelled and all(run.method in (COMPETING_RISKS, RMCORR) for run, _ in affected if cancellable_run(
                     run.method, run.options)):
-                self.status.set(f"{COMPETING_RISKS} recalculation cancelled. Open the analysis to calculate again.")
+                names = sorted({run.method for run, _ in affected if cancellable_run(run.method, run.options)})
+                self.status.set(f"{' and '.join(names)} recalculation cancelled. Open the analysis to calculate again.")
             elif cancelled:
                 self.status.set("Monte Carlo recalculation cancelled. Open the study to calculate again.")
             else:
@@ -6535,7 +6568,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, RMCORR) or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6543,7 +6576,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
+        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, RMCORR)
                 or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
@@ -6553,7 +6586,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if method in kmeans_options.METHODS and options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
-                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, "Multifactor ANOVA",
+                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, RMCORR, "Multifactor ANOVA",
                 REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
@@ -6610,6 +6643,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_rmcorr_error(error) if run.method == RMCORR
                      else format_fdr_error(error) if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
@@ -6944,7 +6978,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.add_result(run, future.result(), index, reveal=reveal)
         except MonteCarloCancelled:
             # Nothing is recorded: a new study adds no recipe and an existing one keeps its last results.
-            noun = "analysis" if run.method == COMPETING_RISKS else "study"
+            noun = "analysis" if run.method in (COMPETING_RISKS, RMCORR) else "study"
             if index is None:
                 detail = f"No {noun} was added."
             elif self.runs[index].result is not None:
@@ -6956,7 +6990,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
-                     else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
+                     else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_rmcorr_error(error) if run.method == RMCORR else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
