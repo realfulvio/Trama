@@ -5,7 +5,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from analisi.data import Dataset, load_project, load_tables, save_project
+from analisi.analysis_chain import evaluate_graph
+from analisi.data import Dataset, load_project, load_tables, save_project, validate_analysis_links
+from analisi.kmeans_options import SELECTION
 from analisi.prism_recipes import restore_recipe
 from analisi.prism_pca_smoke import INPUT, SOURCE_NAME, sample, write_project
 from analisi.workbench import analyse
@@ -19,6 +21,49 @@ def fixture():
 
 
 class PrismPCARecipeTests(unittest.TestCase):
+    def test_clustered_data_input_uses_the_live_assignment_table_and_survives_roundtrip(self):
+        with TemporaryDirectory() as directory:
+            archive = Path(directory) / "chain.prismt"
+            write_project(archive, clustered=True)
+            data = {title: Dataset(frame) for title, frame in load_tables(archive, restore_prism=True).items()}
+            raw = data["Raw"]
+            self.assertEqual([method for method, _ in raw.analyses], [SELECTION, METHOD])
+            parent, child = (raw.analysis_ids[slot] for slot in range(2))
+            self.assertEqual(raw.analysis_sources[1].analysis_id, parent)
+            self.assertEqual(raw.analysis_sources[1].table, "Assignments by k")
+            self.assertEqual(raw.analyses[1][1]["Color groups by"], "Cluster (k=2)")
+            snapshot = data["Prism result · Saved assignments · Clustered data"]
+            self.assertFalse(snapshot.analyses)
+            self.assertIn("2 clusters", snapshot.frame())
+            out = Path(directory) / "roundtrip.alab"
+            save_project(out, data)
+            reopened = load_project(out)
+            self.assertEqual(reopened["Raw"].analysis_sources, raw.analysis_sources)
+            graph = validate_analysis_links(reopened)
+            self.assertEqual(graph.affected([parent]), [parent, child])
+
+            def compute():
+                source = reopened["Raw"]
+                recipes = dict(zip((parent, child), source.analyses, strict=True))
+                values = evaluate_graph(graph, graph.order, {parent: source.frame()}, {},
+                                        lambda identifier, frame: analyse(recipes[identifier][0], frame, recipes[identifier][1]))
+                self.assertIsNone(values[child].error)
+                return values[child].result.tables["Explained variance"].iloc[0]["Eigenvalue"]
+
+            first = compute()
+            reopened["Raw"].raw.iat[0, 0] = 20.0
+            self.assertNotEqual(compute(), first)
+
+    def test_clustered_view_with_different_row_order_stays_a_pca_snapshot(self):
+        with TemporaryDirectory() as directory:
+            archive = Path(directory) / "reordered.prismt"
+            write_project(archive, clustered=True, reorder_rows=True)
+            data = {title: Dataset(frame) for title, frame in load_tables(archive, restore_prism=True).items()}
+            self.assertEqual([method for method, _ in data["Raw"].analyses], [SELECTION])
+            snapshot = data["Prism result · Saved assignments · Clustered data"]
+            self.assertEqual(snapshot.analyses[0][0], METHOD)
+            self.assertFalse(snapshot.analysis_sources)
+
     def test_primary_input_resolves_columns_by_identity_and_keeps_options(self):
         recipe = restore_recipe(*fixture())
         self.assertIsNotNone(recipe)
