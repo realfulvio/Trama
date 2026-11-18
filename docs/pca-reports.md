@@ -14,6 +14,10 @@ Nella scheda **Risultati**, seleziona i fogli da aggiungere.
 
 Se selezioni un criterio per trattenere le componenti, i fogli dei contributi e delle correlazioni mostrano le componenti trattenute. Le celle relative a componenti numericamente nulle sono vuote. Ogni riga di un foglio per osservazione riporta l’indice della riga sorgente. I report utilizzano la PCA già calcolata e le opzioni si salvano nel progetto.
 
+## Analisi parallela
+
+Puoi simulare fino a 6 milioni di valori nel ciclo completo. Il limite si calcola moltiplicando righe complete, variabili e simulazioni. Ciascuna simulazione usa una sola matrice casuale, poi conserva gli autovalori. Il seme e la regola di selezione restano gli stessi.
+
 ## Contorni per punteggi e biplot
 
 In **Contorni**, scegli il tipo di area da tracciare. Puoi usare tutti i punti del grafico oppure una regione per ciascun gruppo della colonna scelta in **Colora gruppi per**.
