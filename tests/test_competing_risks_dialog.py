@@ -76,6 +76,7 @@ def triggers():
     yield check(base.assign(t=np.nan)), "Time"
     yield check(base.assign(t=[True, False] * 3)), "Time"
     yield check(base.assign(t=[-1., 2, 3, 4, 5, 6])), "Time"
+    yield check(base.assign(t=[2**53 + 1, 2, 3, 4, 5, 6])), "Time"
     yield check_changes(base, {"Event codes": ["0"]}), "Censor code"
     yield check_changes(base, {"Event codes": ["1", "1"]}), "Event codes"
     yield check(base.assign(s=[9, 1, 2, 0, 1, 2])), "Status"
