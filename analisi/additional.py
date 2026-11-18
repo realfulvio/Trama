@@ -13,7 +13,7 @@ from .nonlinear_calibration import CURVES, INVERSE_MODELS, interpolate_standard_
 from .processing import METHODS as PROCESSING_METHODS, processing_analysis
 from .reporting import Result, _plot, _report
 from .repeated_workbench import METHODS as REPEATED_METHODS, global_analysis, mixed_analysis
-from . import custom_fit, global_custom_fit, spline_fit
+from . import curve_pipeline, custom_fit, global_custom_fit, spline_fit
 from .stats import complete
 from . import fdr_control
 
@@ -68,9 +68,11 @@ EXTRA_METHODS = {
                                     # Empty means k = 1, the 0.53.0 prediction limits.
                                     calibration.COUNT: OPTIONAL},
     spline_fit.SPLINE_FIT: spline_fit.OPTIONS,
+    # The fourth choice is last, so LOWESS stays the default and the three older choices keep their fields.
     "Smooth / differentiate / integrate": {"X": None, "Y": None,
-                                          "Method": ("LOWESS", "Differentiate", "Cumulative integral"),
-                                          "LOWESS fraction": .5},
+                                          "Method": ("LOWESS", "Differentiate", "Cumulative integral",
+                                                     curve_pipeline.PIPELINE),
+                                          "LOWESS fraction": .5, **curve_pipeline.OPTIONS},
     function_plot.PLOT_FUNCTION: function_plot.OPTIONS,
     custom_fit.CUSTOM_EQUATION: custom_fit.OPTIONS,
     global_custom_fit.GLOBAL_CUSTOM_EQUATION: global_custom_fit.OPTIONS,
@@ -477,6 +479,8 @@ def extra_analysis(method, frame, o):
     if method == "Interpolate a standard curve":
         return _standard_curve(frame, o)
     if method == "Smooth / differentiate / integrate":
+        if o["Method"] == curve_pipeline.PIPELINE:
+            return curve_pipeline.analysis(frame, o)
         values = exploration.curve_operation(frame, o["X"], o["Y"], o["Method"], o["LOWESS fraction"])
         fig, ax = _plot(o["Method"], o["X"], o["Y"] if o["Method"] == "LOWESS" else o["Method"])
         if o["Method"] == "LOWESS":
