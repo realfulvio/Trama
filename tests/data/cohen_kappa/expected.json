@@ -1,0 +1,22 @@
+{
+  "scores": {
+    "Unweighted": 0.55,
+    "Linear": 0.6153846153846154,
+    "Quadratic": 0.6842105263157895
+  },
+  "exact_scores": {
+    "Unweighted": "11/20",
+    "Linear": "8/13",
+    "Quadratic": "13/19"
+  },
+  "bootstrap": {
+    "Valid resamples": 199,
+    "CI lower": 0.4119018310509309,
+    "CI upper": 0.8759699545326206
+  },
+  "rare": {
+    "Valid resamples": 125,
+    "CI lower": null,
+    "CI upper": null
+  }
+}

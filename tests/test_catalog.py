@@ -93,6 +93,7 @@ class CatalogTests(unittest.TestCase):
             "Compare paired ROC curves": {"Control A": "x", "Control B": "y", "Patient A": "z", "Patient B": "p",
                                           "Direction A": "Higher in patients", "Direction B": "Higher in patients"},
             "Bland–Altman": {"First": "x", "Second": "y", "Method": "Difference"},
+            "Cohen's kappa": {"First rating": "Group", "Second rating": "Factor"},
             "Deming regression": {"X": "x", "Y": "y", "Y / X error variance": 1.},
             "Area under curve": {"X": "x", "Y": "y", "Baseline": 10.},
             "Interpolate a standard curve": {"X": "x", "Y": "y", "Unknown responses": "Unknown"},

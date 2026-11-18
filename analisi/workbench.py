@@ -41,6 +41,7 @@ from .reference_normalization import (METHOD as REFERENCE_NORMALIZATION, OPTIONS
 from .hierarchical_workbench import HIERARCHICAL_OPTIONS, hierarchical_result
 from .inference import CHI_SQUARE_P, DUNN_OPTIONS, KRUSKAL_P, KRUSKAL_P_METHODS, dunn_comparisons, kruskal_wallis
 from .linear_diagnostics import LINEAR_OPTIONS, linear_result
+from .cohen_kappa_workbench import COHEN_KAPPA, OPTIONS as COHEN_KAPPA_OPTIONS, cohen_kappa
 from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, equivalence_test
 from .competing_risks_workbench import (COMPETING_RISKS, OPTIONS as COMPETING_RISKS_OPTIONS,
                                         competing_risks)
@@ -194,6 +195,7 @@ METHODS = {
                      "Distribution": ("Normal", "Lognormal"),
                      "Graph": ("None", "Variance ratio", "SD ratio")},
     EQUIVALENCE: EQUIVALENCE_OPTIONS,
+    COHEN_KAPPA: COHEN_KAPPA_OPTIONS,
     COMPETING_RISKS: COMPETING_RISKS_OPTIONS,
     SUMMARY_ANOVA: SUMMARY_ANOVA_OPTIONS,
     SUMMARY_TTEST: SUMMARY_TTEST_OPTIONS,
@@ -302,7 +304,7 @@ GROUPS = {
     "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
-                         "Multifactor ANOVA", "Contingency table",
+                         "Multifactor ANOVA", "Contingency table", COHEN_KAPPA,
                          "Bland–Altman", "ROC curve", "Compare paired ROC curves"),
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS),
     "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering"),
@@ -315,7 +317,7 @@ GROUPS = {
 # available while a reopened project's results are still unloaded.
 GRAPH_METHODS = frozenset({
     *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", "Correlation", CORRELATE_CONTROL,
-    COMPARE_INDEPENDENT, CORRELATION_MATRIX, "Deming regression",
+    COMPARE_INDEPENDENT, CORRELATION_MATRIX, COHEN_KAPPA, "Deming regression",
     "Global nonlinear regression", "Hierarchical clustering", "Histogram", FREQUENCY, "Interpolate a standard curve",
     "K-means clustering", "K-means model selection", "Kaplan–Meier survival", COMPETING_RISKS, "Linear regression", COMPARE_LINES,
     "Mixed-effects model (REML)", LOGNORMAL, EQUIVALENCE, "Multiple t-tests", ROW_TESTS, "Nonlinear regression", ROBUST_CURVE, CUSTOM_EQUATION,
@@ -1038,6 +1040,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return variance_ratio_analysis(frame, o)
     if method == EQUIVALENCE:
         return equivalence_test(frame, o)
+    if method == COHEN_KAPPA:
+        return cohen_kappa(frame, o, cancel=cancel)
     if method == COMPETING_RISKS:
         return competing_risks(frame, o, cancel=cancel)
     if method == SUMMARY_ANOVA:
