@@ -52,6 +52,17 @@ class WindowFormulaTests(unittest.TestCase):
         filtered = formula(self.frame, "STDEV(X) OVER Category WHERE AND(Keep = 1, X > 0)")
         self.assertTrue(np.isnan(filtered).all())
 
+    def test_conditional_aggregates_can_broadcast_or_use_partitioned_rows(self):
+        np.testing.assert_allclose(formula(self.frame, "MEANIF(X, X >= 30)"), [55] * 6)
+        totals = formula(self.frame, "SUMIF(X, Keep = 1) OVER Category")
+        np.testing.assert_allclose(totals, [10, 10, 40, 40, 40, np.nan])
+        combined = formula(self.frame, "COUNTIF(X, X >= 30) OVER Category WHERE Keep <> 0")
+        np.testing.assert_allclose(combined, [0, 0, 1, 1, 1, np.nan])
+        frame = self.frame.assign(Label=["Control", "CONTROL", "Treated", "treated", " ", None])
+        np.testing.assert_allclose(formula(frame, 'MAXIF(X, Label = "control")'), [30] * 6)
+        self.assertTrue(np.isnan(formula(frame, "MEANIF(X, Keep > 1)")).all())
+        np.testing.assert_allclose(formula(frame, "SUMIF(X, Keep > 1)"), [0] * 6)
+
     def test_project_reopens_with_live_exclusions_and_formula(self):
         data = Dataset(self.frame)
         data.set_formula("Group mean", "MEAN(X) OVER Category")
@@ -72,16 +83,20 @@ class WindowFormulaTests(unittest.TestCase):
                 metadata("document.json", {"sheets": {"data": ["live"]}})
                 metadata("data/sheets/live/sheet.json", {"title": "Measurements", "table": {
                     "uid": "values", "format": "multivariable", "dataFormat": "y_single",
-                    "dataSets": ["a", "b", "c"],
+                    "dataSets": ["a", "b", "c", "d"],
                 }})
                 metadata("data/sets/a.json", {"title": "Value"})
                 metadata("data/sets/b.json", {"title": "2nd group", "currentType": "categorical"})
                 metadata("data/sets/c.json", {"title": "Group average", "valuesStorageData": {
                     "@class": "TransformDataSource", "transform": "MEAN(A) OVER B WHERE A >= 2",
                 }})
-                archive.writestr("data/tables/values/data.csv", "1,x,999\n3,x,999\n7,y,999\n9,y,999\n")
+                metadata("data/sets/d.json", {"title": "Filtered average", "valuesStorageData": {
+                    "@class": "TransformDataSource", "transform": 'MEANIF(A, AND(A >= 2, B <> "skip")) OVER B',
+                }})
+                archive.writestr("data/tables/values/data.csv", "1,x,999,999\n3,x,999,999\n7,y,999,999\n9,y,999,999\n")
             data = Dataset(load_tables(project)["Measurements"])
-        self.assertIn("Group average", data.formulas)
-        np.testing.assert_allclose(data.frame()["Group average"], [3, 3, 8, 8])
+        calculated = ["Group average", "Filtered average"]
+        self.assertEqual(set(data.formulas), set(calculated))
+        np.testing.assert_allclose(data.frame()[calculated], [[3, 3], [3, 3], [8, 8], [8, 8]])
         data.raw.loc[2, "Value"] = 5
-        np.testing.assert_allclose(data.frame()["Group average"], [3, 3, 7, 7])
+        np.testing.assert_allclose(data.frame()[calculated], [[3, 3], [3, 3], [7, 7], [7, 7]])
