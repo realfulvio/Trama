@@ -12733,6 +12733,14 @@ def smoke(root, app, directory, legacy_reference=None):
         check_family_workflow(root, app, directory, SimpleNamespace(
             App=App, capture=capture, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_cluster_silhouette_smoke():
+        from analisi.cluster_silhouette_smoke import check_cluster_silhouette
+        check_cluster_silhouette(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, LayoutDialog=LayoutDialog, capture=capture,
+            drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
+            filedialog=filedialog, errors=errors, Dataset=Dataset, save_project=save_project))
+
     try:
         screen = (root.winfo_screenwidth(), root.winfo_screenheight())
         (directory / "display.json").write_text(json.dumps({"width": screen[0], "height": screen[1],
@@ -12759,6 +12767,14 @@ def smoke(root, app, directory, legacy_reference=None):
             return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "analysis-chains":
             check_analysis_chains_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cluster-silhouette":
+            # The Cluster silhouette check alone: TRAMASTAT_SMOKE_ONLY=cluster-silhouette python tramastat.py --smoke DIR
+            check_cluster_silhouette_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14229,6 +14245,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_hierarchical_import_smoke()
         check_hierarchical_style_smoke()
         check_family_workflow_smoke()
+        check_cluster_silhouette_smoke()
         check_piecewise_equations_smoke()
         from analisi.prism_mv_scatter_smoke import check_saved_scatter
         check_saved_scatter(root, app, directory, capture, wait_for_calculation)
