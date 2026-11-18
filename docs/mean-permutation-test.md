@@ -86,7 +86,19 @@ A discrete distribution with up to 80 values on a regular grid gets one bar per 
 
 The test runs on the worker. Exact enumeration and Monte Carlo both check the Cancel button between short blocks (about 262,000 values each), so a click stops the run within a fraction of a second. Cancel keeps the last completed result; a cancelled new analysis adds no recipe. Memory grows with the data and the series of statistics only (8 bytes per assignment or resample).
 
-Measured in the cloud container (Linux, Python 3.12, one core): see the pull request for the current figures of an exact run near the limit and a Monte Carlo run near the work limit.
+Synthetic data, measured on Linux with Python 3.12 and one core (the times on a Windows PC will differ, the proportions should not):
+
+| Run | Assignments or resamples | Time | Peak memory | Cancel |
+|---|---|---|---|---|
+| Exact, 10 + 10 values | 184,756 | 0.04 s | 5.6 MB | — |
+| Exact, 2 + 269 values (9.9 million operations) | 36,585 | 0.01 s | 2.0 MB | — |
+| Exact, 17 pairs | 131,072 | 0.01 s | 2.5 MB | — |
+| Monte Carlo, 500 + 500 values (50 million operations) | 50,000 | 0.76 s | 0.8 MB | 0.003 s |
+| Monte Carlo, 25,000 + 25,000 values | 1,000 | 0.22 s | 1.6 MB | 0.001 s |
+| Monte Carlo, 25,000 pairs | 2,000 | 0.43 s | 1.2 MB | < 0.001 s |
+| Monte Carlo, 4 + 5 values | 100,000 | 0.59 s | 1.6 MB | 0.02 s |
+
+Peak memory is the memory traced by Python during the run, including the statistics kept for the graph. In the application the Cancel button answered within 0.04–0.13 s on a Monte Carlo run of 80,000 resamples of 600 values (about 1.5 s in all).
 
 ## Example
 
