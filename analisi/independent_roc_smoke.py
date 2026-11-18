@@ -422,11 +422,18 @@ def _check_independent_roc(root, app, directory, tools):
         dialog.cancel()
         dialog.ok = lambda *args: None
 
-    tools.drive_dialog(tools.AnalysisDialog, recovery)
+    reopen = app.reopen_analysis
+
+    def observe_reopening(*args):
+        # Start watching when the worker's field error actually opens the dialog.
+        tools.drive_dialog(tools.AnalysisDialog, recovery)
+        return reopen(*args)
+
     app.show("data", FEW)
     app.current_grid.select((1, 0))
-    app.toggle_exclusion()
-    wait()
+    with patch.object(app, "reopen_analysis", observe_reopening):
+        app.toggle_exclusion()
+        wait()
     assert seen.get("field") and "needs at least 2 valid values" in seen["texts"] and "Control A" in seen["texts"], seen
     assert app.runs[few_index].result is before, "the last valid result must stay"
     assert summary(few_index).equals(before_row)
