@@ -209,6 +209,16 @@ def _check(root, app, directory, capture, drive, pick, select, wait, messagebox,
         colored.tables[pca_reports.CASES].loc[:, ["PC1", "PC2"]].sum(), [1., 1.],
     )
 
+    for view in (SCREE, PROPORTION, BIPLOT):
+        drive(switch(view))
+        app.show("result", 0)
+        app.edit_analysis()
+        wait()
+        result = app.runs[0].result
+        assert result.tables["Settings"].loc["Graph display", "Value"] == view
+        for report in reports:
+            pd.testing.assert_frame_equal(result.tables[report], colored.tables[report])
+
     app.show("graph", 0)
     capture(root, "window-pca-biplot.png")
     svg_path, png_path = directory / "pca-biplot.svg", directory / "pca-biplot.png"
