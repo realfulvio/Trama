@@ -218,6 +218,12 @@ from analisi.competing_risks_workbench import (
     visibility as competing_visibility)
 from analisi.competing_risks_dialog import (CodeListEditor, TimeListEditor, describe_error as describe_competing_error,
                                             translate_error as translate_competing_error)
+from analisi.ordinal_logit import (
+    CATEGORY_ORDER as ORDINAL_ORDER_KIND, GRAPH as ORDINAL_GRAPH, NAME as ORDINAL_NAME, ORDER as ORDINAL_ORDER,
+    ORDINAL_LOGIT, PROFILE_FIELDS as ORDINAL_PROFILE_FIELDS, PROFILE_TAB as ORDINAL_PROFILE_TAB,
+    PROFILES as ORDINAL_PROFILES, VALUES as ORDINAL_VALUES, check_options as check_ordinal_options)
+from analisi.ordinal_logit_dialog import (OrderEditor, describe_error as describe_ordinal_error, read_observed,
+                                          translate_error as translate_ordinal_error)
 from analisi.global_custom_dialog import (GlobalCoefficientTable, SeriesConstraintEditor,
                                           translate_error as translate_global_error)
 from analisi.global_custom_fit import (EXAMPLE_PARAMETERS as GLOBAL_EXAMPLE, GLOBAL_CUSTOM_EQUATION,
@@ -1014,6 +1020,7 @@ class AnalysisDialog(simpledialog.Dialog):
                   else 470 if self.method == NORMALITY
                   else 470 if self.method == REFERENCE_NORMALIZATION
                   else 400 if self.method == COMPETING_RISKS
+                  else 470 if self.method == ORDINAL_LOGIT
                   else 440 if self.method in {"Nonlinear regression", ROBUST_CURVE} else 352)
         # Keep the title bar, the heading, an error banner and the buttons on the screen of a 1024x768 monitor.
         room = max(240, self.winfo_screenheight() - ui_theme.px(230))
@@ -1195,6 +1202,10 @@ class AnalysisDialog(simpledialog.Dialog):
             fields_by_tab.update(dict.fromkeys(COMPETING_DATA, variables))
             fields_by_tab.update(dict.fromkeys(COMPETING_ESTIMATES, options))
             tabs = {tr(COMPETING_TAB_KEYS["Graph"]): COMPETING_GRAPH_FIELDS}
+        elif self.method == ORDINAL_LOGIT:
+            # Variables (columns and the order of the categories) / Options (level) / Profiles (profiles and graph).
+            fields_by_tab[ORDINAL_ORDER] = variables
+            tabs = {ORDINAL_PROFILE_TAB: ORDINAL_PROFILE_FIELDS}
         elif self.method == "Nonlinear regression":
             tabs = {tr("parameter_ci.tab"): (*PARAM_CI_OPTIONS, NL_BAND, NL_BAND_LEVEL, NL_BAND_DRAWING)}
         elif self.method == CUSTOM_EQUATION:
@@ -1332,8 +1343,17 @@ class AnalysisDialog(simpledialog.Dialog):
                     field = ProfileEditor(parent, self.data, saved.get(label, ()), label_key="name",
                                           values_key="values", hint=tr("analysis.logistic.hint"),
                                           on_change=self.show_regression_fields)
+                elif self.method == ORDINAL_LOGIT and label == ORDINAL_PROFILES:
+                    field = ProfileEditor(parent, self.data, saved.get(label, ()), label_key=ORDINAL_NAME,
+                                          values_key=ORDINAL_VALUES, hint=tr("ord.hint.profiles"))
                 else:
                     field = ProfileEditor(parent, self.data, saved.get(label, ()))
+                field.grid(row=row, column=1, sticky="ew", pady=3)
+                self.controls[label] = (kind, field)
+                self.field_rows[label] = heading, field
+                continue
+            if kind == ORDINAL_ORDER_KIND:
+                field = OrderEditor(parent, saved.get(label) or ())
                 field.grid(row=row, column=1, sticky="ew", pady=3)
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
@@ -1801,6 +1821,13 @@ class AnalysisDialog(simpledialog.Dialog):
             self.controls[COMPETING_GRAPH][1].trace_add("write", lambda *_: self.show_fields(self.competing_fields()))
             self.show_fields(self.competing_fields())
             self.refresh_competing_causes()
+        if self.method == ORDINAL_LOGIT:
+            # The order follows the response and the predictors; the profiles follow the predictors and the coding.
+            self.controls["Response"][1].trace_add("write", lambda *_: self.update_ordinal_order())
+            self.controls["Predictors"][1].bind("<<ListboxSelect>>", lambda _: self.update_ordinal_order(), add="+")
+            self.controls["Categorical predictors"][1].bind(
+                "<<ListboxSelect>>", lambda _: self.update_ordinal_profiles(), add="+")
+            self.update_ordinal_order()
         if self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION):
             self.bind_equation_syntax()
             self._bind_scrollable_children(fields_by_tab["Equation"])
@@ -2855,6 +2882,19 @@ class AnalysisDialog(simpledialog.Dialog):
             return {}
         return competing_visibility(self.controls[COMPETING_GRAPH][1].get())
 
+    def update_ordinal_order(self):
+        """Read the categories of the chosen response again and let the order editor follow them."""
+        if self.method != ORDINAL_LOGIT or ORDINAL_ORDER not in self.controls:
+            return
+        response = self.controls["Response"][1].get()
+        self.controls[ORDINAL_ORDER][1].sync(read_observed(self.data, response, self._picked("Predictors")), response)
+        self.update_ordinal_profiles()
+
+    def update_ordinal_profiles(self):
+        if self.method == ORDINAL_LOGIT and ORDINAL_PROFILES in self.controls:
+            self.controls[ORDINAL_PROFILES][1].set_predictors(self._picked("Predictors"),
+                                                              self._picked("Categorical predictors"))
+
     def refresh_competing_causes(self):
         """Offer the typed event codes for the drawn cause; a value that is no longer a code stays shown, never rewritten."""
         binding = self.choice_bindings.get(COMPETING_GRAPH_CAUSE)
@@ -3335,7 +3375,7 @@ class AnalysisDialog(simpledialog.Dialog):
                 elif kind in (GROUP_ORDER, TREND_ORDER_KIND, DUNN_PAIR_LIST, PAIR_LIST, PROFILE_LIST, CURVE_LIST,
                               SETS_LIST, MODEL_LIST, EQUATION_TEXT, PARAMETER_LIST, INITIAL_LIST,
                               GLOBAL_PARAMETER_LIST, GLOBAL_SERIES_LIST, CATEGORY_COLOR_LIST, TERM_LIST,
-                              COMPETING_CODE_LIST, COMPETING_TIME_LIST):
+                              COMPETING_CODE_LIST, COMPETING_TIME_LIST, ORDINAL_ORDER_KIND):
                     value = control.values()
                 else:
                     value = control.get()
@@ -3498,6 +3538,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == COMPETING_RISKS:
                 # Columns, codes, times, level and the size budgets; no curve is calculated here.
                 check_competing_options(self.data, options)
+            if self.method == ORDINAL_LOGIT:
+                # Roles, order, profiles, rank and budgets; the model itself is fitted on the worker.
+                check_ordinal_options(self.data, options)
             if self.method == GLOBAL_CUSTOM_EQUATION:
                 if options.get("Weighting") != INVERSE_VARIANCE:
                     options[CUSTOM_SD] = None
@@ -3613,6 +3656,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
                 message = describe_competing_error(error, field)
+            elif self.method == ORDINAL_LOGIT:
+                message = describe_ordinal_error(error, field)
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
@@ -4374,6 +4419,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                                  and run.options.get(MONTE_CARLO_GRAPH, GRAPH_NONE) != GRAPH_NONE)
                              or (run.method == "Multifactor ANOVA"
                                  and run.options.get(ANOVA_DIAG_GRAPH) not in (None, "", "None"))
+                             or (run.method == ORDINAL_LOGIT and run.options.get(ORDINAL_GRAPH))
                              or (run.method == FDR_METHOD and run.options.get(FDR_PLOT))
                              or (run.method == VARIANCE_RATIO and variance_ratio_shows_graph(run.options))))],
              "New Graph…", self.new_graph),
@@ -6535,7 +6581,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, ORDINAL_LOGIT)
+                or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6543,7 +6590,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
+        return (self._lognormal_one_way(run)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, ORDINAL_LOGIT)
                 or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
@@ -6553,7 +6601,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if method in kmeans_options.METHODS and options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
-                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, "Multifactor ANOVA",
+                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, ORDINAL_LOGIT, "Multifactor ANOVA",
                 REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
@@ -6610,6 +6658,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_ordinal_error(error) if run.method == ORDINAL_LOGIT
                      else format_fdr_error(error) if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
@@ -6956,7 +7005,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
-                     else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
+                     else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_ordinal_error(error) if run.method == ORDINAL_LOGIT else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -7070,6 +7120,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA"
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
+                     else translate_ordinal_error(run.calculation_error) if run.method == ORDINAL_LOGIT
                      else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
@@ -12763,6 +12814,13 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_ordinal_logit_smoke():
+        from analisi.ordinal_logit_smoke import check_ordinal_logit
+        check_ordinal_logit(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
+            filedialog=filedialog, errors=errors))
+
     def check_reference_normalization_smoke():
         from analisi.reference_normalization_smoke import check_reference_normalization
         check_reference_normalization(root, app, directory, SimpleNamespace(
@@ -13432,6 +13490,14 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "competing-risks":
             # The Competing risks check alone: TRAMASTAT_SMOKE_ONLY=competing-risks python tramastat.py --smoke DIR
             check_competing_risks_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "ordinal-logit":
+            # The Ordinal logistic regression check alone: TRAMASTAT_SMOKE_ONLY=ordinal-logit python tramastat.py --smoke DIR
+            check_ordinal_logit_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14216,6 +14282,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_spearman_extended_smoke()
         check_robust_curve_smoke()
         check_competing_risks_smoke()
+        check_ordinal_logit_smoke()
         check_nonlinear_weighting_smoke()
         check_global_irls_smoke()
         check_nonlinear_bands_smoke()

@@ -104,6 +104,9 @@ class CatalogTests(unittest.TestCase):
             "Principal component analysis": {"Variables": ["x", "y", "z"], "Standardize": True},
             "Multiple regression": {"Response": "y", "Predictors": ["x", "Factor"],
                                     "Categorical predictors": ["Factor"], "Family": "Linear"},
+            "Ordinal logistic regression": {"Response": "Stage", "Predictors": ["z"], "Categorical predictors": [],
+                                            "Category order": ["Low", "Medium", "High"],
+                                            "Confidence level (%)": 95., "Profiles": [], "Show graph": False},
             "Cox regression": {"Time": "x", "Event": "Event", "Predictors": ["z"],
                                "Categorical predictors": [], "Ties": "Efron"},
             "Competing risks": {"Time": "x", "Status": "Event", "Group": "Group", "Censor code": "0",
@@ -179,6 +182,8 @@ class CatalogTests(unittest.TestCase):
                     selected = pd.DataFrame({f"Group {group + 1} [{rep + 1}]": np.arange(4.) / 4 + 2 * group + rep
                                              for group in range(groups) for rep in range(3)})
                     selected.attrs["table_format"] = "nested"
+                if name == "Ordinal logistic regression":
+                    selected = data.assign(Stage=np.tile(["Low", "Medium", "High", "Medium"], 4))
                 if name == "Friedman":
                     selected = pd.DataFrame({"y": [1, 2, 4, 2, 1, 4, 2, 3, 5, 4, 3, 8],
                                              "Group": list("abc") * 4, "Subject": np.repeat(np.arange(4), 3)})
