@@ -104,7 +104,9 @@ EXTRA_METHODS = {
                             logistic_diagnostics.LOGISTIC_PROFILES: cox_outputs.PROFILE_LIST,
                             logistic_diagnostics.LOGISTIC_CI: logistic_diagnostics.DEFAULT_LEVEL},
     "Cox regression": {"Time": None, "Event": None, "Predictors": MULTIPLE,
-                       "Categorical predictors": OPTIONAL_MULTIPLE, "Ties": ("Efron", "Breslow"),
+                       "Categorical predictors": OPTIONAL_MULTIPLE,
+                       # Exact (conditional) fits the coefficient and model sheets only; see cox_exact.
+                       "Ties": ("Efron", "Breslow", "Exact (conditional)"),
                        # Recipes without the status codes and the new outputs keep the original sheets.
                        **cox_outputs.OPTIONS},
     "Kolmogorov–Smirnov": {"First": None, "Second": None},

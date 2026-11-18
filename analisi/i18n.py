@@ -3397,6 +3397,128 @@ _IT.update({
     "cr.error.cause": "{field}: {cause} non è uno dei codici dell’evento.",
 })
 
+# Cox regression, Exact (conditional) ties. Engine messages keep their English text and are translated by pattern
+# under "cox.exact.error.", with the field names as placeholders.
+_EN.update({
+    "cox.exact.choice": "Exact (conditional)",
+    "cox.exact.hint": "Exact (conditional) gives the coefficient and model sheets only, for up to 2000 complete rows "
+                      "and 8 design columns. Predicted survival, Cox diagnostics, Schoenfeld residuals and graphs "
+                      "need Efron or Breslow.",
+    "cox.exact.unavailable": "Not available with Exact (conditional) ties. Choose Efron or Breslow, or turn this "
+                             "off. Profiles already set are kept.",
+    "cox.exact.cancelled.new": "Cox regression cancelled. No analysis was added.",
+    "cox.exact.cancelled.kept": "Cox regression cancelled. The last completed results are kept.",
+    "cox.exact.cancelled.again": "Cox regression cancelled. Open the analysis to calculate again.",
+    "cox.exact.cancelled.recalculation": "Cox regression recalculation cancelled. The previous results are kept; "
+                                         "recalculate before exporting them.",
+    "cox.exact.error.cancelled": "The exact Cox recalculation was cancelled.",
+    "cox.exact.error.output": "Exact (conditional) ties give the coefficient and model sheets only. Turn off {field} "
+                              "or choose Efron or Breslow.",
+    "cox.exact.error.graph": "Exact (conditional) ties draw no graph. Set {field} to Automatic or choose Efron or "
+                             "Breslow.",
+    "cox.exact.error.rows": "Exact (conditional) ties accept up to {limit} complete rows; this analysis has {rows}. "
+                            "Choose Efron or Breslow, or reduce the data.",
+    "cox.exact.error.columns": "Exact (conditional) ties accept up to {limit} design columns after coding; this "
+                               "model has {columns}. Choose Efron or Breslow, or remove predictors.",
+    "cox.exact.error.units": "Exact (conditional) ties accept a work budget of {limit} units per evaluation; this "
+                             "analysis needs {units}. Choose Efron or Breslow, or reduce the data.",
+    "cox.exact.error.maximum": "The exact conditional likelihood has no finite maximum for these data: a predictor "
+                               "separates the events from the rest of their risk sets. Remove or recode a predictor.",
+    "cox.exact.error.singular": "The model cannot be estimated: the information matrix is singular. A predictor may "
+                                "be constant within the risk sets of the tied events, or predictors may be "
+                                "collinear. Remove or recode a predictor.",
+    "cox.exact.error.score": "The exact fit did not reach a small score. Check for extreme or nearly collinear "
+                             "predictors.",
+    "cox.exact.error.improve": "The exact fit did not converge: the likelihood cannot be improved. Check for extreme "
+                               "or nearly collinear predictors.",
+    "cox.exact.error.iterations": "The exact fit did not converge in {limit} iterations. Check for extreme or nearly "
+                                  "collinear predictors.",
+    "cox.exact.error.negative": 'Cox regression needs nonnegative times; row {row} of "{column}" is {value}.',
+    "cox.exact.error.events": "The exact fit needs at least two events among the complete rows; {events} found. "
+                              "Check the event and censor values.",
+    "cox.exact.error.different": "Choose different columns for Time and Event.",
+    "cox.exact.error.event_predictor": "The Event column cannot also be a predictor.",
+    "cox.exact.error.rank": "The model is rank deficient. Remove redundant predictors.",
+    "cox.exact.error.levels": 'Categorical predictor "{name}" must have 2 to 100 levels.',
+    "cox.exact.error.roles": "Choose predictors and identify any categorical predictors from that list.",
+    "cox.exact.error.duplicate": 'Duplicate model term "{name}". Rename the source column.',
+    "cox.exact.error.parameters": "Model has too many parameters for these data.",
+    "cox.exact.error.distinct": "Select distinct columns for the analysis.",
+    "cox.exact.error.complex": 'Column "{name}" contains complex data.',
+    "cox.exact.error.numeric": 'Column "{name}" contains non-numeric or infinite data.',
+    "cox.exact.error.estimates": "Could not estimate all model coefficients reliably.",
+    "cox.exact.error.range": "Exponentiated estimates are outside the supported range.",
+    "cox.exact.error.column": "Choose an existing column for Event.",
+    "cox.exact.error.enter": "Enter a value for {field}.",
+    "cox.exact.error.number": '{field} must be a number because column "{column}" is numeric.',
+    "cox.exact.error.same": "Event and censor values must be different.",
+    "cox.exact.error.unknown": 'Column "{column}" contains {value} at row {row}, which is neither the event value '
+                               "nor the censor value. Values present: {shown}.",
+    "cox.exact.error.absent": 'No row of "{column}" equals the event value {value}. Values present: {shown}.',
+})
+_IT.update({
+    "cox.exact.choice": "Esatto (condizionale)",
+    "cox.exact.hint": "Esatto (condizionale) produce solo i fogli dei coefficienti e del modello, fino a 2000 righe "
+                      "complete e 8 colonne nel disegno. Stima della sopravvivenza, diagnostica di Cox, residui di "
+                      "Schoenfeld e grafici richiedono Efron o Breslow.",
+    "cox.exact.unavailable": "Non disponibile con i pari merito esatti (condizionali). Scegli Efron o Breslow, "
+                             "oppure disattiva questa opzione. I profili già impostati restano.",
+    "cox.exact.cancelled.new": "Regressione di Cox annullata. Nessuna analisi aggiunta.",
+    "cox.exact.cancelled.kept": "Regressione di Cox annullata. Restano gli ultimi risultati completati.",
+    "cox.exact.cancelled.again": "Regressione di Cox annullata. Apri l’analisi per calcolare di nuovo.",
+    "cox.exact.cancelled.recalculation": "Ricalcolo della regressione di Cox annullato. Restano i risultati "
+                                         "precedenti: ricalcola prima di esportarli.",
+    "cox.exact.error.cancelled": "Il ricalcolo esatto di Cox è stato annullato.",
+    "cox.exact.error.output": "I pari merito esatti (condizionali) producono solo i fogli dei coefficienti e del "
+                              "modello. Disattiva {field} oppure scegli Efron o Breslow.",
+    "cox.exact.error.graph": "I pari merito esatti (condizionali) non producono grafici. Imposta {field} su "
+                             "Automatico oppure scegli Efron o Breslow.",
+    "cox.exact.error.rows": "I pari merito esatti (condizionali) accettano fino a {limit} righe complete; questa "
+                            "analisi ne ha {rows}. Scegli Efron o Breslow, oppure riduci i dati.",
+    "cox.exact.error.columns": "I pari merito esatti (condizionali) accettano fino a {limit} colonne nel disegno "
+                               "dopo la codifica; questo modello ne ha {columns}. Scegli Efron o Breslow, oppure "
+                               "togli dei predittori.",
+    "cox.exact.error.units": "I pari merito esatti (condizionali) accettano un costo di calcolo di {limit} unità "
+                             "per valutazione; questa analisi ne richiede {units}. Scegli Efron o Breslow, oppure "
+                             "riduci i dati.",
+    "cox.exact.error.maximum": "La verosimiglianza condizionale esatta non ha un massimo finito per questi dati: un "
+                               "predittore separa gli eventi dal resto dei rispettivi insiemi a rischio. Togli o "
+                               "ricodifica un predittore.",
+    "cox.exact.error.singular": "Il modello non è stimabile: la matrice di informazione è singolare. Un predittore "
+                                "può essere costante negli insiemi a rischio degli eventi con pari tempo, oppure i "
+                                "predittori sono collineari. Togli o ricodifica un predittore.",
+    "cox.exact.error.score": "Il fit esatto non ha raggiunto uno score abbastanza piccolo. Controlla predittori "
+                             "estremi o quasi collineari.",
+    "cox.exact.error.improve": "Il fit esatto non è arrivato a convergenza: la verosimiglianza non migliora più. "
+                               "Controlla predittori estremi o quasi collineari.",
+    "cox.exact.error.iterations": "Il fit esatto non è arrivato a convergenza in {limit} iterazioni. Controlla "
+                                  "predittori estremi o quasi collineari.",
+    "cox.exact.error.negative": 'La regressione di Cox richiede tempi non negativi: la riga {row} di "{column}" '
+                                "vale {value}.",
+    "cox.exact.error.events": "Il fit esatto richiede almeno due eventi tra le righe complete; ne risultano "
+                              "{events}. Controlla i valori di evento e di censura.",
+    "cox.exact.error.different": "Scegli colonne diverse per Tempo ed Evento.",
+    "cox.exact.error.event_predictor": "La colonna dell’evento non può essere anche un predittore.",
+    "cox.exact.error.rank": "Il modello ha rango incompleto. Togli i predittori ridondanti.",
+    "cox.exact.error.levels": 'Il predittore categorico "{name}" deve avere da 2 a 100 livelli.',
+    "cox.exact.error.roles": "Scegli i predittori e indica quali sono categorici tra quelli scelti.",
+    "cox.exact.error.duplicate": 'Termine del modello duplicato "{name}". Rinomina la colonna di origine.',
+    "cox.exact.error.parameters": "Il modello ha troppi parametri per questi dati.",
+    "cox.exact.error.distinct": "Seleziona colonne distinte per l’analisi.",
+    "cox.exact.error.complex": 'La colonna "{name}" contiene dati complessi.',
+    "cox.exact.error.numeric": 'La colonna "{name}" contiene dati non numerici o infiniti.',
+    "cox.exact.error.estimates": "Non è stato possibile stimare in modo affidabile tutti i coefficienti.",
+    "cox.exact.error.range": "Le stime esponenziate sono fuori dall’intervallo supportato.",
+    "cox.exact.error.column": "Scegli una colonna esistente per Evento.",
+    "cox.exact.error.enter": "Inserisci un valore per {field}.",
+    "cox.exact.error.number": '{field} deve essere un numero perché la colonna "{column}" è numerica.',
+    "cox.exact.error.same": "I valori di evento e di censura devono essere diversi.",
+    "cox.exact.error.unknown": 'La colonna "{column}" contiene {value} alla riga {row}, che non è né il valore '
+                               "dell’evento né quello di censura. Valori presenti: {shown}.",
+    "cox.exact.error.absent": 'Nessuna riga di "{column}" è uguale al valore dell’evento {value}. Valori presenti: '
+                              "{shown}.",
+})
+
 # Common dialog captions and analysis selectors are translated only at explicit
 # rendering boundaries. No widget hooks touch user titles, columns or data.
 from .interface_catalog import CAPTIONS as _INTERFACE_CAPTIONS, MESSAGES as _INTERFACE_MESSAGES
