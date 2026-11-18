@@ -4,7 +4,7 @@ from matplotlib.ticker import PercentFormatter
 from scipy import stats
 
 from . import (auc_peaks, cox_outputs, design, exploration, inference, logistic_diagnostics, lognormal_anova, mlr_weighting,
-               models, ols_diagnostics, operations, pca_graphs, pca_retention, trend_anova, unequal_anova,
+               models, ols_diagnostics, operations, pca_graphs, pca_reports, pca_retention, trend_anova, unequal_anova,
                variance_assumptions, roc as roc_module)
 from . import plot_function as function_plot
 from .deming import identity_limits, jackknife_deming
@@ -79,7 +79,7 @@ EXTRA_METHODS = {
                                     pca_graphs.HORIZONTAL: 1, pca_graphs.VERTICAL: 2,
                                     pca_graphs.LABEL: OPTIONAL, pca_graphs.SHOW_LABELS: False,
                                     pca_graphs.COLOR_GROUPS: OPTIONAL,
-                                    **pca_retention.OPTIONS},
+                                    **pca_retention.OPTIONS, **pca_reports.OPTIONS},
     "Multiple regression": {"Response": None, "Predictors": MULTIPLE,
                             "Categorical predictors": OPTIONAL_MULTIPLE, "Family": ("Linear", "Logistic", "Poisson"),
                             # Poisson only; older recipes carry none of these keys and keep unit exposure.
@@ -298,6 +298,7 @@ def _pca(frame, o):
     ax.scatter(scores["PC1"], scores["PC2"])
     tables = {"Explained variance": parts, "Eigenvectors": loadings, "Scores": scores}
     tables.update(retention.tables)
+    tables.update(pca_reports.optional_tables(frame, o, parts, loadings, scores, retention))
     return Result(tables, fig)
 
 
