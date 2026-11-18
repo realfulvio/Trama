@@ -22,6 +22,7 @@ from matplotlib.ticker import (AutoMinorLocator, FixedFormatter, FuncFormatter, 
                                MaxNLocator, NullLocator, StrMethodFormatter)
 from matplotlib.transforms import IdentityTransform
 
+from .field_error import FieldError
 from .axis_guides import (AXIS_BANDS, AXIS_GUIDES, apply_axis_guides_and_bands, clear_axis_guides_and_bands,
                           normalise_bands, normalise_guides, validate_axis_guides_domain)
 from .probability_scale import PROBABILITY_SCALES
@@ -71,9 +72,11 @@ SERIES_FIELDS = {
     "errorbar": LINE_FIELDS,
     "scatter": {"color", "marker", "marker_size", "label"},
     "bar": {"color", "label"},
-    # Native XY series keep draw style and side on the recipe; the style dict formats line and symbol.
-    "xy": LINE_FIELDS,
+    # Native XY series keep draw style and side on the recipe; the style dict formats line, symbol and
+    # bars. Visibility is active for Step and Bars; the other fields stay saved for every draw style.
+    "xy": LINE_FIELDS | {"visible"},
 }
+XY_PREFIX = "xy:1:"
 SERIES_KEY = re.compile(r"(line|errorbar|scatter|bar|xy):[1-9][0-9]*:.*", re.DOTALL)
 # Box and violin groups are keyed by their source identity, not by their position in the plot.
 GROUP_FIELDS = {"color", "visible"}
@@ -172,6 +175,8 @@ def _check_series(key, options):
             raise ValueError("Choose a valid symbol.")
         if name == "label" and (not _text(value) or value.startswith("_")):
             raise ValueError("Enter a series legend label of up to 160 characters that does not start with an underscore.")
+        if name == "visible" and type(value) is not bool:
+            raise ValueError("Invalid series visibility.")
 
 
 def _check_groups(groups):
@@ -270,12 +275,26 @@ class GraphSeries:
         return SERIES_FIELDS[self.kind]
 
 
+def xy_draw_kind(artist):
+    """``"Bars"`` for the rectangles of an XY series, ``"Step"`` for a step line, otherwise None."""
+    if isinstance(artist, BarContainer):
+        return "Bars"
+    if isinstance(artist, Line2D) and str(artist.get_drawstyle()).startswith("steps"):
+        return "Step"
+    return None
+
+
 def active_series_fields(axes, series, draw_style=None):
     """Return the series fields active for the current draw structure of ``series``."""
     if series is None:
         return set()
     if series.kind != "xy":
         return set(series.fields)
+    kind = draw_style if draw_style is not None else xy_draw_kind(series.artist)
+    if kind == "Bars":
+        return {"color", "label", "visible"}
+    if kind == "Step":
+        return {"color", "label", "visible", "line_style", "width"}
     if draw_style is not None:
         has_line = draw_style in {"Line", "Line and points"}
         has_marker = draw_style in {"Points", "Line and points"}
@@ -296,22 +315,46 @@ def active_series_fields(axes, series, draw_style=None):
     return active
 
 
-def _xy_lines(axes):
+def xy_gid(artist):
+    """The ``xy:1:<column>`` identity of a native XY artist (a line or a bar container), else None."""
+    gid = getattr(artist, "_tramastat_xy_gid", None) if isinstance(artist, BarContainer) else artist.get_gid()
+    return gid if isinstance(gid, str) and gid.startswith(XY_PREFIX) else None
+
+
+def xy_artists(axes):
     """Native XY artists on every axes, in recipe order when the plot recorded it."""
     figure = getattr(axes, "figure", None)
     found = []
     if figure is not None:
         for other in figure.axes:
-            found.extend(artist for artist in other.lines if str(artist.get_gid() or "").startswith("xy:1:"))
+            found.extend(artist for artist in other.lines if xy_gid(artist))
+            found.extend(artist for artist in other.containers if isinstance(artist, BarContainer) and xy_gid(artist))
     order = getattr(axes, "_tramastat_xy_order", None)
     if order:
-        by_gid = {artist.get_gid(): artist for artist in found}
+        by_gid = {xy_gid(artist): artist for artist in found}
         found = [by_gid[gid] for gid in order if gid in by_gid]
     return found
 
 
+def _xy_shown(artist):
+    """Whether an XY artist draws anything: a finite point or a rectangle, not hidden by its style."""
+    if isinstance(artist, BarContainer):
+        return bool(artist.patches) and any(patch.get_visible() for patch in artist.patches)
+    return artist.get_visible() and bool(np.isfinite(np.asarray(artist.get_ydata(), dtype=float)).any())
+
+
+def xy_legend_handles(axes):
+    """Legend entries of a native XY graph: shown series with a literal label, in Y-column order."""
+    handles = []
+    for artist in xy_artists(axes):
+        label = artist.get_label() or ""
+        if _xy_shown(artist) and label and not label.startswith("_"):
+            handles.append(artist)
+    return handles
+
+
 def _series(axes):
-    xy_lines = _xy_lines(axes)
+    xy_lines = xy_artists(axes)
     xy_ids = {id(artist) for artist in xy_lines}
     errorbars = [artist for artist in axes.containers if isinstance(artist, ErrorbarContainer)]
     error_lines = {line for center, caps, _ in (artist.lines for artist in errorbars)
@@ -321,7 +364,8 @@ def _series(axes):
                and not str(artist.get_gid() or "").startswith(("tramastat-shape-", "trama-axis-guide:"))]
     artists.extend(("errorbar", artist) for artist in errorbars)
     artists.extend(("scatter", artist) for artist in axes.collections if isinstance(artist, PathCollection))
-    artists.extend(("bar", artist) for artist in axes.containers if isinstance(artist, BarContainer) and artist.patches)
+    artists.extend(("bar", artist) for artist in axes.containers
+                   if isinstance(artist, BarContainer) and artist.patches and id(artist) not in xy_ids)
     counts = {}
     for kind, artist in artists:
         label = artist.get_label() or ""
@@ -338,10 +382,9 @@ def _series(axes):
         if len(key) <= 1024:
             yield GraphSeries(key, name, kind, artist)
     for artist in xy_lines:
-        column = str(artist.get_gid())[len("xy:1:"):]
-        key = artist.get_gid()
-        if isinstance(key, str) and len(key) <= 1024:
-            yield GraphSeries(key, column, "xy", artist)
+        key = xy_gid(artist)
+        if len(key) <= 1024:
+            yield GraphSeries(key, key[len(XY_PREFIX):], "xy", artist)
 
 
 @dataclass
@@ -416,7 +459,12 @@ def _line_defaults(artist):
 
 def _series_defaults(series):
     artist = series.artist
-    if series.kind in {"line", "xy"}:
+    if series.kind == "xy" and isinstance(artist, BarContainer):
+        return ([patch.get_facecolor() for patch in artist.patches], artist.get_label(),
+                [patch.get_visible() for patch in artist.patches])
+    if series.kind == "xy":
+        return (*_line_defaults(artist), artist.get_visible())
+    if series.kind == "line":
         return _line_defaults(artist)
     if series.kind == "errorbar":
         center, caps, whiskers = artist.lines
@@ -483,6 +531,23 @@ def zero_baseline_axes(axes):
     return getattr(axes, "_tramastat_zero_baseline", ())
 
 
+def _check_xy_bar_scales(axes, style, defaults):
+    """XY bars are rectangles from Y = 0 with widths in X units: their axes stay linear."""
+    for artist in xy_artists(axes):
+        if not isinstance(artist, BarContainer):
+            continue
+        column = xy_gid(artist)[len(XY_PREFIX):]
+        for dimension, field in (("x", "X scale"), ("y", "Y scale")):
+            scale = style.get(dimension + "scale", defaults["axes"][dimension]["scale"] if defaults
+                              else getattr(axes, dimension + "axis").get_scale())
+            if scale == "linear":
+                continue
+            if dimension == "x":
+                raise FieldError(field, f"{column} is drawn as bars, which need a linear X axis.")
+            if artist.patches and artist.patches[0].axes is axes:
+                raise FieldError(field, f"{column} is drawn as bars, which need a linear left Y axis.")
+
+
 def validate_graph_style(axes, style):
     validated_style(style)
     for key in ("title", "xlabel", "ylabel"):
@@ -498,6 +563,7 @@ def validate_graph_style(axes, style):
     for ref in style.get("reference_lines", []):
         _check_math_text(ref.get("label", ""))
     defaults = getattr(axes, "_tramastat_defaults", None)
+    _check_xy_bar_scales(axes, style, defaults)
     for dimension in ("x", "y"):
         axis = getattr(axes, dimension + "axis")
         baseline = defaults["axes"][dimension] if defaults else _axis_defaults(axes, dimension)
@@ -619,15 +685,25 @@ def _apply_line(artist, defaults, options):
 
 def _apply_series(series, defaults, options):
     artist = series.artist
+    if series.kind == "xy" and isinstance(artist, BarContainer):
+        # Bars take color, label and visibility; saved line and symbol settings stay in the style unused.
+        colors, label, visible = defaults
+        for patch, color, shown in zip(artist.patches, colors, visible, strict=True):
+            patch.set_facecolor(options.get("color", color))
+            patch.set_visible(shown and options.get("visible", True))
+        artist.set_label(options.get("label", label))
+        return
     if series.kind == "xy":
         has_line = defaults[1] not in ("None", "none", None, "")
         has_marker = defaults[3] not in ("None", "none", None, "")
+        step = xy_draw_kind(artist) == "Step"
         xy_options = {
             key: value for key, value in options.items()
             if (has_line or key not in {"line_style", "width"})
             and (has_marker or key not in {"marker", "marker_size", "marker_color"})
         }
-        _apply_line(artist, defaults, xy_options)
+        _apply_line(artist, defaults[:8], xy_options)
+        artist.set_visible(defaults[8] and (not step or options.get("visible", True)))
         return
     if series.kind == "line":
         _apply_line(artist, defaults, options)
@@ -714,22 +790,7 @@ def _apply_xy_legend(axes, style):
     order = getattr(axes, "_tramastat_xy_order", None)
     if not order:
         return
-    by_gid = {}
-    for other in axes.figure.axes:
-        for artist in other.lines:
-            gid = artist.get_gid()
-            if gid:
-                by_gid[gid] = artist
-    handles = []
-    for gid in order:
-        artist = by_gid.get(gid)
-        if artist is None:
-            continue
-        y_values = np.asarray(artist.get_ydata(), dtype=float)
-        label = artist.get_label() or ""
-        if not np.isfinite(y_values).any() or not label or label.startswith("_"):
-            continue
-        handles.append(artist)
+    handles = xy_legend_handles(axes)
     if style.get("legend") == "hidden" or not handles:
         axes.legend_ = None
         return

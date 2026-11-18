@@ -11,6 +11,16 @@ are not moved from one scale onto the other. The left axis owns the grid.
 
 On a logarithmic axis only Y values greater than 0 are plotted and listed.
 A non-positive Y is a break in the line and a gap in the Series values sheet.
+
+Step holds each value until the next X of the sheet (``steps-post``) and breaks
+like a line. Bars draw one rectangle from Y = 0 for each valid point, on the
+series' own axis, which must be linear. A position is a virtual cluster with one
+slot per Bars series in Y-column order, on either axis; a slot keeps its place
+when a value is missing or the series is hidden by its style. Bars are never
+summed or stacked, so a Bars series rejects a repeated X among its valid points.
+The automatic cluster width is 0.8 times the smallest positive X step between
+valid bar positions (0.8 X units for a single position). Bar centers are only
+geometry: Series values keeps the original X.
 """
 
 import math
@@ -22,7 +32,9 @@ from .processing import FieldError
 from .reporting import Result, _plot
 
 XY_METHOD = "XY series"
-DRAW_STYLES = ("Points", "Line", "Line and points")
+STEP = "Step"
+BARS = "Bars"
+DRAW_STYLES = ("Points", "Line", "Line and points", STEP, BARS)
 SIDES = ("Left", "Right")
 SCALES = ("Linear", "Log")
 SHEET = "Series values"
@@ -32,11 +44,15 @@ PALETTE = (
     "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
     "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
 )
+BAR_WIDTH = "Bar cluster width"
 RECIPE_KEYS = (
     "Series style", "Series side", "Series color",
     "Right title", "Right scale", "Right minimum", "Right maximum",
-    "Y minimum", "Y maximum",
+    "Y minimum", "Y maximum", BAR_WIDTH,
 )
+# Share of the smallest X step filled by one cluster of bars when the width is automatic.
+AUTO_CLUSTER = 0.8
+BAR_GID = "xybar:"
 _GID = "xy:1:"
 
 
@@ -160,6 +176,86 @@ def _sides_and_scales(options, columns, left_scale):
     return info
 
 
+def parse_bar_width(raw):
+    """An explicit cluster width in X units, or None for Auto (blank). A decimal comma is accepted."""
+    if _blank(raw):
+        return None
+    value = raw
+    if isinstance(value, str):
+        text = value.strip()
+        if text.count(",") == 1 and "." not in text:
+            text = text.replace(",", ".")
+        try:
+            value = float(text)
+        except ValueError:
+            value = math.nan
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        value = math.nan
+    try:
+        value = float(value)
+    except OverflowError:
+        value = math.nan
+    if not (math.isfinite(value) and value > 0):
+        raise FieldError(BAR_WIDTH, "Enter a finite positive bar cluster width in X units, or leave it blank for Auto.")
+    return value
+
+
+def bar_layout(frame, options, left_scale="linear"):
+    """Cluster geometry of the Bars series: ``{column: (mask, centers, slot)}`` in Y-column order.
+
+    ``mask`` marks the sheet rows that draw a rectangle, ``centers`` holds their shifted centers and
+    ``slot`` is the width of one rectangle. Raises FieldError for a repeated X, a non-linear value
+    axis, an invalid width or rectangles that collapse or overflow in floating point.
+    """
+    columns = list(options.get("Y columns") or [])
+    info = _sides_and_scales(options, columns, left_scale)
+    bars = [column for column in columns if info[column][0] == BARS]
+    if not bars:
+        return {}
+    right_scale = options.get("Right scale", "Linear")
+    for column in bars:
+        side = info[column][1]
+        if side == "Right" and _is_log(right_scale):
+            raise FieldError("Right scale", f"{column} is drawn as bars, which need a linear right Y axis.")
+        if side == "Left" and str(left_scale).casefold() != "linear":
+            raise FieldError("Y scale", f"{column} is drawn as bars, which need a linear left Y axis.")
+    width = parse_bar_width(options.get(BAR_WIDTH))
+    x_values = _numbers(frame, options["X"])
+    masks = {}
+    for column in bars:
+        mask = _drawn(x_values, _numbers(frame, column), False)
+        valid = x_values[mask]
+        unique, counts = np.unique(valid, return_counts=True)
+        if (counts > 1).any():
+            repeated = float(unique[counts > 1][0])
+            error = FieldError("Y columns", f"{column} is drawn as bars and repeats X = {repeated:g} among its "
+                                            "valid points. Bars are not summed or stacked: keep one Y per X, "
+                                            "or choose another draw style.")
+            error.column = column  # Format Graph selects this series and its draw style.
+            raise error
+        masks[column] = mask
+    if width is None:
+        positions = np.unique(np.concatenate([x_values[mask] for mask in masks.values()]))
+        with np.errstate(over="ignore", invalid="ignore"):
+            steps = np.diff(positions)
+        width = AUTO_CLUSTER * float(steps.min()) if len(steps) else AUTO_CLUSTER
+    count = len(bars)
+    with np.errstate(over="ignore", invalid="ignore"):
+        slot = width / count
+        layout = {}
+        for index, column in enumerate(bars):
+            mask = masks[column]
+            centers = x_values[mask] + width * ((index + 0.5) / count - 0.5)
+            low, high = centers - slot / 2, centers + slot / 2
+            if not (math.isfinite(slot) and slot > 0 and np.isfinite(centers).all()
+                    and np.isfinite(low).all() and np.isfinite(high).all() and (high > low).all()):
+                raise FieldError(BAR_WIDTH, "The bars cannot be drawn at these X values with this cluster width: "
+                                            "the rectangles would collapse or overflow. Enter another bar "
+                                            "cluster width in X units.")
+            layout[column] = (mask, centers, slot)
+    return layout
+
+
 def check_xy_options(frame, options, left_scale="linear"):
     """Raise FieldError when a dialog choice blocks the graph. Do not mutate options."""
     x_name = options.get("X")
@@ -176,6 +272,7 @@ def check_xy_options(frame, options, left_scale="linear"):
     _limit_pair(options, "Y minimum", "Y maximum", "Y minimum", _is_log(left_scale))
     _limit_pair(options, "Right minimum", "Right maximum", "Right minimum", right_log)
     info = _sides_and_scales(options, columns, left_scale)
+    bar_layout(frame, options, left_scale)
     x_values = _numbers(frame, x_name)
     plotted = False
     for column, (_style, side, log) in info.items():
@@ -208,12 +305,22 @@ def _legend_label(column):
     return text if text and not text.startswith("_") else None
 
 
+def _source_ids(frame):
+    """A distinct text per sheet row for vector IDs; a repeated index label takes its position."""
+    labels = [str(_source_label(label)) for label in frame.index]
+    seen = {}
+    for label in labels:
+        seen[label] = seen.get(label, 0) + 1
+    return [label if seen[label] == 1 else f"{label}@{position}" for position, label in enumerate(labels)]
+
+
 def xy_series(frame, options, left_scale="linear"):
     """Draw one artist per selected Y column and list every plotted coordinate."""
     check_xy_options(frame, options, left_scale)
     columns = list(options["Y columns"])
     x_name = options["X"]
     info = _sides_and_scales(options, columns, left_scale)
+    bars = bar_layout(frame, options, left_scale)
     colors = assign_colors(columns, _mapping(options, "Series color"))
     x_values = _numbers(frame, x_name)
     left_names = [column for column in columns if info[column][1] == "Left"]
@@ -232,6 +339,13 @@ def xy_series(frame, options, left_scale="linear"):
         right.spines[["left", "top", "bottom"]].set_visible(False)
         if _is_log(options.get("Right scale", "Linear")):
             right.set_yscale("log")
+        if any(column in bars for column in right_names) and not any(column in bars for column in left_names):
+            # Bars only on the right: draw that axes first, so left lines, points and the legend stay on top.
+            right.set_zorder(axes.get_zorder() - 1)
+            right.patch.set_visible(True)
+            right.patch.set_facecolor(axes.patch.get_facecolor())
+            axes.patch.set_visible(False)
+    source_ids = _source_ids(frame) if bars else []
     handles = []
     order = []
     rows = []
@@ -240,13 +354,23 @@ def xy_series(frame, options, left_scale="linear"):
         target = right if side == "Right" else axes
         y_values = _numbers(frame, column)
         mask = _drawn(x_values, y_values, log)
-        plotted_y = np.where(mask, y_values, np.nan)
-        marker = "o" if style != "Line" else "None"
-        linestyle = "None" if style == "Points" else "-"
-        artist, = target.plot(x_values, plotted_y, color=colors[column], marker=marker,
-                               linestyle=linestyle, label=_legend_label(column) or "_")
-        artist.set_gid(_GID + column)
-        order.append(artist.get_gid())
+        if style == BARS:
+            mask, centers, slot = bars[column]
+            artist = target.bar(centers, y_values[mask], width=slot, bottom=0, align="center",
+                                color=colors[column], label=_legend_label(column) or "_")
+            artist._tramastat_xy_gid = _GID + column
+            for patch, position in zip(artist.patches, np.flatnonzero(mask), strict=True):
+                patch.set_gid(f"{BAR_GID}{column}:{source_ids[position]}")
+            order.append(artist._tramastat_xy_gid)
+        else:
+            plotted_y = np.where(mask, y_values, np.nan)
+            marker = "o" if style in {"Points", "Line and points"} else "None"
+            linestyle = "None" if style == "Points" else "-"
+            artist, = target.plot(x_values, plotted_y, color=colors[column], marker=marker, linestyle=linestyle,
+                                   drawstyle="steps-post" if style == STEP else "default",
+                                   label=_legend_label(column) or "_")
+            artist.set_gid(_GID + column)
+            order.append(artist.get_gid())
         if mask.any() and _legend_label(column):
             handles.append(artist)
         for position, keep in enumerate(mask):

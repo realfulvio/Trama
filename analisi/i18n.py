@@ -658,6 +658,9 @@ _GRAPH_EN = {
     "graph.series.marker": "Symbol", "graph.series.marker_size": "Symbol size (pt)",
     "graph.series.marker_color": "Symbol color", "graph.series.draw_style": "Draw style",
     "graph.series.side": "Axis",
+    # Mixed XY series: Step and Bars (analisi/xy_series.py). Recipes keep the English values.
+    "graph.series.visible": "Show series", "graph.series.bar_width": "Bar cluster width",
+    "graph.series.bar_width_hint": "X units; blank is Auto",
     "graph.series.hint": "Choose a plot element. Blank fields keep their original settings.",
     "graph.series.inactive_hint": ("Choose a plot element. Blank fields keep their original settings. "
                                    "Disabled fields stay saved for the other draw styles."),
@@ -907,6 +910,7 @@ _GRAPH_EN = {
     "graph.marker.plus": "Plus", "graph.marker.cross": "Cross", "graph.marker.star": "Star",
     "graph.marker.none": "No symbol",
     "graph.draw.points": "Points", "graph.draw.line": "Line", "graph.draw.line_points": "Line and points",
+    "graph.draw.step": "Step", "graph.draw.bars": "Bars",
     "graph.side.left": "Left", "graph.side.right": "Right",
     # Validation messages of presentation.py, matched by their English text (see translate_message).
     "graph.error.float": "could not convert string to float: {value}",
@@ -934,6 +938,9 @@ _GRAPH_EN = {
     "graph.error.marker": "Choose a valid symbol.",
     "graph.error.series_label": ("Enter a series legend label of up to 160 characters that does not start "
                                  "with an underscore."),
+    "graph.error.series_visible": "Invalid series visibility.",
+    "graph.error.xy_bars_x_scale": "{column} is drawn as bars, which need a linear X axis.",
+    "graph.error.xy_bars_left_scale": "{column} is drawn as bars, which need a linear left Y axis.",
     "graph.error.group_count": "Format up to {count} box or violin groups.",
     "graph.error.group_reference": "Invalid graph group reference.",
     "graph.error.group_setting": "This setting is not available for box and violin groups.",
@@ -1039,6 +1046,8 @@ _GRAPH_IT = {
     "graph.series.width": "Spessore linea (pt)", "graph.series.marker": "Simbolo",
     "graph.series.marker_size": "Dimensione simbolo (pt)", "graph.series.marker_color": "Colore simbolo",
     "graph.series.draw_style": "Stile di disegno", "graph.series.side": "Asse",
+    "graph.series.visible": "Mostra la serie", "graph.series.bar_width": "Larghezza del gruppo di barre",
+    "graph.series.bar_width_hint": "unità di X; vuoto è Automatica",
     "graph.series.hint": "Scegli un elemento del grafico. I campi vuoti mantengono le impostazioni originali.",
     "graph.series.inactive_hint": ("Scegli un elemento del grafico. I campi vuoti mantengono le impostazioni "
                                    "originali; i campi disabilitati restano salvati per gli altri stili di disegno."),
@@ -1288,6 +1297,7 @@ _GRAPH_IT = {
     "graph.marker.plus": "Più", "graph.marker.cross": "Croce", "graph.marker.star": "Stella",
     "graph.marker.none": "Nessun simbolo",
     "graph.draw.points": "Punti", "graph.draw.line": "Linea", "graph.draw.line_points": "Linea e punti",
+    "graph.draw.step": "Gradini", "graph.draw.bars": "Barre",
     "graph.side.left": "Sinistra", "graph.side.right": "Destra",
     "graph.error.float": "Inserisci un numero: {value} non è valido.",
     "graph.error.int": "Inserisci un numero intero: {value} non è valido.",
@@ -1318,6 +1328,9 @@ _GRAPH_IT = {
     "graph.error.marker": "Scegli un simbolo valido.",
     "graph.error.series_label": ("Inserisci un'etichetta di legenda di al massimo 160 caratteri che non "
                                  "inizi con un trattino basso."),
+    "graph.error.series_visible": "Visibilità della serie non valida.",
+    "graph.error.xy_bars_x_scale": "{column} è disegnata a barre, che richiedono un asse X lineare.",
+    "graph.error.xy_bars_left_scale": "{column} è disegnata a barre, che richiedono un asse Y sinistro lineare.",
     "graph.error.group_count": "Formatta al massimo {count} gruppi box o violino.",
     "graph.error.group_reference": "Riferimento al gruppo non valido.",
     "graph.error.group_setting": "Questa impostazione non è disponibile per i gruppi box e violino.",
@@ -3751,6 +3764,32 @@ CATALOGS['it'].update({
     'family.default_name': '{title} copia',
     'family.default_prefix': 'Copia di ',
     'family.default_file': 'famiglia.alab',
+})
+
+# Mixed XY series (Step and Bars): messages of analisi/xy_series.py, matched by their English text.
+# Format Graph and Change parameters translate them with the "xy.error." prefix.
+_EN.update({
+    "xy.error.draw_style": "Choose a draw style of Points, Line, Line and points, Step, Bars.",
+    "xy.error.bars_left_scale": "{column} is drawn as bars, which need a linear left Y axis.",
+    "xy.error.bars_right_scale": "{column} is drawn as bars, which need a linear right Y axis.",
+    "xy.error.bars_repeated_x": ("{column} is drawn as bars and repeats X = {x} among its valid points. Bars are "
+                                 "not summed or stacked: keep one Y per X, or choose another draw style."),
+    "xy.error.bar_width": "Enter a finite positive bar cluster width in X units, or leave it blank for Auto.",
+    "xy.error.bar_geometry": ("The bars cannot be drawn at these X values with this cluster width: the rectangles "
+                              "would collapse or overflow. Enter another bar cluster width in X units."),
+})
+_IT.update({
+    "xy.error.draw_style": "Scegli uno stile di disegno tra Punti, Linea, Linea e punti, Gradini, Barre.",
+    "xy.error.bars_left_scale": "{column} è disegnata a barre, che richiedono un asse Y sinistro lineare.",
+    "xy.error.bars_right_scale": "{column} è disegnata a barre, che richiedono un asse Y destro lineare.",
+    "xy.error.bars_repeated_x": ("{column} è disegnata a barre e ripete X = {x} fra i suoi punti validi. Le barre "
+                                 "non vengono sommate né impilate: tieni una sola Y per ogni X, oppure scegli un "
+                                 "altro stile di disegno."),
+    "xy.error.bar_width": ("Inserisci una larghezza del gruppo di barre finita e positiva, in unità di X, oppure "
+                           "lasciala vuota per Automatica."),
+    "xy.error.bar_geometry": ("Con questa larghezza del gruppo le barre non si possono disegnare a questi valori "
+                              "di X: i rettangoli collasserebbero o andrebbero in overflow. Inserisci un'altra "
+                              "larghezza del gruppo di barre in unità di X."),
 })
 
 # Hierarchical clustering presentation. Keys stay hierarchy.style.*; recipes keep canonical values.

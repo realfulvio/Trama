@@ -273,18 +273,14 @@ def _match_source_handles(figure, axes, legend):
     if axes is not None and legend is axes.get_legend():
         order = getattr(axes, "_tramastat_xy_order", None)
         if order:
-            by_gid = {
-                artist.get_gid(): artist
-                for other in getattr(figure, "axes", ())
-                for artist in getattr(other, "lines", ())
-                if artist.get_gid()
-            }
-            xy_handles = [
-                by_gid[gid] for gid in order
-                if gid in by_gid and (by_gid[gid].get_label() or "") and not (by_gid[gid].get_label() or "").startswith("_")
-            ]
-            if len(xy_handles) == count and [h.get_label() for h in xy_handles] == texts:
-                return xy_handles
+            from .presentation import xy_artists, xy_legend_handles
+
+            # Lines and bar containers of every axes in Y-column order; then only the series the legend shows.
+            xy_handles = [artist for artist in xy_artists(axes)
+                          if (artist.get_label() or "") and not (artist.get_label() or "").startswith("_")]
+            for candidates in (xy_handles, xy_legend_handles(axes)):
+                if len(candidates) == count and [h.get_label() for h in candidates] == texts:
+                    return candidates
         auto_handles, auto_labels = axes.get_legend_handles_labels()
         if len(auto_handles) == count and auto_labels == texts:
             return auto_handles

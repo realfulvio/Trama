@@ -12,10 +12,10 @@ from .graph_shapes import SHAPES
 from .presentation import (FONT_FAMILIES, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
                            _check_math_text, _color, _number, _text, active_series_fields, apply_style,
                            axis_has_numeric_ticks, graph_series, validate_graph_style, zero_baseline_axes)
-from .xy_series import (DRAW_STYLES, RECIPE_KEYS, SIDES, SCALES as XY_SCALES,
-                        assign_colors, prune_options, xy_series)
+from .xy_series import (BAR_WIDTH, BARS, DRAW_STYLES, RECIPE_KEYS, SIDES, SCALES as XY_SCALES,
+                        assign_colors, parse_bar_width, prune_options, xy_series)
 
-from .i18n import tr, translate_message
+from .i18n import active_language, tr, translate_message
 from .probability_scale import FRACTION_SCALE, PERCENT_SCALE, PROBABILITY_SCALES
 from .qq_panels import PANEL_KEY
 
@@ -42,7 +42,8 @@ MARKER_LABELS = {"Circle": "graph.marker.circle", "Square": "graph.marker.square
                  "Diamond": "graph.marker.diamond", "Triangle up": "graph.marker.triangle_up",
                  "Triangle down": "graph.marker.triangle_down", "Plus": "graph.marker.plus",
                  "Cross": "graph.marker.cross", "Star": "graph.marker.star", "No symbol": "graph.marker.none"}
-DRAW_LABELS = {"Points": "graph.draw.points", "Line": "graph.draw.line", "Line and points": "graph.draw.line_points"}
+DRAW_LABELS = {"Points": "graph.draw.points", "Line": "graph.draw.line", "Line and points": "graph.draw.line_points",
+               "Step": "graph.draw.step", "Bars": "graph.draw.bars"}
 SIDE_LABELS = {"Left": "graph.side.left", "Right": "graph.side.right"}
 DEFAULT_LABELS = {DEFAULT: "graph.choice.analysis_default"}
 
@@ -128,8 +129,9 @@ class GraphFormatDialog(simpledialog.Dialog):
         self.xy_update = None
         self.xy_result = None
         self.series = graph_series(axes)
+        # Entries hold text; the visibility of an XY series stays a boolean.
         self.series_values = {
-            key: {name: str(value) for name, value in options.items()}
+            key: {name: value if name == "visible" else str(value) for name, value in options.items()}
             for key, options in style.get("series", {}).items()
         }
         options = (xy or {}).get("options") or {}
@@ -306,15 +308,28 @@ class GraphFormatDialog(simpledialog.Dialog):
                 button = ttk.Button(tab, text=tr("graph.field.pick"), command=lambda key=key: pick_color(self, self.series_fields[key]))
                 button.grid(row=row, column=2, padx=(4, 0))
                 self._series_widgets[key + "_button"] = button
-        self.draw_style = self.side = None
+        self.draw_style = self.side = self.series_visible = self.bar_width = None
         next_row = len(SERIES_LABELS) + 1
         if self.xy is not None:
-            self.draw_style, self._draw_widget = self._field(tab, next_row, tr("graph.series.draw_style"),
+            # Step and Bars can hide a series; the box stays saved, and inactive, for the other draw styles.
+            self.series_visible = tk.BooleanVar(self, True)
+            self._series_widgets["visible"] = ttk.Checkbutton(tab, text=tr("graph.series.visible"),
+                                                              variable=self.series_visible)
+            self._series_widgets["visible"].grid(row=next_row, column=1, sticky="w", pady=3)
+            self.draw_style, self._draw_widget = self._field(tab, next_row + 1, tr("graph.series.draw_style"),
                                                              choices=DRAW_STYLES, labels=DRAW_LABELS)
             self.draw_style.trace_add("write", self._refresh_series_states)
-            self.side, self._side_widget = self._field(tab, next_row + 1, tr("graph.series.side"), choices=SIDES,
+            self.side, self._side_widget = self._field(tab, next_row + 2, tr("graph.series.side"), choices=SIDES,
                                                        labels=SIDE_LABELS)
-            next_row += 2
+            # One width for every cluster of bars, in X units; blank is Auto. Shown only while a series is Bars.
+            saved = (self.xy.get("options") or {}).get(BAR_WIDTH)
+            self.bar_width, self._bar_width_widget = self._field(tab, next_row + 3, tr("graph.series.bar_width"),
+                                                                 self._width_text(saved), width=10)
+            self._bar_width_widget.grid_configure(sticky="w")
+            self._bar_width_caption = tab.grid_slaves(row=next_row + 3, column=0)[0]
+            self._bar_width_hint = ttk.Label(tab, text=tr("graph.series.bar_width_hint"), foreground="#506575")
+            self._bar_width_hint.grid(row=next_row + 3, column=2, sticky="w", padx=(4, 0))
+            next_row += 4
         hint = tr("graph.series.hint" if self.series else "graph.series.none")
         self.series_hint_label = ttk.Label(tab, text=hint, wraplength=490)
         self.series_hint_label.grid(row=next_row, column=0, columnspan=3, sticky="w", pady=(6, 0))
@@ -323,12 +338,33 @@ class GraphFormatDialog(simpledialog.Dialog):
             self.series_selector.current(0)
         self._select_series()
 
+    @staticmethod
+    def _width_text(value):
+        """A saved cluster width as the user reads it: the Italian interface shows a decimal comma."""
+        if value in (None, ""):
+            return ""
+        text = f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
+        return text.replace(".", ",") if active_language() == "it" else text
+
+    def _has_bars(self):
+        """Whether a series of this dialog is drawn as Bars, counting the unsaved choice of the selected one."""
+        styles = dict(self._xy_style)
+        series = self.series[self._series_index] if 0 <= self._series_index < len(self.series) else None
+        if series is not None and series.kind == "xy" and self.draw_style is not None and self.draw_style.get():
+            styles[series.name] = self.draw_style.get()
+        columns = (self.xy.get("options") or {}).get("Y columns") or []
+        return any(styles.get(column) == BARS for column in columns)
+
     def _store_series(self):
         if self._series_index < 0:
             return
         series = self.series[self._series_index]
         options = {}
         for key in series.fields:
+            if key == "visible":
+                if self.series_visible is not None and not self.series_visible.get():
+                    options[key] = False
+                continue
             value = self.series_fields[key].get().strip()
             if value and (key not in {"marker", "line_style"} or value != DEFAULT):
                 options[key] = MARKERS[value] if key == "marker" else value
@@ -351,6 +387,13 @@ class GraphFormatDialog(simpledialog.Dialog):
             widget.configure(state=state if enabled else "disabled")
             if key + "_button" in self._series_widgets:
                 self._series_widgets[key + "_button"].configure(state="normal" if enabled else "disabled")
+        if self.series_visible is not None:
+            enabled = bool(series and "visible" in active_fields)
+            self._series_widgets["visible"].state(["!disabled" if enabled else "disabled"])
+        if self.bar_width is not None:
+            shown = self._has_bars()
+            for widget in (self._bar_width_caption, self._bar_width_widget, self._bar_width_hint):
+                widget.grid() if shown else widget.grid_remove()
         if hasattr(self, "series_hint_label"):
             if not self.series:
                 hint = tr("graph.series.none")
@@ -376,6 +419,8 @@ class GraphFormatDialog(simpledialog.Dialog):
             elif key == "line_style":
                 value = value or DEFAULT
             variable.set(value)
+        if self.series_visible is not None:
+            self.series_visible.set(options.get("visible", True) is not False)
         if self.draw_style is not None:
             active = series is not None and series.kind == "xy"
             state = "readonly" if active else "disabled"
@@ -700,6 +745,15 @@ class GraphFormatDialog(simpledialog.Dialog):
                 target = (1, self._right_widgets.get(field_name), None)
             elif field_name == "Y minimum":
                 target = (1, self._axis_widgets.get("y", {}).get("min"), None)
+            elif field_name in {"X scale", "Y scale"}:
+                target = (1, self._axis_widgets.get(field_name[0].lower(), {}).get("scale"), None)
+            elif field_name == BAR_WIDTH and self.bar_width is not None:
+                target = (2, self._bar_width_widget, None)
+            elif field_name == "Y columns" and self.draw_style is not None and getattr(error, "column", None):
+                # A Bars series with a repeated X: show that series with its draw style.
+                names = [item.name if item.kind == "xy" else None for item in self.series]
+                index = names.index(error.column) if error.column in names else None
+                target = (2, self._draw_widget, index)
             else:
                 target = self._locate_series_error()
         if target is None:
@@ -733,6 +787,12 @@ class GraphFormatDialog(simpledialog.Dialog):
         columns = list(options.get("Y columns") or [])
         options["Series style"] = {column: self._xy_style.get(column, "Points") for column in columns}
         options["Series side"] = {column: self._xy_side.get(column, "Left") for column in columns}
+        if self._has_bars():
+            width = parse_bar_width(self.bar_width.get())
+            if width is None:
+                options.pop(BAR_WIDTH, None)
+            else:
+                options[BAR_WIDTH] = width
         title = self.right_title.get().strip()
         if title:
             options["Right title"] = title
@@ -778,7 +838,10 @@ class GraphFormatDialog(simpledialog.Dialog):
             from .graph_legend_dialog import translate_legend_error
 
             self._focus_error(error)
-            msg = translate_legend_error(error)
+            # Mixed XY messages (Step and Bars) first, then the legend, guide and graph catalogs.
+            msg = translate_message(str(error), "xy.error.")
+            if msg == str(error):
+                msg = translate_legend_error(error)
             if msg == str(error):
                 msg = translate_guide_error(error)
             messagebox.showerror(tr("graph.format.error_title"), msg, parent=self)
