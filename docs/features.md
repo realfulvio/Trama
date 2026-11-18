@@ -51,7 +51,7 @@ L'identificabilità, il dominio del modello, i vincoli attivi e il metodo di pes
 
 ## Sopravvivenza ed esplorazione multivariata
 
-Kaplan–Meier, tabelle a rischio, confronti log-rank e Gehan–Breslow–Wilcoxon, Cox con profili e residui. Curve ROC e confronto DeLong appaiato; Bland–Altman anche con rapporti geometrici.
+Kaplan–Meier, tabelle a rischio, confronti log-rank e Gehan–Breslow–Wilcoxon, Cox con profili e residui. **Rischi competitivi**: incidenza cumulativa di Aalen–Johansen per più cause con intervalli puntuali, stime a tempi scelti, test di Gray omnibus e a coppie (Holm) e grafico per causa o per tutte le cause; niente Fine–Gray, eventi ricorrenti o ingresso ritardato ([guida](competing-risks.md)). Curve ROC e confronto DeLong appaiato; Bland–Altman anche con rapporti geometrici.
 
 PCA con scree, scores, loadings e biplot, [colori per gruppo, contorni e report facoltativi](pca-reports.md); [regressione sulle componenti principali](pca-regression-087.md); K-means con selezione del numero di gruppi e consenso a 17 indici; clustering gerarchico, dendrogrammi, heat map, matrici di correlazione ed [ellissi di confidenza con stili per gruppo](confidence-ellipses.md). Correlazione di Pearson, Spearman o Kendall con risultati dettagliati opzionali; correlazione di più risposte contro un controllo; confronto di due correlazioni di Pearson indipendenti sulla scala z di Fisher ([guida](correlation-details.md)).
 
