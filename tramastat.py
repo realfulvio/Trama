@@ -13093,6 +13093,17 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "curve-pipeline":
+            # The 0.93 Curve pipeline check alone: TRAMASTAT_SMOKE_ONLY=curve-pipeline python tramastat.py --smoke DIR
+            from analisi.curve_pipeline_smoke import check_curve_pipeline
+            check_curve_pipeline(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+                wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "letters":
             # The 0.57 compact letter display check alone: TRAMASTAT_SMOKE_ONLY=letters python tramastat.py --smoke DIR
             from analisi.letters_smoke import check_compact_letters
@@ -14227,6 +14238,10 @@ def smoke(root, app, directory, legacy_reference=None):
         check_spline_fit(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
+        from analisi.curve_pipeline_smoke import check_curve_pipeline
+        check_curve_pipeline(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
         from analisi.pairwise_smoke import check_pairwise_comparisons
         check_pairwise_comparisons(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, PairwiseDialog=PairwiseDialog, capture=capture, drive_dialog=drive_dialog,
