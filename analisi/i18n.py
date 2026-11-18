@@ -3397,6 +3397,12 @@ _IT.update({
     "cr.error.cause": "{field}: {cause} non è uno dei codici dell’evento.",
 })
 
+# Weibull AFT regression (0.93): captions, choices, hints and the engine messages, kept in a leaf module.
+from .weibull_aft_text import EN as _WEIBULL_AFT_EN, IT as _WEIBULL_AFT_IT
+
+_EN.update(_WEIBULL_AFT_EN)
+_IT.update(_WEIBULL_AFT_IT)
+
 # Common dialog captions and analysis selectors are translated only at explicit
 # rendering boundaries. No widget hooks touch user titles, columns or data.
 from .interface_catalog import CAPTIONS as _INTERFACE_CAPTIONS, MESSAGES as _INTERFACE_MESSAGES

@@ -218,6 +218,16 @@ from analisi.competing_risks_workbench import (
     visibility as competing_visibility)
 from analisi.competing_risks_dialog import (CodeListEditor, TimeListEditor, describe_error as describe_competing_error,
                                             translate_error as translate_competing_error)
+from analisi.weibull_aft import (CATEGORICAL as WEIBULL_CATEGORICAL, NAME as WEIBULL_NAME, PREDICTORS as WEIBULL_PREDICTORS,
+                                 PROFILES as WEIBULL_PROFILES, SHAPE_MODE as WEIBULL_SHAPE_MODE,
+                                 SHOW_GRAPH as WEIBULL_SHOW_GRAPH)
+from analisi.weibull_aft_workbench import (
+    CHOICE_KEYS as WEIBULL_CHOICE_KEYS, DATA_FIELDS as WEIBULL_DATA, DEFAULTS as WEIBULL_DEFAULTS,
+    HINT_KEYS as WEIBULL_HINTS, LABEL_KEYS as WEIBULL_LABEL_KEYS, MODEL_FIELDS as WEIBULL_MODEL,
+    PREDICT_FIELDS as WEIBULL_PREDICT, TAB_KEYS as WEIBULL_TAB_KEYS, TIME_LIST as WEIBULL_TIME_LIST, WEIBULL_AFT,
+    check_options as check_weibull_options, visibility as weibull_visibility)
+from analisi.weibull_aft_dialog import (TimesEditor as WeibullTimesEditor, describe_error as describe_weibull_error,
+                                        translate_error as translate_weibull_error)
 from analisi.global_custom_dialog import (GlobalCoefficientTable, SeriesConstraintEditor,
                                           translate_error as translate_global_error)
 from analisi.global_custom_fit import (EXAMPLE_PARAMETERS as GLOBAL_EXAMPLE, GLOBAL_CUSTOM_EQUATION,
@@ -1014,6 +1024,7 @@ class AnalysisDialog(simpledialog.Dialog):
                   else 470 if self.method == NORMALITY
                   else 470 if self.method == REFERENCE_NORMALIZATION
                   else 400 if self.method == COMPETING_RISKS
+                  else 420 if self.method == WEIBULL_AFT
                   else 440 if self.method in {"Nonlinear regression", ROBUST_CURVE} else 352)
         # Keep the title bar, the heading, an error banner and the buttons on the screen of a 1024x768 monitor.
         room = max(240, self.winfo_screenheight() - ui_theme.px(230))
@@ -1195,6 +1206,13 @@ class AnalysisDialog(simpledialog.Dialog):
             fields_by_tab.update(dict.fromkeys(COMPETING_DATA, variables))
             fields_by_tab.update(dict.fromkeys(COMPETING_ESTIMATES, options))
             tabs = {tr(COMPETING_TAB_KEYS["Graph"]): COMPETING_GRAPH_FIELDS}
+        elif self.method == WEIBULL_AFT:
+            # Data (columns, codes, predictors) / Model (shape, level) / Predicted survival (profiles, times, graph).
+            self.fields.tab(variables, text=tr(WEIBULL_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(WEIBULL_TAB_KEYS["Model"]))
+            fields_by_tab.update(dict.fromkeys(WEIBULL_DATA, variables))
+            fields_by_tab.update(dict.fromkeys(WEIBULL_MODEL, options))
+            tabs = {tr(WEIBULL_TAB_KEYS["Predicted survival"]): WEIBULL_PREDICT}
         elif self.method == "Nonlinear regression":
             tabs = {tr("parameter_ci.tab"): (*PARAM_CI_OPTIONS, NL_BAND, NL_BAND_LEVEL, NL_BAND_DRAWING)}
         elif self.method == CUSTOM_EQUATION:
@@ -1292,10 +1310,12 @@ class AnalysisDialog(simpledialog.Dialog):
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
             competing_control = self.method == COMPETING_RISKS and label in COMPETING_LABEL_KEYS
+            weibull_control = self.method == WEIBULL_AFT and label in WEIBULL_LABEL_KEYS
             reference_control = self.method == REFERENCE_NORMALIZATION and label in REFERENCE_LABEL_KEYS
             label_text = (tr(RANK_LABEL_KEYS[label]) if rank_control
                           else tr(ROBUST_LABEL_KEYS[label]) if robust_control
                           else tr(COMPETING_LABEL_KEYS[label]) if competing_control
+                          else tr(WEIBULL_LABEL_KEYS[label]) if weibull_control
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
                           else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
@@ -1332,8 +1352,18 @@ class AnalysisDialog(simpledialog.Dialog):
                     field = ProfileEditor(parent, self.data, saved.get(label, ()), label_key="name",
                                           values_key="values", hint=tr("analysis.logistic.hint"),
                                           on_change=self.show_regression_fields)
+                elif self.method == WEIBULL_AFT:
+                    field = ProfileEditor(parent, self.data, saved.get(label, ()), label_key=WEIBULL_NAME,
+                                          hint=tr(WEIBULL_HINTS["profile"]))
                 else:
                     field = ProfileEditor(parent, self.data, saved.get(label, ()))
+                field.grid(row=row, column=1, sticky="ew", pady=3)
+                self.controls[label] = (kind, field)
+                self.field_rows[label] = heading, field
+                continue
+            if kind == WEIBULL_TIME_LIST:
+                # One time per line, kept as typed; the analysis names the line that cannot be used.
+                field = WeibullTimesEditor(parent, saved.get(label))
                 field.grid(row=row, column=1, sticky="ew", pady=3)
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
@@ -1483,6 +1513,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     default = COX_STATUS.get(label, default)
                 if self.method == COMPETING_RISKS:
                     default = COMPETING_DEFAULTS.get(label, default)
+                if self.method == WEIBULL_AFT:
+                    default = WEIBULL_DEFAULTS.get(label, default)
                 if self.method == HEAT_MAP:
                     default = HEAT_MAP_GRADIENT_COLORS.get(label, default)
                     if label == CELL_LABEL_COLOR:
@@ -1564,6 +1596,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ROBUST_CHOICE_KEYS)
                     elif competing_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, COMPETING_CHOICE_KEYS)
+                    elif weibull_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, WEIBULL_CHOICE_KEYS)
                     elif self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and label == CUSTOM_SYNTAX:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, SYNTAX_CHOICE_KEYS)
                     elif self.method == CUSTOM_EQUATION and label == "Weighting":
@@ -1801,6 +1835,8 @@ class AnalysisDialog(simpledialog.Dialog):
             self.controls[COMPETING_GRAPH][1].trace_add("write", lambda *_: self.show_fields(self.competing_fields()))
             self.show_fields(self.competing_fields())
             self.refresh_competing_causes()
+        if self.method == WEIBULL_AFT:
+            self.configure_weibull_fields(variables, options, positions)
         if self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION):
             self.bind_equation_syntax()
             self._bind_scrollable_children(fields_by_tab["Equation"])
@@ -2855,6 +2891,30 @@ class AnalysisDialog(simpledialog.Dialog):
             return {}
         return competing_visibility(self.controls[COMPETING_GRAPH][1].get())
 
+    def configure_weibull_fields(self, variables, options, positions):
+        """Profiles follow the chosen predictors, Shape follows the shape mode, and two notes explain the model."""
+        for label in (WEIBULL_PREDICTORS, WEIBULL_CATEGORICAL):
+            self.controls[label][1].bind("<<ListboxSelect>>", lambda _: self.update_weibull_profiles(), add="+")
+        self.controls[WEIBULL_SHAPE_MODE][1].trace_add("write", lambda *_: self.show_fields(self.weibull_fields()))
+        for page, key in ((variables, "status"), (options, "model")):
+            ttk.Label(page, text=tr(WEIBULL_HINTS[key]), wraplength=ui_theme.px(400), foreground="#486075",
+                      justify="left").grid(row=positions[page], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            positions[page] += 1
+        self.update_weibull_profiles()
+        self.show_fields(self.weibull_fields())
+
+    def update_weibull_profiles(self):
+        def picked(label):
+            box = self.controls[label][1]
+            return [box.get(i) for i in box.curselection()]
+
+        self.controls[WEIBULL_PROFILES][1].set_predictors(picked(WEIBULL_PREDICTORS), picked(WEIBULL_CATEGORICAL))
+
+    def weibull_fields(self):
+        if self.method != WEIBULL_AFT or WEIBULL_SHAPE_MODE not in self.controls:
+            return {}
+        return weibull_visibility(self.controls[WEIBULL_SHAPE_MODE][1].get())
+
     def refresh_competing_causes(self):
         """Offer the typed event codes for the drawn cause; a value that is no longer a code stays shown, never rewritten."""
         binding = self.choice_bindings.get(COMPETING_GRAPH_CAUSE)
@@ -3308,7 +3368,7 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.monte_carlo_fields(), **self.function_fields(), **self.weighting_visibility(),
                       **self.band_fields(), **self.xy_error_fields(), **self.custom_fields(),
                       **self.global_custom_fields(), **self.robust_fields(), **self.competing_fields(),
-                      **self.reference_visibility()}
+                      **self.weibull_fields(), **self.reference_visibility()}
         try:
             for name, (kind, control) in self.controls.items():
                 if name in inactive:
@@ -3335,7 +3395,7 @@ class AnalysisDialog(simpledialog.Dialog):
                 elif kind in (GROUP_ORDER, TREND_ORDER_KIND, DUNN_PAIR_LIST, PAIR_LIST, PROFILE_LIST, CURVE_LIST,
                               SETS_LIST, MODEL_LIST, EQUATION_TEXT, PARAMETER_LIST, INITIAL_LIST,
                               GLOBAL_PARAMETER_LIST, GLOBAL_SERIES_LIST, CATEGORY_COLOR_LIST, TERM_LIST,
-                              COMPETING_CODE_LIST, COMPETING_TIME_LIST):
+                              COMPETING_CODE_LIST, COMPETING_TIME_LIST, WEIBULL_TIME_LIST):
                     value = control.values()
                 else:
                     value = control.get()
@@ -3498,6 +3558,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == COMPETING_RISKS:
                 # Columns, codes, times, level and the size budgets; no curve is calculated here.
                 check_competing_options(self.data, options)
+            if self.method == WEIBULL_AFT:
+                # Columns, codes, profiles, times, level and the size budgets; the fit itself runs on the worker.
+                check_weibull_options(self.data, options)
             if self.method == GLOBAL_CUSTOM_EQUATION:
                 if options.get("Weighting") != INVERSE_VARIANCE:
                     options[CUSTOM_SD] = None
@@ -3613,6 +3676,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
                 message = describe_competing_error(error, field)
+            elif self.method == WEIBULL_AFT:
+                message = describe_weibull_error(error, field)
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
@@ -4914,7 +4979,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                                 "Scatter / confidence ellipse": ("Confidence overlays…", "Ellipse"),
                                 HEAT_MAP: ("Graph settings…", self.heat_map_settings_field(run)),
                                 ROBUST_CURVE: ("Graph settings…", ROBUST_DISPLAY),
-                                COMPETING_RISKS: ("Graph settings…", COMPETING_GRAPH)}.get(run.method)
+                                COMPETING_RISKS: ("Graph settings…", COMPETING_GRAPH),
+                                WEIBULL_AFT: ("Graph settings…", WEIBULL_SHOW_GRAPH)}.get(run.method)
                     if shortcut is None and (run.method in CATEGORY_GRAPHS or run.method == PARTS_GRAPH):
                         shortcut = "Graph settings…", "Graph style"
                     if shortcut:
@@ -6535,7 +6601,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, WEIBULL_AFT) or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6543,7 +6609,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
+        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, WEIBULL_AFT)
                 or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
@@ -6553,7 +6619,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if method in kmeans_options.METHODS and options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
-                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, "Multifactor ANOVA",
+                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, WEIBULL_AFT, "Multifactor ANOVA",
                 REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
@@ -6610,6 +6676,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_weibull_error(error) if run.method == WEIBULL_AFT
                      else format_fdr_error(error) if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
@@ -6956,7 +7023,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
-                     else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
+                     else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_weibull_error(error) if run.method == WEIBULL_AFT else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -7070,6 +7138,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA"
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
+                     else translate_weibull_error(run.calculation_error) if run.method == WEIBULL_AFT
                      else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
@@ -12763,6 +12832,13 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_weibull_aft_smoke():
+        from analisi.weibull_aft_smoke import check_weibull_aft
+        check_weibull_aft(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
+            filedialog=filedialog, errors=errors))
+
     def check_reference_normalization_smoke():
         from analisi.reference_normalization_smoke import check_reference_normalization
         check_reference_normalization(root, app, directory, SimpleNamespace(
@@ -13432,6 +13508,14 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "competing-risks":
             # The Competing risks check alone: TRAMASTAT_SMOKE_ONLY=competing-risks python tramastat.py --smoke DIR
             check_competing_risks_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "weibull-aft":
+            # The Weibull AFT regression check alone: TRAMASTAT_SMOKE_ONLY=weibull-aft python tramastat.py --smoke DIR
+            check_weibull_aft_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14216,6 +14300,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_spearman_extended_smoke()
         check_robust_curve_smoke()
         check_competing_risks_smoke()
+        check_weibull_aft_smoke()
         check_nonlinear_weighting_smoke()
         check_global_irls_smoke()
         check_nonlinear_bands_smoke()
