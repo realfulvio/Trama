@@ -42,6 +42,7 @@ from .hierarchical_workbench import HIERARCHICAL_OPTIONS, hierarchical_result
 from .inference import CHI_SQUARE_P, DUNN_OPTIONS, KRUSKAL_P, KRUSKAL_P_METHODS, dunn_comparisons, kruskal_wallis
 from .linear_diagnostics import LINEAR_OPTIONS, linear_result
 from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, equivalence_test
+from .mean_permutation import METHOD as MEAN_PERMUTATION, OPTIONS as MEAN_PERMUTATION_OPTIONS, permutation_test
 from .competing_risks_workbench import (COMPETING_RISKS, OPTIONS as COMPETING_RISKS_OPTIONS,
                                         competing_risks)
 from .lognormal_tests import LOGNORMAL, OPTIONS as LOGNORMAL_OPTIONS, lognormal_test
@@ -194,6 +195,7 @@ METHODS = {
                      "Distribution": ("Normal", "Lognormal"),
                      "Graph": ("None", "Variance ratio", "SD ratio")},
     EQUIVALENCE: EQUIVALENCE_OPTIONS,
+    MEAN_PERMUTATION: MEAN_PERMUTATION_OPTIONS,
     COMPETING_RISKS: COMPETING_RISKS_OPTIONS,
     SUMMARY_ANOVA: SUMMARY_ANOVA_OPTIONS,
     SUMMARY_TTEST: SUMMARY_TTEST_OPTIONS,
@@ -299,7 +301,7 @@ GROUPS = {
                               "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
                               "Interpolate a standard curve", SPLINE_FIT, PLOT_FUNCTION),
-    "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
+    "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, MEAN_PERMUTATION, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
                          "Multifactor ANOVA", "Contingency table",
@@ -320,6 +322,7 @@ GRAPH_METHODS = frozenset({
     "K-means clustering", "K-means model selection", "Kaplan–Meier survival", COMPETING_RISKS, "Linear regression", COMPARE_LINES,
     "Mixed-effects model (REML)", LOGNORMAL, EQUIVALENCE, "Multiple t-tests", ROW_TESTS, "Nonlinear regression", ROBUST_CURVE, CUSTOM_EQUATION,
     GLOBAL_CUSTOM_EQUATION, "Principal component analysis",
+    MEAN_PERMUTATION,
     "ROC curve", "Compare paired ROC curves", "Smooth / differentiate / integrate", SPLINE_FIT, *NESTED_METHODS,
     REFERENCE_NORMALIZATION, SUMMARY_ANOVA, SUMMARY_TTEST,
 })
@@ -1038,6 +1041,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return variance_ratio_analysis(frame, o)
     if method == EQUIVALENCE:
         return equivalence_test(frame, o)
+    if method == MEAN_PERMUTATION:
+        return permutation_test(frame, o, cancel=cancel)
     if method == COMPETING_RISKS:
         return competing_risks(frame, o, cancel=cancel)
     if method == SUMMARY_ANOVA:
