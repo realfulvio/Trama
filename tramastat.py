@@ -237,6 +237,11 @@ from analisi.pca_graphs import (COLOR_GROUPS as PCA_COLOR_GROUPS, GRAPH as PCA_G
                                 HORIZONTAL as PCA_HORIZONTAL, LABEL as PCA_LABEL, ONE_DIMENSION as PCA_ONE_DIMENSION,
                                 POINT_VIEWS as PCA_POINT_VIEWS, SHOW_LABELS as PCA_SHOW_LABELS,
                                 TABS as PCA_TABS, VERTICAL as PCA_VERTICAL, validate as validate_pca_graph)
+from analisi.pca_regression import (CHOICE_KEYS as PCA_REGRESSION_CHOICE_KEYS, CONFIDENCE as PCR_CONFIDENCE,
+                                    DEPENDENT as PCR_DEPENDENT, ENABLE as PCR_ENABLE,
+                                    LABEL_KEYS as PCA_REGRESSION_LABELS, PLOT as PCR_PLOT, RESPONSE as PCR_RESPONSE,
+                                    TABS as PCA_REGRESSION_TABS, requested as pcr_requested,
+                                    settings as pca_regression_settings)
 from analisi.pca_reports import LABEL_KEYS as PCA_REPORT_LABELS, TABS as PCA_REPORT_TABS
 from analisi.pca_retention import (CHOICE_KEYS as PCA_CHOICE_KEYS, LABEL_KEYS as PCA_SELECT_LABELS,
                                   SELECTION as PCA_SELECTION, TABS as PCA_SELECTION_TABS,
@@ -849,6 +854,27 @@ class BeforeAfterPairs(ttk.Frame):
 _INACTIVE_OMIT = object()
 
 
+def format_pca_error(error, field=None):
+    """Message of a PCA field error in the active language, led by the caption of its field.
+
+    Only the regression messages and the color-group messages have a translation; every other PCA
+    message keeps its English text and the English field name, exactly as before.
+    """
+    field = getattr(error, "field", None) if field is None else field
+    message = str(error)
+    if field == PCA_COLOR_GROUPS:
+        return translate_message(message, "pca.graph.error.")
+    if field not in PCA_REGRESSION_LABELS and field != PCA_SELECTION:
+        return f"{field}: {message}" if field and field not in message else message
+    translated = translate_message(message, "pca.regression.error.", {
+        "name": lambda name: tr(PCA_REGRESSION_LABELS[name]) if name in PCA_REGRESSION_LABELS else name})
+    if field in PCA_REGRESSION_LABELS:
+        caption = tr(PCA_REGRESSION_LABELS[field])
+    else:
+        caption = tr(PCA_SELECT_LABELS[PCA_SELECTION]) if translated != message else field
+    return f"{caption}: {translated}" if field not in translated and caption not in translated else translated
+
+
 class AnalysisDialog(simpledialog.Dialog):
     def __init__(self, parent, data, current=None, only=None, initial_field=None, error=None):
         self.only = (only,) if isinstance(only, str) else only
@@ -1116,7 +1142,7 @@ class AnalysisDialog(simpledialog.Dialog):
         elif self.method == "Multiple regression":
             tabs = {**OLS_TABS, **LOGISTIC_TABS}
         elif self.method == "Principal component analysis":
-            tabs = {**PCA_TABS, **PCA_SELECTION_TABS, **PCA_REPORT_TABS}
+            tabs = {**PCA_TABS, **PCA_SELECTION_TABS, **PCA_REPORT_TABS, **PCA_REGRESSION_TABS}
         elif self.method == SPLINE_FIT:
             # Method fields first; the query direction and the drawn output have their own tabs.
             self.fields.tab(options, text=ui("Method"))
@@ -1490,6 +1516,9 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, GLOBAL_RESPONSE_CHOICES)
                     elif self.method == "Principal component analysis" and label == PCA_SELECTION:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, PCA_CHOICE_KEYS)
+                    elif self.method == "Principal component analysis" and label == PCR_PLOT:
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices,
+                                                                    PCA_REGRESSION_CHOICE_KEYS)
                     elif self.method == "Multiple regression" and label == mlr_weighting.GAUSSIAN_WEIGHTING:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, MLR_CHOICE_KEYS)
                     elif self.method == "Multifactor ANOVA" and label == ANOVA_DIAG_GRAPH:
@@ -1906,6 +1935,7 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method == "Principal component analysis":
             self.controls[PCA_GRAPH][1].trace_add("write", lambda *_: self.show_pca_fields())
             self.controls[PCA_SELECTION][1].trace_add("write", lambda *_: self.show_pca_fields())
+            self.controls[PCR_ENABLE][1].trace_add("write", lambda *_: self.show_pca_fields())
             self.show_pca_fields()
             self._translate_analysis_labels({
                 "Graph": "analysis.pca.tab",
@@ -1917,6 +1947,7 @@ class AnalysisDialog(simpledialog.Dialog):
                 PCA_COLOR_GROUPS: "analysis.pca.color_groups",
                 **PCA_SELECT_LABELS,
                 **PCA_REPORT_LABELS,
+                **PCA_REGRESSION_LABELS,
             })
         if self.method == XY_ERRORS:
             for label in ("X error distance", "X lower error", "X upper error", "X error values",
@@ -2619,6 +2650,9 @@ class AnalysisDialog(simpledialog.Dialog):
             inactive.update({PCA_HORIZONTAL, PCA_VERTICAL, PCA_LABEL, PCA_SHOW_LABELS})
         if view not in PCA_POINT_VIEWS:
             inactive.add(PCA_COLOR_GROUPS)
+        if not self.controls[PCR_ENABLE][1].get():
+            # With PCR off the response, level and plot are not used. A usable value stays in the recipe.
+            inactive.update(PCR_DEPENDENT)
         return inactive
 
     def _inactive_value(self, kind, control):
@@ -2640,6 +2674,8 @@ class AnalysisDialog(simpledialog.Dialog):
             return value
         if kind == OPTIONAL:
             return control.get() or None
+        if self.method == "Principal component analysis" and isinstance(kind, tuple) and control.get() in kind:
+            return control.get()
         return _INACTIVE_OMIT
 
     def show_pca_fields(self):
@@ -2659,6 +2695,11 @@ class AnalysisDialog(simpledialog.Dialog):
             self.field_rows[label][1].configure(state=state)
         if PCA_SELECTION in self.field_rows:
             self.show_fields(self.selection_visibility())
+        if PCR_ENABLE in self.field_rows:
+            # Same rule as the graph fields: the widgets stay gridded and PCR off disables what it does not use.
+            on = bool(self.controls[PCR_ENABLE][1].get())
+            for label, enabled in ((PCR_RESPONSE, "readonly"), (PCR_CONFIDENCE, "normal"), (PCR_PLOT, "readonly")):
+                self.field_rows[label][1].configure(state=enabled if on else "disabled")
 
     def box_violin_visibility(self):
         if self.method != BOX_VIOLIN:
@@ -3382,6 +3423,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == "Principal component analysis":
                 # Field and budget errors stay in the dialog. Parallel replicates run on the worker.
                 check_pca_selection(self.data, options)
+                # The response, level and plot are checked here without any estimation, also for parallel
+                # analysis. Rank and degrees of freedom are known only after the fit.
+                pca_regression_settings(self.data, options)
                 if pca_simulates(options):
                     validate_pca_graph(self.data, options)
                     pca_validation = False
@@ -3445,8 +3489,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = tr(MLR_LABEL_KEYS[field]) if field in MLR_LABEL_KEYS else field
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
-            elif self.method == "Principal component analysis" and field == PCA_COLOR_GROUPS:
-                message = translate_message(message, "pca.graph.error.")
+            elif self.method == "Principal component analysis" and (
+                    field == PCA_COLOR_GROUPS or field in PCA_REGRESSION_LABELS or field == PCA_SELECTION):
+                message = format_pca_error(error, field)
             elif self.method == HEAT_MAP:
                 message = translate_heat_map_error(error)
                 label = ui(field) if field else ""
@@ -6358,16 +6403,21 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         return (run.method == "One-way ANOVA"
                 and run.options.get(lognormal_anova.DISTRIBUTION) == lognormal_anova.LOGNORMAL)
 
+    @staticmethod
+    def _pca_regression(run):
+        """True when a confirmed PCA recipe explicitly asked for the principal component regression."""
+        return run.method == "Principal component analysis" and run.options.get(PCR_ENABLE) is True
+
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method == FDR_METHOD or run.method == VARIANCE_RATIO
+                or run.method == FDR_METHOD or run.method == VARIANCE_RATIO or self._pca_regression(run)
                 or getattr(run, 'source', None) is not None
                 or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO)
+        return self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO) or self._pca_regression(run)
 
     def weighting_recovery(self, method, options, index, only=None):
         """Reopen the dialog when a field error is first known on the worker."""
@@ -6384,6 +6434,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if method == "One-way ANOVA":
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in (FDR_METHOD, VARIANCE_RATIO):
+            return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
+        if method == "Principal component analysis" and options.get(PCR_ENABLE) is True:
+            # Rank and degrees of freedom of the regression are known only after the fit, on the worker.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if (method == "Interpolate a standard curve" and options.get("Curve") == "Nonlinear"
                 and options.get(CALIBRATION_UNCERTAINTY, "None") not in (None, "None")):
@@ -6426,7 +6479,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else format_fdr_error(error) if run.method == FDR_METHOD
-                     else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO else None)
+                     else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
+                     else format_pca_error(error) if run.method == "Principal component analysis" else None)
         if formatted:
             message = formatted
         elif run.method == "Interpolate a standard curve":
@@ -6461,7 +6515,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if self.refresh_chain_calculations([(run, None)], inputs_changed=False):
             return
         recovery = (self.weighting_recovery(run.method, run.options, index)
-                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO} else None)
+                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO}
+                    or self._pca_regression(run) else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
