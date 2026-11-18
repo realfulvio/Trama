@@ -478,6 +478,12 @@ def check_independent_roc(root, app, directory, tools):
         tools.drive_dialog(tools.AnalysisDialog, large)
         app.choose_analysis()
         wait_for_worker()
+        root.update()
+        button = app.cancel_button
+        placement = {"viewable": bool(button.winfo_viewable()), "top": button.winfo_rooty(),
+                     "bottom": button.winfo_rooty() + button.winfo_height(), "window_height": root.winfo_height(),
+                     "screen_height": screen[1]}
+        (out / "cancel-button.json").write_text(json.dumps(placement) + "\n", encoding="utf-8")
         shot(root, "window-independent-roc-progress" + suffix + ".png")
         app.cancel_calculation()
         wait()
