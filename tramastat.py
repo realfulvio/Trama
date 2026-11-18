@@ -12827,6 +12827,12 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, errors=errors))
 
+    def check_cohen_kappa_smoke():
+        from analisi.cohen_kappa_smoke import check_cohen_kappa
+        check_cohen_kappa(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_correlation_details_smoke():
         from analisi.correlation_details_smoke import check_correlation_details
         check_correlation_details(root, app, directory, SimpleNamespace(
@@ -13491,6 +13497,14 @@ def smoke(root, app, directory, legacy_reference=None):
             return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "spearman-extended":
             check_spearman_extended_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cohen-kappa":
+            # The Cohen's kappa check alone: TRAMASTAT_SMOKE_ONLY=cohen-kappa python tramastat.py --smoke DIR
+            check_cohen_kappa_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14299,6 +14313,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_correlation_details_smoke()
         check_spearman_extended_smoke()
         check_robust_curve_smoke()
+        check_cohen_kappa_smoke()
         check_competing_risks_smoke()
         check_nonlinear_weighting_smoke()
         check_global_irls_smoke()
