@@ -14,4 +14,16 @@ The filter affects the calculation. Each row with a group receives that group's 
 
 Use `MEANIF(values, condition)`, `SUMIF`, `MINIF`, `MAXIF`, `STDEVIF`, `STDERRIF`, `COUNTIF` or `COUNTAIF` to write the condition inside the function. These forms also accept `OVER`. If you add a `WHERE` clause, a row must satisfy both conditions to contribute.
 
-Edits and excluded source cells feed the next calculation. Saving an `.alab` project keeps the formula. Compatible ZIP project formulas using these clauses can reopen with their original column references mapped to the imported worksheet. Ordered, running and moving windows require `ORDER BY` and `ROWS`, which are outside this version's supported syntax.
+## Ordered and moving statistics
+
+```text
+=SUM(Dose) OVER Subject ORDER BY Visit ROWS UNBOUNDED PRECEDING
+=MEAN(Response) OVER Subject ORDER BY Visit ROWS 1 PRECEDING 1 FOLLOWING
+=COUNT(Response) OVER Subject ORDER BY Visit DESC ROWS UNBOUNDED PRECEDING
+```
+
+`ORDER BY` sorts each group by one expression. Add `DESC` for descending order. Ties keep worksheet order, and missing sort values go last. Results are returned to the original worksheet rows. Without `ROWS`, the statistic still uses the whole group.
+
+`ROWS` takes a nonnegative number of rows or `UNBOUNDED`, followed by `PRECEDING` or `FOLLOWING`. An omitted bound ends at the current row. The first and last windows stop at the group's edges. Without `ORDER BY`, positions follow worksheet order. With a filter, only contributing rows take positions or receive results.
+
+Edits and excluded source cells feed the next calculation. Saving an `.alab` project keeps the formula. Compatible ZIP project formulas using these clauses can reopen with their original column references mapped to the imported worksheet.

@@ -273,18 +273,33 @@ def formula(frame, expression, *, info=None):
                 value = node.args[0].value
                 if isinstance(value, str):
                     return column(value, raw=raw) if name == "COL" else info_value(value)
-            if name == WINDOW_FUNCTION and len(node.args) == 4 and isinstance(node.args[0], ast.Constant):
-                statistic, values, partition, condition = node.args
-                if not isinstance(statistic.value, str):
+            if name == WINDOW_FUNCTION and len(node.args) == 7:
+                statistic, values, partition, condition, order, ascending, rows = node.args
+                if not isinstance(statistic, ast.Constant) or not isinstance(statistic.value, str):
                     raise ValueError("Unknown worksheet statistic.")
-                group = None if isinstance(partition, ast.Constant) and partition.value is None else evaluate(partition, raw=True)
-                mask = None if isinstance(condition, ast.Constant) and condition.value is None else evaluate(condition, filter_text=True)
-                return worksheet_statistic(statistic.value, evaluate(values, raw=True), group, mask, len(frame))
+                if not isinstance(ascending, ast.Constant) or type(ascending.value) is not bool:
+                    raise ValueError("Invalid worksheet sort direction.")
+                bounds = None
+                if not absent(rows):
+                    if not isinstance(rows, ast.Tuple) or len(rows.elts) != 2 or any(
+                            not isinstance(node, ast.Constant) or (
+                                node.value is not None and (type(node.value) is not int or not 0 <= node.value <= 9_999_999))
+                            for node in rows.elts):
+                        raise ValueError("Invalid worksheet row bounds.")
+                    bounds = tuple(node.value for node in rows.elts)
+                group = None if absent(partition) else evaluate(partition, raw=True)
+                mask = None if absent(condition) else evaluate(condition, filter_text=True)
+                ordering = None if absent(order) else evaluate(order, raw=True)
+                return worksheet_statistic(statistic.value, evaluate(values, raw=True), group, mask, len(frame),
+                                           order=ordering, ascending=ascending.value, bounds=bounds)
             if name in FUNCTIONS:
                 arity, function = FUNCTIONS[name]
                 if len(node.args) == arity:
                     return function(*(evaluate(arg, filter_text=filter_text) for arg in node.args))
         raise ValueError("Unsupported expression in calculated column.")
+
+    def absent(node):
+        return isinstance(node, ast.Constant) and node.value is None
 
     try:
         with np.errstate(all="ignore"):

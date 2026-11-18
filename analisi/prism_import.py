@@ -11,7 +11,7 @@ from zipfile import BadZipFile, ZipFile, is_zipfile
 import numpy as np
 
 from .data import MAX_CELLS, MAX_COLUMNS, MAX_ENTRY, _member, _table, formula
-from .formula_windows import CONDITIONAL_CALLS, WINDOW_CALLS, WINDOW_CLAUSES
+from .formula_windows import CONDITIONAL_CALLS, WINDOW_CALLS, WINDOW_CLAUSES, WINDOW_KEYWORDS
 from .info import InfoSheet, MAX_INFO_FIELDS, MAX_INFO_SHEETS
 
 _PRISM_NS = "{http://graphpad.com/prism/Prism.htm}"
@@ -80,7 +80,9 @@ def _formula_recipe(expression, columns, allowed_calls=_FORMULA_CALLS):
             called = i + 1 < len(tokens) and tokens[i + 1].string == "("
             if called and value.upper() in allowed_calls:
                 value = value.upper()
-            elif not called and window_form and value.upper() in WINDOW_CLAUSES:
+            elif not called and window_form and (
+                    value.upper() in WINDOW_KEYWORDS or (value.upper() == "BY" and i > 0
+                                                         and tokens[i - 1].string.upper() == "ORDER")):
                 value = value.upper()
             elif not called and value in columns:
                 name = columns[value]
