@@ -13288,6 +13288,20 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "pca-regression":
+            # The principal component regression check alone:
+            # TRAMASTAT_SMOKE_ONLY=pca-regression python tramastat.py --smoke DIR
+            from analisi.pca_regression_smoke import check_pca_regression
+            check_pca_regression(root, app, directory, SimpleNamespace(
+                capture=capture, pick_method=pick_method, select_columns=select_columns,
+                wait_for_calculation=wait_for_calculation, AnalysisDialog=AnalysisDialog,
+                messagebox=messagebox, filedialog=filedialog, errors=errors,
+                screenshots=bool(os.environ.get("TRAMASTAT_SMOKE_SCREENSHOTS"))))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "variance-assumptions":
             # The one-way variance check alone:
             # TRAMASTAT_SMOKE_ONLY=variance-assumptions python tramastat.py --smoke DIR
@@ -13984,6 +13998,12 @@ def smoke(root, app, directory, legacy_reference=None):
             capture=capture, pick_method=pick_method, select_columns=select_columns,
             drive_dialog=drive_dialog, wait_for_calculation=wait_for_calculation,
             AnalysisDialog=AnalysisDialog, GraphFormatDialog=GraphFormatDialog,
+            messagebox=messagebox, filedialog=filedialog, errors=errors,
+            screenshots=bool(os.environ.get("TRAMASTAT_SMOKE_SCREENSHOTS"))))
+        from analisi.pca_regression_smoke import check_pca_regression
+        check_pca_regression(root, app, directory, SimpleNamespace(
+            capture=capture, pick_method=pick_method, select_columns=select_columns,
+            wait_for_calculation=wait_for_calculation, AnalysisDialog=AnalysisDialog,
             messagebox=messagebox, filedialog=filedialog, errors=errors,
             screenshots=bool(os.environ.get("TRAMASTAT_SMOKE_SCREENSHOTS"))))
         from analisi.trend_anova_smoke import check_anova_trend
