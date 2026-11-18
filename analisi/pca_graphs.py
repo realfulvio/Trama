@@ -311,6 +311,7 @@ def pca_result(frame, options):
         tables = {"Explained variance": parts, "Eigenvectors": eigenvectors, "Scores": scores,
                   COORDINATES: table, SETTINGS: _settings(view, bool(options["Standardize"]), False)}
         tables.update(retention.tables)
+        tables.update(pca_reports.optional_tables(frame, options, parts, eigenvectors, scores, retention))
         return Result(tables, figure)
     omitted = bool(show and len(labels) > _LABEL_LIMIT)
     drawn = show and not omitted
