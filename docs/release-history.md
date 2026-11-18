@@ -3,6 +3,7 @@
 The public repository begins with **Trama 0.73.0 beta**. All 0.x versions are
 beta builds; no final stable release has been declared.
 
+- [0.87 beta: PCA colors and optional reports](release-087.md) · [Verification](validation-087.md).
 - [0.86 beta: grouped and moving worksheet statistics](release-086.md) · [Verification](validation-086.md).
 - [0.85 beta: selected ANOVA terms and confidence ellipses](release-085.md) · [Verification](validation-085.md).
 - [0.84 beta: hierarchical presentation and compatible imports](release-084.md) · [Verification](validation-084.md).
