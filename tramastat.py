@@ -13720,6 +13720,20 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "xy-mixed":
+            # Bars, steps, lines and points on one XY graph alone:
+            # TRAMASTAT_SMOKE_ONLY=xy-mixed python tramastat.py --smoke DIR
+            from analisi.xy_mixed_smoke import check_xy_mixed
+            check_xy_mixed(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, LayoutDialog=LayoutDialog, Dataset=Dataset, capture=capture,
+                drive_dialog=drive_dialog, filedialog=filedialog, messagebox=messagebox,
+                pick_method=pick_method, save_project=save_project, select_columns=select_columns,
+                wait_for_calculation=wait_for_calculation, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "worksheet-clipboard":
             check_workspace_setup()
             check_data_grid()
@@ -14386,6 +14400,12 @@ def smoke(root, app, directory, legacy_reference=None):
         from analisi.xy_error_smoke import check_xy_errors
         check_xy_errors(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, Dataset=Dataset, capture=capture,
+            drive_dialog=drive_dialog, filedialog=filedialog, messagebox=messagebox,
+            pick_method=pick_method, save_project=save_project, select_columns=select_columns,
+            wait_for_calculation=wait_for_calculation, errors=errors))
+        from analisi.xy_mixed_smoke import check_xy_mixed
+        check_xy_mixed(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, LayoutDialog=LayoutDialog, Dataset=Dataset, capture=capture,
             drive_dialog=drive_dialog, filedialog=filedialog, messagebox=messagebox,
             pick_method=pick_method, save_project=save_project, select_columns=select_columns,
             wait_for_calculation=wait_for_calculation, errors=errors))
