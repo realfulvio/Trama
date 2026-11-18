@@ -9,6 +9,10 @@ import numpy as np
 from scipy.spatial.distance import cdist
 
 
+class IterationLimitError(ValueError):
+    """No successful start converged within the selected iteration limit."""
+
+
 @dataclass
 class HartiganFit:
     labels: np.ndarray

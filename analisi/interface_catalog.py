@@ -102,6 +102,17 @@ Multifactor ANOVA|ANOVA multifattoriale
 Kaplan–Meier survival|Sopravvivenza di Kaplan–Meier
 K-means model selection|Selezione del modello k-means
 K-means clustering|Raggruppamento k-means
+K-means algorithm|Algoritmo k-means
+Lloyd|Lloyd
+Hartigan–Wong|Hartigan–Wong
+Hartigan–Wong iteration limit|Limite di iterazioni Hartigan–Wong
+Initial worksheet rows|Righe iniziali del foglio
+Enter a whole number from 1 to 1000.|Inserisci un intero da 1 a 1000.
+Enter one distinct worksheet row per cluster, separated by commas.|Inserisci una riga distinta del foglio per ogni gruppo, separando i numeri con virgole.
+Each initial worksheet row must exist and have all selected values.|Ogni riga iniziale deve esistere e contenere tutti i valori selezionati.
+Initial observations must specify distinct centers.|Le osservazioni iniziali devono individuare centri distinti.
+Choose a K-means algorithm.|Scegli un algoritmo k-means.
+Hartigan–Wong reached the maximum number of iterations.|Hartigan–Wong ha raggiunto il limite di iterazioni.
 Hierarchical clustering|Raggruppamento gerarchico
 Scatter / confidence ellipse|Dispersione / ellisse di confidenza
 Column graph|Grafico a colonne

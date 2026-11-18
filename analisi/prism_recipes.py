@@ -356,6 +356,44 @@ def _extract_rearrange(frame, content, _results):
     }
 
 
+def _kmeans(frame, content, _results):
+    from . import kmeans_options as selection
+    from .advanced import _check_scan_budget
+    from .cluster_consensus import KL_SCALING, UNSCALED_WSS
+
+    calc = content["calc"]
+    if (calc["algorithm"] != "HARTIGAN_WONG" or calc["transform"] != "STANDARDIZE"
+            or calc["distance"]["type"] != "EUCLIDIAN" or calc["clusterMetrics"] is not True):
+        return None
+    variables = _roles(frame, content["data"]["variables"], 1, len(frame.columns))
+    if not all(is_numeric_dtype(frame[name]) for name in variables):
+        return None
+    limits, seed = calc["clusterCount"], calc["randomSeed"]["value"]
+    low, high, iterations = limits["min"], limits["max"], calc["maxIterCount"]
+    if (any(type(value) is not int for value in (low, high, iterations, seed))
+            or not 1 <= low <= high <= 30 or not 1 <= iterations <= 1000 or not 0 <= seed < 2**63):
+        return None
+    values = frame[variables].dropna().to_numpy(dtype=float)
+    count, dimensions = values.shape
+    if not 2 <= count <= 3000 or not np.isfinite(values).all() or (np.ptp(values, axis=0) == 0).any():
+        return None
+    upper = min(high, len(np.unique(values, axis=0)))
+    if low > upper:
+        return None
+    gap_replicates = 20
+    _check_scan_budget(count, dimensions, range(low, upper + 1), upper >= 2,
+                       simulate_gap=True, gap_replicates=gap_replicates)
+    return selection.SELECTION, {
+        "Variables": variables, "Minimum k": low, "Maximum k": high, "Standardize": True, "Seed": seed,
+        "Criterion": "Consensus (17 indices)", "Gap simulations": gap_replicates, KL_SCALING: UNSCALED_WSS,
+        selection.ALGORITHM: selection.HARTIGAN, selection.MAX_ITERATIONS: iterations,
+        "Prism import notes": (
+            "Recalculates the saved Hartigan–Wong settings with Trama initial centers and 20 Gap simulations. "
+            "Saved partitions, tables and additional plots remain in archived views where available."
+        ),
+    }
+
+
 def _pca(frame, content, _results):
     from . import pca_reports, pca_retention
     from .pca_graphs import COLOR_GROUPS, GRAPH, SCORES
@@ -409,6 +447,7 @@ def _pca(frame, content, _results):
 
 
 _RECIPES = {
+    "K_MEANS_CLUSTERING": ("0.0.0", _kmeans),
     "PCA": ("0.0.0", _pca),
     "EXTRACT_REARRANGE": ("0.0.1", _extract_rearrange),
     "SELECT_TRANSFORM": ("0.0.2", _select_transform),
