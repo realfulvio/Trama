@@ -227,7 +227,7 @@ from analisi.transpose_xy import (ROW_TITLE as TRANSPOSE_TITLE, SETS_LIST, TRANS
                                   Y_SETS as SETS_LIST_LABEL,
                                   propose_sets, proposed_x)
 from analisi.survival_input import CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_DEFAULTS
-from analisi.cox_dialog import TABS as COX_TABS, ProfileEditor, model_terms
+from analisi.cox_dialog import TABS as COX_TABS, ProfileEditor, cox_message, model_terms
 from analisi.ols_diagnostics import (LINEAR_CI, LINEAR_DIAGNOSTICS, LINEAR_PROFILES, LINEAR_RESIDUAL_PLOT,
                                      TABS as OLS_TABS, check_weighted_profiles)
 from analisi import mlr_weighting
@@ -248,8 +248,11 @@ from analisi.pca_retention import (CHOICE_KEYS as PCA_CHOICE_KEYS, LABEL_KEYS as
                                   SELECTION as PCA_SELECTION, TABS as PCA_SELECTION_TABS,
                                   check as check_pca_selection, simulates as pca_simulates,
                                   visible_fields as pca_visible_fields)
+from analisi.cox_fit_diagnostics import COX_SNELL, SCALED as COX_SCALED
 from analisi.cox_outputs import (METHOD as COX, GRAPH as COX_GRAPH, GRAPH_TERM as COX_TERM, PREDICT as COX_PREDICT, PROFILE_LIST,
-                                 PROFILES as COX_PROFILES, STATUS_DEFAULTS as COX_STATUS, cox_visibility)
+                                 DIAGNOSTICS as COX_DIAGNOSTICS, FIT_DIAGNOSTICS as COX_FIT_DIAGNOSTICS,
+                                 PROFILES as COX_PROFILES, SCHOENFELD as COX_SCHOENFELD,
+                                 STATUS_DEFAULTS as COX_STATUS, cox_visibility)
 from analisi.survival_plot import CURVE as SURVIVAL_CURVE, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.table_setup import NewTableDialog, TEMPLATES, XY_FORMATS, TableSetup, table_frame
@@ -2549,7 +2552,7 @@ class AnalysisDialog(simpledialog.Dialog):
         self.field_rows[COX_TERM] = heading, terms
         for label in ("Predictors", "Categorical predictors"):
             self.controls[label][1].bind("<<ListboxSelect>>", lambda _: self.update_cox_terms(), add="+")
-        for label in (COX_PREDICT, COX_GRAPH):
+        for label in (COX_PREDICT, COX_GRAPH, COX_DIAGNOSTICS, COX_SCHOENFELD, COX_SCALED, COX_SNELL):
             self.controls[label][1].trace_add("write", lambda *_: self.update_cox_terms())
         self.update_cox_terms()
 
@@ -2570,7 +2573,8 @@ class AnalysisDialog(simpledialog.Dialog):
     def cox_fields(self):
         if self.method != COX:
             return {}
-        return cox_visibility(*(self.controls[name][1].get() for name in (COX_PREDICT, COX_GRAPH)))
+        return cox_visibility(*(self.controls[name][1].get() for name in (
+            COX_PREDICT, COX_GRAPH, COX_DIAGNOSTICS, COX_SCHOENFELD, COX_SCALED, COX_SNELL)))
 
     def regression_visibility(self):
         if self.method != "Multiple regression":
@@ -3574,6 +3578,11 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = formatted
             elif self.method == VARIANCE_RATIO and (formatted := format_variance_ratio_error(error)):
                 message = formatted
+            elif self.method == COX:
+                message = cox_message(error)
+                label = ui(field) if field else ""
+                if label and field not in message and label not in message:
+                    message = f"{label}: {message}"
             elif field and field not in message:
                 message = f"{field}: {message}"
             messagebox.showerror(ui("Check parameters"), message, parent=self)
@@ -6446,10 +6455,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         """True when a confirmed PCA recipe explicitly asked for the principal component regression."""
         return run.method == "Principal component analysis" and run.options.get(PCR_ENABLE) is True
 
+    @staticmethod
+    def _cox_fit_diagnostics(run):
+        """True when a confirmed Cox recipe asked for the scaled Schoenfeld residuals or the Cox–Snell diagnostics."""
+        return run.method == COX and any(run.options.get(name) is True for name in COX_FIT_DIAGNOSTICS)
+
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
                 or run.method == FDR_METHOD or run.method == VARIANCE_RATIO or self._pca_regression(run)
+                or self._cox_fit_diagnostics(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6458,6 +6473,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
         return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO) or self._pca_regression(run)
+                or self._cox_fit_diagnostics(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
 
@@ -6481,6 +6497,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "Principal component analysis" and options.get(PCR_ENABLE) is True:
             # Rank and degrees of freedom of the regression are known only after the fit, on the worker.
+            return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
+        if method == COX and any(options.get(name) is True for name in COX_FIT_DIAGNOSTICS):
+            # A covariance or residual that stops being finite after a worksheet edit names its control.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if (method == "Interpolate a standard curve" and options.get("Curve") == "Nonlinear"
                 and options.get(CALIBRATION_UNCERTAINTY, "None") not in (None, "None")):
@@ -6517,6 +6536,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                    else translate_calibration_error(error) if run.method == "Interpolate a standard curve"
                    else ui(str(error)) if run.method in (SUMMARY_ANOVA, SUMMARY_TTEST)
                    else translate_heat_map_error(error) if run.method == HEAT_MAP
+                   else cox_message(error) if run.method == COX
                    else ui(str(error)) if run.method in kmeans_options.METHODS else str(error))
         formatted = (format_anova_error(error) if run.method == "Multifactor ANOVA"
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
@@ -6534,7 +6554,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else tr(MLR_LABEL_KEYS[error.field]) if run.method == "Multiple regression"
                      and error.field in MLR_LABEL_KEYS
                      else field_caption_for_reference(error.field) if run.method == REFERENCE_NORMALIZATION
-                     else ui(error.field) if run.method in (HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, *kmeans_options.METHODS, *CORRELATION_METHODS)
+                     else ui(error.field) if run.method in (HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, COX, *kmeans_options.METHODS, *CORRELATION_METHODS)
                      else error.field)
             if not label or label == "gfit.field." + error.field:
                 label = error.field
@@ -6560,7 +6580,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return
         recovery = (self.weighting_recovery(run.method, run.options, index)
                     if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO}
-                    or self._pca_regression(run) else None)
+                    or self._pca_regression(run) or self._cox_fit_diagnostics(run) else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
@@ -6979,7 +6999,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'variance.ratio.error.')
                      if run.method == VARIANCE_RATIO
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
-                     if run.method == "One-way ANOVA" else translate_reference_error(run.calculation_error))
+                     if run.method == "One-way ANOVA"
+                     else cox_message(run.calculation_error) if run.method == COX
+                     else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
 
@@ -10089,6 +10111,16 @@ def smoke(root, app, directory, legacy_reference=None):
                             save_project=save_project, Dataset=Dataset, AnalysisDialog=AnalysisDialog,
                             messagebox=messagebox, filedialog=filedialog))
 
+    def check_cox_fit_diagnostics():
+        from types import SimpleNamespace
+
+        from analisi.cox_fit_diagnostics_smoke import check_cox_fit_diagnostics as run
+
+        run(root, app, directory, SimpleNamespace(
+            capture=capture, pick_method=pick_method, select_columns=select_columns,
+            wait_for_calculation=wait_for_calculation, AnalysisDialog=AnalysisDialog,
+            drive_dialog=drive_dialog, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_bubble_plot():
         path = directory / "bubble.alab"
         title = "Bubbles"
@@ -12813,6 +12845,15 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cox-fit-diagnostics":
+            # The scaled Schoenfeld and Cox-Snell check alone:
+            # TRAMASTAT_SMOKE_ONLY=cox-fit-diagnostics python tramastat.py --smoke DIR
+            check_cox_fit_diagnostics()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "plot-function":
             # The Plot a function check alone: TRAMASTAT_SMOKE_ONLY=plot-function python tramastat.py --smoke DIR
             from analisi.plot_function_smoke import check_plot_function
@@ -13943,6 +13984,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_poisson_exposure()
         check_compare_lines()
         check_cox_outputs()
+        check_cox_fit_diagnostics()
         check_bubble_plot()
         check_paired_graphs()
         check_forest_plot()
