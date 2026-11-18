@@ -46,3 +46,8 @@ The hyperbolic functions are `SINH`, `COSH` and `TANH`, with inverses `ARCSINH`,
 `CENTER(Column)` subtracts the mean of the usable values from each value. `STANDARDIZE(Column)` and `ZSCORE(Column)` divide the centered values by the sample standard deviation. A constant column or a single usable observation leaves standardized values blank.
 
 `RANK(Column)` assigns rank 1 to the smallest usable value and averages the ranks of ties. These functions keep the original worksheet row order. Missing or nonfinite values leave a blank on their own row and are excluded from the statistics. When recognized in an imported ZIP project, the formulas recalculate after edits and remain editable when saved as `.alab`.
+
+
+These four functions also accept `OVER`, `WHERE`, `ORDER BY` and `ROWS`. For example, `=ZSCORE(Dose) OVER Subject` uses each subject's mean and sample standard deviation. `=RANK(Dose) OVER Subject ORDER BY Visit ROWS 2 PRECEDING 1 FOLLOWING` ranks the current dose within its ordered window, including qualifying following rows.
+
+With `WHERE` and a whole group, qualifying observations form the reference and each row can still receive a result. For a rank against that reference, a value present in the reference receives its mean rank and a value absent from the reference receives its insertion rank, starting at 1. With `ROWS`, only qualifying rows receive results. An empty reference or a blank current value gives a blank result.

@@ -94,6 +94,57 @@ class WindowFormulaTests(unittest.TestCase):
         np.testing.assert_allclose(formula(frame, "CENTER(X)"), [2e307, -2e307])
         np.testing.assert_allclose(formula(frame, "STANDARDIZE(X)"), [.5 ** .5, -(.5 ** .5)])
 
+    def test_row_statistics_use_each_groups_filtered_reference(self):
+        frame = pd.DataFrame({"X": [6, 3, 9, 3, 1, np.nan, 4, 5],
+                              "Group": ["A", "A", "A", "A", "B", "A", "B", None],
+                              "Keep": [1, 1, 0, 1, 1, 1, 0, 1]})
+        centered = [.75, -2.25, 3.75, -2.25, -1.5, np.nan, 1.5, np.nan]
+        np.testing.assert_allclose(formula(frame, "CENTER(X) OVER Group"), centered)
+        deviation = np.sqrt([8.25, 8.25, 8.25, 8.25, 4.5, np.nan, 4.5, np.nan])
+        for name in ("STANDARDIZE", "ZSCORE"):
+            np.testing.assert_allclose(formula(frame, f"{name}(X) OVER Group"), centered / deviation)
+        np.testing.assert_allclose(formula(frame, "RANK(X) OVER Group"), [3, 1.5, 4, 1.5, 1, np.nan, 2, np.nan])
+        filtered = "OVER Group WHERE Keep = 1"
+        np.testing.assert_allclose(formula(frame, f"CENTER(X) {filtered}"), [2, -1, 5, -1, 0, np.nan, 3, np.nan])
+        np.testing.assert_allclose(formula(frame, f"RANK(X) {filtered}"), [3, 1.5, 4, 1.5, 1, np.nan, 2, np.nan])
+        np.testing.assert_allclose(formula(frame, f"ZSCORE(X) {filtered}"),
+                                   np.array([2, -1, 5, -1, np.nan, np.nan, np.nan, np.nan]) / np.sqrt(3))
+
+    def test_row_statistics_use_the_current_row_in_moving_windows(self):
+        frame = pd.DataFrame({"X": [5, 7, 2, 2, 1], "Visit": [3, 5, 1, 4, 2],
+                              "Keep": [1, 0, 1, 1, 1]}, index=[2, 8, 9, 6, 7])
+        clause = "ORDER BY Visit ROWS 1 PRECEDING 1 FOLLOWING"
+        centered = np.array([7 / 3, 2.5, .5, -8 / 3, -5 / 3])
+        deviation = np.sqrt([13 / 3, 25 / 2, 1 / 2, 19 / 3, 13 / 3])
+        result = formula(frame, f"CENTER(X) {clause}")
+        self.assertTrue(result.index.equals(frame.index))
+        np.testing.assert_allclose(result, centered)
+        np.testing.assert_allclose(formula(frame, f"STANDARDIZE(X) {clause}"), centered / deviation)
+        np.testing.assert_allclose(formula(frame, f"RANK(X) {clause}"), [3, 2, 2, 1, 1])
+        np.testing.assert_allclose(formula(frame, f"RANK(X) WHERE Keep = 1 {clause}"), [3, np.nan, 2, 1, 1])
+        np.testing.assert_allclose(formula(frame, "RANK(X) ORDER BY Visit ROWS UNBOUNDED PRECEDING"),
+                                   [3, 5, 1, 2.5, 1])
+        self.assertTrue(formula(frame, "ZSCORE(X) ROWS 0 PRECEDING").isna().all())
+
+    def test_row_statistics_scale_large_references_without_changing_rank(self):
+        frame = pd.DataFrame({"X": [1.6e308, 1.2e308, 1e-100, 0.0], "Group": ["A", "A", "B", "B"]})
+        through_end = "ROWS 1 PRECEDING 1 FOLLOWING"
+        for clause in ("OVER Group", f"OVER Group {through_end}"):
+            np.testing.assert_allclose(formula(frame, f"CENTER(X) {clause}"), [2e307, -2e307, 5e-101, -5e-101],
+                                       atol=0)
+            np.testing.assert_allclose(formula(frame, f"ZSCORE(X) {clause}"), np.sqrt(.5) * np.array([1, -1, 1, -1]))
+            np.testing.assert_allclose(formula(frame, f"RANK(X) {clause}"), [2, 1, 2, 1])
+        # A source integer column can still distinguish observations above 2**53.
+        precise = pd.DataFrame({"X": [2**53 + 1, 2**53 + 2, 2**53], "Group": ["A"] * 3})
+        for clause in ("OVER Group", "ROWS UNBOUNDED PRECEDING UNBOUNDED FOLLOWING"):
+            np.testing.assert_allclose(formula(precise, f"RANK(X) {clause}"), [2, 3, 1])
+
+        extremes = pd.DataFrame({"X": [1.7e308, 1e-200, 0., 2e-200, 3e-200]})
+        np.testing.assert_allclose(formula(extremes, f"CENTER(X) {through_end}").iloc[2:],
+                                   [-1e-200, 1e-200 / 3, 5e-201], atol=0)
+        np.testing.assert_allclose(formula(extremes, f"ZSCORE(X) {through_end}").iloc[2:],
+                                   [-1., 1. / np.sqrt(21), np.sqrt(.5)])
+
     def test_ordered_windows_return_to_original_row_order(self):
         frame = self.frame.assign(Visit=[2, 1, 3, 2, 1, 4])
         summed = formula(frame, "SUM(X) OVER Category ORDER BY Visit ROWS UNBOUNDED PRECEDING")
@@ -154,7 +205,7 @@ class WindowFormulaTests(unittest.TestCase):
                 metadata("document.json", {"sheets": {"data": ["live"]}})
                 metadata("data/sheets/live/sheet.json", {"title": "Measurements", "table": {
                     "uid": "values", "format": "multivariable", "dataFormat": "y_single",
-                    "dataSets": ["a", "b", "c", "d", "e"],
+                    "dataSets": ["a", "b", "c", "d", "e", "f"],
                 }})
                 metadata("data/sets/a.json", {"title": "Value"})
                 metadata("data/sets/b.json", {"title": "2nd group", "currentType": "categorical"})
@@ -168,17 +219,23 @@ class WindowFormulaTests(unittest.TestCase):
                     "@class": "TransformDataSource",
                     "transform": "COUNT(A) OVER B ORDER BY B ASC, A DESC ROWS UNBOUNDED PRECEDING",
                 }})
+                metadata("data/sets/f.json", {"title": "Group rank", "valuesStorageData": {
+                    "@class": "TransformDataSource", "transform": "RANK(A) OVER B",
+                }})
                 archive.writestr("data/tables/values/data.csv",
-                                 "1,x,999,999,999\n3,x,999,999,999\n7,y,999,999,999\n9,y,999,999,999\n")
+                                 "1,x,999,999,999,999\n3,x,999,999,999,999\n7,y,999,999,999,999\n9,y,999,999,999,999\n")
             data = Dataset(load_tables(project)["Measurements"])
-        calculated = ["Group average", "Filtered average", "Running count"]
+        calculated = ["Group average", "Filtered average", "Running count", "Group rank"]
         self.assertEqual(set(data.formulas), set(calculated))
-        np.testing.assert_allclose(data.frame()[calculated], [[3, 3, 2], [3, 3, 1], [8, 8, 2], [8, 8, 1]])
+        np.testing.assert_allclose(data.frame()[calculated], [[3, 3, 2, 1], [3, 3, 1, 2], [8, 8, 2, 1], [8, 8, 1, 2]])
         data.raw.loc[2, "Value"] = 5
-        np.testing.assert_allclose(data.frame()[calculated], [[3, 3, 2], [3, 3, 1], [7, 7, 2], [7, 7, 1]])
+        np.testing.assert_allclose(data.frame()[calculated], [[3, 3, 2, 1], [3, 3, 1, 2], [7, 7, 2, 1], [7, 7, 1, 2]])
         with TemporaryDirectory() as directory:
             project = Path(directory) / "imported.alab"
             save_project(project, {"Measurements": data})
             reopened = load_project(project)["Measurements"]
         self.assertEqual(reopened.formulas, data.formulas)
         np.testing.assert_allclose(reopened.frame()[calculated], data.frame()[calculated])
+        reopened.raw.loc[2, "Value"] = 10
+        np.testing.assert_allclose(reopened.frame()[calculated], [[3, 3, 2, 1], [3, 3, 1, 2],
+                                                                 [9.5, 9.5, 1, 2], [9.5, 9.5, 2, 1]])

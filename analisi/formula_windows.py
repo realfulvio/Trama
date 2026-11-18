@@ -6,8 +6,11 @@ import numpy as np
 import pandas as pd
 from pandas.api.indexers import BaseIndexer
 
-WINDOW_CALLS = {"MEAN", "SUM", "MIN", "MAX", "STDEV", "STDERR", "COUNT", "COUNTA"}
-CONDITIONAL_CALLS = {f"{name}IF": name for name in WINDOW_CALLS}
+from .formula_row_statistics import ROW_STATISTICS, row_statistic
+
+_SUMMARY_STATISTICS = {"MEAN", "SUM", "MIN", "MAX", "STDEV", "STDERR", "COUNT", "COUNTA"}
+WINDOW_CALLS = _SUMMARY_STATISTICS | ROW_STATISTICS
+CONDITIONAL_CALLS = {f"{name}IF": name for name in _SUMMARY_STATISTICS}
 _CLAUSE_ORDER = ("OVER", "WHERE", "ORDER", "ROWS")
 WINDOW_CLAUSES = set(_CLAUSE_ORDER)
 WINDOW_KEYWORDS = WINDOW_CLAUSES | {"ASC", "DESC", "PRECEDING", "FOLLOWING", "UNBOUNDED"}
@@ -245,8 +248,13 @@ def _moving_statistic(numeric, labels, selected, ordering, bounds, name, operati
                 rows = sorted_key.index.to_numpy()
         except TypeError as error:
             raise ValueError("ORDER BY needs comparable values within each group.") from error
+        window = _RowWindow(*bounds)
+        if name in ROW_STATISTICS:
+            values = numeric[rows]
+            result[rows] = row_statistic(name, values, values, window)
+            continue
         minimum = 0 if operation in {"sum", "count"} else 1
-        rolling = pd.Series(numeric[rows]).rolling(_RowWindow(*bounds), min_periods=minimum)
+        rolling = pd.Series(numeric[rows]).rolling(window, min_periods=minimum)
         result[rows] = (rolling.std() / np.sqrt(rolling.count()) if name == "STDERR" else getattr(rolling, operation)())
     return result
 
@@ -255,7 +263,14 @@ def worksheet_statistic(name, values, partition, condition, size, *, sort_keys=(
     if name not in WINDOW_CALLS:
         raise ValueError("Unknown worksheet statistic.")
     values = _aligned(values, size)
-    if name == "COUNTA":
+    if name in ROW_STATISTICS:
+        numbers = pd.to_numeric(pd.Series(values), errors="coerce")
+        if name == "RANK":
+            numeric = numbers.to_numpy()
+        else:
+            numeric = numbers.to_numpy(dtype=float, na_value=np.nan, copy=True)
+            numeric[~np.isfinite(numeric)] = np.nan
+    elif name == "COUNTA":
         numeric = np.array([np.nan if _missing(value) else 1. for value in values])
     else:
         numeric = np.array([value if isinstance(value, Real) and not isinstance(value, (bool, np.bool_)) else np.nan
@@ -276,6 +291,11 @@ def worksheet_statistic(name, values, partition, condition, size, *, sort_keys=(
     operation = {"STDEV": "std", "STDERR": "std", "COUNTA": "count"}.get(name, name.lower())
     if bounds is not None:
         return _moving_statistic(numeric, labels, selected, ordering, bounds, name, operation)
+    if name in ROW_STATISTICS:
+        result = np.full(size, np.nan)
+        for rows in pd.Series(np.arange(size)).groupby(labels, sort=False, dropna=True).indices.values():
+            result[rows] = row_statistic(name, numeric[rows], numeric[rows[selected[rows]]])
+        return result
     groups = pd.Series(np.where(selected, numeric, np.nan)).groupby(labels, sort=False, dropna=True)
     if name == "STDERR":
         return (groups.transform("std") / np.sqrt(groups.transform("count"))).to_numpy()
