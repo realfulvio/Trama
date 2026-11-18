@@ -73,6 +73,7 @@ Clustering|Raggruppamento
 Graphing|Grafici
 Study Design and Simulation|Disegno degli studi e simulazione
 Descriptive statistics|Statistica descrittiva
+Tolerance intervals|Intervalli di tolleranza
 Normality tests|Test di normalità
 t-test|Test t
 Paired t-test (columns)|Test t appaiato (colonne)

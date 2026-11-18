@@ -48,6 +48,7 @@ from .lognormal_tests import LOGNORMAL, OPTIONS as LOGNORMAL_OPTIONS, lognormal_
 from .variance_ratio import METHOD as VARIANCE_RATIO, SHOW as VARIANCE_SHOW, analysis as variance_ratio_analysis, attach_ttest
 from .summary_anova import METHOD as SUMMARY_ANOVA, OPTIONS as SUMMARY_ANOVA_OPTIONS, summary_anova
 from .summary_ttest import METHOD as SUMMARY_TTEST, OPTIONS as SUMMARY_TTEST_OPTIONS, summary_ttest
+from .tolerance_intervals import TOLERANCE, OPTIONS as TOLERANCE_OPTIONS, tolerance_intervals
 from .model_selection import COMPARE_MODELS, OPTIONS as COMPARE_MODELS_OPTIONS, model_selection
 from .nonlinear_bands import OPTIONS as BAND_OPTIONS, band_outputs, band_settings
 from .monte_carlo import MONTE_CARLO, OPTIONS as MONTE_CARLO_OPTIONS, monte_carlo
@@ -184,6 +185,7 @@ def check_survival_options(frame, options):
 # Fields are column roles, options, or typed defaults.
 METHODS = {
     "Descriptive statistics": {"Variables": MULTIPLE, GEOMETRIC_MEAN: False},
+    TOLERANCE: TOLERANCE_OPTIONS,
     NORMALITY: NORMALITY_OPTIONS,
     "t-test": {"Design": ("Welch", "Student", "Paired", "One-sample"),
                "Response": None, "Group": OPTIONAL, "Subject": OPTIONAL, "Null mean": 0.0,
@@ -289,7 +291,7 @@ GROUPS = {
                         "Remove baseline and column math", "Fraction of total", EXTRACT_REARRANGE, SELECT_TRANSFORM,
                         "Reshape replicates", TRANSPOSE_XY,
                         "Outlier test (Grubbs)", OUTLIERS),
-    "Data Exploration and Summary": ("Descriptive statistics", "Row statistics", NORMALITY,
+    "Data Exploration and Summary": ("Descriptive statistics", TOLERANCE, "Row statistics", NORMALITY,
                                     "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX,
                                     "Histogram", FREQUENCY, GOODNESS_OF_FIT,
                                     "Area under curve", "Principal component analysis",
@@ -1021,6 +1023,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return Result({}, figure)
     if method == "Descriptive statistics":
         return Result({"Summary": engine.describe(frame, o["Variables"], geometric=bool(o.get(GEOMETRIC_MEAN)))})
+    if method == TOLERANCE:
+        return tolerance_intervals(frame, o)
     if method == NORMALITY:
         # Recipes saved before the test choices existed keep the Shapiro–Wilk "Normality" sheet.
         return _normality(frame, o) if legacy_normality(o) else normality(frame, o)

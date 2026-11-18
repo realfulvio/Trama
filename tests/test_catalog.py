@@ -6,6 +6,7 @@ import pandas as pd
 
 from analisi.nested import NESTED_ANOVA, NESTED_T
 from analisi.reference_normalization import METHOD as REFERENCE_NORMALIZATION
+from analisi.tolerance_intervals import TOLERANCE
 from analisi.workbench import GRAPH_METHODS, GROUPS, METHODS, analyse
 
 
@@ -34,6 +35,8 @@ class CatalogTests(unittest.TestCase):
             "Mixed-effects model (REML)": {"Y": "y", "Subject": "Subject", "Within factors": ["Group"], "Post-hoc": "Holm"},
             "Descriptive statistics": {"Variables": ["x", "y"]},
             "Normality tests": {"Variables": ["x"]},
+            TOLERANCE: {"Variables": ["x", "y"], "Group": "Group", "Distribution": "Normal", "Sides": "Two-sided",
+                        "Population coverage (%)": 90., "Confidence level (%)": 95., "Show graph": False},
             "t-test": {"Design": "Paired", "Response": "y", "Group": "Group", "Subject": "Subject"},
             "Paired t-test (columns)": {"First": "x", "Second": "y"},
             "Lognormal t-test": {"First": "x", "Second": "y", "Design": "Paired", "Report ratio": "First / Second",

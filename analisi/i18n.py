@@ -2139,6 +2139,77 @@ _IT.update({
     "tost.error.pairs": "Un test appaiato richiede almeno due coppie complete; ne risultano {count}.",
 })
 
+# Tolerance intervals (0.93): captions, choices, the explanation under the fields and the validation messages.
+# The "tolerance.error." entries are the exact English messages of the engine and the dialog with placeholders (see
+# translate_message). Recipes keep the English field names and values; group and column names stay literal.
+_EN.update({
+    "tolerance.tab.data": "Data", "tolerance.tab.interval": "Interval",
+    "tolerance.field.variables": "Variables", "tolerance.field.group": "Group",
+    "tolerance.field.distribution": "Distribution", "tolerance.field.sides": "Sides",
+    "tolerance.field.coverage": "Population coverage (%)", "tolerance.field.confidence": "Confidence level (%)",
+    "tolerance.field.graph": "Show graph",
+    "tolerance.choice.normal": "Normal", "tolerance.choice.free": "Distribution-free",
+    "tolerance.choice.two_sided": "Two-sided", "tolerance.choice.lower": "Lower", "tolerance.choice.upper": "Upper",
+    "tolerance.hint": "Two percentages describe the result. Population coverage is the share of all values the "
+                      "interval should contain; the confidence level is how sure you want to be that it does. "
+                      "Repeating the sampling, about 95% of the intervals built at 95% confidence would hold at "
+                      "least the stated coverage. A confidence interval of the mean only locates the average and "
+                      "narrows as the sample grows; a tolerance interval describes individual values, so it stays wide.",
+    "tolerance.error.distribution": "Distribution: choose Normal or Distribution-free.",
+    "tolerance.error.sides": "Sides: choose Two-sided, Lower or Upper.",
+    "tolerance.error.percentage": "{field} must be a finite number greater than 0 and less than 100.",
+    "tolerance.error.graph": "Show graph: choose on or off.",
+    "tolerance.error.select": "Select at least one column for {field}.",
+    "tolerance.error.too_many": "Choose up to {limit} columns for {field}; {count} selected.",
+    "tolerance.error.once": "Choose each variable once.",
+    "tolerance.error.choose": "Choose a column for {field}.",
+    "tolerance.error.exists": 'Choose an existing column for {field}: "{column}" is not in the worksheet.',
+    "tolerance.error.unique": "Worksheet column names must be unique.",
+    "tolerance.error.group_variable": "Choose a Group column that is not one of the variables.",
+    "tolerance.error.groups": "{field} has more than {limit} groups; choose a column with fewer groups.",
+    "tolerance.error.labels": "Group labels must stay distinct when written as text.",
+    "tolerance.error.cell": 'Column "{column}" must hold finite numbers. Source row {row} is not a finite number.',
+    "tolerance.error.pairs": "The analysis needs {count} variable-group pairs; the limit is {limit}.",
+    "tolerance.error.observations": 'Column "{column}" has {count} observations; the limit is {limit} per variable.',
+    "tolerance.error.number": "{field} must be a number.",
+    "tolerance.error.finite": "{field} must be finite.",
+})
+_IT.update({
+    "tolerance.tab.data": "Dati", "tolerance.tab.interval": "Intervallo",
+    "tolerance.field.variables": "Variabili", "tolerance.field.group": "Gruppo",
+    "tolerance.field.distribution": "Distribuzione", "tolerance.field.sides": "Lati",
+    "tolerance.field.coverage": "Copertura della popolazione (%)", "tolerance.field.confidence": "Livello di confidenza (%)",
+    "tolerance.field.graph": "Mostra grafico",
+    "tolerance.choice.normal": "Normale", "tolerance.choice.free": "Senza distribuzione",
+    "tolerance.choice.two_sided": "Bilaterale", "tolerance.choice.lower": "Inferiore",
+    "tolerance.choice.upper": "Superiore",
+    "tolerance.hint": "Il risultato è descritto da due percentuali. La copertura della popolazione è la quota di tutti "
+                      "i valori che l’intervallo deve contenere; il livello di confidenza è quanto vuoi essere "
+                      "sicuro che la contenga. Ripetendo il campionamento, circa il 95% degli intervalli costruiti "
+                      "con confidenza 95% conterrebbe almeno la copertura indicata. L’intervallo di confidenza della "
+                      "media individua solo la media e si restringe al crescere del campione; l’intervallo di "
+                      "tolleranza descrive i singoli valori, quindi resta largo.",
+    "tolerance.error.distribution": "Distribuzione: scegli Normale o Senza distribuzione.",
+    "tolerance.error.sides": "Lati: scegli Bilaterale, Inferiore o Superiore.",
+    "tolerance.error.percentage": "Il campo {field} deve essere un numero finito maggiore di 0 e minore di 100.",
+    "tolerance.error.graph": "Mostra grafico: scegli sì o no.",
+    "tolerance.error.select": "Seleziona almeno una colonna nel campo {field}.",
+    "tolerance.error.too_many": "Scegli al massimo {limit} colonne nel campo {field}; ne hai selezionate {count}.",
+    "tolerance.error.once": "Scegli ogni variabile una sola volta.",
+    "tolerance.error.choose": "Scegli una colonna nel campo {field}.",
+    "tolerance.error.exists": 'Scegli una colonna esistente nel campo {field}: "{column}" non è nel foglio.',
+    "tolerance.error.unique": "I nomi delle colonne del foglio devono essere univoci.",
+    "tolerance.error.group_variable": "Scegli per il gruppo una colonna diversa dalle variabili.",
+    "tolerance.error.groups": "Il campo {field} ha più di {limit} gruppi; scegli una colonna con meno gruppi.",
+    "tolerance.error.labels": "Le etichette dei gruppi devono restare distinte quando scritte come testo.",
+    "tolerance.error.cell": 'La colonna "{column}" deve contenere numeri finiti. '
+                            "La riga origine {row} non è un numero finito.",
+    "tolerance.error.pairs": "L’analisi richiede {count} coppie variabile-gruppo; il limite è {limit}.",
+    "tolerance.error.observations": 'La colonna "{column}" ha {count} osservazioni; il limite è {limit} per variabile.',
+    "tolerance.error.number": "Il campo {field} deve essere un numero.",
+    "tolerance.error.finite": "Il campo {field} deve essere finito.",
+})
+
 # Robust curve fit (0.73): captions, choices, editor and validation messages. The "analysis.robust_curve.error."
 # entries are the exact English messages of the engine with placeholders (see translate_message). Recipes keep the
 # English field names and values.
