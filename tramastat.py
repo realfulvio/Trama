@@ -10236,6 +10236,14 @@ def smoke(root, app, directory, legacy_reference=None):
                             save_project=save_project, Dataset=Dataset, AnalysisDialog=AnalysisDialog,
                             messagebox=messagebox, filedialog=filedialog))
 
+    def check_cox_exact_ties_smoke():
+        from analisi.cox_exact_smoke import check_cox_exact_ties
+
+        check_cox_exact_ties(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Dataset=Dataset, capture=capture, drive_dialog=drive_dialog,
+            pick_method=pick_method, select_columns=select_columns, save_project=save_project,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_bubble_plot():
         path = directory / "bubble.alab"
         title = "Bubbles"
@@ -13049,6 +13057,14 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cox-exact-ties":
+            # Cox exact conditional ties alone: TRAMASTAT_SMOKE_ONLY=cox-exact-ties python tramastat.py --smoke DIR
+            check_cox_exact_ties_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "plot-function":
             # The Plot a function check alone: TRAMASTAT_SMOKE_ONLY=plot-function python tramastat.py --smoke DIR
             from analisi.plot_function_smoke import check_plot_function
@@ -14195,6 +14211,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_poisson_exposure()
         check_compare_lines()
         check_cox_outputs()
+        check_cox_exact_ties_smoke()
         check_bubble_plot()
         check_paired_graphs()
         check_forest_plot()
