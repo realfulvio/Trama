@@ -2761,7 +2761,7 @@ _IT.update({
     'ancova.error.outside_auto': 'La media della covariata {reference}, usata come X di riferimento, è fuori dall’intervallo comune da {low} a {high}. Inserisci un’X di riferimento al suo interno oppure scegli Consenti estrapolazione.',
     'ancova.error.unstable': 'L’X di riferimento {reference} è troppo lontano dai valori osservati della covariata per un calcolo stabile. Inserisci un’X di riferimento più vicina ai dati.',
     'ancova.error.rank': 'Il modello non è identificabile da questi dati. Ogni gruppo richiede valori della covariata che variano.',
-    'ancova.error.control_missing': 'Scegli il gruppo di controllo per Contro il controllo.',
+    'ancova.error.control_missing': 'Scegli il gruppo di controllo: il confronto è Contro il controllo.',
     'ancova.error.control_unknown': 'Il gruppo di controllo "{control}" non è tra i gruppi con dati completi.',
     'ancova.error.control_ambiguous': 'Il gruppo di controllo "{control}" corrisponde a più gruppi. Scegline uno tra: {choices}.',
     'ancova.error.range': 'Questi valori non sono rappresentabili: le stime escono dall’intervallo di numeri supportato dal calcolo. Controlla la scala della risposta e della covariata.',
