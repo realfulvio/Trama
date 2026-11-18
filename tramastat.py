@@ -175,6 +175,13 @@ from analisi.nonlinear_calibration import (DIRECTION as CALIBRATION_DIRECTION, D
 from analisi.normality import (NORMALITY, QQ_PLOT, QQ_VARIABLE, check_options as check_normality_options,
                                visibility as normality_visibility)
 from analisi.summary_ttest import METHOD as SUMMARY_TTEST, check_options as check_summary_ttest
+from analisi import mean_permutation_dialog
+from analisi.mean_permutation import (DATA_FIELDS as PERMUTATION_DATA_FIELDS, METHOD as MEAN_PERMUTATION,
+                                      SEED as PERMUTATION_SEED, TAB_KEYS as PERMUTATION_TAB_KEYS,
+                                      cancellable as permutation_cancellable,
+                                      check_options as check_permutation_options)
+from analisi.mean_permutation_dialog import (describe_error as describe_permutation_error,
+                                             translate_error as translate_permutation_error)
 from analisi.summary_anova import (JOINT as SUMMARY_JOINT, METHOD as SUMMARY_ANOVA,
                                    NOTE as SUMMARY_ANOVA_NOTE, ORDINARY as SUMMARY_ORDINARY,
                                    ORDINARY_POSTHOC as SUMMARY_ORDINARY_POSTHOC,
@@ -1129,6 +1136,10 @@ class AnalysisDialog(simpledialog.Dialog):
             self.fields.tab(variables, text=tr(RATIO_TAB_KEYS["Data"]))
             self.fields.tab(options, text=tr(RATIO_TAB_KEYS["Test and graph"]))
             fields_by_tab.update(dict.fromkeys(RATIO_DATA_FIELDS, variables))
+        elif self.method == MEAN_PERMUTATION:
+            self.fields.tab(variables, text=tr(PERMUTATION_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(PERMUTATION_TAB_KEYS["Test"]))
+            fields_by_tab.update(dict.fromkeys(PERMUTATION_DATA_FIELDS, variables))
         elif self.method == EQUIVALENCE:
             self.fields.tab(variables, text=tr(TOST_TAB_KEYS["Data"]))
             self.fields.tab(options, text=tr(TOST_TAB_KEYS["Equivalence zone"]))
@@ -1891,6 +1902,9 @@ class AnalysisDialog(simpledialog.Dialog):
             self.variance_ratio_note = ttk.Label(options, text=tr(VARIANCE_RATIO_NOTE), wraplength=360,
                                                  foreground="#486075", justify="left")
             self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+        if self.method == MEAN_PERMUTATION:
+            # Captions, choices, the exchangeability and method notes; Exact hides Resamples and Seed.
+            mean_permutation_dialog.attach(self, variables, options, positions)
         if self.method in (SUMMARY_ANOVA, SUMMARY_TTEST):
             self.controls["Input"][1].trace_add("write", lambda *_: self.show_fields(self.summary_anova_fields()))
             self.show_fields(self.summary_anova_fields())
@@ -2716,6 +2730,9 @@ class AnalysisDialog(simpledialog.Dialog):
         Selection fields that do not belong to the chosen criterion stay in the recipe when they
         still parse, and an invalid hidden value is omitted instead of blocking the analysis.
         """
+        if self.method == MEAN_PERMUTATION:
+            # Exact ignores Resamples and Seed: values that parse stay in the recipe, others are omitted.
+            return {name for name, shown in mean_permutation_dialog.fields(self).items() if not shown}
         if self.method == ROBUST_CURVE:
             # A usable hidden residual scale stays in the recipe; an invalid one is omitted instead of blocking.
             return {name for name, shown in self.robust_fields().items() if not shown}
@@ -3373,6 +3390,10 @@ class AnalysisDialog(simpledialog.Dialog):
                     if self.method in kmeans_options.METHODS and name == kmeans_options.MAX_ITERATIONS:
                         options[name] = value
                         continue
+                    if self.method == MEAN_PERMUTATION and name == PERMUTATION_SEED:
+                        # Unsigned 64-bit; the test checks the range and names Seed.
+                        options[name] = mean_permutation_dialog.parse_seed(value)
+                        continue
                     numeric_kind = type(kind)
                     if numeric_kind in (int, float):
                         try:
@@ -3441,6 +3462,9 @@ class AnalysisDialog(simpledialog.Dialog):
                     lognormal_anova.check_used(self.data, options)
             if self.method == CONTINGENCY:
                 check_contingency_options(self.data, options)
+            if self.method == MEAN_PERMUTATION:
+                # Fields, values and the exact or Monte Carlo budget; nothing is enumerated or drawn here.
+                check_permutation_options(self.data, options)
             if self.method == MONTE_CARLO_METHOD:
                 # Numbers, fields and the value budget only: the simulation runs once, on the worker.
                 check_monte_carlo_options(self.data, options)
@@ -3609,6 +3633,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = ui(field) if field else ""
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
+            elif self.method == MEAN_PERMUTATION:
+                message = describe_permutation_error(error, field)
             elif self.method == ROBUST_CURVE:
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
@@ -3963,7 +3989,7 @@ class Run:
 def cancellable_run(method, options):
     """Runs that report their progress or can be cancelled: Monte Carlo studies, exact Spearman and Gray tests."""
     return (method == MONTE_CARLO_METHOD or extended_request(method, options)
-            or competing_cancellable(method, options))
+            or competing_cancellable(method, options) or permutation_cancellable(method, options))
 
 
 @dataclass
@@ -6349,6 +6375,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             elif cancelled and all(run.method == COMPETING_RISKS for run, _ in affected if cancellable_run(
                     run.method, run.options)):
                 self.status.set(f"{COMPETING_RISKS} recalculation cancelled. Open the analysis to calculate again.")
+            elif cancelled and all(run.method == MEAN_PERMUTATION for run, _ in affected if cancellable_run(
+                    run.method, run.options)):
+                self.status.set(f"{MEAN_PERMUTATION} recalculation cancelled. Open the analysis to calculate again.")
             elif cancelled:
                 self.status.set("Monte Carlo recalculation cancelled. Open the study to calculate again.")
             else:
@@ -6535,7 +6564,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS) or self._pca_regression(run)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, MEAN_PERMUTATION)
+                or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
                 or getattr(run, 'source', None) is not None
@@ -6543,7 +6573,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS)
+        return (self._lognormal_one_way(run)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, MEAN_PERMUTATION)
                 or self._pca_regression(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
@@ -6554,7 +6585,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
                 CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, "Multifactor ANOVA",
-                REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST):
+                REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, MEAN_PERMUTATION):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if (method == "Multiple regression" and options.get("Family") == "Linear"
@@ -6610,6 +6641,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      if run.method == "One-way ANOVA"
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_permutation_error(error) if run.method == MEAN_PERMUTATION
                      else format_fdr_error(error) if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
@@ -6944,7 +6976,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.add_result(run, future.result(), index, reveal=reveal)
         except MonteCarloCancelled:
             # Nothing is recorded: a new study adds no recipe and an existing one keeps its last results.
-            noun = "analysis" if run.method == COMPETING_RISKS else "study"
+            noun = "analysis" if run.method in (COMPETING_RISKS, MEAN_PERMUTATION) else "study"
             if index is None:
                 detail = f"No {noun} was added."
             elif self.runs[index].result is not None:
@@ -6956,7 +6988,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
-                     else describe_competing_error(error) if run.method == COMPETING_RISKS else error)
+                     else describe_competing_error(error) if run.method == COMPETING_RISKS
+                     else describe_permutation_error(error) if run.method == MEAN_PERMUTATION else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -7070,6 +7103,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA"
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
+                     else translate_permutation_error(run.calculation_error) if run.method == MEAN_PERMUTATION
                      else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
@@ -12701,6 +12735,12 @@ def smoke(root, app, directory, legacy_reference=None):
             select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
             filedialog=filedialog, errors=errors))
 
+    def check_mean_permutation_smoke():
+        from analisi.mean_permutation_smoke import check_mean_permutation
+        check_mean_permutation(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_summary_anova_smoke():
         from analisi.summary_anova_smoke import check_summary_anova
         check_summary_anova(root, app, directory, SimpleNamespace(
@@ -13400,6 +13440,14 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "qq-artist-styles":
             # TRAMASTAT_SMOKE_ONLY=qq-artist-styles python tramastat.py --smoke DIR
             check_qq_artist_styles_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "mean-permutation":
+            # The permutation test alone: TRAMASTAT_SMOKE_ONLY=mean-permutation python tramastat.py --smoke DIR
+            check_mean_permutation_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14206,6 +14254,7 @@ def smoke(root, app, directory, legacy_reference=None):
             filedialog=filedialog))
         check_lognormal_tests_smoke()
         check_equivalence_smoke()
+        check_mean_permutation_smoke()
         check_lognormality_smoke()
         check_lognormal_anova_smoke()
         check_summary_anova_smoke()
