@@ -12787,6 +12787,13 @@ def smoke(root, app, directory, legacy_reference=None):
             select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
             filedialog=filedialog, errors=errors))
 
+    def check_nb2_smoke():
+        from analisi.nb2_smoke import check_nb2_regression
+        check_nb2_regression(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
+            filedialog=filedialog, errors=errors))
+
     def check_competing_risks_smoke():
         from analisi.competing_risks_smoke import check_competing_risks
         check_competing_risks(root, app, directory, SimpleNamespace(
@@ -13454,6 +13461,15 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "equivalence":
             # The 0.71 Equivalence test (TOST) check alone: TRAMASTAT_SMOKE_ONLY=equivalence python tramastat.py --smoke DIR
             check_equivalence_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "nb2-regression":
+            # The 0.93 Negative binomial regression check alone:
+            # TRAMASTAT_SMOKE_ONLY=nb2-regression python tramastat.py --smoke DIR
+            check_nb2_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14246,6 +14262,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_spearman_extended_smoke()
         check_robust_curve_smoke()
         check_competing_risks_smoke()
+        check_nb2_smoke()
         check_nonlinear_weighting_smoke()
         check_global_irls_smoke()
         check_nonlinear_bands_smoke()
