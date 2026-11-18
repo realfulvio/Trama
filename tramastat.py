@@ -233,9 +233,11 @@ from analisi.ols_diagnostics import (LINEAR_CI, LINEAR_DIAGNOSTICS, LINEAR_PROFI
 from analisi import mlr_weighting
 from analisi.logistic_diagnostics import (LOGISTIC_CI, LOGISTIC_CUTOFF, LOGISTIC_DIAGNOSTICS, LOGISTIC_PROFILES,
                                           TABS as LOGISTIC_TABS)
-from analisi.pca_graphs import (GRAPH as PCA_GRAPH, HORIZONTAL as PCA_HORIZONTAL, LABEL as PCA_LABEL,
-                                ONE_DIMENSION as PCA_ONE_DIMENSION, SHOW_LABELS as PCA_SHOW_LABELS,
+from analisi.pca_graphs import (COLOR_GROUPS as PCA_COLOR_GROUPS, GRAPH as PCA_GRAPH,
+                                HORIZONTAL as PCA_HORIZONTAL, LABEL as PCA_LABEL, ONE_DIMENSION as PCA_ONE_DIMENSION,
+                                POINT_VIEWS as PCA_POINT_VIEWS, SHOW_LABELS as PCA_SHOW_LABELS,
                                 TABS as PCA_TABS, VERTICAL as PCA_VERTICAL, validate as validate_pca_graph)
+from analisi.pca_reports import LABEL_KEYS as PCA_REPORT_LABELS, TABS as PCA_REPORT_TABS
 from analisi.pca_retention import (CHOICE_KEYS as PCA_CHOICE_KEYS, LABEL_KEYS as PCA_SELECT_LABELS,
                                   SELECTION as PCA_SELECTION, TABS as PCA_SELECTION_TABS,
                                   check as check_pca_selection, simulates as pca_simulates,
@@ -1114,7 +1116,7 @@ class AnalysisDialog(simpledialog.Dialog):
         elif self.method == "Multiple regression":
             tabs = {**OLS_TABS, **LOGISTIC_TABS}
         elif self.method == "Principal component analysis":
-            tabs = {**PCA_TABS, **PCA_SELECTION_TABS}
+            tabs = {**PCA_TABS, **PCA_SELECTION_TABS, **PCA_REPORT_TABS}
         elif self.method == SPLINE_FIT:
             # Method fields first; the query direction and the drawn output have their own tabs.
             self.fields.tab(options, text=ui("Method"))
@@ -1912,7 +1914,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 PCA_VERTICAL: "analysis.pca.vertical",
                 PCA_LABEL: "analysis.pca.label",
                 PCA_SHOW_LABELS: "analysis.pca.show",
+                PCA_COLOR_GROUPS: "analysis.pca.color_groups",
                 **PCA_SELECT_LABELS,
+                **PCA_REPORT_LABELS,
             })
         if self.method == XY_ERRORS:
             for label in ("X error distance", "X lower error", "X upper error", "X error values",
@@ -2610,8 +2614,11 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method != "Principal component analysis" or PCA_GRAPH not in self.controls:
             return set()
         inactive = {name for name, shown in self.selection_visibility().items() if not shown}
-        if self.controls[PCA_GRAPH][1].get() in PCA_ONE_DIMENSION:
+        view = self.controls[PCA_GRAPH][1].get()
+        if view in PCA_ONE_DIMENSION:
             inactive.update({PCA_HORIZONTAL, PCA_VERTICAL, PCA_LABEL, PCA_SHOW_LABELS})
+        if view not in PCA_POINT_VIEWS:
+            inactive.add(PCA_COLOR_GROUPS)
         return inactive
 
     def _inactive_value(self, kind, control):
@@ -2638,12 +2645,14 @@ class AnalysisDialog(simpledialog.Dialog):
     def show_pca_fields(self):
         if self.method != "Principal component analysis" or PCA_GRAPH not in self.field_rows:
             return
-        inactive = self.controls[PCA_GRAPH][1].get() in PCA_ONE_DIMENSION
+        view = self.controls[PCA_GRAPH][1].get()
+        inactive = view in PCA_ONE_DIMENSION
         states = {
             PCA_HORIZONTAL: "disabled" if inactive else "normal",
             PCA_VERTICAL: "disabled" if inactive else "normal",
             PCA_LABEL: "disabled" if inactive else "readonly",
             PCA_SHOW_LABELS: "disabled" if inactive else "normal",
+            PCA_COLOR_GROUPS: "readonly" if view in PCA_POINT_VIEWS else "disabled",
         }
         for label, state in states.items():
             # The widgets stay gridded. Disabled means the view does not use them.
@@ -3436,6 +3445,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = tr(MLR_LABEL_KEYS[field]) if field in MLR_LABEL_KEYS else field
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
+            elif self.method == "Principal component analysis" and field == PCA_COLOR_GROUPS:
+                message = translate_message(message, "pca.graph.error.")
             elif self.method == HEAT_MAP:
                 message = translate_heat_map_error(error)
                 label = ui(field) if field else ""

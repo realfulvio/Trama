@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from analisi.exploration import pca
+from analisi.graph_legend import collect_legend_entries
 from analisi.pca_graphs import (BIPLOT, GRAPH, HORIZONTAL, LABEL, LOADINGS, PROPORTION, SCORES, SCREE,
                                 SHOW_LABELS, VERTICAL, pca_result)
 from analisi.processing import FieldError
@@ -98,6 +99,40 @@ class PcaGraphTests(unittest.TestCase):
         np.testing.assert_allclose(loadings.tables["PC graph coordinates"][["Horizontal", "Vertical"]], expected)
         self.assertEqual(loadings.figure.axes[0].get_xlabel(), "PC1 (80%)")
         self.assertEqual(loadings.figure.axes[0].get_ylabel(), "PC2 (20%)")
+
+    def test_observation_colors_preserve_groups_and_the_fitted_coordinates(self):
+        frame = fixture().assign(Cohort=[1, "1", "1", 1, None, None, "Dropped"])
+        for view in (SCORES, BIPLOT):
+            with self.subTest(view=view):
+                ordinary = _view(frame, view)
+                colored = _view(frame, view, **{"Color groups by": "Cohort"})
+                for name in ("Explained variance", "Eigenvectors", "Scores"):
+                    pd.testing.assert_frame_equal(ordinary.tables[name], colored.tables[name])
+                table = colored.tables["PC graph coordinates"]
+                pd.testing.assert_frame_equal(table.drop(columns="Color group"), ordinary.tables["PC graph coordinates"])
+                self.assertEqual(table["Color group"].iloc[:6].tolist(), [1, "1", "1", 1, None, None])
+                axes = colored.figure.axes[0]
+                self.assertEqual([len(artist.get_offsets()) for artist in axes.collections], [2, 2, 2])
+                self.assertEqual([artist._tramastat_legend_key for artist in axes.collections],
+                                 ["group:int:1", "group:str:1", "gid:pca-missing-color-group"])
+                self.assertEqual(axes.get_legend().get_title().get_text(), "Cohort")
+        for view in (LOADINGS, SCREE, PROPORTION):
+            skipped = _view(frame, view, **{"Color groups by": "Unknown"})
+            self.assertNotIn("Color group", skipped.tables["PC graph coordinates"])
+        with self.assertRaises(FieldError) as missing:
+            _view(frame, SCORES, **{"Color groups by": "Unknown"})
+        self.assertEqual(missing.exception.field, "Color groups by")
+
+    def test_group_legend_keys_are_stable_and_continuous_columns_are_bounded(self):
+        frame = fixture().assign(Cohort=["_team", "_team", "Lab B", "Lab B", None, None, "Dropped"])
+        colored = _view(frame, SCORES, **{"Color groups by": "Cohort"})
+        self.assertEqual([entry.key for entry in collect_legend_entries(colored.figure)],
+                         ["group:str:_team", "group:str:Lab B", "gid:pca-missing-color-group"])
+        frame = pd.concat([fixture()] * 8, ignore_index=True)
+        frame["Serial"] = range(len(frame))
+        with self.assertRaises(FieldError) as many_groups:
+            _view(frame, BIPLOT, **{"Color groups by": "Serial"})
+        self.assertEqual(many_groups.exception.field, "Color groups by")
 
     def test_scree_and_proportion_keep_every_component(self):
         frame = fixture()

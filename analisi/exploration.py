@@ -191,7 +191,8 @@ def deming(frame, x, y, error_ratio=1.0):
             "Y / X measurement error variance": error_ratio}, data
 
 
-def pca(frame, columns, standardize=True):
+def pca_input(frame, columns, standardize):
+    """Return the exact transformed input, raw sample deviations and retained row index."""
     data = complete(frame, columns)
     if len(columns) < 2 or len(columns) > 256 or len(data) < 3:
         raise ValueError("PCA needs 2 to 256 variables and at least three complete rows.")
@@ -202,18 +203,23 @@ def pca(frame, columns, standardize=True):
         raise ValueError("Remove constant variables before PCA.")
     if standardize:
         centered /= scales
+    return centered, scales, data.index
+
+
+def pca(frame, columns, standardize=True):
+    centered, _, rows = pca_input(frame, columns, standardize)
     u, singular, vt = np.linalg.svd(centered, full_matrices=False)
     # Canonicalize the sign, which is otherwise arbitrary for an eigenvector.
     signs = np.sign(vt[np.arange(len(vt)), np.argmax(np.abs(vt), axis=1)])
     vt *= signs[:, None]
     scores = u * (signs * singular)
-    eigenvalues = singular**2 / (len(values) - 1)
+    eigenvalues = singular**2 / (len(centered) - 1)
     variance = eigenvalues / eigenvalues.sum() * 100
     names = [f"PC{i}" for i in range(1, len(eigenvalues) + 1)]
     return (pd.DataFrame({"Eigenvalue": eigenvalues, "Variance (%)": variance,
                           "Cumulative (%)": variance.cumsum()}, index=names),
             pd.DataFrame(vt.T, index=columns, columns=names),
-            pd.DataFrame(scores, index=data.index, columns=names))
+            pd.DataFrame(scores, index=rows, columns=names))
 
 
 def interpolate_linear(frame, x, y, query):
