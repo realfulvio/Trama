@@ -1,5 +1,7 @@
 """Options, diagnostics and plots for a fitted hierarchical clustering tree."""
 
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 from matplotlib.collections import LineCollection
@@ -7,7 +9,9 @@ from matplotlib.figure import Figure
 from scipy.cluster.hierarchy import cophenet
 from scipy.spatial.distance import squareform
 
+from .analysis_chain import RESULT_CONTEXT
 from .data import _headers
+from .field_error import FieldError
 from .hierarchical_style import bind_matrix_labels, register_heatmap, register_tree
 from .reporting import Result
 from .stats import hierarchical
@@ -41,9 +45,51 @@ HIERARCHICAL_TABS = {
     "Output": ("Scaled data", "Distance matrix", "Merge map", "Cophenetic distances",
                "Cophenetic correlation", "Elbow data", "Matrix format"),
 }
+HIERARCHY_GRAPH = "Hierarchy graph"
+TREE_AXIS = "Hierarchy axis"
+ALL_TREES = "All fitted axes"
+HIERARCHY_GRAPH_OPTIONS = {
+    "Graph output": HIERARCHICAL_OPTIONS["Graph output"],
+    TREE_AXIS: (ALL_TREES, "Rows", "Columns"),
+    **{key: HIERARCHICAL_OPTIONS[key] for key in HIERARCHICAL_TABS["Graph"] if key != "Graph output"},
+}
 PALETTE = ("#156978", "#b65a39", "#5b5aa7", "#36815b", "#a77b25", "#b34c73", "#456e9a", "#626b35")
 MIXED_BRANCH = "#637584"
 MAX_MATRIX_OBSERVATIONS = 512
+
+
+@dataclass(frozen=True, eq=False)
+class _Tree:
+    tree: np.ndarray
+    labels: pd.Series | None
+
+
+@dataclass(frozen=True, eq=False)
+class _HierarchyView:
+    trees: dict[str, _Tree]
+    names: dict[str, list[str]]
+    heights: dict[str, float | None]
+    scaled: pd.DataFrame
+    row_names: list[str]
+    column_names: list[str]
+
+
+def hierarchy_view_available(frame):
+    return isinstance(frame.attrs.get(RESULT_CONTEXT), _HierarchyView)
+
+
+def check_hierarchy_view(frame, options):
+    view = frame.attrs.get(RESULT_CONTEXT)
+    if not isinstance(view, _HierarchyView):
+        raise FieldError("Graph output", "Choose a linked Merges result from hierarchical clustering.")
+    output = options.get("Graph output", "Dendrogram")
+    if output not in HIERARCHY_GRAPH_OPTIONS["Graph output"]:
+        raise FieldError("Graph output", "Choose a hierarchy graph type.")
+    if output != "Heat map":
+        axis = options.get(TREE_AXIS, ALL_TREES)
+        if axis != ALL_TREES and not any(axis == key + "s" for key in view.trees):
+            raise FieldError(TREE_AXIS, "Choose an axis fitted by the source hierarchy.")
+    return view
 
 
 def saved_hierarchical_options(options):
@@ -199,12 +245,11 @@ def _dendrograms(fits, names, heights, options):
     return fig
 
 
-def _heat_map(fits, names, heights, options, row_names, column_names):
+def _heat_map(fits, heights, options, scale, row_names, column_names):
     fig = Figure(figsize=(8.4, 6.4), layout="constrained")
     grid = fig.add_gridspec(2, 3, height_ratios=(1.25 if "Column" in fits else .02, 5),
                            width_ratios=(1.35 if "Row" in fits else .02, 5, .22))
     ax = fig.add_subplot(grid[1, 1])
-    scale = next(iter(fits.values())).scaled
     rows, cols = np.arange(len(scale)), np.arange(len(scale.columns))
     if "Row" in fits:
         tree = fig.add_subplot(grid[1, 0], sharey=ax)
@@ -287,6 +332,22 @@ def _elbow_plot(reports):
     return figure
 
 
+def hierarchy_graph(frame, options):
+    view = check_hierarchy_view(frame, options)
+    output = options.get("Graph output", "Dendrogram")
+    if output == "Heat map":
+        return Result({}, _heat_map(view.trees, view.heights, options, view.scaled,
+                                    view.row_names, view.column_names))
+    axis = options.get(TREE_AXIS, ALL_TREES)
+    trees = view.trees if axis == ALL_TREES else {axis[:-1]: view.trees[axis[:-1]]}
+    if output == "Elbow plot":
+        values = view.scaled.to_numpy()
+        reports = {key: _elbow_data(fit.tree, values if key == "Row" else values.T)
+                   for key, fit in trees.items()}
+        return Result({}, _elbow_plot(reports))
+    return Result({}, _dendrograms(trees, view.names, view.heights, options))
+
+
 def _diagnostics(fit, names, options):
     outputs = {}
     distance = options.get("Distance matrix", False)
@@ -352,9 +413,12 @@ def hierarchical_result(frame, options):
             elbow_reports[axis] = _elbow_data(fit.tree, observations)
             tables[prefix + "Elbow data"] = elbow_reports[axis]
     if graph_output == "Heat map":
-        figure = _heat_map(fits, names, heights, options, row_names, column_names)
+        figure = _heat_map(fits, heights, options, scale.scaled, row_names, column_names)
     elif graph_output == "Elbow plot":
         figure = _elbow_plot(elbow_reports)
     else:
         figure = _dendrograms(fits, names, heights, options)
-    return Result(tables, figure)
+    view = _HierarchyView({axis: _Tree(fit.tree, fit.labels) for axis, fit in fits.items()},
+                          names, heights, scale.scaled, row_names, column_names)
+    return Result(tables, figure, table_contexts={name: view for name in tables
+                                                 if name in ("Merges", "Row Merges", "Column Merges")})

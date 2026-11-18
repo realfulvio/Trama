@@ -425,6 +425,7 @@ def read_editable_graphs(data, sources, result_frames, remaining_cells, *, cache
     """Return editable data and drawing metadata for verified graphs."""
     from .prism_binary_bars import read_bar_graph
     from .prism_emf_edit import read_cached_emf_curve, read_emf_curve, read_emf_error_points
+    from .prism_emf_limits import read_emf_limit_points
     from .prism_pdf_stacks import read_pdf_stack
 
     frames = {**result_frames, **sources}
@@ -448,6 +449,7 @@ def read_editable_graphs(data, sources, result_frames, remaining_cells, *, cache
                 (read_bar_graph, (graph, sources, tables, remaining_cells)),
                 (read_emf_curve, (graph, owners, remaining_cells)),
                 (read_emf_error_points, (graph, sources, tables, remaining_cells)),
+                (read_emf_limit_points, (graph, sources, tables, remaining_cells)),
                 (read_pdf_stack, (graph, sources, tables, remaining_cells)),
             )
             if uid in cached_curves:

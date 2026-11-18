@@ -14,36 +14,46 @@ from .anova_diagnostics import OPTIONS as ANOVA_DIAG_OPTIONS
 from .anova_diagnostics import active as anova_diagnostics_active, build as build_anova_diagnostics
 from .anova_diagnostics import ensure_graph_budget as ensure_anova_graph_budget, graph_choice as anova_graph_choice
 from .anova_diagnostics import validate as validate_anova_diagnostics
+from .anova_ss import CHOICES as SS_CHOICES, KEY as SUMS_OF_SQUARES, SHEETS as ANOVA_SHEETS
+from .anova_ss import sums_of_squares as anova_sums_of_squares
 from .anova_terms import (CHOICES as TERM_CHOICES, MODEL_TERMS, SHEET as MODEL_TERMS_SHEET, TERM_LIST, TERM_SELECTION,
                           active_factors as anova_active_factors, check_comparison_controls as check_anova_comparisons,
                           selection as anova_term_selection, terms_table as anova_terms_table)
 from .additional import EXTRA_METHODS, extra_analysis
 from .category_graphs import (COLUMN_GRAPH, COLUMN_STYLES, GROUPED_GRAPH, GROUPED_OPTIONS, OPTIONS as CATEGORY_OPTIONS,
                               category_graph)
+from .ancova import ANCOVA, OPTIONS as ANCOVA_OPTIONS, ancova
 from .bubble import BUBBLE, OPTIONS as BUBBLE_OPTIONS, bubble_plot
 from .compare_lines import COMPARE_LINES, OPTIONS as COMPARE_LINES_OPTIONS, compare_lines
 from .contingency import CONTINGENCY, CONTINGENCY_OPTIONS, contingency
 from .distribution_graphs import BOX_VIOLIN, OPTIONS as BOX_VIOLIN_OPTIONS, box_violin
+from .grouped_distributions import (GROUPED_DISTRIBUTIONS, OPTIONS as GROUPED_DISTRIBUTIONS_OPTIONS,
+                                    grouped_distributions)
 from .correlation_details import (COMPARE_INDEPENDENT, CONTROL_OPTIONS, CORRELATE_CONTROL, INDEPENDENT_OPTIONS,
                                   SINGLE_EXTRA, control_result, correlation_result, independent_result)
 from .correlation_matrix import CORRELATION_MATRIX, OPTIONS as CORRELATION_MATRIX_OPTIONS, correlation_matrix
+from .rmcorr import OPTIONS as RMCORR_OPTIONS, RMCORR, analyse as rmcorr_analysis
 from .ellipse_workbench import ELLIPSE_OPTIONS, NONE, SEPARATE_GROUP, draw_confidence_overlays
 from .extract_rearrange import (COMPLETE, EXTRACT_FIELDS, EXTRACT_FORMATS, EXTRACT_OPTIONAL_FIELDS, EXTRACT_REARRANGE,
                                 OUTPUT, PREFIX, extract_rearrange)
 from .fit_quality import OPTIONS as FIT_QUALITY_OPTIONS, check_options as check_fit_options, fit_quality as quality_tables
 from .fit_weights import INVERSE_VARIANCE, NONLINEAR_WEIGHTINGS
 from .forest_plot import FOREST_PLOT, OPTIONS as FOREST_OPTIONS, forest_plot
+from .meta_analysis import META_ANALYSIS, OPTIONS as META_OPTIONS, meta_analysis
 from .frequency import FREQUENCY, FREQUENCY_OPTIONS, frequency
 from .graph_legend import typed_group_token
 from .heatmap import HEAT_MAP, OPTIONS as HEAT_MAP_OPTIONS, heat_map
 from .reference_normalization import (METHOD as REFERENCE_NORMALIZATION, OPTIONS as REFERENCE_NORMALIZATION_OPTIONS,
                                       normalize_to_references)
-from .hierarchical_workbench import HIERARCHICAL_OPTIONS, hierarchical_result
+from . import grouped_anova
+from .hierarchical_workbench import (HIERARCHICAL_OPTIONS, HIERARCHY_GRAPH, HIERARCHY_GRAPH_OPTIONS, hierarchical_result,
+                                     hierarchy_graph)
 from .inference import CHI_SQUARE_P, DUNN_OPTIONS, KRUSKAL_P, KRUSKAL_P_METHODS, dunn_comparisons, kruskal_wallis
 from .linear_diagnostics import LINEAR_OPTIONS, linear_result
 from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, equivalence_test
 from .competing_risks_workbench import (COMPETING_RISKS, OPTIONS as COMPETING_RISKS_OPTIONS,
                                         competing_risks)
+from .cox_exact import METHOD as COX_REGRESSION, cox_exact_result, is_exact as is_cox_exact
 from .lognormal_tests import LOGNORMAL, OPTIONS as LOGNORMAL_OPTIONS, lognormal_test
 from .variance_ratio import METHOD as VARIANCE_RATIO, SHOW as VARIANCE_SHOW, analysis as variance_ratio_analysis, attach_ttest
 from .summary_anova import METHOD as SUMMARY_ANOVA, OPTIONS as SUMMARY_ANOVA_OPTIONS, summary_anova
@@ -51,10 +61,12 @@ from .summary_ttest import METHOD as SUMMARY_TTEST, OPTIONS as SUMMARY_TTEST_OPT
 from .model_selection import COMPARE_MODELS, OPTIONS as COMPARE_MODELS_OPTIONS, model_selection
 from .nonlinear_bands import OPTIONS as BAND_OPTIONS, band_outputs, band_settings
 from .monte_carlo import MONTE_CARLO, OPTIONS as MONTE_CARLO_OPTIONS, monte_carlo
+from .independent_roc import METHOD as INDEPENDENT_ROC, independent_roc
 from .custom_fit import CUSTOM_EQUATION, custom_fit
 from .global_custom_fit import GLOBAL_CUSTOM_EQUATION, global_custom_fit
 from .plot_function import PLOT_FUNCTION
 from .robust_curve import OPTIONS as ROBUST_CURVE_OPTIONS, ROBUST_CURVE, robust_curve
+from .nb2_regression import NB2, OPTIONS as NB2_OPTIONS, analysis as nb2_analysis
 from .transpose_xy import OPTIONS as TRANSPOSE_OPTIONS, TRANSPOSE_XY, transpose_xy
 from .paired_graphs import (BEFORE_AFTER, BEFORE_AFTER_OPTIONS, TRAJECTORIES, TRAJECTORY_OPTIONS, before_after,
                             subject_trajectories)
@@ -71,7 +83,8 @@ from .xy_series import XY_METHOD, xy_series
 from .processing import FieldError
 from .rank_tests import MANN_WHITNEY, OPTIONS as RANK_OPTIONS, WILCOXON, is_legacy as legacy_rank_test, rank_test
 from .row_tests import ROW_TESTS, OPTIONS as ROW_TEST_OPTIONS, row_tests
-from .survival_input import CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_POLICIES, recode_statuses
+from .survival_input import (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED, PAIRWISE_ALPHA,
+                             PAIRWISE_METHODS, CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_POLICIES, recode_statuses)
 from .survival_plot import (ERROR_BARS, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS, GREENWOOD, INTERVAL, UNCERTAINTY,
                             display_curve, format_ordinate, ordinate_label, survival_graph_settings)
 from .prism_restore import (MAX_LAYOUT_PANEL_DATA, PRISM_GRAPH_STYLE, PRISM_LAYOUT_PANELS, PRISM_PREVIEW,
@@ -156,7 +169,17 @@ def check_survival_options(frame, options):
         raise FieldError("Event columns", "Choose existing status columns.")
     coded = recode_statuses(frame, responses, options)
     wants_trend, wants_hazard = options.get("Log-rank trend"), options.get("Hazard ratio")
-    if not (wants_trend or wants_hazard):
+    correction = options.get(PAIRWISE_CORRECTION, "None")
+    control = options.get(PAIRWISE_CONTROL) if correction != "None" else None
+    if correction != "None":
+        if not isinstance(correction, str) or correction not in PAIRWISE_METHODS:
+            raise FieldError(PAIRWISE_CORRECTION, "Choose a supported correction for the pairwise tests.")
+        if not options.get(PAIRWISE_ADJUSTED, True):
+            alpha = options.get(PAIRWISE_ALPHA, .05)
+            if (isinstance(alpha, (bool, np.bool_)) or not isinstance(alpha, (int, float, np.floating))
+                    or not 0 < alpha < 1):
+                raise FieldError(PAIRWISE_ALPHA, "Pairwise alpha must be between zero and one.")
+    if not (wants_trend or wants_hazard or control):
         return coded
     levels = _survival_levels(coded, options.get("Time"), responses, roles["Grouping variables"])
     if len(levels) != len(set(levels)):
@@ -175,6 +198,8 @@ def check_survival_options(frame, options):
             detail = ([f"missing {', '.join(missing)}"] if missing else []) + (
                 [f"unknown {', '.join(unknown)}"] if unknown else [])
             raise FieldError("Trend group order", "Trend group order: list every group once (" + "; ".join(detail) + ").")
+    if control and (len(levels) < 2 or not isinstance(control, str) or control not in levels):
+        raise FieldError(PAIRWISE_CONTROL, "Choose a control from at least two observed groups.")
     numerator = options.get("Hazard ratio numerator")
     if wants_hazard and numerator and str(numerator) not in levels:
         raise FieldError("Hazard ratio numerator", f"Hazard ratio numerator: {numerator} is not a group in this analysis.")
@@ -203,6 +228,7 @@ METHODS = {
     "Correlation": {"X": None, "Y": None, "Method": ("Pearson", "Spearman", "Kendall"), **SINGLE_EXTRA},
     CORRELATE_CONTROL: CONTROL_OPTIONS,
     COMPARE_INDEPENDENT: INDEPENDENT_OPTIONS,
+    RMCORR: RMCORR_OPTIONS,
     CORRELATION_MATRIX: {"Variables": MULTIPLE, **CORRELATION_MATRIX_OPTIONS},
     ROW_TESTS: ROW_TEST_OPTIONS,
     **NESTED_METHODS,
@@ -211,6 +237,7 @@ METHODS = {
     GOODNESS_OF_FIT: GOODNESS_OPTIONS,
     "Linear regression": {"X": None, "Y": None, **LINEAR_OPTIONS},
     COMPARE_LINES: COMPARE_LINES_OPTIONS,
+    ANCOVA: ANCOVA_OPTIONS,
     "Nonlinear regression": {"X": None, "Y columns": MULTIPLE, "Grouping variables": OPTIONAL_MULTIPLE,
                              "Model": tuple(name for name, spec in engine.MODELS.items()
                                             if not (spec.required_fixed or spec.required_shared)),
@@ -221,15 +248,20 @@ METHODS = {
                                  "Weighting": engine.FIT_WEIGHTINGS, "SD column": OPTIONAL},
     COMPARE_MODELS: COMPARE_MODELS_OPTIONS,
     ROBUST_CURVE: ROBUST_CURVE_OPTIONS,
+    grouped_anova.METHOD: {grouped_anova.ROWS: None, grouped_anova.VALUES: OPTIONAL_MULTIPLE,
+                          grouped_anova.ROW_NAME: TEXT, grouped_anova.COLUMN_NAME: TEXT,
+                          grouped_anova.INTERACTION: True},
+    NB2: NB2_OPTIONS,
     "Multifactor ANOVA": {"Response": None, "Factors": MULTIPLE, TERM_SELECTION: TERM_CHOICES, "Interaction order": 1,
-                         MODEL_TERMS: TERM_LIST,
+                         SUMS_OF_SQUARES: SS_CHOICES, MODEL_TERMS: TERM_LIST,
                          "Compare marginal means by": OPTIONAL, "Cell comparison factors": OPTIONAL_MULTIPLE,
                          "Within factors (simple effects)": OPTIONAL_MULTIPLE, "Control level(s), separated by |": TEXT,
                          "Families": ("Separate", "Pooled"), "Reverse comparisons": False,
                          "Correction": ("Holm", "Holm–Šídák", "Šídák", "Bonferroni", "Tukey", "Dunnett", "None"),
                          ANOVA_EFFECTS: False, ANOVA_ALPHA: 0.05, **ANOVA_DIAG_OPTIONS},
     "Kaplan–Meier survival": {"Time": None, "Event columns": MULTIPLE, "Grouping variables": OPTIONAL_MULTIPLE,
-                              "Pairwise correction": ("None", "Holm", "Bonferroni", "FDR"),
+                              PAIRWISE_CORRECTION: ("None", *PAIRWISE_METHODS), PAIRWISE_CONTROL: GROUP_CHOICE,
+                              PAIRWISE_ADJUSTED: True, PAIRWISE_ALPHA: .05,
                               "Median method": MEDIAN_METHODS, "Confidence level (%)": 95.0,
                               "Gehan–Breslow–Wilcoxon": False, "Log-rank trend": False,
                               "Trend group order": GROUP_ORDER, "Hazard ratio": False,
@@ -248,6 +280,7 @@ METHODS = {
                            kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                            kmeans_options.INITIAL_ROWS: TEXT, **dict.fromkeys(kmeans_reports.COMMON, False)},
     "Hierarchical clustering": {"Variables": MULTIPLE, "Observation labels": OPTIONAL, **HIERARCHICAL_OPTIONS},
+    HIERARCHY_GRAPH: HIERARCHY_GRAPH_OPTIONS,
     "Scatter / confidence ellipse": {"X": None, "Y": None, "Group": OPTIONAL, **ELLIPSE_OPTIONS},
     COLUMN_GRAPH: {"Variables": MULTIPLE, "Graph style": COLUMN_STYLES, **CATEGORY_OPTIONS},
     HEAT_MAP: HEAT_MAP_OPTIONS,
@@ -268,10 +301,12 @@ METHODS = {
     "Histogram": {"Response": None, "Bins": 10},
     FREQUENCY: FREQUENCY_OPTIONS,
     BOX_VIOLIN: BOX_VIOLIN_OPTIONS,
+    GROUPED_DISTRIBUTIONS: GROUPED_DISTRIBUTIONS_OPTIONS,
     BUBBLE: BUBBLE_OPTIONS,
     BEFORE_AFTER: BEFORE_AFTER_OPTIONS,
     TRAJECTORIES: TRAJECTORY_OPTIONS,
     FOREST_PLOT: FOREST_OPTIONS,
+    META_ANALYSIS: META_OPTIONS,
     OUTLIERS: OUTLIER_OPTIONS,
     MONTE_CARLO: MONTE_CARLO_OPTIONS,
     SELECT_TRANSFORM: SELECT_OPTIONS,
@@ -290,24 +325,24 @@ GROUPS = {
                         "Reshape replicates", TRANSPOSE_XY,
                         "Outlier test (Grubbs)", OUTLIERS),
     "Data Exploration and Summary": ("Descriptive statistics", "Row statistics", NORMALITY,
-                                    "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX,
+                                    "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX, RMCORR,
                                     "Histogram", FREQUENCY, GOODNESS_OF_FIT,
                                     "Area under curve", "Principal component analysis",
-                                    "Adjust a stack of p values", "Control false discoveries",
-                                    "Smooth / differentiate / integrate"),
+                                    "Adjust a stack of p values", "Control false discoveries", META_ANALYSIS),
     "Regression and Curves": ("Linear regression", COMPARE_LINES, "Deming regression", "Multiple regression",
-                              "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
+                              NB2, "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
-                              "Interpolate a standard curve", SPLINE_FIT, PLOT_FUNCTION),
+                              "Interpolate a standard curve", SPLINE_FIT,
+                              "Smooth / differentiate / integrate", PLOT_FUNCTION),
     "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
-                         "Multifactor ANOVA", "Contingency table",
-                         "Bland–Altman", "ROC curve", "Compare paired ROC curves"),
+                         "Multifactor ANOVA", grouped_anova.METHOD, ANCOVA, "Contingency table",
+                         "Bland–Altman", "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC),
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS),
-    "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering"),
+    "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering", HIERARCHY_GRAPH),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
-                 PARTS_GRAPH, "Box / violin plot", BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
+                 PARTS_GRAPH, "Box / violin plot", GROUPED_DISTRIBUTIONS, BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
     "Study Design and Simulation": ("Power and sample size", "Simulate data", MONTE_CARLO),
 }
 
@@ -316,11 +351,14 @@ GROUPS = {
 GRAPH_METHODS = frozenset({
     *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", "Correlation", CORRELATE_CONTROL,
     COMPARE_INDEPENDENT, CORRELATION_MATRIX, "Deming regression",
-    "Global nonlinear regression", "Hierarchical clustering", "Histogram", FREQUENCY, "Interpolate a standard curve",
-    "K-means clustering", "K-means model selection", "Kaplan–Meier survival", COMPETING_RISKS, "Linear regression", COMPARE_LINES,
+    "Global nonlinear regression", "Hierarchical clustering", HIERARCHY_GRAPH, "Histogram", FREQUENCY,
+    "Interpolate a standard curve",
+    "K-means clustering", "K-means model selection", "Kaplan–Meier survival", COMPETING_RISKS,
+    "Linear regression", COMPARE_LINES, ANCOVA,
     "Mixed-effects model (REML)", LOGNORMAL, EQUIVALENCE, "Multiple t-tests", ROW_TESTS, "Nonlinear regression", ROBUST_CURVE, CUSTOM_EQUATION,
     GLOBAL_CUSTOM_EQUATION, "Principal component analysis",
-    "ROC curve", "Compare paired ROC curves", "Smooth / differentiate / integrate", SPLINE_FIT, *NESTED_METHODS,
+    "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC, "Smooth / differentiate / integrate", SPLINE_FIT,
+    *NESTED_METHODS,
     REFERENCE_NORMALIZATION, SUMMARY_ANOVA, SUMMARY_TTEST,
 })
 
@@ -386,6 +424,8 @@ def _anova(frame, o):
     y, factors = o["Response"], o["Factors"]
     # Selected terms (0.83): None means Full hierarchy, whose Interaction order and Patsy fit are unchanged.
     terms = anova_term_selection(o)
+    # Sums of squares: Type III (also when the key is absent), Type I or Type II. All three share one fit.
+    kind = anova_sums_of_squares(o)
     order = o.get("Interaction order", 1) if terms is not None else o["Interaction order"]
     alpha = check_anova_options(o)
     # Field errors name the diagnostic control. The full fit still happens once, on this call.
@@ -398,8 +438,8 @@ def _anova(frame, o):
         if count is not None:
             ensure_anova_graph_budget(count, graph)
     table, fit, data, design, beta, error, df = engine._factorial_anova_components(
-        frame, y, factors, order, terms=terms)
-    tables = {"ANOVA (type III)": table}
+        frame, y, factors, order, terms=terms, sums_of_squares=kind)
+    tables = {ANOVA_SHEETS[kind]: table}
     if terms is not None:
         tables[MODEL_TERMS_SHEET] = anova_terms_table(terms, anova_active_factors(factors, terms), data)
     if alpha is not None:
@@ -621,7 +661,8 @@ def _comparison_sheet(result, labels):
 
 
 def _has_survival_orientation(options):
-    return bool(options.get("Log-rank trend") or options.get("Hazard ratio"))
+    return bool(options.get("Log-rank trend") or options.get("Hazard ratio") or
+                (options.get(PAIRWISE_CORRECTION, "None") != "None" and options.get(PAIRWISE_CONTROL)))
 
 
 def _survival_extras(frame, o, time, event, group, level, group_count):
@@ -726,19 +767,35 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
             "Status": "Not available",
             "Reason": "The groups do not share enough risk sets with events for this comparison."}).rename_axis("Metric")
     outputs.update(_survival_extras(frame, o, time, event, group, level, len(curves)))
-    correction = o.get("Pairwise correction", "None")
+    correction = o.get(PAIRWISE_CORRECTION, "None")
     if group and len(curves) > 1 and correction != "None":
         if len(curves) > 12:
             raise ValueError("Pairwise survival tests support up to twelve groups.")
+        control = o.get(PAIRWISE_CONTROL)
+        if control:
+            resolved = [label for label in curves if str(label) == control]
+            if len(resolved) != 1:
+                raise FieldError(PAIRWISE_CONTROL, "The control group has no observations for this response.")
+            control_label, = resolved
+            groups = ((control_label, label) for label in curves if label != control_label)
+        else:
+            groups = combinations(curves, 2)
         pairwise = []
-        for left, right in combinations(curves, 2):
+        for left, right in groups:
             _, test = engine.survival(frame[frame[group].isin([left, right])], time, event, group, strict=False)
             pairwise.append({"Comparison": f"{left} / {right}", **(test or {"p": np.nan})})
-        pairs = pd.DataFrame(pairwise).set_index("Comparison")
+        pairs = pd.DataFrame(pairwise)
+        adjusted = o.get(PAIRWISE_ADJUSTED, True)
         if pairs["p"].notna().any():
-            method = {"Holm": "holm", "Bonferroni": "bonferroni", "FDR": "fdr_bh"}[correction]
-            pairs["Adjusted p"] = adjust_p(pairs, "p", method)["Adjusted p"]
-        outputs["Pairwise log-rank"] = pairs
+            p_adjusted = adjust_p(pairs, "p", PAIRWISE_METHODS[correction])["Adjusted p"]
+            if adjusted:
+                pairs["Adjusted p"] = p_adjusted
+            else:
+                alpha = o.get(PAIRWISE_ALPHA, .05)
+                pairs["Significant"] = p_adjusted.lt(alpha).astype("boolean").where(p_adjusted.notna())
+        elif not adjusted:
+            pairs["Significant"] = pd.array([pd.NA] * len(pairs), dtype="boolean")
+        outputs["Pairwise log-rank"] = pairs.set_index("Comparison")
     if compact:
         outputs["Survival curves"] = pd.concat({label: table.rename_axis("Time point")
                                                 for label, table in tables.items()}, names=["Group"])
@@ -913,10 +970,11 @@ def _imported_xy(frame, options):
             raise ValueError("Invalid geometry in a saved Prism series.")
         if all(column in group for column in error_columns):
             errors = group[error_columns].to_numpy(dtype=float, na_value=np.nan)
-            present = np.isfinite(errors).all(axis=1) & (errors >= 0).all(axis=1)
+            valid = np.isfinite(errors) & (errors >= 0)
+            present = valid.any(axis=1)
             if present.any():
                 axes.errorbar(group["X"].to_numpy()[present], group["Y"].to_numpy()[present],
-                              yerr=errors[present].T, fmt="none", ecolor=color, alpha=.55)
+                              yerr=np.where(valid, errors, 0)[present].T, fmt="none", ecolor=color, alpha=.55)
         colors[label] = color
     if style is not None:
         apply_axes(axes, style)
@@ -1040,6 +1098,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return equivalence_test(frame, o)
     if method == COMPETING_RISKS:
         return competing_risks(frame, o, cancel=cancel)
+    if method == COX_REGRESSION and is_cox_exact(o):
+        return cox_exact_result(frame, o, cancel=cancel)
     if method == SUMMARY_ANOVA:
         return summary_anova(frame, o)
     if method == SUMMARY_TTEST:
@@ -1066,6 +1126,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return control_result(frame, o, cancel=cancel)
     if method == COMPARE_INDEPENDENT:
         return independent_result(frame, o)
+    if method == RMCORR:
+        return rmcorr_analysis(frame, o, cancel=cancel)
     if method == CORRELATION_MATRIX:
         return correlation_matrix(frame, o)
     if method == ROW_TESTS:
@@ -1084,6 +1146,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return linear_result(frame, o)
     if method == COMPARE_LINES:
         return compare_lines(frame, o)
+    if method == ANCOVA:
+        return ancova(frame, o)
     if method == "Nonlinear regression":
         parameter_ci_settings(o)
         check_fit_options(o)
@@ -1101,6 +1165,12 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return model_selection(frame, o)
     if method == ROBUST_CURVE:
         return robust_curve(frame, o)
+    if method == grouped_anova.METHOD:
+        long, response, factors = grouped_anova.grouped_inputs(frame, o)
+        table = engine.factorial_anova(long, response, factors, 2 if o.get(grouped_anova.INTERACTION, True) else 1)
+        return Result({"ANOVA (type III)": table})
+    if method == NB2:
+        return nb2_analysis(frame, o)
     if method == "Multifactor ANOVA":
         return _anova(frame, o)
     if method in kmeans_options.METHODS:
@@ -1113,6 +1183,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return _classic_analysis(method, frame, o, "Time", _survival)
     if method == "Hierarchical clustering":
         return hierarchical_result(frame, o)
+    if method == HIERARCHY_GRAPH:
+        return hierarchy_graph(frame, o)
     if method == SELECT_TRANSFORM:
         return select_transform(frame, o)
     if method == EXTRACT_REARRANGE:
@@ -1136,16 +1208,22 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         if o.keys() <= {"Response", "Group", "Style"}:
             return _distribution(method, frame, o)
         return box_violin(frame, o)
+    if method == GROUPED_DISTRIBUTIONS:
+        return grouped_distributions(frame, o)
     if method == BEFORE_AFTER:
         return before_after(frame, o)
     if method == TRAJECTORIES:
         return subject_trajectories(frame, o)
     if method == FOREST_PLOT:
         return forest_plot(frame, o)
+    if method == META_ANALYSIS:
+        return meta_analysis(frame, o, cancel=cancel)
     if method == OUTLIERS:
         return identify_outliers(frame, o)
     if method == MONTE_CARLO:
         return monte_carlo(frame, o)
+    if method == INDEPENDENT_ROC:
+        return independent_roc(frame, o, cancel=cancel)
     if method == "Histogram":
         return _distribution(method, frame, o)
     if method == REFERENCE_NORMALIZATION:

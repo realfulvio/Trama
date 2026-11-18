@@ -12,7 +12,7 @@ from .advanced import dunnett_scores
 from .friedman_exact import ExactBudgetExceeded, friedman_exact_tail
 from .processing import FieldError
 from .stats import complete
-from . import unequal_anova
+from . import rm_sphericity, unequal_anova
 from .unequal_anova import DEFAULT_LEVEL, UNEQUAL_POSTHOC, brown_forsythe, check_group_variances, confidence_level
 
 
@@ -338,15 +338,24 @@ def _gg_epsilon(values):
 def repeated_measures_anova(frame, response, factors, subject, *, correction=None):
     """Fit a balanced one- or two-factor design with every factor within subject.
 
-    Set correction="gg" for one-way Geisser–Greenhouse adjusted test degrees
-    of freedom. The df used to compute mean squares remain unadjusted.
+    ``correction="gg"`` adjusts the test degrees of freedom of every effect by its own Greenhouse–Geisser
+    epsilon, for one or two factors. A two-factor fit then also returns the ``Sphericity`` sheet, and a design
+    problem raises a ``FieldError`` that names the dialog field. ``correction="gg-one-way"`` is the historical
+    one-factor choice with its original errors. The df used to compute mean squares remain unadjusted.
     """
     factors = tuple(factors)
     if len(factors) not in {1, 2}:
         raise ValueError("Select one or two within-subject factors.")
-    if correction is not None and (correction != "gg" or len(factors) != 1):
+    if correction not in (None, rm_sphericity.GG, rm_sphericity.GG_ONE_WAY):
+        raise ValueError("Unknown sphericity correction.")
+    if correction == rm_sphericity.GG_ONE_WAY and len(factors) != 1:
         raise ValueError("Geisser–Greenhouse correction is available for one within-subject factor.")
+    strict = correction == rm_sphericity.GG
+    if strict:
+        rm_sphericity.check_design(frame, response, factors, subject)
     values, _ = _matched_values(frame, response, factors, subject)
+    if strict:
+        rm_sphericity.check_scale(values)
     subject_df = values.shape[0] - 1
     ss_subject = _effect_ss(values - values.flat[0], (0,))
     rows = [{"Term": subject, "SS": ss_subject, "df": subject_df, "MS": ss_subject / subject_df}]
@@ -358,23 +367,35 @@ def repeated_measures_anova(frame, response, factors, subject, *, correction=Non
     effects = [(name, (i,)) for i, name in enumerate(factors, start=1)]
     if len(factors) == 2:
         effects.append((":".join(factors), (1, 2)))
+    sphericity = []
     for name, axes in effects:
         ss = _effect_ss(within, axes)
         df = prod(values.shape[axis] - 1 for axis in axes)
         error_ss = _effect_ss(within, (0, *axes))
         error_df = df * subject_df
         if not np.isfinite(error_ss) or error_ss <= np.finfo(float).eps**2 * total_ss:
+            if strict:
+                raise rm_sphericity.residual_error(name)
             raise ValueError(f'No measurable subject-by-effect residual variance for "{name}".')
         statistic = (ss / df) / (error_ss / error_df)
         row = {"Term": name, "SS": ss, "df": df, "MS": ss / df, "F": statistic,
                "F df1": df, "F df2": error_df}
-        if correction == "gg":
-            epsilon = _gg_epsilon(within)
+        if correction is not None:
+            # Two factors: one epsilon per effect from the contrast scores of that effect. One factor: the
+            # historical covariance of the centred columns, for both spellings of the choice.
+            epsilon = _gg_epsilon(within) if len(factors) == 1 else rm_sphericity.effect_epsilon(within, axes)[1]
             row.update({"GG ε": epsilon, "F df1": df * epsilon, "F df2": error_df * epsilon})
         row["p"] = stats.f.sf(statistic, row["F df1"], row["F df2"])
+        if strict and len(factors) == 2:
+            sphericity.append({"Term": name, "Contrast dimension": df, "GG ε": epsilon, "F": statistic,
+                               "F df1": row["F df1"], "F df2": row["F df2"], "p": row["p"],
+                               "Uncorrected p": stats.f.sf(statistic, df, error_df)})
         rows.extend([row, {"Term": f"{subject}:{name}", "SS": error_ss, "df": error_df,
                            "MS": error_ss / error_df}])
-    return {"ANOVA": pd.DataFrame(rows).set_index("Term")}
+    tables = {"ANOVA": pd.DataFrame(rows).set_index("Term")}
+    if sphericity:
+        tables[rm_sphericity.SHEET] = rm_sphericity.sphericity_table(sphericity)
+    return tables
 
 
 def _friedman_assignments_within_limit(subjects, groups):

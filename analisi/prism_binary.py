@@ -11,8 +11,11 @@ MAGIC = b"PCFFGRA4"
 _RECORD = Struct("<HI")
 _DATASET = Struct("<15i")
 _NUMERIC_CELL = (Struct("<IIf"), Struct("<IId"))
+_FLOAT32 = Struct("<f")
 _PLAIN = 10
 _MEAN_SD = 21
+_XY_LIMITS = 30
+_LEGACY_LIMITS_LAYOUT = 34
 _REPLICATES = 61
 _ROW_TITLES = 256
 
@@ -183,6 +186,44 @@ def _legacy_values(records, count, x_id):
     return values
 
 
+def _legacy_limit_values(records, count, x_id, role):
+    owner = _record_once(records, 0x8F)
+    if (len(owner) != 12 or unpack_from("<3i", owner) != (2, 0, x_id)
+            or _record_once(records, 0x90) != b"\x01\x00"
+            or _record_once(records, 0xF3, required=False) is not None):
+        raise _UnsupportedSheet("Unrecognized legacy XY limit attributes")
+    cells = _stored_cells(records, count, single_precision=True)
+    if role == _ROW_TITLES:
+        if count or any(_record_once(records, tag) != bytes(4) for tag in (0x11, 0xB6)):
+            raise _UnsupportedSheet("Unrecognized legacy XY row titles")
+        return []
+    if role == 4:
+        values = []
+        for status, width, value in cells:
+            if status != 1 or width or not isfinite(value):
+                raise _UnsupportedSheet("Unrecognized legacy XY coordinate")
+            values.append(value)
+        return values
+
+    values = []
+    for center, plus, minus in zip(cells, cells, cells, strict=True):
+        if (center, plus, minus) == ((0x100000, 0, 0), (0, 0, 0), (0, 0, 0)):
+            values.extend((None, None, None))
+            continue
+        if any(status != 1 or width or not isfinite(value) for status, width, value in (center, plus, minus)):
+            raise _UnsupportedSheet("Unrecognized legacy XY limit cells")
+        # This profile stores signed distances. The original worksheet shows
+        # single-precision endpoints, including limits that cross the center.
+        mean = center[2]
+        try:
+            upper = _FLOAT32.unpack(_FLOAT32.pack(mean + plus[2]))[0]
+            lower = _FLOAT32.unpack(_FLOAT32.pack(mean - minus[2]))[0]
+        except OverflowError as error:
+            raise _UnsupportedSheet("Legacy XY endpoint exceeds its numeric range") from error
+        values.extend((mean, upper, lower))
+    return values
+
+
 def _row_titles(records, count, fonts):
     cells, attributes, stride = _cell_storage(records, count, text=True)
     text = _record_once(records, 0x11, required=False)
@@ -214,12 +255,17 @@ def _row_titles(records, count, fonts):
 
 def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analysis_id=-1):
     layout = _record_once(metadata, 0x8E)
-    legacy_source = analysis_id == -1 and len(layout) == 28 and unpack_from("<i", layout)[0] == -1
-    legacy_xy = legacy_source and unpack_from("<2i", layout, 20) == (0, 1)
-    legacy_column = legacy_source and unpack_from("<3i", layout, 16) == (_PLAIN, 0, 2)
-    legacy = legacy_xy or legacy_column
+    legacy_layout = unpack_from("<7i", layout) if analysis_id == -1 and len(layout) == 28 else ()
+    legacy_source = bool(legacy_layout) and legacy_layout[0] == -1
+    legacy_xy = legacy_source and legacy_layout[5:] == (0, 1)
+    legacy_column = legacy_source and legacy_layout[4:] == (_PLAIN, 0, 2)
+    legacy_limits = (bool(legacy_layout) and legacy_layout[0] >= 0
+                     and legacy_layout[1:3] == (44, 3) and legacy_layout[4:] == (_LEGACY_LIMITS_LAYOUT, 0, 1))
+    legacy = legacy_xy or legacy_column or legacy_limits
     modes = (_MEAN_SD, _REPLICATES) if legacy_xy else (_PLAIN, _MEAN_SD, _REPLICATES)
-    if len(layout) < (28 if legacy else 36) or (mode := unpack_from("<i", layout, 16)[0]) not in modes:
+    if legacy_limits:
+        mode = _XY_LIMITS
+    elif len(layout) < (28 if legacy else 36) or (mode := unpack_from("<i", layout, 16)[0]) not in modes:
         raise _UnsupportedSheet("Unrecognized table layout")
 
     fields = {}
@@ -248,7 +294,8 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
         link_size = 12 + 12 * repeats - (8 if legacy else 0)
         if (position >= MAX_COLUMNS or position in links or not 0 < repeats <= MAX_COLUMNS
                 or len(payload) != link_size
-                or (mode == _PLAIN and repeats != 1) or (mode == _MEAN_SD and repeats != 2)):
+                or (mode == _PLAIN and repeats != 1) or (mode == _MEAN_SD and repeats != 2)
+                or (legacy_limits and (uid == 0xFFFFFFFF or repeats != 3))):
             raise _UnsupportedSheet("Unrecognized column link")
         if legacy_column and (uid == 0xFFFFFFFF or unpack_from("<I", payload, 12)[0] not in (0x7040, 0x7140)):
             raise _UnsupportedSheet("Unrecognized legacy column link")
@@ -267,6 +314,9 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
         raise _UnsupportedSheet("Unrecognized legacy XY column linkage")
     if legacy_column and (xs or titles or linked_x_ids != {-1}):
         raise _UnsupportedSheet("Unrecognized legacy column linkage")
+    if legacy_limits and (len(xs) != 1 or linked_x_ids != set(xs) or titles != [legacy_layout[0]]
+                          or len(ys) != legacy_layout[3]):
+        raise _UnsupportedSheet("Unrecognized legacy XY limit linkage")
     if not ys:
         return None
 
@@ -289,7 +339,8 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
         name_payload = _record_once(records, 9)
         name = _title(name_payload)
         if role == _ROW_TITLES:
-            labels = _row_titles(records, count, fonts)
+            labels = (_legacy_limit_values(records, count, xs[0], role) if legacy_limits
+                      else _row_titles(records, count, fonts))
             if labels:
                 headers.append(name or "Row title")
                 kinds.append("text")
@@ -302,7 +353,9 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
                     or rich_text.split(b"\0", 1)[0] != bytes(name_payload[:-1])):
                 raise _UnsupportedSheet("Unrecognized formatted title")
             name = _formatted_label(rich_text, fonts)
-        if legacy:
+        if legacy_limits:
+            values = _legacy_limit_values(records, count, xs[0], role)
+        elif legacy:
             values = _legacy_values(records, count, xs[0] if legacy_xy else -1)
         else:
             values = _numeric_values(records, count, grouped_integers=grouped and form == _PLAIN and role == 8)
@@ -312,6 +365,8 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
             name = name.strip() or f"Y{ys[uid]}"
             if form == _MEAN_SD:
                 headers.extend(f"{name} [{label}]" for label in ("Mean", "SD"))
+            elif form == _XY_LIMITS:
+                headers.extend(f"{name} [{label}]" for label in ("Center", "Upper", "Lower"))
             elif repeats == 1:
                 headers.append(name)
             else:

@@ -7,26 +7,37 @@ import tempfile
 THEMES = ("standard", "modern")
 
 
-def load_theme(path):
+def _preferences(path):
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeError):
-        return "standard"
-    value = data.get("theme") if isinstance(data, dict) else None
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def load_theme(path):
+    value = _preferences(path).get("theme", "modern")
     return value if isinstance(value, str) and value in THEMES else "standard"
 
 
 def save_theme(path, theme):
     if theme not in THEMES:
         raise ValueError("Unknown interface theme")
+    _save(path, theme=theme)
+
+
+def load_ribbon_expanded(path):
+    return _preferences(path).get("ribbon_expanded") is True
+
+
+def save_ribbon_expanded(path, expanded):
+    _save(path, ribbon_expanded=bool(expanded))
+
+
+def _save(path, **changes):
     path = Path(path)
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, UnicodeError):
-        data = {}
-    if not isinstance(data, dict):
-        data = {}
-    data["theme"] = theme
+    data = _preferences(path)
+    data.update(changes)
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary = tempfile.mkstemp(prefix=".theme-", suffix=".tmp", dir=path.parent)
     try:

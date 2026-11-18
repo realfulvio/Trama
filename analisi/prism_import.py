@@ -143,6 +143,16 @@ def _restore_formulas(frame, variables, transforms):
     return frame
 
 
+def _category_order(metadata):
+    categories = metadata.get("categories")
+    if not isinstance(categories, list) or not 2 <= len(categories) <= 32:
+        return ()
+    if any(not isinstance(item, dict) or not isinstance(item.get("name"), str) for item in categories):
+        return ()
+    labels = tuple(item["name"] for item in categories)
+    return labels if len(set(labels)) == len(labels) and all(labels) else ()
+
+
 def _zip_table(archive, names, table, remaining_cells, *, result=False):
     fmt = table.get("format")
     mode = table.get("dataFormat")
@@ -172,6 +182,7 @@ def _zip_table(archive, names, table, remaining_cells, *, result=False):
         raise ValueError("Prism data table exceeds the column limit.")
     headers, kinds, variables, transforms, slices = [], [], [], {}, {}
     sequence = None
+    category_orders = {}
     for uid, default, kind in prefixes:
         metadata = _json_object(archive, f"data/sets/{_identifier(uid)}.json")
         name = metadata.get("title") or default
@@ -201,6 +212,8 @@ def _zip_table(archive, names, table, remaining_cells, *, result=False):
         kind = "text" if mode == "text" else metadata.get("currentType", metadata.get("dataType"))
         start = len(headers)
         if repeats == 1 and fmt == "multivariable":
+            if kind == "categorical" and (order := _category_order(metadata)):
+                category_orders[uid] = order
             variables.append(len(headers))
             source = metadata.get("valuesStorageData")
             if isinstance(source, dict) and source.get("@class") == "TransformDataSource":
@@ -249,6 +262,8 @@ def _zip_table(archive, names, table, remaining_cells, *, result=False):
     frame.attrs["prism_x"] = table.get("xDataSet")
     frame.attrs["prism_y"] = ids
     frame.attrs["prism_y_format"] = mode
+    if category_orders:
+        frame.attrs["prism_category_orders"] = category_orders
     return _restore_formulas(frame, variables, transforms) if transforms else frame
 
 

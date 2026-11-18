@@ -5,6 +5,7 @@ from tkinter import colorchooser, messagebox, simpledialog, ttk
 
 from matplotlib.colors import to_hex
 
+from .axis_breaks import AXIS_BREAKS, SUPPORT_ATTR, AxisBreakError, axis_breaks_reason
 from .axis_guides import AXIS_BANDS, AXIS_GUIDES
 from .graph_annotations import ANNOTATIONS
 from .graph_legend import LEGEND_OPTIONS_KEY
@@ -24,6 +25,7 @@ AXIS_FIELDS = {
     "min": "graph.axis.min", "max": "graph.axis.max", "step": "graph.axis.step",
     "start": "graph.axis.start", "minor": "graph.axis.minor", "decimals": "graph.axis.decimals",
 }
+BREAK_OWNED_FIELDS = frozenset({"min", "max", "step", "start"})
 FONT_FIELDS = {"title_size": "graph.field.font_title", "label_size": "graph.field.font_labels",
                "tick_size": "graph.field.font_ticks", "legend_size": "graph.field.font_legend"}
 SERIES_LABELS = {key: "graph.series." + key
@@ -120,6 +122,10 @@ def pick_color(parent, variable):
         variable.set(selected)
 
 
+class _BreaksProblem(ValueError):
+    """The axis breaks of this dialog cannot be drawn together with the other choices."""
+
+
 class GraphFormatDialog(simpledialog.Dialog):
     def __init__(self, parent, axes, style, *, xy=None):
         self.axes = axes
@@ -138,6 +144,8 @@ class GraphFormatDialog(simpledialog.Dialog):
         self._series_index = -1
         self._axis_guides = deepcopy(style.get(AXIS_GUIDES, []))
         self._axis_bands = deepcopy(style.get(AXIS_BANDS, []))
+        self._axis_breaks = deepcopy(style.get(AXIS_BREAKS, {}))
+        self._breaks_previewed = False
         self._legend_options = deepcopy(style.get(LEGEND_OPTIONS_KEY, {}))
         self._hierarchical = None
         self._guides_previewed = False
@@ -238,6 +246,7 @@ class GraphFormatDialog(simpledialog.Dialog):
         return initial_focus
 
     def _axes_tab(self, tab):
+        self._axis_refreshers = {}
         for column, dimension in enumerate(("x", "y")):
             axis = getattr(self.axes, dimension + "axis")
             options = self.style.get("axis", {}).get(dimension, {})
@@ -258,16 +267,19 @@ class GraphFormatDialog(simpledialog.Dialog):
             for row, (key, caption) in enumerate(AXIS_FIELDS.items(), start=1):
                 fields[key], widgets[key] = self._field(block, row, tr(caption), options.get(key, ""), width=10)
 
-            def refresh(*_, scale=scale, widgets=widgets, numeric=numeric):
+            def refresh(*_, scale=scale, widgets=widgets, numeric=numeric, dimension=dimension):
+                broken = self._axis_breaks.get("axis") == dimension
                 for key, entry in widgets.items():
                     if key == "scale":
                         continue
                     mode = scale.get()
                     disabled = (not numeric or (mode == "log" and key in {"step", "start"})
-                                or (mode in PROBABILITY_SCALES and key not in {"min", "max"}))
+                                or (mode in PROBABILITY_SCALES and key not in {"min", "max"})
+                                or (broken and key in BREAK_OWNED_FIELDS))
                     entry.configure(state="disabled" if disabled else "normal")
 
             scale.trace_add("write", refresh)
+            self._axis_refreshers[dimension] = refresh
             refresh()
             if not numeric:
                 ttk.Label(block, text=tr("graph.axis.categorical"), foreground="#506575").grid(
@@ -288,6 +300,19 @@ class GraphFormatDialog(simpledialog.Dialog):
                 block, 2, tr("graph.axis.min"), "" if options.get("Right minimum") in (None, "") else str(options.get("Right minimum")), width=10)
             self.right_max, self._right_widgets["Right maximum"] = self._field(
                 block, 3, tr("graph.axis.max"), "" if options.get("Right maximum") in (None, "") else str(options.get("Right maximum")), width=10)
+        if getattr(self.axes, SUPPORT_ATTR, False):
+            from .axis_breaks_dialog import breaks_summary
+
+            block = ttk.LabelFrame(tab, text=tr("axis_breaks.title"), padding=(8, 4))
+            block.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+            block.columnconfigure(1, weight=1)
+            self.breaks_button = ttk.Button(block, text=tr("axis_breaks.button"), command=self._edit_axis_breaks)
+            self.breaks_button.grid(row=0, column=0, sticky="w")
+            self.breaks_summary = ttk.Label(block, text=breaks_summary(self._axis_breaks), foreground="#506575")
+            self.breaks_summary.grid(row=0, column=1, sticky="w", padx=(8, 0))
+            self.breaks_note = ttk.Label(block, text="", foreground="#506575", wraplength=470, justify="left")
+            self.breaks_note.grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+            self._refresh_break_states()
 
     def _series_tab(self, tab):
         self.series_fields, self._series_widgets = {}, {}
@@ -462,6 +487,83 @@ class GraphFormatDialog(simpledialog.Dialog):
             if self._legend_previewed:
                 self._preview_legend_options(self._legend_options)
 
+    def _refresh_break_states(self):
+        """The limits and the scale of an axis with breaks come from the segments, so those fields rest."""
+        axis = self._axis_breaks.get("axis")
+        for dimension, refresh in self._axis_refreshers.items():
+            refresh()
+            scale = self._axis_widgets[dimension].get("scale")
+            if scale is not None and dimension == axis:
+                scale.configure(state="disabled")
+        if hasattr(self, "breaks_summary"):
+            from .axis_breaks_dialog import breaks_summary
+
+            from .axis_breaks_dialog import translate_breaks_error
+
+            self.breaks_summary.configure(text=breaks_summary(self._axis_breaks))
+            reason = axis_breaks_reason(self.axes.figure) if axis else None
+            if reason:
+                note = tr("axis_breaks.status.ignored", reason=translate_breaks_error(ValueError(reason)))
+            else:
+                note = tr("axis_breaks.axis_note", axis=axis.upper()) if axis else ""
+            self.breaks_note.configure(text=note)
+
+    def _preview_axis_breaks(self, record):
+        """Draw ``record`` on the graph, ``None`` goes back to the look this dialog had before."""
+        figure = getattr(self.axes, "figure", None)
+        if figure is None:
+            return
+        try:
+            base = self._read_style()
+        except ValueError:
+            base = deepcopy(self.style)
+            for dim in ("x", "y"):
+                if dim + "scale" in self.inputs:
+                    base[dim + "scale"] = self.inputs[dim + "scale"].get()
+        base.pop(AXIS_BREAKS, None)
+        if record is None:
+            candidate = deepcopy(base)
+            if self._axis_breaks:
+                candidate[AXIS_BREAKS] = deepcopy(self._axis_breaks)
+        else:
+            candidate = deepcopy(base)
+            if record:
+                candidate[AXIS_BREAKS] = deepcopy(record)
+        try:
+            apply_style(figure, candidate)
+        except ValueError:
+            apply_style(figure, self._breaks_fallback(base))
+            raise
+        reason = axis_breaks_reason(figure) if record else None
+        if reason:
+            apply_style(figure, self._breaks_fallback(base))
+            raise ValueError(reason)
+        self._breaks_previewed = True
+        canvas = getattr(figure, "canvas", None)
+        if canvas is not None:
+            canvas.draw_idle()
+
+    def _breaks_fallback(self, base):
+        fallback = deepcopy(base)
+        if self._axis_breaks:
+            fallback[AXIS_BREAKS] = deepcopy(self._axis_breaks)
+        return fallback
+
+    def _edit_axis_breaks(self):
+        from .axis_breaks_dialog import AxisBreaksDialog
+
+        dialog = AxisBreaksDialog(
+            self,
+            self.axes,
+            self._axis_breaks,
+            preview=self._preview_axis_breaks,
+            busy=None,
+        )
+        self.grab_set()
+        if dialog.result is not None:
+            self._axis_breaks = dialog.result
+            self._refresh_break_states()
+
     def _preview_guides_or_bands(self, key, records):
         figure = getattr(self.axes, "figure", None)
         if figure is None:
@@ -552,7 +654,7 @@ class GraphFormatDialog(simpledialog.Dialog):
             self._hierarchical = deepcopy(dialog.result.get("hierarchical", {}))
 
     def cancel(self, event=None):
-        if (self._guides_previewed or self._legend_previewed) and self.result is None:
+        if (self._guides_previewed or self._legend_previewed or self._breaks_previewed) and self.result is None:
             figure = getattr(self.axes, "figure", None)
             if figure is not None:
                 try:
@@ -651,6 +753,8 @@ class GraphFormatDialog(simpledialog.Dialog):
             style[AXIS_GUIDES] = deepcopy(self._axis_guides)
         if self._axis_bands:
             style[AXIS_BANDS] = deepcopy(self._axis_bands)
+        if self._axis_breaks:
+            style[AXIS_BREAKS] = deepcopy(self._axis_breaks)
         if self._legend_options:
             style[LEGEND_OPTIONS_KEY] = deepcopy(self._legend_options)
         if self.xy is not None:
@@ -694,6 +798,8 @@ class GraphFormatDialog(simpledialog.Dialog):
 
     def _focus_error(self, error):
         target = self._pending_error_target
+        if target is None and (isinstance(error, (AxisBreakError, _BreaksProblem))) and hasattr(self, "breaks_button"):
+            target = (1, self.breaks_button, None)
         if target is None:
             field_name = getattr(error, "field", None)
             if field_name in {"Right scale", "Right minimum", "Right maximum", "Right title"}:
@@ -762,6 +868,14 @@ class GraphFormatDialog(simpledialog.Dialog):
         apply_style(result.figure, style)
         self.xy_update, self.xy_result = options, result
 
+    def _check_breaks(self, style):
+        """Breaks chosen in this dialog must show on the graph. Saved ones that cannot show stay, with a reason."""
+        if not style.get(AXIS_BREAKS) or style[AXIS_BREAKS] == self.style.get(AXIS_BREAKS):
+            return
+        reason = axis_breaks_reason(self.xy_result.figure)
+        if reason:
+            raise _BreaksProblem(reason)
+
     def validate(self):
         try:
             style = self._read_style()
@@ -772,8 +886,10 @@ class GraphFormatDialog(simpledialog.Dialog):
                 if "ylabel" not in self.style and style["ylabel"] == self.axes.get_ylabel():
                     style.pop("ylabel")
                 self._prepare_xy(style, self._xy_candidate(style))
+                self._check_breaks(style)
             self.result = style
         except ValueError as error:
+            from .axis_breaks_dialog import translate_breaks_error
             from .axis_guides_dialog import translate_guide_error
             from .graph_legend_dialog import translate_legend_error
 
@@ -781,6 +897,8 @@ class GraphFormatDialog(simpledialog.Dialog):
             msg = translate_legend_error(error)
             if msg == str(error):
                 msg = translate_guide_error(error)
+            if msg == str(error):
+                msg = translate_breaks_error(error)
             messagebox.showerror(tr("graph.format.error_title"), msg, parent=self)
             return False
         return True

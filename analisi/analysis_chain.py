@@ -10,6 +10,7 @@ import pandas as pd
 # This is the existing project's theoretical 256 tables x 256 recipes budget,
 # shared across a linked project rather than imposing a separate depth limit.
 MAX_ANALYSIS_NODES = 65_536
+RESULT_CONTEXT = "trama_result_context"
 
 
 def valid_analysis_id(value):
@@ -133,6 +134,9 @@ def result_frame(result, table, *, max_cells=2_000_000):
         raise ValueError("The source result has ambiguous column names.")
     if frame.size > max_cells:
         raise ValueError("The source result table exceeds the input size limit.")
+    context = getattr(result, "table_contexts", {}).get(table)
+    if context is not None:
+        frame.attrs[RESULT_CONTEXT] = context
     return frame
 
 

@@ -64,7 +64,7 @@ def _project(values, style):
     return result
 
 
-def _series(graph, family, flags, *, overlay_flags=()):
+def _drawing_series(graph, family, allowed_flags):
     order = _id_array(_one(graph, 0x15))
     links = _one(graph, 0x16)
     _require(len(order) == len(set(order)) and len(links) == 2 + 12 * len(order)
@@ -81,17 +81,22 @@ def _series(graph, family, flags, *, overlay_flags=()):
         key, kind, uid, visible = unpack_from("<4H", attributes)
         drawing_flags, = unpack_from("<H", attributes, 58)
         _require(key not in series and kind == family and visible == 1
-                 and drawing_flags in (flags, *overlay_flags))
+                 and drawing_flags in allowed_flags)
         caches = [payload for tag, path, payload in records if tag == 0x29 and path == (40,)]
         _require(len(caches) == 1 and 12 <= len(caches[0]) <= 4 + 32 * _MAX_POINTS)
         count, = unpack_from("<I", caches[0])
         _require(len(caches[0]) == 4 + 4 * count)
-        series[key] = uid, np.frombuffer(caches[0][4:], dtype="<i4"), drawing_flags
+        series[key] = uid, np.frombuffer(caches[0][4:], dtype="<i4"), attributes
     _require(set(series) == set(order))
     ordered = [series[key] for key in order]
     _require(sorted(uid for uid, _, _ in ordered) ==
              sorted(unpack_from("<i", links, 2 + 12 * i)[0] for i in range(len(order))))
-    return [(uid, cache) for uid, cache, drawing_flags in ordered if drawing_flags == flags]
+    return ordered
+
+
+def _series(graph, family, flags, *, overlay_flags=()):
+    return [(uid, cache) for uid, cache, attributes in _drawing_series(graph, family, (flags, *overlay_flags))
+            if unpack_from("<H", attributes, 58)[0] == flags]
 
 
 def _emf_records(raw):
@@ -221,7 +226,7 @@ def _point_pixels(values, style):
     return np.column_stack((center, upper, lower))
 
 
-def _classic_commands(raw):
+def _classic_commands(raw, *, vertical_only=False):
     markers, segments = {}, {}
     previous_move = None
     for kind, _, offset in _emf_records(raw):
@@ -233,7 +238,8 @@ def _classic_commands(raw):
         if kind == 54 and previous_move is not None:
             start = unpack_from("<2i", raw, previous_move)
             end = unpack_from("<2i", raw, offset + 8)
-            segments[(previous_move, offset + 8)] = (start, end)
+            if not vertical_only or start[0] == end[0]:
+                segments[(previous_move, offset + 8)] = (start, end)
         _require(len(markers) <= 1024 and len(segments) <= 4096)
         previous_move = offset + 8 if kind == 27 else None
     return markers, segments
@@ -262,6 +268,10 @@ def _point_bindings(markers, segments, point):
 
 
 def _edit_points(raw, values, style):
+    if "limit_nudges" in style:
+        from .prism_emf_limits import edit_limit_points
+
+        return edit_limit_points(raw, values, style)
     saved = _point_pixels(style["source"], style)
     new = _point_pixels(values, style)
     _require(new.shape == saved.shape and 1 <= len(saved) <= _MAX_POINTS)
@@ -288,7 +298,7 @@ def _edit_points(raw, values, style):
     return result
 
 
-def _replicate_groups(source, records):
+def _xy_group_links(source, records):
     roles = source.attrs["worksheet_roles"]
     _require(len(roles["x"]) == 1)
     links = [unpack_from("<3I", payload) for tag, _, payload in records if tag == 0x0D and len(payload) == 40]
@@ -302,7 +312,7 @@ def read_emf_error_points(graph, sources, tables, remaining_cells):
     _require(all(axis["scale"] == "linear" for axis in style["axes"]))
     sheet, = _id_array(_one(graph, 0x14))
     source = sources[sheet]
-    x, groups = _replicate_groups(source, tables[sheet])
+    x, groups = _xy_group_links(source, tables[sheet])
     attributes = [_DATASET.unpack(payload) for tag, _, payload in tables[sheet] if tag == 0x800F]
     rows = []
     origin = np.array(style["chart"])[[0, 3, 3, 3]]

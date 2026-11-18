@@ -1,0 +1,4 @@
+Row title,Count,Expected,Weight
+Signal $,7,20,2
+Skip,,,
+Other,93,80,8

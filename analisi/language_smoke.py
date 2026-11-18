@@ -12,7 +12,7 @@ from pathlib import Path
 import shutil
 import time
 import tkinter as tk
-from tkinter import simpledialog, ttk
+from tkinter import simpledialog
 from unittest.mock import patch
 from zipfile import ZipFile
 
@@ -22,6 +22,8 @@ import pandas as pd
 from . import i18n, ui_theme
 from .language_dialog import LanguageDialog
 from .table_setup import TEMPLATES, NewTableDialog, TableSetup
+from .theme_preferences import save_theme
+from .ui_shell import ModernRibbon, Ribbon
 
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "data" / "i18n"
 MENUS_EN = ["File", "Edit", "View", "Insert", "Analyze", "Change", "Arrange", "Family", "Tools", "Settings"]
@@ -125,11 +127,6 @@ def _check_language(root, app, directory, tools, windows):
             result.append([(popup.entrycget(item, "label"), popup.entrycget(item, "accelerator"))
                            for item in range(popup.index("end") + 1)])
         return result
-
-    def ribbon_titles(instance):
-        return [pane.winfo_children()[0].cget("text") for pane in instance.ribbon.winfo_children()
-                if isinstance(pane, ttk.Frame) and pane.winfo_children()
-                and isinstance(pane.winfo_children()[0], ttk.Label)]
 
     def section_texts(instance):
         return [instance.nav.item(node, "text") for node in instance.nav.get_children()]
@@ -241,7 +238,10 @@ def _check_language(root, app, directory, tools, windows):
     assert italian.tables["XY"].table_format == "xy", italian.tables["XY"].table_format
     italian.root.update()
     assert italian.ribbon.winfo_manager() == "pack"
-    assert ribbon_titles(italian)[:4] == ["File", "Foglio", "Annulla", "Appunti"], ribbon_titles(italian)
+    assert isinstance(italian.ribbon, ModernRibbon)
+    tabs = italian.ribbon.tabs
+    assert [tabs[key].cget("text") for key in ("file", "home", "insert", "analyze")] == [
+        "File", "Home", "Inserisci", "Analisi"]
     italian.root.update_idletasks()
     for bar in (italian.ribbon,):
         assert bar.winfo_reqwidth() <= 1024, ("ribbon wider than 1024 px", bar.winfo_reqwidth())
@@ -321,7 +321,7 @@ def _check_language(root, app, directory, tools, windows):
     italian.create_worksheet(TEMPLATES[1], True)
     assert len(italian.project_tabs.keys()) == 2
     sections = section_texts(italian)
-    assert {"Famiglia", "Dati + Risultati", "Info", "Grafici", "Layout"} <= set(sections), sections
+    assert sections == ["Tabelle dati", "Info", "Risultati", "Grafici", "Layout"], sections
     italian.step_project(-1)
     assert italian.active_project == first and title in italian.tables
     italian.step_project(1)
@@ -381,10 +381,12 @@ def _check_language(root, app, directory, tools, windows):
     leaked = sorted(text for text in italian_only if text in content)
     assert not leaked, leaked
 
-    # 6. Reopen with English: data, formulas, exclusions, recipes and layout references are identical.
+    # 6. Reopen in English and Standard; both interface preferences leave the project intact.
+    save_theme(path, "standard")
     reopened = start("en")
     front(reopened)
     assert menu_labels(reopened) == MENUS_EN
+    assert isinstance(reopened.ribbon, Ribbon)
     reopened.open_document(alab)
     wait(reopened)
     assert reopened.status.get() == "Opened Misurazioni {A} – città.alab.", reopened.status.get()

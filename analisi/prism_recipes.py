@@ -5,7 +5,8 @@ import tokenize
 import numpy as np
 from pandas.api.types import is_numeric_dtype
 
-from .survival_input import CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_POLICIES, recode_statuses
+from .survival_input import (CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_POLICIES, recode_statuses,
+                             PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED, PAIRWISE_ALPHA)
 from .survival_plot import BAND, FINAL, PERCENT, MARKERS, UNCERTAINTY, UNITS
 
 
@@ -216,6 +217,33 @@ def _paired_t(frame, content, results):
     }
 
 
+def _survival_control_options(frame, content, response, group, levels):
+    """Translate the saved Holm–Šídák family when the control role resolves exactly."""
+    try:
+        post = content["postTests"]
+        pairwise = post["pairwiseTests"]
+        design = pairwise["pairwiseDesign"]
+        family = pairwise["multipleComparisons"]
+        test = family["statistical"]
+        control = design["controlID"]["var"]
+        factor, = control["factorList"]
+        value = factor["value"]
+        alpha = test["options"]["significanceLevel"]
+        adjusted = test["report"]["adjustedPValues"]
+        if (post["type"] != "PAIRWISE_TESTS" or design["type"] != "CONTROL_VS_ALL"
+                or design["selectedPairIDList"] != [] or family["type"] != "STATISTICAL"
+                or test["test"] != "HOLM_SIDAK" or type(adjusted) is not bool
+                or type(alpha) not in {float, int} or not 0 < alpha < 1
+                or _column(frame, control["response"], wrapped=False) != response
+                or _column(frame, factor["var"], wrapped=False) != group
+                or not isinstance(value, str) or value not in levels or not 2 <= len(levels) <= 12):
+            return {}
+    except (KeyError, TypeError, ValueError):
+        return {}
+    return {PAIRWISE_CORRECTION: "Holm–Šídák", PAIRWISE_CONTROL: value,
+            PAIRWISE_ADJUSTED: adjusted, PAIRWISE_ALPHA: alpha}
+
+
 def _survival(frame, content, _results):
     design, data, calc, graph = (content[key] for key in ("variableDesign", "data", "calc", "graph"))
     if (data["treatUndefinedValuesAs"] != "MISSING"
@@ -246,9 +274,22 @@ def _survival(frame, content, _results):
     if graph.get("errorBars") == "CI" and calc.get("ciMethod") == "ASYMMETRICAL" and (
             type(level) in (int, float) and 0 < level < 100):
         display.update({UNCERTAINTY: BAND, "Confidence level (%)": level})
+    if calc.get("gehanBreslowWilcoxonTest") is True:
+        display["Gehan–Breslow–Wilcoxon"] = True
+    if len(events) == len(groups) == 1:
+        group, = groups
+        event, = events
+        complete = recoded[[time, event, group]].dropna()
+        levels = set(complete[group].map(str))
+        if calc.get("logrankTestForTrend") is True and calc.get("logrankTestForTrendMethod") == "RECOMMENDED":
+            uid = design["factorList"][0]["col"]["uid"]
+            order = frame.attrs.get("prism_category_orders", {}).get(uid, ())
+            if len(order) >= 3 and len(order) == len(levels) and set(order) == levels:
+                display.update({"Log-rank trend": True, "Trend group order": list(order)})
+        display.update(_survival_control_options(frame, content, event, group, levels))
     return "Kaplan–Meier survival", {
-        "Time": time, "Event columns": events, "Grouping variables": groups, **coding, **display,
-        "Pairwise correction": "None", "Show risk table below graph": graph["showNumberAtRiskTable"],
+        "Time": time, "Event columns": events, "Grouping variables": groups,
+        PAIRWISE_CORRECTION: "None", **coding, **display, "Show risk table below graph": graph["showNumberAtRiskTable"],
         "Prism import notes": "Recalculates survival probabilities, risk counts, and the overall log-rank test. "
                               "Supported saved curve options are applied to the native graph. "
                               "Prism post-tests and comparison tables use saved views when available.",
@@ -354,6 +395,27 @@ def _extract_rearrange(frame, content, _results):
         OUTPUT: "Grouped", PREFIX: content["includeVarNamePrefix"], COMPLETE: content["reportCompleteRowsOnly"],
         **{field: _column(frame, arrangement[key]) for field, key in fields.items()},
     }
+
+
+def _grouped_anova(frame, content, _results):
+    from .grouped_anova import COLUMN_NAME, INTERACTION, METHOD, ROW_NAME, ROWS
+
+    if frame.attrs.get("prism_y_format") != "y_replicates" or frame.attrs.get("prism_x") is not None:
+        return None
+    residuals = content["residuals"]
+    report = content["report"]
+    names = content["factorNames"]
+    interaction = content["options"]["includeInteractionTerm"]
+    if (content["experimentalDesign"] != "ORDINARY_ANOVA" or type(interaction) is not bool
+            or content["postTests"]["type"] != "NO_TESTS"
+            or any(flag is not False for block in residuals.values() for flag in block.values())
+            or any(flag is not False for flag in report.values())):
+        return None
+    row, column = names["rowFactor"], names["colFactor"]
+    if (any(not isinstance(name, str) or not name.strip() or name.strip() != name
+            or len(name) > 160 or name == "Residual" for name in (row, column)) or row == column):
+        return None
+    return METHOD, {ROWS: "Row title", ROW_NAME: row, COLUMN_NAME: column, INTERACTION: interaction}
 
 
 def _kmeans(frame, content, _results):
@@ -471,6 +533,7 @@ _RECIPES = {
     "K_MEANS_CLUSTERING": ("0.0.0", _kmeans),
     "PCA": ("0.0.0", _pca),
     "EXTRACT_REARRANGE": ("0.0.1", _extract_rearrange),
+    "TWO_WAY_ANOVA": ("0.0.1", _grouped_anova),
     "SELECT_TRANSFORM": ("0.0.2", _select_transform),
     "HIERARCHICAL_CLUSTERING": ("0.0.0", _hierarchical),
     "MULTI_FACTOR_ANOVA": ("0.0.0", _factorial),
@@ -493,7 +556,8 @@ def restore_recipe(sheet, parameters, sources, results=None):
         frame = sources[uid]
         regular = frame.attrs.get("table_format") == "multivariable"
         cached = kind == "PCA" and frame.attrs.get("prism_snapshot_source_format") == "multivariable"
-        if not (regular or cached):
+        grouped = kind == "TWO_WAY_ANOVA" and frame.attrs.get("prism_snapshot_source_format") == "grouped"
+        if not (regular or cached or grouped):
             return None
         recipe = convert(frame, parameters["content"], results)
     except (KeyError, TypeError, ValueError, AttributeError):

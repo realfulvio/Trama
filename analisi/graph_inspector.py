@@ -10,6 +10,7 @@ from copy import deepcopy
 from tkinter import ttk
 
 from . import ui_theme
+from .axis_breaks import AXIS_BREAKS, SUPPORT_ATTR
 from .axis_guides import AXIS_BANDS, AXIS_GUIDES
 from .graph_dialog import (LEGEND_LABELS, LINE_LABELS, MARKER_LABELS, SCALE_LABELS, ChoiceBinding, pick_color,
                            series_name)
@@ -32,7 +33,7 @@ HINT = "#506575"
 TEXT_FIELDS = {"title": ("graph.field.title", 0), "xlabel": ("graph.field.xlabel", 1),
                "ylabel": ("graph.field.ylabel", 2)}
 NUMBER_FIELDS = {"width", "marker_size"}
-SECTION_KEYS = {"data": ("series",), "axes": ("xlabel", "ylabel", "xscale", "yscale"),
+SECTION_KEYS = {"data": ("series",), "axes": ("xlabel", "ylabel", "xscale", "yscale", AXIS_BREAKS),
                 "page": ("title", "grid", "legend", LEGEND_OPTIONS_KEY)}
 QUIET_KEYS = {"Tab", "ISO_Left_Tab", "Shift_L", "Shift_R", "Control_L", "Control_R", "Alt_L", "Alt_R",
               "Left", "Right", "Up", "Down", "Home", "End", "Escape", "Return", "KP_Enter"}
@@ -263,6 +264,13 @@ class GraphInspector(ttk.Frame):
         self.axis_bands_button = ttk.Button(frame, text=tr("graph.bands.button"), command=self._edit_axis_bands)
         self.axis_bands_button.grid(row=row + 1, column=0, columnspan=3, sticky="ew", pady=(0, 2))
         self.widgets["axis_bands"] = self.axis_bands_button
+        if getattr(self.axes, SUPPORT_ATTR, False):
+            self.axis_breaks_button = ttk.Button(frame, text=tr("axis_breaks.button"), command=self._edit_axis_breaks)
+            self.axis_breaks_button.grid(row=row + 2, column=0, columnspan=3, sticky="ew", pady=(0, 2))
+            self.widgets["axis_breaks"] = self.axis_breaks_button
+            self.axis_breaks_label = ttk.Label(frame, text="", foreground=HINT, wraplength=self.width - 50,
+                                               justify="left")
+            self.axis_breaks_label.grid(row=row + 3, column=0, columnspan=3, sticky="w")
         self._finish_section(frame, "axes")
 
     def _page_section(self):
@@ -374,7 +382,11 @@ class GraphInspector(ttk.Frame):
             zero = dimension in zero_baseline_axes(self.axes)
             for name in (dimension + "min", dimension + "max"):
                 self.widgets[name].state(["!disabled" if numeric else "disabled"])
-            adjustable = numeric and not zero and not (self._xy and dimension == "y")
+            broken = self.draft.get(AXIS_BREAKS, {}).get("axis") == dimension
+            for name in (dimension + "min", dimension + "max"):
+                if broken:
+                    self.widgets[name].state(["disabled"])
+            adjustable = numeric and not zero and not broken and not (self._xy and dimension == "y")
             self.widgets[dimension + "scale"].state(["!disabled" if adjustable else "disabled"])
         item = self.current
         if item and item["kind"] == "series":
@@ -391,6 +403,23 @@ class GraphInspector(ttk.Frame):
                 self.xy_hint_label.configure(text=tr(key_name))
         if not self.elements:
             self.selector.state(["disabled"])
+        self._refresh_breaks_label()
+
+    def _refresh_breaks_label(self):
+        label = getattr(self, "axis_breaks_label", None)
+        if label is None:
+            return
+        from .axis_breaks import axis_breaks_reason
+        from .axis_breaks_dialog import breaks_summary, translate_breaks_error
+
+        record = self.draft.get(AXIS_BREAKS) or {}
+        text = breaks_summary(record)
+        reason = axis_breaks_reason(self.figure) if record else None
+        if reason:
+            text = tr("axis_breaks.status.ignored", reason=translate_breaks_error(ValueError(reason)))
+        elif record:
+            text += "\n" + tr("axis_breaks.axis_note", axis=record["axis"].upper())
+        label.configure(text=text)
 
     def _controls(self, widget):
         found = []
@@ -466,6 +495,10 @@ class GraphInspector(ttk.Frame):
             msg = translate_legend_error(error)
             if msg == str(error):
                 msg = translate_guide_error(error)
+            if msg == str(error):
+                from .axis_breaks_dialog import translate_breaks_error
+
+                msg = translate_breaks_error(error)
             self.status.configure(text=msg, foreground=ERROR)
             return False
         self.draft = candidate
@@ -573,6 +606,54 @@ class GraphInspector(ttk.Frame):
         from .axis_guides_dialog import AxisBandsDialog
 
         self._edit_guide_collection(AXIS_BANDS, AxisBandsDialog)
+
+    def _edit_axis_breaks(self):
+        from .axis_breaks import axis_breaks_reason
+        from .axis_breaks_dialog import AxisBreaksDialog
+
+        if self._busy:
+            return
+        self._flush()
+        base_draft = deepcopy(self.draft)
+
+        def build_candidate(record):
+            candidate = deepcopy(base_draft)
+            if record:
+                candidate[AXIS_BREAKS] = deepcopy(record)
+            else:
+                candidate.pop(AXIS_BREAKS, None)
+            return candidate
+
+        def preview(record):
+            if record is None:
+                apply_style(self.figure, base_draft)
+                self.canvas.draw_idle()
+                return
+            candidate = build_candidate(record)
+            try:
+                validate_graph_style(self.axes, candidate)
+                apply_style(self.figure, candidate)
+                reason = axis_breaks_reason(self.figure) if record else None
+                if reason:
+                    raise ValueError(reason)
+            except ValueError:
+                apply_style(self.figure, base_draft)
+                self.canvas.draw_idle()
+                raise
+            self.canvas.draw_idle()
+
+        dialog = AxisBreaksDialog(
+            self,
+            self.axes,
+            base_draft.get(AXIS_BREAKS, {}),
+            preview=preview,
+            busy=lambda: self._busy,
+        )
+        if dialog.result is not None:
+            candidate = build_candidate(dialog.result)
+            if candidate != self.draft:
+                self._preview(candidate)
+            self._refresh_states()
 
     def _edit_legend_options(self):
         from .graph_legend_dialog import LegendEditorDialog
@@ -727,6 +808,10 @@ class GraphInspector(ttk.Frame):
             msg = translate_legend_error(error)
             if msg == str(error):
                 msg = translate_guide_error(error)
+            if msg == str(error):
+                from .axis_breaks_dialog import translate_breaks_error
+
+                msg = translate_breaks_error(error)
             self.status.configure(text=msg, foreground=ERROR)
             return False
         try:
@@ -738,6 +823,10 @@ class GraphInspector(ttk.Frame):
             msg = translate_legend_error(error)
             if msg == str(error):
                 msg = translate_guide_error(error)
+            if msg == str(error):
+                from .axis_breaks_dialog import translate_breaks_error
+
+                msg = translate_breaks_error(error)
             self.status.configure(text=msg, foreground=ERROR)
             return False
         self.status.configure(text=tr("graph.inspector.applied"), foreground=HINT)

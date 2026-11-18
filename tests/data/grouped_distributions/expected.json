@@ -1,0 +1,153 @@
+{
+  "cells": [
+    {
+      "Category": "Week $2$",
+      "Series": "Drug",
+      "Position": 0.8,
+      "N": 5,
+      "Mean": 7.0,
+      "Median": 7.0,
+      "Minimum": 3.0,
+      "Maximum": 11.0,
+      "Q1": 4.0,
+      "Q3": 10.0
+    },
+    {
+      "Category": "Week $2$",
+      "Series": "Placebo",
+      "Position": 1.2,
+      "N": 4,
+      "Mean": 13.5,
+      "Median": 13.0,
+      "Minimum": 10.0,
+      "Maximum": 18.0,
+      "Q1": 10.5,
+      "Q3": 17.0
+    },
+    {
+      "Category": "Baseline",
+      "Series": "Drug",
+      "Position": 1.8,
+      "N": 4,
+      "Mean": 3.5,
+      "Median": 3.0,
+      "Minimum": 1.0,
+      "Maximum": 7.0,
+      "Q1": 1.5,
+      "Q3": 6.0
+    },
+    {
+      "Category": "Baseline",
+      "Series": "Placebo",
+      "Position": 2.2,
+      "N": 0,
+      "Mean": null,
+      "Median": null,
+      "Minimum": null,
+      "Maximum": null,
+      "Q1": null,
+      "Q3": null
+    }
+  ],
+  "observations": [
+    {
+      "Source row": 1,
+      "Category": "Week $2$",
+      "Series": "Drug",
+      "Position": 0.8,
+      "Value": 3.0
+    },
+    {
+      "Source row": 2,
+      "Category": "Week $2$",
+      "Series": "Placebo",
+      "Position": 1.2,
+      "Value": 10.0
+    },
+    {
+      "Source row": 3,
+      "Category": "Baseline",
+      "Series": "Drug",
+      "Position": 1.8,
+      "Value": 1.0
+    },
+    {
+      "Source row": 4,
+      "Category": "Week $2$",
+      "Series": "Drug",
+      "Position": 0.8,
+      "Value": 5.0
+    },
+    {
+      "Source row": 5,
+      "Category": "Week $2$",
+      "Series": "Placebo",
+      "Position": 1.2,
+      "Value": 12.0
+    },
+    {
+      "Source row": 6,
+      "Category": "Baseline",
+      "Series": "Drug",
+      "Position": 1.8,
+      "Value": 3.0
+    },
+    {
+      "Source row": 7,
+      "Category": "Week $2$",
+      "Series": "Drug",
+      "Position": 0.8,
+      "Value": 7.0
+    },
+    {
+      "Source row": 8,
+      "Category": "Week $2$",
+      "Series": "Placebo",
+      "Position": 1.2,
+      "Value": 14.0
+    },
+    {
+      "Source row": 9,
+      "Category": "Baseline",
+      "Series": "Drug",
+      "Position": 1.8,
+      "Value": 3.0
+    },
+    {
+      "Source row": 10,
+      "Category": "Week $2$",
+      "Series": "Drug",
+      "Position": 0.8,
+      "Value": 9.0
+    },
+    {
+      "Source row": 11,
+      "Category": "Week $2$",
+      "Series": "Placebo",
+      "Position": 1.2,
+      "Value": 18.0
+    },
+    {
+      "Source row": 12,
+      "Category": "Baseline",
+      "Series": "Drug",
+      "Position": 1.8,
+      "Value": 7.0
+    },
+    {
+      "Source row": 16,
+      "Category": "Week $2$",
+      "Series": "Drug",
+      "Position": 0.8,
+      "Value": 11.0
+    }
+  ],
+  "labels": [
+    "Week $2$",
+    "Baseline"
+  ],
+  "legend": [
+    "Drug",
+    "Placebo"
+  ]
+}

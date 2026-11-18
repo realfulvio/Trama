@@ -165,6 +165,48 @@ class PrismRecipeTests(unittest.TestCase):
         content["data"]["censorCodeStr"] = "Occurred"
         self.assertIsNone(restore_recipe(*args))
 
+    def test_survival_restores_complete_saved_category_order_for_trend(self):
+        frame = pd.DataFrame({"Time": [2, 6, 4, 7, 5, 9], "Event": [1, 0, 1, 1, 1, 0],
+                              "Group": ["Third", "Third", "First", "First", "Second", "Second"]})
+        frame.attrs["prism_category_orders"] = {"g": ("First", "Second", "Third")}
+        content = {
+            "variableDesign": {"x": var("t"), "responseList": [var("e", 1)], "factorList": [var("g", 2)]},
+            "data": {"eventCode": 1, "censorCode": 0, "treatUndefinedValuesAs": "MISSING"},
+            "calc": {"tabulate": "EVENT", "logrankTestMethod": "RECOMMENDED", "logrankTest": True,
+                     "logrankTestForTrend": True, "logrankTestForTrendMethod": "RECOMMENDED",
+                     "gehanBreslowWilcoxonTest": True},
+            "graph": {"showNumberAtRiskTable": False},
+            "postTests": {"type": "PAIRWISE_TESTS", "pairwiseTests": {
+                "pairwiseDesign": {"type": "CONTROL_VS_ALL", "selectedPairIDList": [], "controlID": {
+                    "var": {"response": {"uid": "e"}, "factorList": [{"value": "Second", "var": {"uid": "g"}}]},
+                }},
+                "multipleComparisons": {"type": "STATISTICAL", "statistical": {
+                    "test": "HOLM_SIDAK", "report": {"adjustedPValues": False},
+                    "options": {"significanceLevel": .05},
+                }},
+            }},
+        }
+        args = source("SURVIVAL", "0.0.2", content, frame, {"t": ["Time"], "e": ["Event"], "g": ["Group"]})
+        _, method, options = restore_recipe(*args)
+        self.assertEqual(options["Trend group order"], ["First", "Second", "Third"])
+        result = analyse(method, frame, options)
+        self.assertIn("Log-rank trend", result.tables)
+        self.assertIn("Gehan–Breslow–Wilcoxon test", result.tables)
+        self.assertEqual(options["Pairwise control group"], "Second")
+        self.assertEqual(options["Pairwise correction"], "Holm–Šídák")
+        self.assertEqual(result.tables["Pairwise log-rank"].index.tolist(), ["Second / Third", "Second / First"])
+        self.assertIn("Significant", result.tables["Pairwise log-rank"])
+        self.assertNotIn("Adjusted p", result.tables["Pairwise log-rank"])
+
+        frame.attrs["prism_category_orders"]["g"] = ("First", "Second", "Unknown")
+        _, _, restored = restore_recipe(*args)
+        self.assertNotIn("Log-rank trend", restored)
+        self.assertTrue(restored["Gehan–Breslow–Wilcoxon"])
+        control = content["postTests"]["pairwiseTests"]["pairwiseDesign"]["controlID"]["var"]
+        control["response"] = {"uid": "t"}
+        _, _, restored = restore_recipe(*args)
+        self.assertEqual(restored["Pairwise correction"], "None")
+
     def test_nonlinear_uses_saved_equation_and_rejects_changed_fitting_options(self):
         content = {
             "variableDesign": {"x": var("x"), "responseList": [var("y", 1)], "factorList": []},

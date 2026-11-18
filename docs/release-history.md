@@ -3,6 +3,7 @@
 The public repository begins with **Trama 0.73.0 beta**. All 0.x versions are
 beta builds; no final stable release has been declared.
 
+- [0.94 beta: ANCOVA, independent ROC curves and grouped distributions](release-094.md).
 - [0.93 beta: Competing risks and linked clustering reports](release-093.md) · [Verification](validation-093.md).
 - [0.92 beta: Hartigan–Wong clustering](release-092.md) · [Verification](validation-092.md).
 - [0.91 beta: Editable PCA from compatible saved projects](release-091.md) · [Verification](validation-091.md).

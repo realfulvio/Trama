@@ -99,6 +99,10 @@ Nonlinear regression|Regressione non lineare
 Compare nonlinear models|Confronta modelli non lineari
 Compare models (AICc)|Confronta modelli (AICc)
 Multifactor ANOVA|ANOVA multifattoriale
+Grouped two-way ANOVA|ANOVA a due fattori da dati raggruppati
+Row factor name|Nome del fattore riga
+Column factor name|Nome del fattore colonna
+Include interaction|Includi interazione
 Kaplan–Meier survival|Sopravvivenza di Kaplan–Meier
 K-means model selection|Selezione del modello k-means
 K-means clustering|Raggruppamento k-means
@@ -126,6 +130,10 @@ Initial observations must specify distinct centers.|Le osservazioni iniziali dev
 Choose a K-means algorithm.|Scegli un algoritmo k-means.
 Hartigan–Wong reached the maximum number of iterations.|Hartigan–Wong ha raggiunto il limite di iterazioni.
 Hierarchical clustering|Raggruppamento gerarchico
+Hierarchy graph|Grafico del raggruppamento gerarchico
+Choose a linked Merges result from hierarchical clustering.|Scegli un risultato Merges collegato a un raggruppamento gerarchico.
+Choose a hierarchy graph type.|Scegli un tipo di grafico per il raggruppamento gerarchico.
+Choose an axis fitted by the source hierarchy.|Scegli un asse calcolato dal raggruppamento sorgente.
 Scatter / confidence ellipse|Dispersione / ellisse di confidenza
 Column graph|Grafico a colonne
 Heat map|Mappa di calore
@@ -135,10 +143,12 @@ XY series|Serie XY
 Histogram|Istogramma
 Frequency distribution|Distribuzione di frequenza
 Box / violin plot|Grafico a scatola / violino
+Grouped distribution plot|Distribuzioni raggruppate
 Bubble plot|Grafico a bolle
 Before/after|Prima/dopo
 Subject trajectories|Traiettorie dei soggetti
 Forest plot|Grafico forest
+Meta-analysis of effect estimates|Meta-analisi delle stime
 Identify outliers|Individua valori anomali
 Monte Carlo study|Studio Monte Carlo
 Select and Transform|Seleziona e trasforma
@@ -165,6 +175,7 @@ Fit custom equation|Adatta un’equazione personalizzata
 Global fit custom equation|Adattamento globale di un’equazione personalizzata
 Principal component analysis|Analisi delle componenti principali
 Multiple regression|Regressione multipla
+Negative binomial regression|Regressione binomiale negativa
 Cox regression|Regressione di Cox
 Competing risks|Rischi competitivi
 Multiple t-tests|Test t multipli
@@ -178,6 +189,8 @@ Power and sample size|Potenza e dimensione del campione
 Simulate data|Simula dati
 Response|Risposta
 Group|Gruppo
+Category|Categoria
+Split by|Dividi per
 Subject|Soggetto
 Null mean|Media sotto l’ipotesi nulla
 First|Prima variabile
@@ -225,6 +238,8 @@ Observed counts|Conteggi osservati
 Expected distribution|Distribuzione attesa
 Expected values|Valori attesi
 Estimated parameters|Parametri stimati
+Test method|Metodo del test
+Exact binomial|Binomiale esatto
 Residual diagnostics|Diagnostica dei residui
 Band|Banda
 Y columns|Colonne Y
@@ -248,7 +263,11 @@ Families|Famiglie
 Reverse comparisons|Inverti confronti
 Time|Tempo
 Event columns|Colonne degli eventi
+Pairwise tests|Test a coppie
 Pairwise correction|Correzione dei confronti a coppie
+Pairwise control group|Gruppo di controllo per i confronti
+Show adjusted pairwise p|Mostra p aggiustati per i confronti
+Pairwise alpha|Alfa per i confronti a coppie
 Median method|Metodo della mediana
 Log-rank trend|Tendenza log-rank
 Trend group order|Ordine dei gruppi per la tendenza
@@ -283,6 +302,8 @@ Column clusters|Gruppi delle colonne
 Column cut height|Altezza di taglio delle colonne
 Graph output|Grafico da produrre
 Dendrogram orientation|Orientamento del dendrogramma
+Hierarchy axis|Asse del raggruppamento gerarchico
+All fitted axes|Tutti gli assi calcolati
 Branch appearance|Aspetto dei rami
 Branch width|Spessore dei rami
 Branch style|Stile dei rami
@@ -752,6 +773,16 @@ Reject|Rifiuta
 Average|Media
 Differentiate|Deriva
 Cumulative integral|Integrale cumulativo
+Curve pipeline|Pipeline della curva
+Identity|Identità
+First difference|Differenza prima
+Second difference|Differenza seconda
+Cumulative trapezoid|Integrale cumulato (trapezi)
+Smoothing|Smussamento
+Savitzky–Golay|Savitzky–Golay
+Initial integral|Integrale iniziale
+Half-window|Semilarghezza
+Polynomial degree|Grado del polinomio
 Geometric|Geometrico
 Confidence|Confidenza
 Scores|Punteggi
@@ -833,6 +864,16 @@ Use the same codes for all selected status columns. Text matches as written.|Usa
 
 CAPTIONS = dict(line.split("|", 1) for line in _TEXT.strip().splitlines())
 
+# Deming regression (0.93). Canonical recipes stay English; these captions are display text.
+CAPTIONS.update({
+    "Uncertainty input": "Specifica dell’incertezza",
+    "Known SDs": "SD note",
+    "X error SD": "SD dell’errore X",
+    "Y error SD": "SD dell’errore Y",
+    "Y series": "Serie Y",
+    "Show projections": "Mostra le proiezioni",
+})
+
 CAPTIONS.update({
     "Geometric mean and 95% CI": "Media geometrica e IC al 95%",
     "Shapiro–Wilk": "Shapiro–Wilk", "D’Agostino–Pearson": "D’Agostino–Pearson",
@@ -847,6 +888,8 @@ CAPTIONS.update({
     "Exact": "Esatto", "Holm": "Holm", "Benjamini–Hochberg": "Benjamini–Hochberg",
     "Correlate against control": "Correla con un controllo",
     "Compare independent correlations": "Confronta correlazioni indipendenti",
+    "Repeated-measures correlation": "Correlazione a misure ripetute",
+    "Subject bootstrap": "Bootstrap per soggetti", "Bootstrap replicates": "Repliche bootstrap",
     "Number of dots": "Numero di punti", "Start angle": "Angolo iniziale", "Clockwise": "Senso orario",
     "Slice labels": "Etichette dei settori", "Control level(s), separated by |": "Livelli di controllo, separati da |",
     "Gehan–Breslow–Wilcoxon": "Gehan–Breslow–Wilcoxon", "X error distance": "Distanza dell’errore X",
@@ -1067,4 +1110,73 @@ CAPTIONS.update({
     "Border width must be between 0.1 and 72 points.": "Lo spessore del bordo deve essere tra 0,1 e 72 punti.",
     "Fill opacity (%) must be between 0 and 100.": "L’opacità del riempimento deve essere tra 0 e 100.",
     "Border opacity (%) must be between 0 and 100.": "L’opacità del bordo deve essere tra 0 e 100.",
+})
+
+# Compare independent ROC curves: the method, its fields and its fixed choices. Recipes keep the English values.
+CAPTIONS.update({
+    "Compare independent ROC curves": "Confronta curve ROC indipendenti",
+    "Area and inference": "Area e inferenza",
+    "Area": "Area",
+    "Partial": "Parziale",
+    "Standardized partial": "Parziale standardizzata",
+    "Maximum FPR": "FPR massimo",
+    "Inference": "Inferenza",
+    "DeLong": "DeLong",
+    "Percentile bootstrap": "Bootstrap percentile",
+    "Bootstrap replicates": "Repliche bootstrap",
+    "Bootstrap seed": "Seme del bootstrap",
+    "Save bootstrap": "Salva le repliche bootstrap",
+    "Calculation cancelled.": "Calcolo annullato.",
+})
+
+CAPTIONS.update({
+    "ANCOVA": "ANCOVA (medie aggiustate)",
+    "Covariate": "Covariata",
+    "Slope model": "Modello delle pendenze",
+    "Common": "Comune",
+    "Reference X": "X di riferimento",
+    "Reference domain": "Dominio del riferimento",
+    "Common range": "Intervallo comune",
+    "Against control": "Contro il controllo",
+    "Adjustment": "Correzione",
+    "Bonferroni": "Bonferroni",
+    "Fitted lines": "Rette adattate",
+    "Adjusted means": "Medie aggiustate",
+})
+
+# Grouped distribution plot: engine messages in the active language (placeholders keep worksheet text literal).
+MESSAGES.update({
+    "grouped.error.unique": ("Worksheet column names must be unique.", "I nomi delle colonne del foglio devono essere univoci."),
+    "grouped.error.choose": ("Choose a column for {field}.", "Scegli una colonna per {field}."),
+    "grouped.error.exists": ("Choose an existing column for {field}.", "Scegli una colonna esistente per {field}."),
+    "grouped.error.category_same": ("Choose a category column different from the response.",
+                                    "Scegli una colonna di categoria diversa dalla risposta."),
+    "grouped.error.split_same": ("Choose a Split by column different from Response and Category.",
+                                 "Scegli per «Dividi per» una colonna diversa da Risposta e Categoria."),
+    "grouped.error.none": ("No row has a numeric Response together with every selected category.",
+                           "Nessuna riga ha una Risposta numerica insieme a tutte le categorie scelte."),
+    "grouped.error.points": ("Select fewer observations to draw this graph.",
+                             "Seleziona meno osservazioni per disegnare questo grafico."),
+    "grouped.error.density": ("Select fewer observations for the density estimate.",
+                              "Seleziona meno osservazioni per la stima della densità."),
+    "grouped.error.cells": ("Plot up to {limit} cells at once ({categories} categories × {series} series).",
+                            "Traccia fino a {limit} celle alla volta ({categories} categorie × {series} serie)."),
+    "grouped.error.text": ('Column "{name}" contains text or infinite values.',
+                           'La colonna "{name}" contiene testo o valori infiniti.'),
+    "grouped.error.complex": ('Column "{name}" contains complex data.', 'La colonna "{name}" contiene dati complessi.'),
+    "grouped.error.precision": ('Column "{name}" contains integers outside the supported precision.',
+                                'La colonna "{name}" contiene interi fuori dalla precisione supportata.'),
+    "grouped.error.range": ("The selected values exceed the numeric range for this graph.",
+                            "I valori scelti superano l'intervallo numerico di questo grafico."),
+    "grouped.error.flag": ("{field}: choose on or off.", "{field}: scegli sì o no."),
+    "grouped.error.choice": ("Choose a valid {field}.", "Scegli un valore valido per {field}."),
+    "grouped.error.bandwidth_number": ("The bandwidth multiplier must be a number.",
+                                       "Il moltiplicatore della larghezza di banda deve essere un numero."),
+    "grouped.error.bandwidth_finite": ("The bandwidth multiplier must be finite and greater than zero.",
+                                       "Il moltiplicatore della larghezza di banda deve essere finito e maggiore di zero."),
+    "grouped.error.bandwidth_range": ("The bandwidth is outside the supported numeric range.",
+                                      "La larghezza di banda è fuori dall'intervallo numerico supportato."),
+    "grouped.error.density_range": ("The density is outside the supported numeric range.",
+                                    "La densità è fuori dall'intervallo numerico supportato."),
+    "grouped.error.number": ("{field} must be a number.", "{field} deve essere un numero."),
 })

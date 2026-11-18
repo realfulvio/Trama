@@ -117,6 +117,61 @@ class AnalysisChainAppTests(TkCase):
         self.assertTrue(all(run.result is not None for run in self.app.runs))
         self.assertFalse(self.errors)
 
+    def test_linked_hierarchy_graph_uses_real_dialog_and_recalculates_after_reopening(self):
+        from analisi.data import save_project
+        from analisi.hierarchical_style import describe_hierarchical_artists
+        from analisi.hierarchical_workbench import HIERARCHY_GRAPH
+        from analisi.presentation import apply_style
+        from tests.test_prism_hierarchical_recipes import write_project
+
+        source = Path(self.tmp.name) / "tree.prismt"
+        write_project(source, row_only=True)
+        self.app._clear("")
+        self.app.import_file(source)
+        tree_index = next(index for index, run in enumerate(self.app.runs) if run.method == "Hierarchical clustering")
+        self.app.open_sheet(("result", tree_index))
+        self.wait()
+        tree = self.app.runs[tree_index]
+        self.app.result_tabs.select(list(tree.result.tables).index("Merges"))
+
+        def add_view(dialog):
+            item = next(key for key, value in dialog.method_by_item.items() if value == HIERARCHY_GRAPH)
+            dialog.methods.selection_set(item)
+            dialog.select_method()
+            dialog.controls["Graph output"][1].set("Heat map")
+            dialog.ok()
+
+        self.drive(self.module.AnalysisDialog, add_view)
+        self.app.analyze_result_table()
+        self.wait()
+        view_index = next(index for index, run in enumerate(self.app.runs) if run.method == HIERARCHY_GRAPH)
+        view = self.app.runs[view_index]
+        self.assertEqual(view.source, ResultSource(tree.uid, "Merges"))
+        self.assertEqual(self.app.selected, ("graph", view_index))
+        style = {"hierarchical": {"heatmap": {"cmap": "plasma", "colorbar": False}}}
+        apply_style(view.result.figure, style)
+        self.app.commit_graph_style(view, style)
+        self.assertFalse(tree.style)
+        raster = describe_hierarchical_artists(view.result.figure)["heatmap"]["image"]
+        before = np.asarray(raster.get_array()).copy()
+        target = Path(self.tmp.name) / "tree-views.alab"
+        save_project(target, self.app.tables)
+        self.app.import_file(target)
+        self.assertTrue(all(run.result is None for run in self.app.runs))
+        view_index = next(index for index, run in enumerate(self.app.runs) if run.method == HIERARCHY_GRAPH)
+        self.app.open_sheet(("graph", view_index))
+        self.wait()
+        heat = describe_hierarchical_artists(self.app.runs[view_index].result.figure)["heatmap"]
+        np.testing.assert_array_equal(heat["image"].get_array(), before)
+        self.assertEqual(heat["image"].get_cmap().name, "plasma")
+        self.assertFalse(heat["colorbar"].ax.get_visible())
+        self.app.show("data", tree.title)
+        self.app.edit_cell(0, 1, "25")
+        self.wait()
+        after = describe_hierarchical_artists(self.app.runs[view_index].result.figure)["heatmap"]["image"].get_array()
+        self.assertFalse(np.allclose(before, after))
+        self.assertFalse(self.errors)
+
     def test_parent_parameter_change_preserves_identity_and_updates_descendants(self):
         from types import SimpleNamespace
         identifiers = [run.uid for run in self.app.runs]

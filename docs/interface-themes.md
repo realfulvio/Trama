@@ -2,7 +2,11 @@
 
 **Settings → Theme…** offers **Standard theme** and **Modern theme**. In Italian the choices are **Tema standard** and **Tema Moderno**. The same chooser is reachable from the start page.
 
-Standard is the default for existing installations. Modern uses a single command bar, lighter surfaces, teal selection, larger page headings and coloured group headers. Less common commands remain available in the grouped **More** menu and the existing application menus. Narrow windows retain labels on Analyze, then show other commands as icons with their original tooltips.
+Modern opens by default when the preferences contain no theme choice. An explicit Standard preference is kept. In Modern, project tabs sit above the command bar. Switch between action groups such as Home, Analyze and Graph. The Graph format and Annotations tabs appear on graph sheets. **Expand** or **Ctrl+F1** shows the second row of actions. Trama remembers the setting. The **Actions** menu gives access to the selected tab's commands, and **More** lists the grouped toolbar actions. In narrow windows the bar uses icons with tooltips and moves tabs that do not fit into a menu.
+
+**Search commands** or **Ctrl+K** finds toolbar and menu actions. Type words from the name, use the arrow keys to choose a match and press Enter to run it. Escape returns to the active sheet.
+
+In Modern, the Analyze dialog puts the searchable method list in a separate left pane and the selected method's title above its settings. The analysis controls and saved settings are shared by both themes.
 
 Choose a theme and confirm with OK. The preference applies at the next start; open worksheets, active edits, running calculations and project content are not rebuilt. Cancel, Escape and closing the dialog preserve the previous preference. If saving fails, the dialog remains open with the error. Language and unrelated preferences are preserved by the atomic write. Invalid or unknown theme values fall back to Standard.
 

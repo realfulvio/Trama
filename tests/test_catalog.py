@@ -4,6 +4,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
+from analisi.analysis_chain import result_frame
+from analisi.hierarchical_workbench import HIERARCHY_GRAPH
 from analisi.nested import NESTED_ANOVA, NESTED_T
 from analisi.reference_normalization import METHOD as REFERENCE_NORMALIZATION
 from analisi.workbench import GRAPH_METHODS, GROUPS, METHODS, analyse
@@ -51,6 +53,7 @@ class CatalogTests(unittest.TestCase):
             "Correlation": {"X": "x", "Y": "y", "Method": "Pearson"},
             "Correlate against control": {"X": "x", "Variables": ["y", "z"]},
             "Compare independent correlations": {"X": "x", "Y": "y", "Group": "Group"},
+            "Repeated-measures correlation": {"Subject": "Subject", "X": "x", "Y": "y", "Show graph": False},
             "Correlation matrix": {"Variables": ["x", "y", "z"]},
             "Contingency table": {"Rows": "Group", "Columns": "Factor"},
             "Linear regression": {"X": "x", "Y": "y"},
@@ -60,8 +63,12 @@ class CatalogTests(unittest.TestCase):
                                         "Nested models": "Stimulation (standard slope) → Stimulation (variable slope)"},
             "Compare models (AICc)": {"X": "x", "Y": "stim", "Models": ["Michaelis–Menten", "Straight line"],
                                       "Show graph": False},
+            "Grouped two-way ANOVA": {"Row labels": "Row", "Y columns": ["a [1]", "a [2]", "b [1]", "b [2]"]},
             "Multifactor ANOVA": {"Response": "z", "Factors": ["Group", "Factor"], "Interaction order": 2,
                                  "Compare marginal means by": "Group", "Within factors (simple effects)": ["Factor"]},
+            "ANCOVA": {"Response": "y", "Covariate": "x", "Group": "Group", "Slope model": "By group",
+                       "Reference X": None, "Reference domain": "Allow extrapolation", "Comparisons": "All pairs",
+                       "Adjustment": "Holm", "Confidence level (%)": 95., "Graph": "Fitted lines"},
             "Kaplan–Meier survival": {"Time": "x", "Event": "Event", "Group": "Factor",
                                     "Pairwise correction": "Holm", "Show risk table below graph": True},
             "K-means model selection": {"Variables": ["x", "z"], "Maximum k": 4,
@@ -69,6 +76,7 @@ class CatalogTests(unittest.TestCase):
             "K-means clustering": {"Variables": ["x", "z"], "Clusters": 2, "Standardize": True, "Seed": 42},
             "Hierarchical clustering": {"Variables": ["x", "z"], "Clusters": 2, "Standardize": True,
                                         "Linkage": "average", "Distance": "euclidean"},
+            HIERARCHY_GRAPH: {"Graph output": "Heat map"},
             "Scatter / confidence ellipse": {"X": "x", "Y": "z", "Group": "Group",
                                              "Ellipse": "Convex hull", "Level (%)": 95.0},
             "XY error bars": {"X": "x", "Y": "z", "Y lower error": "p", "Group": "Group"},
@@ -81,10 +89,13 @@ class CatalogTests(unittest.TestCase):
             "Frequency distribution": {"Variables": ["x", "z"], "Distribution": "Exact cumulative"},
             "Histogram": {"Response": "x", "Bins": 4},
             "Box / violin plot": {"Response": "y", "Group": "Group", "Style": "Violin"},
+            "Grouped distribution plot": {"Response": "y", "Category": "Group", "Split by": "Factor", "Style": "Violin"},
             "Bubble plot": {"X": "x", "Y": "y", "Size": "z", "Group": "Group", "Label": "Factor"},
             "Before/after": {"Pairs": [{"Before": "x", "After": "y", "Title": ""}], "Subject": "Subject"},
             "Subject trajectories": {"Input": "Separate columns", "X": "x", "Y columns": ["y", "z"]},
             "Forest plot": {"Study": "Group", "Estimate": "x", "Lower limit": "p", "Upper limit": "y"},
+            "Meta-analysis of effect estimates": {"Study": "Group", "Estimate": "z", "Standard error": "p",
+                                                  "Show graph": False},
             "One-way ANOVA": {"Response": "y", "Group": "Group", "Method": "Welch", "Post-hoc": "Games–Howell"},
             "Repeated measures ANOVA": {"Response": "y", "Factors": ["Group"], "Subject": "Subject",
                                         "Sphericity correction": "None"},
@@ -92,6 +103,9 @@ class CatalogTests(unittest.TestCase):
             "ROC curve": {"Control": "x", "Patient": "z", "Direction": "Automatic"},
             "Compare paired ROC curves": {"Control A": "x", "Control B": "y", "Patient A": "z", "Patient B": "p",
                                           "Direction A": "Higher in patients", "Direction B": "Higher in patients"},
+            "Compare independent ROC curves": {"Control A": "x", "Patient A": "z", "Control B": "y", "Patient B": "p",
+                                               "Direction A": "Higher in patients", "Direction B": "Lower in patients",
+                                               "Area": "Full", "Inference": "DeLong"},
             "Bland–Altman": {"First": "x", "Second": "y", "Method": "Difference"},
             "Deming regression": {"X": "x", "Y": "y", "Y / X error variance": 1.},
             "Area under curve": {"X": "x", "Y": "y", "Baseline": 10.},
@@ -104,6 +118,8 @@ class CatalogTests(unittest.TestCase):
             "Principal component analysis": {"Variables": ["x", "y", "z"], "Standardize": True},
             "Multiple regression": {"Response": "y", "Predictors": ["x", "Factor"],
                                     "Categorical predictors": ["Factor"], "Family": "Linear"},
+            "Negative binomial regression": {"Response": "Event", "Predictors": ["x", "Factor"],
+                                             "Categorical predictors": ["Factor"], "Dispersion mode": "Fixed"},
             "Cox regression": {"Time": "x", "Event": "Event", "Predictors": ["z"],
                                "Categorical predictors": [], "Ties": "Efron"},
             "Competing risks": {"Time": "x", "Status": "Event", "Group": "Group", "Censor code": "0",
@@ -179,11 +195,17 @@ class CatalogTests(unittest.TestCase):
                     selected = pd.DataFrame({f"Group {group + 1} [{rep + 1}]": np.arange(4.) / 4 + 2 * group + rep
                                              for group in range(groups) for rep in range(3)})
                     selected.attrs["table_format"] = "nested"
+                if name == "Grouped two-way ANOVA":
+                    selected = pd.DataFrame({"Row": ["First", "Second"], "a [1]": [1., 3.],
+                                             "a [2]": [2., 4.], "b [1]": [3., 9.], "b [2]": [4., 7.]})
                 if name == "Friedman":
                     selected = pd.DataFrame({"y": [1, 2, 4, 2, 1, 4, 2, 3, 5, 4, 3, 8],
                                              "Group": list("abc") * 4, "Subject": np.repeat(np.arange(4), 3)})
+                if name == HIERARCHY_GRAPH:
+                    tree = analyse("Hierarchical clustering", data, cases["Hierarchical clustering"])
+                    selected = result_frame(tree, "Merges")
                 results = analyse(name, selected, options)
-                self.assertTrue(results.tables)
+                self.assertTrue(results.figure if name == HIERARCHY_GRAPH else results.tables)
                 self.assertTrue(all(isinstance(table, pd.DataFrame) for table in results.tables.values()))
                 self.assertEqual(results.figure is not None, name in GRAPH_METHODS)
                 if results.figure:

@@ -200,11 +200,14 @@ def check_shape_canvas(kit):
     np.testing.assert_array_equal(ax.dataLim.get_points(),original_limits[2])
     kit.capture(root,'window-canvas-shapes.png')
 
-    # Screen-only selection handles must not appear in raster OR vector saved content.
+    # Match the canvas DPI for each export. The default original DPI can differ from
+    # the current Tk DPI, making repeated SVG/PNG renders round antialiased edges differently.
+    export_dpi = fig.dpi
+
     def rendered(fmt):
         buf = BytesIO()
-        with rc_context({'svg.hashsalt':'canvas-smoke'}):
-            fig.savefig(buf,format=fmt,metadata={'Date':None} if fmt=='svg' else {})
+        with rc_context({'svg.hashsalt': 'canvas-smoke'}):
+            fig.savefig(buf, format=fmt, dpi=export_dpi, metadata={'Date': None} if fmt == 'svg' else {})
         return buf.getvalue()
     selected = {fmt:rendered(fmt) for fmt in ('svg','png')}
     choose_mode(None)

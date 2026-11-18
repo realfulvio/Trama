@@ -4,13 +4,13 @@ Supported hierarchical analyses in `.prism` and `.prismt` ZIP projects can reope
 
 The converter restores row, column or combined clustering, supported column and row transforms, cluster counts or an uncut tree, and observation labels using the saved column identifiers. Supported saved transforms are None, Center and Standardize; complete and group-average linkage with Euclidean distance are recognized. Standardization uses the sample standard deviation; columns are transformed before rows.
 
-Selected scaled-data, distance-matrix, merge map and cophenetic reports are restored, including full or lower-triangle matrix display. When a saved heat map is the only supported graph selection, the native result contains the heat map with its row and column trees. When a saved dendrogram is also selected, it is the primary native figure. Additional saved plots remain available only where their stored views can be imported.
+Selected scaled-data, distance-matrix, merge map and cophenetic reports are restored, including full or lower-triangle matrix display. When a saved heat map is the only supported graph selection, the native result contains the heat map with its row and column trees. When a saved dendrogram is also selected, it remains the primary native figure. Compatible saved heat maps, individual dendrograms and elbow plots can reopen as separate graphs linked to that same calculation.
 
-When the editable heat map is linked to its saved graph, Trama can also restore an opaque single branch color, stroke width and style, tree visibility and supported linear distance-axis limits, direction and spacing. It can restore the Viridis palette and the visibility of the color bar. Open **Format Graph** or the **Inspector** to change those settings. Other attributes use the Trama defaults.
+The editable dendrogram and heat map can restore an opaque single branch color, stroke width and style, tree visibility and supported linear distance-axis limits, direction and spacing. An opaque per-cluster line palette can also be mapped to native group order when the saved count cut covers every observation without duplicates. The heat map can restore the Viridis palette and the visibility of the color bar. Each figure has its own formatting. Open **Format Graph** or the **Inspector** to edit the settings.
 
 Enable **Output → Merge map** to see one table per clustering direction with the one-based merge order, two child labels and the cophenetic distance at which they join. A child displayed as **Cluster 3** refers to the third merge in that report. Children are ordered by the last source observation in each child. The numeric **Merges** sheet and the dendrogram retain their existing ordering. The optional report recalculates with the analysis, so equal distances can produce a different merge sequence in a recomputed tree.
 
-Enable **Output → Elbow data** to report within-cluster sums of squares (WCSS) for each cut from one cluster to one fewer than the number of observations. WCSS uses squared deviations from cluster centers on the same scaled data and merge sequence as the fitted tree. Select **Graph output → Elbow plot** to show those values, with separate panels for row and column clustering. If a stored project requested more than one plot, the editable recipe restores the elbow data alongside its primary supported plot. Change **Graph output** to see the elbow plot.
+Enable **Output → Elbow data** to report within-cluster sums of squares (WCSS) for each cut from one cluster to one fewer than the number of observations. WCSS uses squared deviations from cluster centers on the same scaled data and merge sequence as the fitted tree. Select **Graph output → Elbow plot** to show those values, with separate panels for row and column clustering. The importer links a saved elbow graph when both its graph identifier and its source dataset match the saved result.
 
 ## Working with an imported analysis
 
@@ -21,9 +21,11 @@ Enable **Output → Elbow data** to report within-cluster sums of squares (WCSS)
 
 Saved result snapshots remain independent of the native calculation and keep their original values. They can be useful for reviewing the imported project after source edits.
 
+To add another view, select **Merges** (or **Row Merges** or **Column Merges** when clustering both directions) and choose **Analyze this result… → Hierarchy graph**. Choose the figure and, for a dendrogram or elbow plot, the axis. The graph uses the fitted tree, then updates when the worksheet or clustering parameters change. If a change removes its input result sheet, use **Change input result…** to choose the current Merges sheet.
+
 ## Limits
 
-The native figure uses Trama's graph presentation. Original categorical branch palettes, label positions and drawing objects are outside the supported settings above. The importer reports unavailable saved views. Additional saved cut methods, linkages or distances that the converter does not recognize stay as saved content where available.
+The native figure uses Trama's graph presentation. Complex palette settings, exact label positions and drawing objects are outside the supported settings above. The importer reports unavailable saved views. Additional saved cut methods, linkages or distances that the converter does not recognize stay as saved content where available.
 
 These additions concern supported hierarchical analysis metadata in ZIP project files. They do not add general binary-project recipe restoration or external-format save support.
 

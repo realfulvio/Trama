@@ -4,6 +4,7 @@ The widget tests need Tk and a display (Xvfb is enough); they are skipped withou
 """
 import tkinter as tk
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -64,6 +65,8 @@ class IconTests(unittest.TestCase):
 
 
 class TkCase(unittest.TestCase):
+    theme = None
+
     @classmethod
     def setUpClass(cls):
         try:
@@ -71,7 +74,11 @@ class TkCase(unittest.TestCase):
         except tk.TclError as error:
             raise unittest.SkipTest(f"Tk is not available: {error}")
         cls.root.geometry("1440x900+0+0")
-        cls.app = tramastat.App(cls.root)
+        if cls.theme is None:
+            cls.app = tramastat.App(cls.root)
+        else:
+            with patch.object(tramastat, "load_theme", return_value=cls.theme):
+                cls.app = tramastat.App(cls.root)
         cls.errors = []
         cls.app.error = lambda error: cls.errors.append(str(error))
         cls.root.update()
@@ -84,7 +91,32 @@ class TkCase(unittest.TestCase):
         self.errors.clear()
 
 
+class CalculationStatusTests(TkCase):
+    def test_long_status_keeps_the_cancel_button_visible_in_a_narrow_window(self):
+        geometry = self.root.geometry()
+        self.root.geometry("900x620+0+0")
+        self.app._add_tables({"Measurements": pd.DataFrame({"Value": [1, 2]})})
+        previous = self.app.status.get()
+        try:
+            self.app.begin_calculation(tramastat.CalculationControl())
+            self.app.status.set("Bootstrap progress " * 80)
+            self.root.update()
+            button = self.app.cancel_button
+            self.assertTrue(button.winfo_viewable())
+            self.assertGreaterEqual(button.winfo_width(), button.winfo_reqwidth())
+            self.assertLessEqual(button.winfo_rootx() + button.winfo_width(),
+                                 self.root.winfo_rootx() + self.root.winfo_width())
+            button.invoke()
+            self.assertTrue(self.app.calculation.cancel.is_set())
+        finally:
+            self.app.end_calculation()
+            self.app.status.set(previous)
+            self.root.geometry(geometry)
+
+
 class RibbonTests(TkCase):
+    theme = "standard"
+
     def ribbon(self):
         return self.app.ribbon
 

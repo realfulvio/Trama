@@ -1,5 +1,5 @@
 """Tables and plots returned by workbench analyses."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from matplotlib.figure import Figure
 import pandas as pd
@@ -10,6 +10,7 @@ class Result:
     tables: dict[str, pd.DataFrame]
     figure: Figure | None = None
     style_warning: str | None = None
+    table_contexts: dict[str, object] = field(default_factory=dict, repr=False, compare=False)
 
 
 def _report(values):

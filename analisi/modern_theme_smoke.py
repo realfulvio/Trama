@@ -49,6 +49,18 @@ def check_modern_theme(root, app, directory, tools):
                'xscale':'log','legend':'upper left'}
     app.add_result(run,app.compute(run,frame))
     app.show('data','Dose response');root.update()
+    ribbon=app.ribbon
+    assert ribbon.tabs['home'].instate(['selected'])
+    assert not ribbon.tabs['format'].winfo_ismapped()
+    app.show('graph',0);root.update()
+    assert ribbon.tabs['format'].instate(['selected'])
+    assert ribbon.buttons['Inspector'].winfo_ismapped()
+    ribbon.buttons['Inspector'].invoke();root.update()
+    assert app.inspector is not None
+    capture(root,'graph-format-ribbon.png')
+    ribbon.buttons['Inspector'].invoke()
+    app.show('data','Dose response');root.update()
+    assert ribbon.tabs['home'].instate(['selected'])
     ws=app.modern_workspace
     assert ws and ws.canvas and ws.figure is not run.result.figure
     assert not app.nav.exists('section:Family')

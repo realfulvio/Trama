@@ -4,12 +4,14 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
 from matplotlib.colors import to_hex
 
+from analisi.analysis_chain import result_frame
 from analisi.data import Dataset, load_project, load_tables, save_project
 from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.presentation import apply_style
@@ -38,18 +40,46 @@ def fixture():
                   {**{c: [c] for c in "ABC"}, "label": ["Label"]})
 
 
-def write_project(path, *, heatmap_sheet=None):
+def write_project(path, *, heatmap_sheet=None, graphs=(), row_only=False, elbow=False, saved_groups=None):
     """Write only synthetic content, including an independently saved result view."""
     sheet, parameters, sources = fixture()
     frame = sources["source"]
+    content = parameters["content"]
     with ZipFile(path, "w") as archive:
         def write(name, obj):
             archive.writestr(name, json.dumps(obj))
         sheets = {"data": ["source"], "analyses": ["tree"]}
+        if row_only:
+            content["data"]["inputType"] = "ROWS"
+            content["defineClusters"]["columns"] = {"method": "NONE"}
+            content["graph"]["plots"] = ["DENDROGRAM", "HEATMAP"]
+        if saved_groups is not None:
+            content["defineClusters"]["rows"] = {"method": "NUMBER_OF_CLUSTERS", "clusterCount": len(saved_groups)}
+            write("analyses/tree/results.json", {"content": {"rows": {"clusters": [
+                {"points": [{"idx": row} for row in group]} for group in saved_groups
+            ]}}})
         if heatmap_sheet is not None:
-            sheets["graphs"] = ["heatmap"]
-            sheet["graphs"] = [{"settings": {"uid": "heatmap", "graph": {"dataSheet": "heatmap-data"}}}]
-            write("graphs/heatmap/sheet.json", heatmap_sheet)
+            graphs = (*graphs, ("heatmap", "heatmap-data", heatmap_sheet))
+        if graphs:
+            sheets["graphs"] = [uid for uid, _, _ in graphs]
+            sheet["graphs"] = [{"settings": {"uid": uid, "graph": {"dataSheet": source}}}
+                               for uid, source, _ in graphs]
+            for uid, _, document in graphs:
+                write(f"graphs/{uid}/sheet.json", document)
+        if elbow:
+            content["graph"]["plots"].append("ELBOW_PLOT")
+            sheets.setdefault("graphs", []).extend(("elbow", "another-graph"))
+            for uid, internal_id in (("elbow", 7), ("another-graph", 9)):
+                write(f"graphs/{uid}/sheet.json", {"uid": uid, "fenID": internal_id,
+                      "title": f"Plot {internal_id}", "inputDataSets": ["elbow-y"]})
+            write("analyses/tree/result_sheets/elbow-view.json", {"uid": "elbow-view",
+                  "name": "Elbow plot (rows)", "dataSheet": "elbow-result", "graphId": 7})
+            write("data/sheets/elbow-result/sheet.json", {"table": {"uid": "elbow-table", "format": "xy",
+                  "dataFormat": "y_single", "xDataSetFormat": "y_single", "xDataSet": "elbow-x",
+                  "dataSets": ["elbow-y"]}})
+            for uid, label in (("elbow-x", "Number of clusters"), ("elbow-y", "WCSS")):
+                write(f"data/sets/{uid}.json", {"title": label})
+            archive.writestr("data/tables/elbow-table/data.csv", "1,40\n2,25\n3,3\n")
         write("document.json", {"sheets": sheets})
         write("data/sheets/source/sheet.json", {"title": "Expression", "table": {
             "uid": "matrix", "format": "multivariable", "dataFormat": "y_single",
@@ -57,8 +87,10 @@ def write_project(path, *, heatmap_sheet=None):
         for uid, name in [("label", "Label"), *[(c, c) for c in "ABC"]]:
             write(f"data/sets/{uid}.json", {"title": name})
         archive.writestr("data/tables/matrix/data.csv", frame.to_csv(index=False, header=False))
-        write("analyses/tree/sheet.json", {**sheet, "title": "Imported clustering",
-              "resultSheets": [{"uid": "cached"}]})
+        result_sheets = [{"uid": "cached"}]
+        if elbow:
+            result_sheets.append({"uid": "elbow-view"})
+        write("analyses/tree/sheet.json", {**sheet, "title": "Imported clustering", "resultSheets": result_sheets})
         write("analyses/tree/parameters.json", parameters)
         write("analyses/tree/result_sheets/cached.json", {"name": "Original values", "dataSheet": "cached-sheet",
                                                         "isVisible": True})
@@ -69,6 +101,113 @@ def write_project(path, *, heatmap_sheet=None):
 
 
 class HierarchicalRecipeTests(unittest.TestCase):
+    def test_saved_category_colors_follow_cluster_membership_in_native_order(self):
+        tree = {"uid": "tree-view", "title": "Branches", "graph": {
+            "dataSheet": "tree-data", "gdoSettingsExt": {"dendrogram": {
+                "@class": "DendrogramFigure::Settings", "branchesLink": "/rows/dendrogram",
+                "clustersLink": "/rows/clusters",
+                "colormap": {"@class": "CategoricalColormap", "colorArrayType": "dataLines",
+                             "colorsTransparencyPercent": 0, "outlierColor": "#202030ff",
+                             "colors": {"0": "#a02010ff", "1": "#208040ff"}},
+                "linesStrokeSettings": {"strokeThickness": 2.0}}}}}
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "tree.prismt"
+            graphs = (("tree-view", "tree-data", tree),)
+            write_project(source, row_only=True, graphs=graphs, saved_groups=[[2], [0, 1, 3]])
+            data = Dataset(load_tables(source, restore_prism=True)["Expression"])
+            method, options = data.analyses[0]
+            fitted = analyse(method, data.frame(), options)
+            self.assertEqual(fitted.tables["Assignments"]["Cluster"].tolist(), [1, 1, 2, 1])
+            style = data.graph_styles[0]["hierarchical"]["row"]
+            self.assertEqual(style["palette"], ["#208040", "#a02010"])
+            apply_style(fitted.figure, data.graph_styles[0])
+            colors = describe_hierarchical_artists(fitted.figure)["row"]["branches"].get_colors()
+            self.assertEqual([to_hex(color) for color in colors], ["#208040", "#208040", "#202030"])
+
+            write_project(source, row_only=True, graphs=graphs, saved_groups=[[2, 1], [0, 1, 3]])
+            invalid = Dataset(load_tables(source, restore_prism=True)["Expression"])
+            fallback = invalid.graph_styles[0]["hierarchical"]["row"]
+            self.assertEqual(fallback, {"width": 2.})
+
+    def test_legacy_elbow_graph_links_only_to_its_numbered_result_view(self):
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "elbow.prismt"
+            write_project(source, row_only=True, elbow=True)
+            sheets = load_tables(source, restore_prism=True)
+            dataset = Dataset(sheets["Expression"])
+            self.assertEqual(len(dataset.analyses), 2)
+            self.assertIn("Prism graph · Plot 9", sheets)
+            self.assertNotIn("Prism graph · Plot 7", sheets)
+            method, options = dataset.analyses[1]
+            self.assertEqual(method, "Hierarchy graph")
+            self.assertEqual(options["Prism sheet title"], "Plot 7")
+            self.assertEqual(dataset.analysis_sources[1].analysis_id, dataset.analysis_ids[0])
+            parent_method, parent_options = dataset.analyses[0]
+            primary = analyse(parent_method, dataset.frame(), parent_options)
+            child = analyse(method, result_frame(primary, "Merges"), options)
+            np.testing.assert_allclose(child.figure.axes[0].lines[0].get_ydata(),
+                                       primary.tables["Elbow data"]["WCSS"])
+
+    def test_saved_heatmap_is_an_independent_view_of_the_live_tree(self):
+        tree = {"uid": "tree-view", "title": "Branches", "graph": {
+            "dataSheet": "tree-data",
+            "axisY": {"orientation": "vertical", "segments": [{"@class": "LinearAxisSegment",
+                "lowerLimit": 0, "upperLimit": 12, "interval": 2, "startTicksValue": 0}]},
+            "gdoSettingsExt": {"dendrogram": {
+                "@class": "DendrogramFigure::Settings", "branchesLink": "/rows/dendrogram",
+                "colormap": {"@class": "SingleColormap", "color": "#315C80ff"},
+                "linesStrokeSettings": {"strokeThickness": 2.5, "strokeStyle": "dashed"}}}}}
+        heat = {"uid": "heatmap", "title": "Matrix", "graph": {
+            "dataSheet": "heatmap-data", "gdoSettingsExt": {"heatmap": {
+                "@class": "HeatmapFigure::Settings", "isColorLegendEnabled": False}}}}
+        wrong = deepcopy(heat)
+        wrong.update(uid="unrelated", title="Unrelated matrix")
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "original.prismt"
+            write_project(source, graphs=(("tree-view", "tree-data", tree),
+                                          ("unrelated", "different-data", wrong)), heatmap_sheet=heat,
+                          row_only=True)
+            input_frame = load_tables(source, restore_prism=True)["Expression"]
+            warnings = " ".join(input_frame.attrs.get("import_warnings", []))
+            self.assertIn("Unrelated matrix", warnings)
+            self.assertNotIn("Graph unavailable for Matrix.", warnings)
+            self.assertNotIn("Graph unavailable for Branches.", warnings)
+            dataset = Dataset(input_frame)
+            self.assertEqual([method for method, _ in dataset.analyses],
+                             ["Hierarchical clustering", "Hierarchy graph"])
+            self.assertEqual(dataset.analysis_sources[1].analysis_id, dataset.analysis_ids[0])
+            self.assertEqual(dataset.analysis_sources[1].table, "Merges")
+            self.assertEqual(dataset.analyses[1][1]["Prism sheet title"], "Matrix")
+            target = Path(directory) / "edited.alab"
+            save_project(target, {"Expression": dataset})
+            loaded = load_project(target)["Expression"]
+            self.assertEqual(loaded.analyses, dataset.analyses)
+            self.assertEqual(loaded.graph_styles, dataset.graph_styles)
+            self.assertEqual(loaded.analysis_sources, dataset.analysis_sources)
+            method, options = loaded.analyses[0]
+            primary = analyse(method, loaded.frame(), options)
+            apply_style(primary.figure, loaded.graph_styles[0])
+            branch = describe_hierarchical_artists(primary.figure)["row"]
+            self.assertEqual(branch["axes"].get_ylim(), (0., 12.))
+            self.assertEqual(to_hex(branch["branches"].get_colors()[0]), "#315c80")
+
+            def raster(result):
+                with patch("analisi.hierarchical_workbench.hierarchical",
+                           side_effect=AssertionError("A view must reuse the fitted tree")):
+                    method, options = loaded.analyses[1]
+                    view = analyse(method, result_frame(result, "Merges"), options)
+                apply_style(view.figure, loaded.graph_styles[1])
+                artists = describe_hierarchical_artists(view.figure)
+                self.assertFalse(artists["heatmap"]["colorbar"].ax.get_visible())
+                return np.asarray(artists["heatmap"]["image"].get_array())
+
+            before = raster(primary)
+            edited = loaded.frame()
+            edited.loc[0, "A"] = 25.
+            after = raster(analyse(method, edited, options))
+            self.assertEqual(before.shape, (4, 3))
+            self.assertFalse(np.allclose(before, after))
+
     def test_imported_heatmap_style_follows_the_linked_graph_and_roundtrips(self):
         sheet = {"uid": "heatmap", "graph": {
             "dataSheet": "heatmap-data",

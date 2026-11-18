@@ -4,6 +4,7 @@ from matplotlib.container import ErrorbarContainer
 import numpy as np
 import pandas as pd
 
+from .axis_breaks import mark_supported
 from .field_error import FieldError
 from .reporting import Result, _plot
 
@@ -369,6 +370,7 @@ def xy_errors(frame, options):
     )
 
     figure, axes = _plot(XY_ERRORS, x, y)
+    mark_supported(axes)
     groups = data.groupby(group, sort=False, observed=True) if group else [("All", data)]
     for label, part in groups:
         if is_legacy:

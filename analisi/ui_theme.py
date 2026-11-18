@@ -40,16 +40,16 @@ SERIES = ("#0c9c92", "#e8795d", "#6757a3", "#c99a1c", "#3f7fb5", "#8a8f98")  # t
 SURFACE = CHROME
 ICON_INK = "#3a4e5a"
 
-# The standard palette remains the compatibility default. A theme is presentation only;
+# The standard palette remains available to users who prefer the familiar workspace;
 # it never changes plot palettes, analysis recipes or the contents of a project.
 _STANDARD = {key: value for key, value in globals().copy().items()
              if key.isupper() and isinstance(value, str)}
-_MODERN = dict(APP="#f6f8fa", CHROME="#ffffff", CHROME_DEEP="#edf3f3", PANEL="#f7f9fa",
-               PAGE="#f3f6f8", LINE="#dce3e7", LINE_STRONG="#b9c6ce", TEXT="#142632",
-               MUTED="#526574", ACCENT="#007f79", ACCENT_STRONG="#006761", ACCENT_TINT="#e1f3ef",
+_MODERN = dict(APP="#eef2f4", CHROME="#ffffff", CHROME_DEEP="#eef2f4", PANEL="#f7f9fa",
+               PAGE="#eef2f4", LINE="#e1e6ea", LINE_STRONG="#b9c6ce", TEXT="#17242d",
+               MUTED="#5a6873", ACCENT="#0b7a73", ACCENT_STRONG="#075e58", ACCENT_TINT="#e2f2ef",
                ON_FILL="#d8eeea", ON_LINE="#85c4ba", SELECTED_CELL="#e0f2ed",
                SELECTED_HEADING="#bbdfd7", GRID_LINE="#e4e9ed", GROUP_LINE="#c4d2d8",
-               HEADING="#f1f5f6", ACTIVE_CELL="#006b65", SURFACE="#ffffff", ICON_INK="#253d4a")
+               HEADING="#f1f5f6", ACTIVE_CELL="#00635d", SURFACE="#ffffff", ICON_INK="#253d4a")
 
 
 def is_modern():
@@ -264,17 +264,36 @@ def configure(root, theme="standard"):
         style.configure("TNotebook.Tab", padding=(px(18), px(7)))
         style.configure("Projects.TNotebook.Tab", padding=(px(17), px(6)))
         style.configure("TButton", padding=(px(11), px(5)))
-        style.configure("Modern.Ribbon.TButton", padding=(px(10), px(7)), font=ui(10),
+        style.configure("AnalysisPicker.TFrame", background=PANEL)
+        style.configure("AnalysisPicker.TLabel", background=PANEL, foreground=TEXT, font=ui(10, "bold"))
+        style.configure("Analysis.Treeview", background=PANEL, fieldbackground=PANEL, rowheight=px(26),
+                        bordercolor=PANEL, lightcolor=PANEL, darkcolor=PANEL, indent=px(13))
+        style.map("Analysis.Treeview", background=[("selected", ACCENT)], foreground=[("selected", "#ffffff")])
+        style.configure("AnalysisTitle.TLabel", foreground=TEXT, font=ui(15, "bold"))
+        style.configure("Analysis.TNotebook", bordercolor=LINE, lightcolor=LINE)
+        style.configure("Analysis.TNotebook.Tab", padding=(px(12), px(6)))
+        style.configure("AnalysisFooter.TFrame", background=PANEL)
+        style.configure("Modern.Ribbon.TButton", padding=(px(8), px(5)), font=ui(9),
                         background=CHROME, foreground=TEXT, borderwidth=0,
                         bordercolor=CHROME, lightcolor=CHROME, darkcolor=CHROME)
-        style.configure("ModernPrimary.Ribbon.TButton", padding=(px(17), px(7)), font=ui(10, "bold"),
+        style.configure("ModernPrimary.Ribbon.TButton", padding=(px(13), px(5)), font=ui(9, "bold"),
                         background=ACCENT, foreground="#ffffff", bordercolor=ACCENT,
                         lightcolor=ACCENT, darkcolor=ACCENT)
         style.map("ModernPrimary.Ribbon.TButton", background=[("disabled", DISABLED_FILL),
                   ("pressed", ACCENT_STRONG), ("active", ACCENT_STRONG)],
                   foreground=[("disabled", DISABLED)])
-        style.configure("Modern.TMenubutton", padding=(px(9), px(7)), background=CHROME,
-                        foreground=TEXT, borderwidth=0, font=ui(10))
+        style.configure("Modern.TMenubutton", padding=(px(7), px(5)), background=CHROME,
+                        foreground=TEXT, borderwidth=0, font=ui(9))
+        for name, active, ink in (("Modern", ACCENT_TINT, ACCENT_STRONG),
+                                  ("ModernContext", "#fbefe9", "#7a2e12")):
+            tab = name + ".Tab.TButton"
+            style.configure(tab, padding=(px(8), px(6)), background=CHROME,
+                            bordercolor=CHROME, lightcolor=CHROME, darkcolor=CHROME,
+                            foreground=MUTED, focuscolor=ACCENT, font=ui(9, "bold"))
+            style.map(tab, background=[("selected", active), ("active", CHROME_DEEP)],
+                      foreground=[("selected", ink), ("active", TEXT)],
+                      bordercolor=[("focus", ACCENT), ("selected", active), ("active", CHROME_DEEP)],
+                      lightcolor=[("selected", active)], darkcolor=[("selected", active)])
         style.configure("InspectorHead.TLabel", background=PANEL, font=ui(12, "bold"), padding=(8, 8))
         style.configure("InspectorSection.TLabel", background=PANEL, font=ui(10, "bold"), padding=(6, 5))
         style.configure("Sash", sashthickness=px(3))

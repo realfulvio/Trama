@@ -2139,6 +2139,66 @@ _IT.update({
     "tost.error.pairs": "Un test appaiato richiede almeno due coppie complete; ne risultano {count}.",
 })
 
+# Compare independent ROC curves: validation messages. The "iroc.error." entries match the English text raised by the
+# engine (see translate_message); the field names inside them are the dialog captions, and worksheet names stay literal.
+_EN.update({
+    "iroc.hint": "The four samples must be independent, with different people in each. To compare two markers measured "
+                 "on the same people use Compare paired ROC curves. A partial area needs the percentile bootstrap.",
+    "iroc.error.choose": "Choose a column for {field}.",
+    "iroc.error.used": 'Column "{column}" is already used for {first}. Choose four distinct columns.',
+    "iroc.error.unique": "Worksheet column names must be unique.",
+    "iroc.error.few": 'Column "{column}" needs at least 2 valid values; {count} found.',
+    "iroc.error.text": 'Column "{column}" contains text or infinite values.',
+    "iroc.error.complex": 'Column "{column}" contains complex or unsupported data.',
+    "iroc.error.precision": 'Column "{column}" contains integers outside the supported precision.',
+    "iroc.error.total": "The four columns hold {total} values; at most 100,000 are allowed.",
+    "iroc.error.budget": "Bootstrap replicates × observations = {replicates} × {total} = {work} exceeds the limit of "
+                         "5,000,000. Use fewer replicates or smaller samples.",
+    "iroc.error.direction": "Choose Higher in patients or Lower in patients.",
+    "iroc.error.area": "Choose Full, Partial or Standardized partial.",
+    "iroc.error.cutoff": "Maximum FPR must be a number greater than 0 and less than 1.",
+    "iroc.error.inference": "Choose DeLong or Percentile bootstrap.",
+    "iroc.error.partial": "A partial area has no DeLong variance. Choose Percentile bootstrap.",
+    "iroc.error.level": "Confidence level (%) must be greater than 0 and less than 100.",
+    "iroc.error.replicates": "Bootstrap replicates must be a whole number from 200 to 10,000.",
+    "iroc.error.seed": "Bootstrap seed must be a whole number from 0 to 4,294,967,295.",
+    "iroc.error.save": "Save bootstrap must be on or off.",
+    "iroc.error.cancelled": "The update was cancelled.",
+    "iroc.cancelled": "Independent ROC comparison cancelled. {kept}",
+    "iroc.kept_new": "No analysis was added.",
+    "iroc.kept_result": "The last completed results are kept.",
+    "iroc.kept_none": "Open the analysis to calculate again.",
+})
+_IT.update({
+    "iroc.hint": "I quattro campioni devono essere indipendenti, con persone diverse in ciascuno. Per confrontare "
+                 "due marcatori misurati sulle stesse persone usa Confronta curve ROC appaiate. Un'area parziale "
+                 "richiede il bootstrap percentile.",
+    "iroc.error.choose": "Scegli una colonna nel campo {field}.",
+    "iroc.error.used": 'La colonna "{column}" è già usata per {first}. Scegli quattro colonne diverse.',
+    "iroc.error.unique": "I nomi delle colonne del foglio devono essere univoci.",
+    "iroc.error.few": 'La colonna "{column}" richiede almeno 2 valori validi; ne risultano {count}.',
+    "iroc.error.text": 'La colonna "{column}" contiene testo o valori infiniti.',
+    "iroc.error.complex": 'La colonna "{column}" contiene numeri complessi o dati non supportati.',
+    "iroc.error.precision": 'La colonna "{column}" contiene interi fuori dalla precisione supportata.',
+    "iroc.error.total": "Le quattro colonne contengono {total} valori; il massimo consentito è 100.000.",
+    "iroc.error.budget": "Repliche bootstrap × osservazioni = {replicates} × {total} = {work} supera il limite di "
+                         "5.000.000. Usa meno repliche o campioni più piccoli.",
+    "iroc.error.direction": "Scegli Maggiore nei pazienti o Minore nei pazienti.",
+    "iroc.error.area": "Scegli Completa, Parziale o Parziale standardizzata.",
+    "iroc.error.cutoff": "FPR massimo deve essere un numero maggiore di 0 e minore di 1.",
+    "iroc.error.inference": "Scegli DeLong o Bootstrap percentile.",
+    "iroc.error.partial": "Un'area parziale non ha la varianza di DeLong. Scegli Bootstrap percentile.",
+    "iroc.error.level": "Livello di confidenza (%) deve essere maggiore di 0 e minore di 100.",
+    "iroc.error.replicates": "Repliche bootstrap deve essere un numero intero da 200 a 10.000.",
+    "iroc.error.seed": "Seme del bootstrap deve essere un numero intero da 0 a 4.294.967.295.",
+    "iroc.error.save": "Salva le repliche bootstrap deve essere attivo o disattivo.",
+    "iroc.error.cancelled": "L'aggiornamento è stato annullato.",
+    "iroc.cancelled": "Confronto ROC indipendente annullato. {kept}",
+    "iroc.kept_new": "Nessuna analisi è stata aggiunta.",
+    "iroc.kept_result": "Restano gli ultimi risultati completati.",
+    "iroc.kept_none": "Apri l'analisi per calcolare di nuovo.",
+})
+
 # Robust curve fit (0.73): captions, choices, editor and validation messages. The "analysis.robust_curve.error."
 # entries are the exact English messages of the engine with placeholders (see translate_message). Recipes keep the
 # English field names and values.
@@ -2647,6 +2707,132 @@ _MLR_WEIGHT_IT = {
 _EN.update(_MLR_WEIGHT_EN)
 _IT.update(_MLR_WEIGHT_IT)
 
+# Negative binomial regression (NB2, 0.93): dialog captions, choices, the hint and the engine messages.
+# Error texts match the English strings of analisi/nb2_regression.py exactly; recipes and sheets stay English.
+_EN.update({
+    "nb2.field.response": "Response", "nb2.field.predictors": "Predictors",
+    "nb2.field.categories": "Categorical predictors", "nb2.field.exposure": "Exposure",
+    "nb2.field.mode": "Dispersion mode", "nb2.field.alpha": "Dispersion alpha",
+    "nb2.field.level": "Confidence level (%)", "nb2.field.plot": "Residual plot",
+    "nb2.choice.estimated": "Estimated ML", "nb2.choice.fixed": "Fixed",
+    "nb2.hint": "NB2 model: log μ = Xβ + log(exposure), Var(Y) = μ + αμ². Estimated ML fits α with the "
+                "coefficients; Fixed uses the α you enter. Coefficients and IRR use Wald intervals.",
+    "nb2.reason.not finite": "not finite", "nb2.reason.not positive definite": "not positive definite",
+    "nb2.reason.nearly singular": "nearly singular",
+    "nb2.error.choose": "Choose a column for {field}.",
+    "nb2.error.select": "Select at least one column for {field}.",
+    "nb2.error.column": 'Column "{column}" is not in the table.',
+    "nb2.error.columns": "{field}: choose columns of the table.",
+    "nb2.error.once": "{field}: choose each column once.",
+    "nb2.error.number": "{field} must be a number.",
+    "nb2.error.finite": "{field} must be finite.",
+    "nb2.error.predictors": "Choose from 1 to 8 predictors.",
+    "nb2.error.response_predictor": "The response cannot also be a predictor.",
+    "nb2.error.categories": "Categorical predictors must be chosen among the predictors.",
+    "nb2.error.exposure_distinct": "Exposure must be a column distinct from the response and the predictors.",
+    "nb2.error.mode": "Choose Estimated ML or Fixed.",
+    "nb2.error.alpha": "Dispersion alpha must be from 0.000001 to 1000.",
+    "nb2.error.level": "Confidence level (%) must be strictly between 0 and 100.",
+    "nb2.error.plot": "Residual plot must be on or off.",
+    "nb2.error.complex": 'Column "{column}" contains complex data.',
+    "nb2.error.counts": 'Response "{column}" needs whole counts of 0 or more (row {row}: {value}).',
+    "nb2.error.numbers": 'Predictor "{column}" needs finite numbers (row {row}: {value}).',
+    "nb2.error.exposure": 'Exposure "{column}" needs finite values greater than 0 (row {row}: {value}).',
+    "nb2.error.no_rows": "No row has a response, every predictor and the exposure.",
+    "nb2.error.rows": "The model would use {rows} complete rows; the limit is 50,000.",
+    "nb2.error.event": "Negative binomial regression needs at least one observed event (a count above 0).",
+    "nb2.error.levels": 'Categorical predictor "{column}" must have 2 to 100 levels among the complete rows.',
+    "nb2.error.coefficients": "The model has {count} coefficients; the limit is 32.",
+    "nb2.error.too_few": "The model has {count} coefficients for {rows} complete rows. Use fewer predictors or "
+                         "more rows.",
+    "nb2.error.rank": "The model is rank deficient. Remove redundant predictors.",
+    "nb2.error.duplicate": 'Duplicate model term "{term}". Rename the source column.',
+    "nb2.error.parameters": "Model has too many parameters for these data.",
+    "nb2.error.converge": "The regression did not converge. Check categories or predictor ranges whose counts are "
+                          "all zero.",
+    "nb2.error.ml_converge": "Estimated ML did not converge: the coefficients do not settle. Check categories or "
+                             "predictor ranges whose counts are all zero.",
+    "nb2.error.ml_finite": "Estimated ML did not converge: the likelihood is not finite over the range of alpha.",
+    "nb2.error.poisson": "Estimated ML has no interior maximum: the likelihood keeps increasing toward alpha = 0, "
+                         "the Poisson boundary (the counts are not overdispersed). Use Fixed dispersion or Poisson "
+                         "regression.",
+    "nb2.error.upper": "Estimated ML has no interior maximum: the likelihood keeps increasing beyond alpha = 1000. "
+                       "Use Fixed dispersion.",
+    "nb2.error.solve": "Estimated ML did not converge while solving for alpha.",
+    "nb2.error.limit": "Estimated ML stopped at alpha = {alpha}, a limit of the supported range, so it is not an "
+                       "estimate. Use Fixed dispersion.",
+    "nb2.error.fisher": "The Fisher information is {reason} at the estimate, so the standard errors are not "
+                        "identifiable for these data.",
+    "nb2.error.hessian": "Estimated ML: the Hessian is {reason} at the estimate, so alpha and the standard errors "
+                         "are not identifiable for these data.",
+    "nb2.error.range": "The estimates or their exponentials are outside the supported numeric range. Rescale the "
+                       "predictors.",
+    "nb2.error.fitted": "The fitted values are outside the supported numeric range. Rescale the predictors or the "
+                        "exposure.",
+})
+_IT.update({
+    "nb2.field.response": "Risposta", "nb2.field.predictors": "Predittori",
+    "nb2.field.categories": "Predittori categorici", "nb2.field.exposure": "Esposizione",
+    "nb2.field.mode": "Dispersione", "nb2.field.alpha": "Alfa di dispersione",
+    "nb2.field.level": "Livello di confidenza (%)", "nb2.field.plot": "Grafico dei residui",
+    "nb2.choice.estimated": "Stimata (ML)", "nb2.choice.fixed": "Fissa",
+    "nb2.hint": "Modello NB2: log μ = Xβ + log(esposizione), Var(Y) = μ + αμ². Stimata (ML) stima α insieme ai "
+                "coefficienti; Fissa usa l’α indicato. Coefficienti e IRR hanno intervalli di Wald.",
+    "nb2.reason.not finite": "non finita", "nb2.reason.not positive definite": "non definita positiva",
+    "nb2.reason.nearly singular": "quasi singolare",
+    "nb2.error.choose": "Scegli una colonna per {field}.",
+    "nb2.error.select": "Seleziona almeno una colonna per {field}.",
+    "nb2.error.column": 'La colonna "{column}" non è nella tabella.',
+    "nb2.error.columns": "{field}: scegli colonne della tabella.",
+    "nb2.error.once": "{field}: scegli ogni colonna una sola volta.",
+    "nb2.error.number": "{field}: inserisci un numero.",
+    "nb2.error.finite": "{field}: inserisci un numero finito.",
+    "nb2.error.predictors": "Scegli da 1 a 8 predittori.",
+    "nb2.error.response_predictor": "La risposta non può essere anche un predittore.",
+    "nb2.error.categories": "I predittori categorici vanno scelti fra i predittori.",
+    "nb2.error.exposure_distinct": "L’esposizione deve essere una colonna diversa dalla risposta e dai predittori.",
+    "nb2.error.mode": "Scegli Stimata (ML) o Fissa.",
+    "nb2.error.alpha": "L’alfa di dispersione deve essere compreso fra 0,000001 e 1000.",
+    "nb2.error.level": "Il livello di confidenza (%) deve essere strettamente compreso fra 0 e 100.",
+    "nb2.error.plot": "Il grafico dei residui deve essere attivo o disattivo.",
+    "nb2.error.complex": 'La colonna "{column}" contiene numeri complessi.',
+    "nb2.error.counts": 'La risposta "{column}" richiede conteggi interi pari ad almeno 0 (riga {row}: {value}).',
+    "nb2.error.numbers": 'Il predittore "{column}" richiede numeri finiti (riga {row}: {value}).',
+    "nb2.error.exposure": 'L’esposizione "{column}" richiede valori finiti maggiori di 0 (riga {row}: {value}).',
+    "nb2.error.no_rows": "Nessuna riga ha la risposta, tutti i predittori e l’esposizione.",
+    "nb2.error.rows": "Il modello userebbe {rows} righe complete; il limite è 50.000.",
+    "nb2.error.event": "La regressione binomiale negativa richiede almeno un evento osservato (un conteggio "
+                       "maggiore di 0).",
+    "nb2.error.levels": 'Il predittore categorico "{column}" deve avere da 2 a 100 livelli nelle righe complete.',
+    "nb2.error.coefficients": "Il modello ha {count} coefficienti; il limite è 32.",
+    "nb2.error.too_few": "Il modello ha {count} coefficienti per {rows} righe complete. Usa meno predittori o più "
+                         "righe.",
+    "nb2.error.rank": "Il modello è a rango deficiente. Rimuovi i predittori ridondanti.",
+    "nb2.error.duplicate": 'Termine del modello duplicato "{term}". Rinomina la colonna sorgente.',
+    "nb2.error.parameters": "Il modello ha troppi parametri per questi dati.",
+    "nb2.error.converge": "La regressione non converge. Controlla le categorie o gli intervalli dei predittori con "
+                          "conteggi tutti nulli.",
+    "nb2.error.ml_converge": "La stima ML non converge: i coefficienti non si stabilizzano. Controlla le categorie o "
+                             "gli intervalli dei predittori con conteggi tutti nulli.",
+    "nb2.error.ml_finite": "La stima ML non converge: la verosimiglianza non è finita nell’intervallo di alfa.",
+    "nb2.error.poisson": "La stima ML non ha un massimo interno: la verosimiglianza continua a crescere verso "
+                         "alfa = 0, il bordo di Poisson (i conteggi non sono sovradispersi). Usa la dispersione Fissa "
+                         "o la regressione di Poisson.",
+    "nb2.error.upper": "La stima ML non ha un massimo interno: la verosimiglianza continua a crescere oltre "
+                       "alfa = 1000. Usa la dispersione Fissa.",
+    "nb2.error.solve": "La stima ML non converge nella ricerca di alfa.",
+    "nb2.error.limit": "La stima ML si è fermata ad alfa = {alpha}, un limite dell’intervallo supportato, quindi non "
+                       "è una stima. Usa la dispersione Fissa.",
+    "nb2.error.fisher": "L’informazione di Fisher è {reason} nella stima, quindi gli errori standard non sono "
+                        "identificabili per questi dati.",
+    "nb2.error.hessian": "Stima ML: l’Hessiana è {reason} nella stima, quindi alfa e gli errori standard non sono "
+                         "identificabili per questi dati.",
+    "nb2.error.range": "Le stime o i loro esponenziali sono fuori dall’intervallo numerico supportato. Riscala i "
+                       "predittori.",
+    "nb2.error.fitted": "I valori stimati sono fuori dall’intervallo numerico supportato. Riscala i predittori o "
+                        "l’esposizione.",
+})
+
 # Inverse intervals on a nonlinear standard curve. Error texts match the engine strings.
 _EN.update({
     "calib.inverse_nonlinear.note": (
@@ -2700,6 +2886,230 @@ _IT.update({
     "calib.inverse_nonlinear.field.curve": "Curva",
     "calib.inverse_nonlinear.field.direction": "Direzione",
 })
+
+# ANCOVA with adjusted means. The "ancova.error." entries match the English text raised by the engine.
+_EN.update({
+    'ancova.error.unique': 'Worksheet column names must be unique.',
+    'ancova.error.choose': 'Choose a column for {field}.',
+    'ancova.error.exists': 'Choose an existing column for {field}: "{column}" is not in the worksheet.',
+    'ancova.error.different': 'Choose three different columns for Response, Covariate and Group. {field} repeats "{column}".',
+    'ancova.error.slope_model': 'Slope model must be Common or By group.',
+    'ancova.error.domain': 'Reference domain must be Common range or Allow extrapolation.',
+    'ancova.error.comparisons': 'Comparisons must be All pairs, Against control or None.',
+    'ancova.error.adjustment': 'Adjustment must be Holm, Bonferroni or None.',
+    'ancova.error.graph': 'Graph must be Fitted lines, Adjusted means or Residuals.',
+    'ancova.error.level': 'Confidence level (%) must be a number greater than 0 and less than 100.',
+    'ancova.error.reference': 'Reference X must be a finite number, or empty to use the mean of the Covariate.',
+    'ancova.error.complex': 'Column "{column}" contains complex data.',
+    'ancova.error.text': 'Column "{column}" contains text or infinite values.',
+    'ancova.error.precision': 'Column "{column}" contains integers outside the supported precision.',
+    'ancova.error.few_groups': 'ANCOVA needs at least {minimum} groups with complete values; the selected data contain {count}.',
+    'ancova.error.many_groups': 'ANCOVA compares at most {maximum} groups; the selected data contain {count}.',
+    'ancova.error.few_rows': 'Group "{group}" has {count} complete observations. Each group needs at least {minimum}.',
+    'ancova.error.many_rows': 'ANCOVA fits at most {maximum} complete observations; the selected data contain {count}.',
+    'ancova.error.constant': 'Group "{group}" needs at least two Covariate values that differ enough to be told apart.',
+    'ancova.error.empty_range': 'The groups share no Covariate range: the largest group minimum {low} is above the smallest group maximum {high}. Choose Allow extrapolation, or other data.',
+    'ancova.error.outside': 'Reference X {reference} is outside the common Covariate range {low} to {high}. Enter a value inside it, or choose Allow extrapolation.',
+    'ancova.error.outside_auto': 'The mean Covariate {reference}, used as the Reference X, is outside the common range {low} to {high}. Enter a Reference X inside it, or choose Allow extrapolation.',
+    'ancova.error.unstable': 'Reference X {reference} is too far from the observed Covariate values for a stable calculation. Enter a Reference X closer to the data.',
+    'ancova.error.rank': 'The model cannot be identified from these data. Every group needs Covariate values that vary.',
+    'ancova.error.control_missing': 'Choose the control group for Against control.',
+    'ancova.error.control_unknown': 'Control group "{control}" is not one of the groups with complete data.',
+    'ancova.error.control_ambiguous': 'Control group "{control}" matches more than one group. Choose one of: {choices}.',
+    'ancova.error.range': 'These values cannot be represented: the estimates leave the range of numbers the calculation supports. Check the scale of the Response and the Covariate.',
+    'ancova.error.nested': 'The nested models could not be compared reliably. Check the Covariate and the Reference X.',
+    'ancova.note.model': 'Common: every group shares one slope. By group: each group has its own slope, so the groups differ at the Reference X only. The equal-slopes test is a diagnostic; the choice of estimator is yours.',
+    'ancova.note.comparisons': 'The adjusted p values correct the contrasts for the number of comparisons; the intervals are pointwise. Observations are assumed independent with one error variance for all groups.',
+    'ancova.note.reference': 'Leave Reference X empty to use the mean of every complete Covariate value.',
+})
+_IT.update({
+    'ancova.error.unique': 'I nomi delle colonne del foglio devono essere univoci.',
+    'ancova.error.choose': 'Scegli una colonna nel campo {field}.',
+    'ancova.error.exists': 'Scegli una colonna esistente nel campo {field}: "{column}" non è nel foglio.',
+    'ancova.error.different': 'Scegli tre colonne diverse per Risposta, Covariata e Gruppo. {field} ripete "{column}".',
+    'ancova.error.slope_model': 'Modello delle pendenze: scegli Comune o Per gruppo.',
+    'ancova.error.domain': 'Dominio del riferimento: scegli Intervallo comune o Consenti estrapolazione.',
+    'ancova.error.comparisons': 'Confronti: scegli Tutte le coppie, Contro il controllo o Nessuno.',
+    'ancova.error.adjustment': 'Correzione: scegli Holm, Bonferroni o Nessuno.',
+    'ancova.error.graph': 'Grafico: scegli Rette adattate, Medie aggiustate o Residui.',
+    'ancova.error.level': 'Livello di confidenza (%): deve essere un numero maggiore di 0 e minore di 100.',
+    'ancova.error.reference': 'X di riferimento: deve essere un numero finito, oppure vuoto per usare la media della covariata.',
+    'ancova.error.complex': 'La colonna "{column}" contiene dati complessi.',
+    'ancova.error.text': 'La colonna "{column}" contiene testo o valori infiniti.',
+    'ancova.error.precision': 'La colonna "{column}" contiene interi fuori dalla precisione supportata.',
+    'ancova.error.few_groups': 'L’ANCOVA richiede almeno {minimum} gruppi con valori completi; i dati selezionati ne contengono {count}.',
+    'ancova.error.many_groups': 'L’ANCOVA confronta al massimo {maximum} gruppi; i dati selezionati ne contengono {count}.',
+    'ancova.error.few_rows': 'Il gruppo "{group}" ha {count} osservazioni complete. Ogni gruppo ne richiede almeno {minimum}.',
+    'ancova.error.many_rows': 'L’ANCOVA adatta al massimo {maximum} osservazioni complete; i dati selezionati ne contengono {count}.',
+    'ancova.error.constant': 'Il gruppo "{group}" richiede almeno due valori della covariata che differiscano abbastanza da essere distinti.',
+    'ancova.error.empty_range': 'I gruppi non condividono alcun intervallo della covariata: il minimo più alto dei gruppi, {low}, supera il massimo più basso, {high}. Scegli Consenti estrapolazione oppure altri dati.',
+    'ancova.error.outside': 'L’X di riferimento {reference} è fuori dall’intervallo comune della covariata, da {low} a {high}. Inserisci un valore al suo interno oppure scegli Consenti estrapolazione.',
+    'ancova.error.outside_auto': 'La media della covariata {reference}, usata come X di riferimento, è fuori dall’intervallo comune da {low} a {high}. Inserisci un’X di riferimento al suo interno oppure scegli Consenti estrapolazione.',
+    'ancova.error.unstable': 'L’X di riferimento {reference} è troppo lontano dai valori osservati della covariata per un calcolo stabile. Inserisci un’X di riferimento più vicina ai dati.',
+    'ancova.error.rank': 'Il modello non è identificabile da questi dati. Ogni gruppo richiede valori della covariata che variano.',
+    'ancova.error.control_missing': 'Scegli il gruppo di controllo: il confronto è Contro il controllo.',
+    'ancova.error.control_unknown': 'Il gruppo di controllo "{control}" non è tra i gruppi con dati completi.',
+    'ancova.error.control_ambiguous': 'Il gruppo di controllo "{control}" corrisponde a più gruppi. Scegline uno tra: {choices}.',
+    'ancova.error.range': 'Questi valori non sono rappresentabili: le stime escono dall’intervallo di numeri supportato dal calcolo. Controlla la scala della risposta e della covariata.',
+    'ancova.error.nested': 'Non è stato possibile confrontare i modelli annidati in modo affidabile. Controlla la covariata e l’X di riferimento.',
+    'ancova.note.model': 'Comune: tutti i gruppi condividono una sola pendenza. Per gruppo: ogni gruppo ha la propria pendenza, quindi i gruppi differiscono solo all’X di riferimento. Il test di uguaglianza delle pendenze è diagnostico; la scelta dello stimatore è tua.',
+    'ancova.note.comparisons': 'I p corretti tengono conto del numero di confronti; gli intervalli sono puntuali. Le osservazioni sono considerate indipendenti, con un’unica varianza dell’errore per tutti i gruppi.',
+    'ancova.note.reference': 'Lascia vuoto l’X di riferimento per usare la media di tutti i valori completi della covariata.',
+})
+
+# Axis breaks: the editor, and the engine messages (they match analisi/axis_breaks.py word for word).
+_AXIS_BREAKS_EN = {
+    "axis_breaks.button": "Axis breaks…",
+    "axis_breaks.title": "Axis breaks",
+    "axis_breaks.summary_none": "None",
+    "axis_breaks.summary": "{axis} axis, {count} segments",
+    "axis_breaks.axis.none": "No breaks",
+    "axis_breaks.axis.x": "X axis",
+    "axis_breaks.axis.y": "Y axis (left)",
+    "axis_breaks.field.axis": "Axis",
+    "axis_breaks.field.count": "Segments",
+    "axis_breaks.field.gap": "Gap",
+    "axis_breaks.count.2": "2 segments",
+    "axis_breaks.count.3": "3 segments",
+    "axis_breaks.hint.gap": "fraction of the band (0.01 to 0.10)",
+    "axis_breaks.col.low": "Low",
+    "axis_breaks.col.high": "High",
+    "axis_breaks.col.share": "Share (%)",
+    "axis_breaks.col.major_step": "Major interval",
+    "axis_breaks.row": "Segment {row}",
+    "axis_breaks.total": "The shares add up to {total}.",
+    "axis_breaks.btn.suggest": "Suggest from the data",
+    "axis_breaks.btn.preview": "Preview",
+    "axis_breaks.btn.cancel": "Cancel",
+    "axis_breaks.btn.ok": "Apply",
+    "axis_breaks.note.scale": (
+        "Panels can have a different physical scale even when they show the same unit: the share of a segment is "
+        "the space you give it, not its length in data units."),
+    "axis_breaks.note.limits": (
+        "Available for XY series and XY error bars with a linear X or left Y axis. Not available with a right Y "
+        "axis, a logarithmic or inverted broken axis, or drawings placed in plot fractions. A saved setting that a "
+        "later change makes impossible is kept and ignored, and the reason appears in the status bar."),
+    "axis_breaks.note.numbers": (
+        "Leave the major interval empty for automatic ticks. Both limits belong to their segment. Points between "
+        "segments are not shown, but they stay in the worksheets and in the calculations. You can type a decimal "
+        "comma."),
+    "axis_breaks.axis_note": (
+        "Axis breaks are on: the segments set the {axis} range. The limits above come back when you remove them."),
+    "axis_breaks.status.ignored": "Axis breaks are saved but not drawn: {reason}",
+    "axis_breaks.canvas_note": (
+        "Drawing shapes with the mouse is off while axis breaks are on. Use Graph shapes… to edit them, or remove "
+        "the breaks."),
+    "axis_breaks.error.no_suggestion": "The data cannot be cut into this many segments.",
+    "axis_breaks.error.busy": "Wait for the current calculation to finish.",
+    "axis_breaks.error.m_type": "Axis breaks need an axis, a gap and two or three segments.",
+    "axis_breaks.error.m_axis": "Choose the X axis or the left Y axis for the breaks.",
+    "axis_breaks.error.m_gap": "The gap must be a number from 0.01 to 0.10 of the band reserved for the panels.",
+    "axis_breaks.error.m_count": "Use two or three segments.",
+    "axis_breaks.error.m_segment": "Segment {row} needs a low limit, a high limit, a share and a major interval.",
+    "axis_breaks.error.m_finite": "Segment {row}: enter finite numbers for the low and high limits.",
+    "axis_breaks.error.m_order": "Segment {row}: the low limit must be smaller than the high limit.",
+    "axis_breaks.error.m_separate": (
+        "Segment {row}: the low limit must be larger than the high limit of segment {previous}."),
+    "axis_breaks.error.m_share": "Segment {row}: enter a share greater than 0.",
+    "axis_breaks.error.m_total": "The shares must add up to 100. They add up to {total}.",
+    "axis_breaks.error.m_step": (
+        "Segment {row}: enter a major interval greater than 0, or leave it blank for automatic ticks."),
+    "axis_breaks.error.m_ticks": "Segment {row}: the major interval would place more than 200 ticks.",
+    "axis_breaks.error.p_support": "Axis breaks are available for XY series and XY error bars graphs only.",
+    "axis_breaks.error.p_native": "Axis breaks need a native graph, not an imported picture.",
+    "axis_breaks.error.p_right": (
+        "Axis breaks cannot be combined with a right Y axis. Move every series to the left axis first."),
+    "axis_breaks.error.p_layout": "Axis breaks need the standard graph layout.",
+    "axis_breaks.error.p_artists": "This graph has drawing elements that axis breaks cannot repeat on every panel.",
+    "axis_breaks.error.p_linear": "Axis breaks need a linear {axis} axis.",
+    "axis_breaks.error.p_other": "Axis breaks need a linear or logarithmic {axis} axis.",
+    "axis_breaks.error.p_numeric": "Axis breaks need a numeric {axis} axis.",
+    "axis_breaks.error.p_inverted": "Axis breaks need an {axis} axis that increases.",
+    "axis_breaks.error.p_plot_fractions": (
+        "Drawings and annotations placed in plot fractions cannot be combined with axis breaks. "
+        "Place them in data coordinates or remove them."),
+    "axis_breaks.error.p_failed": "The axis breaks could not be drawn ({kind}: {message}).",
+}
+_AXIS_BREAKS_IT = {
+    "axis_breaks.button": "Interruzioni asse…",
+    "axis_breaks.title": "Interruzioni asse",
+    "axis_breaks.summary_none": "Nessuna",
+    "axis_breaks.summary": "Asse {axis}, {count} segmenti",
+    "axis_breaks.axis.none": "Nessuna interruzione",
+    "axis_breaks.axis.x": "Asse X",
+    "axis_breaks.axis.y": "Asse Y (sinistro)",
+    "axis_breaks.field.axis": "Asse",
+    "axis_breaks.field.count": "Segmenti",
+    "axis_breaks.field.gap": "Spazio",
+    "axis_breaks.count.2": "2 segmenti",
+    "axis_breaks.count.3": "3 segmenti",
+    "axis_breaks.hint.gap": "frazione della fascia (da 0,01 a 0,10)",
+    "axis_breaks.col.low": "Da",
+    "axis_breaks.col.high": "A",
+    "axis_breaks.col.share": "Quota (%)",
+    "axis_breaks.col.major_step": "Intervallo principale",
+    "axis_breaks.row": "Segmento {row}",
+    "axis_breaks.total": "Le quote sommano {total}.",
+    "axis_breaks.btn.suggest": "Proponi dai dati",
+    "axis_breaks.btn.preview": "Anteprima",
+    "axis_breaks.btn.cancel": "Annulla",
+    "axis_breaks.btn.ok": "Applica",
+    "axis_breaks.note.scale": (
+        "I pannelli possono avere una scala fisica diversa anche quando mostrano la stessa unità: la quota di un "
+        "segmento è lo spazio che gli assegni, non la sua lunghezza in unità dei dati."),
+    "axis_breaks.note.limits": (
+        "Disponibile per Serie XY e Barre di errore XY con asse X lineare o Y sinistro lineare. Non è disponibile con un "
+        "asse Y destro, con l'asse interrotto logaritmico o invertito, né con disegni posti in frazioni del grafico. "
+        "Un'impostazione salvata che una modifica successiva rende impossibile viene conservata e ignorata, e il "
+        "motivo compare nella barra di stato."),
+    "axis_breaks.note.numbers": (
+        "Lascia vuoto l'intervallo principale per tacche automatiche. Entrambi i limiti appartengono al proprio "
+        "segmento. I punti tra i segmenti non sono mostrati, ma restano nei fogli e nei calcoli. Puoi scrivere la "
+        "virgola decimale."),
+    "axis_breaks.axis_note": (
+        "Le interruzioni sono attive: i segmenti definiscono l'intervallo dell'asse {axis}. I limiti qui sopra "
+        "tornano quando le rimuovi."),
+    "axis_breaks.status.ignored": "Le interruzioni sono salvate ma non disegnate: {reason}",
+    "axis_breaks.canvas_note": (
+        "Con le interruzioni dell'asse attive non si possono disegnare forme col mouse. Usa Forme del grafico… "
+        "per modificarle, oppure togli le interruzioni."),
+    "axis_breaks.error.no_suggestion": "I dati non si possono dividere in tanti segmenti.",
+    "axis_breaks.error.busy": "Attendi il completamento del calcolo corrente.",
+    "axis_breaks.error.m_type": "Le interruzioni richiedono un asse, uno spazio e due o tre segmenti.",
+    "axis_breaks.error.m_axis": "Scegli l'asse X o l'asse Y sinistro per le interruzioni.",
+    "axis_breaks.error.m_gap": (
+        "Lo spazio deve essere un numero da 0,01 a 0,10 della fascia riservata ai pannelli."),
+    "axis_breaks.error.m_count": "Usa due o tre segmenti.",
+    "axis_breaks.error.m_segment": (
+        "Segmento {row}: servono un limite inferiore, un limite superiore, una quota e un intervallo principale."),
+    "axis_breaks.error.m_finite": "Segmento {row}: inserisci numeri finiti per i limiti inferiore e superiore.",
+    "axis_breaks.error.m_order": "Segmento {row}: il limite inferiore deve essere minore del limite superiore.",
+    "axis_breaks.error.m_separate": (
+        "Segmento {row}: il limite inferiore deve essere maggiore del limite superiore del segmento {previous}."),
+    "axis_breaks.error.m_share": "Segmento {row}: inserisci una quota maggiore di 0.",
+    "axis_breaks.error.m_total": "Le quote devono sommare 100. La somma è {total}.",
+    "axis_breaks.error.m_step": (
+        "Segmento {row}: inserisci un intervallo principale maggiore di 0, oppure lascia vuoto per tacche automatiche."),
+    "axis_breaks.error.m_ticks": "Segmento {row}: l'intervallo principale metterebbe più di 200 tacche.",
+    "axis_breaks.error.p_support": (
+        "Le interruzioni sono disponibili solo per i grafici Serie XY e Barre di errore XY."),
+    "axis_breaks.error.p_native": "Le interruzioni richiedono un grafico nativo, non un'immagine importata.",
+    "axis_breaks.error.p_right": (
+        "Le interruzioni non si combinano con un asse Y destro. Sposta prima tutte le serie sull'asse sinistro."),
+    "axis_breaks.error.p_layout": "Le interruzioni richiedono il layout standard del grafico.",
+    "axis_breaks.error.p_artists": (
+        "Il grafico contiene elementi che le interruzioni non possono ripetere su ogni pannello."),
+    "axis_breaks.error.p_linear": "Le interruzioni richiedono un asse {axis} lineare.",
+    "axis_breaks.error.p_other": "Le interruzioni richiedono un asse {axis} lineare o logaritmico.",
+    "axis_breaks.error.p_numeric": "Le interruzioni richiedono un asse {axis} numerico.",
+    "axis_breaks.error.p_inverted": "Le interruzioni richiedono un asse {axis} crescente.",
+    "axis_breaks.error.p_plot_fractions": (
+        "Disegni e annotazioni posti in frazioni del grafico non si combinano con le interruzioni. "
+        "Posizionali in coordinate dei dati oppure rimuovili."),
+    "axis_breaks.error.p_failed": "Le interruzioni dell'asse non si sono potute disegnare ({kind}: {message}).",
+}
+_EN.update(_AXIS_BREAKS_EN)
+_IT.update(_AXIS_BREAKS_IT)
 
 CATALOGS = {"en": _EN, "it": _IT}
 _PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
@@ -2968,6 +3378,150 @@ _ANOVA_TERMS_IT = {
 _EN.update(_ANOVA_TERMS_EN)
 _IT.update(_ANOVA_TERMS_IT)
 
+# Multifactor ANOVA sums of squares (Type I, II, III). Saved option values stay the English names.
+_ANOVA_SS_EN = {
+    "anova.ss.field": "Sums of squares",
+    "anova.ss.type1": "Type I",
+    "anova.ss.type2": "Type II",
+    "anova.ss.type3": "Type III",
+    "anova.ss.note.1": "Type I adds the terms in the order shown below. Each term is tested after the ones before "
+                       "it, so the order of the Factors can change the result when the design is unbalanced.",
+    "anova.ss.note.2": "Type II tests each term after the terms that do not contain it. With interactions in the model, "
+                       "a main effect is tested without the interactions that contain it, so read it with care "
+                       "when one of them matters.",
+    "anova.ss.order": "Factor order",
+    "anova.ss.order.help": "Select a factor and move it with Up or Down.",
+    "anova.ss.preview": "Terms enter in this order: {terms}",
+    "anova.ss.error.kind": "Choose Type I, Type II or Type III sums of squares.",
+    "anova.ss.error.numeric": "The sums of squares could not be computed reliably for this model. "
+                              "Check the scale of the response and the model terms.",
+}
+_ANOVA_SS_IT = {
+    "anova.ss.field": "Somme dei quadrati",
+    "anova.ss.type1": "Tipo I",
+    "anova.ss.type2": "Tipo II",
+    "anova.ss.type3": "Tipo III",
+    "anova.ss.note.1": "Il tipo I aggiunge i termini nell’ordine mostrato qui sotto. Ogni termine è verificato dopo "
+                       "quelli che lo precedono, quindi l’ordine dei Fattori può cambiare il risultato se il disegno "
+                       "è sbilanciato.",
+    "anova.ss.note.2": "Il tipo II verifica ogni termine dopo i termini che non lo contengono. Con interazioni nel "
+                       "modello, un effetto principale è verificato senza le interazioni che lo contengono: "
+                       "leggilo con cautela se una di esse conta.",
+    "anova.ss.order": "Ordine dei fattori",
+    "anova.ss.order.help": "Seleziona un fattore e spostalo con Su o Giù.",
+    "anova.ss.preview": "I termini entrano in quest’ordine: {terms}",
+    "anova.ss.error.kind": "Scegli le somme dei quadrati di Tipo I, Tipo II o Tipo III.",
+    "anova.ss.error.numeric": "Le somme dei quadrati non si sono potute calcolare in modo affidabile per questo modello. "
+                              "Controlla la scala della risposta e i termini del modello.",
+}
+_EN.update(_ANOVA_SS_EN)
+_IT.update(_ANOVA_SS_IT)
+
+# Repeated measures ANOVA: Greenhouse–Geisser correction for one or two within-subject factors (0.93).
+# The recipe keeps the English choice names; these texts only change what the dialog shows.
+_RM_SPHERICITY_EN = {
+    "rm.sphericity.choice.legacy": "Geisser–Greenhouse (one-way, saved recipe)",
+    "rm.sphericity.note.none": "No correction: the F tests use the unadjusted degrees of freedom and assume sphericity.",
+    "rm.sphericity.note.gg": "Each effect gets its own Greenhouse–Geisser epsilon from the contrast scores of that effect. "
+                             "Epsilon shrinks the degrees of freedom of its F test, so they can be fractional. "
+                             "The corrected p values are for the omnibus tests. This choice adds no post-hoc "
+                             "correction, no Mauchly test, no Huynh–Feldt correction and no REML mixed model. "
+                             "It needs a complete design: one numeric Response from every subject in every cell of "
+                             "one or two within-subject Factors.",
+    "rm.sphericity.note.legacy": "Saved recipe: the one-way Geisser–Greenhouse correction for a single Factor. "
+                                 "Choose Geisser–Greenhouse to correct one or two Factors.",
+    "rm.sphericity.error.choice": "Choose None or Geisser–Greenhouse.",
+    "rm.sphericity.error.legacy_two": "The one-way Geisser–Greenhouse choice applies to a single Factor. "
+                                      "Choose Geisser–Greenhouse to correct two Factors.",
+    "rm.sphericity.error.factors": "Choose one or two within-subject Factors.",
+    "rm.sphericity.error.roles": "Column {column} is chosen for more than one role. Response, Factors and Subject "
+                                 "need different columns.",
+    "rm.sphericity.error.empty": "There are no rows with data in the selected columns.",
+    "rm.sphericity.error.subject_blank": "Rows without a Subject: {count}. Every measurement needs a subject.",
+    "rm.sphericity.error.factor_empty": "{factor} has no levels: the column is empty in every row.",
+    "rm.sphericity.error.factor_blank": "Rows without a level of {factor}: {count}. Every measurement needs a "
+                                        "level of each Factor.",
+    "rm.sphericity.error.nonnumeric": "Response must be numeric and finite, but {value} was found for subject "
+                                      "{subject} (non-numeric or infinite values in all: {count}).",
+    "rm.sphericity.error.blank": "Response is empty for subject {subject} in {cell} (empty values in all: {count}). "
+                                 "Each subject needs one numeric Response in each of the {cells} combinations of "
+                                 "{factors}; nothing is imputed or excluded pairwise.",
+    "rm.sphericity.error.levels": "{factor} needs at least two levels, but the data have {count}.",
+    "rm.sphericity.error.subjects": "At least two subjects are needed, but the data have {count}.",
+    "rm.sphericity.error.duplicate": "Subject {subject} has {count} measurements for {cell}. Each subject needs "
+                                     "exactly one Response in each of the {cells} combinations of {factors}.",
+    "rm.sphericity.error.incomplete": "Subject {subject} has no measurement for {cell} (subjects with missing "
+                                      "cells: {count}). Each subject needs one Response in each of the {cells} "
+                                      "combinations of {factors}. Between-subject and mixed designs are not "
+                                      "supported.",
+    "rm.sphericity.error.structure": "Every subject lacks some of the {cells} combinations of {factors}; for "
+                                     "example subject {subject} has no measurement for {cell}. Each subject needs "
+                                     "one Response in each combination, so check the Factors for levels that occur "
+                                     "only for some subjects. Between-subject and mixed designs are not supported.",
+    "rm.sphericity.error.scale": "Response values are too large to analyse reliably (largest magnitude {value}). "
+                                 "Divide the Response by a constant, for example by changing the units, and run "
+                                 "the analysis again.",
+    "rm.sphericity.error.small": "Differences between the measurements of a subject are too small to analyse "
+                                 "reliably (largest difference {value}). Multiply the Response by a constant, for "
+                                 "example by changing the units, and run the analysis again.",
+    "rm.sphericity.error.residual": "No measurable subject-by-effect residual variance for \"{term}\". Every "
+                                    "subject shows the same pattern for this effect, so its F ratio has no error "
+                                    "term.",
+}
+_RM_SPHERICITY_IT = {
+    "rm.sphericity.choice.legacy": "Geisser–Greenhouse (una via, ricetta salvata)",
+    "rm.sphericity.note.none": "Nessuna correzione: i test F usano i gradi di libertà non corretti e presuppongono "
+                               "la sfericità.",
+    "rm.sphericity.note.gg": "Ogni effetto ha un proprio epsilon di Greenhouse–Geisser, calcolato dai punteggi dei "
+                             "suoi contrasti. L’epsilon riduce i gradi di libertà del test F, che possono quindi "
+                             "essere frazionari. I valori p corretti sono quelli dei test omnibus. Questa scelta "
+                             "non aggiunge correzioni post-hoc, test di Mauchly, correzione di Huynh–Feldt né un "
+                             "modello misto REML. Richiede un disegno completo: una Risposta numerica di ogni "
+                             "soggetto in ogni cella di uno o due Fattori entro soggetto.",
+    "rm.sphericity.note.legacy": "Ricetta salvata: correzione di Geisser–Greenhouse a una via per un solo Fattore. "
+                                 "Scegli Geisser–Greenhouse per correggere uno o due Fattori.",
+    "rm.sphericity.error.choice": "Scegli Nessuno o Geisser–Greenhouse.",
+    "rm.sphericity.error.legacy_two": "La scelta Geisser–Greenhouse a una via vale per un solo Fattore. "
+                                      "Scegli Geisser–Greenhouse per correggere due Fattori.",
+    "rm.sphericity.error.factors": "Scegli uno o due Fattori entro soggetto.",
+    "rm.sphericity.error.roles": "La colonna {column} è scelta per più di un ruolo. Risposta, Fattori e Soggetto "
+                                 "richiedono colonne diverse.",
+    "rm.sphericity.error.empty": "Non ci sono righe con dati nelle colonne scelte.",
+    "rm.sphericity.error.subject_blank": "Righe senza Soggetto: {count}. Ogni misura richiede un soggetto.",
+    "rm.sphericity.error.factor_empty": "{factor} non ha livelli: la colonna è vuota in ogni riga.",
+    "rm.sphericity.error.factor_blank": "Righe senza un livello di {factor}: {count}. Ogni misura richiede un "
+                                        "livello per ogni Fattore.",
+    "rm.sphericity.error.nonnumeric": "La Risposta deve essere numerica e finita, ma per il soggetto {subject} è "
+                                      "stato trovato {value} (valori non numerici o infiniti in tutto: {count}).",
+    "rm.sphericity.error.blank": "La Risposta è vuota per il soggetto {subject} in {cell} (valori vuoti in tutto: "
+                                 "{count}). Ogni soggetto richiede una Risposta numerica in ciascuna delle {cells} "
+                                 "combinazioni di {factors}; non si imputa nulla e non si esclude a coppie.",
+    "rm.sphericity.error.levels": "{factor} richiede almeno due livelli, ma i dati ne hanno {count}.",
+    "rm.sphericity.error.subjects": "Servono almeno due soggetti, ma i dati ne hanno {count}.",
+    "rm.sphericity.error.duplicate": "Il soggetto {subject} ha {count} misure per {cell}. Ogni soggetto richiede "
+                                     "esattamente una Risposta in ciascuna delle {cells} combinazioni di {factors}.",
+    "rm.sphericity.error.incomplete": "Il soggetto {subject} non ha una misura per {cell} (soggetti con celle "
+                                      "mancanti: {count}). Ogni soggetto richiede una Risposta in ciascuna delle "
+                                      "{cells} combinazioni di {factors}. I disegni fra soggetti e quelli misti "
+                                      "non sono supportati.",
+    "rm.sphericity.error.structure": "Ogni soggetto manca di alcune delle {cells} combinazioni di {factors}; per "
+                                     "esempio il soggetto {subject} non ha una misura per {cell}. Ogni soggetto "
+                                     "richiede una Risposta in ogni combinazione: controlla i Fattori per livelli "
+                                     "presenti solo per alcuni soggetti. I disegni fra soggetti e quelli misti non "
+                                     "sono supportati.",
+    "rm.sphericity.error.scale": "I valori della Risposta sono troppo grandi per un’analisi affidabile (massima "
+                                 "grandezza {value}). Dividi la Risposta per una costante, per esempio cambiando "
+                                 "l’unità di misura, e riesegui l’analisi.",
+    "rm.sphericity.error.small": "Le differenze fra le misure di un soggetto sono troppo piccole per un’analisi "
+                                 "affidabile (differenza massima {value}). Moltiplica la Risposta per una "
+                                 "costante, per esempio cambiando l’unità di misura, e riesegui l’analisi.",
+    "rm.sphericity.error.residual": "Nessuna varianza residua misurabile soggetto per effetto per \"{term}\". "
+                                    "Ogni soggetto mostra lo stesso andamento per questo effetto, quindi il suo "
+                                    "rapporto F non ha un termine d’errore.",
+}
+_EN.update(_RM_SPHERICITY_EN)
+_IT.update(_RM_SPHERICITY_IT)
+
 # One-way variance homogeneity. Saved option keys stay the English names.
 _VARIANCE_ASSUMPTIONS_EN = {
     "variance.assumptions.tab": "Diagnostics/Assumptions",
@@ -3153,8 +3707,101 @@ _CORR_IT.update({
 _EN.update(_CORR_EN)
 _IT.update(_CORR_IT)
 
+# Repeated-measures correlation (0.93). Recipes keep the English field names and choices; engine messages are
+# translated by pattern, so every placeholder name is unique within its message.
+_RMCORR_EN = {
+    "rmcorr.field.subject": "Subject", "rmcorr.field.x": "X", "rmcorr.field.y": "Y",
+    "rmcorr.field.interval": "Confidence interval", "rmcorr.field.level": "Confidence level (%)",
+    "rmcorr.field.replicates": "Bootstrap replicates", "rmcorr.field.seed": "Seed",
+    "rmcorr.field.graph": "Show graph",
+    "rmcorr.choice.none": "None", "rmcorr.choice.bootstrap": "Subject bootstrap",
+    "rmcorr.note.model": "Long data: one row per measurement, with the subject in its own column. The coefficient "
+                         "measures the association within subjects: every subject keeps its own intercept and all "
+                         "subjects share one slope (common-slope assumption). It is not Pearson's r of the pooled "
+                         "rows or of the subject means, which mix the differences between subjects into the "
+                         "coefficient. A subject with a single complete pair stays in the sheets but not in the fit.",
+    "rmcorr.note.bootstrap": "Subject bootstrap resamples whole subjects with their pairs. The percentile interval "
+                             "is approximate; the level and seed are saved with the results. 100 to 10,000 "
+                             "replicates, at most 2,000,000 subjects × replicates. A style change never repeats "
+                             "the resampling.",
+    "rmcorr.error.column": "Choose a column for {field}.",
+    "rmcorr.error.missing_column": 'Column "{name}" is not in the table.',
+    "rmcorr.error.distinct": "Choose three different columns for Subject, X and Y.",
+    "rmcorr.error.choice": "Choose a valid {field}.",
+    "rmcorr.error.flag": "{field} must be on or off.",
+    "rmcorr.error.whole": "{field} must be a whole number from {low} to {high}.",
+    "rmcorr.error.level": "{field} must be a finite number strictly between 0 and 100.",
+    "rmcorr.error.numbers": 'Column "{name}" must contain numbers.',
+    "rmcorr.error.value": 'Column "{name}" has a value that is not a finite number in row {row}.',
+    "rmcorr.error.range": 'Column "{name}" has a value outside −1e100 to 1e100 in row {row}.',
+    "rmcorr.error.precision_integer": 'Column "{name}" contains integers outside the supported precision.',
+    "rmcorr.error.subject": "Row {row} has an X or Y value but no subject.",
+    "rmcorr.error.pairs_limit": "At most {limit} complete pairs are supported; {count} were found.",
+    "rmcorr.error.subjects_limit": "At most {limit} subjects with two or more complete pairs are supported; "
+                                   "{count} were found.",
+    "rmcorr.error.subjects": "At least two subjects with two or more complete pairs are required; {count} were found.",
+    "rmcorr.error.df": "The fit needs N − S − 1 > 0; N = {pairs} and S = {subjects}.",
+    "rmcorr.error.constant": 'Column "{name}" does not vary within any subject with two or more complete pairs.',
+    "rmcorr.error.precision": 'Column "{name}" varies within subjects by less than the precision of its values. '
+                              "Subtract a constant or change the unit.",
+    "rmcorr.error.budget": "Subjects × replicates is {work}; the limit is {limit}. Use fewer replicates.",
+    # Typed-entry checks of the shared dialog, before the engine reads the recipe.
+    "rmcorr.error.dialog_whole": "{field} must be a whole number.",
+    "rmcorr.error.dialog_number": "{field} must be a number.",
+    "rmcorr.error.dialog_finite": "{field} must be finite.",
+}
+_RMCORR_IT = {
+    "rmcorr.field.subject": "Soggetto", "rmcorr.field.x": "X", "rmcorr.field.y": "Y",
+    "rmcorr.field.interval": "Intervallo di confidenza", "rmcorr.field.level": "Livello di confidenza (%)",
+    "rmcorr.field.replicates": "Repliche bootstrap", "rmcorr.field.seed": "Seme casuale",
+    "rmcorr.field.graph": "Mostra grafico",
+    "rmcorr.choice.none": "Nessuno", "rmcorr.choice.bootstrap": "Bootstrap per soggetti",
+    "rmcorr.note.model": "Dati in formato lungo: una riga per misura, con il soggetto in una colonna propria. Il "
+                         "coefficiente misura l’associazione entro i soggetti: ogni soggetto mantiene la propria "
+                         "intercetta e tutti condividono la stessa pendenza (assunzione di pendenza comune). Non è la "
+                         "r di Pearson sulle righe aggregate né sulle medie dei soggetti, che mescolano nel "
+                         "coefficiente le differenze tra soggetti. Un soggetto con una sola coppia completa resta nei "
+                         "fogli ma non entra nell’adattamento.",
+    "rmcorr.note.bootstrap": "Il bootstrap per soggetti ricampiona soggetti interi con le loro coppie. L’intervallo "
+                             "percentile è approssimato; livello e seme sono salvati con i risultati. Da 100 a 10.000 "
+                             "repliche, al massimo 2.000.000 di soggetti × repliche. Un cambio di stile non ripete "
+                             "il ricampionamento.",
+    "rmcorr.error.column": "Scegli una colonna per {field}.",
+    "rmcorr.error.missing_column": 'La colonna "{name}" non è nella tabella.',
+    "rmcorr.error.distinct": "Scegli tre colonne diverse per Soggetto, X e Y.",
+    "rmcorr.error.choice": "Scegli un valore valido per {field}.",
+    "rmcorr.error.flag": "{field} deve essere attivo o disattivo.",
+    "rmcorr.error.whole": "{field} deve essere un numero intero da {low} a {high}.",
+    "rmcorr.error.level": "{field} deve essere un numero finito strettamente compreso tra 0 e 100.",
+    "rmcorr.error.numbers": 'La colonna "{name}" deve contenere numeri.',
+    "rmcorr.error.value": 'La colonna "{name}" ha un valore che non è un numero finito alla riga {row}.',
+    "rmcorr.error.range": 'La colonna "{name}" ha un valore fuori da −1e100…1e100 alla riga {row}.',
+    "rmcorr.error.precision_integer": 'La colonna "{name}" contiene interi fuori dalla precisione supportata.',
+    "rmcorr.error.subject": "La riga {row} ha un valore di X o Y ma nessun soggetto.",
+    "rmcorr.error.pairs_limit": "Sono supportate al massimo {limit} coppie complete; ne risultano {count}.",
+    "rmcorr.error.subjects_limit": "Sono supportati al massimo {limit} soggetti con due o più coppie complete; ne "
+                                   "risultano {count}.",
+    "rmcorr.error.subjects": "Servono almeno due soggetti con due o più coppie complete; ne risultano {count}.",
+    "rmcorr.error.df": "L’adattamento richiede N − S − 1 > 0; N = {pairs} e S = {subjects}.",
+    "rmcorr.error.constant": 'La colonna "{name}" non varia all’interno di nessun soggetto con due o più coppie '
+                             "complete.",
+    "rmcorr.error.precision": 'La colonna "{name}" varia all’interno dei soggetti meno della precisione dei suoi '
+                              "valori. Sottrai una costante o cambia unità di misura.",
+    "rmcorr.error.budget": "Soggetti × repliche vale {work}; il limite è {limit}. Usa meno repliche.",
+    "rmcorr.error.dialog_whole": "{field} deve essere un numero intero.",
+    "rmcorr.error.dialog_number": "{field} deve essere un numero.",
+    "rmcorr.error.dialog_finite": "{field} deve essere un numero finito.",
+}
+_EN.update(_RMCORR_EN)
+_IT.update(_RMCORR_IT)
+
 _EN["normality.lognormal.note"] = "Lognormal tests require positive observations and test their logarithms. Relative weights compare only the normal and lognormal fits; they are not p values or probabilities that a model is true."
 _IT["normality.lognormal.note"] = "I test lognormali richiedono osservazioni positive e ne analizzano i logaritmi. I pesi relativi confrontano solo i due modelli; non sono valori p né probabilità che un modello sia vero."
+
+# Curve pipeline (0.93): the dialog notes and the engine messages; the captions are in the interface catalog.
+from .curve_pipeline_text import EN as _CURVE_PIPELINE_EN, IT as _CURVE_PIPELINE_IT
+_EN.update(_CURVE_PIPELINE_EN)
+_IT.update(_CURVE_PIPELINE_IT)
 
 # Lognormal one-way ANOVA. Recipes keep the English field names and choice values.
 _EN.update({
@@ -3397,6 +4044,128 @@ _IT.update({
     "cr.error.cause": "{field}: {cause} non è uno dei codici dell’evento.",
 })
 
+# Cox regression, Exact (conditional) ties. Engine messages keep their English text and are translated by pattern
+# under "cox.exact.error.", with the field names as placeholders.
+_EN.update({
+    "cox.exact.choice": "Exact (conditional)",
+    "cox.exact.hint": "Exact (conditional) gives the coefficient and model sheets only, for up to 2000 complete rows "
+                      "and 8 design columns. Predicted survival, Cox diagnostics, Schoenfeld residuals and graphs "
+                      "need Efron or Breslow.",
+    "cox.exact.unavailable": "Not available with Exact (conditional) ties. Choose Efron or Breslow, or turn this "
+                             "off. Profiles already set are kept.",
+    "cox.exact.cancelled.new": "Cox regression cancelled. No analysis was added.",
+    "cox.exact.cancelled.kept": "Cox regression cancelled. The last completed results are kept.",
+    "cox.exact.cancelled.again": "Cox regression cancelled. Open the analysis to calculate again.",
+    "cox.exact.cancelled.recalculation": "Cox regression recalculation cancelled. The previous results are kept; "
+                                         "recalculate before exporting them.",
+    "cox.exact.error.cancelled": "The exact Cox recalculation was cancelled.",
+    "cox.exact.error.output": "Exact (conditional) ties give the coefficient and model sheets only. Turn off {field} "
+                              "or choose Efron or Breslow.",
+    "cox.exact.error.graph": "Exact (conditional) ties draw no graph. Set {field} to Automatic or choose Efron or "
+                             "Breslow.",
+    "cox.exact.error.rows": "Exact (conditional) ties accept up to {limit} complete rows; this analysis has {rows}. "
+                            "Choose Efron or Breslow, or reduce the data.",
+    "cox.exact.error.columns": "Exact (conditional) ties accept up to {limit} design columns after coding; this "
+                               "model has {columns}. Choose Efron or Breslow, or remove predictors.",
+    "cox.exact.error.units": "Exact (conditional) ties accept a work budget of {limit} units per evaluation; this "
+                             "analysis needs {units}. Choose Efron or Breslow, or reduce the data.",
+    "cox.exact.error.maximum": "The exact conditional likelihood has no finite maximum for these data: a predictor "
+                               "separates the events from the rest of their risk sets. Remove or recode a predictor.",
+    "cox.exact.error.singular": "The model cannot be estimated: the information matrix is singular. A predictor may "
+                                "be constant within the risk sets of the tied events, or predictors may be "
+                                "collinear. Remove or recode a predictor.",
+    "cox.exact.error.score": "The exact fit did not reach a small score. Check for extreme or nearly collinear "
+                             "predictors.",
+    "cox.exact.error.improve": "The exact fit did not converge: the likelihood cannot be improved. Check for extreme "
+                               "or nearly collinear predictors.",
+    "cox.exact.error.iterations": "The exact fit did not converge in {limit} iterations. Check for extreme or nearly "
+                                  "collinear predictors.",
+    "cox.exact.error.negative": 'Cox regression needs nonnegative times; row {row} of "{column}" is {value}.',
+    "cox.exact.error.events": "The exact fit needs at least two events among the complete rows; {events} found. "
+                              "Check the event and censor values.",
+    "cox.exact.error.different": "Choose different columns for Time and Event.",
+    "cox.exact.error.event_predictor": "The Event column cannot also be a predictor.",
+    "cox.exact.error.rank": "The model is rank deficient. Remove redundant predictors.",
+    "cox.exact.error.levels": 'Categorical predictor "{name}" must have 2 to 100 levels.',
+    "cox.exact.error.roles": "Choose predictors and identify any categorical predictors from that list.",
+    "cox.exact.error.duplicate": 'Duplicate model term "{name}". Rename the source column.',
+    "cox.exact.error.parameters": "Model has too many parameters for these data.",
+    "cox.exact.error.distinct": "Select distinct columns for the analysis.",
+    "cox.exact.error.complex": 'Column "{name}" contains complex data.',
+    "cox.exact.error.numeric": 'Column "{name}" contains non-numeric or infinite data.',
+    "cox.exact.error.estimates": "Could not estimate all model coefficients reliably.",
+    "cox.exact.error.range": "Exponentiated estimates are outside the supported range.",
+    "cox.exact.error.column": "Choose an existing column for Event.",
+    "cox.exact.error.enter": "Enter a value for {field}.",
+    "cox.exact.error.number": '{field} must be a number because column "{column}" is numeric.',
+    "cox.exact.error.same": "Event and censor values must be different.",
+    "cox.exact.error.unknown": 'Column "{column}" contains {value} at row {row}, which is neither the event value '
+                               "nor the censor value. Values present: {shown}.",
+    "cox.exact.error.absent": 'No row of "{column}" equals the event value {value}. Values present: {shown}.',
+})
+_IT.update({
+    "cox.exact.choice": "Esatto (condizionale)",
+    "cox.exact.hint": "Esatto (condizionale) produce solo i fogli dei coefficienti e del modello, fino a 2000 righe "
+                      "complete e 8 colonne nel disegno. Stima della sopravvivenza, diagnostica di Cox, residui di "
+                      "Schoenfeld e grafici richiedono Efron o Breslow.",
+    "cox.exact.unavailable": "Non disponibile con i pari merito esatti (condizionali). Scegli Efron o Breslow, "
+                             "oppure disattiva questa opzione. I profili già impostati restano.",
+    "cox.exact.cancelled.new": "Regressione di Cox annullata. Nessuna analisi aggiunta.",
+    "cox.exact.cancelled.kept": "Regressione di Cox annullata. Restano gli ultimi risultati completati.",
+    "cox.exact.cancelled.again": "Regressione di Cox annullata. Apri l’analisi per calcolare di nuovo.",
+    "cox.exact.cancelled.recalculation": "Ricalcolo della regressione di Cox annullato. Restano i risultati "
+                                         "precedenti: ricalcola prima di esportarli.",
+    "cox.exact.error.cancelled": "Il ricalcolo esatto di Cox è stato annullato.",
+    "cox.exact.error.output": "I pari merito esatti (condizionali) producono solo i fogli dei coefficienti e del "
+                              "modello. Disattiva {field} oppure scegli Efron o Breslow.",
+    "cox.exact.error.graph": "I pari merito esatti (condizionali) non producono grafici. Imposta {field} su "
+                             "Automatico oppure scegli Efron o Breslow.",
+    "cox.exact.error.rows": "I pari merito esatti (condizionali) accettano fino a {limit} righe complete; questa "
+                            "analisi ne ha {rows}. Scegli Efron o Breslow, oppure riduci i dati.",
+    "cox.exact.error.columns": "I pari merito esatti (condizionali) accettano fino a {limit} colonne nel disegno "
+                               "dopo la codifica; questo modello ne ha {columns}. Scegli Efron o Breslow, oppure "
+                               "togli dei predittori.",
+    "cox.exact.error.units": "I pari merito esatti (condizionali) accettano un costo di calcolo di {limit} unità "
+                             "per valutazione; questa analisi ne richiede {units}. Scegli Efron o Breslow, oppure "
+                             "riduci i dati.",
+    "cox.exact.error.maximum": "La verosimiglianza condizionale esatta non ha un massimo finito per questi dati: un "
+                               "predittore separa gli eventi dal resto dei rispettivi insiemi a rischio. Togli o "
+                               "ricodifica un predittore.",
+    "cox.exact.error.singular": "Il modello non è stimabile: la matrice di informazione è singolare. Un predittore "
+                                "può essere costante negli insiemi a rischio degli eventi con pari tempo, oppure i "
+                                "predittori sono collineari. Togli o ricodifica un predittore.",
+    "cox.exact.error.score": "Il fit esatto non ha raggiunto uno score abbastanza piccolo. Controlla predittori "
+                             "estremi o quasi collineari.",
+    "cox.exact.error.improve": "Il fit esatto non è arrivato a convergenza: la verosimiglianza non migliora più. "
+                               "Controlla predittori estremi o quasi collineari.",
+    "cox.exact.error.iterations": "Il fit esatto non è arrivato a convergenza in {limit} iterazioni. Controlla "
+                                  "predittori estremi o quasi collineari.",
+    "cox.exact.error.negative": 'La regressione di Cox richiede tempi non negativi: la riga {row} di "{column}" '
+                                "vale {value}.",
+    "cox.exact.error.events": "Il fit esatto richiede almeno due eventi tra le righe complete; ne risultano "
+                              "{events}. Controlla i valori di evento e di censura.",
+    "cox.exact.error.different": "Scegli colonne diverse per Tempo ed Evento.",
+    "cox.exact.error.event_predictor": "La colonna dell’evento non può essere anche un predittore.",
+    "cox.exact.error.rank": "Il modello ha rango incompleto. Togli i predittori ridondanti.",
+    "cox.exact.error.levels": 'Il predittore categorico "{name}" deve avere da 2 a 100 livelli.',
+    "cox.exact.error.roles": "Scegli i predittori e indica quali sono categorici tra quelli scelti.",
+    "cox.exact.error.duplicate": 'Termine del modello duplicato "{name}". Rinomina la colonna di origine.',
+    "cox.exact.error.parameters": "Il modello ha troppi parametri per questi dati.",
+    "cox.exact.error.distinct": "Seleziona colonne distinte per l’analisi.",
+    "cox.exact.error.complex": 'La colonna "{name}" contiene dati complessi.',
+    "cox.exact.error.numeric": 'La colonna "{name}" contiene dati non numerici o infiniti.',
+    "cox.exact.error.estimates": "Non è stato possibile stimare in modo affidabile tutti i coefficienti.",
+    "cox.exact.error.range": "Le stime esponenziate sono fuori dall’intervallo supportato.",
+    "cox.exact.error.column": "Scegli una colonna esistente per Evento.",
+    "cox.exact.error.enter": "Inserisci un valore per {field}.",
+    "cox.exact.error.number": '{field} deve essere un numero perché la colonna "{column}" è numerica.',
+    "cox.exact.error.same": "I valori di evento e di censura devono essere diversi.",
+    "cox.exact.error.unknown": 'La colonna "{column}" contiene {value} alla riga {row}, che non è né il valore '
+                               "dell’evento né quello di censura. Valori presenti: {shown}.",
+    "cox.exact.error.absent": 'Nessuna riga di "{column}" è uguale al valore dell’evento {value}. Valori presenti: '
+                              "{shown}.",
+})
+
 # Common dialog captions and analysis selectors are translated only at explicit
 # rendering boundaries. No widget hooks touch user titles, columns or data.
 from .interface_catalog import CAPTIONS as _INTERFACE_CAPTIONS, MESSAGES as _INTERFACE_MESSAGES
@@ -3426,12 +4195,84 @@ def fixed_choice_keys(values):
     """
     return {value: KEY_BY_LABEL[value] for value in values if value in KEY_BY_LABEL}
 
+# Deming regression (0.93): known SDs, several Y series and projections. Recipes keep the English keys.
+_EN.update({
+    "deming.note.series": "Each Y series is fitted on its own against X, with the same uncertainty settings. "
+                          "A shared ratio only makes sense when the responses can share units and measurement "
+                          "precision. With no series selected, the Y column above is used.",
+    "deming.note.sds": "Enter the measurement-error SD of each axis in that axis's own units, not the spread of "
+                       "your data. The fit uses lambda = (Y error SD / X error SD)².",
+    "deming.error.positive": "{field} must be finite and greater than 0.",
+    "deming.error.number": "{field} must be a number.",
+    "deming.error.finite": "{field} must be finite.",
+    "deming.error.sd_required": "{field} is required with Known SDs.",
+    "deming.error.ratio_required": "Y / X error variance is required.",
+    "deming.error.ratio_range": "The squared ratio of the error SDs cannot be represented. "
+                                "Check Y error SD against X error SD.",
+    "deming.error.uncertainty": "Uncertainty input must be Variance ratio or Known SDs.",
+    "deming.error.projections": "Show projections must be on or off.",
+    "deming.error.intervals": 'Parameter intervals must be "None" or "Jackknife (t)".',
+    "deming.error.level": "Confidence level (%) must be finite and strictly between 0 and 100.",
+    "deming.error.series_type": "Y series must be a list of column names.",
+    "deming.error.series_limit": "Y series accepts at most {limit} columns.",
+    "deming.error.series_repeated": 'Y series lists "{name}" more than once.',
+    "deming.error.series_x": 'Y series cannot include the X column "{name}".',
+    "deming.error.series_missing": 'Y series column "{name}" is not in the worksheet.',
+    "deming.error.x_missing": 'X column "{name}" is not in the worksheet.',
+    "deming.error.series_few": 'Series "{name}" has {count} complete pairs of X and Y; at least 3 are needed.',
+    "deming.error.series_degenerate": 'Series "{name}" cannot be fitted: X and Y must both vary, with a nonzero '
+                                      "covariance.",
+    "deming.error.series_range": 'Series "{name}" has values outside the range the Deming fit can represent.',
+    "deming.error.series_data": 'Series "{name}" contains non-numeric or infinite data.',
+    "deming.error.series_projected": 'The projected points of series "{name}" are outside the representable range.',
+    "deming.error.projected": "The projected points are outside the representable range.",
+    "deming.error.pairs": "Deming regression requires at least three pairs and a positive error variance ratio.",
+    "deming.error.vary": "Deming regression needs varying variables with nonzero covariance.",
+})
+_IT.update({
+    "deming.note.series": "Ogni serie Y viene adattata da sola contro X, con le stesse impostazioni di "
+                          "incertezza. Un rapporto condiviso ha senso solo se le risposte possono condividere "
+                          "unità e precisione di misura. Senza serie selezionate si usa la colonna Y indicata "
+                          "sopra.",
+    "deming.note.sds": "Inserisci la SD dell’errore di misura di ciascun asse, nelle unità di quell’asse e non la "
+                       "dispersione dei dati. Il fit usa lambda = (SD errore Y / SD errore X)².",
+    "deming.error.positive": "{field}: deve essere un numero finito maggiore di 0.",
+    "deming.error.number": "{field}: deve essere un numero.",
+    "deming.error.finite": "{field}: deve essere finito.",
+    "deming.error.sd_required": "{field}: è obbligatoria con SD note.",
+    "deming.error.ratio_required": "La varianza dell’errore Y / X è obbligatoria.",
+    "deming.error.ratio_range": "Il quadrato del rapporto tra le SD degli errori non è rappresentabile. "
+                                "Controlla SD dell’errore Y rispetto a SD dell’errore X.",
+    "deming.error.uncertainty": "La specifica dell’incertezza deve essere Rapporto tra le varianze oppure SD note.",
+    "deming.error.projections": "Mostra le proiezioni deve essere attivo o disattivo.",
+    "deming.error.intervals": "Gli intervalli dei parametri devono essere Nessuno oppure Jackknife (t).",
+    "deming.error.level": "Il livello di confidenza (%) deve essere finito e compreso tra 0 e 100, estremi esclusi.",
+    "deming.error.series_type": "Le serie Y devono essere un elenco di nomi di colonna.",
+    "deming.error.series_limit": "Le serie Y ammettono al massimo {limit} colonne.",
+    "deming.error.series_repeated": 'Le serie Y elencano "{name}" più di una volta.',
+    "deming.error.series_x": 'Le serie Y non possono includere la colonna X "{name}".',
+    "deming.error.series_missing": 'La colonna "{name}" delle serie Y non è nel foglio dati.',
+    "deming.error.x_missing": 'La colonna X "{name}" non è nel foglio dati.',
+    "deming.error.series_few": 'La serie "{name}" ha {count} coppie complete di X e Y; ne servono almeno 3.',
+    "deming.error.series_degenerate": 'La serie "{name}" non può essere adattata: X e Y devono variare entrambe, '
+                                      "con covarianza diversa da zero.",
+    "deming.error.series_range": 'La serie "{name}" ha valori fuori dall’intervallo che il fit di Deming può '
+                                 "rappresentare.",
+    "deming.error.series_data": 'La serie "{name}" contiene dati non numerici o infiniti.',
+    "deming.error.series_projected": 'I punti proiettati della serie "{name}" sono fuori dall’intervallo '
+                                     "rappresentabile.",
+    "deming.error.projected": "I punti proiettati sono fuori dall’intervallo rappresentabile.",
+    "deming.error.pairs": "La regressione di Deming richiede almeno tre coppie e un rapporto positivo tra le "
+                          "varianze degli errori.",
+    "deming.error.vary": "La regressione di Deming richiede variabili che variano, con covarianza diversa da zero.",
+})
+
 # Interface themes are local preferences, never translated recipe values.
 _EN.update({
     "theme.settings": "Settings", "theme.title": "Theme", "theme.command": "Theme…",
     "theme.standard": "Standard theme", "theme.modern": "Modern theme",
     "theme.standard.description": "Compact ribbon and the familiar Trama interface.",
-    "theme.modern.description": "A clean command bar, brighter panels and softly coloured table headings.",
+    "theme.modern.description": "A tabbed command bar with compact and expanded views.",
     "theme.note": "The theme applies at the next start. Your open projects stay unchanged.",
     "theme.saved": "Theme saved. It applies at the next start.", "theme.more": "More",
 })
@@ -3439,13 +4280,32 @@ _IT.update({
     "theme.settings": "Impostazioni", "theme.title": "Tema", "theme.command": "Tema…",
     "theme.standard": "Tema standard", "theme.modern": "Tema Moderno",
     "theme.standard.description": "Barra compatta e interfaccia abituale di Trama.",
-    "theme.modern.description": "Comandi più puliti, pannelli chiari e intestazioni dai colori delicati.",
+    "theme.modern.description": "Barra a schede con vista compatta ed estesa.",
     "theme.note": "Il tema si applica al prossimo avvio. I progetti aperti rimangono invariati.",
     "theme.saved": "Tema salvato. Si applicherà al prossimo avvio.", "theme.more": "Altro",
 })
 
 _EN["theme.project"] = "PROJECT"
 _IT["theme.project"] = "PROGETTO"
+
+_EN.update({
+    "ribbon.modern.file": "File", "ribbon.modern.home": "Home", "ribbon.modern.insert": "Insert",
+    "ribbon.modern.analyze": "Analyze", "ribbon.modern.graph": "Graph", "ribbon.modern.arrange": "Arrange",
+    "ribbon.modern.family": "Family", "ribbon.modern.tools": "Tools", "ribbon.modern.view": "View",
+    "ribbon.modern.format": "Graph format", "ribbon.modern.annotations": "Annotations",
+    "ribbon.modern.commands": "Actions", "ribbon.modern.expand": "Expand", "ribbon.modern.collapse": "Collapse",
+    "ribbon.modern.search": "Search commands…", "ribbon.modern.search_empty": "No matching commands",
+    "ribbon.modern.run": "Run",
+})
+_IT.update({
+    "ribbon.modern.file": "File", "ribbon.modern.home": "Home", "ribbon.modern.insert": "Inserisci",
+    "ribbon.modern.analyze": "Analisi", "ribbon.modern.graph": "Grafico", "ribbon.modern.arrange": "Disponi",
+    "ribbon.modern.family": "Famiglia", "ribbon.modern.tools": "Strumenti", "ribbon.modern.view": "Visualizza",
+    "ribbon.modern.format": "Formato grafico", "ribbon.modern.annotations": "Annotazioni",
+    "ribbon.modern.commands": "Azioni", "ribbon.modern.expand": "Espandi", "ribbon.modern.collapse": "Comprimi",
+    "ribbon.modern.search": "Cerca comandi…", "ribbon.modern.search_empty": "Nessun comando trovato",
+    "ribbon.modern.run": "Esegui",
+})
 
 _EN.update({
  "modern.preview":"Graph preview", "modern.format":"Format", "modern.open_graph":"Open graph",
@@ -3926,3 +4786,73 @@ _IT.update({
     "hierarchy.style.error.figure": "Questo grafico non è un clustering gerarchico nativo.",
     "hierarchy.style.error.whole": "Inserisci un numero intero.",
 })
+
+# Compare observed distribution with expected: the exact binomial test (0.93). The error texts are the
+# English sentences of analisi.parts_of_whole and analisi.exact_binomial, matched by translate_message.
+_GOODNESS_EN = {
+    "goodness.note.exact": "Exact binomial compares the first observed row with the expected proportion of the first row. "
+                           "The two-sided p adds every count that is no more probable than the observed one, so it can "
+                           "disagree with the equal-tailed Clopper–Pearson interval.",
+    "goodness.note.reset": "Estimated parameters was set back to 0: the exact binomial test estimates none.",
+    "goodness.error.fitted": "The exact binomial test does not estimate parameters. "
+                             "Set Estimated parameters to 0 or choose Pearson chi-square.",
+    "goodness.error.two": "The exact binomial test needs exactly two observed categories. "
+                          "Fill two rows or choose Pearson chi-square.",
+    "goodness.error.total": "The total count must be from 1 to 10,000,000 for the exact binomial test.",
+    "goodness.error.p0": "The expected proportion of the first category must be strictly between 0 and 1.",
+    "goodness.error.level": "Choose a confidence level strictly between 0 and 100.",
+    "goodness.error.method": "Choose a valid test method.",
+    "goodness.error.observed": "Choose a column of observed counts.",
+    "goodness.error.expected_column": "Choose a column for Expected values.",
+    "goodness.error.separate": "Choose a separate column of expected values.",
+    "goodness.error.positive": "Enter a positive expected value for every observed category.",
+    "goodness.error.positive_total": "The selected values need a positive total within the numeric range.",
+    "goodness.error.sum": "Expected counts must sum to the observed total.",
+    "goodness.error.uneven": "The expected values are too uneven to resolve at this precision.",
+    "goodness.error.whole": '"{name}" must contain whole, nonnegative counts.',
+    "goodness.error.range": "A count exceeds the supported exact integer range.",
+    "goodness.error.titles": "Choose an existing row title column.",
+    "goodness.error.categories": "Use 2 to 128 categories.",
+    "goodness.error.pearson_total": "The total count must be positive and within the exact integer range.",
+    "goodness.error.parameters": "Choose a nonnegative parameter count that leaves positive degrees of freedom.",
+    "goodness.error.statistic": "The test statistic exceeds the numeric range.",
+}
+_GOODNESS_IT = {
+    "goodness.note.exact": "Il test binomiale esatto confronta la prima riga osservata con la proporzione attesa della "
+                           "prima riga. Il p bilaterale somma tutti i conteggi non più probabili di quello osservato, "
+                           "quindi può non concordare con l’intervallo di Clopper–Pearson a code uguali.",
+    "goodness.note.reset": "I parametri stimati sono stati riportati a 0: il test binomiale esatto non ne stima.",
+    "goodness.error.fitted": "Il test binomiale esatto non stima parametri. "
+                             "Imposta Parametri stimati a 0 oppure scegli il chi quadrato di Pearson.",
+    "goodness.error.two": "Il test binomiale esatto richiede esattamente due categorie osservate. "
+                          "Compila due righe oppure scegli il chi quadrato di Pearson.",
+    "goodness.error.total": "Per il test binomiale esatto il conteggio totale deve essere da 1 a 10.000.000.",
+    "goodness.error.p0": "La proporzione attesa della prima categoria deve essere strettamente compresa tra 0 e 1.",
+    "goodness.error.level": "Scegli un livello di confidenza strettamente compreso tra 0 e 100.",
+    "goodness.error.method": "Scegli un metodo di test valido.",
+    "goodness.error.observed": "Scegli una colonna di conteggi osservati.",
+    "goodness.error.expected_column": "Scegli una colonna per i valori attesi.",
+    "goodness.error.separate": "Scegli una colonna separata di valori attesi.",
+    "goodness.error.positive": "Inserisci un valore atteso positivo per ogni categoria osservata.",
+    "goodness.error.positive_total": "I valori scelti richiedono un totale positivo nell’intervallo numerico.",
+    "goodness.error.sum": "I conteggi attesi devono sommare al totale osservato.",
+    "goodness.error.uneven": "I valori attesi sono troppo diversi per essere risolti con questa precisione.",
+    "goodness.error.whole": 'La colonna "{name}" deve contenere conteggi interi non negativi.',
+    "goodness.error.range": "Un conteggio supera l’intervallo di interi esatti supportato.",
+    "goodness.error.titles": "Scegli una colonna di titoli di riga esistente.",
+    "goodness.error.categories": "Usa da 2 a 128 categorie.",
+    "goodness.error.pearson_total": "Il conteggio totale deve essere positivo e nell’intervallo di interi esatti.",
+    "goodness.error.parameters": "Scegli un numero non negativo di parametri che lasci gradi di libertà positivi.",
+    "goodness.error.statistic": "La statistica del test supera l’intervallo numerico.",
+}
+_EN.update(_GOODNESS_EN)
+_IT.update(_GOODNESS_IT)
+
+# Meta-analysis of effect estimates (0.93): captions, choices, notes and the exact engine messages.
+from .meta_analysis_text import EN as _META_EN, IT as _META_IT  # noqa: E402
+
+_EN.update(_META_EN)
+_IT.update(_META_IT)
+for _key, _text in _META_EN.items():
+    if _key.startswith(("meta.field.", "meta.choice.", "meta.tab.")):
+        KEY_BY_LABEL.setdefault(_text, _key)

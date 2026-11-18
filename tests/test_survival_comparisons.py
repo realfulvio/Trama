@@ -167,6 +167,32 @@ class DispatcherTests(unittest.TestCase):
     def options(self, **extra):
         return {**BASE, **extra}
 
+    def test_control_families_apply_holm_sidak_before_significance(self):
+        from math import expm1, log1p
+
+        options = {**BASE, "Pairwise correction": "Holm–Šídák", "Pairwise control group": "Mid"}
+        got = analyse(KM, fixture(), options).tables["Pairwise log-rank"]
+        self.assertEqual(got.index.tolist(), ["Mid / Low", "Mid / High"])
+        raw = got["p"].sort_values()
+        lower, higher = raw
+        correction = -expm1(2 * log1p(-lower))
+        expected = pd.Series([correction, max(correction, higher)], index=raw.index)
+        np.testing.assert_allclose(got["Adjusted p"], expected.reindex(got.index))
+        alpha = (lower + correction) / 2
+        raw_display = analyse(KM, fixture(), {**options, "Show adjusted pairwise p": False,
+                                             "Pairwise alpha": alpha}).tables["Pairwise log-rank"]
+        self.assertNotIn("Adjusted p", raw_display)
+        np.testing.assert_allclose(raw_display["p"], got["p"])
+        self.assertFalse(bool(raw_display["Significant"].loc[raw.index[0]]))
+
+    def test_unknown_control_is_a_field_error(self):
+        from analisi.field_error import FieldError
+
+        with self.assertRaises(FieldError) as context:
+            analyse(KM, fixture(), {**BASE, "Pairwise correction": "Holm–Šídák",
+                                    "Pairwise control group": "Unknown"})
+        self.assertEqual(context.exception.field, "Pairwise control group")
+
     def test_old_options_keep_log_rank_and_add_median_interval(self):
         result = analyse(KM, fixture(), self.options())
         self.assertEqual(set(result.tables) - {"Curve: Low", "Curve: Mid", "Curve: High"},

@@ -101,6 +101,34 @@ class EditableEmfTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "numerical values"):
             paste_block(dataset, 0, 4, [["Renamed"]])
 
+    def test_lower_only_and_split_asymmetric_strokes_keep_other_artwork(self):
+        def line(x, y, xx, yy):
+            return pack("<II2iII2i", 27, 16, x, y, 54, 16, xx, yy)
+
+        def marker(x, y):
+            return pack("<II4i", 42, 24, x - 5, y - 5, x + 5, y + 5)
+
+        background = line(10, 15, 90, 15)
+        strokes = line(40, 40, 40, 60) + line(79, 20, 79, 35) + line(79, 50, 79, 25)
+        raw = bytearray(_emf(background + strokes + marker(40, 40) + marker(79, 30)))
+        pack_into("<I", raw, 52, 12)
+        preview = _preview(raw)
+        frame = pd.DataFrame({"X": [4., 8.], "Y": [6., 7.],
+                              "Upper error": [None, 1.], "Lower error": [2., 2.], "Series": ["A", "B"]})
+        axis = {"bounds": [0., 10.], "unit": .1, "scale": "linear"}
+        style = {"kind": POINTS, "chart": [0, 0, 100, 100], "axes": [axis, axis],
+                 "source": [[4., 6., None, 2.], [8., 7., 1., 2.]], "limit_nudges": [0., -.1]}
+        self.assertEqual(edit_emf_preview(frame, style, preview), preview)
+        frame.loc[0, "Lower error"] = 3.
+        frame.loc[1, ["X", "Y", "Upper error"]] = [8.1, 7.5, 1.5]
+        edited = validate_binary_graph(edit_emf_preview(frame, style, preview))
+        expected = (background + line(40, 40, 40, 70)
+                    + line(80, 10, 80, 30) + line(80, 45, 80, 20) + marker(40, 40) + marker(80, 25))
+        self.assertEqual(edited[108:108 + len(expected)], expected)
+        frame.loc[0, "Upper error"] = 1.
+        with self.assertRaisesRegex(ValueError, "absent"):
+            edit_emf_preview(frame, style, preview)
+
 
 if __name__ == "__main__":
     unittest.main()

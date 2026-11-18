@@ -12,6 +12,17 @@ OTHER_STATUS = "Other status values"
 STATUS_POLICIES = ("Report an error", "Treat as missing")
 STATUS_DEFAULTS = {EVENT_CODE: "1", CENSOR_CODE: "0", OTHER_STATUS: STATUS_POLICIES[0]}
 
+PAIRWISE_CORRECTION = "Pairwise correction"
+PAIRWISE_CONTROL = "Pairwise control group"
+PAIRWISE_ADJUSTED = "Show adjusted pairwise p"
+PAIRWISE_ALPHA = "Pairwise alpha"
+PAIRWISE_METHODS = {"Holm": "holm", "Bonferroni": "bonferroni", "FDR": "fdr_bh", "Holm–Šídák": "holm-sidak"}
+
+
+def pairwise_fields(correction, adjusted):
+    active = correction != "None"
+    return {PAIRWISE_CONTROL: active, PAIRWISE_ADJUSTED: active, PAIRWISE_ALPHA: active and not adjusted}
+
 
 def _code(value, field, numeric):
     if not isinstance(value, (str, int)) or not str(value).strip():

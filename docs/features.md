@@ -35,9 +35,11 @@ I test esatti hanno limiti di calcolo dichiarati; quando è prevista una scelta 
 
 Sono disponibili normalità e Q–Q, screening di outlier ROUT su modello costante e Grubbs, tabelle di contingenza e misure diagnostiche. Per le tabelle 2×2 sono disponibili, fra gli altri, intervalli Koopman per il rischio relativo e Baptista–Pike per l'odds ratio.
 
+Il [test binomiale esatto](exact-binomial.md) confronta due conteggi osservati con una proporzione attesa e riporta i valori p e l’intervallo di Clopper–Pearson.
+
 ## Regressioni, curve e calibrazione
 
-- Regressione lineare, confronto fra rette, Deming, regressioni multiple OLS (anche pesate con pesi fissi gaussiani: 1/|Y|, 1/Y², 1/|Y|^K, 1/SD² o colonna di pesi), logistiche e Poisson con esposizione e diagnostica.
+- Regressione lineare, confronto fra rette, Deming, regressioni multiple OLS (anche pesate con pesi fissi gaussiani: 1/|Y|, 1/Y², 1/|Y|^K, 1/SD² o colonna di pesi), logistiche e Poisson con esposizione e diagnostica. [Regressione binomiale negativa (NB2)](nb2-regression.md) per conteggi sovradispersi: esposizione, predittori categorici, α stimata per massima verosimiglianza o fissa, IRR con intervalli di Wald e residui di Pearson.
 - 118 equazioni a catalogo in 14 famiglie; pesi osservati e IRLS dove supportati, vincoli, diagnostica e bande puntuali.
 - [Intervalli dei parametri nei fit non lineari](nonlinear-parameter-intervals.md): Wald a livello configurabile e profili extra-SS asimmetrici nei fit indipendenti, inclusi i pesi osservati e quelli finali congelati IRLS, con stati per ciascun estremo e annullamento.
 - [Profili dei parametri per equazioni personalizzate](custom-parameter-profiles.md), con coefficienti fissi, vincoli, SD relative, stati per ogni estremo e annullamento.
@@ -45,17 +47,20 @@ Sono disponibili normalità e Q–Q, screening di outlier ROUT su modello costan
 - Fit globali del catalogo con parametri condivisi e vincoli per singola serie; equazioni personalizzate e fit globali personalizzati, con bande puntuali di confidenza o predizione e previsioni per nuove X per serie dal fit congiunto.
 - [Equazioni condizionali](conditional-equations-081.md) nei fit personalizzati, singoli e globali: modelli a tratti con `if(...)` e soglie note tenute fisse (i punti di cambio non vengono stimati), colonna del ramo e curve senza tratti fra i rami.
 - Confronti fra modelli, AICc, calibrazione diretta e inversa con intervalli nei modelli supportati, spline e LOWESS.
+- [Pipeline di operazioni su curve XY](curve-pipeline.md) in Smussa / deriva / integra: differenze prime e seconde ai punti medi, integrale cumulato con trapezi rispetto a una baseline e smussamento Savitzky–Golay combinabile, per blocchi separati dalle righe senza Y; risultato con righe sorgente, unità e note, descrittivo e non un modello adattato.
 - Adattamento robusto di curve (perdita Cauchy, Huber o Soft L1, scala fissa o MAD pilota), con pesi di influenza per punto, confronto facoltativo con il fit ordinario e grafico di curva, residui o pesi; descrittivo, senza errori standard né p ([guida](robust-curve-073.md)).
 
 L'identificabilità, il dominio del modello, i vincoli attivi e il metodo di pesatura possono rendere indisponibile un intervallo anche quando la stima è calcolabile. Le note dei risultati distinguono questi casi.
 
 ## Sopravvivenza ed esplorazione multivariata
 
-Kaplan–Meier, tabelle a rischio, confronti log-rank e Gehan–Breslow–Wilcoxon, Cox con profili e residui. [Rischi competitivi](competing-risks.md) con incidenza cumulativa, confronto di Gray e correzione per confronti multipli. **Rischi competitivi**: incidenza cumulativa di Aalen–Johansen per più cause con intervalli puntuali, stime a tempi scelti, test di Gray omnibus e a coppie (Holm) e grafico per causa o per tutte le cause; niente Fine–Gray, eventi ricorrenti o ingresso ritardato ([guida](competing-risks.md)). Curve ROC e confronto DeLong appaiato; Bland–Altman anche con rapporti geometrici.
+Kaplan–Meier, tabelle a rischio, confronti log-rank e Gehan–Breslow–Wilcoxon, Cox con profili e residui. Il [Cox condizionale esatto](cox-exact-ties.md) gestisce i pari tempo e riporta coefficienti e modello, fino a 2.000 righe e 8 colonne del modello. L’[analisi dei rischi competitivi](competing-risks.md) include incidenza cumulativa di Aalen–Johansen, intervalli puntuali, stime a tempi scelti, test di Gray omnibus e a coppie con Holm e grafici per una o tutte le cause. Sono disponibili curve ROC, DeLong appaiato e [confronti ROC indipendenti](independent-roc-curves.md) con area completa, parziale e parziale standardizzata. Bland–Altman include i rapporti geometrici.
 
-PCA con scree, scores, loadings e biplot, [colori per gruppo, contorni e report facoltativi](pca-reports.md); [regressione sulle componenti principali](pca-regression-087.md) e ripristino di [ricette PCA compatibili](compatibility.md); [K-means con Lloyd o Hartigan–Wong](kmeans-algorithms.md), con selezione del numero di gruppi e consenso a 17 indici; clustering gerarchico, dendrogrammi, heat map, matrici di correlazione ed [ellissi di confidenza con stili per gruppo](confidence-ellipses.md). Correlazione di Pearson, Spearman o Kendall con risultati dettagliati opzionali; correlazione di più risposte contro un controllo; confronto di due correlazioni di Pearson indipendenti sulla scala z di Fisher ([guida](correlation-details.md)).
+PCA con scree, scores, loadings e biplot, [colori per gruppo, contorni e report facoltativi](pca-reports.md); [regressione sulle componenti principali](pca-regression-087.md) e ripristino di [ricette PCA compatibili](compatibility.md); [K-means con Lloyd o Hartigan–Wong](kmeans-algorithms.md), con selezione del numero di gruppi e consenso a 17 indici; clustering gerarchico, dendrogrammi, heat map, matrici di correlazione ed [ellissi di confidenza con stili per gruppo](confidence-ellipses.md). Correlazione di Pearson, Spearman o Kendall con risultati dettagliati opzionali; correlazione di più risposte contro un controllo; confronto di due correlazioni di Pearson indipendenti sulla scala z di Fisher ([guida](correlation-details.md)). [Correlazione a misure ripetute](repeated-measures-correlation.md) entro soggetto, con intercette per soggetto, pendenza comune e bootstrap facoltativo per soggetti interi.
 
 Per ogni k calcolato consulta assegnazioni, centri e metriche e affianca WSS, Silhouette e Gap nel grafico. Una PCA collegata alla tabella delle assegnazioni si aggiorna dopo una modifica della sorgente.
+
+La [meta-analisi](meta-analysis.md) combina differenze o rapporti degli studi con i loro errori standard. Riporta un forest plot modificabile, l’eterogeneità e, su richiesta, l’analisi escludendo uno studio alla volta.
 
 Nel consenso K-means, **Scala di Krzanowski–Lai** usa di default la correzione per il numero di variabili. **WSS senza riscalatura** usa il rapporto assoluto fra due cali consecutivi della somma dei quadrati entro i gruppi. Il foglio dei risultati lo identifica come **WSS-drop ratio** e il rapporto occupa un solo voto nel consenso.
 
@@ -69,7 +74,7 @@ Trasformazioni, normalizzazione, baseline anche con repliche, frazioni del total
 
 ## Grafici e figure
 
-Grafici XY con più serie e due assi Y, barre d'errore anche asimmetriche, Column e Grouped, pile e pile al 100%, punti individuali, box e violini, prima/dopo e traiettorie, forest plot, bubble plot e grafici di composizione.
+Grafici XY con più serie e due assi Y, barre d'errore anche asimmetriche, Column e Grouped, pile e pile al 100%, punti individuali, box e violini (anche raggruppati per categoria e serie), prima/dopo e traiettorie, forest plot, bubble plot e grafici di composizione.
 
 Formattazione di assi, serie, gruppi e legende; Inspector con anteprima; confronti statistici collegati al grafico, parentesi, stelle e lettere nei metodi supportati. Annotazioni e forme native, selezione e disposizione degli oggetti, tratteggi, frecce, riempimenti e colori distinti.
 

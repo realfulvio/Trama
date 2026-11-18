@@ -3,19 +3,20 @@ import numpy as np
 from matplotlib.ticker import PercentFormatter
 from scipy import stats
 
-from . import (auc_peaks, cox_outputs, design, exploration, inference, logistic_diagnostics, lognormal_anova, mlr_weighting,
+from . import (auc_peaks, cox_outputs, design, exploration, independent_roc, inference, logistic_diagnostics, lognormal_anova, mlr_weighting,
                models, ols_diagnostics, operations, pca_graphs, pca_overlays, pca_regression, pca_reports,
                pca_retention, trend_anova, unequal_anova, variance_assumptions, roc as roc_module)
 from . import plot_function as function_plot
-from .deming import identity_limits, jackknife_deming
+from . import deming as deming_module
+from .deming_plot import deming_result
 from . import nonlinear_calibration as calibration
 from .nonlinear_calibration import CURVES, INVERSE_MODELS, interpolate_standard_curve
 from .processing import METHODS as PROCESSING_METHODS, processing_analysis
 from .reporting import Result, _plot, _report
 from .repeated_workbench import METHODS as REPEATED_METHODS, global_analysis, mixed_analysis
-from . import custom_fit, global_custom_fit, spline_fit
+from . import curve_pipeline, custom_fit, global_custom_fit, spline_fit
 from .stats import complete
-from . import fdr_control
+from . import fdr_control, rm_sphericity
 
 MULTIPLE, OPTIONAL, OPTIONAL_MULTIPLE = "Multiple", "Optional", "Multiple (optional)"
 CORRECTIONS = {"Holm": "holm", "Bonferroni": "bonferroni", "FDR (Benjamini–Hochberg)": "fdr_bh",
@@ -38,7 +39,7 @@ EXTRA_METHODS = {
                       variance_assumptions.BROWN: False, variance_assumptions.BARTLETT: False,
                       variance_assumptions.ALPHA: variance_assumptions.DEFAULT_ALPHA},
     "Repeated measures ANOVA": {"Response": None, "Factors": MULTIPLE, "Subject": None,
-                                "Sphericity correction": ("None", "Geisser–Greenhouse (one-way)")},
+                                rm_sphericity.FIELD: rm_sphericity.CHOICES},
     "Friedman": {"Response": None, "Group": None, "Subject": None,
                  inference.FRIEDMAN_P: inference.KRUSKAL_P_METHODS, **inference.DUNN_OPTIONS},
     "ROC curve": {"Control": None, "Patient": None, "Direction": roc_module.DIRECTIONS,
@@ -48,11 +49,16 @@ EXTRA_METHODS = {
                                   "Direction A": roc_module.PAIRED_DIRECTIONS,
                                   "Direction B": roc_module.PAIRED_DIRECTIONS,
                                   "Confidence level (%)": roc_module.DEFAULT_LEVEL},
+    independent_roc.METHOD: independent_roc.OPTIONS,
     "Bland–Altman": {"First": None, "Second": None, "Method": exploration.AGREEMENT_METHODS,
                      exploration.COVERAGE: exploration.DEFAULT_PERCENT,
                      exploration.CONFIDENCE: exploration.DEFAULT_PERCENT,
                      exploration.LIMIT_INTERVALS: False, exploration.CONFIDENCE_BANDS: False},
-    "Deming regression": {"X": None, "Y": None, "Y / X error variance": 1.0,
+    "Deming regression": {"X": None, "Y": None, deming_module.Y_SERIES: OPTIONAL_MULTIPLE,
+                          # Variance ratio is first, so a recipe without these keys keeps the historical fit.
+                          deming_module.UNCERTAINTY: deming_module.UNCERTAINTY_CHOICES,
+                          "Y / X error variance": 1.0, deming_module.X_SD: 1.0, deming_module.Y_SD: 1.0,
+                          deming_module.PROJECTIONS: False,
                           # None is first so a saved recipe without this key keeps the point fit.
                           "Parameter intervals": ("None", "Jackknife (t)"),
                           "Confidence level (%)": 95.0, "Identity line": False},
@@ -68,9 +74,11 @@ EXTRA_METHODS = {
                                     # Empty means k = 1, the 0.53.0 prediction limits.
                                     calibration.COUNT: OPTIONAL},
     spline_fit.SPLINE_FIT: spline_fit.OPTIONS,
+    # The fourth choice is last, so LOWESS stays the default and the three older choices keep their fields.
     "Smooth / differentiate / integrate": {"X": None, "Y": None,
-                                          "Method": ("LOWESS", "Differentiate", "Cumulative integral"),
-                                          "LOWESS fraction": .5},
+                                          "Method": ("LOWESS", "Differentiate", "Cumulative integral",
+                                                     curve_pipeline.PIPELINE),
+                                          "LOWESS fraction": .5, **curve_pipeline.OPTIONS},
     function_plot.PLOT_FUNCTION: function_plot.OPTIONS,
     custom_fit.CUSTOM_EQUATION: custom_fit.OPTIONS,
     global_custom_fit.GLOBAL_CUSTOM_EQUATION: global_custom_fit.OPTIONS,
@@ -104,7 +112,9 @@ EXTRA_METHODS = {
                             logistic_diagnostics.LOGISTIC_PROFILES: cox_outputs.PROFILE_LIST,
                             logistic_diagnostics.LOGISTIC_CI: logistic_diagnostics.DEFAULT_LEVEL},
     "Cox regression": {"Time": None, "Event": None, "Predictors": MULTIPLE,
-                       "Categorical predictors": OPTIONAL_MULTIPLE, "Ties": ("Efron", "Breslow"),
+                       "Categorical predictors": OPTIONAL_MULTIPLE,
+                       # Exact (conditional) fits the coefficient and model sheets only; see cox_exact.
+                       "Ties": ("Efron", "Breslow", "Exact (conditional)"),
                        # Recipes without the status codes and the new outputs keep the original sheets.
                        **cox_outputs.OPTIONS},
     "Kolmogorov–Smirnov": {"First": None, "Second": None},
@@ -197,32 +207,11 @@ def _bland_altman(frame, o):
     return Result({"Agreement": _report(report), "Paired values": points}, fig)
 
 
-def _deming_result(frame, o, fig, ax):
-    x, y = o["X"], o["Y"]
-    report, points, pairs = jackknife_deming(
-        frame, x, y, o["Y / X error variance"],
-        intervals=o.get("Parameter intervals", "None"), level=o.get("Confidence level (%)", 95.0))
-    ax.scatter(points[x], points[y])
-    slope, intercept = report["Slope"], report["Intercept"]
-    if o.get("Identity line"):
-        low, high = identity_limits(points[x], points[y])
-        domain = np.array([low, high])
-        ax.plot(domain, intercept + slope * domain, label="Deming fit")
-        ax.plot(domain, domain, linestyle="--", color="#81919b", label="Identity")
-        ax.set_xlim(low, high)
-        ax.set_ylim(low, high)
-        ax.legend()
-    else:
-        domain = np.array([points[x].min(), points[x].max()])
-        ax.plot(domain, intercept + slope * domain)
-    return Result({"Deming regression": _report(report), "Data": points, "Pairs": pairs}, fig)
-
-
 def _xy(method, frame, o):
+    if method == "Deming regression":
+        return deming_result(frame, o)
     x, y = o["X"], o["Y"]
     fig, ax = _plot(method, x, y)
-    if method == "Deming regression":
-        return _deming_result(frame, o, fig, ax)
     report, points = exploration.area_under_curve(frame, x, y, o["Baseline"])
     ax.plot(points[x], points[y], "o-")
     ax.axhline(o["Baseline"], color="#aaa")
@@ -460,8 +449,9 @@ def extra_analysis(method, frame, o):
         return Result(tables)
     if method == "Repeated measures ANOVA":
         lognormal_anova.reject_repeated(o)
+        correction = rm_sphericity.correction(o, len(o["Factors"]))
         return Result(inference.repeated_measures_anova(frame, o["Response"], o["Factors"], o["Subject"],
-                                                        correction=None if o["Sphericity correction"] == "None" else "gg"))
+                                                        correction=correction))
     if method == "Friedman":
         return Result(inference.friedman(frame, o["Response"], o["Group"], o["Subject"], comparisons=o))
     if method == "ROC curve":
@@ -477,6 +467,8 @@ def extra_analysis(method, frame, o):
     if method == "Interpolate a standard curve":
         return _standard_curve(frame, o)
     if method == "Smooth / differentiate / integrate":
+        if o["Method"] == curve_pipeline.PIPELINE:
+            return curve_pipeline.analysis(frame, o)
         values = exploration.curve_operation(frame, o["X"], o["Y"], o["Method"], o["LOWESS fraction"])
         fig, ax = _plot(o["Method"], o["X"], o["Y"] if o["Method"] == "LOWESS" else o["Method"])
         if o["Method"] == "LOWESS":

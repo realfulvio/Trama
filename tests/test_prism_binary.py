@@ -98,6 +98,29 @@ def legacy_column(*, status=105, width=0, integer=44, linked_x=-1, field_flags=b
     return document([0], source)
 
 
+def legacy_xy_limits(*, layout_type=34, form=30, x_owner=1, blank=0x100000, width=0, text=b""):
+    def field(uid, role, mode, title, repeats, cells, owner=1, extra=b""):
+        header = struct.pack("<15i", uid, 0, 1, -1, 0, 101, -1, 2 if role == 256 else 1,
+                             role, mode, repeats, 1, 0, len(cells) // repeats, len(cells))
+        values = struct.pack("<HI", 0, len(cells))
+        values += b"".join(struct.pack("<IIf", *cell) for cell in cells)
+        return group(0xF, header, record(9, title + b"\0"),
+                     record(0x8F, struct.pack("<3i", 2, 0, owner)), record(0x90, b"\x01\x00"),
+                     record(16, values), extra)
+
+    layout = struct.pack("<7i", 0, 44, 3, 1, layout_type, 0, 1)
+    link = struct.pack("<10I", 0, 2, 3, 0x7040, 0, 0, 0x7040, 0, 0, 0x7040)
+    source = group(8, bytes(2), record(9, b"Legacy limits\0"), record(0x8E, layout),
+                   record(0xD, link),
+                   field(0, 256, 12, b"", 1, [], extra=record(0x11, bytes(4) + text) + record(0xB6, bytes(4))),
+                   field(1, 4, 10, b"Time", 1, [(1, 0, i) for i in range(4)], owner=x_owner),
+                   field(2, 8, form, b"Signal", 3, [(blank, 0, 0), (0, 0, 0), (0, 0, 0),
+                                                   (1, 0, 8), (1, width, 3), (1, 0, 2),
+                                                   (1, 0, 5), (1, 0, -4), (1, 0, -2),
+                                                   (1, 0, 0.2), (1, 0, 7.8), (1, 0, -0.3)]))
+    return document([0], source)
+
+
 class PrismBinaryTests(unittest.TestCase):
     def load(self, data, *, restore=False):
         with TemporaryDirectory() as directory:
@@ -190,6 +213,25 @@ class PrismBinaryTests(unittest.TestCase):
         frame = self.load(raw)["Older XY"]
         self.assertEqual(list(frame.columns), ["Time", "Control [Mean]", "Control [SD]"])
         self.assertEqual(frame.iloc[0, 1:].tolist(), [1.5, 0.75])
+
+    def test_older_xy_limits_recovers_signed_offsets_as_endpoints(self):
+        frame = self.load(legacy_xy_limits())["Legacy limits"]
+        names = ["Signal [Center]", "Signal [Upper]", "Signal [Lower]"]
+        self.assertEqual(frame.attrs["table_format"], "xy")
+        self.assertEqual(frame.attrs["worksheet_roles"], {"x": ["Time"], "y": [names]})
+        self.assertEqual(list(frame), ["Time", *names])
+        self.assertEqual(frame["Time"].tolist(), [0, 1, 2, 3])
+        self.assertTrue(frame[names].iloc[0].isna().all())
+        self.assertEqual(frame[names].iloc[1].tolist(), [8, 11, 6])
+        self.assertEqual(frame[names].iloc[2].tolist(), [5, 1, 7])
+        self.assertEqual(frame["Signal [Upper]"].iloc[3], 8)
+        self.assertEqual(frame["Signal [Lower]"].iloc[3], 0.5)
+
+    def test_older_xy_limits_rejects_unverified_metadata(self):
+        for invalid in ({"layout_type": 35}, {"form": 29}, {"x_owner": 2},
+                        {"blank": 2}, {"width": 4}, {"text": b"label"}):
+            with self.subTest(**invalid), self.assertRaisesRegex(ValueError, "Unsupported sheets: Legacy limits"):
+                self.load(legacy_xy_limits(**invalid))
 
     def test_older_numeric_xy_rejects_unverified_status_and_mixed_layouts(self):
         y = [[(1, 0, 1), (1, 11, 2)]]

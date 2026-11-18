@@ -1,0 +1,639 @@
+{
+  "pooled": {
+    "ANCOVA model": [
+      {
+        "N": 12,
+        "Groups": 3,
+        "Residual df": 8.0,
+        "RSS": 8.232931726907637,
+        "MSE": 1.0291164658634546,
+        "Reference X": 3.25,
+        "Common lower": 3.0,
+        "Common upper": 4.0
+      }
+    ],
+    "ANCOVA tests": [
+      {
+        "Test": "Equal slopes",
+        "F": 0.18010238378406654,
+        "Numerator df": 2,
+        "Denominator df": 6.0,
+        "p": 0.8395381907075031
+      },
+      {
+        "Test": "Groups at reference",
+        "F": 39.15231618301581,
+        "Numerator df": 2,
+        "Denominator df": 8.0,
+        "p": 7.382841083522566e-05
+      }
+    ],
+    "Adjusted means": [
+      {
+        "Group": "A",
+        "N": 4,
+        "Reference X": 3.25,
+        "Mean": 10.71686746987952,
+        "SE": 0.607346736673083,
+        "Lower": 9.316323383608635,
+        "Upper": 12.117411556150406,
+        "Extrapolated": false,
+        "Slope": 2.144578313253014
+      },
+      {
+        "Group": "B",
+        "N": 5,
+        "Reference X": 3.25,
+        "Mean": 14.391566265060247,
+        "SE": 0.4834470278045838,
+        "Lower": 13.276735419790713,
+        "Upper": 15.50639711032978,
+        "Extrapolated": false,
+        "Slope": 2.1445783132530156
+      },
+      {
+        "Group": "C",
+        "N": 3,
+        "Reference X": 3.25,
+        "Mean": 18.724899598393574,
+        "SE": 0.6090456119822881,
+        "Lower": 17.320437898634466,
+        "Upper": 20.12936129815268,
+        "Extrapolated": false,
+        "Slope": 2.144578313253014
+      }
+    ],
+    "ANCOVA fitted": [
+      {
+        "Source row": 0,
+        "Observed": 4.0,
+        "Fitted": 3.746987951807224,
+        "Residual": 0.253012048192776,
+        "Group": "A",
+        "Covariate": 0.0
+      },
+      {
+        "Source row": 1,
+        "Observed": 12.0,
+        "Fitted": 11.710843373493978,
+        "Residual": 0.28915662650602236,
+        "Group": "B",
+        "Covariate": 2.0
+      },
+      {
+        "Source row": 2,
+        "Observed": 6.0,
+        "Fitted": 5.891566265060239,
+        "Residual": 0.10843373493976127,
+        "Group": "A",
+        "Covariate": 1.0
+      },
+      {
+        "Source row": 3,
+        "Observed": 19.0,
+        "Fitted": 18.18875502008032,
+        "Residual": 0.8112449799196817,
+        "Group": "C",
+        "Covariate": 3.0
+      },
+      {
+        "Source row": 4,
+        "Observed": 17.0,
+        "Fitted": 16.000000000000007,
+        "Residual": 0.9999999999999929,
+        "Group": "B",
+        "Covariate": 4.0
+      },
+      {
+        "Source row": 5,
+        "Observed": 8.0,
+        "Fitted": 8.036144578313253,
+        "Residual": -0.03614457831325346,
+        "Group": "A",
+        "Covariate": 2.0
+      },
+      {
+        "Source row": 6,
+        "Observed": 12.0,
+        "Fitted": 13.855421686746993,
+        "Residual": -1.8554216867469933,
+        "Group": "B",
+        "Covariate": 3.0
+      },
+      {
+        "Source row": 7,
+        "Observed": 19.0,
+        "Fitted": 20.333333333333336,
+        "Residual": -1.3333333333333357,
+        "Group": "C",
+        "Covariate": 4.0
+      },
+      {
+        "Source row": 8,
+        "Observed": 12.0,
+        "Fitted": 12.325301204819281,
+        "Residual": -0.32530120481928115,
+        "Group": "A",
+        "Covariate": 4.0
+      },
+      {
+        "Source row": 9,
+        "Observed": 19.0,
+        "Fitted": 18.14457831325302,
+        "Residual": 0.855421686746979,
+        "Group": "B",
+        "Covariate": 5.0
+      },
+      {
+        "Source row": 10,
+        "Observed": 23.0,
+        "Fitted": 22.47791164658635,
+        "Residual": 0.5220883534136505,
+        "Group": "C",
+        "Covariate": 5.0
+      },
+      {
+        "Source row": 11,
+        "Observed": 20.0,
+        "Fitted": 20.289156626506035,
+        "Residual": -0.2891566265060348,
+        "Group": "B",
+        "Covariate": 6.0
+      }
+    ],
+    "ANCOVA contrasts": [
+      {
+        "First": "A",
+        "Second": "B",
+        "Difference": -3.6746987951807255,
+        "SE": 0.8450929116506117,
+        "df": 8.0,
+        "Lower": -5.623486544078765,
+        "Upper": -1.725911046282686,
+        "t": -4.348277857405534,
+        "p": 0.0024509450963657994,
+        "Adjusted p": 0.0024509450963657994
+      },
+      {
+        "First": "A",
+        "Second": "C",
+        "Difference": -8.008032128514053,
+        "SE": 0.9227120667379952,
+        "df": 8.0,
+        "Lower": -10.135809970014652,
+        "Upper": -5.880254287013454,
+        "t": -8.678798530103043,
+        "p": 2.4187431693993392e-05,
+        "Adjusted p": 7.256229508198017e-05
+      },
+      {
+        "First": "B",
+        "Second": "C",
+        "Difference": -4.333333333333327,
+        "SE": 0.7408522896820767,
+        "df": 8.0,
+        "Lower": -6.0417417769156705,
+        "Upper": -2.624924889750983,
+        "t": -5.8491191748801885,
+        "p": 0.00038316007436143044,
+        "Adjusted p": 0.0007663201487228609
+      }
+    ]
+  },
+  "cross_left": {
+    "ANCOVA model": [
+      {
+        "N": 12,
+        "Groups": 2,
+        "Residual df": 8.0,
+        "RSS": 31.90476190476193,
+        "MSE": 3.9880952380952412,
+        "Reference X": 2,
+        "Common lower": 0.0,
+        "Common upper": 5.0
+      }
+    ],
+    "ANCOVA tests": [
+      {
+        "Test": "Equal slopes",
+        "F": 66.71462686567158,
+        "Numerator df": 1,
+        "Denominator df": 8.0,
+        "p": 3.759240184968896e-05
+      },
+      {
+        "Test": "Groups at reference",
+        "F": 0.11619795758050847,
+        "Numerator df": 1,
+        "Denominator df": 8.0,
+        "p": 0.7419746668031514
+      }
+    ],
+    "Adjusted means": [
+      {
+        "Group": "Red",
+        "N": 6,
+        "Reference X": 2,
+        "Mean": 14.54285714285715,
+        "SE": 0.8495029892814896,
+        "Lower": 12.963165526262125,
+        "Upper": 16.122548759452176,
+        "Extrapolated": false,
+        "Slope": 2.9142857142857093
+      },
+      {
+        "Group": "Blue",
+        "N": 6,
+        "Reference X": 2,
+        "Mean": 14.133333333333354,
+        "SE": 0.8495029892814897,
+        "Lower": 12.55364171673833,
+        "Upper": 15.713024949928379,
+        "Extrapolated": false,
+        "Slope": -2.600000000000003
+      }
+    ],
+    "ANCOVA fitted": [
+      {
+        "Source row": 0,
+        "Observed": 8.0,
+        "Fitted": 8.71428571428573,
+        "Residual": -0.7142857142857295,
+        "Group": "Red",
+        "Covariate": 0.0
+      },
+      {
+        "Source row": 1,
+        "Observed": 20.0,
+        "Fitted": 19.33333333333336,
+        "Residual": 0.6666666666666394,
+        "Group": "Blue",
+        "Covariate": 0.0
+      },
+      {
+        "Source row": 2,
+        "Observed": 13.0,
+        "Fitted": 11.62857142857144,
+        "Residual": 1.3714285714285595,
+        "Group": "Red",
+        "Covariate": 1.0
+      },
+      {
+        "Source row": 3,
+        "Observed": 14.0,
+        "Fitted": 16.73333333333336,
+        "Residual": -2.733333333333359,
+        "Group": "Blue",
+        "Covariate": 1.0
+      },
+      {
+        "Source row": 4,
+        "Observed": 15.0,
+        "Fitted": 14.54285714285715,
+        "Residual": 0.4571428571428502,
+        "Group": "Red",
+        "Covariate": 2.0
+      },
+      {
+        "Source row": 5,
+        "Observed": 16.0,
+        "Fitted": 14.133333333333354,
+        "Residual": 1.8666666666666458,
+        "Group": "Blue",
+        "Covariate": 2.0
+      },
+      {
+        "Source row": 6,
+        "Observed": 16.0,
+        "Fitted": 17.45714285714286,
+        "Residual": -1.457142857142859,
+        "Group": "Red",
+        "Covariate": 3.0
+      },
+      {
+        "Source row": 7,
+        "Observed": 14.0,
+        "Fitted": 11.53333333333335,
+        "Residual": 2.466666666666651,
+        "Group": "Blue",
+        "Covariate": 3.0
+      },
+      {
+        "Source row": 8,
+        "Observed": 20.0,
+        "Fitted": 20.37142857142857,
+        "Residual": -0.3714285714285701,
+        "Group": "Red",
+        "Covariate": 4.0
+      },
+      {
+        "Source row": 9,
+        "Observed": 6.0,
+        "Fitted": 8.933333333333348,
+        "Residual": -2.933333333333348,
+        "Group": "Blue",
+        "Covariate": 4.0
+      },
+      {
+        "Source row": 10,
+        "Observed": 24.0,
+        "Fitted": 23.285714285714278,
+        "Residual": 0.7142857142857224,
+        "Group": "Red",
+        "Covariate": 5.0
+      },
+      {
+        "Source row": 11,
+        "Observed": 7.0,
+        "Fitted": 6.333333333333343,
+        "Residual": 0.6666666666666572,
+        "Group": "Blue",
+        "Covariate": 5.0
+      }
+    ],
+    "ANCOVA contrasts": [
+      {
+        "First": "Red",
+        "Second": "Blue",
+        "Difference": 0.40952380952379563,
+        "SE": 1.2013786487183682,
+        "df": 8.0,
+        "Lower": -1.8244974990319682,
+        "Upper": 2.6435451180795595,
+        "t": 0.3408782151744381,
+        "p": 0.7419746668031492,
+        "Adjusted p": 0.7419746668031492
+      }
+    ]
+  },
+  "cross_right": {
+    "ANCOVA model": [
+      {
+        "N": 12,
+        "Groups": 2,
+        "Residual df": 8.0,
+        "RSS": 31.904761904761898,
+        "MSE": 3.9880952380952372,
+        "Reference X": 4,
+        "Common lower": 0.0,
+        "Common upper": 5.0
+      }
+    ],
+    "ANCOVA tests": [
+      {
+        "Test": "Equal slopes",
+        "F": 66.71462686567168,
+        "Numerator df": 1,
+        "Denominator df": 8.0,
+        "p": 3.7592401849688774e-05
+      },
+      {
+        "Test": "Groups at reference",
+        "F": 55.557091959557056,
+        "Numerator df": 1,
+        "Denominator df": 8.0,
+        "p": 7.239230116518721e-05
+      }
+    ],
+    "Adjusted means": [
+      {
+        "Group": "Red",
+        "N": 6,
+        "Reference X": 4,
+        "Mean": 20.37142857142858,
+        "SE": 1.085097987152938,
+        "Lower": 17.86918812595219,
+        "Upper": 22.873669016904973,
+        "Extrapolated": false,
+        "Slope": 2.9142857142857146
+      },
+      {
+        "Group": "Blue",
+        "N": 6,
+        "Reference X": 4,
+        "Mean": 8.933333333333351,
+        "SE": 1.0850979871529367,
+        "Lower": 6.431092887856963,
+        "Upper": 11.43557377880974,
+        "Extrapolated": false,
+        "Slope": -2.6000000000000068
+      }
+    ],
+    "ANCOVA fitted": [
+      {
+        "Source row": 0,
+        "Observed": 8.0,
+        "Fitted": 8.71428571428572,
+        "Residual": -0.7142857142857206,
+        "Group": "Red",
+        "Covariate": 0.0
+      },
+      {
+        "Source row": 1,
+        "Observed": 20.0,
+        "Fitted": 19.33333333333338,
+        "Residual": 0.6666666666666217,
+        "Group": "Blue",
+        "Covariate": 0.0
+      },
+      {
+        "Source row": 2,
+        "Observed": 13.0,
+        "Fitted": 11.628571428571435,
+        "Residual": 1.3714285714285648,
+        "Group": "Red",
+        "Covariate": 1.0
+      },
+      {
+        "Source row": 3,
+        "Observed": 14.0,
+        "Fitted": 16.73333333333337,
+        "Residual": -2.73333333333337,
+        "Group": "Blue",
+        "Covariate": 1.0
+      },
+      {
+        "Source row": 4,
+        "Observed": 15.0,
+        "Fitted": 14.542857142857152,
+        "Residual": 0.4571428571428484,
+        "Group": "Red",
+        "Covariate": 2.0
+      },
+      {
+        "Source row": 5,
+        "Observed": 16.0,
+        "Fitted": 14.133333333333365,
+        "Residual": 1.8666666666666352,
+        "Group": "Blue",
+        "Covariate": 2.0
+      },
+      {
+        "Source row": 6,
+        "Observed": 16.0,
+        "Fitted": 17.457142857142866,
+        "Residual": -1.4571428571428662,
+        "Group": "Red",
+        "Covariate": 3.0
+      },
+      {
+        "Source row": 7,
+        "Observed": 14.0,
+        "Fitted": 11.533333333333358,
+        "Residual": 2.466666666666642,
+        "Group": "Blue",
+        "Covariate": 3.0
+      },
+      {
+        "Source row": 8,
+        "Observed": 20.0,
+        "Fitted": 20.37142857142858,
+        "Residual": -0.37142857142858077,
+        "Group": "Red",
+        "Covariate": 4.0
+      },
+      {
+        "Source row": 9,
+        "Observed": 6.0,
+        "Fitted": 8.933333333333351,
+        "Residual": -2.9333333333333513,
+        "Group": "Blue",
+        "Covariate": 4.0
+      },
+      {
+        "Source row": 10,
+        "Observed": 24.0,
+        "Fitted": 23.285714285714295,
+        "Residual": 0.7142857142857046,
+        "Group": "Red",
+        "Covariate": 5.0
+      },
+      {
+        "Source row": 11,
+        "Observed": 7.0,
+        "Fitted": 6.333333333333346,
+        "Residual": 0.6666666666666536,
+        "Group": "Blue",
+        "Covariate": 5.0
+      }
+    ],
+    "ANCOVA contrasts": [
+      {
+        "First": "Red",
+        "Second": "Blue",
+        "Difference": 11.43809523809523,
+        "SE": 1.5345602899354307,
+        "df": 8.0,
+        "Lower": 7.899392863784023,
+        "Upper": 14.976797612406436,
+        "t": 7.453662989400376,
+        "p": 7.23923011651877e-05,
+        "Adjusted p": 7.23923011651877e-05
+      }
+    ]
+  },
+  "extrapolated": {
+    "ANCOVA model": [
+      {
+        "N": 6,
+        "Groups": 2,
+        "Residual df": 3.0,
+        "RSS": 4.416666666666665,
+        "MSE": 1.4722222222222217,
+        "Reference X": 3,
+        "Common lower": 5.0,
+        "Common upper": 2.0
+      }
+    ],
+    "ANCOVA tests": [
+      {
+        "Test": "Equal slopes",
+        "F": 2.0769230769230815,
+        "Numerator df": 1,
+        "Denominator df": 2.0,
+        "p": 0.2862535728536698
+      },
+      {
+        "Test": "Groups at reference",
+        "F": 0.42623323482609776,
+        "Numerator df": 1,
+        "Denominator df": 3.0,
+        "p": 0.5604114948938486
+      }
+    ],
+    "Adjusted means": [
+      {
+        "Group": "A",
+        "N": 3,
+        "Reference X": 3,
+        "Mean": 4.166666666666666,
+        "SE": 1.4010578014353892,
+        "Lower": -0.29212455700030304,
+        "Upper": 8.625457890333635,
+        "Extrapolated": true,
+        "Slope": 1.25
+      },
+      {
+        "Group": "B",
+        "N": 3,
+        "Reference X": 3,
+        "Mean": 6.25,
+        "SE": 1.9501899242742333,
+        "Lower": 0.043625280891951945,
+        "Upper": 12.456374719108048,
+        "Extrapolated": true,
+        "Slope": 1.25
+      }
+    ],
+    "ANCOVA fitted": [
+      {
+        "Source row": 0,
+        "Observed": 0.0,
+        "Fitted": 0.4166666666666652,
+        "Residual": -0.4166666666666652,
+        "Group": "A",
+        "Covariate": 0.0
+      },
+      {
+        "Source row": 1,
+        "Observed": 1.0,
+        "Fitted": 1.6666666666666656,
+        "Residual": -0.6666666666666656,
+        "Group": "A",
+        "Covariate": 1.0
+      },
+      {
+        "Source row": 2,
+        "Observed": 4.0,
+        "Fitted": 2.916666666666666,
+        "Residual": 1.083333333333334,
+        "Group": "A",
+        "Covariate": 2.0
+      },
+      {
+        "Source row": 3,
+        "Observed": 9.0,
+        "Fitted": 8.75,
+        "Residual": 0.25,
+        "Group": "B",
+        "Covariate": 5.0
+      },
+      {
+        "Source row": 4,
+        "Observed": 11.0,
+        "Fitted": 10.0,
+        "Residual": 1.0,
+        "Group": "B",
+        "Covariate": 6.0
+      },
+      {
+        "Source row": 5,
+        "Observed": 10.0,
+        "Fitted": 11.25,
+        "Residual": -1.25,
+        "Group": "B",
+        "Covariate": 7.0
+      }
+    ]
+  }
+}

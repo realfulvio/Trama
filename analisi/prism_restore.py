@@ -9,6 +9,8 @@ import pandas as pd
 
 from .analysis_chain import ResultSource
 from .data import EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_STACKS, EDITABLE_PRISM_XY, MAX_CELLS
+from .extract_rearrange import EXTRACT_REARRANGE, EXTRACT_TABLE
+from .hierarchical_workbench import HIERARCHY_GRAPH, TREE_AXIS
 from .kmeans_options import SELECTION
 from .kmeans_reports import ASSIGNMENTS_TABLE, assignment_column
 from .pca_graphs import COLOR_GROUPS
@@ -39,17 +41,52 @@ def _list(value):
     return value
 
 
-def _dendrogram_presentation(component, direction):
-    """Translate the saved single-color stroke and the matching linear distance axis."""
+def _opaque_color(value):
+    return value[:7].lower() if isinstance(value, str) and re.fullmatch(r"#[0-9a-fA-F]{6}[fF]{2}", value) else None
+
+
+def _cluster_color_order(groups, count, observations):
+    """Translate archived group indices to native first-observation order."""
+    if (type(count) is not int or not 1 <= count <= 24 or not 2 <= observations <= 3000
+            or not isinstance(groups, list) or len(groups) != count):
+        return None
+    encountered, first = set(), []
+    for group in groups:
+        points = group.get("points") if isinstance(group, dict) else None
+        if not isinstance(points, list) or not 1 <= len(points) <= observations:
+            return None
+        members = set()
+        for point in points:
+            index = point.get("idx") if isinstance(point, dict) else None
+            if type(index) is not int or not 0 <= index < observations or index in members or index in encountered:
+                return None
+            members.add(index)
+        encountered.update(members)
+        first.append(min(members))
+    if len(encountered) != observations:
+        return None
+    return sorted(range(count), key=first.__getitem__)
+
+
+def _dendrogram_presentation(component, orientation, *, side=None, order=None):
+    """Translate saved branch colors and strokes and the matching linear distance axis."""
     style = {}
     visible = component.get("isVisible")
     if type(visible) is bool:
         style["visible"] = visible
     color_map = component.get("colormap") or {}
-    color = color_map.get("color")
-    if (color_map.get("@class") == "SingleColormap" and isinstance(color, str)
-            and re.fullmatch(r"#[0-9a-fA-F]{6}[fF]{2}", color)):
-        style.update(color_mode="single", color=color[:7].lower())
+    color = _opaque_color(color_map.get("color"))
+    if color_map.get("@class") == "SingleColormap" and color:
+        style.update(color_mode="single", color=color)
+    if (order and component.get("clustersLink") == f"/{side}s/clusters"
+            and color_map.get("@class") == "CategoricalColormap" and color_map.get("colorArrayType") == "dataLines"
+            and color_map.get("colorsTransparencyPercent") == 0):
+        colors = color_map.get("colors")
+        if isinstance(colors, dict) and set(colors) == {str(index) for index in order}:
+            palette = [_opaque_color(colors[str(index)]) for index in order]
+            mixed = _opaque_color(color_map.get("outlierColor"))
+            if all(palette) and mixed:
+                style.update(color_mode="cluster", palette=palette, mixed_color=mixed)
     stroke = component.get("linesStrokeSettings") or {}
     width = stroke.get("strokeThickness")
     if type(width) in {int, float} and 0 < width <= 12:
@@ -58,7 +95,6 @@ def _dendrogram_presentation(component, direction):
         style["line_style"] = stroke["strokeStyle"]
     axis = component.get("axis") or {}
     segments = axis.get("segments")
-    orientation = "horizontal" if direction == "rows" else "vertical"
     if axis.get("orientation") != orientation or not isinstance(segments, list) or len(segments) != 1:
         return style
     segment, = segments
@@ -79,13 +115,41 @@ def _dendrogram_presentation(component, direction):
     return style
 
 
-def _restored_heatmap_style(archive, names, analysis):
-    """Use the exact graph and source-sheet identities stored by a hierarchical analysis."""
+def _heatmap_presentation(graph, heatmap, color_orders):
+    section = {}
+    for component in _list(graph.get("components", [])):
+        side = component.get("levelsSourceType")
+        if (side not in ("rows", "columns") or component.get("@class") != "DendrogramGraphComponent"
+                or component.get("branchesLink") != f"/{side}/dendrogram"):
+            continue
+        key = side[:-1]
+        if key in section:
+            raise ValueError("Duplicate saved dendrogram component.")
+        section[key] = _dendrogram_presentation(component, "horizontal" if side == "rows" else "vertical",
+                                                side=key, order=color_orders.get(key))
+    settings = {}
+    colormap = heatmap.get("colormap") or {}
+    if (colormap.get("@class") == "GradientColormap" and colormap.get("colorScheme") == "Viridis"
+            and colormap.get("colorsTransparencyPercent") == 0):
+        settings["cmap"] = "viridis"
+    if type(heatmap.get("isColorLegendEnabled")) is bool:
+        settings["colorbar"] = heatmap["isColorLegendEnabled"]
+    if settings:
+        section["heatmap"] = settings
+    return section
+
+
+def _hierarchy_views(archive, names, analysis, axes, color_orders):
+    """Recognize only views with matching analysis, graph, source sheet and tree identities."""
     from .hierarchical_style import validate_hierarchical_style
 
     found = {}
     try:
-        for reference in _list(analysis.get("graphs", [])):
+        references = _list(analysis.get("graphs", []))
+    except ValueError:
+        return found
+    for reference in references:
+        try:
             settings = reference["settings"]
             uid = _identifier(settings["uid"])
             data_sheet = _identifier(settings["graph"]["dataSheet"])
@@ -96,33 +160,80 @@ def _restored_heatmap_style(archive, names, analysis):
             graph = sheet["graph"]
             if sheet.get("uid") != uid or graph.get("dataSheet") != data_sheet:
                 continue
-            heatmap = graph.get("gdoSettingsExt", {}).get("heatmap", {})
-            if heatmap.get("@class") != "HeatmapFigure::Settings":
-                continue
-            section = {}
-            for component in _list(graph.get("components", [])):
-                side = component.get("levelsSourceType")
-                if (side not in ("rows", "columns") or component.get("@class") != "DendrogramGraphComponent"
-                        or component.get("branchesLink") != f"/{side}/dendrogram"):
+            title = sheet.get("title")
+            ext = graph.get("gdoSettingsExt", {})
+            heatmap = ext.get("heatmap", {})
+            tree = ext.get("dendrogram", {})
+            options = {"Graph output": "Heat map"}
+            if heatmap.get("@class") == "HeatmapFigure::Settings":
+                section = _heatmap_presentation(graph, heatmap, color_orders)
+                if any(axis in section and axis not in axes for axis in ("row", "column")):
                     continue
-                key = side[:-1]
-                if key in section:
-                    raise ValueError("Duplicate saved dendrogram component.")
-                section[key] = _dendrogram_presentation(component, side)
-            settings = {}
-            colormap = heatmap.get("colormap") or {}
-            if (colormap.get("@class") == "GradientColormap" and colormap.get("colorScheme") == "Viridis"
-                    and colormap.get("colorsTransparencyPercent") == 0):
-                settings["cmap"] = "viridis"
-            if type(heatmap.get("isColorLegendEnabled")) is bool:
-                settings["colorbar"] = heatmap["isColorLegendEnabled"]
-            if settings:
-                section["heatmap"] = settings
-            if section:
-                found[uid] = {"hierarchical": validate_hierarchical_style(section)}
-    except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
-        return None
-    return next(iter(found.items())) if len(found) == 1 else None
+            elif tree.get("@class") == "DendrogramFigure::Settings":
+                axis = {"/rows/dendrogram": "row", "/columns/dendrogram": "column"}.get(tree.get("branchesLink"))
+                if axis not in axes or graph.get("components"):
+                    continue
+                # The distance axis has the saved branch heights. The orthogonal
+                # axis indexes leaves. Infer orientation only from the verified range.
+                orientations = [direction for key, direction in (("axisX", "horizontal"), ("axisY", "vertical"))
+                                if "distance" in _dendrogram_presentation(
+                                    {**tree, "axis": graph.get(key)}, direction)]
+                if len(orientations) > 1:
+                    continue
+                orientation = orientations[0] if orientations else "vertical"
+                axis_key = "axisX" if orientation == "horizontal" else "axisY"
+                section = {axis: _dendrogram_presentation({**tree, "axis": graph.get(axis_key)}, orientation,
+                                                          side=axis, order=color_orders.get(axis))}
+                options = {"Graph output": "Dendrogram", TREE_AXIS: axis.capitalize() + "s",
+                           "Dendrogram orientation": orientation.capitalize()}
+            else:
+                continue
+            style = {"hierarchical": validate_hierarchical_style(section)} if section else {}
+            found[uid] = title if isinstance(title, str) and title else None, options, style
+        except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+            continue
+    return found
+
+
+def _restore_hierarchy_views(archive, names, sheet, results, producer, slot, options, restyled):
+    direction = options["Direction"]
+    axes = ("row", "column") if direction == "Rows and columns" else (direction.lower()[:-1],)
+    content = results.get("content") if isinstance(results, dict) else None
+    color_orders = {}
+    if (isinstance(content, dict) and not producer.attrs.get("excluded")
+            and not producer[options["Variables"]].isna().any(axis=None)):
+        for side, field, size in (("row", "Clusters", len(producer)),
+                                  ("column", "Column clusters", len(options["Variables"]))):
+            view = content.get(f"{side}s")
+            if side in axes and options.get(f"{side.capitalize()} cut") == "Count" and isinstance(view, dict):
+                color_orders[side] = _cluster_color_order(view.get("clusters"), options[field], size)
+    views = _hierarchy_views(archive, names, sheet, axes, color_orders)
+    primary = [uid for uid, (_, view, _) in views.items() if uid not in restyled
+               and view["Graph output"] == options["Graph output"]
+               and (options["Graph output"] != "Dendrogram" or view.get(TREE_AXIS) == direction)]
+    styles = producer.attrs.setdefault("prism_graph_styles", {}) if views else {}
+    if len(primary) == 1:
+        uid = primary[0]
+        _, view, style = views.pop(uid)
+        if "Dendrogram orientation" in view:
+            options["Dendrogram orientation"] = view["Dendrogram orientation"]
+        if style:
+            styles[slot] = style
+        options[PRISM_NOTES] = ("Recalculates the supported hierarchy and restores selected saved graph settings. "
+                                "Other settings use Trama formatting.")
+        restyled.add(uid)
+    table = "Merges" if len(axes) == 1 else "Row Merges"
+    for uid, (title, view, style) in views.items():
+        if uid in restyled:
+            continue
+        child = len(producer.attrs["prism_recipes"])
+        view[PRISM_TITLE] = (title or view["Graph output"])[:160]
+        view[PRISM_NOTES] = ("Recalculates this view from the linked native hierarchy. "
+                             "Selected saved graph settings are restored.")
+        if _append_linked_recipe(producer, slot, table, HIERARCHY_GRAPH, view):
+            if style:
+                styles[child] = style
+            restyled.add(uid)
 
 
 def _saved_xy(graph, owners, remaining_cells):
@@ -142,7 +253,11 @@ def _saved_xy(graph, owners, remaining_cells):
         if len(xcols) != 1 or not columns:
             return None
         mode = frame.attrs["prism_y_format"]
-        errors = columns[1:3] if mode == "y_plus_minus" else []
+        errors = []
+        if mode in {"y_plus_minus", "y_high_low"}:
+            errors = columns[1:3]
+        elif mode in {"y_sd", "y_sd_n", "y_se", "y_se_n"}:
+            errors = columns[1:2] * 2
         has_replicates |= mode == "y_replicates"
         if mode != "y_replicates":
             columns = columns[:1]
@@ -163,9 +278,12 @@ def _saved_xy(graph, owners, remaining_cells):
             return None
         part = pd.DataFrame({"X": xs[keep], "Y": ys[keep], "Series": name,
                              "Dataset": i + 1, "Geometry": geometry})
-        if len(errors) == 2 and all(pd.api.types.is_numeric_dtype(frame[key]) for key in errors):
-            for role, column in zip(("Y plus", "Y minus"), errors, strict=True):
-                part[role] = frame[column].to_numpy(dtype=float, na_value=np.nan)[keep]
+        if len(errors) == 2:
+            plus, minus = (pd.to_numeric(frame[key], errors="coerce").to_numpy(dtype=float, na_value=np.nan)[keep]
+                           for key in errors)
+            if mode == "y_high_low":
+                plus, minus = plus - ys[keep], ys[keep] - minus
+            part["Y plus"], part["Y minus"] = plus, minus
         parts.append(part)
         labels.add(xcols[0])
     points = pd.concat(parts, ignore_index=True)
@@ -202,13 +320,65 @@ def _link_clustered_pca(producer, slot, cached, method, options):
                COLOR_GROUPS: mapping[color] if color is not None else None,
                PRISM_NOTES: ("Uses the live K-means assignments as input. Trama recalculates standardized PCA "
                              "and the saved color grouping with its own samples from the saved seed.")}
+    return _append_linked_recipe(producer, slot, ASSIGNMENTS_TABLE, method, options)
+
+
+def _append_linked_recipe(producer, slot, table, method, options):
+    recipes = producer.attrs["prism_recipes"]
+    if len(recipes) >= 256:
+        return False
     ids = producer.attrs.setdefault("prism_analysis_ids", {})
     parent = ids.setdefault(slot, str(uuid4()))
     consumer = len(recipes)
     ids[consumer] = str(uuid4())
-    producer.attrs.setdefault("prism_analysis_sources", {})[consumer] = ResultSource(parent, ASSIGNMENTS_TABLE)
+    producer.attrs.setdefault("prism_analysis_sources", {})[consumer] = ResultSource(parent, table)
     recipes.append((method, options))
     return True
+
+
+def _link_hierarchy_elbow(graph, uid, title, elbow_views, owners):
+    selected = graph.get("inputDataSets")
+    graph_id = graph.get("fenID")
+    if (graph.get("uid") != uid or type(graph_id) is not int or not isinstance(selected, list)
+            or len(selected) != 1 or not isinstance(selected[0], str)):
+        return False
+    dataset, = selected
+    matches = elbow_views.get((dataset, graph_id), ())
+    if len(matches) != 1 or len(owners.get(dataset, ())) != 1:
+        return False
+    (producer, slot, frame, axis), = matches
+    if owners[dataset][0][0] is not frame:
+        return False
+    options = producer.attrs["prism_recipes"][slot][1]
+    dual = options["Direction"] == "Rows and columns"
+    if not dual and options["Graph output"] == "Elbow plot":
+        return True
+    return _append_linked_recipe(producer, slot, "Row Merges" if dual else "Merges", HIERARCHY_GRAPH, {
+        "Graph output": "Elbow plot", TREE_AXIS: axis, PRISM_TITLE: title[:160],
+        PRISM_NOTES: "Recalculates the elbow plot from the linked native hierarchy.",
+    })
+
+
+def _link_grouped_anova(sheet, parameters, label, grouped_views, view_sources):
+    recipe = restore_recipe(sheet, parameters, view_sources)
+    if recipe is None:
+        return False
+    source, method, options = recipe
+    if source not in grouped_views:
+        return False
+    cached = view_sources[source]
+    ids = cached.attrs["prism_y"]
+    selected = _list(sheet.get("inputDataSets", []))
+    if [item.get("uid") for item in selected if isinstance(item, dict)] != ids or len(selected) != len(ids):
+        return False
+    mapped = [name for uid in ids for name in cached.attrs["prism_columns"][uid]]
+    if len(mapped) != len(cached.columns) - 1 or mapped != list(cached.columns[1:]):
+        return False
+    producer, slot = grouped_views[source]
+    return _append_linked_recipe(producer, slot, EXTRACT_TABLE, method, {
+        **options, PRISM_TITLE: label[:160],
+        PRISM_NOTES: "Recalculates the ordinary two-factor ANOVA from the linked rearranged worksheet.",
+    })
 
 
 def restore_sheets(archive, names, sheets, sources, tables, cells):
@@ -219,6 +389,9 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
     view_sources = dict(sources)
     deferred_pca = []
     clustered_views = {}
+    deferred_anova = []
+    grouped_views = {}
+    elbow_views = {}
     for source in sources.values():
         if source.attrs["prism_x"]:
             for uid in source.attrs["prism_y"]:
@@ -245,27 +418,25 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             params = _json_object(archive, params_path) if params_path in names else {}
             results = _json_object(archive, results_path) if results_path in names else None
             is_pca = sheet.get("analysisClass") == "PCA"
-            recipe = None if is_pca else restore_recipe(sheet, params, sources, results)
+            is_grouped_anova = sheet.get("analysisClass") == "TWO_WAY_ANOVA"
+            recipe = None if is_pca or is_grouped_anova else restore_recipe(sheet, params, sources, results)
             producer = None
             if recipe:
                 source, method, options = recipe
                 restored = sources[source].attrs.setdefault("prism_recipes", [])
                 if len(restored) < 256:
-                    if method == "Hierarchical clustering" and options.get("Graph output") == "Heat map":
-                        saved_style = _restored_heatmap_style(archive, names, sheet)
-                        if saved_style is not None:
-                            graph_uid, style = saved_style
-                            styles = sources[source].attrs.setdefault("prism_graph_styles", {})
-                            styles[len(restored)] = style
-                            restyled.add(graph_uid)
-                            options[PRISM_NOTES] = (
-                                "Recalculates the supported hierarchy and restores selected saved heat map "
-                                "and dendrogram settings. Other settings use Trama formatting.")
-                    restored.append((method, {**options, PRISM_TITLE: label[:160]}))
-                    if method == SELECTION:
+                    slot = len(restored)
+                    options = {**options, PRISM_TITLE: label[:160]}
+                    restored.append((method, options))
+                    if method == "Hierarchical clustering":
+                        _restore_hierarchy_views(archive, names, sheet, results, sources[source], slot, options, restyled)
+                        producer = sources[source], slot
+                    if method in {SELECTION, EXTRACT_REARRANGE}:
                         producer = sources[source], len(restored) - 1
             elif is_pca:
                 deferred_pca.append((sheet, params, label))
+            elif is_grouped_anova:
+                deferred_anova.append((sheet, params, label))
             else:
                 warnings.append(f"Recalculation unavailable for {label}.")
             for record in _list(sheet.get("resultSheets", [])):
@@ -274,9 +445,20 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
                 saved = restore_view(archive, names, path, record, label, sheet, add, owners, view_sources,
                                      MAX_CELLS - cells)
                 if producer is not None and saved is not None:
-                    view_uid, name, frame = saved
-                    if name == "Clustered data" and view_sources[view_uid] is frame:
-                        clustered_views[view_uid] = producer
+                    view_uid, name, frame, view = saved
+                    if view_sources[view_uid] is frame:
+                        if method == SELECTION and name == "Clustered data":
+                            clustered_views[view_uid] = producer
+                        if (method == EXTRACT_REARRANGE and name == "Results"
+                                and frame.attrs.get("prism_snapshot_source_format") == "grouped"):
+                            grouped_views[view_uid] = producer
+                        if method == "Hierarchical clustering" and options.get("Elbow data"):
+                            axis = {"Elbow plot (rows)": "Rows", "Elbow plot (columns)": "Columns"}.get(name)
+                            datasets = frame.attrs["prism_y"]
+                            graph_id = view.get("graphId")
+                            if (axis is not None and options["Direction"] in {axis, "Rows and columns"}
+                                    and frame.attrs["prism_x"] and len(datasets) == 1 and type(graph_id) is int):
+                                elbow_views.setdefault((datasets[0], graph_id), []).append((*producer, frame, axis))
         except (KeyError, TypeError, ValueError, csv.Error):
             warnings.append(f"Some saved analysis content could not be read for {label}.")
     # The saved input may be a multivariable table emitted by a later analysis in the document.
@@ -293,6 +475,13 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
         restored = view_sources[source].attrs.setdefault("prism_recipes", [])
         if len(restored) < 256:
             restored.append((method, options))
+    for sheet, params, label in deferred_anova:
+        try:
+            if _link_grouped_anova(sheet, params, label, grouped_views, view_sources):
+                continue
+        except (KeyError, TypeError, ValueError):
+            pass
+        warnings.append(f"Recalculation unavailable for {label}.")
     for entry in _list(sheets.get("graphs", [])):
         label = str(entry)
         try:
@@ -303,6 +492,8 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             label = graph.get("title") or uid
             if not isinstance(label, str):
                 raise ValueError("Invalid graph title.")
+            if _link_hierarchy_elbow(graph, uid, label, elbow_views, owners):
+                continue
             points = _saved_xy({**graph, "title": label[:160]}, owners, MAX_CELLS - cells)
             if points is None and graph.get("uid") == uid:
                 scatter = saved_scatter(graph, view_sources, MAX_CELLS - cells)
@@ -409,6 +600,8 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
                     notes += " The overlaid observations retain their saved positions."
                 if style.get("cached_curve"):
                     notes += " The starting coordinates are approximate values recovered from the saved curve."
+                if style.get("fixed_band"):
+                    notes += " The original shaded band retains its saved values."
             else:
                 table_format = EDITABLE_PRISM_XY
                 notes = "Editable XY graph with recovered Prism formatting. Original drawing remains available."
@@ -526,8 +719,9 @@ def restore_view(archive, names, path, record, analysis_title, analysis, add, ow
     name = view.get("name") or record.get("title") or view_id
     if not view.get("isVisible") and not frame.attrs["prism_x"]:
         return
-    if frame.attrs.get("table_format") == "multivariable":
-        frame.attrs["prism_snapshot_source_format"] = "multivariable"
+    source_format = frame.attrs.get("table_format")
+    if source_format in {"multivariable", "grouped"}:
+        frame.attrs["prism_snapshot_source_format"] = source_format
     frame.attrs["table_format"] = "Prism result snapshot"
     if not add(f"Prism result · {analysis_title} · {name}", frame):
         return
@@ -538,4 +732,4 @@ def restore_view(archive, names, path, record, analysis_title, analysis, add, ow
             geometry = "step"
         for dataset in frame.attrs["prism_y"]:
             owners.setdefault(dataset, []).append((frame, geometry))
-    return uid, name, frame
+    return uid, name, frame, view
