@@ -185,6 +185,14 @@ from analisi.outlier_screening import (METHOD as OUTLIER_METHOD, OUTLIERS,
                                        visibility as outlier_visibility)
 from analisi.spline_fit import (DIRECTION as SPLINE_DIRECTION, METHOD as SPLINE_METHOD, METHOD_NOTE as SPLINE_NOTE,
                                 SPLINE_FIT, TABS as SPLINE_TABS, visibility as spline_visibility)
+from analisi.independent_roc import (AREA as IROC_AREA, DIRECTION_A as IROC_DIRECTION_A,
+                                     DIRECTION_B as IROC_DIRECTION_B, INFERENCE as IROC_INFERENCE,
+                                     METHOD as INDEPENDENT_ROC, NUMBER_FIELDS as IROC_NUMBER_FIELDS,
+                                     cancellable as independent_roc_cancellable,
+                                     check_options as check_independent_roc,
+                                     normalized_options as independent_roc_options,
+                                     proposed_inference as independent_roc_inference,
+                                     visibility as independent_roc_visibility)
 from analisi.monte_carlo import (COMMON as MONTE_CARLO_COMMON, GRAPH as MONTE_CARLO_GRAPH, GRAPH_NONE, MAX_SEED,
                                  MONTE_CARLO as MONTE_CARLO_METHOD, REPEATABLE, SEED as MONTE_CARLO_SEED,
                                  STUDY as MONTE_CARLO_STUDY,
@@ -337,6 +345,11 @@ def translate_mlr_error(text):
 def translate_equivalence_error(error):
     """An Equivalence test message in the active language; its field names become the dialog captions."""
     return translate_message(str(error), TOST_ERROR_PREFIX, {"field": lambda name: tr(TOST_LABEL_KEYS.get(name, name))})
+
+
+def translate_independent_roc_error(error):
+    """A Compare independent ROC curves message in the active language; its field names become the captions."""
+    return translate_message(str(error), "iroc.error.", {"field": ui, "first": ui})
 
 
 def translate_correlation_error(error):
@@ -1118,6 +1131,10 @@ class AnalysisDialog(simpledialog.Dialog):
             self.fields.tab(variables, text=tr(RATIO_TAB_KEYS["Data"]))
             self.fields.tab(options, text=tr(RATIO_TAB_KEYS["Test and graph"]))
             fields_by_tab.update(dict.fromkeys(RATIO_DATA_FIELDS, variables))
+        elif self.method == INDEPENDENT_ROC:
+            # The four samples and their directions on the first page; the area and the inference on the second.
+            self.fields.tab(options, text=ui("Area and inference"))
+            fields_by_tab.update(dict.fromkeys((IROC_DIRECTION_A, IROC_DIRECTION_B), variables))
         elif self.method == EQUIVALENCE:
             self.fields.tab(variables, text=tr(TOST_TAB_KEYS["Data"]))
             self.fields.tab(options, text=tr(TOST_TAB_KEYS["Equivalence zone"]))
@@ -1853,6 +1870,12 @@ class AnalysisDialog(simpledialog.Dialog):
                       foreground="#486075", justify="left").grid(
                 row=positions[options], column=0, columnspan=2, sticky="ew", pady=(8, 4))
             self._bind_scrollable_children(options)
+        if self.method == INDEPENDENT_ROC:
+            for label in (IROC_AREA, IROC_INFERENCE):
+                self.controls[label][1].trace_add("write", lambda *_, label=label: self.show_independent_roc_fields(label))
+            ttk.Label(options, text=tr("iroc.hint"), wraplength=ui_theme.px(400), foreground="#486075",
+                      justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.show_fields(self.independent_roc_fields())
         if self.method == EQUIVALENCE:
             self.controls[TOST_DESIGN][1].trace_add("write", lambda *_: self.show_fields(self.equivalence_fields()))
             self.show_fields(self.equivalence_fields())
@@ -2774,6 +2797,21 @@ class AnalysisDialog(simpledialog.Dialog):
         return monte_carlo_visibility(self.controls[MONTE_CARLO_STUDY][1].get(),
                                       self.controls[MONTE_CARLO_X_SOURCE][1].get())
 
+    def independent_roc_fields(self):
+        """The cutoff belongs to the partial areas; the replicates, seed and saving to the bootstrap."""
+        if self.method != INDEPENDENT_ROC or IROC_AREA not in self.controls:
+            return {}
+        return independent_roc_visibility(self.controls[IROC_AREA][1].get(), self.controls[IROC_INFERENCE][1].get())
+
+    def show_independent_roc_fields(self, changed):
+        """A partial area has no DeLong variance: choosing one proposes the percentile bootstrap, saved when run."""
+        if changed == IROC_AREA:
+            area, inference = self.controls[IROC_AREA][1], self.controls[IROC_INFERENCE][1]
+            proposed = independent_roc_inference(area.get(), inference.get())
+            if proposed != inference.get():
+                inference.set(proposed)
+        self.show_fields(self.independent_roc_fields())
+
     def new_monte_carlo_seed(self):
         import secrets
 
@@ -3232,7 +3270,8 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.equivalence_fields(), **self.cox_fields(),
                       **self.summary_anova_fields(),
                       **self.one_way_fields(),
-                      **self.monte_carlo_fields(), **self.function_fields(), **self.weighting_visibility(),
+                      **self.monte_carlo_fields(), **self.independent_roc_fields(), **self.function_fields(),
+                      **self.weighting_visibility(),
                       **self.band_fields(), **self.xy_error_fields(), **self.custom_fields(),
                       **self.global_custom_fields(), **self.robust_fields(), **self.reference_visibility()}
         try:
@@ -3251,6 +3290,10 @@ class AnalysisDialog(simpledialog.Dialog):
                     except (TypeError, ValueError):
                         value = raw
                     options[name] = value
+                    continue
+                if self.method == INDEPENDENT_ROC and name in IROC_NUMBER_FIELDS:
+                    # The text goes to the checks, which name the field and type the number (decimal comma included).
+                    options[name] = control.get()
                     continue
                 if self.method == FOREST_PLOT and name == "Study columns":
                     value = self.forest_columns()
@@ -3357,6 +3400,10 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == MONTE_CARLO_METHOD:
                 # Numbers, fields and the value budget only: the simulation runs once, on the worker.
                 check_monte_carlo_options(self.data, options)
+            if self.method == INDEPENDENT_ROC:
+                # Columns, numbers and the bootstrap budget stay in the dialog; the calculation runs on the worker.
+                settings, _ = check_independent_roc(self.data, options)
+                options = independent_roc_options(options, settings)
             if self.method == "Deming regression":
                 self._check_deming(options)
             name = None
@@ -3524,6 +3571,11 @@ class AnalysisDialog(simpledialog.Dialog):
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
+                if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == INDEPENDENT_ROC:
+                message = translate_independent_roc_error(error)
+                label = ui(field) if field else ""
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
             elif self.method == REFERENCE_NORMALIZATION:
@@ -6184,7 +6236,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         affected = sorted(affected, key=lambda item: PAIRWISE_SECTION in item[0].options)
         snapshots = [self.pairwise_snapshot(run) for run, _ in affected]
         self.status.set(f"Updating {len(affected)} linked analysis result(s)…")
-        control = CalculationControl() if any(run.method == MONTE_CARLO_METHOD or extended_request(run.method, run.options) for run, _ in affected) else None
+        control = CalculationControl() if any(run.method == MONTE_CARLO_METHOD or extended_request(run.method, run.options)
+                                              or independent_roc_cancellable(run.method, run.options)
+                                              for run, _ in affected) else None
 
         def calculate():
             results, fresh = [], {}
@@ -6218,6 +6272,11 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             failures = []
             recovered = False
             for run, result, error in future.result():
+                if cancelled and run.method == INDEPENDENT_ROC and result is None:
+                    # An updated comparison keeps its previous result and says that it was not refreshed.
+                    run.result = previous.get(id(run))
+                    run.calculation_error = "The update was cancelled." if run.result is not None else None
+                    continue
                 if cancelled and (run.method == MONTE_CARLO_METHOD or extended_request(run.method, run.options)):
                     continue
                 run.result = result
@@ -6231,6 +6290,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                             continue
                     if run.method == REFERENCE_NORMALIZATION and not isinstance(error, str):
                         failures.append(translate_reference_error(error))
+                    elif run.method == INDEPENDENT_ROC:
+                        failures.append(translate_independent_roc_error(error))
                     elif run.method == HEAT_MAP and not isinstance(error, str):
                         failures.append(translate_heat_map_error(error))
                     else:
@@ -6247,6 +6308,11 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 self.status.set(f"{len(failures)} linked analyses need attention. {failures[0]}")
             elif recovered:
                 pass
+            elif cancelled and any(run.method == INDEPENDENT_ROC and independent_roc_cancellable(run.method, run.options)
+                                   for run, _ in affected) and not any(
+                    run.method == MONTE_CARLO_METHOD or extended_request(run.method, run.options)
+                    for run, _ in affected):
+                self.status.set(tr("iroc.cancelled", kept=tr("iroc.kept_result")))
             elif cancelled:
                 self.status.set("Monte Carlo recalculation cancelled. Open the study to calculate again.")
             else:
@@ -6434,12 +6500,14 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
                 or run.method == FDR_METHOD or run.method == VARIANCE_RATIO or self._pca_regression(run)
+                or run.method == INDEPENDENT_ROC
                 or getattr(run, 'source', None) is not None
                 or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
-        return self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO) or self._pca_regression(run)
+        return (self._lognormal_one_way(run) or run.method in (FDR_METHOD, VARIANCE_RATIO, INDEPENDENT_ROC)
+                or self._pca_regression(run))
 
     def weighting_recovery(self, method, options, index, only=None):
         """Reopen the dialog when a field error is first known on the worker."""
@@ -6455,7 +6523,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "One-way ANOVA":
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
-        if method in (FDR_METHOD, VARIANCE_RATIO):
+        if method in (FDR_METHOD, VARIANCE_RATIO, INDEPENDENT_ROC):
+            # A data edit can leave a sample with too few values or a bootstrap beyond its budget.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "Principal component analysis" and options.get(PCR_ENABLE) is True:
             # Rank and degrees of freedom of the regression are known only after the fit, on the worker.
@@ -6495,6 +6564,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                    else translate_calibration_error(error) if run.method == "Interpolate a standard curve"
                    else ui(str(error)) if run.method in (SUMMARY_ANOVA, SUMMARY_TTEST)
                    else translate_heat_map_error(error) if run.method == HEAT_MAP
+                   else translate_independent_roc_error(error) if run.method == INDEPENDENT_ROC
                    else str(error))
         formatted = (format_anova_error(error) if run.method == "Multifactor ANOVA"
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
@@ -6512,7 +6582,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else tr(MLR_LABEL_KEYS[error.field]) if run.method == "Multiple regression"
                      and error.field in MLR_LABEL_KEYS
                      else field_caption_for_reference(error.field) if run.method == REFERENCE_NORMALIZATION
-                     else ui(error.field) if run.method in (HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST) or run.method in CORRELATION_METHODS
+                     else ui(error.field) if (run.method in (HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, INDEPENDENT_ROC)
+                                              or run.method in CORRELATION_METHODS)
                      else error.field)
             if not label or label == "gfit.field." + error.field:
                 label = error.field
@@ -6537,7 +6608,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if self.refresh_chain_calculations([(run, None)], inputs_changed=False):
             return
         recovery = (self.weighting_recovery(run.method, run.options, index)
-                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO}
+                    if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO,
+                                      INDEPENDENT_ROC}
                     or self._pca_regression(run) else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
@@ -6810,7 +6882,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         parameter_profile = (run.method in ("Nonlinear regression", CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION)
                              and run.options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE)
         control = CalculationControl() if (run.method == MONTE_CARLO_METHOD or parameter_profile
-                                           or extended_request(run.method, run.options)) else None
+                                           or extended_request(run.method, run.options)
+                                           or independent_roc_cancellable(run.method, run.options)) else None
         layout_data = self.layout_panel_data(run) if run.method == SAVED_BINARY_LAYOUT else None
         self.pending = self.worker.submit(self.compute, run, frame, None, control, layout_data, pairwise)
         self.begin_calculation(control)
@@ -6841,11 +6914,17 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 detail = "The last completed results are kept."
             else:
                 detail = "Open the study to calculate again."
-            self.status.set(f"{run.method} cancelled. {detail}")
+            if run.method == INDEPENDENT_ROC:
+                detail = tr("iroc.kept_new" if index is None else "iroc.kept_result"
+                            if self.runs[index].result is not None else "iroc.kept_none")
+                self.status.set(tr("iroc.cancelled", kept=detail))
+            else:
+                self.status.set(f"{run.method} cancelled. {detail}")
         except Exception as error:
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
-                     else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO else error)
+                     else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
+                     else translate_independent_roc_error(error) if run.method == INDEPENDENT_ROC else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -6957,7 +7036,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_message(run.calculation_error, 'variance.ratio.error.')
                      if run.method == VARIANCE_RATIO
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
-                     if run.method == "One-way ANOVA" else translate_reference_error(run.calculation_error))
+                     if run.method == "One-way ANOVA"
+                     else translate_independent_roc_error(run.calculation_error) if run.method == INDEPENDENT_ROC
+                     else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
 
@@ -12434,6 +12515,12 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_independent_roc_smoke():
+        from analisi.independent_roc_smoke import check_independent_roc as run_independent_roc_smoke
+        run_independent_roc_smoke(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_summary_ttest_smoke():
         from analisi.summary_ttest_smoke import check_summary_ttest
         check_summary_ttest(root, app, directory, SimpleNamespace(
@@ -13158,6 +13245,14 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "equivalence":
             # The 0.71 Equivalence test (TOST) check alone: TRAMASTAT_SMOKE_ONLY=equivalence python tramastat.py --smoke DIR
             check_equivalence_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "independent-roc":
+            # The Compare independent ROC curves check alone: TRAMASTAT_SMOKE_ONLY=independent-roc python tramastat.py --smoke DIR
+            check_independent_roc_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -13916,6 +14011,7 @@ def smoke(root, app, directory, legacy_reference=None):
             filedialog=filedialog))
         check_lognormal_tests_smoke()
         check_equivalence_smoke()
+        check_independent_roc_smoke()
         check_lognormality_smoke()
         check_lognormal_anova_smoke()
         check_summary_anova_smoke()
