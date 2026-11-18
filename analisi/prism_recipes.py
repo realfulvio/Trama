@@ -357,7 +357,7 @@ def _extract_rearrange(frame, content, _results):
 
 
 def _kmeans(frame, content, _results):
-    from . import kmeans_options as selection
+    from . import kmeans_options as selection, kmeans_reports
     from .advanced import _check_scan_budget
     from .cluster_consensus import KL_SCALING, UNSCALED_WSS
 
@@ -383,10 +383,22 @@ def _kmeans(frame, content, _results):
     gap_replicates = 20
     _check_scan_budget(count, dimensions, range(low, upper + 1), upper >= 2,
                        simulate_gap=True, gap_replicates=gap_replicates)
+    saved_reports = content.get("report", {})
+    reports = {kmeans_reports.ASSIGNMENTS: True}
+    for saved, native in (("clusterDetails", kmeans_reports.DETAILS), ("transformedData", kmeans_reports.SCALED),
+                          ("distances", kmeans_reports.DISTANCES), ("initialCentroids", kmeans_reports.CENTROIDS),
+                          ("anovaTable", kmeans_reports.ANOVA)):
+        flag = saved_reports.get(saved, False)
+        if type(flag) is not bool:
+            return None
+        if flag:
+            reports[native] = True
+    if content.get("graph", {}).get("gapPlot") is True:
+        reports[kmeans_reports.GAP] = True
     return selection.SELECTION, {
         "Variables": variables, "Minimum k": low, "Maximum k": high, "Standardize": True, "Seed": seed,
         "Criterion": "Consensus (17 indices)", "Gap simulations": gap_replicates, KL_SCALING: UNSCALED_WSS,
-        selection.ALGORITHM: selection.HARTIGAN, selection.MAX_ITERATIONS: iterations,
+        selection.ALGORITHM: selection.HARTIGAN, selection.MAX_ITERATIONS: iterations, **reports,
         "Prism import notes": (
             "Recalculates the saved Hartigan–Wong settings with Trama initial centers and 20 Gap simulations. "
             "Saved partitions, tables and additional plots remain in archived views where available."

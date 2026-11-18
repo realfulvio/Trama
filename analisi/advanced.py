@@ -32,6 +32,8 @@ class ClusterScan:
     # Consensus only: one row per index, and the vote tally.
     votes: pd.DataFrame | None = None
     selection: dict | None = None
+    report_fits: dict[int, Clusters] | None = None
+    fitting_data: pd.DataFrame | None = None
 
 
 def _cluster_scores(values, distances, fit):
@@ -138,7 +140,7 @@ def _check_scan_budget(n, dimensions, candidates, pairwise, *, simulate_gap, gap
 
 def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="silhouette",
                 *, min_k=1, gap_replicates=20, kl_scaling=consensus.DIMENSION_ADJUSTED,
-                algorithm="lloyd", max_iterations=10):
+                algorithm="lloyd", max_iterations=10, retain_fits=False, retain_initial=False):
     """Compare fits from min_k through max_k, capped at the distinct row count.
 
     The silhouette, Calinski–Harabasz and Davies–Bouldin scores require
@@ -183,7 +185,7 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     rows, fits, partitions = [], {}, {}
     fit_options = {"algorithm": algorithm, "max_iterations": max_iterations}
     for count in candidates:
-        fit = kmeans(data, columns, count, standardize, seed, **fit_options)
+        fit = kmeans(data, columns, count, standardize, seed, retain_initial=retain_initial, **fit_options)
         fits[count] = fit
         scores = _cluster_scores(values, distances, fit) if 1 < count < n else (np.nan,) * 3
         rows.append((count, fit.inertia, *scores))
@@ -195,9 +197,14 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
         _gap_scores(metrics, values, columns, seed, gap_replicates,
                     allow_failed_references=criterion == "consensus", fit_options=fit_options)
     if criterion == "consensus":
-        return _consensus_scan(metrics, partitions, fits, n, dimensions, kl_scaling=kl_scaling)
-    recommended = _recommend_clusters(metrics, criterion)
-    return ClusterScan(metrics, recommended, fits.get(recommended))
+        outcome = _consensus_scan(metrics, partitions, fits, n, dimensions, kl_scaling=kl_scaling)
+    else:
+        recommended = _recommend_clusters(metrics, criterion)
+        outcome = ClusterScan(metrics, recommended, fits.get(recommended))
+    if retain_fits:
+        outcome.report_fits = fits
+        outcome.fitting_data = pd.DataFrame(values, index=data.index, columns=columns)
+    return outcome
 
 
 def _consensus_scan(metrics, partitions, fits, n, dimensions, *, kl_scaling=consensus.DIMENSION_ADJUSTED):

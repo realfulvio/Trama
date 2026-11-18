@@ -7,7 +7,7 @@ from scipy import stats
 
 from . import stats as engine
 from .advanced import anova_comparisons, kmeans_scan
-from . import kmeans_options
+from . import kmeans_options, kmeans_reports
 from .hartigan_wong import IterationLimitError
 from .cluster_consensus import DIMENSION_ADJUSTED, KL_CHOICES, KL_SCALING, UNSCALED_WSS
 from .anova_diagnostics import OPTIONS as ANOVA_DIAG_OPTIONS
@@ -238,11 +238,12 @@ METHODS = {
                                               "Consensus (17 indices)"),
                                 "Gap simulations": 20, KL_SCALING: KL_CHOICES,
                                 kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
-                                kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS},
+                                kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
+                                **dict.fromkeys(kmeans_reports.SCAN, False)},
     "K-means clustering": {"Variables": MULTIPLE, "Clusters": 2, "Standardize": True, "Seed": 42,
                            kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
                            kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
-                           kmeans_options.INITIAL_ROWS: TEXT},
+                           kmeans_options.INITIAL_ROWS: TEXT, **dict.fromkeys(kmeans_reports.COMMON, False)},
     "Hierarchical clustering": {"Variables": MULTIPLE, "Observation labels": OPTIONAL, **HIERARCHICAL_OPTIONS},
     "Scatter / confidence ellipse": {"X": None, "Y": None, "Group": OPTIONAL, **ELLIPSE_OPTIONS},
     COLUMN_GRAPH: {"Variables": MULTIPLE, "Graph style": COLUMN_STYLES, **CATEGORY_OPTIONS},
@@ -486,7 +487,9 @@ def _distribution(method, frame, o):
 
 def _kmeans(frame, o):
     variables = o["Variables"]
+    reports = kmeans_reports.requested(o)
     fit = engine.kmeans(frame, variables, o["Clusters"], o["Standardize"], o["Seed"],
+                        retain_initial=kmeans_reports.CENTROIDS in reports,
                         **kmeans_options.fit_options(kmeans_options.CLUSTERING, frame, o))
     figure, axes = _plot("K-means", variables[0], variables[1] if len(variables) > 1 else "Cluster")
     for label in sorted(fit.labels.unique()):
@@ -499,6 +502,11 @@ def _kmeans(frame, o):
               "Centers (fitting scale)": fit.centers.set_axis(range(1, len(fit.centers) + 1)),
               "Fit": _report({"Within-cluster SS": fit.inertia, "N": len(fit.data)})}
     _record_kmeans_algorithm(tables["Fit"], o)
+    if reports:
+        k = len(fit.centers)
+        _, values = engine._cluster_data(fit.data, variables, k, o["Standardize"])
+        fitting_data = pd.DataFrame(values, index=fit.data.index, columns=variables)
+        tables.update(kmeans_reports.result_tables({k: fit}, frame, fitting_data, reports))
     return Result(tables, figure)
 
 
@@ -541,15 +549,23 @@ def _consensus_selection(scan, o):
 
 
 def _cluster_selection(frame, o):
+    reports = kmeans_reports.requested(o, scan=True)
     criterion = {"Silhouette": "silhouette", "Elbow": "elbow", "Calinski–Harabasz": "calinski-harabasz",
                  "Davies–Bouldin": "davies-bouldin", "Gap": "gap",
                  "Consensus (17 indices)": "consensus"}[o["Criterion"]]
     scan = kmeans_scan(frame, o["Variables"], o["Maximum k"], o["Standardize"], o["Seed"],
                        criterion, min_k=o.get("Minimum k", 1), gap_replicates=o.get("Gap simulations", 20),
-                       kl_scaling=o.get(KL_SCALING, DIMENSION_ADJUSTED),
+                       kl_scaling=o.get(KL_SCALING, DIMENSION_ADJUSTED), retain_fits=bool(reports),
+                       retain_initial=kmeans_reports.CENTROIDS in reports,
                        **kmeans_options.fit_options(kmeans_options.SELECTION, frame, o))
-    if criterion == "consensus":
-        return _consensus_selection(scan, o)
+    result = _consensus_selection(scan, o) if criterion == "consensus" else _scan_result(scan, o, criterion)
+    if reports:
+        result.tables.update(kmeans_reports.result_tables(scan.report_fits, frame, scan.fitting_data, reports,
+                                                          metrics=scan.metrics))
+    return result
+
+
+def _scan_result(scan, o, criterion):
     metric = {"elbow": "WSS", "gap": "Gap"}.get(criterion, o["Criterion"])
     figure, axes = _plot("K-means model selection", "Number of clusters", metric)
     if criterion == "gap":
