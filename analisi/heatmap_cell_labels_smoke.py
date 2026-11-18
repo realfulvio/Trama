@@ -145,11 +145,11 @@ def check_heat_map_cell_labels(root, app, directory, tools):
         wait()
         baseline_rgba = mesh(mat_idx).get_facecolors().copy()
 
-        # 3. 1024x768 dialog: visibility, validation/focus, swatch, Fixed + custom style, export CSV/PNG/SVG/PDF.
+        # 3. 1024x768 main window: visibility, validation/focus, swatch, Fixed + custom style, export CSV/PNG/SVG/PDF.
         root.geometry("1024x768+0+0")
         root.update()
-        screen_w = min(1024, root.winfo_screenwidth())
-        screen_h = min(768, root.winfo_screenheight())
+        # Resizing the main window does not change the screen used for dialog placement.
+        screen_w, screen_h = root.winfo_screenwidth(), root.winfo_screenheight()
 
         def configure_fixed_en(dialog):
             controls = dialog.controls

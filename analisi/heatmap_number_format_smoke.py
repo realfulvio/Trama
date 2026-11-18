@@ -111,11 +111,11 @@ def check_heat_map_number_format(root, app, directory, tools):
         assert LEGEND_DECIMALS not in app.runs[matrix].options
         legacy_labels, _, legacy_ticks = tick_labels(matrix)
 
-        # 2. Real dialog at 1024x768: Scientific 2 decimals, export PNG/SVG/PDF.
+        # 2. Dialog from a 1024x768 main window: Scientific 2 decimals, export PNG/SVG/PDF.
         root.geometry("1024x768+0+0")
         root.update()
-        screen_w = min(1024, root.winfo_screenwidth())
-        screen_h = min(768, root.winfo_screenheight())
+        # Resizing the main window does not change the screen used for dialog placement.
+        screen_w, screen_h = root.winfo_screenwidth(), root.winfo_screenheight()
 
         def set_scientific(dialog):
             controls = dialog.controls
@@ -147,7 +147,7 @@ def check_heat_map_number_format(root, app, directory, tools):
         svg_text = (out / "heatmap-scientific.svg").read_text(encoding="utf-8")
         assert "2.00e+00" in svg_text
 
-        # 3. Same 1024x768 dialog: Fixed with invalid 2.5 -> FieldError + focus -> fix to 3 -> export.
+        # 3. Same 1024x768 main window: Fixed with invalid 2.5 -> FieldError + focus -> fix to 3 -> export.
         def set_fixed_with_error(dialog):
             controls = dialog.controls
             controls[NUMBER_FORMAT][1].set("Fixed")

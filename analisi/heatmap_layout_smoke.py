@@ -206,11 +206,11 @@ def check_heat_map_layout(root, app, directory, tools):
         legacy_matrix_data = app.runs[mat_idx].result.tables["Heat map data"].copy()
         legacy_matrix_rgba = quad_mesh(mat_idx).get_facecolors().copy()
 
-        # 3. 1024x768 dialog: Every -> size 0 -> None with bad hidden values -> Selected errors -> decimal comma fix.
+        # 3. 1024x768 main window: Every -> size 0 -> None with bad hidden values -> Selected errors -> decimal comma fix.
         root.geometry("1024x768+0+0")
         root.update()
-        screen_w = min(1024, root.winfo_screenwidth())
-        screen_h = min(768, root.winfo_screenheight())
+        # Resizing the main window does not change the screen used for dialog placement.
+        screen_w, screen_h = root.winfo_screenwidth(), root.winfo_screenheight()
 
         def validate_and_configure_en(dialog):
             controls = dialog.controls
