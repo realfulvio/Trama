@@ -13,3 +13,13 @@ Nella scheda **Risultati**, seleziona i fogli da aggiungere.
 | Variable matrix | Correlazioni tra variabili con standardizzazione attiva, covarianze campionarie altrimenti. |
 
 Se selezioni un criterio per trattenere le componenti, i fogli dei contributi e delle correlazioni mostrano le componenti trattenute. Le celle relative a componenti numericamente nulle sono vuote. Ogni riga di un foglio per osservazione riporta l’indice della riga sorgente. I report utilizzano la PCA già calcolata e le opzioni si salvano nel progetto.
+
+## Contorni per punteggi e biplot
+
+In **Contorni**, scegli il tipo di area da tracciare. Puoi usare tutti i punti del grafico oppure una regione per ciascun gruppo della colonna scelta in **Colora gruppi per**.
+
+- **Regione di confidenza della media** usa la covarianza campionaria e il quantile F di Hotelling per la media bivariata.
+- **Ellisse dei dati** usa la covarianza campionaria e un quantile chi quadrato a due gradi di libertà per la copertura sotto un modello normale bivariato.
+- **Inviluppo convesso** unisce le osservazioni esterne del gruppo.
+
+I contorni usano le coordinate delle osservazioni effettivamente disegnate, con la scala del biplot quando lo scegli. Il foglio **Confidence overlays** riporta numerosità, centro e stato per gruppo. Gruppi troppo piccoli o collineari conservano i loro punti e una riga con il motivo. Il livello e il raggruppamento restano salvati quando passi a un’altra vista della PCA. I report selezionati rimangono disponibili anche in Scree e Proporzione di varianza.

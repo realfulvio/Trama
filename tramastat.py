@@ -238,6 +238,7 @@ from analisi.pca_graphs import (COLOR_GROUPS as PCA_COLOR_GROUPS, GRAPH as PCA_G
                                 POINT_VIEWS as PCA_POINT_VIEWS, SHOW_LABELS as PCA_SHOW_LABELS,
                                 TABS as PCA_TABS, VERTICAL as PCA_VERTICAL, validate as validate_pca_graph)
 from analisi.pca_reports import LABEL_KEYS as PCA_REPORT_LABELS, TABS as PCA_REPORT_TABS
+from analisi import pca_overlays
 from analisi.pca_retention import (CHOICE_KEYS as PCA_CHOICE_KEYS, LABEL_KEYS as PCA_SELECT_LABELS,
                                   SELECTION as PCA_SELECTION, TABS as PCA_SELECTION_TABS,
                                   check as check_pca_selection, simulates as pca_simulates,
@@ -1116,7 +1117,7 @@ class AnalysisDialog(simpledialog.Dialog):
         elif self.method == "Multiple regression":
             tabs = {**OLS_TABS, **LOGISTIC_TABS}
         elif self.method == "Principal component analysis":
-            tabs = {**PCA_TABS, **PCA_SELECTION_TABS, **PCA_REPORT_TABS}
+            tabs = {**PCA_TABS, **PCA_SELECTION_TABS, **PCA_REPORT_TABS, **pca_overlays.TABS}
         elif self.method == SPLINE_FIT:
             # Method fields first; the query direction and the drawn output have their own tabs.
             self.fields.tab(options, text=ui("Method"))
@@ -1490,6 +1491,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, GLOBAL_RESPONSE_CHOICES)
                     elif self.method == "Principal component analysis" and label == PCA_SELECTION:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, PCA_CHOICE_KEYS)
+                    elif self.method == "Principal component analysis" and label in (pca_overlays.KIND, pca_overlays.GROUPING):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, pca_overlays.CHOICE_KEYS)
                     elif self.method == "Multiple regression" and label == mlr_weighting.GAUSSIAN_WEIGHTING:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, MLR_CHOICE_KEYS)
                     elif self.method == "Multifactor ANOVA" and label == ANOVA_DIAG_GRAPH:
@@ -1906,6 +1909,7 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method == "Principal component analysis":
             self.controls[PCA_GRAPH][1].trace_add("write", lambda *_: self.show_pca_fields())
             self.controls[PCA_SELECTION][1].trace_add("write", lambda *_: self.show_pca_fields())
+            self.controls[pca_overlays.KIND][1].trace_add("write", lambda *_: self.show_pca_fields())
             self.show_pca_fields()
             self._translate_analysis_labels({
                 "Graph": "analysis.pca.tab",
@@ -1917,6 +1921,7 @@ class AnalysisDialog(simpledialog.Dialog):
                 PCA_COLOR_GROUPS: "analysis.pca.color_groups",
                 **PCA_SELECT_LABELS,
                 **PCA_REPORT_LABELS,
+                **pca_overlays.LABEL_KEYS,
             })
         if self.method == XY_ERRORS:
             for label in ("X error distance", "X lower error", "X upper error", "X error values",
@@ -2619,6 +2624,9 @@ class AnalysisDialog(simpledialog.Dialog):
             inactive.update({PCA_HORIZONTAL, PCA_VERTICAL, PCA_LABEL, PCA_SHOW_LABELS})
         if view not in PCA_POINT_VIEWS:
             inactive.add(PCA_COLOR_GROUPS)
+        overlay_kind = self.controls[pca_overlays.KIND][1].get()
+        inactive.update(name for name, enabled in pca_overlays.active_fields(view in PCA_POINT_VIEWS, overlay_kind).items()
+                        if not enabled)
         return inactive
 
     def _inactive_value(self, kind, control):
@@ -2654,6 +2662,9 @@ class AnalysisDialog(simpledialog.Dialog):
             PCA_SHOW_LABELS: "disabled" if inactive else "normal",
             PCA_COLOR_GROUPS: "readonly" if view in PCA_POINT_VIEWS else "disabled",
         }
+        overlay_kind = self.controls[pca_overlays.KIND][1].get()
+        for label, enabled in pca_overlays.active_fields(view in PCA_POINT_VIEWS, overlay_kind).items():
+            states[label] = ("normal" if label == pca_overlays.LEVEL else "readonly") if enabled else "disabled"
         for label, state in states.items():
             # The widgets stay gridded. Disabled means the view does not use them.
             self.field_rows[label][1].configure(state=state)
@@ -3175,7 +3186,10 @@ class AnalysisDialog(simpledialog.Dialog):
         try:
             for name, (kind, control) in self.controls.items():
                 if name in inactive:
-                    value = self._inactive_value(kind, control)
+                    if name in (pca_overlays.KIND, pca_overlays.GROUPING):
+                        value = control.get() if control.get() in kind else _INACTIVE_OMIT
+                    else:
+                        value = self._inactive_value(kind, control)
                     if value is not _INACTIVE_OMIT:
                         options[name] = value
                     continue
