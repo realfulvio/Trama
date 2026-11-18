@@ -33,6 +33,7 @@ from .extract_rearrange import (COMPLETE, EXTRACT_FIELDS, EXTRACT_FORMATS, EXTRA
 from .fit_quality import OPTIONS as FIT_QUALITY_OPTIONS, check_options as check_fit_options, fit_quality as quality_tables
 from .fit_weights import INVERSE_VARIANCE, NONLINEAR_WEIGHTINGS
 from .forest_plot import FOREST_PLOT, OPTIONS as FOREST_OPTIONS, forest_plot
+from .meta_analysis import META_ANALYSIS, OPTIONS as META_OPTIONS, meta_analysis
 from .frequency import FREQUENCY, FREQUENCY_OPTIONS, frequency
 from .graph_legend import typed_group_token
 from .heatmap import HEAT_MAP, OPTIONS as HEAT_MAP_OPTIONS, heat_map
@@ -272,6 +273,7 @@ METHODS = {
     BEFORE_AFTER: BEFORE_AFTER_OPTIONS,
     TRAJECTORIES: TRAJECTORY_OPTIONS,
     FOREST_PLOT: FOREST_OPTIONS,
+    META_ANALYSIS: META_OPTIONS,
     OUTLIERS: OUTLIER_OPTIONS,
     MONTE_CARLO: MONTE_CARLO_OPTIONS,
     SELECT_TRANSFORM: SELECT_OPTIONS,
@@ -294,7 +296,7 @@ GROUPS = {
                                     "Histogram", FREQUENCY, GOODNESS_OF_FIT,
                                     "Area under curve", "Principal component analysis",
                                     "Adjust a stack of p values", "Control false discoveries",
-                                    "Smooth / differentiate / integrate"),
+                                    "Smooth / differentiate / integrate", META_ANALYSIS),
     "Regression and Curves": ("Linear regression", COMPARE_LINES, "Deming regression", "Multiple regression",
                               "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
@@ -1142,6 +1144,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return subject_trajectories(frame, o)
     if method == FOREST_PLOT:
         return forest_plot(frame, o)
+    if method == META_ANALYSIS:
+        return meta_analysis(frame, o, cancel=cancel)
     if method == OUTLIERS:
         return identify_outliers(frame, o)
     if method == MONTE_CARLO:

@@ -139,6 +139,7 @@ Bubble plot|Grafico a bolle
 Before/after|Prima/dopo
 Subject trajectories|Traiettorie dei soggetti
 Forest plot|Grafico forest
+Meta-analysis of effect estimates|Meta-analisi delle stime
 Identify outliers|Individua valori anomali
 Monte Carlo study|Studio Monte Carlo
 Select and Transform|Seleziona e trasforma
