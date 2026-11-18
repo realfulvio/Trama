@@ -1,0 +1,10 @@
+Name,Group,X,Y
+Original $A,A,0,0
+a2,A,0,2
+,A,6,6
+excluded,A,,4
+b1,B,5,5
+b2,B,6,5
+b3,B,6,6
+single,C,12,0
+no group,,2,3
