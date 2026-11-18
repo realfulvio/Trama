@@ -1546,6 +1546,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 if label in self.controls:
                     self.controls[label][1].trace_add("write", lambda *_: self.show_processing_fields())
             self.show_processing_fields()
+        if self.method == "K-means model selection":
+            criterion = self.controls["Criterion"][1]
+            criterion.trace_add("write", lambda *_: self.show_fields(self.kmeans_visibility()))
+            self.show_fields(self.kmeans_visibility())
         if self.method == "Hierarchical clustering":
             for label in ("Direction", "Row cut", "Column cut", "Graph output", "Distance matrix", "Cophenetic distances"):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_hierarchical_fields())
@@ -2159,6 +2163,12 @@ class AnalysisDialog(simpledialog.Dialog):
 
     def show_processing_fields(self):
         self.show_fields(self.processing_visibility())
+
+    def kmeans_visibility(self):
+        if self.method != "K-means model selection":
+            return {}
+        from analisi.cluster_consensus import KL_SCALING
+        return {KL_SCALING: self.controls["Criterion"][1].get() == "Consensus (17 indices)"}
 
     def hierarchical_visibility(self):
         if self.method != "Hierarchical clustering":
@@ -3134,7 +3144,8 @@ class AnalysisDialog(simpledialog.Dialog):
         name = None
         self.processing_result = None
         inactive = self._inactive_controls()
-        visibility = {**self.processing_visibility(), **self.hierarchical_visibility(), **self.overlay_visibility(),
+        visibility = {**self.processing_visibility(), **self.kmeans_visibility(),
+                      **self.hierarchical_visibility(), **self.overlay_visibility(),
                       **self.extract_visibility(), **self.category_visibility(), **self.contingency_visibility(),
                       **self.parts_visibility(), **self.frequency_visibility(), **self.correlation_visibility(),
                       **self.correlation_details_visibility(),
@@ -11958,6 +11969,8 @@ def smoke(root, app, directory, legacy_reference=None):
         capture(root, "window-survival-cumulative.png")
 
     def check_kmeans_consensus():
+        from analisi.cluster_consensus import KL_SCALING, UNSCALED_WSS, WSS_DROP_RATIO
+
         offsets = np.array([[0., 0.], [6., 0.], [3., 5.]])
         jitter = np.array([[-.3, -.2], [.2, -.3], [.3, .2], [-.2, .3], [0., 0.], [.1, -.1]])
         points = (offsets[:, None, :] + jitter).reshape(-1, 2)
@@ -11972,7 +11985,9 @@ def smoke(root, app, directory, legacy_reference=None):
         def pick_consensus(dialog):
             pick_method(dialog, "K-means model selection")
             select_columns(dialog, "Variables", {"Cluster", "Marker"})
+            assert not dialog.field_rows[KL_SCALING][1].winfo_manager()
             dialog.controls["Criterion"][1].set("Consensus (17 indices)")
+            assert dialog.field_rows[KL_SCALING][1].winfo_manager()
             dialog.controls["Maximum k"][1].set("5")
             dialog.controls["Gap simulations"][1].set("5")
 
@@ -12000,13 +12015,16 @@ def smoke(root, app, directory, legacy_reference=None):
         def narrow_scan(dialog):
             assert dialog.controls["Criterion"][1].get() == "Consensus (17 indices)"
             dialog.controls["Maximum k"][1].set("4")
+            dialog.controls[KL_SCALING][1].set(UNSCALED_WSS)
 
         drive_dialog(AnalysisDialog, narrow_scan)
         app.edit_analysis()
         wait_for_calculation()
         edited = app.runs[index].result.tables["Cluster metrics"]
         assert edited.index.tolist() == [1, 2, 3, 4]
+        assert WSS_DROP_RATIO in edited
         assert app.runs[index].options["Criterion"] == "Consensus (17 indices)"
+        assert app.runs[index].options[KL_SCALING] == UNSCALED_WSS
         app.path = directory / "kmeans-consensus.alab"
         assert app.save()
         app.import_file(app.path)
@@ -13313,6 +13331,13 @@ def smoke(root, app, directory, legacy_reference=None):
             return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "worksheet-statistics":
             check_worksheet_statistics()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "kmeans-consensus":
+            check_kmeans_consensus()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)

@@ -55,6 +55,8 @@ Kaplan–Meier, tabelle a rischio, confronti log-rank e Gehan–Breslow–Wilcox
 
 PCA con scree, scores, loadings e biplot; K-means con selezione del numero di gruppi e consenso a 17 indici; clustering gerarchico, dendrogrammi, heat map, matrici di correlazione ed [ellissi di confidenza con stili per gruppo](confidence-ellipses.md). Correlazione di Pearson, Spearman o Kendall con risultati dettagliati opzionali; correlazione di più risposte contro un controllo; confronto di due correlazioni di Pearson indipendenti sulla scala z di Fisher ([guida](correlation-details.md)).
 
+Nel consenso K-means, **Scala di Krzanowski–Lai** usa di default la correzione per il numero di variabili. **WSS senza riscalatura** usa il rapporto assoluto fra due cali consecutivi della somma dei quadrati entro i gruppi. Il foglio dei risultati lo identifica come **WSS-drop ratio** e il rapporto occupa un solo voto nel consenso.
+
 ## Controllo delle false scoperte
 
 [Control false discoveries](fdr-control.md) applica BH, BY o BKY a due stadi a più colonne p e famiglie esplicite. Distingue p mancanti e famiglie vuote e offre un grafico diagnostico facoltativo. I p aggiustati BKY dipendono dal livello scelto; quelli BH e BY no.
