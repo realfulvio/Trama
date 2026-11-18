@@ -7,6 +7,8 @@ from scipy import stats
 
 from . import stats as engine
 from .advanced import anova_comparisons, kmeans_scan
+from . import kmeans_options
+from .hartigan_wong import IterationLimitError
 from .cluster_consensus import DIMENSION_ADJUSTED, KL_CHOICES, KL_SCALING, UNSCALED_WSS
 from .anova_diagnostics import OPTIONS as ANOVA_DIAG_OPTIONS
 from .anova_diagnostics import active as anova_diagnostics_active, build as build_anova_diagnostics
@@ -234,8 +236,13 @@ METHODS = {
                                 "Standardize": True, "Seed": 42,
                                 "Criterion": ("Silhouette", "Elbow", "Calinski–Harabasz", "Davies–Bouldin", "Gap",
                                               "Consensus (17 indices)"),
-                                "Gap simulations": 20, KL_SCALING: KL_CHOICES},
-    "K-means clustering": {"Variables": MULTIPLE, "Clusters": 2, "Standardize": True, "Seed": 42},
+                                "Gap simulations": 20, KL_SCALING: KL_CHOICES,
+                                kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
+                                kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS},
+    "K-means clustering": {"Variables": MULTIPLE, "Clusters": 2, "Standardize": True, "Seed": 42,
+                           kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
+                           kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
+                           kmeans_options.INITIAL_ROWS: TEXT},
     "Hierarchical clustering": {"Variables": MULTIPLE, "Observation labels": OPTIONAL, **HIERARCHICAL_OPTIONS},
     "Scatter / confidence ellipse": {"X": None, "Y": None, "Group": OPTIONAL, **ELLIPSE_OPTIONS},
     COLUMN_GRAPH: {"Variables": MULTIPLE, "Graph style": COLUMN_STYLES, **CATEGORY_OPTIONS},
@@ -479,7 +486,8 @@ def _distribution(method, frame, o):
 
 def _kmeans(frame, o):
     variables = o["Variables"]
-    fit = engine.kmeans(frame, variables, o["Clusters"], o["Standardize"], o["Seed"])
+    fit = engine.kmeans(frame, variables, o["Clusters"], o["Standardize"], o["Seed"],
+                        **kmeans_options.fit_options(kmeans_options.CLUSTERING, frame, o))
     figure, axes = _plot("K-means", variables[0], variables[1] if len(variables) > 1 else "Cluster")
     for label in sorted(fit.labels.unique()):
         subset = fit.data[fit.labels == label]
@@ -490,7 +498,15 @@ def _kmeans(frame, o):
     tables = {"Assignments": fit.data.assign(Cluster=fit.labels),
               "Centers (fitting scale)": fit.centers.set_axis(range(1, len(fit.centers) + 1)),
               "Fit": _report({"Within-cluster SS": fit.inertia, "N": len(fit.data)})}
+    _record_kmeans_algorithm(tables["Fit"], o)
     return Result(tables, figure)
+
+
+def _record_kmeans_algorithm(report, options):
+    if options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
+        report.loc[kmeans_options.ALGORITHM, "Value"] = kmeans_options.HARTIGAN
+        report.loc[kmeans_options.MAX_ITERATIONS, "Value"] = options.get(
+            kmeans_options.MAX_ITERATIONS, kmeans_options.DEFAULT_ITERATIONS)
 
 
 def _consensus_selection(scan, o):
@@ -513,6 +529,7 @@ def _consensus_selection(scan, o):
         report[KL_SCALING] = UNSCALED_WSS
     report.update({f"Votes for k = {k}": int(votes) for k, votes in counts.items()})
     tables = {"Cluster metrics": scan.metrics, "Consensus votes": scan.votes, "Selection": _report(report)}
+    _record_kmeans_algorithm(tables["Selection"], o)
     if scan.fit is not None:
         label = "Cluster"
         suffix = 2
@@ -529,7 +546,8 @@ def _cluster_selection(frame, o):
                  "Consensus (17 indices)": "consensus"}[o["Criterion"]]
     scan = kmeans_scan(frame, o["Variables"], o["Maximum k"], o["Standardize"], o["Seed"],
                        criterion, min_k=o.get("Minimum k", 1), gap_replicates=o.get("Gap simulations", 20),
-                       kl_scaling=o.get(KL_SCALING, DIMENSION_ADJUSTED))
+                       kl_scaling=o.get(KL_SCALING, DIMENSION_ADJUSTED),
+                       **kmeans_options.fit_options(kmeans_options.SELECTION, frame, o))
     if criterion == "consensus":
         return _consensus_selection(scan, o)
     metric = {"elbow": "WSS", "gap": "Gap"}.get(criterion, o["Criterion"])
@@ -543,6 +561,7 @@ def _cluster_selection(frame, o):
         axes.legend()
     tables = {"Model metrics": scan.metrics,
               "Selection": _report({"Criterion": o["Criterion"], "Suggested k": scan.recommended_k})}
+    _record_kmeans_algorithm(tables["Selection"], o)
     if scan.fit is not None:
         tables["Assignments"] = scan.fit.data.assign(Cluster=scan.fit.labels)
     return Result(tables, figure)
@@ -1037,12 +1056,14 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return robust_curve(frame, o)
     if method == "Multifactor ANOVA":
         return _anova(frame, o)
-    if method == "K-means model selection":
-        return _cluster_selection(frame, o)
+    if method in kmeans_options.METHODS:
+        solve = _cluster_selection if method == kmeans_options.SELECTION else _kmeans
+        try:
+            return solve(frame, o)
+        except IterationLimitError as error:
+            raise FieldError(kmeans_options.MAX_ITERATIONS, str(error)) from error
     if method == "Kaplan–Meier survival":
         return _classic_analysis(method, frame, o, "Time", _survival)
-    if method == "K-means clustering":
-        return _kmeans(frame, o)
     if method == "Hierarchical clustering":
         return hierarchical_result(frame, o)
     if method == SELECT_TRANSFORM:
