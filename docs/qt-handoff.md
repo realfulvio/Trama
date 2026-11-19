@@ -15,6 +15,23 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Modelli di analisi riutilizzabili su Qt, pacchetto Modelli-Analisi-Qt (2026-11-19)
+
+PR draft verso main (ramo `claude/project-thread-dvb3yf`, base main 4c07db6). Windows NON PROVATO. Guida per chi usa il programma: `docs/qt-analysis-templates.md`.
+
+- Nuovo: **File → Salva come modello…** e **File → Nuovo progetto da modello…** (anche nel gruppo File della barra). Formato `.tramatpl`, JSON schema 1, solo procedura: fogli e colonne, formule, analisi collegate con opzioni, etichette e stili, layout. Nessuna osservazione, niente Info, forme o annotazioni (contate nell'anteprima). Scrittura atomica; rifiuta il progetto aperto e quelli delle altre schede anche via link.
+- Motore senza Qt: `analisi/analysis_templates.py` (`write_template`, `read_template`, `instantiate_template`, più `plan_template`, `mapping_problems`, `default_mapping`). Lettura rigorosa: schema, chiavi doppie, NaN, campi ignoti, formule, cicli. Ogni applicazione dà UUID nuovi alle analisi.
+- Interfaccia: `trama_qt/templates.py` (dialogo con anteprima, assistente con sorgenti per tabella, griglia di colonne, CSV/TSV letti su un worker, errori sopra la griglia con focus sul campo). La costruzione gira sul worker del job con Annulla; la scheda vuota iniziale si riusa, altrimenti scheda nuova (max 6). Testi EN/IT nel dizionario locale `_TEXT` di quel modulo, non in `strings.py`.
+- Scelte fuori specifica, da rivedere: una sorgente presa da un foglio del progetto copia i valori visibili (le formule della sorgente diventano valori, le esclusioni non passano); una formula che legge Info blocca il salvataggio invece di toglierla.
+- Da provare su Windows, a 100% e 150%:
+  - Aprire `tests/data/qt_templates/progetto-originale.alab`, aprire il layout, File → Salva come modello…: anteprima leggibile, salvare; il `.tramatpl` non contiene `SOLO_ORIGINALE_Ω`.
+  - File → Nuovo progetto da modello…, Aggiungi CSV/TSV… con `nuova-calibrazione.csv` e `nuovo-controllo.csv`, mappatura di `mappatura.json`; prima provare Dose due volte (errore sopra la griglia, focus sul campo). Pendenze 6 e 5 nel layout.
+  - Salva con nome `.alab`, chiudere, riaprire dal layout, cambiare una misura del Controllo: il grafico si aggiorna.
+  - Tastiera: Tab tra sorgenti e griglia, Invio crea, Esc annulla. Tema scuro.
+  - `python -m trama_qt --smoke CARTELLA --only qt-analysis-templates` e lo smoke completo.
+- Test attesi: `tests.test_analysis_templates` 19/19, `tests.test_qt_templates` 10/10, contratto esterno del pacchetto OK, verificatore 7/7.
+- Conflitti attesi con #57–#69: `trama_qt/window.py` (import in testa, due azioni in `_build` dopo `save_as`, gruppo File della barra, una riga in `update_actions`, due metodi prima di `recalculate`), `trama_qt/smoke.py` (due righe dopo `project_tabs`), `trama_qt/app.py` (ramo `--only` di `--smoke`), cima di questo file.
+
 ### Più progetti in schede nella finestra Qt, pacchetto Progetti 0.95 (2026-11-19)
 
 PR draft verso main (ramo `claude/project-thread-hz1cm2`, base main 7a7340c). Windows NON PROVATO.

@@ -1,0 +1,17 @@
+{
+  "Analisi α": [
+    "Campioni nuovi",
+    {
+      "X": "Dose",
+      "Y": "Segnale (mV)",
+      "Badge": "Campione"
+    }
+  ],
+  "Controllo": [
+    "Controlli nuovi",
+    {
+      "Time": "t (s)",
+      "Signal": "Misura"
+    }
+  ]
+}

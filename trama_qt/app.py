@@ -55,7 +55,10 @@ def main(argv=None):
         if position >= len(argv):
             print("Usage: python -m trama_qt --smoke FOLDER")
             return 2
-        from .smoke import run
+        if "--only" in argv and argv[argv.index("--only") + 1:argv.index("--only") + 2] == ["qt-analysis-templates"]:
+            from .templates_smoke import run_dedicated as run  # Templates only: EN/IT, light and dark.
+        else:
+            from .smoke import run
         status = run(argv[position])
         print(f"Qt smoke: {status} ({argv[position]})")
         return 0 if status == "PASS" else 1
