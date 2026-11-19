@@ -37,6 +37,7 @@ from .flow import FlowLayout
 from .gallery import GalleryPage, g as gallery_text
 from .labels import method_label
 from .models import WorksheetModel, column_label
+from .recovery import RecoveryDialog, RecoverySettingsDialog, r as recovery_text
 from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, SAVED_VIEWS,
                       CalculationControl, Project, Run, compute, run_view, stored_prism_view)
 from .sessions import MAX_PROJECT_TABS, Sessions
@@ -209,8 +210,9 @@ class Page(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, *, recovery=None):
         super().__init__()
+        self.recovery = recovery  # Recovery copies (trama_qt/recovery.py); None in tests and smoke runs.
         self.sessions = Sessions(Project())  # One per project tab; ``project`` and ``selected`` are the active one's.
         self.project_number = 1
         self._queued = []  # Files that arrived (drop, command line) while a calculation ran.
@@ -244,6 +246,8 @@ class MainWindow(QMainWindow):
             self.resize(min(1280, screen.width() - 40), min(820, screen.height() - 60))
         else:
             self.resize(1180, 760)
+        if self.recovery is not None:
+            self.recovery.attach(self)
 
     # == the active project tab ===================================================================
     # The window works on the active session; switching tabs swaps these without copying any data.
@@ -311,6 +315,9 @@ class MainWindow(QMainWindow):
           shortcut="Ctrl+I")
         a("save", tr("command.save_project"), self.save, icon="save", shortcut="Ctrl+S")
         a("save_as", tr("command.save_project_as"), lambda: self.save(as_new=True), shortcut="Ctrl+Shift+S")
+        a("recover", recovery_text("recover"), self.recover_projects, icon="history", tip=recovery_text("recover_tip"))
+        a("recovery_settings", recovery_text("settings"), self.recovery_settings, icon="save",
+          tip=recovery_text("settings_tip"))
         a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+E")
         a("export_options", tr("command.export_with_options"), self.export_with_options, icon="download")
         a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")
@@ -489,7 +496,8 @@ class MainWindow(QMainWindow):
         layout.addLayout(top)
         self.ribbon = QStackedWidget()
         groups = [
-            (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "close_project", "|",
+            (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "close_project", "recover",
+                                         "|",
                                          "export", "export_options",
                                          "export_pdf", "|",
                                          "classic", "language", "about"]),
@@ -505,7 +513,7 @@ class MainWindow(QMainWindow):
                                           "edit_layout", "|", "export", "export_options"]),
             (tr("ribbon.modern.view"), ["gallery", "navigator", "|", "theme_system", "theme_light", "theme_dark", "|",
                                          "language", "classic"]),
-            (tr("processes.settings"), ["language", "processes"]),
+            (tr("processes.settings"), ["language", "processes", "recovery_settings"]),
         ]
         for title, keys in groups:
             self.ribbon_tabs.addTab(title)
@@ -664,6 +672,8 @@ class MainWindow(QMainWindow):
         for key in ("next_project", "previous_project"):  # Switching waits for the calculation (Cancel stays on).
             self.actions[key].setEnabled(idle and len(self.sessions) > 1)
         self.actions["new_project"].setEnabled(idle and not self.sessions.full())
+        self.actions["recover"].setEnabled(idle and self.recovery is not None)
+        self.actions["recovery_settings"].setEnabled(self.recovery is not None)
         self.project_tabs.setEnabled(idle)
         self.new_tab_button.setEnabled(idle and not self.sessions.full())
         self.actions["export"].setEnabled(kind is not None)
@@ -2221,6 +2231,8 @@ class MainWindow(QMainWindow):
         if not self.prepare_project_change(lambda: self.close_project(session)) or not self.confirm_saved():
             return False
         closing = self.sessions.active
+        if self.recovery is not None:  # Saved or discarded: its recovery copies go (Cancel returned above).
+            self.recovery.forget(closing.project)
         target = self.sessions.neighbour(closing)
         if target is None:
             self._drop_gallery()
@@ -2301,15 +2313,7 @@ class MainWindow(QMainWindow):
                 titles = project.load(path)  # Read first: a file that cannot be opened changes no tab.
                 if suffix != ".alab":
                     project.origin, project.dirty = path, False
-                if reuse:
-                    self._drop_gallery()
-                    self.gallery_view = {"kind": None, "text": ""}
-                    self.dispose_inspector()
-                    self.info_editor = None
-                    self.sessions.active.reset(project)
-                else:
-                    self.project_number = number
-                    self._activate(self.sessions.add(project))
+                self._put_project(project, reuse=reuse)
                 self.status(tr("status.opened", name=path.name))
             elif import_data and suffix in TEXT_SUFFIXES:  # Import text data: choose rows, columns and format.
                 from .text_import import TextImportDialog
@@ -2333,6 +2337,53 @@ class MainWindow(QMainWindow):
         else:
             self.refresh()
 
+    def _put_project(self, project, *, reuse):
+        """Show a project just read in the empty active tab (``reuse``) or in a new tab."""
+        if reuse:
+            self._drop_gallery()
+            self.gallery_view = {"kind": None, "text": ""}
+            self.dispose_inspector()
+            self.info_editor = None
+            if self.recovery is not None:
+                self.recovery.forget(self.project)
+            project.number = self.project.number
+            self.sessions.active.reset(project)
+        else:
+            self.project_number = max(self.project_number + 1, project.number)
+            project.number = self.project_number
+            self._activate(self.sessions.add(project))
+
+    # == recovery copies ==========================================================================
+    def room_for_project(self):
+        return self.project.is_empty() or not self.sessions.full()
+
+    def place_project(self, project):
+        """Open a project read elsewhere (a recovered copy) in its own tab. False when the active tab must stay."""
+        if not self.room_for_project() or not self.prepare_project_change():
+            return False
+        self._put_project(project, reuse=self.project.is_empty())
+        sheets = [title for title in project.tables if not stored_prism_view(project.tables[title])]
+        if sheets:
+            self.show_sheet("data", sheets[0])
+        elif project.info_sheets:
+            self.show_sheet("info", next(iter(project.info_sheets)))
+        else:
+            self.refresh()
+        return True
+
+    def recover_projects(self):
+        """File → Recover projects…: choose copies to reopen, leave for later or delete."""
+        if self.recovery is None or self.busy():
+            return
+        self.recovery.hide_notice()
+        dialog = RecoveryDialog(self.recovery, self)
+        if dialog.exec() == RecoveryDialog.DialogCode.Accepted and dialog.chosen:
+            self.recovery.recover(dialog.chosen)
+
+    def recovery_settings(self):
+        if self.recovery is not None:
+            RecoverySettingsDialog(self.recovery, self).exec()
+
     def save(self, *, as_new=False):
         if self.busy() or not self.settle_graph_draft():
             return False
@@ -2341,7 +2392,8 @@ class MainWindow(QMainWindow):
             return False
         path = self.project.path if not as_new else None
         if path is None:
-            suggested = (self.project.origin.with_suffix(".alab").name if self.project.origin else "")
+            suggested = (self.project.origin.with_suffix(".alab").name if self.project.origin
+                         else self.project.save_suggestion or "")
             name, _ = QFileDialog.getSaveFileName(self, tr("command.save_project_as"), suggested,
                                                   f"{tr('prompt.project_filetype')} (*.alab)")
             if not name:
@@ -2357,6 +2409,8 @@ class MainWindow(QMainWindow):
         except (ValueError, OSError, TypeError) as error:
             self.error(error)
             return False
+        if self.recovery is not None:
+            self.recovery.saved(self.project)
         self.status(tr("status.saved", name=path.name))
         self.refresh()
         return True
@@ -2599,4 +2653,6 @@ class MainWindow(QMainWindow):
         self.timer.stop()
         self._drop_gallery()
         self.worker.shutdown(wait=False, cancel_futures=True)
+        if self.recovery is not None:  # Every project was saved or discarded: their copies go.
+            self.recovery.shutdown([session.project for session in self.sessions])
         event.accept()

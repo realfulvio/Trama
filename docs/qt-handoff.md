@@ -15,6 +15,22 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Recupero progetti dopo una chiusura anomala, pacchetto Recupero-Progetti-Qt (2026-11-19)
+
+PR draft verso `main` dal ramo `claude/project-thread-urwia4`, base `main` `4c07db6` (0.95.0 beta, la base del pacchetto). Commit: `c0cadac` motore, `8aca18d` interfaccia, poi collaudo e guida. **Windows NON PROVATO.** Guida per chi usa il programma e note per sviluppatori: `docs/qt-recovery.md` (va collegata al menu Aiuto e al portabile: decide il coordinatore).
+
+- Nuovo: copie di recupero dei progetti con modifiche confermate e non salvate. **Impostazioni → Copie di recupero…** (attive, ogni 30 s; 15/30/60/120), **File → Recupera progetti…** (`window.actions["recover"]`), avviso sotto la barra comandi all'avvio se ci sono copie, stato «Ultima copia di recupero hh:mm:ss» nella barra di stato. Testi EN/IT in `trama_qt/recovery.py` (`r()`), non in `strings.py`.
+- Motore senza Qt: `trama_qt/recovery_store.py` (verificatore del pacchetto 6/6). Copie in `%APPDATA%\TramaStat\recovery` (Linux `$XDG_CONFIG_HOME/tramastat/recovery`), lease per finestra in `recovery/leases`.
+- `MainWindow(recovery=None)` è il default: test e smoke esistenti non scrivono nel profilo. Solo `app.main` crea `RecoveryController.for_profile()`.
+- Da provare su Windows (portabile, a 100% e 150% di scala reale):
+  - `python -m trama_qt.recovery_drill CARTELLA` (o lo stesso col Python del portabile): avvia un Trama separato con APPDATA temporanea, aspetta le due copie, termina solo quel PID (TerminateProcess), riapre, recupera una copia, rinvia l'altra e la riapre da File, Salva con nome Annulla/OK, originale con byte identici; poi originale cambiato fuori e indice rovinato. Esito in `CARTELLA/status.txt` e `report.json`, schermate EN/IT anche in tema scuro.
+  - A mano: aprire `tests/data/qt_recovery/misure-salvate.alab`, cambiare una cella, aprire un secondo progetto nuovo e scriverci un valore, aspettare «Ultima copia di recupero» (30 s), chiudere Trama da Gestione attività. Riaprire `tramastat.exe`: avviso con 2 copie, Recupera, salvataggio con nuovo nome nelle due schede. Controllare `%APPDATA%\TramaStat\recovery` vuota dopo i salvataggi/scarti.
+  - Due istanze aperte insieme: la seconda non offre le copie della prima (il dialogo dice «Altre N copie appartengono a un'altra finestra»).
+  - Cartella `recovery` in sola lettura (Proprietà → Sicurezza): la barra di stato dice «Copia di recupero non riuscita · ultima …», una sola riga di messaggio, nessuna finestra.
+  - Dialogo e avviso leggibili a 150% e nel tema scuro; colonne del dialogo con percorsi lunghi (elisi al centro).
+- Test attesi: `tests.test_recovery_store` 21/21, `tests.test_qt_recovery` 24/24, `tests.test_qt_projects` e `tests.test_qt_shell` invariati. Misure (container Linux, due schede 10.000×30): cattura sul thread GUI ~2 ms per scheda, pausa massima della GUI durante la scrittura ~22 ms, scrittura in sottofondo ~0,4 s e 5,8 MB per copia, nessuna riscrittura con dati fermi per due intervalli (`python tests/perf_qt_recovery.py`).
+- Conflitti attesi: `window.py` (import, costruttore, azioni `recover`/`recovery_settings` e gruppi File/Impostazioni della barra, `update_actions`, `close_project`, `open_path` → `_put_project`, `save`, `closeEvent`) con le PR Qt aperte #63 (Esporta più figure), #64 (Stili di figura), #65 (Report riproducibili, anche gruppo File) e #66 (Unisci fogli); `app.py` (creazione della finestra); `project.py` (`Project.__init__`, `dirty` diventa proprietà, `save`, `sync_links` → `_persist_links`); `analisi/data.py` (`save_project` diviso in `project_document`/`project_bytes`, stesso output); cima di questo file.
+
 ### Più progetti in schede nella finestra Qt, pacchetto Progetti 0.95 (2026-11-19)
 
 PR draft verso main (ramo `claude/project-thread-hz1cm2`, base main 7a7340c). Windows NON PROVATO.
