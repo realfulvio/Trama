@@ -137,7 +137,7 @@ class QtShellTests(unittest.TestCase):
         self.wait()
         self.assertIsNotNone(window.project.runs[0].result)
 
-        from trama_qt.window import safe_csv, save_figure
+        from trama_qt.window import export_graph, safe_csv
         table = next(iter(window.project.runs[0].result.tables.values()))
         safe_csv(self.folder / "table.csv", table, index=True)
         self.assertTrue((self.folder / "table.csv").stat().st_size > 0)
@@ -147,7 +147,7 @@ class QtShellTests(unittest.TestCase):
             self.wait()
             figure = window.project.runs[index].result.figure
             canvas = figure.canvas
-            save_figure(figure, self.folder / "graph.svg", dpi=300)
+            export_graph(figure, self.folder / "graph.svg")
             self.assertIs(figure.canvas, canvas)
             self.assertTrue((self.folder / "graph.svg").read_text(encoding="utf-8").lstrip().startswith("<?xml"))
 
@@ -252,6 +252,31 @@ class QtShellTests(unittest.TestCase):
         window.open_sheet(("layout", 0))
         self.wait()
         self.assertIsNotNone(window.project.layout_figure(window.project.layouts[0]))
+
+        # Layout export (vector PDF/SVG, raster PNG) and the multi-page PDF of graphs and layouts.
+        layout = window.project.layouts[0]
+        for name in ("layout.pdf", "layout.svg", "layout.png"):
+            window.project.export_layout(layout, self.folder / name)
+            self.assertGreater((self.folder / name).stat().st_size, 1000, name)
+        from trama_qt.pdf_bundle import PdfBundleDialog, bundle_sheets
+        for index in range(len(window.project.runs)):
+            window.open_sheet(("graph", index))
+            self.wait()
+        entries, notes = bundle_sheets(window.project, range(len(window.project.runs)), ())
+        self.assertEqual([entry.kind for entry in entries], ["Graph", "Graph", "Layout"])
+        dialog = PdfBundleDialog(window, entries, notes)
+        dialog.width.setText("abc")
+        dialog.accept()
+        self.assertIsNone(dialog.result)
+        dialog.width.setText("120")
+        dialog.list.item(0).setSelected(False)
+        dialog.accept()
+        self.assertEqual(dialog.result["refs"], [entries[1].ref, entries[2].ref])
+        pages = window.project.export_pdf_pages(dialog.result["refs"], self.folder / "bundle.pdf",
+                                                dialog.result["settings"], ["a", "b"])
+        self.assertEqual(pages, 2)
+        import pypdfium2 as pdfium
+        self.assertEqual(len(pdfium.PdfDocument(str(self.folder / "bundle.pdf"))), 2)
 
     def test_insert_delete_rename_and_exclude(self):
         window = self.window

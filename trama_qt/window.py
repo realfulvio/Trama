@@ -5,7 +5,6 @@ import subprocess
 import sys
 
 from matplotlib.backend_bases import FigureCanvasBase
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QStringListModel, Qt, QTimer
@@ -27,7 +26,7 @@ from . import theme
 from .analysis_dialog import AnalysisDialog
 from .labels import method_label
 from .models import WorksheetModel, column_label
-from .project import (DATA_SUFFIXES, OPEN_FILTER, PROJECT_SUFFIXES, CalculationControl, Project, compute,
+from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, CalculationControl, Project, compute,
                       run_view, stored_prism_view)
 from .sheet import FrameView, WorksheetView
 from .strings import qt
@@ -72,14 +71,12 @@ def safe_csv(path, frame, index=False):
     data.to_csv(path, index=index, encoding="utf-8-sig")
 
 
-def save_figure(figure, path, **options):
-    """Write a figure through a private Agg canvas, so the one on screen is never replaced."""
-    previous = figure.canvas
-    FigureCanvasAgg(figure)
-    try:
-        figure.savefig(path, **options)
-    finally:
-        figure.set_canvas(previous)
+def export_graph(figure, path):
+    """A graph at its own size, 300 dpi for images, verified before it replaces the file."""
+    from analisi.figure_export import export_figure
+    suffix = Path(path).suffix.lower()
+    fmt = {".svg": "svg", ".pdf": "pdf", ".tif": "tiff", ".tiff": "tiff"}.get(suffix, "png")
+    export_figure(figure, path, {"format": fmt, "dpi": 300} if fmt in {"png", "tiff"} else {"format": fmt})
 
 
 class Job:
@@ -194,6 +191,7 @@ class MainWindow(QMainWindow):
         a("save", tr("command.save_project"), self.save, icon="save", shortcut="Ctrl+S")
         a("save_as", tr("command.save_project_as"), lambda: self.save(as_new=True), shortcut="Ctrl+Shift+S")
         a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+E")
+        a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-text")
         a("classic", qt("qt.classic"), self.open_classic, icon="history", tip=qt("qt.classic_hint"))
         a("language", tr("command.language"), self.choose_language, icon="type")
         a("about", qt("qt.about"), self.about, icon="info")
@@ -322,7 +320,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(top)
         self.ribbon = QStackedWidget()
         groups = [
-            (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "|", "export", "|",
+            (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "|", "export", "export_pdf", "|",
                                          "classic", "language", "about"]),
             (tr("ribbon.modern.home"), ["paste", "cut", "copy", "|", "undo", "redo", "|", "new_table", "insert_row",
                                          "insert_column", "exclude", "|", "*analyze", "new_graph", "|", "recalculate",
@@ -423,6 +421,8 @@ class MainWindow(QMainWindow):
         for key in ("open", "import", "new_project", "save", "save_as", "classic"):
             self.actions[key].setEnabled(idle)
         self.actions["export"].setEnabled(kind is not None)
+        self.actions["export_pdf"].setEnabled(idle and (bool(self.project.layouts) or any(
+            run.result is not None and run.result.figure is not None for run in self.project.runs)))
 
     # == navigator ================================================================================
     def _section(self, title):
@@ -1179,8 +1179,8 @@ class MainWindow(QMainWindow):
                     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
             elif kind in {"graph", "layout", "saved-layout"}:
                 if kind == "layout":
-                    figure = self.project.layout_figure(self.project.layouts[key])
-                    name = self.project.layouts[key].name
+                    layout = self.project.layouts[key]
+                    figure, name = self.project.layout_figure(layout), layout.name
                 else:
                     run = self.project.runs[key]
                     figure = run.result.figure if run.result is not None else None
@@ -1193,7 +1193,10 @@ class MainWindow(QMainWindow):
                 if path:
                     if not Path(path).suffix:
                         path += {"SVG": ".svg", "PDF": ".pdf", "TIFF": ".tif"}.get(chosen.split(" ")[0], ".png")
-                    save_figure(figure, path, dpi=300)
+                    if kind == "layout":
+                        self.project.export_layout(layout, path)
+                    else:
+                        export_graph(figure, path)
             else:
                 if kind == "data":
                     frame, index = self.project.tables[key].frame(mask_excluded=True), False
@@ -1215,6 +1218,35 @@ class MainWindow(QMainWindow):
                 self.status(qt("qt.exported", name=Path(path).name))
         except (OSError, ValueError, TypeError) as error:
             self.error(error)
+
+    def export_pdf_bundle(self):
+        if self.busy():
+            return
+        from .pdf_bundle import PdfBundleDialog, bundle_sheets
+        graphs = [index for index, run in enumerate(self.project.runs) if preferred_view(run, run.result) == "graph"
+                  or (run.result is not None and run.result.figure is not None)]
+        entries, notes = bundle_sheets(self.project, graphs, PRISM_GRAPH_METHODS)
+        if not entries:
+            self.error(" ".join([tr("pdf.empty"), *notes]))
+            return
+        dialog = PdfBundleDialog(self, entries, notes)
+        if dialog.exec() != PdfBundleDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, tr("pdf.title"), f"{self.project.title}.pdf", "PDF (*.pdf)")
+        if not path:
+            return
+        if not path.lower().endswith(".pdf"):
+            path += ".pdf"
+        by_ref = {entry.ref: entry for entry in entries}
+        chosen = [by_ref[ref] for ref in dialog.result["refs"]]
+        try:
+            pages = self.project.export_pdf_pages([entry.ref for entry in chosen], path, dialog.result["settings"],
+                                                  [entry.label for entry in chosen])
+        except (OSError, ValueError, TypeError) as error:
+            self.error(error)
+            return
+        count = tr("pdf.one_page") if pages == 1 else tr("pdf.many_pages", count=pages)
+        self.status(tr("pdf.exported", pages=count, name=Path(path).name))
 
     def open_classic(self):
         if self.busy():

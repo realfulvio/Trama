@@ -520,6 +520,42 @@ class Project:
         self.dirty = True
         return key
 
+    # -- export ---------------------------------------------------------------------------------------
+    def layout_panel_figures(self, layout):
+        runs = self.layout_runs(layout)
+        if len(runs) != len(layout.panels) or any(run.result is None or run.result.figure is None for run in runs):
+            raise ValueError(ui("Recalculate the layout panels before exporting the layout."))
+        if any(run.calculation_error for run in runs):
+            raise ValueError(tr("reference.stale_export"))
+        return tuple(run.result.figure for run in runs)
+
+    def layout_pdf_page(self, layout):
+        from analisi.layout_pdf import PdfLayoutPage
+        return PdfLayoutPage(layout.name, layout.columns, self.layout_panel_figures(layout), layout.paper,
+                             layout.background)
+
+    def export_layout(self, layout, path):
+        """PDF and SVG keep the panels vector; PNG and TIFF render the page at 300 dpi."""
+        from analisi.figure_export import export_figure, export_pdf_bundle
+        suffix = Path(path).suffix.lower()
+        if suffix == ".pdf":
+            export_pdf_bundle([self.layout_pdf_page(layout)], path, {"format": "pdf"})
+        elif suffix == ".svg":
+            from analisi.layout_svg import export_layout_svg
+            export_layout_svg(layout.name, layout.columns, self.layout_panel_figures(layout), path, {"format": "svg"},
+                              paper=layout.paper, background=layout.background)
+        else:
+            figure = compose_layout(layout.name, layout.columns, self.layout_panel_figures(layout),
+                                    paper=layout.paper, background=layout.background)
+            export_figure(figure, path, {"format": "tiff" if suffix in {".tif", ".tiff"} else "png", "dpi": 300})
+
+    def export_pdf_pages(self, refs, path, settings, names):
+        from analisi.figure_export import export_pdf_bundle
+        pages = [self.runs[key].result.figure if kind == "graph" else self.layout_pdf_page(self.layouts[key])
+                 for kind, key in refs]
+        export_pdf_bundle(pages, path, settings, names)
+        return len(pages)
+
     # -- graph format -----------------------------------------------------------------------------
     def graph_format_problem(self, run):
         """Why this graph cannot be formatted, or None (as in the classic window)."""

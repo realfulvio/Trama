@@ -26,7 +26,7 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 ## Cosa resta su Tk (fasi successive)
 
 1. Inspector dei grafici, forme e annotazioni; editor di interruzioni, guide e bande degli assi e del formato della legenda.
-2. Esportazione PDF multipagina.
+2. Esporta con opzioni (dimensione in mm, DPI, testo SVG) come nella finestra classica.
 3. Famiglie di esperimenti, interfaccia delle catene di analisi, confronti a coppie sul grafico.
 4. Modifica dei fogli info, procedura guidata di importazione testo.
 5. Porting dello smoke test (`--smoke`) su Qt e collaudo DPI su Windows reale.
