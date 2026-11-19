@@ -15,6 +15,24 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Canvas Qt · Disegno e modifica di forme col mouse sul grafico (2026-11-19, pacchetto 01 della 0.95)
+
+Ramo `claude/project-thread-9kot5b`, base `main` `7a7340c`. Windows NON PROVATO. Riferimento utente e per sviluppatori in `docs/qt-canvas-095.md`.
+
+- Scheda Grafico → **Disegna** e cinque pulsanti nella barra del grafico: Seleziona/sposta, Linea, Freccia, Rettangolo, Ellisse (`window.actions["draw_*"]`). Trascinare disegna, cliccare seleziona, trascinare sposta, le maniglie ridimensionano; frecce, Canc, doppio clic/Invio (editor numerico), tasto destro (menu come nella classica), Ctrl+C/X/V, Esc.
+- Controller spostato senza Tk in `analisi/shape_interaction.py`; `analisi/shape_canvas.py` è ora solo l'adattatore Tk, con lo stesso comportamento (63 test delle forme sotto Tk OK). Cambia anche la classica in due punti voluti: i modificatori si leggono anche da `event.modifiers`, e un ridimensionamento lascia l'altro estremo identico a come era salvato.
+- Annulla/Ripeti: cronologia per grafico in `Run.shape_history`, mai condivisa con la griglia o con altri grafici. Con un grafico che ha passi di disegno (o con uno strumento acceso) Ctrl+Z/Ctrl+Y agiscono su quello; altrove, sulla griglia come prima. Un trascinamento = un passo. L'editor numerico registra anch'esso un passo.
+- Fuori perimetro (strumenti spenti, con il motivo nella nota e nel suggerimento): grafici importati, layout, assi interrotti, più pannelli o asse gemello. Salvare, esportare, ricalcolare o cambiare foglio durante un trascinamento chiude l'anteprima. Le maniglie non finiscono in PNG/SVG/PDF/`.alab`.
+- Conflitti attesi: `trama_qt/window.py` (azioni, `_canvas`, `undo`, `update_actions`, 7 punti piccoli), `trama_qt/project.py` (`Run.shape_history`, `commit_style`), `trama_qt/strings.py`, `trama_qt/smoke.py` (una chiamata) e la prima voce di questo file con #57, #58 e #59.
+- Nota per il Vetro (#59): le quattro icone nuove (`mouse-pointer-2`, `slash`, `move-up-right`, `circle`) sono Lucide ISC in `assets/qt/icons/`, usate con `theme.icon`. Nel tema scuro attuale di main le icone delle azioni non si ricolorano; lo risolve `SvgIcon` della #59.
+- Da provare su Windows, a 100% e 150%, con il mouse vero:
+  - Disegnare un rettangolo, una freccia, una linea e un'ellisse; spostarli e ridimensionarli dalle maniglie; Ctrl per quadrato/cerchio, Maiusc per tenere lo strumento.
+  - Copia e incolla, taglia e incolla, tasto destro, doppio clic; Ctrl+Z/Ctrl+Y sul grafico e poi sulla griglia.
+  - Esc a metà trascinamento, cambio di finestra con Alt+Tab durante il trascinamento (deve annullare l'anteprima), zoom o pan della barra del grafico con uno strumento acceso.
+  - Salva, riapri, esporta PNG, SVG e PDF: senza quadratini di selezione. Grafico con asse interrotto: strumenti spenti con il motivo.
+  - `python -m trama_qt --smoke CARTELLA` alle due scale.
+- Test attesi: `tests.test_shape_interaction` 15/15, `tests.test_qt_canvas` 45/45, `tests.test_qt_shell` 21/21, smoke Qt PASS; verificatore del pacchetto `python verify.py --repo <checkout>` PASS.
+
 ### Rifinitura grafica Vetro su Qt · ramo `claude/project-thread-n2ib1i` (2026-11-19)
 
 Ramo nuovo da main `7a7340c`, solo interfaccia: `analisi/` non è toccato. Anteprima con schermate prima/dopo e video in `/mnt/project-files/qt-rifinitura-1119/` (fuori dal repo).

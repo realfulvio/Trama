@@ -83,6 +83,17 @@ _TEXT = {
     "qt.edited": ("Data updated.", "Dati aggiornati."),
     "qt.format_graph_problem": ("This graph cannot be formatted here: {reason}",
                                 "Questo grafico non si può formattare qui: {reason}"),
+    "qt.draw": ("Draw", "Disegna"),
+    "qt.draw_tip": ("Select, draw and edit lines, arrows, rectangles and ellipses on the graph.",
+                    "Seleziona, disegna e modifica linee, frecce, rettangoli ed ellissi sul grafico."),
+    "qt.draw_single_panel": ("Drawing with the pointer works on single-panel 2D native graphs. Use Manage shapes "
+                             "for the numeric editor.",
+                             "Il disegno con il puntatore funziona sui grafici nativi 2D a pannello singolo. Usa "
+                             "Gestisci forme per l'editor numerico."),
+    "qt.draw_unavailable": ("Drawing on the graph is not available: {reason}",
+                            "Il disegno sul grafico non è disponibile: {reason}"),
+    "qt.clipboard_failed": ("The clipboard could not be written. The drawings were not changed.",
+                            "Non è stato possibile scrivere negli appunti. I disegni non sono stati modificati."),
     "qt.inspector_draft": ("The Inspector has changes that are not applied. Apply them, discard them, or go back "
                            "to the graph?", "L'Inspector ha modifiche non applicate. Applicarle, scartarle o "
                            "tornare al grafico?"),

@@ -31,6 +31,7 @@ class Smoke:
         self.folder.mkdir(parents=True, exist_ok=True)
         self.app = QApplication.instance()
         self.problems, self.shots, self.language = [], 0, "en"
+        self.notes = []
         self.window = None
 
     # -- checks ---------------------------------------------------------------------------------------
@@ -216,6 +217,8 @@ class Smoke:
             self.anova(window)
             from .global_fit_smoke import exercise as global_fit
             global_fit(self, window)
+            from .canvas_smoke import check_canvas
+            self.notes += check_canvas(self)  # Last: it replaces the project with its own.
         except Exception:  # noqa: BLE001 - the report must say what broke, then the next language runs.
             self.problem("stopped:\n" + traceback.format_exc())
         finally:
@@ -366,6 +369,9 @@ class Smoke:
                  f"logical DPI {screen.logicalDotsPerInch() if screen else '?'}",
                  f"Screenshots: {self.shots}", ""]
         lines += self.problems or ["No problems found."]
+        if self.notes:
+            lines += ["", "Pointer drawing (QTest events sent to the canvas widget; the operating system pointer and "
+                      "the native Windows DPI are not exercised here):", *self.notes]
         (self.folder / "report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
         status = "FAIL" if self.problems else "PASS"
         (self.folder / "status.txt").write_text(status + "\n", encoding="utf-8")
