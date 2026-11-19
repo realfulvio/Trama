@@ -1,12 +1,23 @@
-"""Vetro look for the Qt interface: colour tokens, Figtree, Lucide icons and one style sheet."""
+"""Vetro look for the Qt interface: colour tokens, light and dark themes that follow the system, Figtree,
+Lucide icons drawn from SVG at the screen's scale, one style sheet and the few effects (soft shadows under the
+panels, frosted glass behind modal dialogs, short animations) that a style sheet cannot express."""
+import atexit
 from functools import lru_cache
+import math
+import os
 from pathlib import Path
+import shutil
 import sys
+import tempfile
 
-from PySide6.QtCore import QByteArray, QEvent, QObject, QSize, Qt
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPalette, QPixmap
+from PySide6.QtCore import (QByteArray, QEasingCurve, QEvent, QObject, QPoint, QRect, QRectF, QSettings, QSize, Qt,
+                            QVariantAnimation, Signal)
+from PySide6.QtGui import (QColor, QFont, QFontDatabase, QIcon, QIconEngine, QImage, QPainter, QPainterPath, QPalette,
+                           QPixmap)
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QApplication, QDialog, QFrame, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QApplication, QDialog, QFrame, QGraphicsBlurEffect, QGraphicsOpacityEffect,
+                               QGraphicsPixmapItem, QGraphicsScene, QMainWindow, QMenu, QScrollArea, QTabBar,
+                               QVBoxLayout, QWidget)
 
 
 def asset_root():
@@ -20,18 +31,37 @@ def asset_root():
 
 ASSETS = asset_root()
 QT_ASSETS = ASSETS / "qt"
+WINDOWS = sys.platform == "win32"
 
 LIGHT = dict(bg="#EEF2F4", panel="#FFFFFF", panel2="#F7F9FA", border="#E1E6EA", text="#17242D",
-             text2="#5A6873", text3="#8A97A0", accent="#0B7A73", accent_dark="#075E58", tint="#E2F2EF",
-             field="#CFD7DC", hover="#EDF2F3", on_accent="#FFFFFF", grid="#EDF1F3", scroll="#C9D2D7",
-             warning_bg="#FBEFE9", warning="#7A2E12", error_bg="#FDECEC", error="#A3262A", header="#F4F7F8")
+             text2="#5A6873", text3="#8A97A0", accent="#0B7A73", accent_dark="#075E58", accent_hi="#14908A",
+             tint="#E2F2EF", field="#CFD7DC", field_hover="#AFBBC2", hover="#EDF2F3", on_accent="#FFFFFF",
+             grid="#EDF1F3", scroll="#C9D2D7", scroll_hover="#A9B6BD", warning_bg="#FBEFE9", warning="#7A2E12",
+             error_bg="#FDECEC", error="#A3262A", header="#F4F7F8")
 DARK = dict(bg="#0D1417", panel="#152025", panel2="#18252B", border="#22323A", text="#E3EBEE",
-            text2="#9BABB3", text3="#6F808A", accent="#35B8AC", accent_dark="#6AD3C9", tint="#123936",
-            field="#2E424B", hover="#1D2C32", on_accent="#FFFFFF", grid="#1E2B31", scroll="#33464E",
-            warning_bg="#3A2319", warning="#F3B79E", error_bg="#3B1C1F", error="#F2A7A9", header="#18252B")
+            text2="#9BABB3", text3="#6F808A", accent="#35B8AC", accent_dark="#6AD3C9", accent_hi="#4CC9BD",
+            tint="#123936", field="#2E424B", field_hover="#445C66", hover="#1D2C32", on_accent="#04211E",
+            grid="#1E2B31", scroll="#33464E", scroll_hover="#4A626C", warning_bg="#3A2319", warning="#F3B79E",
+            error_bg="#3B1C1F", error="#F2A7A9", header="#18252B")
+# Shadows under the panels (blur, vertical offset, opacity) and the veil over a window behind a modal dialog.
+SHADOWS = {False: ((18, 5, 0.10), (3, 1, 0.06)), True: ((20, 6, 0.55), (3, 1, 0.35))}
+SHADOW_RGB = {False: (18, 42, 52), True: (0, 0, 0)}
+VEIL = {False: (16, 34, 42, 46), True: (0, 0, 0, 96)}
 
 T = dict(LIGHT)
 FAMILY = ["Segoe UI"]
+MODES = ("system", "light", "dark")
+STATE = {"mode": "system", "dark": False, "connected": False}
+CARD_RADIUS = 12
+# Windows 11 rounds menus and drop-down lists itself (with the system shadow); elsewhere the style sheet does.
+MENU_RADIUS = 0 if WINDOWS else 8
+
+
+class _Signals(QObject):
+    changed = Signal()
+
+
+SIGNALS = _Signals()
 
 
 def fit_dialog(dialog, width, height):
@@ -67,38 +97,109 @@ def font(points=9.5, weight=QFont.Weight.Normal):
     return result
 
 
-@lru_cache(maxsize=512)
-def _icon_pixmap(name, colour, size, ratio):
+def table_font(points=9.5):
+    """The interface font with tabular figures, so the digits of a column line up."""
+    result = font(points)
+    try:
+        result.setFeature(QFont.Tag("tnum"), 1)
+    except (AttributeError, TypeError):  # Qt before 6.7: proportional figures, nothing else changes.
+        pass
+    return result
+
+
+# == icons ========================================================================================
+def _resolve(colour, fallback="text"):
+    """A colour token ("text2", "on_accent"...) or a literal colour; tokens follow the active theme."""
+    colour = colour or fallback
+    return T.get(colour, colour)
+
+
+@lru_cache(maxsize=256)
+def _svg_source(name, colour, stroke):
     path = QT_ASSETS / "icons" / f"{name}.svg"
     try:
         svg = path.read_text(encoding="utf-8")
     except OSError:
-        return QPixmap()
-    svg = svg.replace('stroke="currentColor"', f'stroke="{colour}"').replace('stroke-width="2"', 'stroke-width="1.75"')
-    renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
-    pixmap = QPixmap(round(size * ratio), round(size * ratio))
+        return None
+    svg = svg.replace('stroke="currentColor"', f'stroke="{colour}"').replace('stroke-width="2"',
+                                                                             f'stroke-width="{stroke}"')
+    return QByteArray(svg.encode("utf-8"))
+
+
+@lru_cache(maxsize=1024)
+def _icon_pixmap(name, colour, width, height, ratio, stroke=1.75):
+    source = _svg_source(name, colour, stroke)
+    pixmap = QPixmap(max(1, round(width * ratio)), max(1, round(height * ratio)))
     pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    renderer.render(painter)
-    painter.end()
+    if source is not None:
+        side = min(pixmap.width(), pixmap.height())
+        target = QRectF((pixmap.width() - side) / 2, (pixmap.height() - side) / 2, side, side)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        QSvgRenderer(source).render(painter, target)
+        painter.end()
     pixmap.setDevicePixelRatio(ratio)
     return pixmap
 
 
-def icon(name, colour=None, size=18):
-    """A Lucide icon drawn in the text colour (or ``colour``), sharp at the screen's scale."""
-    app = QApplication.instance()
-    ratio = max(1.0, app.devicePixelRatio()) if app is not None else 1.0
-    result = QIcon()
-    result.addPixmap(_icon_pixmap(name, colour or T["text"], size, ratio))
-    disabled = _icon_pixmap(name, T["text3"], size, ratio)
-    result.addPixmap(disabled, QIcon.Mode.Disabled)
-    return result
+class SvgIcon(QIconEngine):
+    """A Lucide icon drawn from its SVG at the size and scale it is shown at (sharp on every monitor),
+    in a colour token resolved when drawn, so it follows a change of theme."""
+
+    def __init__(self, name, colour=None, disabled="text3"):
+        super().__init__()
+        self.name, self.colour, self.disabled = name, colour, disabled
+
+    def clone(self):
+        return SvgIcon(self.name, self.colour, self.disabled)
+
+    def key(self):
+        return "trama-svg"
+
+    def isNull(self):
+        return _svg_source(self.name, "#000", 1.75) is None
+
+    def _pixmap(self, size, mode, ratio):
+        colour = _resolve(self.disabled if mode == QIcon.Mode.Disabled else self.colour)
+        return _icon_pixmap(self.name, colour, size.width(), size.height(), float(ratio))
+
+    def pixmap(self, size, mode, state):
+        return self._pixmap(size, mode, 1.0)
+
+    def scaledPixmap(self, size, mode, state, scale):
+        return self._pixmap(size, mode, scale)
+
+    def paint(self, painter, rect, mode, state):
+        device = painter.device()
+        ratio = device.devicePixelRatioF() if device is not None else 1.0
+        painter.drawPixmap(rect, self._pixmap(rect.size(), mode, ratio))
+
+
+def icon(name, colour=None, size=18):  # noqa: ARG001 - size kept for callers; the engine draws any size.
+    """A Lucide icon in the text colour or in ``colour`` (a token such as ``"text2"``, or a literal colour)."""
+    return QIcon(SvgIcon(name, colour))
 
 
 def icon_size(size=18):
     return QSize(size, size)
+
+
+_UI_DIR = []
+
+
+def _ui_image(name, colour, stroke=2.0):
+    """An SVG for the style sheet (check mark, chevrons) in ``colour``, written once to a private folder."""
+    if not _UI_DIR:
+        folder = Path(tempfile.mkdtemp(prefix="trama-qt-"))
+        atexit.register(shutil.rmtree, folder, True)
+        _UI_DIR.append(folder)
+    colour = _resolve(colour)
+    path = _UI_DIR[0] / f"{name}-{colour.lstrip('#')}-{stroke}.svg"
+    if not path.exists():
+        source = _svg_source(name, colour, stroke)
+        if source is not None:
+            path.write_bytes(bytes(source))
+    return path.as_posix()
 
 
 def palette():
@@ -108,7 +209,8 @@ def palette():
                       (roles.Text, "text"), (roles.WindowText, "text"), (roles.Button, "panel"),
                       (roles.ButtonText, "text"), (roles.Highlight, "tint"), (roles.HighlightedText, "text"),
                       (roles.ToolTipBase, "panel"), (roles.ToolTipText, "text"), (roles.PlaceholderText, "text3"),
-                      (roles.Link, "accent")):
+                      (roles.Link, "accent"), (roles.Light, "panel"), (roles.Midlight, "border"),
+                      (roles.Mid, "field"), (roles.Dark, "field_hover"), (roles.Shadow, "text3")):
         result.setColor(role, color(key))
     result.setColor(QPalette.ColorGroup.Disabled, roles.Text, color("text3"))
     result.setColor(QPalette.ColorGroup.Disabled, roles.WindowText, color("text3"))
@@ -118,78 +220,169 @@ def palette():
 
 def stylesheet():
     t = T
+    check = _ui_image("check", "on_accent", 3.2)
+    dash = _ui_image("minus", "on_accent", 3.2)
+    down, up = _ui_image("chevron-down", "text2", 2.2), _ui_image("chevron-up", "text2", 2.2)
+    down_off, up_off = _ui_image("chevron-down", "text3", 2.2), _ui_image("chevron-up", "text3", 2.2)
+    primary = (f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t['accent_hi']}, stop:1 {t['accent']})")
+    menu_radius = MENU_RADIUS
     return f"""
     QMainWindow, QDialog {{ background: {t['bg']}; }}
     QWidget {{ color: {t['text']}; }}
-    QToolTip {{ background: {t['panel']}; color: {t['text']}; border: 1px solid {t['border']}; padding: 5px 8px; }}
-    QFrame#card {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 10px; }}
+    QToolTip {{ background: {t['panel']}; color: {t['text']}; border: 1px solid {t['border']}; border-radius: 6px;
+        padding: 5px 8px; }}
+    QFrame#card {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: {CARD_RADIUS}px; }}
     QFrame#commandBar {{ background: {t['panel']}; border-bottom: 1px solid {t['border']}; }}
-    QLabel#pageTitle {{ font-size: 15pt; font-weight: 700; }}
+    QLabel#pageTitle {{ font-size: 16pt; font-weight: 700; }}
     QLabel#pageSubtitle, QLabel#muted {{ color: {t['text2']}; }}
     QLabel#sectionTitle {{ color: {t['text2']}; font-weight: 600; }}
-    QLabel#notice {{ background: {t['warning_bg']}; color: {t['warning']}; border-radius: 6px; padding: 7px 10px; }}
-    QLabel#errorBanner {{ background: {t['error_bg']}; color: {t['error']}; border-radius: 6px; padding: 7px 10px; }}
-    QTabBar#ribbonTabs::tab {{ background: transparent; border: none; padding: 7px 13px 6px 13px;
-        color: {t['text2']}; margin-right: 2px; }}
-    QTabBar#ribbonTabs::tab:selected {{ color: {t['text']}; border-bottom: 2px solid {t['accent']}; font-weight: 600; }}
-    QTabBar#ribbonTabs::tab:hover {{ color: {t['text']}; }}
-    QToolBar#commandTools {{ border: none; background: transparent; spacing: 2px; }}
-    QToolButton {{ border: none; border-radius: 6px; padding: 5px 8px; background: transparent; }}
+    QLabel#notice {{ background: {t['warning_bg']}; color: {t['warning']}; border-radius: 8px; padding: 8px 12px; }}
+    QLabel#errorBanner {{ background: {t['error_bg']}; color: {t['error']}; border-radius: 8px; padding: 8px 12px; }}
+
+    QTabBar#ribbonTabs::tab {{ background: transparent; border: none; border-radius: 6px; margin: 2px 2px 4px 0;
+        padding: 6px 13px; color: {t['text2']}; }}
+    QTabBar#ribbonTabs::tab:hover:!selected {{ color: {t['text']}; background: {t['hover']}; }}
+    QTabBar#ribbonTabs::tab:selected {{ color: {t['text']}; font-weight: 600; }}
+    QToolBar#commandTools, QToolBar#plotTools {{ border: none; background: transparent; spacing: 2px; }}
+    QToolBar::separator {{ background: {t['border']}; width: 1px; margin: 6px 6px; }}
+    QToolBar#plotTools QLabel {{ color: {t['text2']}; }}
+
+    QToolButton {{ border: 1px solid transparent; border-radius: 7px; padding: 5px 9px; background: transparent; }}
     QToolButton:hover {{ background: {t['hover']}; }}
-    QToolButton:pressed, QToolButton:checked {{ background: {t['tint']}; }}
+    QToolButton:pressed {{ background: {t['tint']}; }}
+    QToolButton:checked {{ background: {t['tint']}; color: {t['accent_dark']}; }}
     QToolButton:disabled {{ color: {t['text3']}; }}
-    QToolButton#primary {{ background: {t['accent']}; color: {t['on_accent']}; padding: 5px 12px; font-weight: 600; }}
-    QToolButton#primary:hover {{ background: {t['accent_dark']}; }}
-    QToolButton#primary:disabled {{ background: {t['field']}; }}
+    QToolButton#primary {{ background: {primary}; color: {t['on_accent']}; border: 1px solid {t['accent']};
+        padding: 5px 13px; font-weight: 600; }}
+    QToolButton#primary:hover {{ background: {t['accent_hi']}; }}
+    QToolButton#primary:pressed {{ background: {t['accent']}; }}
+    QToolButton#primary:disabled {{ background: {t['field']}; border-color: {t['field']}; color: {t['text3']}; }}
     QToolButton::menu-indicator {{ image: none; width: 0; }}
-    QPushButton {{ background: {t['panel']}; border: 1px solid {t['field']}; border-radius: 6px; padding: 6px 14px; }}
-    QPushButton:hover {{ background: {t['hover']}; }}
-    QPushButton:default, QPushButton#primary {{ background: {t['accent']}; color: {t['on_accent']}; border-color: {t['accent']};
-        font-weight: 600; }}
-    QPushButton:default:hover, QPushButton#primary:hover {{ background: {t['accent_dark']}; }}
-    QPushButton:disabled {{ color: {t['text3']}; }}
-    QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit {{ background: {t['panel']};
-        border: 1px solid {t['field']}; border-radius: 6px; padding: 4px 8px;
+
+    QPushButton {{ background: {t['panel']}; border: 1px solid {t['field']}; border-bottom-color: {t['field_hover']};
+        border-radius: 7px; padding: 6px 14px; }}
+    QPushButton:hover {{ background: {t['hover']}; border-color: {t['field_hover']}; }}
+    QPushButton:pressed {{ background: {t['tint']}; }}
+    QPushButton:focus {{ border-color: {t['accent']}; }}
+    QPushButton:checked {{ background: {t['tint']}; border-color: {t['accent']}; color: {t['accent_dark']}; }}
+    QPushButton:default, QPushButton#primary {{ background: {primary}; color: {t['on_accent']};
+        border: 1px solid {t['accent']}; font-weight: 600; }}
+    QPushButton:default:hover, QPushButton#primary:hover {{ background: {t['accent_hi']}; }}
+    QPushButton:default:pressed, QPushButton#primary:pressed {{ background: {t['accent']}; }}
+    QPushButton:default:focus, QPushButton#primary:focus {{ border-color: {t['accent_dark']}; }}
+    QPushButton:disabled {{ color: {t['text3']}; background: {t['panel2']}; border-color: {t['border']}; }}
+    QPushButton::menu-indicator {{ image: url({down}); subcontrol-origin: padding; subcontrol-position: center right;
+        width: 12px; height: 12px; left: 4px; }}
+
+    QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit, QTextEdit {{ background: {t['panel']};
+        border: 1px solid {t['field']}; border-radius: 7px; padding: 5px 8px;
         selection-background-color: {t['tint']}; selection-color: {t['text']}; }}
-    QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QPlainTextEdit:focus {{
-        border: 1px solid {t['accent']}; }}
+    QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QPlainTextEdit:hover,
+    QTextEdit:hover {{ border-color: {t['field_hover']}; }}
+    QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QPlainTextEdit:focus,
+    QTextEdit:focus, QComboBox:on {{ border: 1px solid {t['accent']}; }}
+    QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {{
+        background: {t['panel2']}; color: {t['text3']}; border-color: {t['border']}; }}
+    QComboBox {{ padding-right: 22px; }}
+    QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: center right; width: 22px;
+        border: none; background: transparent; }}
+    QComboBox::down-arrow {{ image: url({down}); width: 12px; height: 12px; }}
+    QComboBox::down-arrow:disabled {{ image: url({down_off}); }}
     QComboBox QAbstractItemView {{ background: {t['panel']}; border: 1px solid {t['border']};
-        selection-background-color: {t['tint']}; selection-color: {t['text']}; outline: 0; }}
-    QListWidget, QTreeWidget {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 6px;
-        outline: 0; }}
-    QListWidget::item {{ padding: 3px 4px; }}
-    QListWidget::item:selected, QTreeWidget::item:selected {{ background: {t['tint']}; color: {t['text']}; }}
-    QTreeWidget#navigator {{ border: none; background: transparent; }}
-    QTreeWidget#navigator::item {{ padding: 4px 2px; border-radius: 6px; }}
+        border-radius: {menu_radius}px; padding: 4px; selection-background-color: {t['tint']};
+        selection-color: {t['text']}; outline: 0; }}
+    QSpinBox, QDoubleSpinBox {{ padding-right: 24px; }}
+    QSpinBox::up-button, QDoubleSpinBox::up-button {{ subcontrol-origin: border; subcontrol-position: top right;
+        width: 20px; border: none; border-top-right-radius: 7px; background: transparent; margin: 1px 1px 0 0; }}
+    QSpinBox::down-button, QDoubleSpinBox::down-button {{ subcontrol-origin: border;
+        subcontrol-position: bottom right; width: 20px; border: none; border-bottom-right-radius: 7px;
+        background: transparent; margin: 0 1px 1px 0; }}
+    QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover, QSpinBox::down-button:hover,
+    QDoubleSpinBox::down-button:hover {{ background: {t['hover']}; }}
+    QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{ image: url({up}); width: 10px; height: 10px; }}
+    QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{ image: url({down}); width: 10px; height: 10px; }}
+    QSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:disabled {{ image: url({up_off}); }}
+    QSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:disabled {{ image: url({down_off}); }}
+
+    QCheckBox, QRadioButton {{ spacing: 8px; }}
+    QCheckBox::indicator, QListView::indicator, QTreeView::indicator, QTableView::indicator,
+    QGroupBox::indicator {{ width: 14px; height: 14px; border: 1px solid {t['field_hover']}; border-radius: 4px;
+        background: {t['panel']}; }}
+    QCheckBox::indicator:hover, QListView::indicator:hover, QTreeView::indicator:hover {{
+        border-color: {t['accent']}; }}
+    QCheckBox::indicator:checked, QListView::indicator:checked, QTreeView::indicator:checked,
+    QTableView::indicator:checked, QGroupBox::indicator:checked {{ background: {t['accent']};
+        border-color: {t['accent']}; image: url({check}); }}
+    QCheckBox::indicator:indeterminate, QListView::indicator:indeterminate,
+    QTreeView::indicator:indeterminate {{ background: {t['accent']}; border-color: {t['accent']};
+        image: url({dash}); }}
+    QCheckBox::indicator:disabled {{ background: {t['panel2']}; border-color: {t['field']}; }}
+    QCheckBox::indicator:checked:disabled {{ background: {t['field']}; border-color: {t['field']}; }}
+    QRadioButton::indicator {{ width: 14px; height: 14px; border: 1px solid {t['field_hover']}; border-radius: 8px;
+        background: {t['panel']}; }}
+    QRadioButton::indicator:hover {{ border-color: {t['accent']}; }}
+    QRadioButton::indicator:checked {{ border: 5px solid {t['accent']}; width: 6px; height: 6px;
+        background: {t['panel']}; }}
+    QRadioButton::indicator:disabled {{ background: {t['panel2']}; border-color: {t['field']}; }}
+
+    QGroupBox {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 10px;
+        margin-top: 20px; padding: 6px 0 0 0; }}
+    QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; left: 4px; top: 2px;
+        padding: 0 4px; color: {t['text2']}; font-weight: 600; }}
+
+    QListWidget, QTreeWidget, QListView, QTreeView {{ background: {t['panel']}; border: 1px solid {t['border']};
+        border-radius: 8px; outline: 0; padding: 3px; }}
+    QListWidget::item, QTreeWidget::item {{ padding: 4px 6px; border-radius: 6px; }}
+    QListWidget::item:hover, QTreeWidget::item:hover {{ background: {t['hover']}; }}
+    QListWidget::item:selected, QTreeWidget::item:selected {{ background: {t['tint']}; color: {t['accent_dark']}; }}
+    QTreeView::branch, QTreeView::branch:selected, QTreeView::branch:hover {{ background: transparent; }}
+    QTreeWidget#navigator {{ border: none; background: transparent; padding: 0; }}
+    QTreeWidget#navigator::item {{ padding: 5px 4px; border-radius: 7px; }}
     QTreeWidget#navigator::item:hover {{ background: {t['hover']}; }}
-    QTreeWidget#navigator::item:selected {{ background: {t['tint']}; color: {t['accent_dark']}; }}
-    QTabWidget::pane {{ border: none; border-top: 1px solid {t['border']}; }}
-    QTabBar::tab {{ background: transparent; padding: 6px 12px; border: none; color: {t['text2']}; }}
-    QTabBar::tab:selected {{ color: {t['text']}; border-bottom: 2px solid {t['accent']}; }}
+    QTreeWidget#navigator::item:selected {{ background: {t['tint']}; color: {t['accent_dark']}; font-weight: 600; }}
+
+    QTabWidget::pane {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 10px; }}
+    QTabWidget::tab-bar {{ left: 0; }}
+    QTabBar::tab {{ background: transparent; padding: 6px 14px; margin: 0 4px 6px 0; border: none;
+        border-radius: 7px; color: {t['text2']}; }}
+    QTabBar::tab:hover:!selected {{ background: {t['hover']}; color: {t['text']}; }}
+    QTabBar::tab:selected {{ background: {t['tint']}; color: {t['accent_dark']}; font-weight: 600; }}
+
     QTableView {{ background: {t['panel']}; border: none; gridline-color: {t['grid']};
         selection-background-color: {t['tint']}; selection-color: {t['text']}; outline: 0; }}
+    QHeaderView {{ background: {t['header']}; border: none; }}
     QHeaderView::section {{ background: {t['header']}; color: {t['text2']}; border: none;
         border-right: 1px solid {t['grid']}; border-bottom: 1px solid {t['border']}; padding: 3px 6px; }}
+    QHeaderView::section:horizontal {{ font-weight: 600; }}
     QTableView QTableCornerButton::section {{ background: {t['header']}; border: none;
         border-bottom: 1px solid {t['border']}; border-right: 1px solid {t['grid']}; }}
-    QScrollBar:vertical {{ width: 11px; background: transparent; margin: 2px; }}
-    QScrollBar::handle:vertical {{ background: {t['scroll']}; border-radius: 3px; min-height: 28px; }}
-    QScrollBar:horizontal {{ height: 11px; background: transparent; margin: 2px; }}
-    QScrollBar::handle:horizontal {{ background: {t['scroll']}; border-radius: 3px; min-width: 28px; }}
+
+    QScrollBar:vertical {{ width: 12px; background: transparent; margin: 3px; }}
+    QScrollBar::handle:vertical {{ background: {t['scroll']}; border-radius: 3px; min-height: 32px; }}
+    QScrollBar:horizontal {{ height: 12px; background: transparent; margin: 3px; }}
+    QScrollBar::handle:horizontal {{ background: {t['scroll']}; border-radius: 3px; min-width: 32px; }}
+    QScrollBar::handle:hover {{ background: {t['scroll_hover']}; }}
     QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
     QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
-    QSplitter::handle {{ background: {t['bg']}; }}
-    QStatusBar {{ background: {t['bg']}; color: {t['text2']}; }}
+
+    QSplitter::handle {{ background: transparent; }}
+    QStatusBar {{ background: {t['bg']}; color: {t['text2']}; padding-left: 10px; }}
     QStatusBar::item {{ border: none; }}
+    QStatusBar QLabel {{ padding: 0 6px; }}
     QProgressBar {{ background: {t['border']}; border: none; border-radius: 3px; max-height: 6px; }}
-    QProgressBar::chunk {{ background: {t['accent']}; border-radius: 3px; }}
-    QMenu {{ background: {t['panel']}; border: 1px solid {t['border']}; padding: 4px; }}
-    QMenu::item {{ padding: 6px 22px 6px 10px; border-radius: 5px; }}
-    QMenu::item:selected {{ background: {t['hover']}; }}
+    QProgressBar::chunk {{ background: {primary}; border-radius: 3px; }}
+
+    QMenu {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: {menu_radius}px;
+        padding: 5px; }}
+    QMenu::item {{ padding: 6px 26px 6px 10px; border-radius: 6px; margin: 1px 0; }}
+    QMenu::item:selected {{ background: {t['tint']}; color: {t['text']}; }}
     QMenu::item:disabled {{ color: {t['text3']}; }}
-    QMenu::separator {{ height: 1px; background: {t['border']}; margin: 4px 6px; }}
-    QCheckBox::indicator {{ width: 15px; height: 15px; }}
+    QMenu::icon {{ padding-left: 8px; }}
+    QMenu::indicator:checked {{ image: url({_ui_image('check', 'accent', 2.6)}); width: 14px; height: 14px;
+        padding-left: 8px; }}
+    QMenu::separator {{ height: 1px; background: {t['border']}; margin: 5px 8px; }}
     QScrollArea {{ background: transparent; border: none; }}
+    QAbstractScrollArea::corner {{ background: transparent; border: none; }}
     QScrollArea > QWidget > QWidget {{ background: transparent; }}
     """
 
@@ -252,18 +445,6 @@ def scroll_body(dialog):
     return layout
 
 
-class _DialogsOnScreen(QObject):
-    """Every dialog, when shown, fits the screen it opens on: its size hint or resize() can exceed it."""
-
-    def eventFilter(self, watched, event):
-        if event.type() == QEvent.Type.Show and isinstance(watched, QDialog) and watched.isWindow():
-            keep_on_screen(watched)
-        return False
-
-
-_ON_SCREEN = _DialogsOnScreen()
-
-
 _TRANSLATOR = None
 
 
@@ -283,9 +464,421 @@ def install_qt_translations(app, language):
         _TRANSLATOR = translator
 
 
-def apply(app, *, dark=False):
-    app.removeEventFilter(_ON_SCREEN)
-    app.installEventFilter(_ON_SCREEN)
+
+
+# == motion ======================================================================================
+def animations_enabled():
+    """Short transitions, unless the system asks for none (Windows: "Animation effects" off), the session
+    has no real screen (tests, smoke screenshots) or TRAMA_NO_ANIMATIONS is set."""
+    if os.environ.get("TRAMA_NO_ANIMATIONS"):
+        return False
+    app = QApplication.instance()
+    if app is None or app.platformName() in {"offscreen", "minimal"}:
+        return False
+    if WINDOWS:
+        try:
+            import ctypes
+            enabled = ctypes.c_int(1)
+            if ctypes.windll.user32.SystemParametersInfoW(0x1042, 0, ctypes.byref(enabled), 0):
+                return bool(enabled.value)
+        except (AttributeError, OSError):
+            pass
+    return True
+
+
+def _animate(parent, start, end, step, *, duration=180, done=None, curve=QEasingCurve.Type.OutCubic):
+    """Run ``step(value)`` from ``start`` to ``end``; at once (then ``done``) when animations are off."""
+    if not animations_enabled():
+        step(end)
+        if done is not None:
+            done()
+        return None
+    animation = QVariantAnimation(parent)
+    animation.setStartValue(start)
+    animation.setEndValue(end)
+    animation.setDuration(duration)
+    animation.setEasingCurve(curve)
+    animation.valueChanged.connect(step)
+    if done is not None:
+        animation.finished.connect(done)
+    animation.start(QVariantAnimation.DeletionPolicy.DeleteWhenStopped)
+    return animation
+
+
+def _stop(animation):
+    """Stop a running transition; one that already finished has deleted itself."""
+    if animation is None:
+        return
+    try:
+        animation.stop()
+    except RuntimeError:
+        pass
+
+
+def fade_in(widget, duration=170):
+    """Fade a freshly shown widget in; the opacity effect is removed at the end (it costs a redraw)."""
+    if not animations_enabled():
+        return
+    effect = QGraphicsOpacityEffect(widget)
+    effect.setOpacity(0.0)
+    widget.setGraphicsEffect(effect)
+
+    def finish():
+        if widget.graphicsEffect() is effect:
+            widget.setGraphicsEffect(None)
+
+    _animate(widget, 0.0, 1.0, effect.setOpacity, duration=duration, done=finish)
+
+
+def slide_splitter(splitter, start, end, done=None, duration=200):
+    """Animate the first pane of ``splitter`` from ``start`` to ``end`` pixels wide."""
+    total = max(sum(splitter.sizes()), start, end)
+
+    def step(value):
+        value = int(value)
+        splitter.setSizes([value, max(total - value, 0)])
+
+    _animate(splitter, int(start), int(end), step, duration=duration, done=done)
+
+
+class SlidingTabBar(QTabBar):
+    """The command-bar tabs: a rounded accent bar slides under the selected tab."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._bar = QRectF()
+        self._animation = None
+        self.currentChanged.connect(self._slide)
+
+    def _target(self, index):
+        rect = self.tabRect(index)
+        if not rect.isValid():
+            return QRectF()
+        inset = min(14.0, rect.width() / 4)
+        return QRectF(rect.left() + inset, rect.bottom() - 3.0, rect.width() - 2 * inset, 3.0)
+
+    def _set(self, rect):
+        self._bar = QRectF(rect)
+        self.update()
+
+    def _slide(self, index):
+        target = self._target(index)
+        if self._bar.isNull() or not self.isVisible():
+            self._set(target)
+            return
+        _stop(self._animation)
+        self._animation = _animate(self, QRectF(self._bar), target, self._set, duration=220)
+
+    def tabLayoutChange(self):
+        super().tabLayoutChange()
+        self._set(self._target(self.currentIndex()))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._set(self._target(self.currentIndex()))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._set(self._target(self.currentIndex()))
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._bar.isNull():
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color("accent"))
+        painter.drawRoundedRect(self._bar, 1.5, 1.5)
+        painter.end()
+
+
+# == soft shadows ================================================================================
+def _blurred(image, radius):
+    """Gaussian blur by Qt (QGraphicsBlurEffect) of a premultiplied image."""
+    scene = QGraphicsScene()
+    item = QGraphicsPixmapItem(QPixmap.fromImage(image))
+    effect = QGraphicsBlurEffect()
+    effect.setBlurRadius(radius)
+    effect.setBlurHints(QGraphicsBlurEffect.BlurHint.QualityHint)
+    item.setGraphicsEffect(effect)
+    scene.addItem(item)
+    result = QImage(image.size(), QImage.Format.Format_ARGB32_Premultiplied)
+    result.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(result)
+    scene.render(painter, QRectF(result.rect()), QRectF(image.rect()))
+    painter.end()
+    return result
+
+
+@lru_cache(maxsize=32)
+def _shadow_tile(radius, blur, rgba, ratio):
+    """A blurred rounded square for nine-slice drawing: returns (image, pad, corner) in device pixels."""
+    pad = math.ceil(blur * 1.2 * ratio)
+    inner = math.ceil((radius + 2) * ratio)
+    core = 2 * inner + max(4, math.ceil(4 * ratio))  # A straight middle to stretch along the edges.
+    side = core + 2 * pad
+    image = QImage(side, side, QImage.Format.Format_ARGB32_Premultiplied)
+    image.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    path = QPainterPath()
+    path.addRoundedRect(QRectF(pad, pad, core, core), radius * ratio, radius * ratio)
+    painter.fillPath(path, QColor(*rgba))
+    painter.end()
+    return _blurred(image, blur * ratio), pad, pad + inner
+
+
+def paint_shadow(painter, rect, radius=CARD_RADIUS, ratio=1.0):
+    """Soft layered shadow under ``rect`` (logical coordinates), drawn in nine slices so any size is cheap."""
+    dark = STATE["dark"]
+    red, green, blue = SHADOW_RGB[dark]
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    for blur, offset, alpha in SHADOWS[dark]:
+        image, pad, corner = _shadow_tile(radius, blur, (red, green, blue, round(255 * alpha)), ratio)
+        side = image.width()
+        # Target in device pixels, then back to logical with the painter's scale.
+        left, top = rect.left() * ratio - pad, (rect.top() + offset) * ratio - pad
+        width, height = rect.width() * ratio + 2 * pad, rect.height() * ratio + 2 * pad
+        if width < 2 * corner or height < 2 * corner:
+            continue
+        mid_w, mid_h, src_mid = width - 2 * corner, height - 2 * corner, side - 2 * corner
+        pieces = (
+            (0, 0, corner, corner, 0, 0, corner, corner),
+            (corner, 0, mid_w, corner, corner, 0, src_mid, corner),
+            (corner + mid_w, 0, corner, corner, side - corner, 0, corner, corner),
+            (0, corner, corner, mid_h, 0, corner, corner, src_mid),
+            (corner + mid_w, corner, corner, mid_h, side - corner, corner, corner, src_mid),
+            (0, corner + mid_h, corner, corner, 0, side - corner, corner, corner),
+            (corner, corner + mid_h, mid_w, corner, corner, side - corner, src_mid, corner),
+            (corner + mid_w, corner + mid_h, corner, corner, side - corner, side - corner, corner, corner),
+        )
+        for x, y, w, h, sx, sy, sw, sh in pieces:
+            target = QRectF((left + x) / ratio, (top + y) / ratio, w / ratio, h / ratio)
+            painter.drawImage(target, image, QRectF(sx, sy, sw, sh))
+    painter.restore()
+
+
+class ShadowCanvas(QWidget):
+    """The window's background: paints soft shadows under the panel cards laid on it."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cards = []
+
+    def add_card(self, card):
+        self._cards.append(card)
+        card.installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        if event.type() in {QEvent.Type.Move, QEvent.Type.Resize, QEvent.Type.Show, QEvent.Type.Hide}:
+            self.update()
+        return False
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        ratio = self.devicePixelRatioF()
+        for card in self._cards:
+            if card.isVisible() and card.width() > 0:
+                paint_shadow(painter, QRect(card.mapTo(self, QPoint(0, 0)), card.size()), CARD_RADIUS, ratio)
+        painter.end()
+
+
+# == frosted glass behind modal dialogs ==========================================================
+class GlassVeil(QWidget):
+    """Covers a main window while a modal dialog is open: the window blurred, with a light veil, faded in."""
+
+    def __init__(self, host):
+        super().__init__(host)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.dialogs = set()
+        self.progress = 0.0
+        shot = host.grab()
+        ratio = shot.devicePixelRatio()
+        small = shot.toImage().scaled(max(1, shot.width() // 3), max(1, shot.height() // 3),
+                                      Qt.AspectRatioMode.IgnoreAspectRatio,
+                                      Qt.TransformationMode.SmoothTransformation)
+        small = small.convertToFormat(QImage.Format.Format_ARGB32_Premultiplied)
+        self.backdrop = _blurred(small, 7 * ratio)
+        self.setGeometry(host.rect())
+        host.installEventFilter(self)
+        self.raise_()
+        self.show()
+        self._animation = _animate(self, 0.0, 1.0, self._set, duration=200)
+
+    def _set(self, value):
+        self.progress = float(value)
+        self.update()
+
+    def eventFilter(self, watched, event):
+        if watched is self.parentWidget() and event.type() == QEvent.Type.Resize:
+            self.setGeometry(watched.rect())
+        return False
+
+    def release(self, dialog_id):
+        self.dialogs.discard(dialog_id)
+        if self.dialogs:
+            return
+        _stop(self._animation)
+        self._animation = None
+        self.parentWidget().removeEventFilter(self)
+        _animate(self, self.progress, 0.0, self._set, duration=140, done=self.deleteLater,
+                 curve=QEasingCurve.Type.InCubic)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.setOpacity(self.progress)
+        painter.drawImage(QRectF(self.rect()), self.backdrop)
+        painter.setOpacity(1.0)
+        red, green, blue, alpha = VEIL[STATE["dark"]]
+        painter.fillRect(self.rect(), QColor(red, green, blue, round(alpha * self.progress)))
+        painter.end()
+
+
+def _veil_for(dialog):
+    parent = dialog.parentWidget()
+    host = parent.window() if parent is not None else None
+    if not isinstance(host, QMainWindow) or not host.isVisible():
+        return None
+    for child in host.children():
+        if isinstance(child, GlassVeil) and child.dialogs:
+            return child
+    return GlassVeil(host)
+
+
+# == Windows frame ===============================================================================
+def _colorref(value):
+    colour = QColor(value)
+    return colour.red() | (colour.green() << 8) | (colour.blue() << 16)
+
+
+def native_frame(widget):
+    """Windows 11: title bar in the theme's colours (dark title bar in the dark theme) and rounded corners for
+    windows, menus and drop-down lists. Does nothing elsewhere or on older Windows."""
+    if not WINDOWS or not widget.isWindow():
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+        hwnd = wintypes.HWND(int(widget.winId()))
+        dwm = ctypes.windll.dwmapi
+
+        def attribute(name, value):
+            data = ctypes.c_int(value)
+            dwm.DwmSetWindowAttribute(hwnd, name, ctypes.byref(data), ctypes.sizeof(data))
+
+        popup = widget.windowType() in {Qt.WindowType.Popup, Qt.WindowType.ToolTip}
+        attribute(33, 3 if popup else 2)  # DWMWA_WINDOW_CORNER_PREFERENCE: round small / round.
+        if not popup:
+            attribute(20, 1 if STATE["dark"] else 0)  # DWMWA_USE_IMMERSIVE_DARK_MODE
+            caption = T["panel"] if isinstance(widget, QMainWindow) else T["bg"]
+            attribute(35, _colorref(caption))  # DWMWA_CAPTION_COLOR
+            attribute(36, _colorref(T["text"]))  # DWMWA_TEXT_COLOR
+    except (AttributeError, OSError, ValueError):
+        pass
+
+
+class _WindowPolish(QObject):
+    """Every dialog fits the screen it opens on and a modal one frosts its main window; every top-level window
+    gets the native frame of the theme; menus get rounded corners."""
+
+    WATCHED = {QEvent.Type.Show, QEvent.Type.Hide, QEvent.Type.Polish}
+
+    def eventFilter(self, watched, event):
+        kind = event.type()
+        if kind not in self.WATCHED or not isinstance(watched, QWidget):
+            return False
+        if kind == QEvent.Type.Polish:
+            if isinstance(watched, QMenu) and not WINDOWS:
+                watched.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            return False
+        if not watched.isWindow():
+            return False
+        if kind == QEvent.Type.Show:
+            native_frame(watched)
+            if isinstance(watched, QDialog):
+                keep_on_screen(watched)
+                if watched.isModal():
+                    veil = _veil_for(watched)
+                    if veil is not None:
+                        veil.dialogs.add(id(watched))
+                        watched.destroyed.connect(lambda _=None, key=id(watched), v=veil: _release(v, key))
+        elif kind == QEvent.Type.Hide and isinstance(watched, QDialog):
+            for veil in list(_live_veils(watched)):
+                veil.release(id(watched))
+        return False
+
+
+def _live_veils(dialog):
+    parent = dialog.parentWidget()
+    host = parent.window() if parent is not None else None
+    if host is None:
+        return []
+    return [child for child in host.children() if isinstance(child, GlassVeil) and id(dialog) in child.dialogs]
+
+
+def _release(veil, key):
+    try:
+        if key in veil.dialogs:
+            veil.release(key)
+    except RuntimeError:  # The veil went with its window.
+        pass
+
+
+_POLISH = _WindowPolish()
+
+
+# == light and dark ==============================================================================
+def saved_mode():
+    """The theme chosen in View → Theme: "system" (default), "light" or "dark"; TRAMA_THEME overrides it."""
+    forced = os.environ.get("TRAMA_THEME", "").strip().lower()
+    if forced in MODES:
+        return forced
+    value = QSettings("TramaStat", "Trama").value("qt/theme", "system")
+    return value if value in MODES else "system"
+
+
+def system_dark(app=None):
+    app = app or QApplication.instance()
+    try:
+        return app is not None and app.styleHints().colorScheme() == Qt.ColorScheme.Dark
+    except AttributeError:
+        return False
+
+
+def set_mode(mode, app=None, *, remember=True):
+    """Switch theme now; with ``remember`` the choice is kept for the next start."""
+    if mode not in MODES:
+        raise ValueError(mode)
+    STATE["mode"] = mode
+    if remember:
+        QSettings("TramaStat", "Trama").setValue("qt/theme", mode)
+    apply(app or QApplication.instance())
+
+
+def _system_changed(*_args):
+    if STATE["mode"] == "system":
+        apply(QApplication.instance())
+
+
+def apply(app, *, dark=None):
+    """Apply the theme: ``dark`` forces light or dark, otherwise the mode in ``STATE`` decides (the system's
+    colour scheme for "system"). Open windows are restyled and ``SIGNALS.changed`` is emitted."""
+    if dark is None:
+        mode = STATE["mode"]
+        dark = mode == "dark" or (mode == "system" and system_dark(app))
+    app.removeEventFilter(_POLISH)
+    app.installEventFilter(_POLISH)
+    if not STATE["connected"]:
+        try:
+            app.styleHints().colorSchemeChanged.connect(_system_changed)
+        except AttributeError:
+            pass
+        STATE["connected"] = True
+    STATE["dark"] = bool(dark)
     T.clear()
     T.update(DARK if dark else LIGHT)
     _icon_pixmap.cache_clear()
@@ -293,3 +886,19 @@ def apply(app, *, dark=False):
     app.setPalette(palette())
     app.setFont(font())
     app.setStyleSheet(stylesheet())
+    for window in app.topLevelWidgets():
+        if window.isVisible():
+            native_frame(window)
+    SIGNALS.changed.emit()
+
+
+PLOT_ICONS = {"home": "house", "back": "arrow-left", "forward": "arrow-right", "pan": "move", "zoom": "zoom-in",
+              "configure_subplots": "sliders-horizontal", "edit_parameters": "chart-spline", "save_figure": "save"}
+
+
+def plot_toolbar(toolbar):
+    """matplotlib's navigation toolbar with the interface's icons and look."""
+    toolbar.setObjectName("plotTools")
+    for key, action in getattr(toolbar, "_actions", {}).items():
+        if key in PLOT_ICONS:
+            action.setIcon(icon(PLOT_ICONS[key], "text2"))

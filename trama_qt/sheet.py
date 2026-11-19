@@ -6,11 +6,13 @@ from PySide6.QtWidgets import QAbstractItemDelegate, QAbstractItemView, QHeaderV
 from analisi.grid_data import clipboard_decimal_mark, clipboard_rows, copy_block
 from analisi.i18n import tr
 
+from . import theme
 from .models import FrameModel, display
 from .strings import qt
 
 
 def _setup(view):
+    view.setFont(theme.table_font())  # Tabular figures: the digits of a column line up.
     view.setAlternatingRowColors(False)
     view.setWordWrap(False)
     view.setCornerButtonEnabled(True)
