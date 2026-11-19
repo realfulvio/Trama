@@ -82,6 +82,14 @@ _TEXT = {
                            "to the graph?", "L'Inspector ha modifiche non applicate. Applicarle, scartarle o "
                            "tornare al grafico?"),
     "qt.style_applied": ("Graph style applied.", "Stile del grafico applicato."),
+    # Multifactor ANOVA: model terms and factor order (0.95).
+    "qt.anova.set_aside": ("Not in the model while their factors are not ticked: {terms}",
+                           "Fuori dal modello finché i loro fattori non sono spuntati: {terms}"),
+    "qt.anova.orphan": ("From the saved analysis, not available: {terms}. {factors} is not in the Factors list.",
+                        "Dall'analisi salvata, non disponibili: {terms}. {factors} non è nell'elenco dei Fattori."),
+    "qt.anova.remove_unavailable": ("Remove unavailable terms", "Rimuovi i termini non disponibili"),
+    "qt.anova.order_keys": ("On the list, Ctrl+Up and Ctrl+Down move it too.",
+                            "Nell'elenco lo spostano anche Ctrl+Su e Ctrl+Giù."),
 }
 
 

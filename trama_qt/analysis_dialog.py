@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
                                QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QTreeWidget, QTreeWidgetItem,
                                QVBoxLayout, QWidget, QHeaderView, QAbstractItemView)
 
+from analisi.anova_terms import TERM_LIST
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
 from analisi.field_error import FieldError
@@ -22,6 +23,7 @@ from analisi.select_transform import SELECT_TRANSFORM
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
+from . import anova_model
 from .labels import choice_label, field_label, method_label
 from .strings import qt
 from .theme import fit_dialog
@@ -136,6 +138,8 @@ class AnalysisDialog(QDialog):
         self.result = None
         self.controls = {}
         self.rows = {}
+        self.hidden = set()  # fields the current choices hide: left out of options()
+        self.anova = None  # Multifactor ANOVA bindings (trama_qt.anova_model)
         method = current[0] if current and current[0] in METHODS else None
         self.method = method or self._first_method()
         fit_dialog(self, 940, 640)
@@ -196,6 +200,8 @@ class AnalysisDialog(QDialog):
         self.fill_methods()
         self.configure_fields()
         if error_field:
+            if self.anova is not None and error:  # engine errors reopen here; word them in the active language
+                self.banner.setText(self.anova.message(FieldError(error_field, str(error))))
             self.focus_field(error_field)
         if self.only and len(self.only) == 1:
             splitter.widget(0).setVisible(False)
@@ -263,6 +269,8 @@ class AnalysisDialog(QDialog):
         self.tabs.clear()
         self.controls.clear()
         self.rows.clear()
+        self.hidden.clear()
+        self.anova = None
         pages = {}
         for name in (qt("qt.variables"), qt("qt.options")):
             scroll = QScrollArea()
@@ -316,6 +324,8 @@ class AnalysisDialog(QDialog):
                 default = text_defaults.get(label, "") if kind == TEXT else kind
                 value = saved.get(label, default)
                 widget = QLineEdit("" if value is None else str(value))
+            elif kind == TERM_LIST:  # Multifactor ANOVA model terms; bound below by anova_model.attach
+                widget = anova_model.TermEditor(saved.get(label))
             elif kind == EQUATION_TEXT:
                 widget = QPlainTextEdit(str(saved.get(label, DEFAULT_EQUATION)))
                 widget.setMinimumHeight(90)
@@ -363,9 +373,14 @@ class AnalysisDialog(QDialog):
                 if label in saved:
                     self.controls[label] = ("kept", deepcopy(saved[label]))
                 continue
-            form.addRow(caption, widget)
+            if kind == TERM_LIST:  # the check boxes use the width of the page, under their caption
+                form.addRow(caption)
+                form.addRow(widget)
+            else:
+                form.addRow(caption, widget)
             self.controls[label] = (kind, widget)
             self.rows[label] = (caption, widget, form)
+        self.anova = anova_model.attach(self, saved)
         if options.rowCount() == 0:
             self.tabs.removeTab(1)
 
@@ -387,6 +402,8 @@ class AnalysisDialog(QDialog):
     def options(self):
         options = {}
         for name, (kind, control) in self.controls.items():
+            if name in self.hidden:
+                continue
             if kind == "kept":
                 options[name] = deepcopy(control)
             elif kind in (MULTIPLE, OPTIONAL_MULTIPLE):
@@ -409,6 +426,8 @@ class AnalysisDialog(QDialog):
                 options[name] = value
             elif kind == TEXT:
                 options[name] = control.text()
+            elif kind == TERM_LIST:
+                options[name] = control.values()
             elif kind == EQUATION_TEXT:
                 options[name] = control.toPlainText().strip()
             elif kind == PARAMETER_LIST:
@@ -424,13 +443,15 @@ class AnalysisDialog(QDialog):
                 elif kind is None and not value:
                     raise FieldError(name, qt("qt.choose_column", name=field_label(name)))
                 options[name] = value
-        return options
+        return self.anova.canonical(options) if self.anova is not None else options
 
     def accept(self):
         try:
             options = self.options()
+            if self.anova is not None:
+                self.anova.check(options)  # the engine's cheap checks; the fit stays on the worker
         except FieldError as error:
-            self.show_error(error, error.field)
+            self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
         except ValueError as error:
             self.show_error(error)

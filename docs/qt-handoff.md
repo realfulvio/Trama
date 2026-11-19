@@ -15,6 +15,21 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Ramo claude/project-thread-k3kr0a · ANOVA multifattoriale completa in Qt, pacchetto Qt-ANOVA-095 (2026-11-19)
+
+PR draft separata verso `main` (base `7a7340c`, la merge della #56). Tre commit: editor, agganci/lingua, verifiche. Guida e passi dalla GUI in `docs/qt-anova-095.md`.
+
+- Nuovo `trama_qt/anova_model.py`: `TermEditor` per *Model terms* (effetti principali, interazioni a 2 e a 3, Aggiungi i termini richiesti, Rimuovi i termini non disponibili, termini orfani riconoscibili) e `FactorOrder` sotto *Sums of squares* (nota del tipo, ordine dei fattori Su/Giù e Ctrl+Su/Giù per il Tipo I, anteprima dell'ordine dei termini). `Factors` della ricetta segue quell'ordine anche se diverso dalle colonne.
+- `trama_qt/analysis_dialog.py`: innesti piccoli. Ramo `TERM_LIST` accanto a `EQUATION_TEXT` (sia nella costruzione sia in `options()`), lontano dal ramo `ParameterTable` che tocca il pacchetto Fit globali; `self.hidden` per i campi nascosti (Interaction order con Termini scelti); `attach` a fine `configure_fields`; in `accept()` i controlli economici del motore e i messaggi tradotti. Sovrapposizione attesa col pacchetto Fit globali: solo questo file e questa sezione del file di consegna, conflitti meccanici.
+- Ricetta: stesse chiavi e omissioni del dialogo classico (Type III e Full hierarchy non aggiungono chiavi a una ricetta che non le aveva). Annulla lascia ricetta e risultati confermati.
+- Lo smoke Qt (`python -m trama_qt --smoke`) ora guida anche l'ANOVA: errore di gerarchia con focus su Aggiungi i termini richiesti, correzione, Tipo I con ordine invertito, Esegui, modifica annullata, salva, riapri e ricalcolo. Screenshot `*-anova-*.png`.
+- Da provare su Windows:
+  - La tabella sintetica di `docs/qt-anova-095.md`, passi 1–6, in italiano e in inglese, a 100% e 150%.
+  - Tab e Spazio sulle caselle dei termini; Ctrl+Su/Giù sulla lista dell'ordine; Invio sul pulsante a fuoco dopo l'errore.
+  - `python -m trama_qt --smoke` a 100% e 150%: nessun testo tagliato nei dialoghi `*-anova-*`.
+- `package_windows.py` non toccato: se la guida va nel portabile, aggiungi `qt-anova-095.md` all'elenco dei documenti.
+- Test attesi: `tests.test_qt_anova` 14/14, `tests.test_qt_shell` 20/20, `tests.test_anova_terms` e `tests.test_anova_ss` OK. Verificatore del pacchetto: base 2 PASS + 1 FAIL (contratto Qt), testa 3 PASS. Windows NON PROVATO.
+
 ### 9c10a2f · Formule, cella con Invio e testo SVG: consegna finale per la 0.95 (2026-11-19)
 
 **Consegna finale per la 0.95: il commit `9c10a2f`.** Il commit dopo aggiunge solo questa nota. Integra quella revisione.
