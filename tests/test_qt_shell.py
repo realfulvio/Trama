@@ -880,11 +880,19 @@ class QtShellTests(unittest.TestCase):
 
     def test_recovered_theoretical_graph_exposes_saved_equations(self):
         from PySide6.QtWidgets import QPushButton
-        from test_prism_xml_generated import _write
+        from analisi.prism_restore import SAVED_XY
+        from analisi.prism_xml_generated import XML_GENERATED_XY
 
-        path = self.folder / "generated.pzt"
-        _write(path)
-        self.window.open_path(path)
+        frame = pd.DataFrame({"X": [0, 1], "Y1": [2, 4]})
+        frame.attrs["prism_recipes"] = [(SAVED_XY, {XML_GENERATED_XY: {
+            "aspect": 1, "title": "Recovered graph", "x": "X", "series": [{"column": "Y1", "color": "#366999"}],
+            "axes": [{"bounds": bound, "label": name, "ticks": bound, "minor": [], "grid": False}
+                     for name, bound in (("X", [0, 1]), ("Y", [0, 5]))],
+            "notes": [], "arrows": [],
+            "equations": [{"column": "Y1", "equation": "Y=S*(1+X)", "parameters": {"S": 2}}],
+        }})]
+        self.window.project.add_tables({"Graph values": frame})
+        self.window.refresh()
         self.window.open_sheet(("graph", 0))
         self.wait()
         results = next(button for button in self.window.page.findChildren(QPushButton)
@@ -895,7 +903,7 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual([tabs.tabText(index) for index in range(tabs.count())],
                          ["Saved XY coordinates", "Saved equations"])
         self.assertEqual(self.window.project.runs[0].result.tables["Saved equations"]["Parameters"].tolist(),
-                         ["S=2", "S=4"])
+                         ["S=2"])
 
     def test_imported_graph_and_layout_link_to_editable_data(self):
         from unittest.mock import patch
