@@ -1063,10 +1063,12 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
 
         return Result({}, _preview_figure(render_binary_graph(o.get(PRISM_PREVIEW))))
     if method == SAVED_BINARY_LAYOUT:
+        from .prism_layout_edit import PRISM_PANEL_DATA
         from .prism_zip_layout import ZIP_LAYOUT, render_positioned_layout
 
         if ZIP_LAYOUT in o:
-            return Result({}, render_positioned_layout(frame, o[ZIP_LAYOUT]))
+            panels = (layout_data or {}) if PRISM_PANEL_DATA in o else None
+            return Result({}, render_positioned_layout(frame, o[ZIP_LAYOUT], panels))
         return Result({}, _imported_layout(o, layout_data))
     if method == SAVED_EDITABLE_GRAPH:
         from .prism_emf_edit import CURVE, POINTS, edit_emf_preview

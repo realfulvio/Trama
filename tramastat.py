@@ -176,7 +176,9 @@ from analisi.prism_emf_edit import LIMIT_SOURCE
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS, edited_layout_preview
 from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK, PRISM_GRAPH_STYLE,
                                    PRISM_NOTES, PRISM_PREVIEW, PRISM_TITLE, SAVED_BINARY_GRAPH,
-                                   SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY)
+                                   SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY,
+                                   panel_source_style, resolve_layout_panel_graphs)
+from analisi.prism_zip_layout import ZIP_LAYOUT
 from analisi.repeated_input import curve_series_labels
 from analisi.repeated_workbench import INPUT_FIELDS, check_global_weighting
 from analisi.roc import threshold_text
@@ -5373,7 +5375,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 if run.options.get(PRISM_EDITABLE_PANELS):
                     ttk.Button(bar, text=ui("Edit panel…"), command=lambda: self.edit_prism_panel(key)).pack(side="left")
                 self.layout_panel_actions(run, bar)
-                if run.options.get(PRISM_PANEL_EDITS) or run.options.get(PRISM_PANEL_DATA):
+                if ZIP_LAYOUT not in run.options and (run.options.get(PRISM_PANEL_EDITS)
+                                                      or run.options.get(PRISM_PANEL_DATA)):
                     ttk.Button(bar, text=tr("layout.export_current_emf"),
                                command=lambda: self.export_current_layout_emf(key)).pack(side="left", padx=(8, 0))
                     ttk.Label(self.page, text=tr("layout.export_original_emf")).pack(anchor="w", pady=(0, 5))
@@ -5471,24 +5474,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 ttk.Button(bar, text=ui("Format…"), command=self.format_graph).pack(side="left", padx=(0, 6))
 
     def layout_panel_graphs(self, run):
-        links = run.options.get(PRISM_PANEL_DATA)
-        if not isinstance(links, dict):
-            return {}
-        graphs = {}
-        for item in self.runs:
-            link = item.options.get(PRISM_GRAPH_LINK)
-            if (item.method == SAVED_EDITABLE_GRAPH and item.title in self.tables and isinstance(link, str)
-                    and isinstance(item.options.get(PRISM_GRAPH_STYLE), dict)):
-                graphs[link] = None if link in graphs else item
-        return {panel: graphs[link] for panel, link in links.items() if isinstance(link, str) and graphs.get(link)}
+        return resolve_layout_panel_graphs(run, self.runs, self.tables)
 
     def layout_panel_data(self, run):
-        return {panel: (self.tables[graph.title].frame(mask_excluded=True), graph.options[PRISM_GRAPH_STYLE])
+        return {panel: (self.tables[graph.title].frame(mask_excluded=True),
+                        panel_source_style(graph.method, graph.options))
                 for panel, graph in self.layout_panel_graphs(run).items()}
 
     def layout_panel_actions(self, run, bar):
         graphs = self.layout_panel_graphs(run)
-        if not graphs:
+        if not graphs or ZIP_LAYOUT in run.options:
             return
         panels = [p for p in run.options[PRISM_EDITABLE_PANELS] if p["id"] in graphs]
         choice = ttk.Combobox(bar, state="readonly", width=32,
@@ -6736,7 +6731,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             # and false-discovery control restore that result.
             if not self._keeps_failed_result(run):
                 run.result = None
-        links = {run.options.get(PRISM_GRAPH_LINK) for run in affected if run.method == SAVED_EDITABLE_GRAPH}
+        links = {link for run in affected if isinstance(link := run.options.get(PRISM_GRAPH_LINK), str)}
         if links:
             for run in self.runs:
                 if run.method == SAVED_BINARY_LAYOUT and isinstance(panel_links := run.options.get(PRISM_PANEL_DATA), dict):

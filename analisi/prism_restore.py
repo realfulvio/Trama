@@ -35,6 +35,37 @@ PRISM_TITLE = "Prism sheet title"
 PRISM_NOTES = "Prism import notes"
 
 
+def panel_source_style(method, options):
+    """Identify a saved graph that can be recalculated from live worksheet data."""
+    if method == SAVED_XY:
+        from .prism_zip_xy import ZIP_SPARSE_XY
+
+        style = options.get(ZIP_SPARSE_XY)
+    elif method == SAVED_EDITABLE_GRAPH:
+        style = options.get(PRISM_GRAPH_STYLE)
+    else:
+        return None
+    return style if isinstance(style, dict) else None
+
+
+def resolve_layout_panel_graphs(run, runs, tables):
+    from .prism_layout_edit import PRISM_PANEL_DATA
+    from .prism_zip_layout import ZIP_LAYOUT
+
+    links = run.options.get(PRISM_PANEL_DATA)
+    if run.method != SAVED_BINARY_LAYOUT or not isinstance(links, dict):
+        return {}
+    expected = SAVED_XY if ZIP_LAYOUT in run.options else SAVED_EDITABLE_GRAPH
+    graphs = {}
+    for item in runs:
+        link = item.options.get(PRISM_GRAPH_LINK)
+        if (item.method == expected and item.title in tables and isinstance(link, str)
+                and panel_source_style(item.method, item.options) is not None):
+            graphs[link] = None if link in graphs else item
+    return {panel: graphs[link]
+            for panel, link in links.items() if isinstance(link, str) and graphs.get(link) is not None}
+
+
 def _list(value):
     if not isinstance(value, list) or len(value) > 256:
         raise ValueError("Unsupported Prism sheet list.")
@@ -383,6 +414,7 @@ def _link_grouped_anova(sheet, parameters, label, grouped_views, view_sources):
 
 def restore_sheets(archive, names, sheets, sources, tables, cells):
     """Add non-executable snapshots and supported native analysis recipes."""
+    from .prism_layout_edit import PRISM_PANEL_DATA
     from .prism_zip_column import ZIP_COLUMN, saved_aligned_column
     from .prism_zip_layout import ZIP_LAYOUT, saved_positioned_layout
     from .prism_zip_xy import ZIP_SPARSE_XY, saved_sparse_xy
@@ -506,12 +538,13 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
                     source, style = linked
                     recipes = source.attrs.setdefault("prism_recipes", [])
                     if len(recipes) < 256:
-                        recipes.append((SAVED_XY, {
+                        options = {
                             PRISM_TITLE: label[:160], ZIP_SPARSE_XY: style,
                             PRISM_NOTES: "Linked XY data, saved axis limits and series colors. "
                                          "Trama uses native point markers and graph formatting.",
-                        }))
-                        linked_xy[uid] = (source, graph["fenID"], label[:160], style)
+                        }
+                        recipes.append((SAVED_XY, options))
+                        linked_xy[uid] = (source, graph["fenID"], options)
                         continue
                 column = saved_aligned_column(archive, graph, uid, sources)
                 if column is not None:
@@ -544,14 +577,20 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             label = str(sheet.get("title") or uid)[:160]
             linked = saved_positioned_layout(archive, uid, sheet, linked_xy)
             if linked is not None:
-                source, layout = linked
+                source, layout, panel_recipes = linked
                 recipes = source.attrs["prism_recipes"]
                 if len(recipes) < 256:
-                    recipes.append((SAVED_BINARY_LAYOUT, {
+                    options = {
                         PRISM_TITLE: label, ZIP_LAYOUT: layout,
                         PRISM_NOTES: "Linked data and saved page positions. "
                                      "Trama draws the panels and connector lines with native formatting.",
-                    }))
+                    }
+                    if panel_recipes:
+                        options[PRISM_PANEL_DATA] = {
+                            str(number): recipe.setdefault(PRISM_GRAPH_LINK, uuid4().hex)
+                            for number, recipe in enumerate(panel_recipes, 1)
+                        }
+                    recipes.append((SAVED_BINARY_LAYOUT, options))
                     continue
         except (KeyError, TypeError, ValueError):
             pass

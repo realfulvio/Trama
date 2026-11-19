@@ -27,8 +27,7 @@ from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts
 from .pairwise_graph import SECTION, read_section
 from .presentation import Layout
 from .prism_layout_edit import PRISM_PANEL_DATA
-from .prism_restore import (PRISM_GRAPH_LINK, PRISM_GRAPH_STYLE, PRISM_TITLE, SAVED_BINARY_LAYOUT,
-                            SAVED_EDITABLE_GRAPH)
+from .prism_restore import (PRISM_GRAPH_LINK, PRISM_TITLE, SAVED_BINARY_LAYOUT, panel_source_style)
 
 MAX_TABLES = 256
 MAX_LAYOUTS = 128
@@ -133,11 +132,10 @@ class _Graph:
                 for parent in dict.fromkeys(found):
                     self.parents.setdefault(node, []).append(parent)
                     self.children.setdefault(parent, []).append(node)
-                if method == SAVED_EDITABLE_GRAPH:
-                    link = options.get(PRISM_GRAPH_LINK)
-                    if isinstance(link, str) and isinstance(options.get(PRISM_GRAPH_STYLE), dict):
-                        self.editable.setdefault(link, []).append(node)
-                elif method == SAVED_BINARY_LAYOUT:
+                link = options.get(PRISM_GRAPH_LINK)
+                if isinstance(link, str) and panel_source_style(method, options) is not None:
+                    self.editable.setdefault(link, []).append(node)
+                if method == SAVED_BINARY_LAYOUT:
                     self.saved_layouts.append(node)
 
     def is_saved_layout(self, node):

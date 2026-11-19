@@ -21,7 +21,7 @@ from analisi.analysis_chain import ChainCancelled
 from analisi.field_error import FieldError
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, ui
 from analisi.monte_carlo import MonteCarloCancelled
-from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS
+from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS
 from analisi.prism_restore import (PRISM_GRAPH_LINK, PRISM_PREVIEW, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
                                    SAVED_EDITABLE_GRAPH, SAVED_XY)
 from analisi.prism_zip_layout import ZIP_LAYOUT
@@ -984,8 +984,12 @@ class MainWindow(QMainWindow):
                     if isinstance(panel, dict) and isinstance(panel.get("id"), str)}
         entries = [(f"{panel} · {captions.get(panel) or graph.name}", graph.title) for panel, graph in graphs.items()]
         if ZIP_LAYOUT in run.options and run.result is not None:
-            entries = [(f'{number} · {panel["title"]}', run.title)
-                       for number, panel in enumerate(run.options[ZIP_LAYOUT]["panels"], 1)]
+            linked = PRISM_PANEL_DATA in run.options
+            entries = []
+            for number, panel in enumerate(run.options[ZIP_LAYOUT]["panels"], 1):
+                graph = graphs.get(str(number))
+                if graph is not None or not linked:
+                    entries.append((f'{number} · {panel["title"]}', graph.title if graph else run.title))
         if not entries:
             return
         choice = QComboBox()

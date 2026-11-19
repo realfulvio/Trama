@@ -32,7 +32,7 @@ from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, P
 from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK,
                                    PRISM_GRAPH_STYLE, PRISM_NOTES, PRISM_PREVIEW, PRISM_TITLE,
                                    SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT,
-                                   SAVED_EDITABLE_GRAPH, SAVED_XY)
+                                   SAVED_EDITABLE_GRAPH, SAVED_XY, panel_source_style, resolve_layout_panel_graphs)
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.workbench import analyse
 from analisi.worksheet_history import WorksheetHistory, WorksheetState
@@ -424,24 +424,14 @@ class Project:
                 "key": (run.title, slot)}
 
     def layout_panel_graphs(self, run):
-        """Resolve a saved layout's panel links to unique editable graphs."""
-        links = run.options.get(PRISM_PANEL_DATA)
-        if run.method != SAVED_BINARY_LAYOUT or not isinstance(links, dict):
-            return {}
-        graphs = {}
-        for item in self.runs:
-            link = item.options.get(PRISM_GRAPH_LINK)
-            if (item.method == SAVED_EDITABLE_GRAPH and item.title in self.tables and isinstance(link, str)
-                    and isinstance(item.options.get(PRISM_GRAPH_STYLE), dict)):
-                graphs[link] = None if link in graphs else item
-        return {panel: graphs[link]
-                for panel, link in links.items() if isinstance(link, str) and graphs.get(link)}
+        return resolve_layout_panel_graphs(run, self.runs, self.tables)
 
     def layout_panel_data(self, run):
         """Data of the editable graphs a saved layout draws again."""
         if run.method != SAVED_BINARY_LAYOUT or not isinstance(run.options.get(PRISM_PANEL_DATA), dict):
             return None
-        return {panel: (self.tables[graph.title].frame(mask_excluded=True), graph.options[PRISM_GRAPH_STYLE])
+        return {panel: (self.tables[graph.title].frame(mask_excluded=True),
+                        panel_source_style(graph.method, graph.options))
                 for panel, graph in self.layout_panel_graphs(run).items()}
 
     def layout_figure(self, layout):
@@ -755,7 +745,7 @@ class Project:
 
     def table_runs(self, title):
         affected = [run for run in self.runs if run.title == title and run.source is None]
-        if any(run.method == SAVED_EDITABLE_GRAPH for run in affected):
+        if any(isinstance(run.options.get(PRISM_GRAPH_LINK), str) for run in affected):
             affected.extend(run for run in self.runs
                             if run.title != title and run.method == SAVED_BINARY_LAYOUT
                             and any(graph.title == title for graph in self.layout_panel_graphs(run).values()))

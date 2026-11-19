@@ -6,16 +6,16 @@ import unittest
 from zipfile import ZipFile
 
 from analisi.data import Dataset, load_project, load_tables, save_project
-from analisi.prism_restore import SAVED_BINARY_LAYOUT
+from analisi.prism_restore import SAVED_BINARY_LAYOUT, SAVED_XY
 from analisi.workbench import analyse
 from test_prism_binary_editable import _group
 from test_prism_binary_graphs import _record
 
 
-def _graph(markers, fen_id=8, saved_presentation=False):
-    graph = _record(0x14, pack("<2i", 1, 14))
+def _graph(markers, fen_id=8, saved_presentation=False, *, source_id=14, datasets=(205, 206)):
+    graph = _record(0x14, pack("<2i", 1, source_id))
     graph += _record(0x15, pack("<3i", 2, 21, 20))
-    graph += _record(0x16, pack("<H6i", 2, 205, -1, -1, 206, -1, -1))
+    graph += _record(0x16, pack("<H6i", 2, datasets[0], -1, -1, datasets[1], -1, -1))
     for uid, limits, tick in ((1, (0, 4), 1), (2, (0, 6), 2), (3, (0, 6), 2)):
         low, high = limits
         axis, scale = bytearray(60), bytearray(134)
@@ -82,7 +82,8 @@ def _layout(graph_id=9, arrow_direction=0, saved_presentation=False):
     return b"PCFFGRA4" + _group(0x8001, bytes(12), units + _group(0x8035, pack("<H", 0), layout))
 
 
-def _write(project, *, bad_link=False, layout_link=None, arrow_direction=0, saved_presentation=False):
+def _write(project, *, bad_link=False, layout_link=None, arrow_direction=0, saved_presentation=False,
+           second_source=False):
     table = {"format": "xy", "dataFormat": "y_single", "uid": "raw",
              "xDataSet": "x", "dataSets": ["first", "second"]}
     members = {
@@ -103,6 +104,18 @@ def _write(project, *, bad_link=False, layout_link=None, arrow_direction=0, save
         members["graphs/detail/sheet.json"] = {**chart, "uid": "detail", "fenID": 9, "title": "Detailed signals"}
         members["layouts/page/sheet.json"] = {"uid": "page", "fenID": 0, "title": "Results page",
                                               "linkedGraphSheets": ["chart", "detail"], "mediaCollection": []}
+    detail_datasets = (205, 206)
+    if second_source:
+        members["document.json"]["sheets"]["data"].append("separate")
+        members["data/sheets/separate/sheet.json"] = {
+            "uid": "separate", "fenID": 15, "title": "Independent signals",
+            "table": {**table, "uid": "other", "xDataSet": "time-2", "dataSets": ["first-2", "second-2"]},
+        }
+        members["data/tables/other/content.json"] = members["data/tables/raw/content.json"]
+        for uid, title, fen_id in (("time-2", "Time", 214), ("first-2", "A", 215), ("second-2", "B", 216)):
+            members[f"data/sets/{uid}.json"] = {"title": title, "dataType": "real", "fenID": fen_id}
+        members["graphs/detail/sheet.json"]["inputDataSets"] = ["first-2", "second-2"]
+        detail_datasets = (215, 216)
     with ZipFile(project, "w") as archive:
         for name, data in members.items():
             archive.writestr(name, json.dumps(data))
@@ -110,9 +123,12 @@ def _write(project, *, bad_link=False, layout_link=None, arrow_direction=0, save
         archive.writestr("graphs/chart/data.bin", _graph([(20, 205, "22aaff"),
                                                          (21, 207 if bad_link else 206, "ff0088")],
                                                         saved_presentation=saved_presentation))
+        if second_source:
+            archive.writestr("data/tables/other/data.csv", "1,2,\n2,,\n3,6,\n")
         if layout_link is not None:
-            detail = _graph([(20, 205, "22aaff"), (21, 206, "ff0088")], fen_id=9,
-                            saved_presentation=saved_presentation)
+            detail = _graph([(20, detail_datasets[0], "22aaff"), (21, detail_datasets[1], "ff0088")], fen_id=9,
+                            saved_presentation=saved_presentation, source_id=15 if second_source else 14,
+                            datasets=detail_datasets)
             archive.writestr("graphs/detail/data.bin", detail)
             archive.writestr("layouts/page/data.bin", _layout(layout_link, arrow_direction, saved_presentation))
 
@@ -200,6 +216,64 @@ class PrismZipSparseXYTests(unittest.TestCase):
             svg = Path(scratch) / "positioned.svg"
             figure.savefig(svg)
             self.assertNotIn("<image", svg.read_text(encoding="utf-8"))
+
+    def test_layout_with_two_sources_recalculates_following_each_original_sheet(self):
+        from analisi.family_workflow import duplicate_family
+        from trama_qt.project import Project
+
+        def samples(run):
+            return [axes.lines[0].get_ydata().tolist() for axes in run.result.figure.axes]
+
+        def refresh(project, seeds):
+            job = project.plan_refresh(seeds)
+            self.assertFalse(project.apply_refresh(job, project.run_refresh(job)))
+
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "independent.pzt"
+            _write(path, layout_link=9, second_source=True)
+            project = Project()
+            project.load(path)
+            layout, = [run for run in project.runs if run.method == SAVED_BINARY_LAYOUT]
+            self.assertEqual([graph.title for graph in project.layout_panel_graphs(layout).values()],
+                             ["Signals", "Independent signals"])
+            refresh(project, [layout])
+            self.assertEqual(samples(layout), [[3, 5], [2, 6]])
+
+            project.tables["Independent signals"].raw.loc[0, "A"] = 4
+            refresh(project, project.table_runs("Independent signals"))
+            self.assertEqual(samples(layout), [[3, 5], [4, 6]])
+            project.tables["Signals"].excluded.add((0, 1))
+            refresh(project, project.table_runs("Signals"))
+            self.assertEqual(samples(layout), [[5], [4, 6]])
+
+            saved = Path(scratch) / "independent.alab"
+            project.save(saved)
+            restored = Project()
+            restored.load(saved)
+            page, = [run for run in restored.runs if run.method == SAVED_BINARY_LAYOUT]
+            refresh(restored, [page])
+            self.assertEqual(samples(page), [[5], [4, 6]])
+
+            family = duplicate_family(restored.tables, (), (), ("saved-layout", page.reference), name="Copy")
+            self.assertEqual(len(family.tables), 2)
+            copied = Path(scratch) / "copy.alab"
+            save_project(copied, family.tables)
+            separate = Project()
+            separate.load(copied)
+            copy, = [run for run in separate.runs if run.method == SAVED_BINARY_LAYOUT]
+            refresh(separate, [copy])
+            self.assertEqual(samples(copy), [[5], [4, 6]])
+
+            restored.add_tables(load_tables(path, restore_prism=True))
+            pages = [run for run in restored.runs if run.method == SAVED_BINARY_LAYOUT]
+            self.assertEqual([[graph.title for graph in restored.layout_panel_graphs(run).values()] for run in pages],
+                             [["Signals", "Independent signals"], ["Signals (2)", "Independent signals (2)"]])
+            restored.runs = [run for run in restored.runs
+                             if (run.method, run.title) != (SAVED_XY, "Independent signals")]
+            job = restored.plan_refresh([page])
+            errors = restored.apply_refresh(job, restored.run_refresh(job))
+            self.assertRegex(errors[0], "Panel 2.*source")
+            self.assertEqual(samples(page), [[5], [4, 6]])
 
     def test_layout_arrows_keep_the_saved_direction_at_each_endpoint(self):
         from matplotlib.patches import Polygon

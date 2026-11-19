@@ -1,4 +1,4 @@
-"""Restore positioned pages whose graph links resolve to a shared XY worksheet."""
+"""Restore positioned pages with worksheet-linked XY graphs."""
 
 from math import hypot
 from struct import error as StructError, unpack_from
@@ -13,7 +13,8 @@ from .prism_binary import _records
 from .prism_binary_editable import _one, _require, _subgroups
 from .prism_binary_layouts import _placement_references
 from .prism_import import _identifier
-from .prism_zip_xy import render_sparse_xy
+from .prism_restore import PRISM_TITLE
+from .prism_zip_xy import ZIP_SPARSE_XY, render_sparse_xy
 
 
 ZIP_LAYOUT = "Prism ZIP layout"
@@ -64,7 +65,7 @@ def _linked_objects(records, graphs):
     count, groups = unpack_from("<II", header, 4)
     objects = list(_subgroups(scene, 0x8020))
     _require(not groups and 0 < count == len(objects) <= _MAX_OBJECTS)
-    panels, connectors, seen = [], [], set()
+    panels, connectors, references = [], [], []
     for header, details in objects:
         _require(len(header) == 30)
         kind, = unpack_from("<H", header)
@@ -78,13 +79,13 @@ def _linked_objects(records, graphs):
                 if list(unpack_from("<2H", original[0])) == style["plot"]["size"]:
                     panel["axes_box"] = style["plot"]["axes_box"]
             panels.append(panel)
-            seen.add(graph)
+            references.append(graph)
         elif kind == 3:
             connectors.append(_connector(details))
         else:
             raise ValueError("Unrecognized object on the saved layout.")
-    _require(seen == graphs.keys())
-    return panels, connectors
+    _require(set(references) == graphs.keys())
+    return panels, connectors, references
 
 
 def saved_positioned_layout(archive, uid, sheet, restored_graphs):
@@ -97,8 +98,9 @@ def saved_positioned_layout(archive, uid, sheet, restored_graphs):
                  and not sheet.get("mediaCollection") and 0 < len(linked) <= 16 and len(set(linked)) == len(linked))
         graph_data = [restored_graphs[link] for link in linked]
         frame = graph_data[0][0]
-        _require(all(item[0] is frame for item in graph_data))
-        graphs = {graph_id: (title, style) for _, graph_id, title, style in graph_data}
+        options = {graph_id: recipe for _, graph_id, recipe in graph_data}
+        graphs = {graph_id: (recipe[PRISM_TITLE], recipe[ZIP_SPARSE_XY])
+                  for graph_id, recipe in options.items()}
         _require(len(graphs) == len(linked))
         member = archive.getinfo(f"layouts/{uid}/data.bin")
         _require(0 < member.file_size <= _MAX_BYTES)
@@ -106,10 +108,11 @@ def saved_positioned_layout(archive, uid, sheet, restored_graphs):
         page = _one(records, 0xA)
         _require(len(page) == 300)
         paper = [value / 100 for value in unpack_from("<2i", page)]
-        panels, connectors = _linked_objects(records, graphs)
+        panels, connectors, references = _linked_objects(records, graphs)
         layout = {"paper": paper, "units_per_inch": units, "panels": panels, "connectors": connectors}
         _page_size(layout)
-        return frame, layout
+        sources = [] if all(item[0] is frame for item in graph_data) else [options[key] for key in references]
+        return frame, layout, sources
     except (KeyError, TypeError, ValueError, IndexError, StructError):
         return None
 
@@ -158,19 +161,27 @@ def _draw_connector(figure, connector, width, height, units):
         figure.add_artist(Polygon(vertices, transform=figure.transFigure, facecolor=color, edgecolor="none"))
 
 
-def render_positioned_layout(frame, layout):
+def render_positioned_layout(frame, layout, panel_data=None):
     """Redraw the worksheet-linked panels in their saved page rectangles."""
+    if panel_data is not None and isinstance(layout, dict) and isinstance(layout.get("panels"), list):
+        for number in range(1, len(layout["panels"]) + 1):
+            if str(number) not in panel_data:
+                raise ValueError(f"Panel {number} has no unique source worksheet.")
     try:
         width, height = _page_size(layout)
         figure = Figure(figsize=layout["paper"])
-        for panel in layout["panels"]:
+        for number, panel in enumerate(layout["panels"], 1):
+            if panel_data is None:
+                source, style = frame, panel["style"]
+            else:
+                source, style = panel_data[str(number)]
             left, top, right, bottom = panel["bounds"]
             grid = GridSpec(3, 3, figure=figure, left=0, right=1, bottom=0, top=1, wspace=0, hspace=0,
                             width_ratios=(left, right - left, width - right),
                             height_ratios=(top, bottom - top, height - bottom))
             page = figure.add_subfigure(grid[1, 1])
             axes = page.add_axes(panel.get("axes_box", (.09, .18, .86, .67)))
-            render_sparse_xy(frame, panel["style"], panel["title"], axes=axes)
+            render_sparse_xy(source, style, panel["title"], axes=axes)
             axes.title.set_fontsize(10)
             axes.tick_params(labelsize=8)
             if legend := axes.get_legend():
