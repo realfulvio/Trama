@@ -147,6 +147,27 @@ class DistributionFormulaTests(unittest.TestCase):
         # A quantile beyond the double range is blank.
         self.assertTrue(np.isnan(self.evaluate("TINV(1e-200, 0.5)", frame)).all())
 
+    def test_normal_distribution_avoids_overflow_before_scaling(self):
+        frame = pd.DataFrame({"x": [1.5e308]})
+        self.assertValues(self.evaluate('NORMDIST(x, -1.5e308, 1.5e308, "right")', frame),
+                          [upper_normal(2)])
+        density = math.exp(-2) / math.sqrt(2 * math.pi) / 1.5e308
+        self.assertValues(self.evaluate("NORMPDF(x, -1.5e308, 1.5e308)", frame), [density], rtol=1e-12)
+
+    def test_normal_density_keeps_a_finite_result_after_scaling(self):
+        frame = pd.DataFrame({"x": [4e-299]})
+        expected = math.exp(-800 - math.log(1e-300)) / math.sqrt(2 * math.pi)
+        self.assertValues(self.evaluate("NORMPDF(x, 0, 1e-300)", frame), [expected], rtol=1e-12)
+
+    def test_two_tail_normal_quantile_accepts_subnormal_probability(self):
+        from scipy.special import log_ndtr
+
+        probability = math.ulp(0.0)
+        frame = pd.DataFrame({"p": [probability]})
+        quantile, = self.evaluate('ZINV(p, "two")', frame)
+        self.assertTrue(math.isfinite(quantile))
+        self.assertAlmostEqual(log_ndtr(-quantile), math.log(probability) - math.log(2), places=11)
+
     def test_closed_forms_for_t_chi_square_f_and_binomial(self):
         x = pd.DataFrame({"x": [0., 0.5, 3., 40.]})
         values = x["x"].tolist()

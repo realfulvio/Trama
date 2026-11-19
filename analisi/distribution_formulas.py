@@ -16,7 +16,7 @@ Conventions:
   stop converging or t squared overflows, the leading term of the incomplete beta series is used
   in logarithms; a result beyond the double range is blank.
 """
-from math import pi, sqrt
+from math import log, pi
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,7 @@ from scipy import special, stats
 TAILS = ("left", "right", "one", "two")
 _LEFT, _RIGHT, _ONE, _TWO = range(len(TAILS))
 _TAIL_CODES = {name: code for code, name in enumerate(TAILS)}
-_SQRT_TWO_PI = sqrt(2 * pi)
+_LOG_SQRT_TWO_PI = 0.5 * log(2 * pi)
 
 
 def argument_count_message(name, arity):
@@ -92,12 +92,18 @@ def _safe(valid, array, fallback):
 
 # Normal family -------------------------------------------------------------------------------
 
+def _standard_normal(x, mean, sd):
+    distance = x - mean
+    # Opposite finite values may overflow the subtraction before scaling.
+    return np.where(np.isfinite(distance), distance / sd, x / sd - mean / sd)
+
+
 def _normal_probability(name, x, mean, sd, tail):
     x, mean, sd = (_numbers(name, value) for value in (x, mean, sd))
     code = _tail_codes(name, tail)
     valid = _finite(x, mean, sd) & (np.nan_to_num(sd) > 0) & (code >= 0)
     with np.errstate(all="ignore"):
-        z = _safe(valid, (x - mean) / _safe(valid, sd, 1.0), 0.0)
+        z = _safe(valid, _standard_normal(x, mean, _safe(valid, sd, 1.0)), 0.0)
         smaller = special.ndtr(-np.abs(z))
         result = np.select([code == _LEFT, code == _RIGHT, code == _ONE],
                            [special.ndtr(z), special.ndtr(-z), smaller], np.minimum(2 * smaller, 1.0))
@@ -116,7 +122,8 @@ def _normal_quantile(name, p, mean, sd, tail):
         p = _safe(valid, p, 0.5)
         # The upper branch uses the quantile of the upper tail directly: -ndtri(q) is the isf of q.
         standard = np.select([code == _LEFT, code == _RIGHT, code == _ONE],
-                             [special.ndtri(p), -special.ndtri(p), -special.ndtri(p)], -special.ndtri(p / 2))
+                             [special.ndtri(p), -special.ndtri(p), -special.ndtri(p)],
+                             -special.ndtri_exp(np.log(p) - log(2.0)))
         result = mean + sd * standard
     return _finish(valid, result)
 
@@ -126,8 +133,8 @@ def _normal_density(name, x, mean, sd):
     valid = _finite(x, mean, sd) & (np.nan_to_num(sd) > 0)
     with np.errstate(all="ignore"):
         sd = _safe(valid, sd, 1.0)
-        z = _safe(valid, (x - mean) / sd, 0.0)
-        result = np.exp(-0.5 * z * z) / (sd * _SQRT_TWO_PI)
+        z = _safe(valid, _standard_normal(x, mean, sd), 0.0)
+        result = np.exp(-0.5 * z * z - _LOG_SQRT_TWO_PI - np.log(sd))
     return _finish(valid, result)
 
 

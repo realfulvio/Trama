@@ -31,7 +31,7 @@ A problem on one row leaves only that row blank. This includes a blank or exclud
 
 ## Small tails
 
-Upper tails and upper quantiles are computed directly rather than as 1 − p, so very small probabilities keep their precision. Compare `=1 - NORMDIST(8)`, which only keeps rounding noise, with `=NORMDIST(8, 0, 1, "right")`, which returns 6.22096e-16. `ERFC` keeps the small values of the complementary error function in the same way. A probability below about 1e-308 is stored as 0.
+Upper tails and upper quantiles are computed directly rather than as 1 − p, so very small probabilities keep their precision. Compare `=1 - NORMDIST(8)`, which only keeps rounding noise, with `=NORMDIST(8, 0, 1, "right")`, which returns 6.22096e-16. `ERFC` keeps the small values of the complementary error function in the same way. Very small probabilities can round to zero.
 
 ## Examples
 

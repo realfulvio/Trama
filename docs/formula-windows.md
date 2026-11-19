@@ -58,26 +58,9 @@ nonfinite special-function results leave the cell blank.
 
 ## Distributions
 
-`NORMDIST(x, mean, sd, tail)`, `NORMINV(p, mean, sd, tail)` and
-`NORMPDF(x, mean, sd)` default to mean 0 and SD 1. The corresponding
-standard normal functions are `ZDIST(z, tail)`, `ZINV(p, tail)` and `ZPDF(z)`.
-Use the text `"left"` (the default), `"right"` or `"two"` for the tail.
-The two-tail probability doubles the smaller tail. Its inverse returns the
-upper quantile for half that probability. `PROBIT(p)` gives `5 + ZINV(p)`.
-
-`TDIST(t, df)`, `CHIDIST(x, df)` and `FDIST(f, df1, df2)` give upper-tail
-probabilities. `TINV(p, df)` uses a two-tail probability. `CHIINV(p, df)` and
-`FINV(p, df1, df2)` use an upper-tail probability. `CHISQC(x, df)` gives a
-lower-tail probability. `TPDF(t, df)` and `FPDF(f, df1, df2)` give densities.
-`BINOMIAL(k, n, p)` gives the probability of at least k successes in n trials.
-Invalid numeric arguments and nonfinite results leave the cell blank.
-
-## Missing values
-
-`ISBLANK(value)` and `IS_DEFINED(value)` test whether a value is absent or
-present. An empty cell, whitespace-only text or a nonfinite calculation is
-absent. Zero, false and nonblank text are values. For example,
-`=IF(ISBLANK(Dose), 0, Dose)` uses zero for missing doses in the new column.
+Use [probability, density and quantile formulas](distribution-formulas.md)
+for the normal, Student t, chi-square, F and binomial distributions. The guide
+lists arguments, tail conventions and examples you can paste into the worksheet.
 
 ## Centering, standardizing and ranking
 

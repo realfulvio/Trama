@@ -167,7 +167,7 @@ class WindowFormulaTests(unittest.TestCase):
         np.testing.assert_allclose(formula(frame, "FPDF(X,2,2)"), 1 / (1 + x) ** 2)
         np.testing.assert_allclose(formula(frame, "FINV(FDIST(X,2,2),2,2)"), x, atol=1e-14)
         np.testing.assert_allclose(formula(frame, "FINV(1e-30,2,2)"), [1e30] * len(x))
-        np.testing.assert_allclose(formula(frame, "BINOMIAL(X,3,.5)"), [1, .875, .5, .125, 0])
+        np.testing.assert_allclose(formula(frame, "BINOMIAL(X,3,.5)"), [1, .875, .5, .125, np.nan])
 
     def test_distribution_formulas_leave_invalid_values_blank(self):
         frame = pd.DataFrame({"X": [0., 1., 2.]})
@@ -175,9 +175,9 @@ class WindowFormulaTests(unittest.TestCase):
                            "PROBIT(0)", "BINOMIAL(X,1.5,.5)", "BINOMIAL(X+.5,3,.5)", "FPDF(0,1,3)"):
             with self.subTest(expression=expression):
                 self.assertTrue(formula(frame, expression).isna().all())
-        with self.assertRaisesRegex(ValueError, '"left", "right" or "two"'):
+        with self.assertRaisesRegex(ValueError, '"left", "right", "one" or "two"'):
             formula(frame, 'ZDIST(X,"unknown")')
-        with self.assertRaisesRegex(ValueError, "Unsupported expression"):
+        with self.assertRaisesRegex(ValueError, "TDIST takes 2 arguments"):
             formula(frame, "TDIST(X)")
 
     def test_presence_formulas_accept_numeric_text_and_missing_cells(self):
