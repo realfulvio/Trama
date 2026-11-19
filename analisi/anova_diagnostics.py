@@ -156,9 +156,10 @@ def format_anova_error(error):
     field = getattr(error, "field", None)
     if field not in LABEL_KEYS or field not in (DIAGNOSTICS, ASSUMPTIONS, ALPHA, GRAPH, QQ_LINE):
         # Model terms and the comparison controls (0.83) and the sums of squares word their own errors.
+        from .anova_planned_contrasts import format_error as format_contrast_error
         from .anova_ss import format_error as format_ss_error
         from .anova_terms import format_error
-        return format_ss_error(error) or format_error(error)
+        return format_ss_error(error) or format_error(error) or format_contrast_error(error)
     message = translate_anova_error(error)
     label = tr(LABEL_KEYS[field])
     if label and label not in message:

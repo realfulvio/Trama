@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
                                QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QTreeWidget, QTreeWidgetItem,
                                QVBoxLayout, QWidget, QHeaderView, QAbstractItemView)
 
+from analisi.anova_planned_contrasts import ALPHA as CONTRAST_ALPHA, CONTRAST_LIST, CORRECTION as CONTRAST_CORRECTION
+from analisi.anova_planned_contrasts import FACTOR_LIST as CONTRAST_FACTOR_LIST
 from analisi.anova_terms import TERM_LIST
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
@@ -24,7 +26,7 @@ from analisi.select_transform import SELECT_TRANSFORM
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
-from . import anova_model, global_fit
+from . import anova_model, global_fit, planned_contrasts
 from .labels import choice_label, field_label, method_label
 from .strings import qt
 from .theme import fit_dialog
@@ -45,6 +47,7 @@ CATEGORY_ROLES = {"Group", "Rows", "Columns", "Subject", "Row label", "Row facto
                   "Column factor variable", "Row (treatment) variable", "Column (outcome) variable",
                   "X categories", "Y categories"}
 VARIABLE_KINDS = (None, OPTIONAL, MULTIPLE, OPTIONAL_MULTIPLE)
+PLANNED_PANEL_FIELDS = {CONTRAST_CORRECTION, CONTRAST_ALPHA}
 
 
 def _text_defaults(method):
@@ -302,6 +305,9 @@ class AnalysisDialog(QDialog):
         categorical = [name for name in columns if name not in numeric] or columns
         numeric_position = category_position = 0
         for label, kind in METHODS[self.method].items():
+            if kind == CONTRAST_FACTOR_LIST or (kind != CONTRAST_LIST and label in PLANNED_PANEL_FIELDS
+                                                and CONTRAST_LIST in METHODS[self.method].values()):
+                continue  # the Planned contrasts… editor holds these fields
             variable = (kind in VARIABLE_KINDS or label == "Input format") and label not in {
                 "Comparison factor", "Condition on factors"}
             form = pages.get(global_fit.page_of(self.method, label)) or (variables if variable else options)
@@ -335,6 +341,8 @@ class AnalysisDialog(QDialog):
                 widget = QLineEdit("" if value is None else str(value))
             elif kind == TERM_LIST:  # Multifactor ANOVA model terms; bound below by anova_model.attach
                 widget = anova_model.TermEditor(saved.get(label))
+            elif kind == CONTRAST_LIST:  # Multifactor ANOVA planned contrasts; bound by anova_model.attach
+                widget = planned_contrasts.ContrastPanel(saved)
             elif kind == EQUATION_TEXT:
                 widget = QPlainTextEdit(str(saved.get(label, DEFAULT_EQUATION)))
                 widget.setMinimumHeight(90)
@@ -385,7 +393,7 @@ class AnalysisDialog(QDialog):
                 if label in saved:
                     self.controls[label] = ("kept", deepcopy(saved[label]))
                 continue
-            if kind in (TERM_LIST, global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
+            if kind in (TERM_LIST, CONTRAST_LIST, global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
                 form.addRow(caption)
                 form.addRow(widget)
             else:
@@ -463,6 +471,8 @@ class AnalysisDialog(QDialog):
                 options[name] = control.text()
             elif kind == TERM_LIST:
                 options[name] = control.values()
+            elif kind == CONTRAST_LIST:
+                options.update(control.values())  # the four planned-contrast keys, or none
             elif kind == EQUATION_TEXT:
                 options[name] = control.toPlainText().strip()
             elif kind == PARAMETER_LIST:
