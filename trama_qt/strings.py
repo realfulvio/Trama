@@ -92,6 +92,7 @@ _TEXT = {
                          "chiudere progetti."),
     "qt.switch_later": ("The project changes when the calculation ends.",
                         "Il progetto cambierà al termine del calcolo."),
+    "qt.open_failed": ("{name} could not be opened. {error}", "Impossibile aprire {name}. {error}"),
     "qt.open_later": ("{name} opens when the current calculation finishes.",
                       "{name} si aprirà al termine del calcolo in corso."),
     "qt.too_many_projects": ("Close a project before opening more than {count} at once.",

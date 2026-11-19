@@ -129,6 +129,16 @@ def stylesheet():
     QLabel#sectionTitle {{ color: {t['text2']}; font-weight: 600; }}
     QLabel#notice {{ background: {t['warning_bg']}; color: {t['warning']}; border-radius: 6px; padding: 7px 10px; }}
     QLabel#errorBanner {{ background: {t['error_bg']}; color: {t['error']}; border-radius: 6px; padding: 7px 10px; }}
+    QFrame#projectStrip {{ background: {t['bg']}; }}
+    QTabBar#projectTabs::tab {{ background: transparent; color: {t['text2']}; margin: 4px 1px 0 0;
+        padding: 6px 6px 6px 12px; border: 1px solid transparent; border-bottom: none;
+        border-top-left-radius: 8px; border-top-right-radius: 8px; min-width: 96px; }}
+    QTabBar#projectTabs::tab:selected {{ background: {t['panel']}; color: {t['text']}; font-weight: 600;
+        border-color: {t['border']}; }}
+    QTabBar#projectTabs::tab:hover:!selected {{ background: {t['hover']}; color: {t['text']}; }}
+    QToolButton#projectTabClose {{ padding: 2px; border-radius: 5px; }}
+    QToolButton#projectTabClose:hover {{ background: {t['field']}; }}
+    QToolButton#newProjectTab {{ margin: 4px 0 0 2px; padding: 4px; }}
     QTabBar#ribbonTabs::tab {{ background: transparent; border: none; padding: 7px 13px 6px 13px;
         color: {t['text2']}; margin-right: 2px; }}
     QTabBar#ribbonTabs::tab:selected {{ color: {t['text']}; border-bottom: 2px solid {t['accent']}; font-weight: 600; }}

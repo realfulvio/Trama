@@ -365,12 +365,11 @@ class MainWindow(QMainWindow):
         tabs.setDrawBase(False)
         tabs.setExpanding(False)
         tabs.setMovable(False)
-        tabs.setTabsClosable(True)
         tabs.setUsesScrollButtons(True)
         tabs.setElideMode(Qt.TextElideMode.ElideMiddle)
         tabs.addTab("")
         tabs.currentChanged.connect(self._project_tab_changed)
-        tabs.tabCloseRequested.connect(self._project_tab_close)
+        tabs.tabCloseRequested.connect(self._project_tab_close)  # Also reached by the × of each tab.
         row.addWidget(tabs)
         self.new_tab_button = QToolButton()
         self.new_tab_button.setObjectName("newProjectTab")
@@ -502,6 +501,9 @@ class MainWindow(QMainWindow):
                 bar.removeTab(bar.count() - 1)
             while bar.count() < len(self.sessions):
                 bar.addTab("")
+            for index in range(bar.count()):
+                if bar.tabButton(index, QTabBar.ButtonPosition.RightSide) is None:
+                    bar.setTabButton(index, QTabBar.ButtonPosition.RightSide, self._tab_close_button())
             for index, (caption, tip) in enumerate(self.sessions.labels()):
                 if bar.tabText(index) != caption:
                     bar.setTabText(index, caption)
@@ -1879,6 +1881,24 @@ class MainWindow(QMainWindow):
         if 0 <= index < len(self.sessions) and self.sessions[index] is not self.sessions.active:
             self.switch_project(self.sessions[index])
 
+    def _tab_close_button(self):
+        button = QToolButton()
+        button.setObjectName("projectTabClose")
+        button.setIcon(theme.icon("x", theme.T["text3"], 14))
+        button.setIconSize(theme.icon_size(14))
+        button.setAutoRaise(True)
+        button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        button.setToolTip(qt("qt.close_project_hint"))
+        button.setAccessibleName(tr("command.close_project"))
+        button.clicked.connect(lambda _checked=False, owner=button: self._tab_close_clicked(owner))
+        return button
+
+    def _tab_close_clicked(self, button):
+        for index in range(self.project_tabs.count()):
+            if self.project_tabs.tabButton(index, QTabBar.ButtonPosition.RightSide) is button:
+                self.project_tabs.tabCloseRequested.emit(index)
+                return
+
     def _project_tab_close(self, index):
         if 0 <= index < len(self.sessions):
             self.close_project(self.sessions[index])
@@ -1992,8 +2012,8 @@ class MainWindow(QMainWindow):
             else:
                 titles = self.project.load(path)
                 self.status(qt("qt.imported", count=len(titles)))
-        except Exception as error:
-            self.error(error)
+        except Exception as error:  # Nothing changed: no tab was added and the active one is as it was.
+            self.error(qt("qt.open_failed", name=path.name, error=error))
             return
         sheets = [title for title in titles if not stored_prism_view(self.project.tables[title])]
         if sheets:

@@ -211,6 +211,8 @@ class Smoke:
             self.shot(window, "inspector")
             window.dispose_inspector()
             self.editors(window, refs)
+            from .projects_smoke import run as project_tabs
+            project_tabs(self, window)
         except Exception:  # noqa: BLE001 - the report must say what broke, then the next language runs.
             self.problem("stopped:\n" + traceback.format_exc())
         finally:
