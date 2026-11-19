@@ -82,6 +82,9 @@ def export_graph(figure, path, settings=None):
     export_figure(figure, path, settings)
 
 
+_KEEP = object()  # ``_ask``: keep the input of the analysis.
+
+
 class Job:
     def __init__(self, future, control, done, label):
         self.future, self.control, self.done, self.label = future, control, done, label
@@ -232,6 +235,9 @@ class MainWindow(QMainWindow):
         a("edit_layout", tr("command.edit_layout"), lambda: self.new_layout(edit=True), icon="layout-grid")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
         a("use_result", qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
+        a("analyze_result", tr("chain.analyze_result"), self.analyze_result_table, icon="git-compare")
+        a("source_analysis", tr("chain.source_analysis"), self.source_analysis, icon="chevron-up")
+        a("change_input", tr("chain.change_input"), self.change_input_result, icon="arrow-up-down")
         a("navigator", tr("command.toggle_navigator"), self.toggle_navigator, icon="panel-bottom", shortcut="Ctrl+F1")
         a("search", qt("qt.search"), self.focus_search, shortcut="Ctrl+K")
         for name, method in (("descriptive", "Descriptive statistics"), ("ttest", "t-test"),
@@ -345,7 +351,8 @@ class MainWindow(QMainWindow):
                                          "export", "|", "new_info", "duplicate_family", "save_family"]),
             (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
-                                            "use_result"]),
+                                            "use_result", "|", "analyze_result", "source_analysis",
+                                            "change_input"]),
             (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "shapes",
                                           "pairwise", "compact_letters", "change", "recalculate", "|", "new_layout",
                                           "edit_layout", "|", "export", "export_options"]),
@@ -441,6 +448,10 @@ class MainWindow(QMainWindow):
         self.actions["edit_layout"].setEnabled(idle and kind == "layout")
         self.actions["recalculate"].setEnabled((on_run or kind == "layout") and idle)
         self.actions["use_result"].setEnabled(kind == "result" and idle)
+        chained = kind in {"result", "graph"} and self.project.runs[self.selected[1]].source is not None
+        self.actions["analyze_result"].setEnabled(kind == "result" and idle)
+        self.actions["source_analysis"].setEnabled(chained)
+        self.actions["change_input"].setEnabled(idle and (kind == "result" or chained))
         has_data = bool(self.project.tables)
         for key in ("analyze", "new_graph", "descriptive", "ttest", "anova", "correlation", "linear", "nonlinear",
                     "survival", "contingency"):
@@ -496,9 +507,11 @@ class MainWindow(QMainWindow):
         layouts = [(index, run) for index, run in enumerate(project.runs) if run_view(run.method) == "saved-layout"]
         if results:
             section = self._section(tr("nav.results"))
-            for index, run in results:
+            items = {}
+            for index, run in self._chain_order(results):  # Linked analyses nest under their source.
                 marker = " ⚠" if run.calculation_error else ""
-                self._entry(section, run.name + marker, ("result", index), "sigma")
+                owner = items.get(run.source.analysis_id, section) if run.source is not None else section
+                items[run.uid] = self._entry(owner, run.name + marker, ("result", index), "sigma")
         if graphs:
             section = self._section(tr("nav.graphs"))
             for index, run in graphs:
@@ -515,6 +528,14 @@ class MainWindow(QMainWindow):
         self.update_title()
         self.update_actions()
 
+    def _chain_order(self, entries):
+        """``entries`` with every source analysis before the analyses that read its results."""
+        try:
+            order = {uid: position for position, uid in enumerate(self.project.analysis_graph().order)}
+        except ValueError:
+            return entries
+        return sorted(entries, key=lambda entry: order.get(entry[1].uid, len(order)))
+
     def _navigate(self, item, _column=0):
         ref = item.data(0, Qt.ItemDataRole.UserRole)
         if ref:
@@ -528,6 +549,9 @@ class MainWindow(QMainWindow):
             self.open_sheet(tuple(ref))
             menu.addAction(self.actions["change"])
             menu.addAction(self.actions["recalculate"])
+            for key in ("analyze_result", "source_analysis", "change_input"):
+                if self.actions[key].isEnabled():
+                    menu.addAction(self.actions[key])
         if ref and ref[0] == "data":
             self.open_sheet(tuple(ref))
             menu.addAction(self.actions["analyze"])
@@ -850,6 +874,7 @@ class MainWindow(QMainWindow):
         page.button(qt("qt.recalculate"), self.recalculate, icon="history")
         if kind == "result" and result is not None:
             page.button(qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
+            page.button(tr("chain.analyze_result"), self.analyze_result_table, icon="git-compare")
             page.button(qt("qt.export_table"), self.export, icon="upload")
         elif result is not None:
             if kind == "graph" and self.project.graph_format_problem(run) is None:
@@ -860,6 +885,10 @@ class MainWindow(QMainWindow):
             page.button(tr("ribbon.graph"), lambda: self.open_sheet(("graph", index)), icon="chart-line")
         if kind == "graph" and run_view(run.method) == "result":
             page.button(tr("command.analysis_results"), lambda: self.open_sheet(("result", index)), icon="sigma")
+        if run.source is not None:
+            page.button(tr("chain.source_analysis"), self.source_analysis, icon="chevron-up")
+        if kind == "result" or run.source is not None:
+            page.button(tr("chain.change_input"), self.change_input_result, icon="arrow-up-down")
         page.finish_actions()
         if run.source is not None:
             source = next((other for other in self.project.runs if other.uid == run.source.analysis_id), None)
@@ -1065,13 +1094,19 @@ class MainWindow(QMainWindow):
     def new_graph(self):
         self.analyze(only=[name for name in GRAPHING])
 
-    def _ask(self, title, frame, *, current=None, only=None, index=None, error=None, error_field=None):
+    def _ask(self, title, frame, *, current=None, only=None, index=None, error=None, error_field=None, source=_KEEP):
+        """Ask for the parameters, then calculate. ``source`` sets the result an analysis reads (a new link, or
+        Change input result…); by default a new analysis reads its data table and an edit keeps its input."""
         dialog = AnalysisDialog(self, frame, current=current, only=only, error=error, error_field=error_field)
         if dialog.exec() != AnalysisDialog.DialogCode.Accepted or dialog.result is None:
             return
         method, options = dialog.result
         try:
-            candidate = self.project.candidate(title, method, options, index=index)
+            candidate = self.project.candidate(title, method, options, index=index,
+                                               source=None if source is _KEEP else source)
+            if index is not None and source is not _KEEP and candidate.source != source:
+                candidate.source = source
+                self.project.analysis_graph(replacement=(index, candidate))
         except ValueError as error_:
             self.error(error_)
             return
@@ -1090,6 +1125,77 @@ class MainWindow(QMainWindow):
             self.error(error)
             return
         self._ask(run.title, frame, current=(run.method, run.options), index=index)
+
+    # -- analysis chains ----------------------------------------------------------------------------------
+    def analyze_result_table(self):
+        """Analyze this result…: a new analysis reading the open result table, recalculated with its source."""
+        if self.busy():
+            return
+        if not self.selected or self.selected[0] != "result" or self.result_tabs is None:
+            self.error(tr("chain.select_result"))
+            return
+        run = self.project.runs[self.selected[1]]
+        if run.result is None or run.calculation_error:
+            self.error(tr("chain.calculate_source"))
+            return
+        from analisi.analysis_chain import ResultSource, result_frame
+        table = list(run.result.tables)[max(0, self.result_tabs.currentIndex())]
+        try:
+            frame = result_frame(run.result, table)
+        except ValueError as error:
+            self.error(error)
+            return
+        self._ask(run.title, frame, source=ResultSource(run.uid, table))
+
+    def source_analysis(self):
+        """Open the analysis (and its result table) that this one reads."""
+        if not self.selected or self.selected[0] not in {"result", "graph"}:
+            return
+        run = self.project.runs[self.selected[1]]
+        if run.source is None:
+            self.open_sheet(("data", run.title))
+            return
+        index = next((i for i, parent in enumerate(self.project.runs) if parent.uid == run.source.analysis_id), None)
+        if index is None:
+            self.error(tr("chain.missing_source"))
+            return
+        self.open_sheet(("result", index))
+        parent = self.project.runs[index]
+        if self.result_tabs is not None and parent.result is not None and run.source.table in parent.result.tables:
+            self.result_tabs.setCurrentIndex(list(parent.result.tables).index(run.source.table))
+
+    def change_input_result(self):
+        """Change input result…: choose another source, then review the parameters for the new input."""
+        if self.busy():
+            return
+        if not self.selected or self.selected[0] not in {"result", "graph"}:
+            self.error(tr("chain.select_result"))
+            return
+        if not self.settle_graph_draft():
+            return
+        from copy import copy
+        from .analysis_source import AnalysisSourceDialog
+        index = self.selected[1]
+        run = self.project.runs[index]
+
+        def candidate_with(source):
+            candidate = copy(run)
+            candidate.source = source
+            self.project.analysis_graph(replacement=(index, candidate))
+            return candidate
+
+        dialog = AnalysisSourceDialog(self, run, self.project.runs, candidate_with)
+        if dialog.exec() != AnalysisSourceDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        source, = dialog.result
+        if source == run.source:
+            return
+        try:
+            frame = self.project.input_frame(candidate_with(source))
+        except ValueError as error:
+            self.error(error)
+            return
+        self._ask(run.title, frame, current=(run.method, run.options), only=run.method, index=index, source=source)
 
     def format_graph(self):
         if self.busy() or not self.selected or self.selected[0] != "graph":
@@ -1256,7 +1362,7 @@ class MainWindow(QMainWindow):
                 self.status(qt("qt.failed"))
                 field = error.field if isinstance(error, FieldError) else None
                 self._ask(candidate.title, frame, current=(candidate.method, candidate.options), only=only,
-                          index=index, error=str(error), error_field=field)
+                          index=index, error=str(error), error_field=field, source=candidate.source)
                 return
             new_index, dependents = self.project.add_result(candidate, result, index)
             message = qt("qt.complete", method=method_label(candidate.method))

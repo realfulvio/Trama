@@ -19,6 +19,8 @@ except ImportError:  # PySide6 missing, or libEGL/libGL missing on a headless ma
 
 import pandas as pd
 
+from analisi.i18n import tr
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -657,6 +659,113 @@ class QtShellTests(unittest.TestCase):
         import pypdfium2 as pdfium
         page = pdfium.PdfDocument(str(self.folder / "layout.pdf"))[0]
         self.assertAlmostEqual(page.get_width() / 72 * 25.4, 180, delta=0.5)
+
+    def test_analysis_chains(self):
+        from unittest import mock
+        from analisi.analysis_chain import ResultSource
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.analysis_source import AnalysisSourceDialog
+        window = self.window
+        ask = type(window)._ask.__get__(window)  # The dialog opens; a failed calculation still fails the test.
+        window._ask = lambda *args, error=None, **kwargs: (self.fail(f"calculation failed: {error}") if error
+                                                          else ask(*args, **kwargs))
+        path = self.folder / "chain.csv"
+        pd.DataFrame({"X": [0.0, 1.0, 2.0, 3.0], "Y": [1.0, 3.0, 5.0, 7.0]}).to_csv(path, index=False)
+        window.open_path(path)
+        self.app.processEvents()
+        self.run_method("Transform", {"Variables": ["X", "Y"], "Operation": "Absolute value"})
+        window.open_sheet(("result", 0))
+        self.assertTrue(window.actions["analyze_result"].isEnabled())
+        self.assertFalse(window.actions["source_analysis"].isEnabled())
+
+        def pick(method, values):
+            def run(dialog):
+                if dialog.method != method:
+                    dialog.method = method
+                    dialog.configure_fields()
+                for name, value in values.items():
+                    kind, control = dialog.controls[name]
+                    if isinstance(value, list):
+                        for row in range(control.count()):
+                            item = control.item(row)
+                            item.setCheckState(Qt.CheckState.Checked if item.text() in value
+                                               else Qt.CheckState.Unchecked)
+                    else:
+                        position = control.findData(value)
+                        control.setCurrentIndex(position if position >= 0 else control.findText(value))
+                dialog.accept()
+                return AnalysisDialog.DialogCode.Accepted if dialog.result else AnalysisDialog.DialogCode.Rejected
+            return mock.patch.object(AnalysisDialog, "exec", run)
+
+        with pick("Normalize", {"Variables": ["X", "Y"], "Method": "Subtract first value"}):
+            window.analyze_result_table()
+            self.wait()
+        runs = window.project.runs
+        self.assertEqual(len(runs), 2)
+        self.assertEqual(runs[1].source, ResultSource(runs[0].uid, "Transformed"))
+        window.open_sheet(("result", 1))
+        self.assertTrue(window.actions["source_analysis"].isEnabled())
+        with pick("Linear regression", {"X": "X", "Y": "Y"}):
+            window.analyze_result_table()
+            self.wait()
+        self.assertEqual(runs[2].source, ResultSource(runs[1].uid, "Normalized"))
+        self.assertAlmostEqual(runs[2].result.tables["Regression"].loc["Slope", "Value"], 2.0)
+
+        # The navigator nests each linked result under its source.
+        def item_for(ref):
+            found = []
+
+            def walk(item):
+                if item.data(0, Qt.ItemDataRole.UserRole) == ref:
+                    found.append(item)
+                for child in range(item.childCount()):
+                    walk(item.child(child))
+            for top in range(window.navigator.topLevelItemCount()):
+                walk(window.navigator.topLevelItem(top))
+            return found[0]
+        self.assertEqual(item_for(("result", 1)).parent().data(0, Qt.ItemDataRole.UserRole), ("result", 0))
+
+        window.open_sheet(("result", 2))
+        window.source_analysis()
+        self.assertEqual(window.selected, ("result", 1))
+        self.assertEqual(window.result_tabs.tabText(window.result_tabs.currentIndex()), "Normalized")
+
+        # Change input result: a cycle is refused in the dialog; the Transform table is accepted.
+        window.open_sheet(("result", 0))
+        seen = {}
+
+        def cycle(dialog):
+            dialog.source.setCurrentIndex(next(i for i, other in enumerate(dialog.parents)
+                                               if other is not None and other.uid == runs[2].uid))
+            dialog.accept()
+            seen["cycle"] = dialog.problem.text()
+            return AnalysisSourceDialog.DialogCode.Rejected
+
+        with mock.patch.object(AnalysisSourceDialog, "exec", cycle):
+            window.change_input_result()
+        self.assertIn(tr("chain.error.cycle"), seen["cycle"])
+        self.assertIsNone(runs[0].source)
+
+        def transform(dialog):
+            dialog.source.setCurrentIndex(next(i for i, other in enumerate(dialog.parents)
+                                               if other is not None and other.uid == runs[0].uid))
+            dialog.accept()
+            return AnalysisSourceDialog.DialogCode.Accepted
+
+        window.open_sheet(("result", 2))
+        with mock.patch.object(AnalysisSourceDialog, "exec", transform), pick("Linear regression", {}):
+            window.change_input_result()
+            self.wait()
+        runs = window.project.runs
+        self.assertEqual(runs[2].source, ResultSource(runs[0].uid, "Transformed"))
+        self.assertAlmostEqual(runs[2].result.tables["Regression"].loc["Slope", "Value"], 2.0)
+
+        saved = self.folder / "chain.alab"
+        window.project.save(saved)
+        window.open_path(saved)
+        runs = window.project.runs
+        self.assertEqual(runs[1].source, ResultSource(runs[0].uid, "Transformed"))
+        self.assertEqual(runs[2].source, ResultSource(runs[0].uid, "Transformed"))
 
     def test_layout_compose_edit_reopen(self):
         from trama_qt.layout_dialog import LayoutDialog

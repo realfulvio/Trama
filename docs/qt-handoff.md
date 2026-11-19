@@ -15,6 +15,16 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### CHAINS · Catene di analisi su Qt (2026-11-19)
+
+- Nuovo: Analizza questo risultato…, Analisi sorgente e Cambia risultato di ingresso… nella pagina dei risultati e dei grafici collegati, nella scheda Analizza e nel menu del tasto destro. Codice in `trama_qt/analysis_source.py` (scelta di sorgente e tabella, stesso comportamento del dialogo Tk) e `trama_qt/window.py` (`analyze_result_table`, `source_analysis`, `change_input_result`; `_ask` accetta la sorgente). Nel navigatore i risultati collegati compaiono sotto la loro sorgente. Il ricalcolo a catena c'era già.
+- Da provare su Windows:
+  - Tabella X 0..3, Y 1,3,5,7. Transform (valore assoluto), poi Analizza questo risultato → Normalize (sottrai il primo valore), poi Analizza questo risultato → Regressione lineare X/Y: pendenza 2.
+  - Analisi sorgente dalla regressione: si apre Normalize sulla scheda "Normalized".
+  - Cambia risultato di ingresso del Transform verso la regressione deve dare l'errore di ciclo nel dialogo.
+  - Cambiare l'ingresso della regressione verso Transform/"Transformed", salvare e riaprire in Qt e in Tk: i collegamenti restano. Modificare una cella: si ricalcola tutta la catena.
+- Test attesi: `tests.test_qt_shell` 17/17 OK.
+
 ### 1ab2343 · Esporta con opzioni su Qt (2026-11-19)
 
 - Nuovo: File → Esporta con opzioni… (anche nella scheda Grafico) per grafici, layout e layout salvati. Codice in `trama_qt/export_options.py`; `export_graph` e `Project.export_layout` accettano le impostazioni. Stesse scelte del dialogo Tk: preset Schermo/Stampa/Vettoriale/Personalizzato, formato PNG/TIFF/SVG/PDF, larghezza in mm (vuota = dimensione attuale o pagina del layout), DPI per PNG e TIFF, sfondo trasparente, testo SVG come testo o tracciati, riga con dimensione finale in mm e pixel. Le scelte restano per la sessione. La destinazione passa da `check_destination`.
