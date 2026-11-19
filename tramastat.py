@@ -2489,11 +2489,11 @@ class AnalysisDialog(simpledialog.Dialog):
     def kmeans_visibility(self):
         if self.method not in kmeans_options.METHODS:
             return {}
-        hartigan = self.controls[kmeans_options.ALGORITHM][1].get() == kmeans_options.HARTIGAN
-        options = {kmeans_options.MAX_ITERATIONS: hartigan,
+        algorithm = self.controls[kmeans_options.ALGORITHM][1].get()
+        options = {**{field: key == algorithm for key, field in kmeans_options.ITERATION_FIELDS.items()},
                    kmeans_reports.SCALED: self.controls["Standardize"][1].get()}
         if self.method == kmeans_options.CLUSTERING:
-            return {**options, kmeans_options.INITIAL_ROWS: hartigan}
+            return {**options, kmeans_options.INITIAL_ROWS: algorithm in kmeans_options.ITERATION_FIELDS}
         from analisi.cluster_consensus import KL_SCALING
 
         criterion = self.controls["Criterion"][1].get()
@@ -3736,7 +3736,7 @@ class AnalysisDialog(simpledialog.Dialog):
                         parsed_size = parse_label_font_size(value, name)
                         options[name] = "" if parsed_size is None else parsed_size
                         continue
-                    if self.method in kmeans_options.METHODS and name == kmeans_options.MAX_ITERATIONS:
+                    if self.method in kmeans_options.METHODS and name in kmeans_options.ITERATION_FIELDS.values():
                         options[name] = value
                         continue
                     numeric_kind = type(kind)
@@ -3769,7 +3769,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         options.pop(report)
                 request = kmeans_options.fit_options(self.method, self.data, options)
                 if request:
-                    options[kmeans_options.MAX_ITERATIONS] = request["max_iterations"]
+                    field = kmeans_options.ITERATION_FIELDS[options[kmeans_options.ALGORITHM]]
+                    options[field] = request["max_iterations"]
                 else:
                     options.pop(kmeans_options.ALGORITHM, None)
             if self.method == NORMALITY:
@@ -7059,7 +7060,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 or self._pca_regression(run)
                 or cox_exact_run(run)
                 or (run.method in kmeans_options.METHODS
-                    and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN)
+                    and run.options.get(kmeans_options.ALGORITHM) in kmeans_options.ITERATION_FIELDS)
                 or getattr(run, 'source', None) is not None
                 or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
@@ -7071,11 +7072,11 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 or self._pca_regression(run)
                 or cox_exact_run(run)
                 or (run.method in kmeans_options.METHODS
-                    and run.options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN))
+                    and run.options.get(kmeans_options.ALGORITHM) in kmeans_options.ITERATION_FIELDS))
 
     def weighting_recovery(self, method, options, index, only=None):
         """Reopen the dialog when a field error is first known on the worker."""
-        if method in kmeans_options.METHODS and options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
+        if method in kmeans_options.METHODS and options.get(kmeans_options.ALGORITHM) in kmeans_options.ITERATION_FIELDS:
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == COX and cox_is_exact(options):
             # Row, column and work limits, separation and refused outputs are known only on the worker.
@@ -12813,6 +12814,48 @@ def smoke(root, app, directory, legacy_reference=None):
         app.show("graph", 1)
         capture(root, "window-hartigan-wong-consensus.png")
 
+    def check_macqueen():
+        choice = kmeans_options
+        title = "Sequential clusters"
+        source = pd.DataFrame({"Signal": [0., 1., 2., 3., 4., 6.]})
+        path = directory / "macqueen.alab"
+        save_project(path, {title: Dataset(source)})
+        app.import_file(path)
+
+        def configure(dialog):
+            pick_method(dialog, choice.CLUSTERING)
+            select_columns(dialog, "Variables", {"Signal"})
+            dialog.controls[choice.ALGORITHM][1].set(choice.MACQUEEN)
+            assert not dialog.field_rows[choice.MAX_ITERATIONS][1].winfo_manager()
+            assert dialog.field_rows[choice.MACQUEEN_ITERATIONS][1].winfo_manager()
+            dialog.controls["Standardize"][1].set(False)
+            dialog.controls[choice.INITIAL_ROWS][1].set("1, 2")
+            dialog.controls[kmeans_reports.CENTROIDS][1].set(True)
+            capture(dialog, "window-macqueen-analysis.png")
+
+        def verify():
+            run = app.runs[0]
+            assert run.options[choice.ALGORITHM] == choice.MACQUEEN
+            assert run.options[choice.MACQUEEN_ITERATIONS] == choice.DEFAULT_ITERATIONS
+            assert choice.MAX_ITERATIONS not in run.options
+            assert run.options[choice.INITIAL_ROWS] == "1, 2"
+            tables = run.result.tables
+            np.testing.assert_allclose(tables["Centers (fitting scale)"]["Signal"], [1., 13 / 3])
+            np.testing.assert_allclose(tables["Fit"].loc["Within-cluster SS", "Value"], 20 / 3)
+            np.testing.assert_array_equal(tables["Initial centroids"]["Initial center"], [0., 1.])
+
+        app.show("data", title)
+        drive_dialog(AnalysisDialog, configure)
+        app.choose_analysis()
+        wait_for_calculation()
+        verify()
+        assert app.save()
+        app.import_file(path)
+        app.open_sheet(("graph", 0))
+        wait_for_calculation()
+        verify()
+        capture(root, "window-macqueen-plot.png")
+
     def check_kmeans_reports():
         from unittest.mock import patch
 
@@ -14498,6 +14541,7 @@ def smoke(root, app, directory, legacy_reference=None):
             return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "hartigan-wong":
             check_hartigan_wong()
+            check_macqueen()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14826,6 +14870,7 @@ def smoke(root, app, directory, legacy_reference=None):
 
         check_kmeans_consensus()
         check_hartigan_wong()
+        check_macqueen()
         check_kmeans_reports()
 
         source = directory / "saved-graph.prism"

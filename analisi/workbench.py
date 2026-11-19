@@ -276,10 +276,12 @@ METHODS = {
                                 "Gap simulations": 20, KL_SCALING: KL_CHOICES,
                                 kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
                                 kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
+                                kmeans_options.MACQUEEN_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                                 **dict.fromkeys((*kmeans_reports.SCAN, *kmeans_options.PLOTS), False)},
     "K-means clustering": {"Variables": MULTIPLE, "Clusters": 2, "Standardize": True, "Seed": 42,
                            kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
                            kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
+                           kmeans_options.MACQUEEN_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                            kmeans_options.INITIAL_ROWS: TEXT, **dict.fromkeys(kmeans_reports.COMMON, False)},
     "Hierarchical clustering": {"Variables": MULTIPLE, "Observation labels": OPTIONAL, **HIERARCHICAL_OPTIONS},
     HIERARCHY_GRAPH: HIERARCHY_GRAPH_OPTIONS,
@@ -557,10 +559,11 @@ def _kmeans(frame, o):
 
 
 def _record_kmeans_algorithm(report, options):
-    if options.get(kmeans_options.ALGORITHM) == kmeans_options.HARTIGAN:
-        report.loc[kmeans_options.ALGORITHM, "Value"] = kmeans_options.HARTIGAN
-        report.loc[kmeans_options.MAX_ITERATIONS, "Value"] = options.get(
-            kmeans_options.MAX_ITERATIONS, kmeans_options.DEFAULT_ITERATIONS)
+    algorithm = options.get(kmeans_options.ALGORITHM)
+    field = kmeans_options.ITERATION_FIELDS.get(algorithm)
+    if field:
+        report.loc[kmeans_options.ALGORITHM, "Value"] = algorithm
+        report.loc[field, "Value"] = options.get(field, kmeans_options.DEFAULT_ITERATIONS)
 
 
 def _consensus_selection(scan, o):
@@ -1211,7 +1214,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         try:
             return solve(frame, o)
         except IterationLimitError as error:
-            raise FieldError(kmeans_options.MAX_ITERATIONS, str(error)) from error
+            field = kmeans_options.ITERATION_FIELDS[o[kmeans_options.ALGORITHM]]
+            raise FieldError(field, str(error)) from error
     if method == "Kaplan–Meier survival":
         return _classic_analysis(method, frame, o, "Time", _survival)
     if method == "Hierarchical clustering":

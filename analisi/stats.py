@@ -800,7 +800,7 @@ def _cluster_data(frame, columns, count, standardize):
     return data, values
 
 
-def _kmeans_plus_plus(values, count, rng):
+def _kmeans_plus_plus_rows(values, count, rng):
     """Sample by distance to the nearest selected center, as in the Lloyd fitter."""
     positions = [rng.integers(len(values))]
     nearest = np.full(len(values), np.inf)
@@ -809,13 +809,15 @@ def _kmeans_plus_plus(values, count, rng):
         nearest = np.minimum(nearest, distance)
         weights = (nearest / nearest.sum()).cumsum()
         positions.append(int(np.searchsorted(weights, rng.uniform())))
-    return values[positions]
+    return positions
 
 
 def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloyd",
            max_iterations=10, initial_rows=None, retain_initial=False):
     if algorithm == "hartigan-wong":
         return _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows, retain_initial)
+    if algorithm == "macqueen":
+        return _macqueen_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows, retain_initial)
     if algorithm != "lloyd":
         raise ValueError("Choose a K-means algorithm.")
     if initial_rows is not None:
@@ -827,7 +829,7 @@ def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloy
     best = None
     for _ in range(10):
         try:
-            initial = _kmeans_plus_plus(values, count, rng) if retain_initial else None
+            initial = values[_kmeans_plus_plus_rows(values, count, rng)] if retain_initial else None
             centers, labels = cluster.vq.kmeans2(values, initial.copy() if initial is not None else count,
                                                 iter=100, minit="matrix" if retain_initial else "++",
                                                 missing="raise", rng=rng)
@@ -874,6 +876,73 @@ def _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, i
     return Clusters(data, pd.Series(fit.labels + 1, index=data.index, name="Cluster"),
                     pd.DataFrame(fit.centers, columns=columns), float(fit.within.sum()),
                     initial_centers=pd.DataFrame(values[chosen], columns=columns) if retain_initial else None)
+
+
+def _macqueen_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows, retain_initial):
+    from .hartigan_wong import IterationLimitError
+
+    if isinstance(max_iterations, bool) or not isinstance(max_iterations, Integral) or not 1 <= max_iterations <= 1000:
+        raise ValueError("Maximum iterations must be an integer from 1 to 1000.")
+    data, values = _cluster_data(frame, columns, count, standardize)
+    n, width = values.shape
+    if count > len(np.unique(values, axis=0)) or n * count > 2_000_000:
+        raise ValueError("Too many clusters for the number of distinct observations.")
+    origin = values[0]
+    with np.errstate(over="ignore", invalid="ignore"):
+        shifted = values - origin
+    limit = np.sqrt(np.finfo(float).max / (4 * n * width))
+    if not np.isfinite(shifted).all() or np.abs(shifted).max() > limit:
+        raise ValueError("Variable magnitudes are too large to compute squared distances.")
+    if initial_rows is None:
+        positions = _kmeans_plus_plus_rows(shifted, count, np.random.default_rng(seed))
+    else:
+        positions = np.asarray(initial_rows)
+        if positions.shape != (count,) or positions.dtype.kind not in "iu":
+            raise ValueError("Choose one initial row per cluster.")
+        if (positions < 0).any() or (positions >= n).any():
+            raise ValueError("Initial row positions are outside the complete data.")
+    initial = shifted[positions]
+    if len(np.unique(initial, axis=0)) != count:
+        raise ValueError("Initial observations must specify distinct centers.")
+
+    labels = cdist(shifted, initial, "sqeuclidean").argmin(axis=1)
+    counts = np.bincount(labels, minlength=count)
+    if (counts == 0).any():
+        raise ValueError("An initial cluster has no observations.")
+    sums = np.zeros_like(initial)
+    np.add.at(sums, labels, shifted)
+    centers = sums / counts[:, None]
+    for _ in range(max_iterations):
+        moved = False
+        for row, point in enumerate(shifted):
+            old = labels[row]
+            if counts[old] == 1:
+                continue
+            delta = centers - point
+            distances = np.einsum("ij,ij->i", delta, delta)
+            new = distances.argmin()
+            if distances[new] < distances[old]:
+                counts[old] -= 1
+                counts[new] += 1
+                sums[old] -= point
+                sums[new] += point
+                centers[old] = sums[old] / counts[old]
+                centers[new] = sums[new] / counts[new]
+                labels[row] = new
+                moved = True
+        if not moved:
+            break
+    else:
+        raise IterationLimitError("MacQueen reached the maximum number of iterations.")
+
+    # Compute the outputs from the final assignments without carrying forward transfer rounding.
+    sums.fill(0)
+    np.add.at(sums, labels, shifted)
+    centers = sums / counts[:, None]
+    inertia = float(np.sum((shifted - centers[labels]) ** 2))
+    return Clusters(data, pd.Series(labels + 1, index=data.index, name="Cluster"),
+                    pd.DataFrame(centers + origin, columns=columns), inertia,
+                    initial_centers=pd.DataFrame(values[positions], columns=columns) if retain_initial else None)
 
 
 def _scale_cluster_axis(values, mode, axis):

@@ -110,7 +110,9 @@ K-means clustering|Raggruppamento k-means
 K-means algorithm|Algoritmo k-means
 Lloyd|Lloyd
 Hartigan–Wong|Hartigan–Wong
+MacQueen|MacQueen
 Hartigan–Wong iteration limit|Limite di iterazioni Hartigan–Wong
+MacQueen iteration limit|Limite di iterazioni MacQueen
 Initial worksheet rows|Righe iniziali del foglio
 Report cluster details|Mostra i dettagli dei gruppi
 Report standardized observations|Mostra le osservazioni standardizzate
@@ -130,6 +132,7 @@ Each initial worksheet row must exist and have all selected values.|Ogni riga in
 Initial observations must specify distinct centers.|Le osservazioni iniziali devono individuare centri distinti.
 Choose a K-means algorithm.|Scegli un algoritmo k-means.
 Hartigan–Wong reached the maximum number of iterations.|Hartigan–Wong ha raggiunto il limite di iterazioni.
+MacQueen reached the maximum number of iterations.|MacQueen ha raggiunto il limite di iterazioni.
 Hierarchical clustering|Raggruppamento gerarchico
 Hierarchy graph|Grafico del raggruppamento gerarchico
 Choose a linked Merges result from hierarchical clustering.|Scegli un risultato Merges collegato a un raggruppamento gerarchico.
