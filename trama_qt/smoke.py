@@ -1,7 +1,9 @@
 """Desktop acceptance of the Qt window: ``python -m trama_qt --smoke FOLDER``.
 
 Runs on the real screen (not offscreen) in English and Italian. It opens a small project, calculates a result,
-graphs and a layout, opens every window command that shows a dialog, and writes into FOLDER:
+graphs and a layout, opens every window command that shows a dialog, drives a Multifactor ANOVA through its real
+editors (model terms, an error with focus, the fix, Type I order, Cancel, save, reopen and recalculation), and
+writes into FOLDER:
 
 - ``<lang>-<name>.png``: the main window on each sheet and every dialog, as drawn at the current scale;
 - ``report.txt``: screen, scale and Qt version, then every problem found;
@@ -211,6 +213,7 @@ class Smoke:
             self.shot(window, "inspector")
             window.dispose_inspector()
             self.editors(window, refs)
+            self.anova(window)
         except Exception:  # noqa: BLE001 - the report must say what broke, then the next language runs.
             self.problem("stopped:\n" + traceback.format_exc())
         finally:
@@ -241,6 +244,112 @@ class Smoke:
                 self.dialog(dialog(), name)
             except Exception as error:  # noqa: BLE001
                 self.problem(f"{name}: {type(error).__name__}: {error}")
+
+    def anova(self, window):
+        """Multifactor ANOVA through the real editors: model terms, an error with focus, the fix, Type I
+        order, Run, a cancelled change, save, reopen and recalculation (synthetic 2×2 data, literal names)."""
+        from copy import deepcopy
+        from unittest import mock
+        from analisi.anova_terms import MODEL_TERMS, SELECTED, TERM_SELECTION, label
+        from analisi.anova_ss import KEY as SUMS_OF_SQUARES, TYPE_I
+        from PySide6.QtCore import Qt
+        from .analysis_dialog import AnalysisDialog
+        a, b = "Treatment $", "Visit : phase"
+        data = self.folder / "anova.csv"
+        pd.DataFrame({"Response": [9, 11, 13, 15, 15, 17, 23, 25, 12, 22, 26],
+                      a: ["Control"] * 4 + ["Drug"] * 4 + ["Control", "Drug", "Drug"],
+                      b: ["Start", "Start", "End", "End"] * 2 + ["Start", "End", "End"]}).to_csv(data, index=False)
+        window.open_path(data)
+        self.wait()
+
+        def choose(dialog, field, value):
+            combo = dialog.controls[field][1]
+            combo.setCurrentIndex(combo.findData(value))
+
+        def new_model(dialog):
+            factors = dialog.controls["Factors"][1]
+            for row in range(factors.count()):
+                item = factors.item(row)
+                item.setCheckState(Qt.CheckState.Checked if item.text() in (a, b) else Qt.CheckState.Unchecked)
+            dialog.tabs.setCurrentIndex(0)
+            self.shot(dialog, "anova-variables")
+            dialog.tabs.setCurrentIndex(1)
+            choose(dialog, TERM_SELECTION, SELECTED)
+            editor = dialog.controls[MODEL_TERMS][1]
+            editor.boxes[(a, b)].setChecked(True)
+            editor.boxes[(a,)].setChecked(False)
+            editor.boxes[(b,)].setChecked(False)
+            dialog.tabs.widget(1).ensureWidgetVisible(editor)
+            self.shot(dialog, "anova-terms")
+            dialog.tabs.setCurrentIndex(0)
+            dialog.accept()  # the interaction alone breaks the hierarchy
+            self.app.processEvents()
+            if dialog.result is not None or not dialog.banner.isVisible():
+                self.problem("anova: an interaction without its main effects was accepted")
+            if dialog.tabs.currentIndex() != 1 or dialog.focusWidget() is not editor.add_button:
+                self.problem(f"anova: the error did not focus Add required terms ({dialog.focusWidget()})")
+            self.shot(dialog, "anova-error")
+            editor.add_button.click()
+            choose(dialog, SUMS_OF_SQUARES, TYPE_I)
+            order = dialog.anova.order
+            order.list.setCurrentRow(0)
+            order.down.click()
+            dialog.tabs.widget(1).ensureWidgetVisible(order)
+            self.shot(dialog, "anova-type-one")
+            dialog.accept()
+            return dialog.result is not None
+
+        def change_then_cancel(dialog):
+            dialog.tabs.setCurrentIndex(1)
+            dialog.anova.order.list.setCurrentRow(0)
+            dialog.anova.order.down.click()
+            dialog.controls[MODEL_TERMS][1].boxes[(a, b)].setChecked(False)
+            self.shot(dialog, "anova-cancelled-change")
+            dialog.reject()
+            return False
+
+        steps = [new_model]
+
+        def drive(dialog):
+            dialog.show()
+            self.app.processEvents()
+            if not steps:
+                self.problem(f"anova: unexpected dialog: {dialog.banner.text()}")
+                dialog.reject()
+                return QDialog.DialogCode.Rejected
+            accepted = steps.pop(0)(dialog)
+            return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
+
+        expected = [[b], [a], [b, a]]
+        with mock.patch.object(AnalysisDialog, "exec", drive):
+            window.analyze(method="Multifactor ANOVA")
+            self.wait()
+            run = window.project.runs[-1]
+            if run.method != "Multifactor ANOVA" or run.result is None:
+                raise RuntimeError("Multifactor ANOVA was not calculated")
+            if run.options.get("Factors") != [b, a] or run.options.get(MODEL_TERMS) != expected:
+                self.problem(f"anova: recipe {run.options.get('Factors')} {run.options.get(MODEL_TERMS)}")
+            if list(run.result.tables["Model terms"].index) != [label(term) for term in expected]:
+                self.problem("anova: Model terms sheet does not list the selected terms")
+            self.shot(window, "anova-result")
+            confirmed, result = deepcopy(run.options), run.result
+            steps.append(change_then_cancel)
+            window.change_parameters()
+            self.wait()
+            if run.options != confirmed or window.project.runs[-1].result is not result:
+                self.problem("anova: Cancel changed the confirmed analysis")
+        saved = self.folder / "anova.alab"
+        window.project.save(saved)
+        window.project.dirty = False
+        window.open_path(saved)
+        self.wait()
+        index = next(i for i, item in enumerate(window.project.runs) if item.method == "Multifactor ANOVA")
+        window.open_sheet(("result", index))
+        self.wait()
+        reopened = window.project.runs[index]
+        if reopened.options != confirmed or reopened.result is None:
+            self.problem("anova: the reopened analysis differs or was not recalculated")
+        self.shot(window, "anova-reopened")
 
     def report(self):
         screen = self.app.primaryScreen()
