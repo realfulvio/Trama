@@ -22,7 +22,8 @@ from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, ui
 from analisi.monte_carlo import MonteCarloCancelled
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS
 from analisi.prism_restore import (PRISM_GRAPH_LINK, PRISM_PREVIEW, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
-                                   SAVED_EDITABLE_GRAPH)
+                                   SAVED_EDITABLE_GRAPH, SAVED_XY)
+from analisi.prism_xml_xy import XML_ERROR_BARS
 from analisi.text_import import TEXT_SUFFIXES
 from analisi.workbench import GRAPH_METHODS, GROUPS
 
@@ -42,6 +43,10 @@ except Exception:  # pragma: no cover
     threshold_text = None
 
 GRAPHING = tuple(GROUPS.get("Graphing", ())) + ("Plot a function",)
+
+
+def _saved_recipe(run):
+    return run.method in SAVED_VIEWS or (run.method == SAVED_XY and XML_ERROR_BARS in run.options)
 
 
 def preferred_view(run, result):
@@ -429,7 +434,7 @@ class MainWindow(QMainWindow):
         self.actions["copy"].setEnabled(data)
         for key in ("duplicate_family", "save_family"):
             self.actions[key].setEnabled(kind is not None and idle)
-        changeable = kind in {"result", "graph"} and self.project.runs[self.selected[1]].method not in SAVED_VIEWS
+        changeable = kind in {"result", "graph"} and not _saved_recipe(self.project.runs[self.selected[1]])
         self.actions["change"].setEnabled(changeable and idle)
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
@@ -908,9 +913,13 @@ class MainWindow(QMainWindow):
         result = run.result
         if kind == "graph" and run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}:
             self._imported_graph_actions(page, run)
+        elif kind == "graph" and run.method == SAVED_XY and XML_ERROR_BARS in run.options:
+            button = page.button(ui("Edit graph data"), lambda: self.open_sheet(("data", run.title)),
+                                 primary=True, icon="table")
+            button.setObjectName("importedGraphSource")
         elif kind == "saved-layout":
             self._imported_layout_actions(page, run, index)
-        if run.method not in SAVED_VIEWS and kind != "saved-layout":
+        if not _saved_recipe(run) and kind != "saved-layout":
             page.button(tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal")
         page.button(qt("qt.recalculate"), self.recalculate, icon="history")
         if kind == "result" and result is not None:
@@ -1179,7 +1188,7 @@ class MainWindow(QMainWindow):
             return
         index = self.selected[1]
         run = self.project.runs[index]
-        if run.method in SAVED_VIEWS:
+        if _saved_recipe(run):
             return
         try:
             frame = self.project.input_frame(run)

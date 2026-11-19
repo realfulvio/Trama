@@ -932,6 +932,10 @@ def _classic_analysis(method, frame, options, predict, run):
 
 def _imported_xy(frame, options):
     from .prism_mv_scatter import APPEARANCE, appearance_record, apply_axes
+    from .prism_xml_xy import XML_ERROR_BARS, render_xml_error_graph
+
+    if XML_ERROR_BARS in options:
+        return render_xml_error_graph(frame, options)
 
     style = appearance_record(options[APPEARANCE]) if APPEARANCE in options else None
     data = engine.complete(frame, ["X", "Y", "Dataset"], ["Series", "Geometry"])

@@ -1,4 +1,5 @@
 """Read source tables from verified GraphPad Prism ZIP and XML containers."""
+from collections import Counter
 import csv
 from io import StringIO
 import json
@@ -416,7 +417,7 @@ def _xml_info(root, ns, target, skipped):
             skipped.append(title)
 
 
-def _prism_xml(path, info_sheets=None):
+def _prism_xml(path, info_sheets=None, *, restore=False):
     data = path.read_bytes()
     if b"<!DOCTYPE" in data.replace(b"\0", b"").upper():
         raise ValueError("Prism XML files containing a DOCTYPE are unsupported.")
@@ -432,11 +433,14 @@ def _prism_xml(path, info_sheets=None):
         raise ValueError("Unrecognized Prism XML document.")
     ns = root.tag[:-len("GraphPadPrismFile")]
     tables, skipped, total_cells = {}, [], 0
-    for table in _xml_tables(root, ns):
+    xml_sources = {}
+    xml_tables = _xml_tables(root, ns)
+    table_ids = Counter(table.get("ID") for table in xml_tables) if restore else {}
+    for table in xml_tables:
         title = _xml_text(table.find(ns + "Title")) or table.get("ID") or "Data"
         if table.get("TableType") == "Result":
             continue
-        columns, y_spans = [], []
+        columns, x_spans, y_spans = [], [], []
         table_format = table.get("ExtTableType") or table.get("TableType", "column")
         xformat = table.get("XFormat")
         for column in table:
@@ -451,8 +455,10 @@ def _prism_xml(path, info_sheets=None):
                 continue
             start = len(columns)
             columns.extend(_xml_column(table, column, ns, role, fallback))
+            if role == "XColumn" and len(columns) > start:
+                x_spans.append((start, len(columns)))
             if role == "YColumn" and len(columns) > start:
-                y_spans.append((start, len(columns)))
+                y_spans.append((start, len(columns), _xml_text(column.find(ns + "Title")) or fallback))
         if not columns:
             skipped.append(title)
             continue
@@ -464,8 +470,19 @@ def _prism_xml(path, info_sheets=None):
         frame.attrs["excluded"] = sorted((row, col) for col, rows in enumerate(excluded) for row in rows)
         frame.attrs["table_format"] = table_format
         if table_format.casefold() == "nested":
-            frame.attrs["worksheet_roles"] = {"x": [], "y": [frame.columns[a:b].tolist() for a, b in y_spans]}
+            frame.attrs["worksheet_roles"] = {"x": [], "y": [frame.columns[a:b].tolist() for a, b, _ in y_spans]}
         _store_table(tables, title, frame)
+        if (restore and table_format.casefold() == "xy" and xformat == "numbers" and table.get("YFormat") == "replicates"
+                and len(x_spans) == 1 and table_ids[table.get("ID")] == 1
+                and (match := re.fullmatch(r"Table(0|[1-9][0-9]{0,4})", table.get("ID", "")))):
+            start, stop = x_spans[0]
+            if stop - start == 1:
+                groups = [(label, frame.columns[a:b].tolist()) for a, b, label in y_spans]
+                xml_sources[int(match[1])] = frame, frame.columns[start], groups
+    if xml_sources:
+        from .prism_xml_xy import attach_xml_error_graphs
+
+        attach_xml_error_graphs(root, ns, xml_sources)
     if info_sheets is not None:
         _xml_info(root, ns, info_sheets, skipped)
     return _finish(tables, skipped, info_sheets)
@@ -485,4 +502,4 @@ def load_prism(path, *, restore=False, info_sheets=None):
     xml_header = header.removeprefix(b"\xef\xbb\xbf").lstrip().startswith((b"<", b"\xff\xfe", b"\xfe\xff"))
     if header.startswith(b"PCFF") or (path.suffix.lower() in {".pzf", ".pzt"} and not xml_header):
         raise ValueError("This Prism binary project is unsupported. Save a copy as .prism or .pzfx in Prism.")
-    return _prism_xml(path, info_sheets=info_sheets)
+    return _prism_xml(path, info_sheets=info_sheets, restore=restore)

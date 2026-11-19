@@ -245,6 +245,17 @@ def _axis_config(graph):
     return configs
 
 
+def _text_object(records, encoding, flags):
+    text_header = _one(records, 0x802B)
+    _require(len(text_header) == 18)
+    text_id, = unpack_from("<H", text_header)
+    parts = [bytes(p) for tag, path, p in records if tag == 0x2C and path == (43,)]
+    _require(len(parts) <= 1)
+    text = (parts[0] if parts else b"").decode(encoding).strip()
+    _require(len(text) <= 240 and all(char.isprintable() for char in text))
+    return text_id, "" if flags & 0x200 else text
+
+
 def _scene(graph, encoding):
     scenes = list(_subgroups(graph, 0x8018))
     _require(len(scenes) == 1)
@@ -260,14 +271,9 @@ def _scene(graph, encoding):
         flags, = unpack_from("<H", object_header, 28)
         _require(kind in (2, 8, 9, 10, 15))
         if kind in (2, 15):
-            text_header = _one(records, 0x802B)
-            _require(len(text_header) == 18)
-            text_id, = unpack_from("<H", text_header)
-            parts = [bytes(p) for tag, path, p in records if tag == 0x2C and path == (43,)]
-            _require(len(parts) <= 1 and text_id not in texts)
-            text = (parts[0] if parts else b"").decode(encoding).strip()
-            _require(len(text) <= 240 and all(char.isprintable() for char in text))
-            texts[text_id] = "" if flags & 0x200 else text
+            text_id, text = _text_object(records, encoding, flags)
+            _require(text_id not in texts)
+            texts[text_id] = text
             if kind == 15 and texts[text_id]:
                 custom.append(text)
         elif kind == 9:
