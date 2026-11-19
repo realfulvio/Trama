@@ -108,6 +108,34 @@ def _hidden_legend_keys(objects):
     return {key for key, hidden in entries.items() if hidden}
 
 
+def _saved_plot_box(records, objects):
+    try:
+        chart = _one(records, 0x13)
+        left, top, right, bottom = unpack_from("<4h", chart)
+        _require(len(chart) == 48 and right > left and bottom > top)
+        _require(sum(unpack_from("<H", header)[0] == 10 for header, _ in objects) == 1)
+        bounds = []
+        for header, _ in objects:
+            if unpack_from("<H", header, 28)[0] & 0x200:
+                continue
+            x0, y0, x1, y1 = unpack_from("<4h", header, 2)
+            if x0 < x1 and y0 < y1:
+                bounds.append((x0, y0, x1, y1))
+        # Positioned panels confirm the padded dimensions independently.
+        # Use this geometry only when the saved panel size matches it.
+        plot_left = min(box[0] for box in bounds) - 24
+        plot_top = min(box[1] for box in bounds) - 24
+        plot_right = max(box[2] for box in bounds) + 24
+        plot_bottom = max(box[3] for box in bounds) + 24
+        _require(plot_left <= left < right <= plot_right and plot_top <= top < bottom <= plot_bottom)
+        width, height = plot_right - plot_left, plot_bottom - plot_top
+        axes_box = [(left - plot_left) / width, (plot_bottom - bottom) / height,
+                    (right - left) / width, (bottom - top) / height]
+        return {"size": [width, height], "axes_box": axes_box}
+    except (ValueError, StructError):
+        return None
+
+
 def _series(records, columns):
     order = _id_array(_one(records, 0x15))
     links = _one(records, 0x16)
@@ -140,7 +168,7 @@ def _series(records, columns):
             item["legend"] = False
         styles[key] = item
     _require(len(order) == len(styles) and set(order) == styles.keys() and seen == linked)
-    return [styles[key] for key in order], _saved_captions(records, objects)
+    return [styles[key] for key in order], _saved_captions(records, objects), _saved_plot_box(records, objects)
 
 
 def saved_sparse_xy(archive, graph, graph_uid, owners, sources):
@@ -181,8 +209,11 @@ def _saved_sparse_xy(archive, graph, graph_uid, owners, sources):
     _require(0 < member.file_size <= _MAX_GRAPH_BYTES and type(graph.get("fenID")) is int)
     records = _graph_records(archive.read(member), graph["fenID"])
     _require(_id_array(_one(records, 0x14)) == [sheet["fenID"]])
-    series, captions = _series(records, columns)
-    return frame, {"x": x, "series": series, "axes": list(_linear_axes(records)), "captions": captions}
+    series, captions, plot = _series(records, columns)
+    style = {"x": x, "series": series, "axes": list(_linear_axes(records)), "captions": captions}
+    if plot is not None:
+        style["plot"] = plot
+    return frame, style
 
 
 def render_sparse_xy(frame, style, title, *, axes=None):

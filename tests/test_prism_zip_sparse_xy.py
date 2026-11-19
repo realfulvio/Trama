@@ -35,8 +35,11 @@ def _graph(markers, fen_id=8, saved_presentation=False):
         objects += _group(0x8020, pack("<H", 9) + bytes(28), _group(0x8028, header))
     if saved_presentation:
         chart = bytearray(48)
+        pack_into("<4h", chart, 0, 100, 200, 1300, 1400)
         pack_into("<H", chart, 32, 30)
         graph += _record(0x13, chart)
+        background = pack("<H4h", 10, 40, 120, 1390, 1500) + bytes(20)
+        objects += _group(0x8020, background, b"")
         for identity, hidden, caption in ((30, True, b"Saved title"), (31, False, b"Elapsed $ hours"),
                                           (32, True, b"Source units"), (33, True, b"Right axis")):
             flags = 0x200 if hidden else 0
@@ -53,14 +56,17 @@ def _graph(markers, fen_id=8, saved_presentation=False):
     return b"PCFFGRA4" + _group(0x8001, bytes(12), _group(0x8012, pack("<H", fen_id), graph))
 
 
-def _layout(graph_id=9, arrow_direction=0):
+def _layout(graph_id=9, arrow_direction=0, saved_presentation=False):
     dimensions = pack("<2i", 850, 1100) + bytes(292)
     references = pack("<H", 2)
     references += b"".join(pack("<IH6s", uid, 65535, bytes(6)) for uid in (8, 9))
     objects = b""
     for uid, bounds in ((8, (300, 400, 4000, 1800)), (graph_id, (500, 2200, 4200, 3600))):
         panel = pack("<H", 11) + bytes(16) + pack("<4h", *bounds) + bytes(4)
-        objects += _group(0x8020, panel, _record(0x2F, pack("<H", uid)))
+        link = _record(0x2F, pack("<H", uid))
+        if saved_presentation:
+            link += _record(0x30, pack("<2H", 1398, 1428))
+        objects += _group(0x8020, panel, link)
     line = pack("<H", 3) + bytes(28)
     points = b"".join(_record(0xD9, pack("<iii8s", 2, x, y, bytes(8)))
                       for x, y in ((3900, 1750), (600, 2300)))
@@ -108,7 +114,7 @@ def _write(project, *, bad_link=False, layout_link=None, arrow_direction=0, save
             detail = _graph([(20, 205, "22aaff"), (21, 206, "ff0088")], fen_id=9,
                             saved_presentation=saved_presentation)
             archive.writestr("graphs/detail/data.bin", detail)
-            archive.writestr("layouts/page/data.bin", _layout(layout_link, arrow_direction))
+            archive.writestr("layouts/page/data.bin", _layout(layout_link, arrow_direction, saved_presentation))
 
 
 class PrismZipSparseXYTests(unittest.TestCase):
@@ -126,6 +132,12 @@ class PrismZipSparseXYTests(unittest.TestCase):
                     self.assertIsNone(axes.get_legend())
                     self.assertEqual([line.get_marker() for line in axes.lines], ["v"])
                     self.assertEqual([line.get_markersize() for line in axes.lines], [8])
+                    if method == SAVED_BINARY_LAYOUT:
+                        x, y, width, height = axes.get_position().bounds
+                        self.assertAlmostEqual(x, 84 / 1398)
+                        self.assertAlmostEqual(y, 124 / 1428)
+                        self.assertAlmostEqual(width, 1200 / 1398)
+                        self.assertAlmostEqual(height, 1200 / 1428)
 
     def test_initially_empty_series_remains_linked_to_its_original_column(self):
         with TemporaryDirectory() as scratch:

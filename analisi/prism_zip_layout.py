@@ -72,7 +72,12 @@ def _linked_objects(records, graphs):
             graph, = unpack_from("<H", _one(details, 0x2F))
             title, style = graphs[graph]
             bounds = list(unpack_from("<4h", header, 18))
-            panels.append({"title": title, "style": style, "bounds": bounds})
+            panel = {"title": title, "style": style, "bounds": bounds}
+            original = [data for tag, path, data in details if tag == 0x30 and not path]
+            if style.get("plot") and len(original) == 1 and len(original[0]) == 4:
+                if list(unpack_from("<2H", original[0])) == style["plot"]["size"]:
+                    panel["axes_box"] = style["plot"]["axes_box"]
+            panels.append(panel)
             seen.add(graph)
         elif kind == 3:
             connectors.append(_connector(details))
@@ -118,6 +123,9 @@ def _page_size(layout):
     for panel in layout["panels"]:
         left, top, right, bottom = panel["bounds"]
         _require(0 <= left < right <= w and 0 <= top < bottom <= h)
+        if "axes_box" in panel:
+            x, y, width, height = panel["axes_box"]
+            _require(0 <= x < x + width <= 1 and 0 <= y < y + height <= 1)
     for connector in layout["connectors"]:
         start, end = connector["ends"]
         arrow_ends = connector.get("arrow_ends", [])
@@ -161,7 +169,7 @@ def render_positioned_layout(frame, layout):
                             width_ratios=(left, right - left, width - right),
                             height_ratios=(top, bottom - top, height - bottom))
             page = figure.add_subfigure(grid[1, 1])
-            axes = page.add_axes((.09, .18, .86, .67))
+            axes = page.add_axes(panel.get("axes_box", (.09, .18, .86, .67)))
             render_sparse_xy(frame, panel["style"], panel["title"], axes=axes)
             axes.title.set_fontsize(10)
             axes.tick_params(labelsize=8)
