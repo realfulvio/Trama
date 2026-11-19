@@ -816,4 +816,3 @@ class Project:
 
 def tr_formula_only():
     return "Calculated columns are changed with Formula."
-
