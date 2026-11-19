@@ -14,7 +14,7 @@ from . import fdr_control, operations
 from .fdr_control import (
     BH, FAMILY_COLUMNS, FDR_METHOD, LEVEL, METHOD, P_COLUMNS, PLOT, SCOPE, SCOPE_EACH, SCOPE_POOL,
 )
-from .i18n import active_language, set_language, ui
+from .i18n import active_language, set_language, tr, ui
 
 TITLE = "Assays"
 LEGACY = "Adjust a stack of p values"
@@ -309,10 +309,25 @@ def check_fdr_control(root, app, directory, kit):
         # recalculation. Cancelling recovery must not make them exportable.
         kept = pooled.result
         app.show('data', TITLE)
-        holder = drive(lambda d: kit.capture(d, 'window-fdr-recovery-it.png'), accept=False)
-        app.edit_cell(1, 4, '2')
-        kit.wait_for_calculation()
-        finish(holder)
+        reopen = app.reopen_analysis
+        recoveries = []
+
+        def check_recovery(dialog):
+            messages = " | ".join(_texts(dialog))
+            assert tr("fdr.error.p", column="P_A") in messages, messages
+            assert dialog.fields.select() == str(dialog.field_rows[P_COLUMNS][1].master)
+            kit.capture(dialog, 'window-fdr-recovery-it.png')
+
+        def observe_reopening(*args):
+            # Start watching once field validation on the worker has finished.
+            recoveries.append(drive(check_recovery, accept=False))
+            return reopen(*args)
+
+        with patch.object(app, 'reopen_analysis', observe_reopening):
+            app.edit_cell(1, 4, '2')
+            kit.wait_for_calculation()
+        assert len(recoveries) == 1, len(recoveries)
+        finish(recoveries[0])
         assert pooled.result is kept and pooled.calculation_error
         app.show('result', app.runs.index(pooled))
         assert app.stale_calculation_note()
