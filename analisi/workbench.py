@@ -933,12 +933,15 @@ def _classic_analysis(method, frame, options, predict, run):
 def _imported_xy(frame, options):
     from .prism_mv_scatter import APPEARANCE, appearance_record, apply_axes
     from .prism_xml_xy import XML_ERROR_BARS, render_xml_error_graph
+    from .prism_zip_column import ZIP_COLUMN, render_aligned_column
     from .prism_zip_xy import ZIP_SPARSE_XY, render_sparse_xy
 
     if XML_ERROR_BARS in options:
         return render_xml_error_graph(frame, options)
     if ZIP_SPARSE_XY in options:
         return render_sparse_xy(frame, options[ZIP_SPARSE_XY], options.get(PRISM_TITLE, "Prism XY graph"))
+    if ZIP_COLUMN in options:
+        return render_aligned_column(frame, options[ZIP_COLUMN])
 
     style = appearance_record(options[APPEARANCE]) if APPEARANCE in options else None
     data = engine.complete(frame, ["X", "Y", "Dataset"], ["Series", "Geometry"])
