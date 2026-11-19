@@ -1,6 +1,9 @@
-"""Validated drawing-only context operations and canonical EN/IT menu choices."""
+"""Validated drawing-only context operations and canonical EN/IT menu choices.
+
+``edit_records`` and the choice tables are toolkit-free (the Qt window builds its own menu from them);
+only ``build_menu`` creates Tk controls.
+"""
 from copy import deepcopy
-import tkinter as tk
 import uuid
 
 from .graph_shapes import (ARROW_HEADS, ARROW_SIZE, ARROW_STYLES, HATCHES, LINE_STYLES,
@@ -40,6 +43,8 @@ def edit_records(records, shape_id, action, value=None):
 
 def build_menu(master, record, *, change, format_object, color, clipboard=None):
     """Create actual Tk controls. Callbacks receive canonical values, never translated labels."""
+    import tkinter as tk
+
     menu = tk.Menu(master,tearoff=False)
     menu._shape_variables=[]
     menu.add_command(label=tr('shape.context.format'),command=format_object)
