@@ -892,6 +892,14 @@ class QtShellTests(unittest.TestCase):
         window.project.rename_column("groups", 1, "Drug")
         self.assertEqual(list(window.project.tables["groups"].raw.columns), ["Control", "Drug"])
 
+    def test_desktop_smoke(self):
+        """python -m trama_qt --smoke, in English on the test screen: every dialog fits and nothing is clipped."""
+        from trama_qt.smoke import run
+        folder = self.folder / "smoke"
+        status = run(folder, languages=("en",))
+        self.assertEqual(status, "PASS", (folder / "report.txt").read_text(encoding="utf-8"))
+        self.assertGreater(len(list(folder.glob("en-*.png"))), 25)
+
     def test_every_dialog_builds_and_reads_its_defaults(self):
         from analisi.workbench import METHODS
         from trama_qt.analysis_dialog import AnalysisDialog

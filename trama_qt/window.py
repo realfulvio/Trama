@@ -11,7 +11,7 @@ from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QStringListModel, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (QCompleter, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
-                               QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QSplitter, QStackedWidget,
+                               QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QScrollArea, QSplitter, QStackedWidget,
                                QTabBar, QTabWidget, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from analisi._version import VERSION
@@ -25,6 +25,7 @@ from analisi.workbench import GRAPH_METHODS, GROUPS
 
 from . import theme
 from .analysis_dialog import AnalysisDialog
+from .flow import FlowLayout
 from .labels import method_label
 from .models import WorksheetModel, column_label
 from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, CalculationControl, Project,
@@ -108,9 +109,9 @@ class Page(QWidget):
             caption.setObjectName("pageSubtitle")
             caption.setWordWrap(True)
             self.layout_.addWidget(caption)
-        self.actions_row = QHBoxLayout()
-        self.actions_row.setSpacing(6)
-        self.layout_.addLayout(self.actions_row)
+        actions = QWidget()
+        self.actions_row = FlowLayout(actions)  # Wraps on narrow windows instead of clipping the buttons.
+        self.layout_.addWidget(actions)
         self.canvases = []
 
     def button(self, text, handler, *, primary=False, icon=None):
@@ -135,7 +136,7 @@ class Page(QWidget):
         return widget
 
     def finish_actions(self):
-        self.actions_row.addStretch(1)
+        """The row wraps its buttons; nothing to close."""
 
     def release(self):
         """Detach matplotlib figures from the canvases that are about to be deleted."""
@@ -377,7 +378,15 @@ class MainWindow(QMainWindow):
                 button = self._tool(key, primary=primary)
                 row_layout.addWidget(button)
             row_layout.addStretch(1)
-            self.ribbon.addWidget(row)
+            # A long tab scrolls sideways instead of setting the window's minimum width (small screens, 150%).
+            scroller = QScrollArea()
+            scroller.setWidget(row)
+            scroller.setWidgetResizable(True)
+            scroller.setFrameShape(QFrame.Shape.NoFrame)
+            scroller.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            scroller.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            scroller.setMinimumHeight(row.sizeHint().height() + scroller.horizontalScrollBar().sizeHint().height())
+            self.ribbon.addWidget(scroller)
         self.ribbon_tabs.currentChanged.connect(self.ribbon.setCurrentIndex)
         self.ribbon_tabs.setCurrentIndex(1)
         layout.addWidget(self.ribbon)

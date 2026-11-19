@@ -43,9 +43,22 @@ def main(argv=None):
     theme.apply(app)
     app.setWindowIcon(QIcon(str(theme.ASSETS / "trama.png")))
 
+    if "--smoke" in argv:  # python -m trama_qt --smoke FOLDER: desktop acceptance, see trama_qt/smoke.py.
+        if splash is not None:
+            splash.close()
+        position = argv.index("--smoke") + 1
+        if position >= len(argv):
+            print("Usage: python -m trama_qt --smoke FOLDER")
+            return 2
+        from .smoke import run
+        status = run(argv[position])
+        print(f"Qt smoke: {status} ({argv[position]})")
+        return 0 if status == "PASS" else 1
+
     from .window import MainWindow
     window = MainWindow()
     window.show()
+    theme.keep_on_screen(window)
     if splash is not None:
         splash.finish(window)
     path = _file_argument(argv)

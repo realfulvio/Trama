@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 from analisi.i18n import active_language, ui
 from analisi.text_import import DECIMAL_MARKS, DELIMITERS, ImportOptions, TextImport, read_text_file
 
+from . import theme
+
 PREVIEW = (12, 5)  # Rows and columns shown, as in the classic dialog.
 _ITALIAN = {
     "Import text data": "Importa dati di testo", "Source": "Origine", "Delimiter": "Separatore",
@@ -65,7 +67,7 @@ class TextImportDialog(QDialog):
         self.path, self.result = path, None
         self.content = read_text_file(path)
         self.source = self.parsed_delimiter = None
-        outer = QVBoxLayout(self)
+        outer = theme.scroll_body(self)  # Scrolls on short screens (150%).
         title = QLabel(path.name)
         title.setObjectName("dialogTitle")
         outer.addWidget(title)
@@ -130,7 +132,7 @@ class TextImportDialog(QDialog):
         buttons.addButton(t("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        outer.addWidget(buttons)
+        self.layout().addWidget(buttons)
 
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
@@ -141,7 +143,8 @@ class TextImportDialog(QDialog):
                        *(entry.textChanged for entry in self.bounds.values())):
             signal.connect(self.timer.start)
         self.refresh_preview()
-        self.resize(820, 520)
+        hint = self.sizeHint()  # Tall enough for every setting; a short screen scrolls (theme.keep_on_screen).
+        self.resize(max(820, hint.width()), max(520, hint.height()))
 
     def options(self):
         delimiter = self.delimiter.currentData()

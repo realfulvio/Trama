@@ -14,6 +14,7 @@ from analisi import compact_letters as cl
 from analisi import pairwise_graph as pg
 from analisi.i18n import active_language, tr, ui
 
+from . import theme
 from .graph_format import _color_button
 
 _ITALIAN = {
@@ -82,7 +83,7 @@ class PairwiseDialog(QDialog):
         self.sources, self.current, self.anchors, self.load_rows = list(sources), current or {}, anchors, load_rows
         self.rows, self.checked, self.result = [], set(), None
         current = self.current
-        outer = QVBoxLayout(self)
+        outer = theme.scroll_body(self)  # Scrolls on short screens (150%).
         box = QGroupBox(t("Source"))
         column = QVBoxLayout(box)
         self.source = QComboBox()
@@ -179,7 +180,7 @@ class PairwiseDialog(QDialog):
         buttons.addButton(t("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        outer.addWidget(buttons)
+        self.layout().addWidget(buttons)
 
         for button in self.filter.buttons.values():
             button.toggled.connect(self._sync_cutoff)
@@ -199,7 +200,8 @@ class PairwiseDialog(QDialog):
         self.source.currentIndexChanged.connect(self._load)
         self._sync_cutoff()
         self._sync_display()
-        self.resize(560, 640)
+        size = self.sizeHint()
+        self.resize(max(560, size.width()), max(640, size.height()))
 
     def _show(self, text):
         self.problem.setText(text)

@@ -11,6 +11,7 @@ from analisi.graph_shapes import (ARROW_HEADS, ARROW_SIZE, ARROW_STYLES, HATCHES
                                   MAX_SHAPES, UNITS, on_axis_domain, validate_shape)
 from analisi.i18n import tr
 
+from . import theme
 from .graph_format import Choice, _color_button
 
 DEFAULT_SHAPE = {"kind": "line", "units": "axes", "points": [[.2, .3], [.8, .7]], "stroke": "#216a94",
@@ -65,7 +66,7 @@ class ShapeEditor(QDialog):
         self.axes, self.result = axes, None
         self.record = deepcopy(record) if record else {"id": str(uuid.uuid4()), **deepcopy(DEFAULT_SHAPE)}
         r = self.record
-        outer = QVBoxLayout(self)
+        outer = theme.scroll_body(self)  # Scrolls on short screens (150%).
         self.fields = {}
 
         def choice(key):
@@ -141,7 +142,7 @@ class ShapeEditor(QDialog):
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        outer.addWidget(buttons)
+        self.layout().addWidget(buttons)
         for key in ("kind", "arrow_heads", "hatch"):
             self.fields[key].currentIndexChanged.connect(self.sync_kind)
         self.sync_kind()

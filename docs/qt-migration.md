@@ -34,10 +34,17 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 
 ## Cosa resta su Tk (fasi successive)
 
-Le funzioni della finestra classica sono tutte su Qt. Restano:
+Le funzioni della finestra classica sono tutte su Qt. Resta il collaudo su Windows reale (Codex), da fare con lo smoke Qt qui sotto.
 
-1. Porting dello smoke test (`--smoke`) su Qt.
-2. Collaudo DPI su Windows reale (Codex).
+## Smoke Qt (collaudo da desktop)
+
+`python -m trama_qt --smoke CARTELLA` gira sullo schermo vero, in inglese e in italiano. Apre un piccolo progetto, calcola un risultato, grafici e un layout, apre ogni comando che mostra un dialogo e scrive in CARTELLA:
+
+- `<lingua>-<nome>.png` con la finestra su ogni foglio e ogni dialogo, alla scala corrente;
+- `report.txt` con schermo, scala, versione di Qt e i problemi trovati;
+- `status.txt` con `PASS` o `FAIL`; il codice di uscita è 0 o 1.
+
+Un dialogo fallisce se non entra nell'area disponibile dello schermo o se un pulsante, una casella o un'etichetta è più stretta del suo testo. Va lanciato a 100% e a 150%. In Linux si emula uno schermo con `QT_QPA_PLATFORM="offscreen:configfile=schermo.json"`: per esempio 1366×768 al 150% è `{"screens": [{"name": "s", "x": 0, "y": 0, "width": 1366, "height": 768, "logicalDpi": 144, "logicalBaseDpi": 96, "dpr": 1.0}]}`. Lo smoke Tk (`python tramastat.py --smoke`) resta per la versione classica.
 
 Quando tutto è migrato si toglie `--tk` e la dipendenza da Tk.
 

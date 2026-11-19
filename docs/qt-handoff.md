@@ -8,12 +8,24 @@ Claude lo aggiorna a ogni commit; la voce più recente sta in cima. Il piano com
 1. `git fetch origin claude/project-thread-4unaln && git checkout claude/project-thread-4unaln && git pull --ff-only`
 2. Leggi la voce più recente qui sotto (e quelle che non hai ancora visto, confrontando il commit).
 3. Test: `python -m unittest tests.test_qt_shell` (offscreen; su Windows imposta `QT_QPA_PLATFORM=offscreen` solo per i test) più la tua suite completa.
-4. Prova a mano su Windows quello che la voce indica in "Da provare su Windows", a 100% e 150% di scala.
+4. Prova a mano su Windows quello che la voce indica in "Da provare su Windows", a 100% e 150% di scala, e lancia `python -m trama_qt --smoke CARTELLA` alle due scale.
 5. Rispondi con un commento sulla PR #56 (o scrivilo a Luca): commit provato, esito dei test, problemi con passi per riprodurli.
 
 Regole fisse: niente merge e niente cambio di versione da parte di Claude; la grafica nuova si fa solo su Qt (il Vetro su Tk è fermo); `trama_qt` non deve importare `tkinter`; Windows resta NON PROVATO finché Codex non lo conferma.
 
 ## Avanzamenti
+
+### SMOKE · Smoke Qt e schermi piccoli al 150% (2026-11-19)
+
+- Nuovo: `python -m trama_qt --smoke CARTELLA` (`trama_qt/smoke.py`), il collaudo da desktop per Qt descritto in `docs/qt-migration.md`. Gira in inglese e in italiano. Salva gli screenshot della finestra su ogni foglio e di ogni dialogo, poi scrive `report.txt` e `status.txt` (PASS o FAIL). Fallisce se un dialogo non entra nello schermo o se un testo è tagliato.
+- Corretto quello che lo smoke ha trovato emulando schermi al 150%:
+  - La barra dei comandi a schede imponeva alla finestra una larghezza minima di 2025 px (2231 in italiano). Ora ogni scheda scorre di lato.
+  - I pulsanti delle pagine andavano a capo male e venivano tagliati. Ora stanno in un layout che va a capo (`trama_qt/flow.py`).
+  - Ogni dialogo, quando si apre, viene ridotto e spostato dentro lo schermo (`theme.keep_on_screen`).
+  - Importazione testo, Confronti a coppie e Forme scorrono in verticale sugli schermi bassi; i pulsanti restano sempre visibili.
+- Esito nel container (offscreen con schermi emulati): PASS a 1920×1080 al 100%, 1920×1080 al 150% (1280×720 logici) e 1366×768 al 150% (911×512 logici).
+- Da provare su Windows: lanciare `python -m trama_qt --smoke C:\temp\qt-smoke-100` a 100% e `...-150` a 150%. Allegare `report.txt`, guardare gli screenshot e segnalare i testi tagliati o i dialoghi fuori schermo che il controllo non vede.
+- Test attesi: `tests.test_qt_shell` 19/19 OK (incluso lo smoke in inglese).
 
 ### a751bcd · Importazione guidata di file di testo su Qt (2026-11-19)
 

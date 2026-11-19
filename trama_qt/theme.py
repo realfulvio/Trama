@@ -3,10 +3,10 @@ from functools import lru_cache
 from pathlib import Path
 import sys
 
-from PySide6.QtCore import QByteArray, QSize, Qt
+from PySide6.QtCore import QByteArray, QEvent, QObject, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPalette, QPixmap
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QDialog, QFrame, QScrollArea, QVBoxLayout, QWidget
 
 
 def asset_root():
@@ -184,7 +184,79 @@ def stylesheet():
     """
 
 
+def keep_on_screen(window):
+    """Shrink and move a top-level window into the available area of its screen (small screens at 150%).
+
+    Unbound QWidget calls: some dialogs keep fields called ``width`` or ``size``.
+    """
+    screen = window.screen() or QApplication.primaryScreen()
+    if screen is None:
+        return
+    area = screen.availableGeometry()
+    frame = window.frameGeometry()
+    inner = QWidget.size(window)
+    extra_w, extra_h = frame.width() - inner.width(), frame.height() - inner.height()
+    width = min(inner.width(), area.width() - extra_w)
+    height = min(inner.height(), area.height() - extra_h)
+    if (width, height) != (inner.width(), inner.height()):
+        QWidget.resize(window, max(width, 1), max(height, 1))
+        frame = window.frameGeometry()
+    x = min(max(frame.x(), area.left()), area.right() + 1 - frame.width())
+    y = min(max(frame.y(), area.top()), area.bottom() + 1 - frame.height())
+    if (x, y) != (frame.x(), frame.y()):
+        QWidget.move(window, max(x, area.left()), max(y, area.top()))
+
+
+class FitScrollArea(QScrollArea):
+    """Asks for the full size of its content, scrolls vertically only when the screen is too short."""
+
+    def _bar(self):
+        return self.verticalScrollBar().sizeHint().width()
+
+    def sizeHint(self):
+        content = self.widget()
+        if content is None:
+            return super().sizeHint()
+        hint = content.sizeHint()
+        return QSize(hint.width() + self._bar(), hint.height())
+
+    def minimumSizeHint(self):
+        content = self.widget()
+        if content is None:
+            return super().minimumSizeHint()
+        return QSize(content.minimumSizeHint().width() + self._bar(), min(160, content.minimumSizeHint().height()))
+
+
+def scroll_body(dialog):
+    """The layout for a dialog's fields, inside a vertical scroll area; add the buttons to ``dialog.layout()``."""
+    root = QVBoxLayout(dialog)
+    area = FitScrollArea()
+    area.setWidgetResizable(True)
+    area.setFrameShape(QFrame.Shape.NoFrame)
+    area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    body = QWidget()
+    layout = QVBoxLayout(body)
+    layout.setContentsMargins(0, 0, 0, 0)
+    area.setWidget(body)
+    root.addWidget(area, 1)
+    return layout
+
+
+class _DialogsOnScreen(QObject):
+    """Every dialog, when shown, fits the screen it opens on: its size hint or resize() can exceed it."""
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.Show and isinstance(watched, QDialog) and watched.isWindow():
+            keep_on_screen(watched)
+        return False
+
+
+_ON_SCREEN = _DialogsOnScreen()
+
+
 def apply(app, *, dark=False):
+    app.removeEventFilter(_ON_SCREEN)
+    app.installEventFilter(_ON_SCREEN)
     T.clear()
     T.update(DARK if dark else LIGHT)
     _icon_pixmap.cache_clear()
