@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QGroupBox,
                                QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QSpinBox, QTableWidget,
                                QTableWidgetItem, QVBoxLayout)
@@ -393,7 +393,21 @@ class ExcelImportDialog(QDialog):
         self.notes.setVisible(bool(text))
         self.notes.style().polish(self.notes)
 
+    def _mark_errors(self):
+        """A warning icon on each sheet whose header row cannot be imported, with the reason as tooltip."""
+        warning = theme.icon("triangle-alert", "error", 16)
+        for row, info in enumerate(self.sheets):
+            item = self.list.item(row, 0)
+            if not info.importable:
+                continue
+            problem = self.errors.get(info.name)
+            item.setIcon(warning if problem else QIcon())
+            item.setToolTip(f"{info.name}\n{problem}" if problem else info.name)
+
     def update_state(self):
+        self.list.blockSignals(True)
+        self._mark_errors()
+        self.list.blockSignals(False)
         chosen = self.checked()
         self.chosen.setText(t("1 sheet chosen") if len(chosen) == 1
                             else t("{count} sheets chosen").format(count=len(chosen)))
@@ -557,8 +571,7 @@ class ExcelExportDialog(QDialog):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
-        header.resizeSection(2, 220)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         row.addWidget(self.table, 1)
         side = QVBoxLayout()
         self.up = QPushButton(t("Move up"))
@@ -567,6 +580,9 @@ class ExcelExportDialog(QDialog):
         self.down.setIcon(theme.icon("chevron-down"))
         self.up.setToolTip(f"{t('Move up')} (Alt+↑)")
         self.down.setToolTip(f"{t('Move down')} (Alt+↓)")
+        for button in (self.up, self.down):  # Enter always means Export, whichever button has the focus.
+            button.setAutoDefault(False)
+            button.setDefault(False)
         side.addWidget(self.up)
         side.addWidget(self.down)
         side.addStretch(1)
@@ -635,7 +651,7 @@ class ExcelExportDialog(QDialog):
 
     def excel_names(self):
         keys = self.chosen()
-        labels = [next(item.label for item in self.order if item.key == key) for key in keys]
+        labels = [desired_name(next(item for item in self.order if item.key == key)) for key in keys]
         return dict(zip(keys, excel_sheet_names(labels)))
 
     def update_names(self):
@@ -686,7 +702,7 @@ class ExcelExportDialog(QDialog):
 def _frames(project, items, keys):
     """``[(desired name, DataFrame)]`` for the chosen keys: data as the CSV export sees it (Trama formulas
     calculated, exclusions masked), result tables with their index as columns."""
-    labels = {item.key: item.label for item in items}
+    labels = {item.key: desired_name(item) for item in items}
     entries = []
     for key in keys:
         if key[0] == "data":
@@ -696,6 +712,15 @@ def _frames(project, items, keys):
             frame = materialize_index(run.result.tables[key[2]])
         entries.append((labels[key], frame))
     return entries
+
+
+def desired_name(item):
+    """The name an Excel sheet starts from: the table title for data, «table · analysis» for a result, so the
+    part that tells a table from its siblings survives the 31-character limit."""
+    if item.kind == "result" and item.key[2] is not None:
+        run_name = item.label[:-len(item.key[2]) - 3] if item.label.endswith(f" · {item.key[2]}") else item.label
+        return f"{item.key[2]} · {run_name}"
+    return item.label
 
 
 def export_workbook(window, path=None):

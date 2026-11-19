@@ -15,6 +15,35 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Cartelle Excel: Importa cartella Excel… / Esporta cartella Excel…, pacchetto Excel-Completo-Qt (2026-11-19)
+
+PR draft verso main (ramo `claude/project-thread-mq7akh`, base main `4c07db6`). Windows NON PROVATO. Guida:
+`docs/qt-excel-workbook.md`.
+
+- Motore `analisi/xlsx_exchange.py` (senza Qt): `inspect_workbook`, `read_workbook(path, {foglio: riga o None})`,
+  `write_workbook(path, [(nome, frame)], overwrite=False)`, più `WorkbookReader` (anteprime e lettura con un solo
+  handle) e `prepare_workbook` → `publish`/`discard`. Il lettore storico `analisi.data.load_tables` non cambia.
+- Qt `trama_qt/excel_workbook.py`: due azioni nel gruppo File (`import_excel`, `export_excel`), dialoghi
+  `ExcelImportDialog` ed `ExcelExportDialog`, lavoro sul worker della finestra con avanzamento e Annulla. Testi
+  EN/IT nel modulo (nessuna voce in `strings.py`).
+- Smoke dedicato: `python -m trama_qt --smoke CARTELLA --scenario qt-excel-workbook` (preferenze nella cartella,
+  tema da `TRAMA_THEME`, predefinito chiaro). Il giro completo `--smoke` lo esegue anche, prima del canvas; le misure
+  50.000×20 solo nella prima lingua.
+- Da provare su Windows, a 100% e 150%:
+  - Smoke dedicato in chiaro e scuro; guardare `en-/it-excel-*.png` e `excel-timings.txt` (tempi e memoria di picco
+    reali).
+  - A mano: Importa cartella Excel… su `quaderno-multifoglio.xlsx` (nello smoke, cartella `excel-en`): Appunti non
+    spuntato, Vuoto non selezionabile, riga 2 per Controlli, riga 9 → errore e Importa spento. Mouse e tastiera
+    (spazio sulle caselle, frecce, Tab fino a Importa).
+  - Esporta cartella Excel… con due fogli dati e due tabelle risultato, Su/Giù e Alt+↑/↓, Invio = Esporta;
+    aprire il file in Excel (nessuna formula, `0007` e `=letterale` come testo); riesportare sullo stesso file con
+    Excel aperto su quel file: errore, file intatto, nessun `.~trama-*.xlsx` rimasto.
+  - Apri, salva .alab, riapri: i fogli importati tengono tipi (testo, numeri, booleani).
+- Conflitti attesi: `trama_qt/window.py` (2 azioni in `_build`, gruppo File del ribbon, 2 righe in
+  `update_actions`, 2 metodi prima di `open_classic`, 1 import), `trama_qt/smoke.py` (attributo `scenario`, 4 righe
+  in `run_language`, `SCENARIOS` e `run`), `trama_qt/app.py` (`--scenario`), cima di questo file. Vicine: #57-#69
+  sul gruppo File di `window.py`, `smoke.py` e questo file.
+
 ### Più progetti in schede nella finestra Qt, pacchetto Progetti 0.95 (2026-11-19)
 
 PR draft verso main (ramo `claude/project-thread-hz1cm2`, base main 7a7340c). Windows NON PROVATO.

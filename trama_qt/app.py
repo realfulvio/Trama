@@ -13,8 +13,23 @@ def _file_argument(argv):
     return None
 
 
+def _option(argv, name):
+    """The value after ``name`` (``--smoke FOLDER``, ``--scenario NAME``), or ``None``."""
+    if name in argv and argv.index(name) + 1 < len(argv):
+        return argv[argv.index(name) + 1]
+    return None
+
+
 def main(argv=None):
     argv = list(sys.argv if argv is None else argv)
+    scenario = _option(argv, "--scenario")
+    if "--smoke" in argv and scenario is not None:  # A dedicated smoke never reads the user's preferences.
+        folder = _option(argv, "--smoke")
+        if folder:
+            preferences = os.path.join(os.path.abspath(folder), "preferences")
+            os.makedirs(preferences, exist_ok=True)
+            os.environ["APPDATA"] = os.environ["XDG_CONFIG_HOME"] = preferences
+            os.environ.setdefault("TRAMA_THEME", "light")
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QGuiApplication, QIcon, QPixmap
     from PySide6.QtWidgets import QApplication, QSplashScreen
@@ -53,11 +68,14 @@ def main(argv=None):
             splash.close()
         position = argv.index("--smoke") + 1
         if position >= len(argv):
-            print("Usage: python -m trama_qt --smoke FOLDER")
+            print("Usage: python -m trama_qt --smoke FOLDER [--scenario qt-excel-workbook]")
             return 2
-        from .smoke import run
-        status = run(argv[position])
-        print(f"Qt smoke: {status} ({argv[position]})")
+        from .smoke import SCENARIOS, run
+        if scenario is not None and scenario not in SCENARIOS:
+            print(f"Unknown scenario {scenario}. Choose: {', '.join(SCENARIOS)}")
+            return 2
+        status = run(argv[position], scenario=scenario)
+        print(f"Qt smoke: {status} ({argv[position]}{f', {scenario}' if scenario else ''})")
         return 0 if status == "PASS" else 1
 
     from .window import MainWindow
