@@ -1,6 +1,7 @@
 """Settings → Multicore calculation…: interface text (English and Italian)."""
 
 EN = {
+    "processes.settings": "Settings",
     "processes.command": "Multicore calculation…",
     "processes.title": "Multicore calculation",
     "processes.auto": "Automatic: {count} processes on this computer",
@@ -17,6 +18,7 @@ EN = {
 }
 
 IT = {
+    "processes.settings": "Impostazioni",
     "processes.command": "Calcolo multicore…",
     "processes.title": "Calcolo multicore",
     "processes.auto": "Automatico: {count} processi su questo computer",
