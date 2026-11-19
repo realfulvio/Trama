@@ -254,7 +254,10 @@ class ShapeController:
                 delta = pixels[moving]-pixels[fixed]
                 side = max(abs(delta))
                 pixels[moving] = pixels[fixed]+np.copysign([side,side],delta)
-        record['points'] = transform.inverted().transform(pixels).tolist()
+        points = transform.inverted().transform(pixels).tolist()
+        if gesture['kind'] == 'resize':
+            points[1-gesture['endpoint']] = deepcopy(record['points'][1-gesture['endpoint']])  # Exactly as stored.
+        record['points'] = points
         records = deepcopy(gesture['snapshot'])
         if gesture['kind'] == 'create':
             records.append(record)
