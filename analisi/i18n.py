@@ -1372,6 +1372,12 @@ from .parallel_text import EN as _PROCESSES_EN, IT as _PROCESSES_IT  # noqa: E40
 _EN.update(_PROCESSES_EN)
 _IT.update(_PROCESSES_IT)
 
+# Analyze → Data Processing → Join worksheets by key (analisi.worksheet_join).
+from .worksheet_join_text import EN as _JOIN_EN, IT as _JOIN_IT  # noqa: E402
+
+_EN.update(_JOIN_EN)
+_IT.update(_JOIN_IT)
+
 # Nonlinear and global nonlinear regression: one line under the Weighting field explains its denominator.
 _WEIGHTING_EN = {
     "weighting.note.unweighted": "Every point counts equally: the fit minimises the sum of squared residuals r².",
