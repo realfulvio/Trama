@@ -13,8 +13,8 @@ names and the same internal identifiers.
 - **Import** and data files (CSV, TSV, text, XLSX) add their tables to the active tab, as before.
 - **Close project** (Ctrl+W or Ctrl+F4, or the × on a tab) asks Save, Discard or Cancel only for that project.
   If saving fails or you cancel, the project and its selection stay. Closing the last tab leaves one empty tab.
-- Closing the window asks about every project with changes before any tab is lost. Cancel keeps the window and all
-  tabs. A tab with unsaved changes is marked with **•** and the tooltip says so.
+- Closing the window asks about every project with changes first, one tab after the other, and only then saves or
+  closes anything. Cancel (or a save that fails) keeps the window and all its tabs. A tab with unsaved changes is marked with **•** and the tooltip says so.
 - Up to six projects are open at once, as in the classic window.
 
 ## Switching

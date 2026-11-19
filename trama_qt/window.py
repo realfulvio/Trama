@@ -676,6 +676,7 @@ class MainWindow(QMainWindow):
         self.info_editor = None
         self.selected = None
         self.sheet = None
+        self.result_tabs = None
         page = Page("Trama", tr("status.welcome"))
         page.button(tr("command.open"), self.open_dialog, primary=True, icon="folder-open")
         page.button(tr("command.new_table"), self.new_table, icon="table")
@@ -1728,7 +1729,7 @@ class MainWindow(QMainWindow):
                 job.done(job.future, cancelled)
         finally:
             self.update_actions()
-        self._after_job()
+            self._after_job()
 
     def _after_job(self):
         """Run what waited for the calculation: closing the window, then files that arrived meanwhile."""
@@ -1753,14 +1754,18 @@ class MainWindow(QMainWindow):
             self.status(qt("qt.cancelled"))
 
     # == files ===================================================================================
+    def _ask_save(self):
+        """Save, Discard or Cancel for the active project."""
+        return QMessageBox.question(
+            self, qt("qt.unsaved_title"), qt("qt.unsaved", name=self.project.title),
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+
     def confirm_saved(self):
         """Save, Discard or Cancel for the active project only. True when it may be left behind."""
         self.flush_info()
         if not self.project.dirty:
             return True
-        answer = QMessageBox.question(
-            self, qt("qt.unsaved_title"), qt("qt.unsaved", name=self.project.title),
-            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+        answer = self._ask_save()
         if answer == QMessageBox.StandardButton.Save:
             return self.save()
         return answer == QMessageBox.StandardButton.Discard
@@ -1950,13 +1955,22 @@ class MainWindow(QMainWindow):
             self.status(qt("qt.closing_after_job"))
             return False
         active = self.sessions.active
+        decisions = []
         for session in [active] + [other for other in self.sessions if other is not active]:
             if not session.project.dirty:
                 continue
             if session is not self.sessions.active:
                 self._activate(session)
-            if not self.confirm_saved():
+            answer = self._ask_save()
+            if answer == QMessageBox.StandardButton.Cancel:  # Nothing has been saved or closed yet.
                 return False
+            decisions.append((session, answer))
+        for session, answer in decisions:
+            if answer == QMessageBox.StandardButton.Save:
+                if session is not self.sessions.active:
+                    self._activate(session)
+                if not self.save():  # Failed or cancelled: the window stays, on that project.
+                    return False
         return True
 
     def open_dialog(self, *, import_data=False):

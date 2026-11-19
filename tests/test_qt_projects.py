@@ -336,6 +336,24 @@ class ProjectTabsTests(unittest.TestCase):
         window.switch_project(window.sessions[0])
         self.assertEqual(window.selected, ("graph", 1))
 
+    def test_result_tab_is_restored_and_a_home_tab_holds_no_stale_widgets(self):
+        from PySide6.QtCore import QCoreApplication, QEvent
+        window = self.window
+        self.open(self.a)
+        window.open_sheet(("result", 0))
+        self.wait()
+        self.assertIsNotNone(window.result_tabs)
+        last = window.result_tabs.count() - 1
+        window.result_tabs.setCurrentIndex(last)
+        window.new_project()
+        self.assertIsNone(window.result_tabs)  # The empty tab keeps nothing of the previous page.
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        window.switch_project(window.sessions[0])  # Leaving the empty tab must not touch a deleted widget.
+        self.assertEqual(window.selected, ("result", 0))
+        self.assertEqual(window.result_tabs.currentIndex(), last)
+        window.switch_project(window.sessions[1])
+        self.assertIsNone(window.result_tabs)
+
     def test_a_typed_cell_lands_in_its_own_project_when_the_tab_changes(self):
         window = self.window
         self.open(self.a)
@@ -496,25 +514,36 @@ class ProjectTabsTests(unittest.TestCase):
         self.open(self.b)
         window.switch_project(window.sessions[0])
         self.type_cell(0, 1, "1")
-        self.wait()
         window.switch_project(window.sessions[1])
         self.type_cell(0, 1, "2")
-        self.wait()
-        answers = [QMessageBox.StandardButton.Discard, QMessageBox.StandardButton.Cancel]
+        # Save for the first, Cancel for the second: nothing is saved and nothing is closed.
+        answers = [QMessageBox.StandardButton.Save, QMessageBox.StandardButton.Cancel]
+        before = (self.a.read_bytes(), self.b.read_bytes())
         with mock.patch.object(QMessageBox, "question", side_effect=answers) as asked:
             self.assertFalse(window.close())
             self.assertEqual(asked.call_count, 2)
-        # Cancel on the second: nothing was closed, every tab and every change is still there.
+        self.assertEqual((self.a.read_bytes(), self.b.read_bytes()), before)
         self.assertEqual(self.bar.count(), 2)
         self.assertTrue(all(session.project.dirty for session in window.sessions))
         self.assertEqual(self.cell(window.sessions[0].project, 0, 1), 1)
         self.assertEqual(self.cell(window.sessions[1].project, 0, 1), 2)
         self.assertEqual(self.bar.currentIndex(), window.sessions.index(window.sessions.active))
         self.assertTrue(window.isVisible())
+        # Save for both: both files are written, then the window closes.
         with self.answer(QMessageBox.StandardButton.Save):
             self.assertTrue(window.close())
         self.assertEqual(load_project(self.a)["Misure"].raw.iloc[0, 1], 1)
         self.assertEqual(load_project(self.b)["Misure"].raw.iloc[0, 1], 2)
+
+    def test_window_close_discard_leaves_files_alone(self):
+        window = self.window
+        self.open(self.a)
+        self.open(self.b)
+        self.type_cell(0, 1, "9")
+        before = self.b.read_bytes()
+        with self.answer(QMessageBox.StandardButton.Discard):
+            self.assertTrue(window.close())
+        self.assertEqual(self.b.read_bytes(), before)
 
     def test_window_close_stops_when_one_save_fails(self):
         window = self.window
