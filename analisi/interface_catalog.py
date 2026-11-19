@@ -100,6 +100,10 @@ Nonlinear regression|Regressione non lineare
 Compare nonlinear models|Confronta modelli non lineari
 Compare models (AICc)|Confronta modelli (AICc)
 Multifactor ANOVA|ANOVA multifattoriale
+Planned contrasts…|Contrasti pianificati…
+Planned contrast weights|Pesi dei contrasti pianificati
+No inference|Nessuna inferenza
+Not estimable|Non stimabile
 Grouped two-way ANOVA|ANOVA a due fattori da dati raggruppati
 Row factor name|Nome del fattore riga
 Column factor name|Nome del fattore colonna

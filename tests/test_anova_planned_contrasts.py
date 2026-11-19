@@ -370,3 +370,26 @@ class CompatibilityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TranslationTests(unittest.TestCase):
+    def test_every_error_has_its_english_and_italian_text(self):
+        from analisi import i18n
+        for key, text in planned.ERRORS.items():
+            entry = f"anova.contrasts.error.{key}"
+            self.assertEqual(i18n._EN.get(entry), text, key)
+            self.assertTrue(i18n._IT.get(entry), key)
+            self.assertNotEqual(i18n._IT[entry], text, key)
+
+    def test_italian_message_uses_the_decimal_comma_for_the_sum(self):
+        from analisi.i18n import active_language, set_language
+        previous = active_language()
+        try:
+            set_language("it")
+            with self.assertRaises(planned.ContrastError) as raised:
+                planned.check_contrasts({planned.CONTRASTS: [
+                    {"name": "c", "weights": [{"levels": ["a"], "coefficient": 1},
+                                              {"levels": ["b"], "coefficient": -0.5}]}]}, ["F"])
+            self.assertIn("0,5", planned.localized(raised.exception))
+        finally:
+            set_language(previous)

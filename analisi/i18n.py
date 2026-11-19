@@ -3429,6 +3429,164 @@ _ANOVA_SS_IT = {
 _EN.update(_ANOVA_SS_EN)
 _IT.update(_ANOVA_SS_IT)
 
+# Multifactor ANOVA planned contrasts (0.96). Recipes keep the English keys, names and levels as typed.
+_ANOVA_CONTRASTS_EN = {
+    "anova.contrasts.field.factors": "Planned contrast factors",
+    "anova.contrasts.field.contrasts": "Planned contrasts",
+    "anova.contrasts.field.correction": "Planned contrast correction",
+    "anova.contrasts.field.alpha": "Planned contrast alpha",
+    "anova.contrasts.choice.holm": "Holm",
+    "anova.contrasts.choice.bonferroni": "Bonferroni",
+    "anova.contrasts.choice.none": "None",
+    "anova.contrasts.button": "Planned contrasts…",
+    "anova.contrasts.title": "Planned contrasts",
+    "anova.contrasts.summary.none": "No planned contrasts. Post hoc comparisons stay available above.",
+    "anova.contrasts.summary": "{count} planned contrasts on {factors} · {correction} · intervals at {level}%",
+    "anova.contrasts.summary.one": "1 planned contrast on {factors} · {correction} · intervals at {level}%",
+    "anova.contrasts.help": "Combine the estimated marginal means of the model with coefficients that add up to 0, "
+                            "chosen before looking at the results. Each weight is one cell of the factors ticked "
+                            "here; the other factors of the model are averaged with equal weight.",
+    "anova.contrasts.factors": "Factors of the contrasts",
+    "anova.contrasts.factors.help": "The levels of each weight follow the order of this list.",
+    "anova.contrasts.correction": "Correction",
+    "anova.contrasts.alpha": "Alpha of the intervals",
+    "anova.contrasts.ci_note": "Intervals are pointwise t intervals at 1 − alpha. The correction changes only the "
+                               "Adjusted p column, never the intervals.",
+    "anova.contrasts.list": "Contrasts",
+    "anova.contrasts.add": "Add",
+    "anova.contrasts.duplicate": "Duplicate",
+    "anova.contrasts.remove": "Remove",
+    "anova.contrasts.up": "Up",
+    "anova.contrasts.down": "Down",
+    "anova.contrasts.name": "Name",
+    "anova.contrasts.weights": "Weights",
+    "anova.contrasts.coefficient": "Coefficient",
+    "anova.contrasts.add_weight": "Add weight",
+    "anova.contrasts.remove_weight": "Remove weight",
+    "anova.contrasts.sum": "Sum of coefficients: {total}",
+    "anova.contrasts.sum.ok": "Sum of coefficients: 0 ✓",
+    "anova.contrasts.sum.bad": "Sum of coefficients: {total}. It must be 0.",
+    "anova.contrasts.sum.unknown": "Sum of coefficients: type a number in every row.",
+    "anova.contrasts.new_name": "Contrast {number}",
+    "anova.contrasts.copy_name": "{name} (copy)",
+    "anova.contrasts.coefficient.help": "Coefficients can be negative, decimal (0,5 or 0.5) or fractions such as -1/3.",
+    "anova.contrasts.empty": "No contrasts yet. Add one to start.",
+    "anova.contrasts.level_absent": "{level} (not in the data)",
+    "anova.contrasts.factor_absent": "{factor} (not in the model)",
+    "anova.contrasts.note.levels": "Some weights use levels that are not in the rows used by the model: {levels}. "
+                                   "Choose another level or remove those weights.",
+    "anova.contrasts.note.factors": "{factors} are no longer factors of the model. Untick them.",
+    "anova.contrasts.note.panel": "Some planned contrasts use levels or factors that the data or the model no longer "
+                                  "have. Open Planned contrasts… to correct them.",
+    "anova.contrasts.no_factors": "Tick the model factors that the contrasts compare.",
+    "anova.contrasts.error.factors_type": "Choose the factors of the planned contrasts.",
+    "anova.contrasts.error.factors_repeat": "{factor} is chosen more than once for the planned contrasts.",
+    "anova.contrasts.error.factors_absent": "{factor} is not a factor of the model, so planned contrasts cannot use it.",
+    "anova.contrasts.error.grid": "Planned contrasts average over {cells} cells of the model factors. The limit is "
+                                  "{limit}.",
+    "anova.contrasts.error.collision": "Two different categories of {factor} read as the same text, {text}. Make the "
+                                       "categories distinct before using planned contrasts.",
+    "anova.contrasts.error.list": "Planned contrasts must be a list of contrasts, each with a name and a list of "
+                                  "weights.",
+    "anova.contrasts.error.count": "Define from 1 to 32 planned contrasts.",
+    "anova.contrasts.error.name_empty": "Contrast {index} needs a name.",
+    "anova.contrasts.error.name_long": "The name of contrast {index} is longer than 120 characters.",
+    "anova.contrasts.error.name_repeat": "The name {name} is used by more than one contrast.",
+    "anova.contrasts.error.weights_few": "{name} needs at least two weights.",
+    "anova.contrasts.error.weights_many": "{name} has more than 256 weights.",
+    "anova.contrasts.error.levels": "{name}, weight {row}: choose one level of each factor ({factors}).",
+    "anova.contrasts.error.unknown": "{name}, weight {row}: {factor} has no level {level} in the rows used by the "
+                                     "model.",
+    "anova.contrasts.error.cell_repeat": "{name}, weight {row}: the cell {cell} is already used by weight {first}.",
+    "anova.contrasts.error.coefficient": "{name}, weight {row}: the coefficient must be a finite number.",
+    "anova.contrasts.error.zero": "{name}, weight {row}: the coefficient must not be zero.",
+    "anova.contrasts.error.sum": "{name}: the coefficients add up to {total}. They must add up to 0.",
+    "anova.contrasts.error.overflow": "{name}: the coefficients are too large to add up.",
+    "anova.contrasts.error.correction": "Choose Holm, Bonferroni or None.",
+    "anova.contrasts.error.alpha": "The level of the intervals must be a finite number greater than 0 and less "
+                                   "than 1.",
+}
+_ANOVA_CONTRASTS_IT = {
+    "anova.contrasts.field.factors": "Fattori dei contrasti pianificati",
+    "anova.contrasts.field.contrasts": "Contrasti pianificati",
+    "anova.contrasts.field.correction": "Correzione dei contrasti pianificati",
+    "anova.contrasts.field.alpha": "Alfa dei contrasti pianificati",
+    "anova.contrasts.choice.holm": "Holm",
+    "anova.contrasts.choice.bonferroni": "Bonferroni",
+    "anova.contrasts.choice.none": "Nessuna",
+    "anova.contrasts.button": "Contrasti pianificati…",
+    "anova.contrasts.title": "Contrasti pianificati",
+    "anova.contrasts.summary.none": "Nessun contrasto pianificato. I confronti post hoc restano disponibili sopra.",
+    "anova.contrasts.summary": "{count} contrasti pianificati su {factors} · {correction} · intervalli al {level}%",
+    "anova.contrasts.summary.one": "1 contrasto pianificato su {factors} · {correction} · intervalli al {level}%",
+    "anova.contrasts.help": "Combina le medie marginali stimate del modello con coefficienti che sommano a 0, scelti "
+                            "prima di guardare i risultati. Ogni peso è una cella dei fattori spuntati qui; gli altri "
+                            "fattori del modello sono mediati con peso uguale.",
+    "anova.contrasts.factors": "Fattori dei contrasti",
+    "anova.contrasts.factors.help": "I livelli di ogni peso seguono l’ordine di questo elenco.",
+    "anova.contrasts.correction": "Correzione",
+    "anova.contrasts.alpha": "Alfa degli intervalli",
+    "anova.contrasts.ci_note": "Gli intervalli sono intervalli t puntuali al livello 1 − alfa. La correzione cambia "
+                               "solo la colonna Adjusted p, mai gli intervalli.",
+    "anova.contrasts.list": "Contrasti",
+    "anova.contrasts.add": "Aggiungi",
+    "anova.contrasts.duplicate": "Duplica",
+    "anova.contrasts.remove": "Rimuovi",
+    "anova.contrasts.up": "Su",
+    "anova.contrasts.down": "Giù",
+    "anova.contrasts.name": "Nome",
+    "anova.contrasts.weights": "Pesi",
+    "anova.contrasts.coefficient": "Coefficiente",
+    "anova.contrasts.add_weight": "Aggiungi peso",
+    "anova.contrasts.remove_weight": "Rimuovi peso",
+    "anova.contrasts.sum": "Somma dei coefficienti: {total}",
+    "anova.contrasts.sum.ok": "Somma dei coefficienti: 0 ✓",
+    "anova.contrasts.sum.bad": "Somma dei coefficienti: {total}. Deve essere 0.",
+    "anova.contrasts.sum.unknown": "Somma dei coefficienti: scrivi un numero in ogni riga.",
+    "anova.contrasts.new_name": "Contrasto {number}",
+    "anova.contrasts.copy_name": "{name} (copia)",
+    "anova.contrasts.coefficient.help": "I coefficienti possono essere negativi, decimali (0,5 o 0.5) o frazioni come "
+                                        "-1/3.",
+    "anova.contrasts.empty": "Ancora nessun contrasto. Aggiungine uno per iniziare.",
+    "anova.contrasts.level_absent": "{level} (non nei dati)",
+    "anova.contrasts.factor_absent": "{factor} (non nel modello)",
+    "anova.contrasts.note.levels": "Alcuni pesi usano livelli che non sono nelle righe usate dal modello: {levels}. "
+                                   "Scegli un altro livello o rimuovi quei pesi.",
+    "anova.contrasts.note.factors": "{factors} non sono più fattori del modello. Togli la spunta.",
+    "anova.contrasts.note.panel": "Alcuni contrasti pianificati usano livelli o fattori che i dati o il modello non "
+                                  "hanno più. Apri Contrasti pianificati… per correggerli.",
+    "anova.contrasts.no_factors": "Spunta i fattori del modello che i contrasti confrontano.",
+    "anova.contrasts.error.factors_type": "Scegli i fattori dei contrasti pianificati.",
+    "anova.contrasts.error.factors_repeat": "{factor} è scelto più di una volta per i contrasti pianificati.",
+    "anova.contrasts.error.factors_absent": "{factor} non è un fattore del modello, quindi i contrasti pianificati "
+                                            "non possono usarlo.",
+    "anova.contrasts.error.grid": "I contrasti pianificati mediano su {cells} celle dei fattori del modello. Il limite "
+                                  "è {limit}.",
+    "anova.contrasts.error.collision": "Due categorie diverse di {factor} si leggono come lo stesso testo, {text}. "
+                                       "Rendi distinte le categorie prima di usare i contrasti pianificati.",
+    "anova.contrasts.error.list": "I contrasti pianificati devono essere un elenco di contrasti, ognuno con un nome e "
+                                  "un elenco di pesi.",
+    "anova.contrasts.error.count": "Definisci da 1 a 32 contrasti pianificati.",
+    "anova.contrasts.error.name_empty": "Il contrasto {index} ha bisogno di un nome.",
+    "anova.contrasts.error.name_long": "Il nome del contrasto {index} supera i 120 caratteri.",
+    "anova.contrasts.error.name_repeat": "Il nome {name} è usato da più di un contrasto.",
+    "anova.contrasts.error.weights_few": "{name} ha bisogno di almeno due pesi.",
+    "anova.contrasts.error.weights_many": "{name} ha più di 256 pesi.",
+    "anova.contrasts.error.levels": "{name}, peso {row}: scegli un livello di ogni fattore ({factors}).",
+    "anova.contrasts.error.unknown": "{name}, peso {row}: {factor} non ha il livello {level} nelle righe usate dal "
+                                     "modello.",
+    "anova.contrasts.error.cell_repeat": "{name}, peso {row}: la cella {cell} è già usata dal peso {first}.",
+    "anova.contrasts.error.coefficient": "{name}, peso {row}: il coefficiente deve essere un numero finito.",
+    "anova.contrasts.error.zero": "{name}, peso {row}: il coefficiente non può essere zero.",
+    "anova.contrasts.error.sum": "{name}: i coefficienti sommano a {total}. Devono sommare a 0.",
+    "anova.contrasts.error.overflow": "{name}: i coefficienti sono troppo grandi per essere sommati.",
+    "anova.contrasts.error.correction": "Scegli Holm, Bonferroni o Nessuna.",
+    "anova.contrasts.error.alpha": "Il livello degli intervalli deve essere un numero finito maggiore di 0 e minore "
+                                   "di 1.",
+}
+_EN.update(_ANOVA_CONTRASTS_EN)
+_IT.update(_ANOVA_CONTRASTS_IT)
+
 # Repeated measures ANOVA: Greenhouse–Geisser correction for one or two within-subject factors (0.93).
 # The recipe keeps the English choice names; these texts only change what the dialog shows.
 _RM_SPHERICITY_EN = {

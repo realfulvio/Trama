@@ -373,6 +373,7 @@ from analisi.anova_diagnostics import (ALPHA as ANOVA_DIAG_ALPHA, ASSUMPTIONS as
 from analisi.anova_ss import KEY as ANOVA_SUMS_OF_SQUARES, TYPE_III as ANOVA_TYPE_III
 from analisi.anova_ss import sums_of_squares as anova_sums_of_squares
 from analisi.anova_ss_dialog import SumsOfSquaresPanel
+from analisi.anova_planned_contrasts import KEYS as PLANNED_CONTRAST_KEYS
 from analisi.anova_terms import (FULL as ANOVA_FULL_TERMS, MODEL_TERMS as ANOVA_MODEL_TERMS, TERM_LIST,
                                  TERM_SELECTION as ANOVA_TERM_SELECTION, active_factors as anova_active_factors,
                                  check_comparison_controls as check_anova_comparisons, check_options as check_anova_terms)
@@ -1382,6 +1383,8 @@ class AnalysisDialog(simpledialog.Dialog):
                           "X categories", "Y categories"}
         numeric_position, category_position = 0, 0
         for label, kind in METHODS[self.method].items():
+            if self.method == "Multifactor ANOVA" and label in PLANNED_CONTRAST_KEYS:
+                continue  # Planned contrasts (0.96) are edited in the Qt window; validate() keeps the saved ones.
             use_vars = (kind in (MULTIPLE, OPTIONAL_MULTIPLE, OPTIONAL, None) or label == "Input format") and label not in {
                 "Comparison factor", "Condition on factors",
             }
@@ -3780,6 +3783,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 check_summary_ttest(self.data, options)
             if self.method == "Multifactor ANOVA":
                 saved_terms = self.current[1] if self.current and self.current[0] == self.method else {}
+                for key in PLANNED_CONTRAST_KEYS:  # kept as saved: the classic dialog has no contrast editor
+                    if key in saved_terms:
+                        options[key] = deepcopy(saved_terms[key])
                 chosen_terms = check_anova_terms(options)
                 if (anova_sums_of_squares(options) == ANOVA_TYPE_III
                         and ANOVA_SUMS_OF_SQUARES not in saved_terms):

@@ -1,0 +1,19 @@
+Treatment,Visit,Score
+Control $,A,1
+Control $,A,2
+Control $,A,3
+Control $,B |,3
+Control $,B |,4
+Control $,B |,5
+Control $,C,5
+Control $,C,6
+Control $,C,7
+Treated,A,2
+Treated,A,3
+Treated,A,4
+Treated,B |,6
+Treated,B |,7
+Treated,B |,8
+Treated,C,10
+Treated,C,11
+Treated,C,12

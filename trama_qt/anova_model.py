@@ -27,6 +27,7 @@ from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
                                QListWidget, QListWidgetItem, QPushButton, QSizePolicy, QVBoxLayout, QWidget)
 
+from analisi import anova_planned_contrasts as planned
 from analisi.anova_diagnostics import format_anova_error, graph_choice, ensure_graph_budget
 from analisi.anova_diagnostics import validate as validate_diagnostics
 from analisi.anova_ss import KEY as SUMS_OF_SQUARES, TYPE_I, TYPE_II, TYPE_III, sums_of_squares
@@ -518,6 +519,14 @@ class AnovaFields:
         self.editor.changed.connect(self.relayout)
         self.kind_box.currentIndexChanged.connect(lambda _index: self.relayout())
         self._relayout_pending = False
+        # Planned contrasts (0.96): the panel reads the model factors and their levels as the dialog stands.
+        self.contrasts = controls[planned.CONTRASTS][1] if planned.CONTRASTS in controls else None
+        if self.contrasts is not None:
+            self.contrasts.context = self.contrast_context
+            for key in (planned.FACTORS, planned.CORRECTION, planned.ALPHA):
+                dialog.rows[key] = dialog.rows[planned.CONTRASTS]
+            self.editor.changed.connect(self.contrasts.refresh)
+            self.response.currentIndexChanged.connect(lambda _index: self.contrasts.refresh())
         self.order.refresh()
         self.editor.refresh()  # the term check boxes follow the order of the recipe being edited
         self.sync_mode()
@@ -537,6 +546,31 @@ class AnovaFields:
     def kind(self):
         value = self.kind_box.currentData()
         return value if value in (TYPE_I, TYPE_II, TYPE_III) else TYPE_III
+
+    def model_factors(self):
+        """The factors of the model as the dialog stands, in the order of the recipe's Factors."""
+        names = self.order.ordered()
+        return active_factors(names, self.editor.terms()) if self.is_selected() else names
+
+    def contrast_context(self):
+        """Model factors, their levels in the rows the fit will use, and the engine's data check."""
+        model = self.model_factors()
+        response = self.response.currentData() or self.response.currentText()
+        data = self.dialog.data
+        try:
+            levels = planned.frame_levels(data, response, model) if model else {}
+        except (ValueError, KeyError):  # Response not yet a numeric column: the levels of the factor columns
+            levels = {name: sorted(data[name].dropna().astype(str).unique()) for name in model if name in data}
+
+        def check(names):
+            try:
+                planned.check_categories(data, response, names)
+            except FieldError:
+                raise
+            except (ValueError, KeyError):  # column problems are reported by the fit itself
+                pass
+
+        return model, levels, check
 
     def relayout(self):
         """Measure the Options page again once the editors settle.
@@ -615,6 +649,19 @@ class AnovaFields:
         if terms is not None:
             check_comparison_controls(options, factors, terms)
         check_anova_options(options)
+        model = active_factors(factors, terms) if terms is not None else list(factors)
+        request = planned.check_request(options, model)
+        if request is not None:
+            response = options.get("Response")
+            try:
+                planned.check_categories(self.dialog.data, response, model)
+                levels = planned.frame_levels(self.dialog.data, response, model)
+            except FieldError:
+                raise
+            except (ValueError, KeyError):
+                levels = None  # the worker's fit reports the columns
+            if levels is not None:
+                planned.check_levels(request[1], request[0], levels, model)
         validate_diagnostics(options)
         graph = graph_choice(options)
         if graph != "None":

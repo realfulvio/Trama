@@ -49,6 +49,7 @@ import pandas as pd
 from scipy import stats
 
 from .field_error import FieldError
+from .i18n import tr, translate_message
 
 FACTORS = "Planned contrast factors"
 CONTRASTS = "Planned contrasts"
@@ -96,6 +97,33 @@ ERRORS = {
     "correction": "Choose Holm, Bonferroni or None.",
     "alpha": "The level of the intervals must be a finite number greater than 0 and less than 1.",
 }
+
+
+# Captions of the four fields (``trama_qt.labels`` collects LABEL_KEYS) and of the fixed choices.
+LABEL_KEYS = {FACTORS: "anova.contrasts.field.factors", CONTRASTS: "anova.contrasts.field.contrasts",
+              CORRECTION: "anova.contrasts.field.correction", ALPHA: "anova.contrasts.field.alpha"}
+CHOICE_KEYS = {HOLM: "anova.contrasts.choice.holm", BONFERRONI: "anova.contrasts.choice.bonferroni",
+               NONE: "anova.contrasts.choice.none"}
+
+
+def localized(text):
+    """An English message of this module in the active language; numbers take the decimal comma in Italian."""
+    from .i18n import active_language
+
+    comma = (lambda value: value.replace(".", ",")) if active_language() == "it" else (lambda value: value)
+    return translate_message(str(text), "anova.contrasts.error.", convert={"total": comma})
+
+
+def format_error(error):
+    """Translated sentence of an error on one of the four fields, after its caption; else None."""
+    field = getattr(error, "field", None)
+    if field not in LABEL_KEYS:
+        return None
+    message = localized(error)
+    caption = tr(LABEL_KEYS[field])
+    if caption and caption not in message:
+        message = f"{caption}: {message}"
+    return message
 
 
 class ContrastError(FieldError):
@@ -252,6 +280,14 @@ def check_categories(frame, response, model_factors):
             raise _fail(FACTORS, "collision", factor=_quoted(name), text=_quoted(text))
 
 
+def frame_levels(frame, response, model_factors):
+    """Levels of each model factor in ``frame`` as the fit would see them (for the dialog, before the fit)."""
+    from .stats import complete
+
+    data = complete(frame, [response], list(model_factors))
+    return {name: sorted(data[name].astype(str).unique()) for name in model_factors}
+
+
 def model_levels(data, model_factors):
     """Levels of each model factor, as the fit sees them: sorted text of the complete rows."""
     return {name: sorted(data[key].unique()) for name, key in zip(model_factors, data.columns[1:])}
@@ -402,5 +438,5 @@ def tables(request, model_factors, data, design, beta, error, df):
     return {SHEET: sheet, WEIGHTS_SHEET: weights_table(contrasts, factors)}
 
 
-__all__ = ["ALPHA", "CONTRASTS", "CORRECTION", "CORRECTIONS", "ContrastError", "FACTORS", "KEYS", "SHEET",
+__all__ = ["format_error", "frame_levels", "ALPHA", "CONTRASTS", "CORRECTION", "CORRECTIONS", "ContrastError", "FACTORS", "KEYS", "SHEET",
            "WEIGHTS_SHEET", "active", "adjust", "check_categories", "check_request", "inference", "tables"]
