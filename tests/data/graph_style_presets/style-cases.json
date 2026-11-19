@@ -1,0 +1,103 @@
+{
+  "source": {
+    "title": "Calibrazione $ A",
+    "xlabel": "Dose",
+    "accent": "#0B7A73",
+    "font_family": "serif",
+    "title_size": 18,
+    "grid": true,
+    "legend": "upper right",
+    "xscale": "log",
+    "axis": {
+      "x": {
+        "min": 1,
+        "max": 10
+      }
+    }
+  },
+  "target": {
+    "title": "Calibrazione B",
+    "xlabel": "Tempo",
+    "accent": "#AA4433",
+    "grid": false,
+    "xscale": "linear",
+    "axis": {
+      "x": {
+        "min": 0,
+        "max": 20
+      }
+    },
+    "series": {
+      "line:1:Seconda": {
+        "color": "#AA4433"
+      }
+    }
+  },
+  "preset": {
+    "version": 1,
+    "name": "Pubblicazione",
+    "style": {
+      "accent": "#0B7A73",
+      "font_family": "serif",
+      "title_size": 18,
+      "grid": true,
+      "legend": "upper right"
+    }
+  },
+  "expected": {
+    "title": "Calibrazione B",
+    "xlabel": "Tempo",
+    "accent": "#0B7A73",
+    "grid": true,
+    "xscale": "linear",
+    "axis": {
+      "x": {
+        "min": 0,
+        "max": 20
+      }
+    },
+    "series": {
+      "line:1:Seconda": {
+        "color": "#AA4433"
+      }
+    },
+    "font_family": "serif",
+    "title_size": 18,
+    "legend": "upper right"
+  },
+  "invalid": [
+    {
+      "version": 2,
+      "name": "Pubblicazione",
+      "style": {
+        "grid": true
+      }
+    },
+    {
+      "version": 1,
+      "name": " ",
+      "style": {
+        "grid": true
+      }
+    },
+    {
+      "version": 1,
+      "name": "Titolo",
+      "style": {
+        "title": "Non trasferire"
+      }
+    },
+    {
+      "version": 1,
+      "name": "Dimensione",
+      "style": {
+        "title_size": 200
+      }
+    },
+    {
+      "version": 1,
+      "name": "Vuoto",
+      "style": {}
+    }
+  ]
+}

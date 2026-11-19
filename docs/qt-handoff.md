@@ -15,6 +15,17 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Stili di figura riutilizzabili (pacchetto Stili-Figura-Qt-095, ramo `claude/project-thread-wihrrt`, 2026-11-19)
+
+- Grafico → Stili di figura… (accanto a Format Graph): salva colore, caratteri, cornice, griglia e legenda di un grafico come stile con nome, lo mostra in anteprima su un altro grafico senza ricalcolo e lo applica con un solo `commit_style`. Libreria in `graph-style-presets.json` accanto a `preferences.json`, import/export JSON di un solo stile. Guida: `docs/qt-graph-style-presets.md`.
+- Codice: `trama_qt/graph_style_presets.py` (senza Qt), `trama_qt/graph_style_preset_dialog.py`, aggancio in `trama_qt/window.py` (azione `graph_style_presets`, metodo `graph_style_presets`, `_figure_canvas`), una voce in `trama_qt/smoke.py`. Nessuna dipendenza nuova, nessuna icona nuova (usa `sparkles`), `strings.py` e i cataloghi non cambiano.
+- Da provare su Windows, a 100% e 150%:
+  - Formattare il primo grafico, Stili di figura… → nome «Pubblicazione» → Invio: lo stile compare in elenco e il dialogo resta aperto. Il file sta in `%APPDATA%\TramaStat\graph-style-presets.json`.
+  - Sul secondo grafico scegliere lo stile (il grafico cambia), Esc (torna com'era), poi di nuovo e Applica. Titolo, scala e forme del secondo grafico non cambiano. Salvare, riaprire, esportare SVG/PDF.
+  - Importare un JSON troncato e un omonimo con maiuscole diverse (chiede conferma), file di libreria in sola lettura (errore, file intatto).
+  - `python tests/smoke_qt_graph_style_presets.py CARTELLA --lang it --theme dark` e `python -m trama_qt --smoke CARTELLA`.
+- Test attesi: `tests.test_qt_graph_style_presets` 16/16, `tests.test_qt_graph_style_preset_dialog` 4/4, `tests.test_qt_shell` 21/21.
+
 ### Esporta più figure (ramo `claude/project-thread-x6igj7`, base main 7a7340c, 2026-11-19)
 
 - Nuovo comando File → Esporta più figure… (`export_batch`, accanto a Esporta più fogli in PDF): un file PNG, SVG o PDF per ogni grafico o layout del progetto attivo, in una cartella. Motore senza Qt in `trama_qt/batch_export.py` (`plan_filenames`, `BatchExport`), dialogo in `trama_qt/batch_export_dialog.py`, guida in `docs/qt-batch-export.md`.

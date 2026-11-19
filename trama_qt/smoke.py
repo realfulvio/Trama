@@ -205,7 +205,8 @@ class Smoke:
                 window.change_input_result()
             window.open_sheet(("graph", refs["column"]))
             self.wait()
-            for name, command in (("format", window.format_graph), ("annotations", window.edit_annotations),
+            for name, command in (("format", window.format_graph), ("figure-styles", window.graph_style_presets),
+                                  ("annotations", window.edit_annotations),
                                   ("shapes", window.edit_shapes), ("pairwise", window.pairwise_comparisons),
                                   ("export-options", window.export_with_options)):
                 with self.dialogs(name):
