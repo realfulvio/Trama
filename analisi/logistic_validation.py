@@ -337,7 +337,7 @@ def prepare(frame, options):
         smallest = min(events, n - events)
         if smallest < folds:
             outcome_label = 1 if events < n - events else 0
-            raise FieldError(FOLDS, f"Each outcome needs at least {folds} usable rows for {folds} folds "
+            raise FieldError(FOLDS, f"Each outcome needs at least {folds} usable rows, one per fold "
                                     f"(outcome {outcome_label} has {smallest}).")
         assignment = _assign(y, folds, seed)
     else:

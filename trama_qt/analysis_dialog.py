@@ -25,6 +25,7 @@ from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
 from . import anova_model, global_fit
+from . import logistic_validation
 from .labels import choice_label, field_label, method_label
 from .strings import qt
 from .theme import fit_dialog
@@ -465,6 +466,7 @@ class AnalysisDialog(QDialog):
                 self.anova.check(options)  # the engine's cheap checks; the fit stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            logistic_validation.check(self, options)  # Validate binary logistic model: no fit before the worker
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
@@ -477,6 +479,8 @@ class AnalysisDialog(QDialog):
     def _message(self, error, field=None):
         if self.method == global_fit.GLOBAL_CUSTOM_EQUATION:
             return global_fit.describe_error(error, field)
+        if logistic_validation.applies(self):
+            return logistic_validation.message(error)
         return str(error)
 
     def show_error(self, error, field=None):
