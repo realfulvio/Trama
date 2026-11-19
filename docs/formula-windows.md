@@ -72,6 +72,13 @@ lower-tail probability. `TPDF(t, df)` and `FPDF(f, df1, df2)` give densities.
 `BINOMIAL(k, n, p)` gives the probability of at least k successes in n trials.
 Invalid numeric arguments and nonfinite results leave the cell blank.
 
+## Missing values
+
+`ISBLANK(value)` and `IS_DEFINED(value)` test whether a value is absent or
+present. An empty cell, whitespace-only text or a nonfinite calculation is
+absent. Zero, false and nonblank text are values. For example,
+`=IF(ISBLANK(Dose), 0, Dose)` uses zero for missing doses in the new column.
+
 ## Centering, standardizing and ranking
 
 `CENTER(Column)` subtracts the mean of the usable values from each value. `STANDARDIZE(Column)` and `ZSCORE(Column)` divide the centered values by the sample standard deviation. A constant column or a single usable observation leaves standardized values blank.

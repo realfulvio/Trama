@@ -180,6 +180,20 @@ class WindowFormulaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsupported expression"):
             formula(frame, "TDIST(X)")
 
+    def test_presence_formulas_accept_numeric_text_and_missing_cells(self):
+        value = pd.Series([None, "   ", "", 0., False, "0", "NaN", np.inf, np.nan], dtype=object)
+        frame = pd.DataFrame({"Value": value, "Dose": [np.nan, -1, 4, 0, 5, 12, 1, 2, 3]})
+        blank = [True, True, True, False, False, False, False, True, True]
+        np.testing.assert_array_equal(formula(frame, "ISBLANK(Value)"), blank)
+        np.testing.assert_array_equal(formula(frame, 'IS_DEFINED(COL("Value"))'), np.logical_not(blank))
+        np.testing.assert_array_equal(formula(frame, "ISBLANK(SQRT(Dose))").iloc[:4], [True, True, False, False])
+        np.testing.assert_array_equal(formula(frame, "IF(ISBLANK(Dose),0,Dose)").iloc[:4], [0, -1, 4, 0])
+        dataset = Dataset(frame)
+        dataset.set_formula("Dose present", "IS_DEFINED(Dose)")
+        dataset.excluded.add((2, 1))
+        self.assertFalse(dataset.frame().at[2, "Dose present"])
+        self.assertEqual(dataset.frame().at[2, "Dose"], 4.)
+
     def test_row_statistics_use_each_groups_filtered_reference(self):
         frame = pd.DataFrame({"X": [6, 3, 9, 3, 1, np.nan, 4, 5],
                               "Group": ["A", "A", "A", "A", "B", "A", "B", None],

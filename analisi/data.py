@@ -21,7 +21,7 @@ from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, val
 from .analysis_labels import validate_labels
 from .formula_distributions import DISTRIBUTION_FORMULA_FUNCTIONS
 from .formula_special import SPECIAL_FORMULA_FUNCTIONS
-from .formula_windows import WINDOW_FUNCTION, lower_window_clauses, worksheet_statistic
+from .formula_windows import WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
 
 MAX_ENTRY = 32 * 1024 * 1024
 MAX_CELLS = 2_000_000
@@ -212,9 +212,22 @@ COLUMN_FORMULA_FUNCTIONS = {
 }
 
 
+def _blank_cell(value):
+    return _missing(value) or (isinstance(value, (float, np.floating)) and not isfinite(value))
+
+
+_check_blank = np.frompyfunc(_blank_cell, 1, 1)
+_PRESENCE_FUNCTIONS = {"ISBLANK", "IS_DEFINED"}
+
+
+def _is_blank(values):
+    return np.asarray(_check_blank(values), dtype=bool)
+
+
 ELEMENTWISE_FORMULA_FUNCTIONS = {
     **SPECIAL_FORMULA_FUNCTIONS,
     **DISTRIBUTION_FORMULA_FUNCTIONS,
+    "ISBLANK": (1, _is_blank), "IS_DEFINED": (1, lambda values: np.logical_not(_is_blank(values))),
     "CEIL": (1, np.ceil), "FLOOR": (1, np.floor), "INT": (1, np.trunc), "SGN": (1, np.sign),
     "SQR": (1, np.square),
     "ABS": (1, np.abs), "SQRT": (1, np.sqrt), "EXP": (1, np.exp), "LN": (1, np.log),
@@ -347,7 +360,8 @@ def formula(frame, expression, *, info=None):
                 arity, function = FUNCTIONS[name]
                 supported = len(node.args) == arity if isinstance(arity, int) else len(node.args) in arity
                 if supported:
-                    return function(*(evaluate(arg, filter_text=filter_text) for arg in node.args))
+                    return function(*(evaluate(arg, raw=name in _PRESENCE_FUNCTIONS, filter_text=filter_text)
+                                      for arg in node.args))
         raise ValueError("Unsupported expression in calculated column.")
 
     def absent(node):

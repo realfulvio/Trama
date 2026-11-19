@@ -175,6 +175,18 @@ class PrismImportTests(unittest.TestCase):
         data.raw.at[1, "Dose"] = 0
         np.testing.assert_allclose(data.frame()["Upper"], [.5, .5])
 
+    def test_zip_restores_presence_formula_for_mixed_cells(self):
+        path = self.path / "presence.prismt"
+        table = {"uid": "table", "format": "multivariable", "dataFormat": "y_single", "dataSets": ["a", "b"]}
+        sets = {"a": {"title": "Label"}, "b": {"title": "Available", "valuesStorageData": {
+            "@class": "TransformDataSource", "transform": "IS_DEFINED(A)"}}}
+        write_archive(path, table, sets, "Alpha,0\n,0\n0,0\n", (3, 2))
+        data = Dataset(load_tables(path)["Experiment"])
+        self.assertIn("Available", data.formulas)
+        self.assertEqual(data.frame()["Available"].tolist(), [True, False, True])
+        data.raw.at[1, "Label"] = "Beta"
+        self.assertTrue(data.frame().at[1, "Available"])
+
     def test_legacy_wrapper_uses_sheet_sequence_dates_and_upper_lower_endpoints(self):
         source = self.path / "example.xml"
         source.write_text(
