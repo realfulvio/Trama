@@ -11,9 +11,8 @@ from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QStringListModel, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (QCompleter, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
-                               QMainWindow, QMenu, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
-                               QSplitter, QStackedWidget, QTabBar, QTableWidget, QTableWidgetItem, QTabWidget,
-                               QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget, QHeaderView)
+                               QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QSplitter, QStackedWidget,
+                               QTabBar, QTabWidget, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
@@ -156,6 +155,7 @@ class MainWindow(QMainWindow):
         self.actions = {}
         self.icons = {}
         self.inspector = None
+        self.info_editor = None
         self.inspector_wanted = False
         self.inspector_element = None
         self.setAcceptDrops(True)
@@ -206,6 +206,7 @@ class MainWindow(QMainWindow):
         a("copy", tr("command.copy_cells"), lambda: self._sheet_call("copy"), icon="copy")
         a("paste", tr("ribbon.paste"), lambda: self._sheet_call("paste"), icon="clipboard-paste")
         a("new_table", tr("command.new_table"), self.new_table, icon="table", shortcut="Ctrl+T")
+        a("new_info", tr("command.new_info"), self.new_info, icon="info")
         a("duplicate_family", ui("Duplicate family…"), self.duplicate_family, icon="copy")
         a("save_family", ui("Save family as…"), self.save_family_as, icon="save")
         a("insert_row", qt("qt.insert_row"), self.insert_row, icon="rows-3")
@@ -336,7 +337,7 @@ class MainWindow(QMainWindow):
                                          "classic", "language", "about"]),
             (tr("ribbon.modern.home"), ["paste", "cut", "copy", "|", "undo", "redo", "|", "new_table", "insert_row",
                                          "insert_column", "exclude", "|", "*analyze", "new_graph", "|", "recalculate",
-                                         "export", "|", "duplicate_family", "save_family"]),
+                                         "export", "|", "new_info", "duplicate_family", "save_family"]),
             (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
                                             "use_result"]),
@@ -545,6 +546,8 @@ class MainWindow(QMainWindow):
 
     def show_home(self):
         self.dispose_inspector()
+        self.flush_info()
+        self.info_editor = None
         self.selected = None
         self.sheet = None
         page = Page("Trama", tr("status.welcome"))
@@ -573,6 +576,8 @@ class MainWindow(QMainWindow):
 
     def show_sheet(self, kind, key):
         self.dispose_inspector()  # Before the new page builds its own panel.
+        self.flush_info()
+        self.info_editor = None
         self.selected = (kind, key)
         self.sheet = None
         self.result_tabs = None
@@ -627,29 +632,106 @@ class MainWindow(QMainWindow):
         return page
 
     def _info_page(self, uid):
+        from .info_editor import InfoEditor, t
         sheet = self.project.info_sheets[uid]
         page = Page(sheet.title, tr("interface.linked_to", table=sheet.table) if sheet.table else tr("nav.info"))
+        page.button(t("Properties…"), self.info_properties, icon="pencil")
+        page.button(t("Move sheet up"), lambda: self.move_info(-1), icon="chevron-up")
+        page.button(t("Move sheet down"), lambda: self.move_info(1), icon="chevron-down")
+        page.button(t("Delete Info sheet…"), self.remove_info, icon="trash-2")
         page.finish_actions()
-        caption = QLabel(qt("qt.info_fields"))
-        caption.setObjectName("sectionTitle")
-        page.add(caption, 0)
-        table = QTableWidget(len(sheet.fields), 2)
-        table.setHorizontalHeaderLabels(["", ""])
-        table.horizontalHeader().setVisible(False)
-        table.verticalHeader().setVisible(False)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        for row, (name, value) in enumerate(sheet.fields):
-            table.setItem(row, 0, QTableWidgetItem(name))
-            table.setItem(row, 1, QTableWidgetItem(value))
-        page.add(table, 1)
-        caption = QLabel(qt("qt.info_notes"))
-        caption.setObjectName("sectionTitle")
-        page.add(caption, 0)
-        notes = QPlainTextEdit(sheet.notes)
-        notes.setReadOnly(True)
-        page.add(notes, 2)
+        self.info_editor = page.add(InfoEditor(sheet, self.change_info, self.error))
         return page
+
+    def flush_info(self):
+        if getattr(self, "info_editor", None) is not None:
+            editor, self.info_editor = self.info_editor, None
+            editor.flush()
+            self.info_editor = editor
+
+    def change_info(self, sheet):
+        """Store an edit of the open Info sheet; constants read by formulas recalculate their tables."""
+        if self.job is not None and (sheet.table, sheet.fields) != (self.project.info_sheets[sheet.uid].table,
+                                                                    self.project.info_sheets[sheet.uid].fields):
+            self.error(tr("family.wait").split(".")[0] + ".")
+            return False
+        title = self.project.info_sheets[sheet.uid].title
+        try:
+            stale = self.project.change_info(sheet)
+        except (ValueError, OverflowError) as error:
+            self.error(error)
+            return False
+        if sheet.title != title:
+            self.refresh()
+        else:
+            self.update_title()
+        self.refresh_runs([run for run in stale if run.result is not None])
+        return True
+
+    def _info_tables(self):
+        return [name for name, dataset in self.project.tables.items() if not stored_prism_view(dataset)]
+
+    def new_info(self):
+        from analisi.info import MAX_INFO_SHEETS, InfoSheet
+        from .info_editor import InfoDetails
+        if self.busy():
+            return
+        if len(self.project.info_sheets) >= MAX_INFO_SHEETS:
+            self.error(ui("A project supports up to 500 Info sheets."))
+            return
+        self.flush_info()
+        active = self.selected[1] if self.selected and self.selected[0] == "data" else None
+        dialog = InfoDetails(self, f"Project info {len(self.project.info_sheets) + 1}", active, self._info_tables(),
+                             creating=True)
+        if dialog.exec() != InfoDetails.DialogCode.Accepted or dialog.result is None:
+            return
+        sheet = InfoSheet.new(*dialog.result)
+        try:
+            stale = self.project.update_info_sheets({**self.project.info_sheets, sheet.uid: sheet})
+        except (ValueError, OverflowError) as error:
+            self.error(error)
+            return
+        self.show_sheet("info", sheet.uid)
+        self.refresh_runs([run for run in stale if run.result is not None])
+
+    def info_properties(self):
+        from .info_editor import InfoDetails
+        if not self.selected or self.selected[0] != "info":
+            return
+        self.flush_info()
+        sheet = self.project.info_sheets[self.selected[1]]
+        dialog = InfoDetails(self, sheet.title, sheet.table, self._info_tables())
+        if dialog.exec() != InfoDetails.DialogCode.Accepted or dialog.result is None:
+            return
+        title, table = dialog.result
+        if self.info_editor.commit(title=title, table=table):
+            self.show_sheet("info", sheet.uid)
+
+    def move_info(self, step):
+        if self.selected and self.selected[0] == "info":
+            self.flush_info()
+            self.project.move_info(self.selected[1], step)
+            self.refresh()
+
+    def remove_info(self):
+        if self.busy() or not self.selected or self.selected[0] != "info":
+            return
+        uid = self.selected[1]
+        sheet = self.project.info_sheets[uid]
+        from .info_editor import t
+        answer = QMessageBox.question(self, t("Delete Info sheet…").rstrip("…"), ui(f'Delete "{sheet.title}"?'))
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.flush_info()
+        try:
+            stale = self.project.update_info_sheets({key: value for key, value in self.project.info_sheets.items()
+                                                     if key != uid})
+        except (ValueError, OverflowError) as error:
+            self.error(error)
+            return
+        self.info_editor = None
+        self.show_home() if not self.project.tables else self.show_sheet("data", next(iter(self.project.tables)))
+        self.refresh_runs([run for run in stale if run.result is not None])
 
     def _canvas(self, page, figure, *, toolbar=True, run=None):
         canvas = FigureCanvasQTAgg(figure)
@@ -1408,6 +1490,7 @@ class MainWindow(QMainWindow):
 
     # == files ===================================================================================
     def confirm_saved(self):
+        self.flush_info()
         if not self.project.dirty:
             return True
         answer = QMessageBox.question(
@@ -1465,6 +1548,7 @@ class MainWindow(QMainWindow):
     def save(self, *, as_new=False):
         if self.busy() or not self.settle_graph_draft():
             return False
+        self.flush_info()
         if not self.project.tables and not self.project.info_sheets:
             return False
         path = self.project.path if not as_new else None

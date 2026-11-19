@@ -17,7 +17,8 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 - Foglio dati virtuale (`QTableView`): modifica, incolla/taglia/copia, Canc, inserisci/elimina righe e colonne, rinomina, escludi celle, annulla/ripeti, colonne calcolate in sola lettura.
 - Dialogo analisi per tutti i 95 metodi del motore, con ricerca, campi tradotti e messaggio di errore sul campo.
 - Calcolo in background con avanzamento e annulla; ricalcolo a catena dei risultati collegati quando cambiano i dati.
-- Tabelle dei risultati, grafici matplotlib (barra di navigazione), layout salvati, fogli info in sola lettura.
+- Tabelle dei risultati, grafici matplotlib (barra di navigazione), layout salvati.
+- Fogli Info (Home → Nuovo foglio Info…): nome e ambito, costanti modificabili (aggiungi, elimina, sposta), note con grassetto/corsivo/sottolineato (Ctrl+B/I/U) e importazione da testo, sposta ed elimina foglio. Le costanti lette dalle formule ricalcolano le loro tabelle.
 - Apri/importa (stessi formati della versione Tk), salva `.alab`, esporta tabelle CSV e grafici PNG/SVG/PDF/TIFF a 300 dpi con verifica del file; layout in PDF e SVG vettoriali; File → Esporta più fogli in PDF con ordine, larghezza e sfondo trasparente.
 - Format Graph (Ctrl+Maiusc+F): titolo ed etichette, font e dimensioni, legenda, cornice, griglie, assi (scala, minimo/massimo, passo, tacche, decimali), serie (colore, linea, simbolo, etichetta), asse destro e stile delle serie XY, linee di riferimento, tacche e griglie aggiuntive (guide) e intervalli ombreggiati (bande) degli assi, interruzioni degli assi sui grafici XY (2 o 3 segmenti, suggerite dai dati), formato della legenda (titolo, colonne, ordine, cornice, sfondo, etichette delle voci), ripristino dei predefiniti.
 - Inspector dei grafici (Ctrl+Maiusc+I): pannello laterale con anteprima dal vivo, Applica/Annulla, clic sul grafico per scegliere box e violini; chiede cosa fare di una bozza prima di salvare, esportare o ricalcolare.
@@ -32,7 +33,7 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 
 1. Esporta con opzioni (dimensione in mm, DPI, testo SVG) come nella finestra classica.
 2. Interfaccia delle catene di analisi.
-3. Modifica dei fogli info, procedura guidata di importazione testo.
+3. Procedura guidata di importazione testo.
 4. Porting dello smoke test (`--smoke`) su Qt e collaudo DPI su Windows reale.
 
 Quando tutto è migrato si toglie `--tk` e la dipendenza da Tk.

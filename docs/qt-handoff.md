@@ -15,6 +15,15 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### INFO · Modifica dei fogli Info su Qt (2026-11-19)
+
+- Nuovo: Home → Nuovo foglio Info…; nella pagina del foglio Proprietà… (nome e ambito), Sposta su/giù, Elimina foglio Info…, costanti modificabili (aggiungi, elimina, ↑↓), note con grassetto, corsivo e sottolineato (pulsanti o Ctrl+B/I/U) e Importa note… Codice in `trama_qt/info_editor.py`, `Project.change_info`/`move_info`/`update_info_sheets`. Le note si salvano dopo una pausa, uscendo dal foglio e prima di salvare. Gli stili sono contati in caratteri Python, quindi le emoji non spostano la formattazione.
+- Da provare su Windows:
+  - Nuovo foglio Info legato a una tabella, costante "Dose" = 10 e una formula della tabella che la usa: cambiando il valore la tabella si ricalcola.
+  - Note con una parte in grassetto e un'emoji prima, salvare e riaprire in Qt e in Tk: formattazione nello stesso punto.
+  - Eliminare il foglio.
+- Test attesi: `tests.test_qt_shell` 15/15 OK.
+
 ### a22d53b · Famiglie di esperimenti su Qt (2026-11-19)
 
 - Nuovo: Home → Duplica famiglia… e Salva famiglia come… (anche col tasto destro nel navigatore). Codice in `trama_qt/family.py` e `trama_qt/window.py`, più `Project.apply_family` e `Project.update_info_sheets`. Stesso motore della versione Tk (`analisi.family_workflow`): anteprima di tabelle, analisi, layout e fogli info; nome della nuova tabella o prefisso per gli altri fogli; layout inclusi. Copia e salvataggio girano in background e si possono annullare: annullando la copia non viene aggiunto niente. I risultati copiati si calcolano quando apri il foglio.

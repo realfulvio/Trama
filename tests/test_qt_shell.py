@@ -13,7 +13,7 @@ os.environ.setdefault("MPLBACKEND", "QtAgg")
 
 try:
     from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QMessageBox
 except ImportError:  # PySide6 missing, or libEGL/libGL missing on a headless machine.
     QApplication = None
 
@@ -451,6 +451,50 @@ class QtShellTests(unittest.TestCase):
         from analisi.data import load_workspace
         tables, _, _ = load_workspace(target, include_info=True)
         self.assertEqual(list(tables), ["groups"])
+
+    def test_info_sheet_editing(self):
+        from unittest import mock
+        from analisi.info import NOTE_BOLD
+        from trama_qt.info_editor import InfoDetails
+        window = self.window
+        self.open_example()
+
+        def details(dialog):
+            dialog.title.setText("Esperimento")
+            dialog.scope.setCurrentIndex(1)  # The groups table.
+            dialog.accept()
+            return InfoDetails.DialogCode.Accepted
+
+        with mock.patch.object(InfoDetails, "exec", details):
+            window.new_info()
+        self.assertEqual(window.selected[0], "info")
+        uid = window.selected[1]
+        editor = window.info_editor
+        editor.add_row()
+        row = len(editor.sheet.fields) - 1
+        editor.table.item(row, 0).setText("Dose")
+        editor.table.item(row, 1).setText("10")
+        self.assertEqual(window.project.tables["groups"].info.get("dose"), "10")
+        editor.notes.setPlainText("Nota importante")
+        cursor = editor.notes.textCursor()
+        cursor.setPosition(5)
+        cursor.setPosition(15, cursor.MoveMode.KeepAnchor)
+        editor.notes.setTextCursor(cursor)
+        editor.toggle_style(NOTE_BOLD)
+        window.open_sheet(("data", "groups"))  # Leaving the sheet stores the notes.
+        sheet = window.project.info_sheets[uid]
+        self.assertEqual((sheet.notes, sheet.note_styles), ("Nota importante", ((5, 15, NOTE_BOLD),)))
+        saved = self.folder / "info.alab"
+        window.project.save(saved)
+        window.open_path(saved)
+        sheet = next(iter(window.project.info_sheets.values()))
+        self.assertEqual((sheet.title, sheet.table), ("Esperimento", "groups"))
+        self.assertIn(("Dose", "10"), sheet.fields)
+        self.assertEqual(sheet.note_styles, ((5, 15, NOTE_BOLD),))
+        window.open_sheet(("info", sheet.uid))
+        with mock.patch("trama_qt.window.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes):
+            window.remove_info()
+        self.assertFalse(window.project.info_sheets)
 
     def test_format_xy_graph_recipe(self):
         window = self.window

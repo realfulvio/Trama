@@ -280,6 +280,23 @@ class Project:
         self.dirty = True
         return [run for run in self.runs if run.title in stale]
 
+    def change_info(self, sheet):
+        """Store an edited Info sheet. Returns the runs to recalculate."""
+        current = self.info_sheets[sheet.uid]
+        if (sheet.table, sheet.fields) != (current.table, current.fields):
+            return self.update_info_sheets({**self.info_sheets, sheet.uid: sheet})
+        self.info_sheets[sheet.uid] = sheet
+        self.dirty = True
+        return []
+
+    def move_info(self, uid, step):
+        sheets = list(self.info_sheets.items())
+        row = list(self.info_sheets).index(uid)
+        if 0 <= row + step < len(sheets):
+            sheets[row], sheets[row + step] = sheets[row + step], sheets[row]
+            self.info_sheets = dict(sheets)
+            self.dirty = True
+
     def apply_family(self, bundle):
         """Add a finished family copy, all or nothing. Returns the navigator reference of the copied focus."""
         for title in bundle.tables:

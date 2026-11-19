@@ -53,8 +53,6 @@ _TEXT = {
     "qt.number": ("{name} must be a number.", "{name} deve essere un numero."),
     "qt.layout_missing": ("Calculate the graphs of this layout to show it.",
                           "Calcola i grafici di questo layout per mostrarlo."),
-    "qt.info_fields": ("Constants", "Costanti"),
-    "qt.info_notes": ("Notes", "Note"),
     "qt.insert_row": ("Insert row", "Inserisci riga"),
     "qt.insert_column": ("Insert column", "Inserisci colonna"),
     "qt.delete_rows": ("Delete rows", "Elimina righe"),
