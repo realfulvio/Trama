@@ -6,12 +6,13 @@ import unittest
 from zipfile import ZipFile
 
 from analisi.data import Dataset, load_project, load_tables, save_project
+from analisi.prism_restore import SAVED_BINARY_LAYOUT
 from analisi.workbench import analyse
 from test_prism_binary_editable import _group
 from test_prism_binary_graphs import _record
 
 
-def _graph(markers):
+def _graph(markers, fen_id=8):
     graph = _record(0x14, pack("<2i", 1, 14))
     graph += _record(0x15, pack("<3i", 2, 21, 20))
     graph += _record(0x16, pack("<H6i", 2, 205, -1, -1, 206, -1, -1))
@@ -32,10 +33,32 @@ def _graph(markers):
         header[68:71] = bytes.fromhex(color)
         objects += _group(0x8020, pack("<H", 9) + bytes(28), _group(0x8028, header))
     graph += _group(0x8018, bytes(12), objects)
-    return b"PCFFGRA4" + _group(0x8001, bytes(12), _group(0x8012, pack("<H", 8), graph))
+    return b"PCFFGRA4" + _group(0x8001, bytes(12), _group(0x8012, pack("<H", fen_id), graph))
 
 
-def _write(project, *, bad_link=False):
+def _layout(graph_id=9):
+    dimensions = pack("<2i", 850, 1100) + bytes(292)
+    references = pack("<H", 2)
+    references += b"".join(pack("<IH6s", uid, 65535, bytes(6)) for uid in (8, 9))
+    objects = b""
+    for uid, bounds in ((8, (300, 400, 4000, 1800)), (graph_id, (500, 2200, 4200, 3600))):
+        panel = pack("<H", 11) + bytes(16) + pack("<4h", *bounds) + bytes(4)
+        objects += _group(0x8020, panel, _record(0x2F, pack("<H", uid)))
+    line = pack("<H", 3) + bytes(28)
+    points = b"".join(_record(0xD9, pack("<iii8s", 2, x, y, bytes(8)))
+                      for x, y in ((3900, 1750), (600, 2300)))
+    stroke = bytearray(26)
+    stroke[4:7] = bytes.fromhex("236789")
+    pack_into("<f", stroke, 22, 6)
+    endpoint_group = _group(0x80D8, pack("<I", 2) + bytes(28), points)
+    objects += _group(0x8020, line, _record(0x23, stroke) + endpoint_group)
+    scene = _group(0x8018, pack("<3I", 11, 3, 0), objects)
+    layout = _record(0xA, dimensions) + _record(0x37, references) + scene
+    units = _record(0xA1, pack("<i", 600) + bytes(100))
+    return b"PCFFGRA4" + _group(0x8001, bytes(12), units + _group(0x8035, pack("<H", 0), layout))
+
+
+def _write(project, *, bad_link=False, layout_link=None):
     table = {"format": "xy", "dataFormat": "y_single", "uid": "raw",
              "xDataSet": "x", "dataSets": ["first", "second"]}
     members = {
@@ -48,12 +71,24 @@ def _write(project, *, bad_link=False):
         "graphs/chart/sheet.json": {"uid": "chart", "fenID": 8, "title": "Signals by date",
                                     "inputDataSets": ["first", "second"]},
     }
+    if layout_link is not None:
+        sheets = members["document.json"]["sheets"]
+        sheets["graphs"].append("detail")
+        sheets["layouts"] = ["page"]
+        chart = members["graphs/chart/sheet.json"]
+        members["graphs/detail/sheet.json"] = {**chart, "uid": "detail", "fenID": 9, "title": "Detailed signals"}
+        members["layouts/page/sheet.json"] = {"uid": "page", "fenID": 0, "title": "Results page",
+                                              "linkedGraphSheets": ["chart", "detail"], "mediaCollection": []}
     with ZipFile(project, "w") as archive:
         for name, data in members.items():
             archive.writestr(name, json.dumps(data))
         archive.writestr("data/tables/raw/data.csv", "1,3,\n2,,\n3,5,\n")
         archive.writestr("graphs/chart/data.bin", _graph([(20, 205, "22aaff"),
                                                          (21, 207 if bad_link else 206, "ff0088")]))
+        if layout_link is not None:
+            detail = _graph([(20, 205, "22aaff"), (21, 206, "ff0088")], fen_id=9)
+            archive.writestr("graphs/detail/data.bin", detail)
+            archive.writestr("layouts/page/data.bin", _layout(layout_link))
 
 
 class PrismZipSparseXYTests(unittest.TestCase):
@@ -87,3 +122,42 @@ class PrismZipSparseXYTests(unittest.TestCase):
             _write(path, bad_link=True)
             data = Dataset(load_tables(path, restore_prism=True)["Signals"])
             self.assertFalse(data.analyses)
+
+    def test_positioned_layout_round_trips_and_redraws_panels_from_the_edited_table(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "positioned.pzt"
+            _write(path, layout_link=9)
+            tables = load_tables(path, restore_prism=True)
+            self.assertEqual(list(tables), ["Signals"])
+            dataset = Dataset(tables["Signals"])
+            method, options = dataset.analyses[2]
+            self.assertEqual(method, SAVED_BINARY_LAYOUT)
+            figure = analyse(method, dataset.frame(mask_excluded=True), options).figure
+            self.assertEqual(tuple(figure.get_size_inches()), (8.5, 11.0))
+            self.assertEqual([axes.get_title() for axes in figure.axes], ["Signals by date", "Detailed signals"])
+            self.assertAlmostEqual(figure.subfigs[0].bbox.x0 / figure.bbox.width, 300 / 5100)
+            self.assertAlmostEqual(figure.subfigs[1].bbox.x0 / figure.bbox.width, 500 / 5100)
+            self.assertAlmostEqual(figure.subfigs[1].bbox.y1 / figure.bbox.height, 1 - 2200 / 6600)
+            line, = figure.artists
+            self.assertEqual(tuple(line.get_xdata()), (3900 / 5100, 600 / 5100))
+            self.assertEqual(tuple(line.get_ydata()), (1 - 1750 / 6600, 1 - 2300 / 6600))
+            self.assertEqual(line.get_color(), "#236789")
+
+            dataset.raw.loc[1, "B"] = 4
+            saved = Path(scratch) / "positioned.alab"
+            save_project(saved, {"Signals": dataset})
+            restored = load_project(saved)["Signals"]
+            method, options = restored.analyses[2]
+            figure = analyse(method, restored.frame(mask_excluded=True), options).figure
+            self.assertEqual([axes.lines[0].get_ydata().tolist() for axes in figure.axes], [[4], [4]])
+            svg = Path(scratch) / "positioned.svg"
+            figure.savefig(svg)
+            self.assertNotIn("<image", svg.read_text(encoding="utf-8"))
+
+    def test_layout_with_a_missing_panel_keeps_the_two_viewable_graphs(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "invalid-panel.pzt"
+            _write(path, layout_link=10)
+            frame = load_tables(path, restore_prism=True)["Signals"]
+            self.assertEqual(len(Dataset(frame).analyses), 2)
+            self.assertIn("Layout unavailable for Results page.", " ".join(frame.attrs.get("import_warnings", ())))

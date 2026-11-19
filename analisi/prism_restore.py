@@ -383,6 +383,7 @@ def _link_grouped_anova(sheet, parameters, label, grouped_views, view_sources):
 
 def restore_sheets(archive, names, sheets, sources, tables, cells):
     """Add non-executable snapshots and supported native analysis recipes."""
+    from .prism_zip_layout import ZIP_LAYOUT, saved_positioned_layout
     from .prism_zip_xy import ZIP_SPARSE_XY, saved_sparse_xy
 
     warnings = []
@@ -394,6 +395,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
     deferred_anova = []
     grouped_views = {}
     elbow_views = {}
+    linked_xy = {}
     for source in sources.values():
         if source.attrs["prism_x"]:
             for uid in source.attrs["prism_y"]:
@@ -508,6 +510,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
                             PRISM_NOTES: "Linked XY data, saved axis limits and series colors. "
                                          "Trama uses native point markers and graph formatting.",
                         }))
+                        linked_xy[uid] = (source, graph["fenID"], label[:160], style)
                         continue
                 scatter = saved_scatter(graph, view_sources, MAX_CELLS - cells)
                 if scatter is not None:
@@ -522,6 +525,26 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
                 warnings.append(f"Graph unavailable for {label}.")
         except (KeyError, TypeError, ValueError):
             warnings.append(f"Graph unavailable for {label}.")
+    for entry in _list(sheets.get("layouts", [])):
+        label = str(entry)
+        try:
+            uid = _identifier(entry)
+            sheet = _json_object(archive, f"layouts/{uid}/sheet.json")
+            label = str(sheet.get("title") or uid)[:160]
+            linked = saved_positioned_layout(archive, uid, sheet, linked_xy)
+            if linked is not None:
+                source, layout = linked
+                recipes = source.attrs["prism_recipes"]
+                if len(recipes) < 256:
+                    recipes.append((SAVED_BINARY_LAYOUT, {
+                        PRISM_TITLE: label, ZIP_LAYOUT: layout,
+                        PRISM_NOTES: "Linked data and saved page positions. "
+                                     "Trama draws the panels and connector lines with native formatting.",
+                    }))
+                    continue
+        except (KeyError, TypeError, ValueError):
+            pass
+        warnings.append(f"Layout unavailable for {label}.")
     if warnings:
         first = next(iter(tables.values()))
         first.attrs.setdefault("import_warnings", []).append(

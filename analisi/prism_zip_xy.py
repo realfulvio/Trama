@@ -117,19 +117,22 @@ def _saved_sparse_xy(archive, graph, graph_uid, owners, sources):
     return frame, {"x": x, "series": _series(records, columns), "axes": list(_linear_axes(records))}
 
 
-def render_sparse_xy(frame, style, title):
+def render_sparse_xy(frame, style, title, *, axes=None):
     try:
-        return _render_sparse_xy(frame, style, title)
+        return _render_sparse_xy(frame, style, title, axes)
     except (KeyError, TypeError, OverflowError) as error:
         raise ValueError("Invalid source columns or settings for the saved XY graph.") from error
 
 
-def _render_sparse_xy(frame, style, title):
+def _render_sparse_xy(frame, style, title, axes):
     series, scales = style["series"], style["axes"]
     _require(isinstance(series, list) and 1 <= len(series) <= 100 and len(scales) == 2
              and len(series) * len(frame) <= _MAX_POINTS)
-    figure = Figure(figsize=(7, 4), layout="constrained")
-    axes = figure.add_subplot()
+    if axes is None:
+        figure = Figure(figsize=(7, 4), layout="constrained")
+        axes = figure.add_subplot()
+    else:
+        figure = axes.get_figure(root=True)
     axes.set_title(title, parse_math=False)
     axes.set_xlabel(style["x"], parse_math=False)
     axes.spines[["right", "top"]].set_visible(False)
