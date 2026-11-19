@@ -6,6 +6,7 @@ that the Qt interface never imports Tk.
 """
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
+import json
 import os
 from pathlib import Path
 import threading
@@ -16,8 +17,8 @@ import pandas as pd
 from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCancelled, ResultSource,
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
-from analisi.data import (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, Dataset,
-                          info_references, load_tables, load_workspace, project_bytes, save_project)
+from analisi.data import (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, MAX_ENTRY, Dataset,
+                          info_references, load_tables, load_workspace, project_document, save_project)
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, grow_rows, paste_block
@@ -200,9 +201,26 @@ class Snapshot:
     layouts: list
     info_sheets: tuple
 
-    def to_bytes(self):
-        """The .alab bytes, as Save writes them. Safe on any thread: nothing here is shared with the project."""
-        return project_bytes(self.tables, layouts=self.layouts, info_sheets=self.info_sheets)
+    def to_bytes(self, batch=256):
+        """The .alab bytes, identical to what Save writes. Safe on any thread: nothing here is shared with the
+        project. The rows are encoded ``batch`` rows at a time: ``json.dumps`` holds the interpreter lock for the
+        whole call, so one call on a 10,000 × 30 table would freeze the window for about a tenth of a second."""
+        document = project_document(self.tables, layouts=self.layouts, info_sheets=self.info_sheets)
+        marker = uuid4().hex
+        rows = {}
+        for index, record in enumerate(document["tables"]):
+            placeholder = f"\x00{marker}:{index}\x00"
+            rows[json.dumps(placeholder, ensure_ascii=False)] = record["rows"]
+            record["rows"] = placeholder
+        text = json.dumps(document, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+        for placeholder, table in rows.items():
+            pieces = [json.dumps(table[start:start + batch], ensure_ascii=False, allow_nan=False,
+                                 separators=(",", ":"))[1:-1] for start in range(0, len(table), batch)]
+            text = text.replace(placeholder, "[" + ",".join(pieces) + "]", 1)
+        data = text.encode("utf-8")
+        if len(data) > MAX_ENTRY:
+            raise ValueError("The project exceeds the 32 MiB limit.")
+        return data
 
 
 def _file_stamp(path):

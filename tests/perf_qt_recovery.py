@@ -1,7 +1,8 @@
 """Measure recovery copies on two tabs of 10,000 × 30: ``python tests/perf_qt_recovery.py [OUTPUT.json]``.
 
 For each tab: one cell changed, then a copy. Reports the time the GUI thread spends capturing the state (the only
-part on the GUI thread), the background time (serialise, hash, write) and the size; then the data stays still for
+part on the GUI thread), the longest pause between two GUI events while the copies are written in the background
+(Python threads share one interpreter lock), the background time (serialise, hash, write) and the size; then the data stays still for
 two intervals and the number of writes is counted (expected: none). Offscreen, temporary profile, synthetic data.
 """
 import json
@@ -46,7 +47,10 @@ def main(output=None):
         return original(*args, **options)
 
     controller.store.write_snapshot = counting
-    rounds = []
+    for _ in range(5):  # The first paint of the window is not part of the measure.
+        app.processEvents()
+        time.sleep(0.05)
+    rounds, latencies = [], []
     for round_ in range(3):
         for session in window.sessions:
             title = next(iter(session.project.tables))
@@ -62,9 +66,17 @@ def main(output=None):
         now[0] += 30
         controller.tick()  # Both tabs (one not active) are captured here, on the GUI thread.
         tick_ms = (time.perf_counter() - start) * 1000
-        controller.wait(120)
+        gaps, last = [], time.perf_counter()
+        done = controller.queue.submit(lambda: None)
+        while not done.done():  # How long the GUI thread waits between two events while the copies are written.
+            app.processEvents()
+            time.sleep(0.005)
+            now_ = time.perf_counter()
+            gaps.append((now_ - last) * 1000)
+            last = now_
         app.processEvents()
         rounds.append(tick_ms)
+        latencies.append(max(gaps) if gaps else 0.0)
     timings = controller.timings[-6:]
     before = len(writes)
     for _ in range(2):
@@ -75,6 +87,7 @@ def main(output=None):
     result = {
         "tables": "2 tabs × 10,000 rows × 30 columns",
         "gui_tick_ms_two_tabs": [round(value, 1) for value in rounds],
+        "gui_max_event_gap_ms_while_writing": [round(value, 1) for value in latencies],
         "gui_capture_ms_per_tab": [round(item[1], 2) for item in timings],
         "background_ms_per_copy": [round(item[2], 1) for item in timings],
         "copy_bytes": timings[-1][3] if timings else None,

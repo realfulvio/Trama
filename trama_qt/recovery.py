@@ -252,7 +252,7 @@ class RecoveryController(QObject):
         if self.window is None or self.closed:
             return
         now = self.clock()
-        keys = set()
+        keys, due = set(), []
         for session in self.window.sessions:
             project = session.project
             keys.add(project.recovery_key)
@@ -264,23 +264,30 @@ class RecoveryController(QObject):
             if tracked.since is None:
                 tracked.since = now
             if now - tracked.since >= self.interval and not tracked.writing:
-                self.capture(project)
+                due.append(project)
+        # All states first, then the writes: a capture never competes with a serialisation already running.
+        jobs = [self._prepare(project) for project in due]
+        for job in jobs:
+            self.queue.submit(self._write, *job)
         for key in [key for key in self.tracked if key not in keys]:
             del self.tracked[key]  # A tab that went away without the window telling (should not happen).
 
-    def capture(self, project):
-        """Take a copy of ``project`` now: detached state here, the rest on the background thread."""
+    def _prepare(self, project):
+        """The detached state of ``project`` and its new generation, on the GUI thread."""
         start = time.perf_counter()
         tracked = self._track(project)
         snapshot = project.snapshot()
         project.recovery_generation += 1
-        generation = project.recovery_generation
         tracked.captured, tracked.since = project.revision, None
         tracked.writing += 1
         title = getattr(project, "recovery_base_title", None) or project.title
         gui_ms = (time.perf_counter() - start) * 1000
-        return self.queue.submit(self._write, project.recovery_key, generation, snapshot, title,
-                                 project.recovery_source, project.source_stamp, gui_ms)
+        return (project.recovery_key, project.recovery_generation, snapshot, title, project.recovery_source,
+                project.source_stamp, gui_ms)
+
+    def capture(self, project):
+        """Take a copy of ``project`` now: detached state here, the rest on the background thread."""
+        return self.queue.submit(self._write, *self._prepare(project))
 
     def _is_covered(self, key, generation):
         with self.covered_lock:

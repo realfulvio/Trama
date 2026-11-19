@@ -289,6 +289,24 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(store.usage()["copies"], 3)
 
 
+class SnapshotBytesTests(unittest.TestCase):
+    def test_snapshot_bytes_equal_save(self):
+        """Recovery copies are serialised in batches; the bytes are those Save writes."""
+        import pandas as pd
+        from trama_qt.project import Project
+        project = Project()
+        project.load(FIXTURES / "misure-salvate.alab")
+        frame = pd.DataFrame({"Testo": ["a\u0000b", "β \"quoted\"", None, "x" * 3] * 150,
+                              "Numero": pd.array([1.5, None, -2.0, 1e300] * 150, dtype="Float64")})
+        project.add_tables({"Misto $ <β>": frame, "Vuoto": frame.iloc[:0]})
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "saved.alab"
+            snapshot = project.snapshot()
+            project.save(path)
+            for batch in (1, 7, 256, 10_000):
+                self.assertEqual(snapshot.to_bytes(batch), path.read_bytes())
+
+
 class LeaseTests(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
