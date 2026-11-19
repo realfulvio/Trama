@@ -11,7 +11,8 @@ Trama è sviluppato dai contributori del progetto e si basa sul lavoro della com
 | Componente | Ruolo | Riferimento alle licenze |
 | --- | --- | --- |
 | [Python](https://www.python.org/) | Runtime | [PSF e avvisi inclusi](https://docs.python.org/3/license.html) |
-| [Tcl/Tk](https://www.tcl-lang.org/) | Interfaccia desktop | [Licenza Tcl/Tk](https://www.tcl-lang.org/software/tcltk/license.html) |
+| [Qt for Python (PySide6)](https://doc.qt.io/qtforpython-6/) | Interfaccia desktop (dalla 0.95) | [LGPLv3, usata come libreria dinamica non modificata](https://doc.qt.io/qtforpython-6/licenses.html) |
+| [Tcl/Tk](https://www.tcl-lang.org/) | Interfaccia classica (`--tk`) | [Licenza Tcl/Tk](https://www.tcl-lang.org/software/tcltk/license.html) |
 | [NumPy](https://numpy.org/) | Calcolo numerico | [Licenze del progetto e dei componenti incorporati](https://github.com/numpy/numpy/blob/main/LICENSE.txt) |
 | [SciPy](https://scipy.org/) | Statistica e ottimizzazione | [Licenze BSD e componenti incorporati](https://github.com/scipy/scipy/blob/main/LICENSE.txt) |
 | [pandas](https://pandas.pydata.org/) | Tabelle | [BSD-3-Clause](https://github.com/pandas-dev/pandas/blob/main/LICENSE) |
@@ -25,6 +26,14 @@ Trama è sviluppato dai contributori del progetto e si basa sul lavoro della com
 
 Il pacchetto Windows raccoglie gli avvisi delle distribuzioni installate nella cartella **Third-party licenses**, compresi quelli del runtime Python. Alcuni componenti incorporano altre librerie con avvisi propri: va conservata l'intera cartella, non soltanto questa tabella. Versioni e dipendenze dirette sono fissate in [requirements.txt](requirements.txt); per una distribuzione specifica fanno riferimento i testi inclusi in quell'archivio.
 
+## Distribuzione di Qt
+
+Trama 0.95 distribuisce Qt 6.12.0, PySide6 Essentials 6.12.0 e Shiboken6 6.12.0 come librerie dinamiche non modificate, separate da `Trama.exe`. Le DLL e i moduli nativi si trovano nella cartella `_internal` del portabile e possono essere sostituiti con build compatibili. La licenza di Trama consente il debug delle modifiche alle librerie secondo la LGPL.
+
+- [Sorgenti di Qt 6.12.0](https://download.qt.io/official_releases/qt/6.12/6.12.0/single/)
+- [Sorgenti di PySide6 e Shiboken6 6.12.0](https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.12.0-src/)
+- Testi [LGPL 3.0](assets/qt/licenses/LGPL-3.0.txt) e [GPL 3.0](assets/qt/licenses/GPL-3.0.txt). Nel portabile i testi si trovano in `_internal/assets/qt/licenses/`.
+
 ## Metodi, campioni e strumenti
 
 Metodi statistici, scelte implementative e fonti dei campioni sono documentati nella [copertura tecnica](docs/coverage.md) e nelle relative prove. I campioni esterni non diventano MIT perché letti da Trama. Le loro attribuzioni e licenze restano applicabili; dove i file non sono redistribuibili, il sorgente non ne concede una copia.
@@ -34,5 +43,6 @@ Metodi statistici, scelte implementative e fonti dei campioni sono documentati n
 - **Nome e simbolo Trama:** identità del progetto. Il nuovo simbolo a T intrecciata è disponibile in [SVG](assets/trama.svg), [PNG](assets/brand/trama-icon-1024.png) e [ICO](assets/trama.ico), con logotipi chiari e scuri in `assets/brand/`. Gli asset originali del progetto seguono la MIT; ciò non attribuisce diritti sui marchi di terzi o approvazioni commerciali.
 - **Grafica promozionale:** il concept del simbolo e l'illustrazione di apertura sono stati generati con assistenza AI; il simbolo di produzione è stato ricostruito in vettoriale. Le immagini promozionali sono illustrazioni, non schermate del software. [Provenienza e prompt](docs/media/homepage/PROVENANCE.md).
 - **Schermate:** catture della vera interfaccia Windows di Trama su dati sintetici, con la nuova icona in anteprima. Non sono mockup o prove di validazione scientifica.
+- **Font e icone dell'interfaccia Qt:** [Figtree](https://github.com/erikdkennedy/figtree) sotto SIL Open Font License 1.1 ([testo](assets/qt/fonts/OFL.txt)); icone [Lucide](https://lucide.dev/) sotto licenza ISC ([testo](assets/qt/icons/LICENSE-lucide.txt)), ricolorate a runtime.
 - **Tipografia del logotipo:** glifi DejaVu Sans convertiti in tracciati; [licenza e avvisi del font](assets/brand/DejaVu-LICENSE.txt). La conversione in tracciati evita la necessità di installare il font per visualizzare il logo.
 - I crediti e le licenze dei materiali multimediali restano distinti dalla licenza del codice. Questa distribuzione non include i precedenti archivi promozionali e le loro tracce audio.

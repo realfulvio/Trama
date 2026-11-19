@@ -1,0 +1,89 @@
+"""Display text used only by the Qt interface.
+
+Labels shared with the classic interface come from ``analisi.i18n`` (``tr`` and ``ui``); the
+entries here cover the few captions the Qt window adds. English is the fallback.
+"""
+from analisi.i18n import active_language
+
+_TEXT = {
+    "qt.classic": ("Open in classic interface", "Apri nell'interfaccia classica"),
+    "qt.classic_hint": ("Opens this project in the classic Trama window for the tools not yet available here.",
+                        "Apre il progetto nella finestra classica di Trama per gli strumenti non ancora presenti qui."),
+    "qt.classic_save": ("Save the project before opening it in the classic interface.",
+                        "Salva il progetto prima di aprirlo nell'interfaccia classica."),
+    "qt.recalculate": ("Recalculate", "Ricalcola"),
+    "qt.use_as_data": ("Use result as data", "Usa risultato come dati"),
+    "qt.export_table": ("Export table…", "Esporta tabella…"),
+    "qt.export_graph": ("Export graph…", "Esporta grafico…"),
+    "qt.unsaved_title": ("Unsaved changes", "Modifiche non salvate"),
+    "qt.unsaved": ("Save the changes to {name}?", "Salvare le modifiche a {name}?"),
+    "qt.running": ("Calculating {method}…", "Calcolo di {method}…"),
+    "qt.updating": ("Updating {count} linked result(s)…", "Aggiornamento di {count} risultati collegati…"),
+    "qt.updated": ("Updated {count} linked result(s).", "Aggiornati {count} risultati collegati."),
+    "qt.update_failed": ("{count} linked result(s) need attention. {first}",
+                         "{count} risultati collegati da controllare. {first}"),
+    "qt.complete": ("{method} complete.", "{method} completata."),
+    "qt.failed": ("The analysis could not be completed.", "Non è stato possibile completare l'analisi."),
+    "qt.cancelled": ("Calculation cancelled.", "Calcolo annullato."),
+    "qt.wait": ("Wait for the current calculation to finish.", "Attendi la fine del calcolo in corso."),
+    "qt.not_calculated": ("This analysis has not been calculated with the current data.",
+                          "Questa analisi non è ancora stata calcolata con i dati attuali."),
+    "qt.stale": ("These results are not current: {error}", "Questi risultati non sono aggiornati: {error}"),
+    "qt.no_table": ("Open or create a data table first.", "Apri o crea prima una tabella dati."),
+    "qt.read_only": ("This sheet keeps an imported view and cannot be edited.",
+                     "Questo foglio conserva una vista importata e non si può modificare."),
+    "qt.empty": ("Enter some data first.", "Inserisci prima qualche dato."),
+    "qt.rows_columns": ("{rows} rows × {columns} columns", "{rows} righe × {columns} colonne"),
+    "qt.cell": ("Cell {address}", "Cella {address}"),
+    "qt.ready": ("Ready", "Pronto"),
+    "qt.analysis_title": ("Analyze data", "Analizza dati"),
+    "qt.find_analysis": ("Find an analysis", "Cerca un'analisi"),
+    "qt.variables": ("Variables", "Variabili"),
+    "qt.options": ("Options", "Opzioni"),
+    "qt.run": ("Run analysis", "Esegui analisi"),
+    "qt.cancel": ("Cancel", "Annulla"),
+    "qt.saved_setting": ("Kept from the saved analysis. Edit it in the classic interface.",
+                         "Mantenuto dall'analisi salvata. Si modifica nell'interfaccia classica."),
+    "qt.default_setting": ("Uses the default. Set it in the classic interface.",
+                           "Usa il valore predefinito. Si imposta nell'interfaccia classica."),
+    "qt.none": ("(none)", "(nessuna)"),
+    "qt.select_columns": ("Select at least one column for {name}.", "Seleziona almeno una colonna per {name}."),
+    "qt.choose_column": ("Choose a column for {name}.", "Scegli una colonna per {name}."),
+    "qt.whole_number": ("{name} must be a whole number.", "{name} deve essere un numero intero."),
+    "qt.number": ("{name} must be a number.", "{name} deve essere un numero."),
+    "qt.layout_missing": ("Calculate the graphs of this layout to show it.",
+                          "Calcola i grafici di questo layout per mostrarlo."),
+    "qt.insert_row": ("Insert row", "Inserisci riga"),
+    "qt.insert_column": ("Insert column", "Inserisci colonna"),
+    "qt.delete_rows": ("Delete rows", "Elimina righe"),
+    "qt.delete_columns": ("Delete columns", "Elimina colonne"),
+    "qt.rename_column": ("Rename column…", "Rinomina colonna…"),
+    "qt.column_name": ("Column name", "Nome della colonna"),
+    "qt.new_table_name": ("Data {number}", "Dati {number}"),
+    "qt.about": ("About Trama", "Informazioni su Trama"),
+    "qt.about_text": ("Trama {version}\nInterface: PySide6 {qt}\nStatistical engine shared with the classic interface.",
+                      "Trama {version}\nInterfaccia: PySide6 {qt}\nMotore statistico condiviso con l'interfaccia classica."),
+    "qt.language_restart": ("The language changes the next time Trama starts.",
+                            "La lingua cambia al prossimo avvio di Trama."),
+    "qt.loading": ("Loading…", "Caricamento in corso…"),
+    "qt.dark": ("Dark theme", "Tema scuro"),
+    "qt.zoom": ("Zoom", "Zoom"),
+    "qt.search": ("Search commands (Ctrl+K)", "Cerca comandi (Ctrl+K)"),
+    "qt.graph_toolbar": ("Graph tools", "Strumenti grafico"),
+    "qt.imported": ("Imported {count} table(s).", "Importate {count} tabelle."),
+    "qt.saved_view": ("Saved view", "Vista salvata"),
+    "qt.exported": ("Exported {name}.", "Esportato {name}."),
+    "qt.edited": ("Data updated.", "Dati aggiornati."),
+    "qt.format_graph_problem": ("This graph cannot be formatted here: {reason}",
+                                "Questo grafico non si può formattare qui: {reason}"),
+    "qt.inspector_draft": ("The Inspector has changes that are not applied. Apply them, discard them, or go back "
+                           "to the graph?", "L'Inspector ha modifiche non applicate. Applicarle, scartarle o "
+                           "tornare al grafico?"),
+    "qt.style_applied": ("Graph style applied.", "Stile del grafico applicato."),
+}
+
+
+def qt(key, **values):
+    english, italian = _TEXT[key]
+    text = italian if active_language() == "it" else english
+    return text.format(**values) if values else text

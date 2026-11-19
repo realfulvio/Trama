@@ -2,6 +2,12 @@
 import sys
 
 if __name__ == "__main__" and "--smoke" not in sys.argv[1:]:
+    # Qt is the interface from 0.95; --tk (or a missing PySide6) opens the classic Tk window.
+    from trama_qt import qt_available
+    if "--tk" not in sys.argv[1:] and qt_available():
+        from trama_qt.app import main as qt_main
+        raise SystemExit(qt_main())
+    sys.argv = [argument for argument in sys.argv if argument != "--tk"]
     from trama_startup import launch
     raise SystemExit(launch())
 
