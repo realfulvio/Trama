@@ -42,6 +42,7 @@ from numbers import Integral, Real
 import numpy as np
 import pandas as pd
 
+from . import parallel
 from .field_error import FieldError
 from .monte_carlo import MonteCarloCancelled
 from .reporting import Result, _plot
@@ -467,7 +468,6 @@ class _Paired:
 
     def __init__(self, differences):
         self.values = differences
-        self.negated = -differences
 
     def exact(self, cancel):
         sums = np.zeros(1)
@@ -480,14 +480,45 @@ class _Paired:
     def simulate(self, resamples, seed, cancel):
         generator = np.random.Generator(np.random.PCG64(seed))
         count = len(self.values)
-        out = np.empty(resamples)
         block = max(1, BLOCK_WORK // count)
-        for draw in range(resamples):
-            if draw % block == 0:
+        processes = parallel.warm_process_count()
+        if processes > 1 and count * resamples >= 10_000_000:
+            jobs = []
+            chunk = (resamples + 2 * processes - 1) // (2 * processes)
+            for start in range(0, resamples, chunk):
                 check_cancel(cancel)
-            signs = generator.integers(0, 2, size=count, dtype="int64")
-            out[draw] = np.where(signs == 1, self.values, self.negated).sum() / count
-        return out
+                size = min(chunk, resamples - start)
+                jobs.append((self.values, generator.bit_generator.state, size))
+                if start + size < resamples:
+                    for draw in range(0, size, block):
+                        check_cancel(cancel)
+                        # PCG64 carries a buffered word for these draws. Save
+                        # the entire state at each shard's first replicate.
+                        generator.integers(0, 2, size=(min(block, size - draw), count), dtype="int64")
+            return np.concatenate(parallel.run_tasks(_paired_permutation_task, jobs, cancel=cancel,
+                                                     with_cancel=True))
+
+        return _paired_statistics(self.values, generator, resamples, cancel)
+
+
+def _paired_permutation_task(item, cancel):
+    values, state, resamples = item
+    bitgen = np.random.PCG64()
+    bitgen.state = state
+    return _paired_statistics(values, np.random.Generator(bitgen), resamples, cancel)
+
+
+def _paired_statistics(values, generator, resamples, cancel):
+    count, out = len(values), np.empty(resamples)
+    block = max(1, BLOCK_WORK // count)
+    negated = -values
+    for start in range(0, resamples, block):
+        check_cancel(cancel)
+        stop = min(start + block, resamples)
+        signs = generator.integers(0, 2, size=(stop - start, count), dtype="int64")
+        out[start:stop] = np.where(signs == 1, values, negated).sum(axis=1) / count
+    check_cancel(cancel)
+    return out
 
 
 # ----- analysis ------------------------------------------------------------------------------------------------------

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
 from analisi.field_error import FieldError
+from analisi import mean_permutation
 from analisi.i18n import tr
 from analisi.select_transform import SELECT_TRANSFORM
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
@@ -429,6 +430,8 @@ class AnalysisDialog(QDialog):
     def accept(self):
         try:
             options = self.options()
+            if self.method == mean_permutation.METHOD:
+                mean_permutation.check_options(self.data, options)
         except FieldError as error:
             self.show_error(error, error.field)
             return

@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from analisi import independent_roc, monte_carlo, parallel
+from analisi import independent_roc, mean_permutation, monte_carlo, parallel
 from tests.test_independent_roc import COHORTS, bootstrap
 from tests.test_monte_carlo import SOURCE, WELCH
 
@@ -55,3 +55,10 @@ class ParallelResamplingTests(unittest.TestCase):
         options = bootstrap(**{"Bootstrap replicates": 6001, "Area": "Partial", "Maximum FPR": .4})
         frame = pd.concat([COHORTS] * 20, ignore_index=True)
         self.check_result(independent_roc.independent_roc, frame, options)
+
+    def test_paired_permutations_keep_every_legacy_draw(self):
+        size = 501
+        frame = pd.DataFrame({"A": range(size), "B": [(row * 71) % 389 for row in range(size)]})
+        self.check_result(mean_permutation.permutation_test, frame,
+                          {"First": "A", "Second": "B", "Design": "Paired", "Method": "Monte Carlo",
+                           "Resamples": 22003, "Seed": 16, "Keep draws": True, "Show graph": False})
