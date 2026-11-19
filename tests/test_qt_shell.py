@@ -271,6 +271,58 @@ class QtShellTests(unittest.TestCase):
         self.wait()
         self.assertEqual(window.project.runs[index].style["annotations"][0]["text"], "p < 0,05")
 
+    def test_axis_guides_and_bands(self):
+        from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
+        from trama_qt.axis_guides import AxisBandsDialog, AxisGuidesDialog, BandEditor, GuideEditor
+        from trama_qt.graph_format import GraphFormatDialog
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        axes = graph.result.figure.axes[0]
+        guide = GuideEditor(window, axes)
+        self.assertEqual(guide.fields["axis"].value(), "y")  # X is categorical.
+        guide.fields["value"].setText("abc")
+        guide.accept()
+        self.assertIsNone(guide.result)
+        self.assertTrue(guide.problem.text())
+        guide.fields["value"].setText("2,5")
+        guide.fields["label"].setText("soglia")
+        guide.accept()
+        self.assertEqual(guide.result["value"], 2.5)
+        band = BandEditor(window, axes)
+        band.fields["lower"].setText("4")
+        band.fields["upper"].setText("1")
+        band.accept()
+        self.assertIsNone(band.result)  # Lower above upper.
+        band.fields["upper"].setText("6")
+        band.accept()
+        self.assertEqual((band.result["lower"], band.result["upper"]), (4.0, 6.0))
+
+        current, xy = window.project.format_inputs(graph)
+        dialog = GraphFormatDialog(window, axes, current, xy=xy)
+        guides = AxisGuidesDialog(dialog, axes, [], {"y": "linear"})
+        guides.records.append(guide.result)
+        guides.fill(0)
+        guides.duplicate()
+        self.assertEqual(len(guides.records), 2)
+        guides.remove()
+        guides.accept()
+        bands = AxisBandsDialog(dialog, axes, [band.result])
+        bands.accept()
+        dialog.guide_records[AXIS_GUIDES], dialog.guide_records[AXIS_BANDS] = guides.result, bands.result
+        dialog.accept()
+        self.assertIsNotNone(dialog.result, dialog.banner.text())
+        window.project.apply_format(graph, dialog.result)
+        saved = self.folder / "guides.alab"
+        window.project.save(saved)
+        window.open_path(saved)
+        index = next(i for i, r in enumerate(window.project.runs) if r.method == "Column graph")
+        window.open_sheet(("graph", index))
+        self.wait()
+        style = window.project.runs[index].style
+        self.assertEqual(style[AXIS_GUIDES][0]["label"], "soglia")
+        self.assertEqual(style[AXIS_BANDS][0]["upper"], 6.0)
+
     def test_format_xy_graph_recipe(self):
         window = self.window
         self.open_example()

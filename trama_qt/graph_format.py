@@ -1,8 +1,8 @@
 """Format Graph on Qt: title, labels, fonts, axes, series and reference lines.
 
 The dialog edits the same style dictionary as the classic one (``analisi.graph_dialog``) and validates
-it with the engine. Settings that have their own editor in the classic window (axis guides and bands,
-axis breaks, legend formatting, annotations, shapes, Q–Q panels, dendrogram style) are kept unchanged.
+it with the engine, axis guides and bands included. Settings that have their own editor in the classic
+window (axis breaks, legend formatting, annotations, shapes, Q–Q panels, dendrogram style) are kept unchanged.
 """
 from copy import deepcopy
 
@@ -68,8 +68,8 @@ def choice_text(labels, value):
     return tr(key) if key else value
 
 
-# Kept as they are: each has a dedicated editor that is not on Qt yet.
-KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, AXIS_GUIDES, AXIS_BANDS, AXIS_BREAKS, LEGEND_OPTIONS_KEY,
+# Kept as they are: edited elsewhere (annotations) or by an editor that is not on Qt yet.
+KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, AXIS_BREAKS, LEGEND_OPTIONS_KEY,
         "hierarchical")
 
 
@@ -386,6 +386,37 @@ class GraphFormatDialog(QDialog):
             lines.append(f"{line['axis'].upper()}, {line['value']}{label}")
         self.references = QPlainTextEdit("\n".join(lines))
         layout.addWidget(self.references, 1)
+        extra = QGridLayout()
+        self.guide_records = {AXIS_GUIDES: deepcopy(self.style.get(AXIS_GUIDES, [])),
+                              AXIS_BANDS: deepcopy(self.style.get(AXIS_BANDS, []))}
+        self.guide_summaries = {}
+        for row, (key, caption) in enumerate(((AXIS_GUIDES, "graph.guides.button"),
+                                              (AXIS_BANDS, "graph.bands.button"))):
+            button = QPushButton(tr(caption))
+            button.clicked.connect(lambda _=False, key=key: self.edit_guides(key))
+            extra.addWidget(button, row, 0)
+            self.guide_summaries[key] = QLabel()
+            self.guide_summaries[key].setObjectName("muted")
+            extra.addWidget(self.guide_summaries[key], row, 1)
+        extra.setColumnStretch(1, 1)
+        layout.addLayout(extra)
+        self._guide_summaries()
+
+    def _guide_summaries(self):
+        for key, label in self.guide_summaries.items():
+            items = self.guide_records[key]
+            label.setText(tr("graph.guides.summary_count", count=len(items)) if items
+                          else tr("graph.guides.summary_none"))
+
+    def edit_guides(self, key):
+        from .axis_guides import AxisBandsDialog, AxisGuidesDialog
+
+        overrides = {dimension: choice.value() for dimension, choice in self.scales.items()}
+        dialog = (AxisGuidesDialog if key == AXIS_GUIDES else AxisBandsDialog)(
+            self, self.axes, self.guide_records[key], overrides)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.result is not None:
+            self.guide_records[key] = dialog.result
+            self._guide_summaries()
 
     # -- reading ------------------------------------------------------------------------------------
     def _focus(self, tab, widget=None):
@@ -404,6 +435,10 @@ class GraphFormatDialog(QDialog):
         for key in KEPT:
             if self.style.get(key):
                 style[key] = deepcopy(self.style[key])
+        for key, records in self.guide_records.items():
+            style.pop(key, None)
+            if records:
+                style[key] = deepcopy(records)
         style["grid"] = self.grid.isChecked()
         style["grid_minor"] = self.grid_minor.isChecked()
         for key, choice in self.choices.items():
@@ -499,7 +534,12 @@ class GraphFormatDialog(QDialog):
         self.xy_update, self.xy_result = options, result
 
     def show_error(self, error):
-        self.banner.setText(translate_message(error) if not isinstance(error, str) else error)
+        if not isinstance(error, str):
+            from .axis_guides import translate_guide_error
+
+            text = translate_message(error)
+            error = text if text != str(error) else translate_guide_error(error)
+        self.banner.setText(error)
         self.banner.setVisible(True)
 
     def accept(self):
