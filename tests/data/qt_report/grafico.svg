@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 180" role="img">
+  <title>Calibrazione $ &amp; β</title>
+  <path d="M 40,150 H 310 M 40,150 V 15" fill="none" stroke="#173451"/>
+  <path d="M 45,140 L 305,30" fill="none" stroke="#0b7a73" stroke-width="3"/>
+  <text x="45" y="170" fill="#173451">Dose sintetica</text>
+</svg>
