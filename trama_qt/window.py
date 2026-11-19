@@ -24,6 +24,7 @@ from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS
 from analisi.prism_restore import (PRISM_GRAPH_LINK, PRISM_PREVIEW, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
                                    SAVED_EDITABLE_GRAPH, SAVED_XY)
 from analisi.prism_xml_xy import XML_ERROR_BARS
+from analisi.prism_zip_xy import ZIP_SPARSE_XY
 from analisi.text_import import TEXT_SUFFIXES
 from analisi.workbench import GRAPH_METHODS, GROUPS
 
@@ -43,10 +44,11 @@ except Exception:  # pragma: no cover
     threshold_text = None
 
 GRAPHING = tuple(GROUPS.get("Graphing", ())) + ("Plot a function",)
+SOURCE_XY = {XML_ERROR_BARS, ZIP_SPARSE_XY}
 
 
 def _saved_recipe(run):
-    return run.method in SAVED_VIEWS or (run.method == SAVED_XY and XML_ERROR_BARS in run.options)
+    return run.method in SAVED_VIEWS or (run.method == SAVED_XY and not SOURCE_XY.isdisjoint(run.options))
 
 
 def preferred_view(run, result):
@@ -913,7 +915,7 @@ class MainWindow(QMainWindow):
         result = run.result
         if kind == "graph" and run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}:
             self._imported_graph_actions(page, run)
-        elif kind == "graph" and run.method == SAVED_XY and XML_ERROR_BARS in run.options:
+        elif kind == "graph" and run.method == SAVED_XY and not SOURCE_XY.isdisjoint(run.options):
             button = page.button(ui("Edit graph data"), lambda: self.open_sheet(("data", run.title)),
                                  primary=True, icon="table")
             button.setObjectName("importedGraphSource")

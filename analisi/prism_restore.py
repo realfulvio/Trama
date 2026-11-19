@@ -383,6 +383,8 @@ def _link_grouped_anova(sheet, parameters, label, grouped_views, view_sources):
 
 def restore_sheets(archive, names, sheets, sources, tables, cells):
     """Add non-executable snapshots and supported native analysis recipes."""
+    from .prism_zip_xy import ZIP_SPARSE_XY, saved_sparse_xy
+
     warnings = []
     restyled = set()
     owners = {}
@@ -496,6 +498,17 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
                 continue
             points = _saved_xy({**graph, "title": label[:160]}, owners, MAX_CELLS - cells)
             if points is None and graph.get("uid") == uid:
+                linked = saved_sparse_xy(archive, graph, uid, owners, sources)
+                if linked is not None:
+                    source, style = linked
+                    recipes = source.attrs.setdefault("prism_recipes", [])
+                    if len(recipes) < 256:
+                        recipes.append((SAVED_XY, {
+                            PRISM_TITLE: label[:160], ZIP_SPARSE_XY: style,
+                            PRISM_NOTES: "Linked XY data, saved axis limits and series colors. "
+                                         "Trama uses native point markers and graph formatting.",
+                        }))
+                        continue
                 scatter = saved_scatter(graph, view_sources, MAX_CELLS - cells)
                 if scatter is not None:
                     points, style = scatter
