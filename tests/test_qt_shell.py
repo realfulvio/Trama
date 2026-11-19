@@ -83,6 +83,29 @@ class QtShellTests(unittest.TestCase):
         self.app.processEvents()
         self.assertIsNone(self.window.job, "calculation still running")
 
+    def test_paper_preview_scales_the_text_with_the_page(self):
+        from matplotlib.figure import Figure
+        from trama_qt.window import Page
+
+        paper = (8.5, 11.0)
+        figure = Figure(figsize=paper)
+        title = figure.add_subplot().set_title("Saved page title", fontsize=24)
+        page = Page("Layout")
+        self.addCleanup(page.close)
+        canvas = self.window._canvas(page, figure, toolbar=False, paper=paper)
+        page.show()
+        ratios = []
+        widths = []
+        for height in (620, 340):
+            page.resize(740, height)
+            self.app.processEvents()
+            canvas.draw()
+            self.assertEqual(tuple(figure.get_size_inches()), paper)
+            widths.append(canvas.width())
+            ratios.append(title.get_window_extent(canvas.get_renderer()).height / figure.bbox.height)
+        self.assertLess(widths[1], widths[0] * 0.65)
+        self.assertAlmostEqual(ratios[0], ratios[1], delta=0.005)
+
     def run_method(self, method, options):
         title = self.window.selected[1] if self.window.selected[0] == "data" else self.window.project.runs[
             self.window.selected[1]].title

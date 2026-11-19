@@ -107,6 +107,23 @@ def imported_paper(run):
 _KEEP = object()  # ``_ask``: keep the input of the analysis.
 
 
+class PaperCanvas(FigureCanvasQTAgg):
+    """Change preview resolution while keeping the saved paper size."""
+
+    def __init__(self, figure, paper):
+        self.paper = tuple(paper)
+        super().__init__(figure)
+
+    def resizeEvent(self, event):
+        size = event.size()
+        if self.figure is None or size.isEmpty():
+            return
+        width, height = self.paper
+        self.figure.dpi = self.device_pixel_ratio * min(size.width() / width, size.height() / height)
+        super().resizeEvent(event)
+        self.figure.set_size_inches(self.paper, forward=False)
+
+
 class PaperPreview(QWidget):
     """Fit a page to the viewport without distorting its saved aspect ratio."""
 
@@ -833,7 +850,7 @@ class MainWindow(QMainWindow):
         self.refresh_runs([run for run in stale if run.result is not None])
 
     def _canvas(self, page, figure, *, toolbar=True, run=None, paper=None):
-        canvas = FigureCanvasQTAgg(figure)
+        canvas = FigureCanvasQTAgg(figure) if paper is None else PaperCanvas(figure, paper)
         canvas.setMinimumSize(200, 160)
         page.canvases.append(canvas)
         if toolbar:
