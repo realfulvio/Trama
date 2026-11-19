@@ -1,13 +1,18 @@
 """Synthetic records for generated graphs with no user data worksheets."""
 
 from base64 import b64encode
+from io import StringIO
 from pathlib import Path
 from struct import pack, pack_into
 from tempfile import TemporaryDirectory
 import unittest
+from xml.etree import ElementTree
 from zlib import compress
 
+from matplotlib import rc_context
+
 from analisi.data import Dataset, load_tables, load_workspace, save_project
+from analisi.prism_xml_generated import XML_GENERATED_XY
 from analisi.workbench import analyse
 from test_prism_binary_editable import _group
 from test_prism_binary_graphs import _project, _record
@@ -136,6 +141,35 @@ class GeneratedGraphTests(unittest.TestCase):
             self.assertEqual(list(result.figure.axes[0].lines[1].get_ydata()), [6, 7.5, 10])
             self.assertTrue(result.tables["Saved XY coordinates"]["Y"].isna().iloc[0])
             self.assertEqual(result.figure.axes[0].yaxis.get_major_formatter()(18, 0), "18%")
+
+    def test_annotation_fits_saved_width_and_legacy_style_still_renders(self):
+        def svg_font_size(figure, size):
+            figure.set_size_inches(*size)
+            target = StringIO()
+            with rc_context({"svg.fonttype": "none"}):
+                figure.savefig(target, format="svg")
+            xml = ElementTree.fromstring(target.getvalue())
+            label, = [node for node in xml.iter("{http://www.w3.org/2000/svg}text")
+                      if node.text == "Marker $ 4"]
+            return float(label.attrib["style"].split("font-size: ", 1)[1].split("px", 1)[0])
+
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "generator.pzt"
+            _write(path)
+            dataset = Dataset(load_tables(path, restore_prism=True)["Generator test"])
+        method, options = dataset.analyses[0]
+        style = options[XML_GENERATED_XY]
+        note, = style["notes"]
+        self.assertAlmostEqual(note[3], 320 / 1200)
+        figure = analyse(method, dataset.frame(), options).figure
+        small_size = (2.4, 2.2)
+        compact = svg_font_size(figure, small_size)
+        full = svg_font_size(figure, (8, 5))
+        legacy_options = {XML_GENERATED_XY: {**style, "notes": [note[:3]]}}
+        legacy = analyse(method, dataset.frame(), legacy_options).figure
+        self.assertLess(compact, full)
+        self.assertAlmostEqual(svg_font_size(legacy, small_size), full)
+        self.assertAlmostEqual(svg_font_size(figure, small_size), compact)
 
     def test_denied_ownership_and_mismatched_samples_keep_info(self):
         with TemporaryDirectory() as folder:

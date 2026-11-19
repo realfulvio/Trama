@@ -4,6 +4,7 @@ from math import ceil, floor, isfinite
 from struct import Struct, error as StructError, unpack_from
 
 from matplotlib.figure import Figure
+from matplotlib.text import Text
 from matplotlib.ticker import FixedLocator, FuncFormatter
 import numpy as np
 import pandas as pd
@@ -107,6 +108,15 @@ def _double_arrow(records, chart):
     return points
 
 
+def _boxed_note(header, chart, caption):
+    note = _annotation(header, chart, caption)
+    if note is not None:
+        left, _, right, _ = unpack_from("<4h", chart)
+        x0, _, x1, _ = unpack_from("<4h", header, 18)
+        return [*note, (x1 - x0) / (right - left)]
+    return None
+
+
 def _appearance(graph, encoding, columns):
     chart = _one(graph, 0x13)
     _require(len(chart) == 48)
@@ -125,7 +135,7 @@ def _appearance(graph, encoding, columns):
             _require(uid not in labels)
             labels[uid] = caption
             if caption and not flags and uid != heading and uid not in axis_titles:
-                note = _annotation(header, chart, caption)
+                note = _boxed_note(header, chart, caption)
                 if note is not None:
                     notes.append(note)
         elif kind == 3:
@@ -234,6 +244,32 @@ def render_generated_graph(frame, style):
         raise ValueError("Invalid columns or settings for the saved theoretical graph.") from error
 
 
+class _BoxedText(Text):
+    """Keep a literal annotation within its saved width as the axes resize."""
+
+    def __init__(self, x, y, caption, width, axes):
+        super().__init__(x, y, caption, transform=axes.transAxes, ha="left", va="top",
+                         parse_math=False, usetex=False, in_layout=False)
+        self.width_fraction = width
+
+    def draw(self, renderer):
+        font = self.get_fontproperties()
+        width = max(renderer.get_text_width_height_descent(line, font, False)[0]
+                    for line in self.get_text().split("\n"))
+        available = self.axes.bbox.width * self.width_fraction
+        if width <= available or available <= 0:
+            super().draw(renderer)
+            return
+        scaled_font = font.copy()
+        scaled_font.set_size(font.get_size_in_points() * available / width)
+        # Scope the font to this draw without scheduling a second canvas update.
+        self._fontproperties = scaled_font
+        try:
+            super().draw(renderer)
+        finally:
+            self._fontproperties = font
+
+
 def _render(frame, style):
     aspect = float(style["aspect"])
     _require(isfinite(aspect) and .005 <= aspect <= 200 and 0 < len(style["series"]) <= _MAX_SERIES)
@@ -265,8 +301,12 @@ def _render(frame, style):
         views.append(pd.DataFrame({"X": x, "Y": y, "Series": column}))
     if not any(view["Y"].notna().any() for view in views):
         raise ValueError("The saved graph has no complete XY points.")
-    for left, top, value in style["notes"]:
-        axes.text(left, top, value, transform=axes.transAxes, ha="left", va="top", parse_math=False)
+    for left, top, value, *box in style["notes"]:
+        if not box:
+            axes.text(left, top, value, transform=axes.transAxes, ha="left", va="top", parse_math=False)
+        else:
+            _require(len(box) == 1 and type(box[0]) in (int, float) and isfinite(box[0]) and box[0] > 0)
+            axes.add_artist(_BoxedText(left, top, value, box[0], axes))
     for start, end in style["arrows"]:
         axes.annotate("", xy=end, xytext=start, xycoords="axes fraction", textcoords="axes fraction",
                       arrowprops={"arrowstyle": "<|-|>", "linestyle": "--", "color": "#1b1b1b", "linewidth": 1.15})
