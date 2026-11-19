@@ -43,6 +43,7 @@ from .sessions import MAX_PROJECT_TABS, Sessions
 from .shape_canvas import GraphDrawing
 from .sheet import FrameView, WorksheetView
 from .strings import qt
+from .excel_workbook import t as excel_text
 
 try:
     from analisi.roc import threshold_text
@@ -314,6 +315,8 @@ class MainWindow(QMainWindow):
         a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+E")
         a("export_options", tr("command.export_with_options"), self.export_with_options, icon="download")
         a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")
+        a("import_excel", excel_text("Import Excel workbook…"), self.import_excel_workbook, icon="table-2")
+        a("export_excel", excel_text("Export Excel workbook…"), self.export_excel_workbook, icon="sheet")
         a("classic", qt("qt.classic"), self.open_classic, icon="history", tip=qt("qt.classic_hint"))
         a("language", tr("command.language"), self.choose_language, icon="type")
         a("processes", tr("processes.command"), self.choose_processes, icon="sliders-horizontal")
@@ -489,9 +492,9 @@ class MainWindow(QMainWindow):
         layout.addLayout(top)
         self.ribbon = QStackedWidget()
         groups = [
-            (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "close_project", "|",
-                                         "export", "export_options",
-                                         "export_pdf", "|",
+            (tr("ribbon.modern.file"), ["new_project", "open", "import", "import_excel", "save", "save_as",
+                                         "close_project", "|", "export", "export_options",
+                                         "export_pdf", "export_excel", "|",
                                          "classic", "language", "about"]),
             (tr("ribbon.modern.home"), ["paste", "cut", "copy", "|", "undo", "redo", "|", "new_table", "insert_row",
                                          "insert_column", "formula", "exclude", "|", "*analyze", "new_graph", "|", "recalculate",
@@ -659,8 +662,9 @@ class MainWindow(QMainWindow):
         history = shape_run.shape_history if shape_run is not None else self.project.history
         self.actions["undo"].setEnabled(idle and self.gallery is None and history.can_apply())
         self.actions["redo"].setEnabled(idle and self.gallery is None and history.can_apply(redo=True))
-        for key in ("open", "import", "new_project", "save", "save_as", "classic", "close_project"):
+        for key in ("open", "import", "new_project", "save", "save_as", "classic", "close_project", "import_excel"):
             self.actions[key].setEnabled(idle)
+        self.actions["export_excel"].setEnabled(idle and bool(self.project.tables or self.project.runs))
         for key in ("next_project", "previous_project"):  # Switching waits for the calculation (Cancel stays on).
             self.actions[key].setEnabled(idle and len(self.sessions) > 1)
         self.actions["new_project"].setEnabled(idle and not self.sessions.full())
@@ -2527,6 +2531,14 @@ class MainWindow(QMainWindow):
             return
         count = tr("pdf.one_page") if pages == 1 else tr("pdf.many_pages", count=pages)
         self.status(tr("pdf.exported", pages=count, name=Path(path).name))
+
+    def import_excel_workbook(self, path=None):
+        from .excel_workbook import import_workbook
+        import_workbook(self, path)
+
+    def export_excel_workbook(self, path=None):
+        from .excel_workbook import export_workbook
+        export_workbook(self, path)
 
     def open_classic(self):
         if self.busy():
