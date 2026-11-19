@@ -15,6 +15,24 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Report di analisi riproducibili su Qt (2026-11-19)
+
+PR draft verso `main` dal ramo `claude/project-thread-svcb2z`, base `4c07db6` (0.95.0 beta). Windows NON PROVATO. Guida per chi usa il programma: `docs/qt-report.md`.
+
+- Nuovo: **File → Esporta report di analisi…** (`window.actions["export_report"]`, gruppo File dopo "Esporta più fogli in PDF"). Crea uno ZIP leggibile offline: `index.html` (senza JS, URL esterni o font remoti), `manifest.json` (`trama-analysis-report`, schema 1), `tables/NNN.csv`, `figures/NNN.svg`, `project.alab` facoltativo (spento di default, con avviso che contiene i dati originali).
+- Motore senza Qt: `analisi/report_bundle.py` (`export_bundle`, `verify_bundle`, `ReportCancelled`, `LAYOUT_METHOD = "Layout"`). Scrive in un temporaneo nella stessa cartella, verifica lo ZIP e poi `os.replace`; errori e annullamento lasciano intatto il file precedente e nessun temporaneo. ZIP deterministico (data fissa 1980-01-01, ordine per percorso).
+- Qt: `trama_qt/report_catalog.py` (candidati senza Qt: tabelle di risultato, grafici, layout, con il motivo per quelli non esportabili; ricetta pulita da percorsi, cache e chiavi "Prism …"; congelamento con il CSV di File → Esporta e l'SVG di `analisi.figure_export`/`layout_svg`), `trama_qt/report_dialog.py` (dialogo, conferma sostituzione, congelamento sul thread GUI con Annulla, scrittura come job annullabile con "Annulla calcolo"). Testi EN/IT locali nel modulo, non in `strings.py`.
+- Agganci piccoli: `window.py` (import di `report_text`, azione, voce nel gruppo File, una riga in `update_actions`, metodo `export_report`), `smoke.py` (2 righe dopo `project_tabs`), `package_windows.py` (guida `qt-report.md`).
+- Da provare su Windows a 100% e 150% reali:
+  - Aprire `tests/data/qt_report/calibrazione-report.alab`, calcolare la regressione, crearne una seconda e un layout. File → Esporta report di analisi…: cambiare ordine e nomi, titolo `Control $ <A> & β`, nota con `<script>`; Esporta, scegliere un file esistente e rispondere No (non cambia nulla), poi Sì.
+  - Estrarre lo ZIP e aprire `index.html` con la rete staccata: immagini SVG visibili, CSV completo apribile in Excel (BOM UTF-8), testo con markup letterale.
+  - Il dialogo con molte sezioni (60) a 1024×768 e 150%: Esporta e Annulla sempre visibili, motivi delle righe non disponibili leggibili per intero; tema scuro.
+  - Con la copia progetto attiva: aprire `project.alab` estratto in Trama, ricalcolare e salvare; il progetto originale resta senza • e il file originale identico.
+  - Annulla durante "Preparazione del report…" e durante la scrittura (barra in basso): nessun file nuovo, il report precedente intatto.
+  - `python -m trama_qt --smoke CARTELLA` a 100% e 150%: passi `report-*`.
+- Test attesi: `tests.test_report_bundle` 14/14, `tests.test_qt_report` 19/19, `tests.test_qt_shell` e `tests.test_qt_projects` invariati. Verificatore del pacchetto: base 2/3 (modulo mancante), testa 7/7.
+- Conflitti attesi: cima di questo file con tutte le PR Qt aperte; `smoke.py` (riga dopo `project_tabs`); `window.py` gruppo File e `update_actions` con #63 Esportazione figure (anche lei aggiunge un'azione dopo `export_pdf`); `package_windows.py` (lista guide). Tutti banali: tenere entrambe le righe.
+
 ### Più progetti in schede nella finestra Qt, pacchetto Progetti 0.95 (2026-11-19)
 
 PR draft verso main (ramo `claude/project-thread-hz1cm2`, base main 7a7340c). Windows NON PROVATO.
