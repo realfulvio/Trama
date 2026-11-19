@@ -214,6 +214,8 @@ class Smoke:
             self.shot(window, "inspector")
             window.dispose_inspector()
             self.editors(window, refs)
+            from .batch_export_smoke import check_in_smoke
+            check_in_smoke(self, window)
             self.gallery(window)
             self.anova(window)
             from .global_fit_smoke import exercise as global_fit

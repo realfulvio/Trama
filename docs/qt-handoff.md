@@ -15,6 +15,19 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Esporta più figure (ramo `claude/project-thread-x6igj7`, base main 7a7340c, 2026-11-19)
+
+- Nuovo comando File → Esporta più figure… (`export_batch`, accanto a Esporta più fogli in PDF): un file PNG, SVG o PDF per ogni grafico o layout del progetto attivo, in una cartella. Motore senza Qt in `trama_qt/batch_export.py` (`plan_filenames`, `BatchExport`), dialogo in `trama_qt/batch_export_dialog.py`, guida in `docs/qt-batch-export.md`.
+- I testi EN/IT stanno nel modulo del dialogo, non in `strings.py`, per non toccare le righe delle altre PR Qt aperte.
+- Da provare su Windows:
+  - Tre figure (due grafici e il layout di `sessione.alab`) in PNG, SVG e PDF: tre file validi; rifatto nella stessa cartella, tre nomi con ` (2)` e i primi file identici.
+  - Un file `xy series of calibrazione b.png` creato a mano nella cartella: l'anteprima propone `… (2)`; se lo crei dopo l'anteprima, la riga risulta Saltata e il file non viene toccato.
+  - Cartella in sola lettura (Proprietà → Sicurezza, nega scrittura): l'export si ferma con «la cartella non è scrivibile» e non lascia file.
+  - Titoli con `: / ? *`, `CON`, `LPT9.tmp`, accenti: nomi validi in Esplora risorse.
+  - Esc durante il lotto: si ferma dopo il file in corso, il riepilogo resta aperto.
+  - `python -m trama_qt.batch_export_smoke CARTELLA` e `python -m trama_qt --smoke CARTELLA` a 100% e 150%.
+- Test attesi: `tests.test_qt_batch_export` 21 test (uno saltato se si è root o su Windows: permessi della cartella), `tests.test_qt_shell` invariato.
+
 ### Più progetti in schede nella finestra Qt, pacchetto Progetti 0.95 (2026-11-19)
 
 PR draft verso main (ramo `claude/project-thread-hz1cm2`, base main 7a7340c). Windows NON PROVATO.
