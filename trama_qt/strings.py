@@ -80,6 +80,26 @@ _TEXT = {
                            "to the graph?", "L'Inspector ha modifiche non applicate. Applicarle, scartarle o "
                            "tornare al grafico?"),
     "qt.style_applied": ("Graph style applied.", "Stile del grafico applicato."),
+    "qt.projects": ("Open projects", "Progetti aperti"),
+    "qt.new_project_hint": ("New project · Ctrl+N", "Nuovo progetto · Ctrl+N"),
+    "qt.close_project_hint": ("Close project · Ctrl+W", "Chiudi progetto · Ctrl+W"),
+    "qt.next_project": ("Next project", "Progetto successivo"),
+    "qt.previous_project": ("Previous project", "Progetto precedente"),
+    "qt.not_saved_yet": ("Not saved yet", "Non ancora salvato"),
+    "qt.already_open": ("{name} is already open.", "{name} è già aperto."),
+    "qt.wait_projects": ("Wait for the current calculation (or cancel it) before switching, opening or closing "
+                         "projects.", "Attendi la fine del calcolo (o annullalo) prima di cambiare, aprire o "
+                         "chiudere progetti."),
+    "qt.open_later": ("{name} opens when the current calculation finishes.",
+                      "{name} si aprirà al termine del calcolo in corso."),
+    "qt.too_many_projects": ("Close a project before opening more than {count} at once.",
+                             "Chiudi un progetto prima di aprirne più di {count} insieme."),
+    "qt.save_conflict": ("{name} is open in another tab. Close that project first or choose another file.",
+                         "{name} è aperto in un'altra scheda. Chiudi prima quel progetto o scegli un altro file."),
+    "qt.closing_after_job": ("Stopping the calculation: Trama closes as soon as it ends.",
+                             "Interruzione del calcolo: Trama si chiude appena termina."),
+    "qt.edit_elsewhere": ("A change typed in another project was not applied here.",
+                          "Una modifica scritta in un altro progetto non è stata applicata qui."),
 }
 
 
