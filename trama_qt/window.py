@@ -27,6 +27,7 @@ from analisi.workbench import GRAPH_METHODS, GROUPS
 from . import theme
 from .analysis_dialog import AnalysisDialog
 from .flow import FlowLayout
+from .gallery import GalleryPage, g as gallery_text
 from .labels import method_label
 from .models import WorksheetModel, column_label
 from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, CalculationControl, Project,
@@ -165,6 +166,8 @@ class MainWindow(QMainWindow):
         self.actions = {}
         self.icons = {}
         self.inspector = None
+        self.gallery = None  # The open gallery of graphs and layouts, in place of the page (trama_qt/gallery.py).
+        self.gallery_view = {"kind": None, "text": ""}  # Its filters: a state of the view, never saved.
         self.info_editor = None
         self.inspector_wanted = False
         self.inspector_element = None
@@ -244,6 +247,8 @@ class MainWindow(QMainWindow):
         a("source_analysis", tr("chain.source_analysis"), self.source_analysis, icon="chevron-up")
         a("change_input", tr("chain.change_input"), self.change_input_result, icon="arrow-up-down")
         a("navigator", tr("command.toggle_navigator"), self.toggle_navigator, icon="panel-bottom", shortcut="Ctrl+F1")
+        a("gallery", gallery_text("action"), self.toggle_gallery, icon="gallery-thumbnails", shortcut="Ctrl+Shift+G",
+          tip=gallery_text("tip"))
         a("search", qt("qt.search"), self.focus_search, shortcut="Ctrl+K")
         for name, method in (("descriptive", "Descriptive statistics"), ("ttest", "t-test"),
                              ("anova", "One-way ANOVA"), ("correlation", "Correlation"),
@@ -349,7 +354,7 @@ class MainWindow(QMainWindow):
             (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "shapes",
                                           "pairwise", "compact_letters", "change", "recalculate", "|", "new_layout",
                                           "edit_layout", "|", "export", "export_options"]),
-            (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
+            (tr("ribbon.modern.view"), ["gallery", "navigator", "|", "language", "classic"]),
         ]
         for title, keys in groups:
             self.ribbon_tabs.addTab(title)
@@ -415,7 +420,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{marker}{title} — Trama")
 
     def update_actions(self):
-        kind = self.selected[0] if self.selected else None
+        kind = self.selected[0] if self.selected and self.gallery is None else None  # The gallery shows no sheet.
         on_run = kind in {"result", "graph", "saved-layout"}
         data = kind == "data"
         editable = data and not stored_prism_view(self.project.tables[self.selected[1]])
@@ -519,6 +524,8 @@ class MainWindow(QMainWindow):
         self.navigator.blockSignals(False)
         self.update_title()
         self.update_actions()
+        if self.gallery is not None:
+            self.gallery.sync()
 
     def _chain_order(self, entries):
         """``entries`` with every source analysis before the analyses that read its results."""
@@ -555,8 +562,84 @@ class MainWindow(QMainWindow):
             menu.addAction(self.actions["save_family"])
         menu.exec(self.navigator.viewport().mapToGlobal(position))
 
+    # == gallery ==================================================================================
+    def toggle_gallery(self):
+        """View → Gallery: every graph and layout as cards. Back (Esc) returns to the sheet it came from."""
+        if self.gallery is not None:
+            self.close_gallery()
+        else:
+            self.open_gallery()
+
+    def open_gallery(self):
+        if self.gallery is not None or not self.settle_graph_draft():
+            return
+        origin = self.selected
+        self.dispose_inspector()
+        self.flush_info()
+        try:
+            gallery = GalleryPage(lambda: self.project, lambda: self.job is not None, self.gallery_view, origin)
+        except Exception as error:  # noqa: BLE001 - the sheet stays where it was.
+            self.error(error)
+            return
+        gallery.opened.connect(self._gallery_open)
+        gallery.closed.connect(self.close_gallery)
+        if self.page is not None:
+            self.page.hide()  # Kept (not rebuilt) so that a worksheet returns with its selection and scroll.
+        self.page_layout.addWidget(gallery)
+        self.gallery = gallery
+        self.update_actions()
+        gallery.focus_first()
+
+    def _drop_gallery(self):
+        """Remove the gallery and let go of its previews. The page it covered shows again."""
+        gallery, self.gallery = self.gallery, None
+        if gallery is None:
+            return False
+        gallery.dispose()
+        self.page_layout.removeWidget(gallery)
+        gallery.hide()
+        gallery.setParent(None)
+        gallery.deleteLater()
+        if self.page is not None:
+            self.page.show()
+        return True
+
+    def _has_sheet(self, ref):
+        kind, key = ref
+        project = self.project
+        return ((kind == "data" and key in project.tables) or (kind == "info" and key in project.info_sheets)
+                or (kind == "layout" and 0 <= key < len(project.layouts))
+                or (kind in {"result", "graph", "saved-layout"} and 0 <= key < len(project.runs)))
+
+    def close_gallery(self):
+        """Back to the sheet the gallery was opened from, with the focus on its content."""
+        if not self._drop_gallery():
+            return
+        origin = self.selected
+        if origin is not None and origin[0] == "data" and self.sheet is not None and self._has_sheet(origin):
+            self.update_actions()
+            self.sheet.setFocus()
+            return
+        if origin is None:
+            self.update_actions()
+        elif self._has_sheet(origin):
+            self.show_sheet(*origin)
+            target = self.sheet or self.result_tabs or next(iter(self.page.canvases), None)
+            (target or self.navigator).setFocus()
+        else:
+            self.show_home()
+
+    def _gallery_open(self, ref):
+        """Open a card with the standard navigation: the sheet's own calculation, errors and Cancel apply."""
+        self._drop_gallery()
+        if self._has_sheet(ref):
+            self.open_sheet(ref)
+        else:
+            self.refresh()
+
     # == pages ====================================================================================
     def _replace_page(self, page):
+        self._drop_gallery()
         if self.page is not None:
             self.page.release()
             self.page_layout.removeWidget(self.page)
@@ -1418,14 +1501,14 @@ class MainWindow(QMainWindow):
                     errors = self.project.apply_refresh(job, outcomes)
                     self.status(qt("qt.update_failed", count=len(errors), first=errors[0]) if errors
                                 else qt("qt.updated", count=len(outcomes)))
-            if self.selected and self.selected[0] != "data":
+            if self.selected and self.selected[0] != "data" and self.gallery is None:
                 self.show_sheet(*self.selected)
             else:
                 self.refresh()
 
         future = self.worker.submit(Project.run_refresh, job)
         self._start(future, job.control, done, qt("qt.updating", count=len(job.selected)))
-        if self.selected and self.selected[0] != "data":
+        if self.selected and self.selected[0] != "data" and self.gallery is None:
             self.show_sheet(*self.selected)
 
     # == families ================================================================================
@@ -1627,6 +1710,8 @@ class MainWindow(QMainWindow):
         if self.busy() or not self.confirm_saved():
             return
         self.project_number += 1
+        self._drop_gallery()
+        self.gallery_view = {"kind": None, "text": ""}
         self.project = Project(self.project_number)
         self.show_home()
         self.refresh()
@@ -1651,6 +1736,8 @@ class MainWindow(QMainWindow):
                 titles = project.load(path)
                 if suffix != ".alab":
                     project.origin, project.dirty = path, False
+                self._drop_gallery()
+                self.gallery_view = {"kind": None, "text": ""}
                 self.project = project
                 self.status(tr("status.opened", name=path.name))
             elif import_data and suffix in TEXT_SUFFIXES:  # Import text data: choose rows, columns and format.
@@ -1889,5 +1976,6 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         self.timer.stop()
+        self._drop_gallery()
         self.worker.shutdown(wait=False, cancel_futures=True)
         event.accept()
