@@ -2,8 +2,8 @@
 
 Runs on the real screen (not offscreen) in English and Italian. It opens a small project, calculates a result,
 graphs and a layout, opens every window command that shows a dialog, drives a Multifactor ANOVA through its real
-editors (model terms, an error with focus, the fix, Type I order, Cancel, save, reopen and recalculation), and
-writes into FOLDER:
+editors (model terms, an error with focus, the fix, Type I order, Cancel, save, reopen and recalculation) and its
+planned contrasts (trama_qt/planned_contrasts_smoke.py), and writes into FOLDER:
 
 - ``<lang>-<name>.png``: the main window on each sheet and every dialog, as drawn at the current scale;
 - ``report.txt``: screen, scale and Qt version, then every problem found;
@@ -216,6 +216,8 @@ class Smoke:
             self.editors(window, refs)
             self.gallery(window)
             self.anova(window)
+            from .planned_contrasts_smoke import exercise as planned_contrasts
+            planned_contrasts(self, window)
             from .global_fit_smoke import exercise as global_fit
             global_fit(self, window)
             from .projects_smoke import run as project_tabs

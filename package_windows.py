@@ -28,7 +28,7 @@ def main():
                  "release-087.md", "validation-087.md",
                  "pca-reports.md", "release-086.md", "validation-086.md",
                  "release-085.md", "validation-085.md",
-                 "formula-windows.md", "confidence-ellipses.md", "anova-terms-083.md", "anova-ss-types.md", "rm-anova-sphericity.md",
+                 "formula-windows.md", "confidence-ellipses.md", "anova-terms-083.md", "anova-ss-types.md", "anova-planned-contrasts.md", "rm-anova-sphericity.md",
                  "curve-pipeline.md", "deming-multiseries-093.md", "exact-binomial.md", "repeated-measures-correlation.md",
                  "meta-analysis.md", "cox-exact-ties.md", "nb2-regression.md",
                  "release-084.md", "validation-084.md", "hierarchical-style-081.md", "release-083.md", "validation-083.md",
