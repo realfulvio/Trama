@@ -1,0 +1,6 @@
+,Value,Note
+Brier score,0.21034887458857168,"In-sample: the metrics describe this fit, not new observations."
+Log loss,0.60358513056108365,"In-sample: the metrics describe this fit, not new observations."
+AUC,0.71117561683599417,"In-sample: the metrics describe this fit, not new observations."
+Tjur R²,0.15345102957465018,"In-sample: the metrics describe this fit, not new observations."
+Cutoff,0.40000000000000002,"In-sample: the metrics describe this fit, not new observations."

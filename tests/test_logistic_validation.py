@@ -384,5 +384,22 @@ class CatalogTests(unittest.TestCase):
         np.testing.assert_allclose(legacy["Coefficients"]["Estimate"].to_numpy(), direct, rtol=1e-12)
 
 
+class LegacyLogisticTests(unittest.TestCase):
+    """Multiple regression, Logistic family: every sheet as base 4c07db6 wrote it (17 significant digits)."""
+
+    def test_every_sheet_is_unchanged(self):
+        legacy = DATA / "legacy"
+        frame = pd.read_csv(legacy / "input.csv")
+        recipes = json.loads((legacy / "recipes.json").read_text(encoding="utf-8"))
+        for name, options in recipes.items():
+            tables = analyse("Multiple regression", frame, options).tables
+            frozen = sorted(path.name for path in legacy.glob(f"{name} - *.csv"))
+            self.assertEqual(sorted(f"{name} - {title}.csv" for title in tables), frozen)
+            for title, table in tables.items():
+                with self.subTest(recipe=name, sheet=title):
+                    expected = (legacy / f"{name} - {title}.csv").read_text(encoding="utf-8")
+                    self.assertEqual(table.to_csv(float_format="%.17g", lineterminator="\n"), expected)
+
+
 if __name__ == "__main__":
     unittest.main()

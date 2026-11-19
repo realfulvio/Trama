@@ -15,6 +15,21 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Validazione del modello logistico binario per la 0.96 (ramo `claude/project-thread-4olxvq`, base main `4c07db6`, 2026-11-19)
+
+Pacchetto Trama-Claude-01-Logistica-Validazione-096, in tre commit: motore con test, dialogo Qt con testi EN/IT, smoke con guida ed esempio. Windows NON PROVATO.
+
+- Nuovo: Analizza → Regressione e curve → **Valida il modello logistico binario** (*Validate binary logistic model*). Motore `analisi/logistic_validation.py`; il fit di ogni fold è `analisi.models.binomial_fit`, estratto da `logistic_fit` con risultati identici (`tests.test_logistic_validation.LegacyLogisticTests` confronta tutti i fogli di due ricette Logistic con quelli scritti dalla base). Dialogo generico; `trama_qt/logistic_validation.py` esegue `prepare` quando si preme Esegui (nessun fit prima del worker) e traduce i messaggi. Catalogo IT in una sezione propria: `analisi/logistic_validation_catalog.py`, unito in coda a `analisi/interface_catalog.py`. Guida `docs/logistic-validation.md`, esempio `docs/examples/Validazione-Logistica.alab`.
+- Multicore: nessun pool. Su 20.000 righe × 10 fold il pool non dava guadagno e i coefficienti dei fold potevano differire negli ultimi bit fra finestra e worker. Il ciclo dei fold resta sul worker Qt e controlla l'annullamento prima di ogni fold. `analyse(..., cancel=)` basta: `project.py` e `parallel_analyses.py` non sono toccati.
+- Smoke dedicato: `python -m trama_qt.logistic_validation_smoke CARTELLA [--dark]`. Importa un CSV sintetico, prova due errori sul campo, esegue, esporta, crea un'analisi collegata su Predictions, annulla una modifica, modifica una cella, salva, riapre, ricalcola, poi 20.000 righe e un annullamento.
+- Da provare su Windows:
+  - Lo smoke dedicato a 100% e 150%, chiaro e scuro.
+  - Aprire `docs/examples/Validazione-Logistica.alab`, Cambia parametri, scegliere *Fold rotto* come colonna dei fold: errore sul campo con la riga 121.
+  - 20.000 righe e 20 fold, poi Annulla calcolo: ricetta e risultato precedenti restano.
+  - Esportare il grafico (Tutti i pannelli) in SVG e PDF.
+- Packaging: aggiungere `logistic-validation.md` alla tupla dei docs di `package_windows.py` (non toccato qui).
+- Conflitti attesi con le altre PR 0.96 aperte in parallelo: coda di `analisi/interface_catalog.py` (tre righe), `analisi/workbench.py` (import, `METHODS`, gruppo Regressione e curve, `GRAPH_METHODS`, dispatcher), `trama_qt/analysis_dialog.py` (import, `accept`, `_message`), `tests/test_catalog.py`, `docs/features.md` e questa voce in cima al file.
+
 ### Più progetti in schede nella finestra Qt, pacchetto Progetti 0.95 (2026-11-19)
 
 PR draft verso main (ramo `claude/project-thread-hz1cm2`, base main 7a7340c). Windows NON PROVATO.
