@@ -4,9 +4,10 @@ from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QComboBox, QDial
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton,
                                QVBoxLayout)
 
-from analisi.i18n import tr
+from analisi.i18n import tr, ui
 from analisi.layout_geometry import AUTO_PAPER, PAPER_SIZES, WHITE
 from analisi.presentation import Layout
+from analisi.prism_layout_edit import edited_layout_preview
 
 from .theme import fit_dialog
 
@@ -156,4 +157,83 @@ class LayoutDialog(QDialog):
         except ValueError as error:
             self.show_problem(str(error))
             return
+        super().accept()
+
+
+class ImportedPanelDialog(QDialog):
+    """Edit one panel's rectangle in its original layout units."""
+
+    def __init__(self, parent, preview, panels, edits):
+        super().__init__(parent)
+        self.setWindowTitle(ui("Edit imported layout panel"))
+        self.preview, self.panels, self.edits = preview, panels, edits
+        self.result = None
+        form = QFormLayout(self)
+        self.selector = QComboBox()
+        self.selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.selector.setMinimumContentsLength(22)
+        for panel in panels:
+            self.selector.addItem(f'{panel["id"]} · {panel.get("title") or ui("Panel")}')
+        form.addRow(ui("Panel"), self.selector)
+        self.fields = []
+        for label in ("Left", "Top", "Width", "Height"):
+            entry = QLineEdit()
+            entry.setMaxLength(12)
+            entry.setAccessibleName(ui(label))
+            form.addRow(ui(label), entry)
+            self.fields.append(entry)
+        self.restore = QPushButton(ui("Restore original position"))
+        self.restore.clicked.connect(lambda: self.load_bounds(original=True))
+        form.addRow(self.restore)
+        note = QLabel(ui("Coordinates use the original layout units.\nApply one panel at a time."))
+        note.setWordWrap(True)
+        form.addRow(note)
+        self.problem = QLabel()
+        self.problem.setObjectName("errorBanner")
+        self.problem.setWordWrap(True)
+        self.problem.hide()
+        form.addRow(self.problem)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(ui("Apply"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+        self.selector.currentIndexChanged.connect(lambda _: self.load_bounds())
+        self.load_bounds()
+        fit_dialog(self, 460, 320)
+
+    def load_bounds(self, *, original=False):
+        panel = self.panels[self.selector.currentIndex()]
+        left, top, right, bottom = panel["bounds"] if original else self.edits.get(panel["id"], panel["bounds"])
+        for entry, value in zip(self.fields, (left, top, right - left, bottom - top), strict=True):
+            entry.setText(str(value))
+        self.problem.clear()
+        self.problem.hide()
+
+    def accept(self):
+        values = []
+        for entry in self.fields:
+            try:
+                values.append(int(entry.text()))
+            except ValueError:
+                self.problem.setText(ui("Enter whole numbers for the position and size."))
+                self.problem.show()
+                entry.setFocus()
+                return
+        left, top, width, height = values
+        panel = self.panels[self.selector.currentIndex()]
+        edits = dict(self.edits)
+        bounds = [left, top, left + width, top + height]
+        if bounds == panel["bounds"]:
+            edits.pop(panel["id"], None)
+        else:
+            edits[panel["id"]] = bounds
+        try:
+            edited_layout_preview(self.preview, self.panels, edits)
+        except ValueError as error:
+            self.problem.setText(ui(str(error)))
+            self.problem.show()
+            return
+        self.result = edits
         super().accept()

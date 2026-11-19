@@ -32,6 +32,16 @@ def _emf_drawing(records, count=1):
     return header.ljust(108, b"\0") + records + pack("<5I", 14, 20, 0, 0, 20)
 
 
+def _emf_layout(first=(10, 10, 100, 60), second=(120, 80, 100, 60)):
+    inner = _emf_drawing(pack("<II4i", 43, 24, 4, 6, 12, 18))
+    image_size = len(inner) + 28
+    obj = pack("<HH6I", 0x4008, 0x0501, image_size, image_size - 12,
+               0xDBC01001, 2, 4, len(inner)) + inner
+    draw = pack("<HH4I4f", 0x401A, 0x4001, 44, 32, 0xFFFFFFFF, 2, 0, 0, 120, 80)
+    commands = obj + draw + pack("<4h", *first) + draw + pack("<4h", *second)
+    return _emf_drawing(pack("<III4s", 70, 16 + len(commands), 4 + len(commands), b"EMF+") + commands)
+
+
 def _app():
     app = QApplication.instance() or QApplication(["trama-qt-tests", "-platform", "offscreen"])
     from trama_qt import theme
@@ -959,19 +969,8 @@ class QtShellTests(unittest.TestCase):
         from analisi.workbench import Result
         from trama_qt.project import Run
 
-        inner = _emf_drawing(pack("<II4i", 43, 24, 4, 6, 12, 18))
-        image_size = len(inner) + 28
-        obj = pack("<HH6I", 0x4008, 0x0501, image_size, image_size - 12,
-                   0xDBC01001, 2, 4, len(inner)) + inner
-        draw = pack("<HH4I4f", 0x401A, 0x4001, 44, 32, 0xFFFFFFFF, 2, 0, 0, 120, 80)
-        second = draw + pack("<4h", 120, 80, 100, 60)
-
-        def layout(first):
-            commands = obj + draw + pack("<4h", *first) + second
-            return _emf_drawing(pack("<III4s", 70, 16 + len(commands), 4 + len(commands), b"EMF+") + commands)
-
-        original = layout((10, 10, 100, 60))
-        edited = layout((14, 18, 76, 42))
+        original = _emf_layout()
+        edited = _emf_layout(first=(14, 18, 76, 42))
         run = Run(SAVED_BINARY_LAYOUT, "Page", {
             PRISM_PREVIEW: _vector_record(original),
             PRISM_EDITABLE_PANELS: [{"id": "1", "bounds": [10, 10, 110, 70]},
@@ -992,6 +991,97 @@ class QtShellTests(unittest.TestCase):
         with patch.object(QFileDialog, "getSaveFileName", return_value=(str(archive), "")):
             window.export()
         self.assertEqual(archive.read_bytes(), original)
+
+    def test_edit_imported_panel_geometry_and_reopen(self):
+        from unittest.mock import patch
+
+        from PIL import Image
+        from PySide6.QtWidgets import QDialog, QPushButton
+        from analisi.data import Dataset, save_project
+        from analisi.prism_binary_graphs import validate_binary_graph
+        from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS
+        from analisi.prism_restore import BINARY_LAYOUT_COLLECTION, PRISM_PREVIEW, SAVED_BINARY_LAYOUT
+
+        original = _emf_layout()
+        earlier = [120, 81, 219, 139]
+        expected_prior = _emf_layout(second=(120, 81, 99, 58))
+        expected_edited = _emf_layout((14, 18, 76, 42), (120, 81, 99, 58))
+        edits = {"2": earlier}
+        options = {PRISM_PREVIEW: _vector_record(original), PRISM_PANEL_EDITS: edits,
+                   PRISM_EDITABLE_PANELS: [{"id": "1", "title": "First", "bounds": [10, 10, 110, 70]},
+                                           {"id": "2", "title": "Second", "bounds": [120, 80, 220, 140]}]}
+        seed = self.folder / "original.alab"
+        save_project(seed, {"Page": Dataset(pd.DataFrame({"Drawing": [1]}), table_format=BINARY_LAYOUT_COLLECTION,
+                                           analyses=[(SAVED_BINARY_LAYOUT, options)])})
+        rendered = []
+
+        def render(preview, *, layout=False, crop=True):
+            rendered.append(validate_binary_graph(preview, layout=layout))
+            return Image.new("RGB", (20, 16))
+
+        window = self.window
+
+        def edit(action):
+            button = window.page.findChild(QPushButton, "importedPanelGeometry")
+            self.assertIsNotNone(button, "Editable saved layouts need a position and size command")
+            with patch.object(QDialog, "exec", action):
+                button.click()
+            self.wait()
+
+        def cancel(dialog):
+            dialog.fields[0].setText("12")
+            dialog.reject()
+            return QDialog.DialogCode.Rejected
+
+        def move(dialog):
+            dialog.selector.setCurrentIndex(1)
+            self.assertEqual([field.text() for field in dialog.fields], ["120", "81", "99", "58"])
+            dialog.selector.setCurrentIndex(0)
+            dialog.fields[2].setText("zero")
+            dialog.accept()
+            self.assertTrue(dialog.problem.text())
+            self.assertIsNone(dialog.result)
+            dialog.fields[2].setText("0")
+            dialog.accept()
+            self.assertTrue(dialog.problem.text())
+            self.assertIsNone(dialog.result)
+            for field, value in zip(dialog.fields, (14, 18, 76, 42), strict=True):
+                field.setText(str(value))
+            dialog.accept()
+            self.assertEqual(dialog.result, {"1": [14, 18, 90, 60], "2": earlier})
+            return QDialog.DialogCode.Accepted
+
+        def restore(dialog):
+            self.assertEqual([field.text() for field in dialog.fields], ["14", "18", "76", "42"])
+            dialog.restore.click()
+            dialog.accept()
+            return QDialog.DialogCode.Accepted
+
+        with patch("analisi.prism_binary_graphs.render_binary_graph", side_effect=render):
+            window.open_path(seed)
+            window.open_sheet(("saved-layout", 0))
+            self.wait()
+            before = window.project.runs[0]
+            self.assertEqual(rendered[-1], expected_prior)
+            edit(cancel)
+            self.assertIs(window.project.runs[0], before)
+            self.assertFalse(window.project.dirty)
+            edit(move)
+            run = window.project.runs[0]
+            self.assertEqual(window.selected, ("saved-layout", 0))
+            self.assertEqual(run.uid, before.uid)
+            self.assertEqual(rendered[-1], expected_edited)
+            self.assertTrue(window.project.dirty)
+            self.assertEqual(run.options[PRISM_PREVIEW], options[PRISM_PREVIEW])
+            saved = self.folder / "edited.alab"
+            window.project.save(saved)
+            window.open_path(saved)
+            window.open_sheet(("saved-layout", 0))
+            self.wait()
+            self.assertEqual(rendered[-1], expected_edited)
+            edit(restore)
+            self.assertEqual(window.project.runs[0].options[PRISM_PANEL_EDITS], edits)
+            self.assertEqual(rendered[-1], expected_prior)
 
     def test_layout_compose_edit_reopen(self):
         from trama_qt.layout_dialog import LayoutDialog

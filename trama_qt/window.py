@@ -21,7 +21,8 @@ from analisi.field_error import FieldError
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, ui
 from analisi.monte_carlo import MonteCarloCancelled
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS
-from analisi.prism_restore import PRISM_GRAPH_LINK, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH
+from analisi.prism_restore import (PRISM_GRAPH_LINK, PRISM_PREVIEW, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
+                                   SAVED_EDITABLE_GRAPH)
 from analisi.text_import import TEXT_SUFFIXES
 from analisi.workbench import GRAPH_METHODS, GROUPS
 
@@ -45,11 +46,14 @@ GRAPHING = tuple(GROUPS.get("Graphing", ())) + ("Plot a function",)
 
 def preferred_view(run, result):
     """Graph methods open on their graph; analyses open on their tables (the graph is one click away)."""
+    view = run_view(run.method)
+    if view == "saved-layout":
+        return view
     if run.method in GRAPH_METHODS or run.method in GRAPHING:
         return "graph"
     if result is not None and result.figure is not None and not result.tables:
         return "graph"
-    return run_view(run.method)
+    return view
 
 
 def safe_csv(path, frame, index=False):
@@ -871,13 +875,18 @@ class MainWindow(QMainWindow):
             label = ui("View original" if editable else "Open editable graph")
             page.button(label, lambda: self.open_sheet(("graph", matches[0])), icon="chart-line")
 
-    def _imported_layout_actions(self, page, run):
+    def _imported_layout_actions(self, page, run, index):
         graphs = self.project.layout_panel_graphs(run)
-        if self.project.imported_vector_format(run) == "emf" and (graphs or run.options.get(PRISM_PANEL_EDITS)):
-            page.button(tr("layout.export_current_emf"), lambda: self.export_current_layout_emf(run), icon="upload")
+        panels = run.options.get(PRISM_EDITABLE_PANELS)
+        if self.project.imported_vector_format(run) == "emf":
+            if isinstance(panels, list) and panels:
+                button = page.button(ui("Edit panel…"), lambda: self.edit_imported_panel(index),
+                                     icon="sliders-horizontal")
+                button.setObjectName("importedPanelGeometry")
+            if graphs or run.options.get(PRISM_PANEL_EDITS):
+                page.button(tr("layout.export_current_emf"), lambda: self.export_current_layout_emf(run), icon="upload")
         if not graphs:
             return
-        panels = run.options.get(PRISM_EDITABLE_PANELS)
         if not isinstance(panels, list):
             panels = []
         captions = {panel["id"]: panel.get("title") for panel in panels
@@ -900,7 +909,7 @@ class MainWindow(QMainWindow):
         if kind == "graph" and run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}:
             self._imported_graph_actions(page, run)
         elif kind == "saved-layout":
-            self._imported_layout_actions(page, run)
+            self._imported_layout_actions(page, run, index)
         if run.method not in SAVED_VIEWS and kind != "saved-layout":
             page.button(tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal")
         page.button(qt("qt.recalculate"), self.recalculate, icon="history")
@@ -1295,6 +1304,32 @@ class MainWindow(QMainWindow):
             return
         self.open_sheet(("layout", key))
 
+    def edit_imported_panel(self, index):
+        if self.busy():
+            return
+        from .layout_dialog import ImportedPanelDialog
+
+        run = self.project.runs[index]
+        options = dict(run.options)
+        edits = options.get(PRISM_PANEL_EDITS) or {}
+        try:
+            dialog = ImportedPanelDialog(self, options[PRISM_PREVIEW], options[PRISM_EDITABLE_PANELS], edits)
+        except (KeyError, TypeError, ValueError):
+            self.error(ui("Invalid Prism layout edits."))
+            return
+        if dialog.exec() != ImportedPanelDialog.DialogCode.Accepted or dialog.result is None or dialog.result == edits:
+            return
+        if dialog.result:
+            options[PRISM_PANEL_EDITS] = dialog.result
+        else:
+            options.pop(PRISM_PANEL_EDITS, None)
+        try:
+            candidate = self.project.candidate(run.title, run.method, options, index=index)
+        except ValueError as error:
+            self.error(error)
+            return
+        self.calculate_candidate(candidate, self.project.tables[run.title].frame(mask_excluded=True), index)
+
     def edit_annotations(self):
         from analisi.graph_annotations import ANNOTATIONS
         from .annotations import GraphAnnotationsDialog
@@ -1413,6 +1448,9 @@ class MainWindow(QMainWindow):
                 return
             except Exception as error:  # Field and data errors reopen the dialog with the message.
                 self.status(qt("qt.failed"))
+                if candidate.method == SAVED_BINARY_LAYOUT:
+                    self.error(ui(str(error)))
+                    return
                 field = error.field if isinstance(error, FieldError) else None
                 self._ask(candidate.title, frame, current=(candidate.method, candidate.options), only=only,
                           index=index, error=str(error), error_field=field, source=candidate.source)

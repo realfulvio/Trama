@@ -850,6 +850,10 @@ Height|Altezza
 Restore original position|Ripristina posizione originale
 Check panel|Controlla il pannello
 Enter whole numbers for the position and size.|Inserisci numeri interi per posizione e dimensioni.
+Enter whole-number coordinates for the panel.|Inserisci coordinate intere per il pannello.
+Enter a positive panel width and height within the layout.|Inserisci larghezza e altezza positive entro il layout.
+Keep the panel within the original layout’s panel area.|Mantieni il pannello entro l’area dei pannelli del layout originale.
+Invalid Prism layout edits.|Le modifiche al layout importato non sono valide.
 Reuse seed|Riutilizza seme
 New seed|Nuovo seme
 Copy seed|Copia seme
