@@ -107,6 +107,10 @@ Include interaction|Includi interazione
 Kaplan–Meier survival|Sopravvivenza di Kaplan–Meier
 K-means model selection|Selezione del modello k-means
 K-means clustering|Raggruppamento k-means
+Column scaling|Scala delle colonne
+Standardized|Standardizzate
+Unscaled|Originali
+Choose a supported K-means column scaling.|Scegli come scalare le colonne per il k-means.
 K-means algorithm|Algoritmo k-means
 Lloyd|Lloyd
 Hartigan–Wong|Hartigan–Wong
@@ -116,6 +120,7 @@ MacQueen iteration limit|Limite di iterazioni MacQueen
 Initial worksheet rows|Righe iniziali del foglio
 Report cluster details|Mostra i dettagli dei gruppi
 Report standardized observations|Mostra le osservazioni standardizzate
+Report scaled observations|Mostra le osservazioni scalate
 Report assigned distances|Mostra le distanze dal centro assegnato
 Report initial centroids|Mostra i centri iniziali
 Report cluster ANOVA|Mostra l’ANOVA descrittiva dei gruppi

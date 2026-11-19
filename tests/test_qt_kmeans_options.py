@@ -3,7 +3,7 @@ import unittest
 
 import pandas as pd
 
-from analisi import kmeans_options as km
+from analisi import kmeans_options as km, kmeans_reports
 from analisi.i18n import active_language, set_language
 from analisi.workbench import analyse
 
@@ -71,5 +71,19 @@ class QtKmeansOptionsTests(unittest.TestCase):
         method, request = dialog.result
         self.assertEqual(request[km.ALGORITHM], "MacQueen")
         self.assertEqual(request[km.MACQUEEN_ITERATIONS], 10)
+        self.assertEqual(request[km.SCALE], km.UNSCALED)
         self.assertEqual(analyse(method, self.frame, request).tables["Assignments"]["Cluster"].tolist(),
                          [1, 1, 1, 2, 2, 2])
+
+    def test_centering_control_restores_old_recipes_and_exposes_scaled_report(self):
+        dialog = self.dialog(km.CLUSTERING, {"Standardize": False, kmeans_reports.SCALED: True})
+        scale = dialog.controls[km.SCALE][1]
+        scaled = dialog.controls[kmeans_reports.SCALED][1]
+        self.assertEqual(scale.currentData(), km.UNSCALED)
+        self.assertTrue(scaled.isHidden())
+        self.assertNotIn(kmeans_reports.SCALED, dialog.options())
+        scale.setCurrentIndex(scale.findData(km.CENTERED))
+        self.assertEqual(scale.currentText(), "Centrati")
+        self.assertFalse(scaled.isHidden())
+        self.assertTrue(dialog.options()[kmeans_reports.SCALED])
+        self.assertEqual(dialog.options()[km.SCALE], km.CENTERED)

@@ -7,6 +7,9 @@ from .stats import complete
 CLUSTERING = "K-means clustering"
 SELECTION = "K-means model selection"
 METHODS = (CLUSTERING, SELECTION)
+SCALE = "Column scaling"
+STANDARDIZED, CENTERED, UNSCALED = "Standardized", "Centered", "Unscaled"
+SCALES = {STANDARDIZED: "standardize", CENTERED: "center", UNSCALED: "none"}
 ALGORITHM = "K-means algorithm"
 LLOYD, HARTIGAN, MACQUEEN = ALGORITHMS = ("Lloyd", "Hartigan–Wong", "MacQueen")
 MAX_ITERATIONS = "Hartigan–Wong iteration limit"
@@ -18,6 +21,19 @@ WSS_PLOT = "Show WSS plot"
 SILHOUETTE_PLOT = "Show silhouette plot"
 GAP_PLOT = "Show Gap plot"
 PLOTS = {WSS_PLOT: "WSS", SILHOUETTE_PLOT: "Silhouette", GAP_PLOT: "Gap"}
+
+
+def scale(options):
+    choice = options.get(SCALE, STANDARDIZED if options.get("Standardize", False) else UNSCALED)
+    if not isinstance(choice, str) or choice not in SCALES:
+        raise FieldError(SCALE, "Choose a supported K-means column scaling.")
+    return SCALES[choice]
+
+
+def saved_scaling(options):
+    if SCALE in options or "Standardize" not in options:
+        return options
+    return {**options, SCALE: STANDARDIZED if options["Standardize"] else UNSCALED}
 
 
 def plot_metrics(options):

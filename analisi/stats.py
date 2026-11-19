@@ -787,16 +787,18 @@ class Clusters:
     initial_centers: pd.DataFrame | None = None
 
 
-def _cluster_data(frame, columns, count, standardize):
+def _cluster_data(frame, columns, count, scale="none"):
     data = complete(frame, columns)
     if len(columns) < 1 or len(data) < 2 or not 1 <= count <= len(data):
         raise ValueError("Number of clusters must be between 1 and the number of complete rows.")
     values = data.to_numpy(dtype=float)
-    if standardize:
+    if scale == "standardize":
         sd = values.std(axis=0, ddof=1)
         if np.any(sd == 0):
             raise ValueError("Cannot standardize a constant variable.")
         values = (values - values.mean(axis=0)) / sd
+    elif scale != "none":
+        values = _scale_cluster_axis(values, scale, axis=0)
     return data, values
 
 
@@ -813,16 +815,17 @@ def _kmeans_plus_plus_rows(values, count, rng):
 
 
 def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloyd",
-           max_iterations=10, initial_rows=None, retain_initial=False):
+           max_iterations=10, initial_rows=None, retain_initial=False, column_scale=None):
+    scale = column_scale if column_scale is not None else ("standardize" if standardize else "none")
     if algorithm == "hartigan-wong":
-        return _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows, retain_initial)
+        return _hartigan_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial)
     if algorithm == "macqueen":
-        return _macqueen_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows, retain_initial)
+        return _macqueen_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial)
     if algorithm != "lloyd":
         raise ValueError("Choose a K-means algorithm.")
     if initial_rows is not None:
         raise ValueError("Initial rows are supported with Hartigan-Wong.")
-    data, values = _cluster_data(frame, columns, count, standardize)
+    data, values = _cluster_data(frame, columns, count, scale)
     if count > len(np.unique(values, axis=0)) or len(values) * count > 2_000_000:
         raise ValueError("Too many clusters for the number of distinct observations.")
     rng = np.random.default_rng(seed)
@@ -845,10 +848,10 @@ def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloy
     return best
 
 
-def _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows, retain_initial):
+def _hartigan_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial):
     from .hartigan_wong import IterationLimitError, fit_hartigan_wong
 
-    data, values = _cluster_data(frame, columns, count, standardize)
+    data, values = _cluster_data(frame, columns, count, scale)
     distinct = np.sort(np.unique(values, axis=0, return_index=True)[1])
     if count > len(distinct) or len(values) * count > 2_000_000:
         raise ValueError("Too many clusters for the number of distinct observations.")
@@ -878,12 +881,12 @@ def _hartigan_kmeans(frame, columns, count, standardize, seed, max_iterations, i
                     initial_centers=pd.DataFrame(values[chosen], columns=columns) if retain_initial else None)
 
 
-def _macqueen_kmeans(frame, columns, count, standardize, seed, max_iterations, initial_rows, retain_initial):
+def _macqueen_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial):
     from .hartigan_wong import IterationLimitError
 
     if isinstance(max_iterations, bool) or not isinstance(max_iterations, Integral) or not 1 <= max_iterations <= 1000:
         raise ValueError("Maximum iterations must be an integer from 1 to 1000.")
-    data, values = _cluster_data(frame, columns, count, standardize)
+    data, values = _cluster_data(frame, columns, count, scale)
     n, width = values.shape
     if count > len(np.unique(values, axis=0)) or n * count > 2_000_000:
         raise ValueError("Too many clusters for the number of distinct observations.")

@@ -270,7 +270,7 @@ METHODS = {
                               "Hazard ratio numerator": GROUP_CHOICE, EVENT_CODE: TEXT, CENSOR_CODE: TEXT,
                               OTHER_STATUS: STATUS_POLICIES, **SURVIVAL_GRAPH_OPTIONS},
     "K-means model selection": {"Variables": MULTIPLE, "Minimum k": 1, "Maximum k": 8,
-                                "Standardize": True, "Seed": 42,
+                                kmeans_options.SCALE: tuple(kmeans_options.SCALES), "Seed": 42,
                                 "Criterion": ("Silhouette", "Elbow", "Calinski–Harabasz", "Davies–Bouldin", "Gap",
                                               "Consensus (17 indices)"),
                                 "Gap simulations": 20, KL_SCALING: KL_CHOICES,
@@ -278,7 +278,8 @@ METHODS = {
                                 kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                                 kmeans_options.MACQUEEN_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                                 **dict.fromkeys((*kmeans_reports.SCAN, *kmeans_options.PLOTS), False)},
-    "K-means clustering": {"Variables": MULTIPLE, "Clusters": 2, "Standardize": True, "Seed": 42,
+    "K-means clustering": {"Variables": MULTIPLE, "Clusters": 2,
+                           kmeans_options.SCALE: tuple(kmeans_options.SCALES), "Seed": 42,
                            kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
                            kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                            kmeans_options.MACQUEEN_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
@@ -536,7 +537,8 @@ def _distribution(method, frame, o):
 def _kmeans(frame, o):
     variables = o["Variables"]
     reports = kmeans_reports.requested(o)
-    fit = engine.kmeans(frame, variables, o["Clusters"], o["Standardize"], o["Seed"],
+    scale = kmeans_options.scale(o)
+    fit = engine.kmeans(frame, variables, o["Clusters"], seed=o["Seed"], column_scale=scale,
                         retain_initial=kmeans_reports.CENTROIDS in reports,
                         **kmeans_options.fit_options(kmeans_options.CLUSTERING, frame, o))
     figure, axes = _plot("K-means", variables[0], variables[1] if len(variables) > 1 else "Cluster")
@@ -552,9 +554,9 @@ def _kmeans(frame, o):
     _record_kmeans_algorithm(tables["Fit"], o)
     if reports:
         k = len(fit.centers)
-        _, values = engine._cluster_data(fit.data, variables, k, o["Standardize"])
+        _, values = engine._cluster_data(fit.data, variables, k, scale)
         fitting_data = pd.DataFrame(values, index=fit.data.index, columns=variables)
-        tables.update(kmeans_reports.result_tables({k: fit}, frame, fitting_data, reports))
+        tables.update(kmeans_reports.result_tables({k: fit}, frame, fitting_data, reports, column_scale=scale))
     return Result(tables, figure)
 
 
@@ -600,11 +602,12 @@ def _consensus_selection(scan, o):
 def _cluster_selection(frame, o):
     plots = kmeans_options.plot_metrics(o)
     reports = kmeans_reports.requested(o, scan=True)
+    scale = kmeans_options.scale(o)
     criterion = {"Silhouette": "silhouette", "Elbow": "elbow", "Calinski–Harabasz": "calinski-harabasz",
                  "Davies–Bouldin": "davies-bouldin", "Gap": "gap",
                  "Consensus (17 indices)": "consensus"}[o["Criterion"]]
-    scan = kmeans_scan(frame, o["Variables"], o["Maximum k"], o["Standardize"], o["Seed"],
-                       criterion, min_k=o.get("Minimum k", 1), gap_replicates=o.get("Gap simulations", 20),
+    scan = kmeans_scan(frame, o["Variables"], o["Maximum k"], seed=o["Seed"], criterion=criterion,
+                       column_scale=scale, min_k=o.get("Minimum k", 1), gap_replicates=o.get("Gap simulations", 20),
                        kl_scaling=o.get(KL_SCALING, DIMENSION_ADJUSTED), retain_fits=bool(reports),
                        retain_initial=kmeans_reports.CENTROIDS in reports,
                        include_gap="Gap" in plots,
@@ -612,7 +615,7 @@ def _cluster_selection(frame, o):
     result = _consensus_selection(scan, o) if criterion == "consensus" else _scan_result(scan, o, criterion)
     if reports:
         result.tables.update(kmeans_reports.result_tables(scan.report_fits, frame, scan.fitting_data, reports,
-                                                          metrics=scan.metrics))
+                                                          metrics=scan.metrics, column_scale=scale))
     primary = {"elbow": "WSS", "consensus": None}.get(criterion, o["Criterion"])
     extra = [metric for metric in plots if metric != primary]
     if extra:

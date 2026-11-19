@@ -1,5 +1,7 @@
 # Algoritmi K-means
 
+L'opzione **Scala delle colonne** permette di usare i valori originali, sottrarre la media di ogni colonna oppure standardizzare con la deviazione standard campionaria. I centri e le distanze sono espressi nella scala del calcolo. La tabella delle osservazioni scalate è disponibile con centratura e standardizzazione.
+
 In **Raggruppamento k-means** e **Selezione del modello k-means** puoi scegliere **Lloyd** con inizializzazione K-means++, **Hartigan–Wong** e **MacQueen**. Per Hartigan–Wong, il limite di iterazioni conta i giri di trasferimenti ottimali e rapidi. Il calcolo con seme usa fino a dieci partenze da osservazioni distinte. Fra le partenze convergenti conserva la soluzione con la somma dei quadrati interna più bassa.
 
 MacQueen parte con K-means++ e visita le osservazioni nell'ordine del foglio. Ogni trasferimento verso un centro strettamente più vicino aggiorna subito i centri dei due gruppi. Un pareggio mantiene l'assegnazione e l'ultimo elemento di un gruppo resta nel gruppo. Il limite conta i giri sul foglio e il calcolo richiede un giro senza trasferimenti per confermare la convergenza.

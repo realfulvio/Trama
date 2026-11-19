@@ -425,7 +425,9 @@ def _kmeans(frame, content, _results):
 
     calc = content["calc"]
     algorithm = {"HARTIGAN_WONG": selection.HARTIGAN, "MACQUEEN": selection.MACQUEEN}.get(calc["algorithm"])
-    if (algorithm is None or calc["transform"] != "STANDARDIZE"
+    scale = {"STANDARDIZE": selection.STANDARDIZED, "CENTER": selection.CENTERED,
+             "NONE": selection.UNSCALED}.get(calc["transform"])
+    if (algorithm is None or scale is None
             or calc["distance"]["type"] != "EUCLIDIAN" or calc["clusterMetrics"] is not True):
         return None
     variables = _roles(frame, content["data"]["variables"], 1, len(frame.columns))
@@ -438,7 +440,8 @@ def _kmeans(frame, content, _results):
         return None
     values = frame[variables].dropna().to_numpy(dtype=float)
     count, dimensions = values.shape
-    if not 2 <= count <= 3000 or not np.isfinite(values).all() or (np.ptp(values, axis=0) == 0).any():
+    if (not 2 <= count <= 3000 or not np.isfinite(values).all()
+            or (scale == selection.STANDARDIZED and (values == values[0]).all(axis=0).any())):
         return None
     upper = min(high, len(np.unique(values, axis=0)))
     if low > upper:
@@ -467,7 +470,7 @@ def _kmeans(frame, content, _results):
     if reports.get(selection.GAP_PLOT):
         reports[kmeans_reports.GAP] = True
     return selection.SELECTION, {
-        "Variables": variables, "Minimum k": low, "Maximum k": high, "Standardize": True, "Seed": seed,
+        "Variables": variables, "Minimum k": low, "Maximum k": high, selection.SCALE: scale, "Seed": seed,
         "Criterion": "Consensus (17 indices)", "Gap simulations": gap_replicates, KL_SCALING: UNSCALED_WSS,
         selection.ALGORITHM: algorithm, selection.ITERATION_FIELDS[algorithm]: iterations, **reports,
         "Prism import notes": (

@@ -1132,6 +1132,8 @@ class AnalysisDialog(simpledialog.Dialog):
         numeric = list(self.data.select_dtypes(include="number").columns)
         categorical = [name for name in columns if name not in numeric] or columns
         saved = self.current[1] if self.current and self.current[0] == self.method else {}
+        if self.method in kmeans_options.METHODS:
+            saved = kmeans_options.saved_scaling(saved)
         if (self.method in ("Correlation", CORRELATE_CONTROL) and self.current
                 and self.current[0] == self.method):
             saved = {SPEARMAN_BUDGET: SPEARMAN_STANDARD, **saved}
@@ -1424,6 +1426,8 @@ class AnalysisDialog(simpledialog.Dialog):
                           else tr(FIT_HEADINGS[label]) if fit_control
                           else tr(ANOVA_DIAG_LABEL_KEYS[label]) if anova_diag_control
                           else tr(REFERENCE_LABEL_KEYS[label]) if reference_control else label)
+            if self.method in kmeans_options.METHODS and label == kmeans_reports.SCALED:
+                label_text = "Report scaled observations"
             heading = ttk.Label(parent, text=ui(label_text), wraplength=170)
             heading.grid(row=row, column=0, sticky="nw", pady=4, padx=(0, 10))
             if kind == PAIR_LIST:
@@ -1771,7 +1775,7 @@ class AnalysisDialog(simpledialog.Dialog):
                     self.controls[label][1].trace_add("write", lambda *_: self.show_processing_fields())
             self.show_processing_fields()
         if self.method in kmeans_options.METHODS:
-            for name in (kmeans_options.ALGORITHM, kmeans_options.GAP_PLOT, "Criterion", "Standardize"):
+            for name in (kmeans_options.ALGORITHM, kmeans_options.GAP_PLOT, "Criterion", kmeans_options.SCALE):
                 if name in self.controls:
                     self.controls[name][1].trace_add("write", lambda *_: self.show_fields(self.kmeans_visibility()))
             self.show_fields(self.kmeans_visibility())
@@ -2490,8 +2494,9 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method not in kmeans_options.METHODS:
             return {}
         algorithm = self.controls[kmeans_options.ALGORITHM][1].get()
+        scale = self.controls[kmeans_options.SCALE][1].get()
         options = {**{field: key == algorithm for key, field in kmeans_options.ITERATION_FIELDS.items()},
-                   kmeans_reports.SCALED: self.controls["Standardize"][1].get()}
+                   kmeans_reports.SCALED: scale != kmeans_options.UNSCALED}
         if self.method == kmeans_options.CLUSTERING:
             return {**options, kmeans_options.INITIAL_ROWS: algorithm in kmeans_options.ITERATION_FIELDS}
         from analisi.cluster_consensus import KL_SCALING
@@ -3764,6 +3769,7 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == HIERARCHY_GRAPH:
                 check_hierarchy_view(self.data, options)
             if self.method in kmeans_options.METHODS:
+                kmeans_options.scale(options)
                 for report in (*kmeans_reports.SCAN, *kmeans_options.PLOTS):
                     if options.get(report) is False:
                         options.pop(report)
@@ -12766,7 +12772,7 @@ def smoke(root, app, directory, legacy_reference=None):
             assert not dialog.field_rows[choice.MAX_ITERATIONS][1].winfo_manager()
             dialog.controls[choice.ALGORITHM][1].set(choice.HARTIGAN)
             assert dialog.field_rows[choice.MAX_ITERATIONS][1].winfo_manager()
-            dialog.controls["Standardize"][1].set(False)
+            dialog.controls[choice.SCALE][1].set(choice.UNSCALED)
 
         def pick_fit(dialog):
             configure(dialog, choice.CLUSTERING)
@@ -12828,7 +12834,7 @@ def smoke(root, app, directory, legacy_reference=None):
             dialog.controls[choice.ALGORITHM][1].set(choice.MACQUEEN)
             assert not dialog.field_rows[choice.MAX_ITERATIONS][1].winfo_manager()
             assert dialog.field_rows[choice.MACQUEEN_ITERATIONS][1].winfo_manager()
-            dialog.controls["Standardize"][1].set(False)
+            dialog.controls[choice.SCALE][1].set(choice.UNSCALED)
             dialog.controls[choice.INITIAL_ROWS][1].set("1, 2")
             dialog.controls[kmeans_reports.CENTROIDS][1].set(True)
             dialog.focus_field(choice.MACQUEEN_ITERATIONS)
@@ -12880,9 +12886,9 @@ def smoke(root, app, directory, legacy_reference=None):
             dialog.controls["Criterion"][1].set("Consensus (17 indices)")
             dialog.controls["Maximum k"][1].set(4)
             dialog.controls["Gap simulations"][1].set(5)
-            dialog.controls["Standardize"][1].set(False)
+            dialog.controls[kmeans_options.SCALE][1].set(kmeans_options.UNSCALED)
             assert not dialog.field_rows[kmeans_reports.SCALED][1].winfo_manager()
-            dialog.controls["Standardize"][1].set(True)
+            dialog.controls[kmeans_options.SCALE][1].set(kmeans_options.STANDARDIZED)
             assert dialog.field_rows[kmeans_reports.SCALED][1].winfo_manager()
             for plot in kmeans_options.PLOTS:
                 dialog.controls[plot][1].set(True)

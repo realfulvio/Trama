@@ -169,7 +169,7 @@ def _check_scan_budget(n, dimensions, candidates, pairwise, *, simulate_gap, gap
 def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="silhouette",
                 *, min_k=1, gap_replicates=20, kl_scaling=consensus.DIMENSION_ADJUSTED,
                 algorithm="lloyd", max_iterations=10, retain_fits=False, retain_initial=False,
-                include_gap=False):
+                include_gap=False, column_scale=None):
     """Compare fits from min_k through max_k, capped at the distinct row count.
 
     The silhouette, Calinski–Harabasz and Davies–Bouldin scores require
@@ -195,12 +195,13 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     if (any(isinstance(k, bool) or not isinstance(k, Integral) for k in (min_k, max_k))
             or not 1 <= min_k <= max_k <= 30):
         raise ValueError("Cluster limits must be integers with 1 ≤ minimum k ≤ maximum k ≤ 30.")
-    data, raw = _cluster_data(frame, columns, 1, False)
+    data, raw = _cluster_data(frame, columns, 1)
     n, dimensions = raw.shape
     # Bound squared distances and within-cluster sums in float64 arithmetic.
     if np.abs(raw).max() > np.sqrt(np.finfo(float).max / (4 * n * dimensions)):
         raise ValueError("Variable magnitudes are too large to compute squared distances.")
-    _, values = _cluster_data(data, columns, 1, True) if standardize else (data, raw)
+    scale = column_scale if column_scale is not None else ("standardize" if standardize else "none")
+    _, values = _cluster_data(data, columns, 1, scale) if scale != "none" else (data, raw)
     upper = min(max_k, len(np.unique(values, axis=0)))
     if min_k > upper:
         raise ValueError("Minimum cluster count exceeds the number of distinct observations.")
@@ -215,7 +216,8 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     rows, fits, partitions = [], {}, {}
     fit_options = {"algorithm": algorithm, "max_iterations": max_iterations}
     # The fits are independent (each one seeds its own generator); scores follow in k order, as before.
-    jobs = [(data, columns, count, standardize, seed, retain_initial, fit_options) for count in candidates]
+    observed_options = {**fit_options, "column_scale": scale}
+    jobs = [(data, columns, count, standardize, seed, retain_initial, observed_options) for count in candidates]
     for count, outcome in zip(candidates, run_tasks(_scan_fit, jobs, outcomes=True), strict=True):
         if outcome.error is not None:
             raise outcome.error

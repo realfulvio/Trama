@@ -18,7 +18,7 @@ from analisi.anova_terms import TERM_LIST
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
 from analisi.field_error import FieldError
-from analisi import kmeans_options, mean_permutation
+from analisi import kmeans_options, kmeans_reports, mean_permutation
 from analisi.i18n import tr, ui
 from analisi.select_transform import SELECT_TRANSFORM
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
@@ -261,6 +261,8 @@ class AnalysisDialog(QDialog):
         if not self.current or self.current[0] != self.method:
             return {}
         saved = dict(self.current[1])
+        if self.method in kmeans_options.METHODS:
+            saved = kmeans_options.saved_scaling(saved)
         if self.method in CLASSIC_RESPONSES:
             saved = {**saved, **classic_roles(self.method, saved)}
         return saved
@@ -303,7 +305,9 @@ class AnalysisDialog(QDialog):
             variable = (kind in VARIABLE_KINDS or label == "Input format") and label not in {
                 "Comparison factor", "Condition on factors"}
             form = pages.get(global_fit.page_of(self.method, label)) or (variables if variable else options)
-            caption = QLabel(field_label(label))
+            caption_label = ("Report scaled observations"
+                             if self.method in kmeans_options.METHODS and label == kmeans_reports.SCALED else label)
+            caption = QLabel(field_label(caption_label))
             caption.setWordWrap(True)
             caption.setMinimumWidth(150)
             caption.setMaximumWidth(230)
@@ -393,6 +397,7 @@ class AnalysisDialog(QDialog):
         if self.method in kmeans_options.METHODS:
             algorithm = self.controls[kmeans_options.ALGORITHM][1]
             algorithm.currentIndexChanged.connect(self._sync_kmeans_options)
+            self.controls[kmeans_options.SCALE][1].currentIndexChanged.connect(self._sync_kmeans_options)
             self._sync_kmeans_options()
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
@@ -400,6 +405,8 @@ class AnalysisDialog(QDialog):
     def _sync_kmeans_options(self):
         algorithm = self.controls[kmeans_options.ALGORITHM][1].currentData()
         fields = {field: key == algorithm for key, field in kmeans_options.ITERATION_FIELDS.items()}
+        scale = self.controls[kmeans_options.SCALE][1].currentData()
+        fields[kmeans_reports.SCALED] = scale != kmeans_options.UNSCALED
         if self.method == kmeans_options.CLUSTERING:
             fields[kmeans_options.INITIAL_ROWS] = algorithm in kmeans_options.ITERATION_FIELDS
         for name, visible in fields.items():
@@ -483,6 +490,7 @@ class AnalysisDialog(QDialog):
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
             if self.method in kmeans_options.METHODS:
+                kmeans_options.scale(options)
                 kmeans_options.fit_options(self.method, self.data, options)
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)

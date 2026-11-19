@@ -5,7 +5,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from analisi import advanced, kmeans_options as option
+from analisi import advanced, kmeans_options as option, kmeans_reports
 from analisi.field_error import FieldError
 from analisi.workbench import analyse
 from analisi.prism_recipes import restore_recipe
@@ -43,6 +43,35 @@ class KmeansOptionsTests(unittest.TestCase):
             analyse(option.CLUSTERING, self.frame, options)
         self.assertEqual(failure.exception.field, option.MAX_ITERATIONS)
 
+    def test_centering_reports_the_fit_scale_and_preserves_raw_assignments(self):
+        frame = pd.DataFrame({"x": [0., 2., None, 10., 12.], "Constant": [1.1] * 5})
+        settings = {"Variables": ["x", "Constant"], "Clusters": 2, "Seed": 42,
+                    option.ALGORITHM: option.HARTIGAN, option.INITIAL_ROWS: "1, 4",
+                    kmeans_reports.SCALED: True, kmeans_reports.DISTANCES: True}
+        legacy = analyse(option.CLUSTERING, frame, {**settings, "Standardize": False}).tables
+        centered = analyse(option.CLUSTERING, frame, {**settings, option.SCALE: option.CENTERED}).tables
+        pd.testing.assert_frame_equal(legacy["Assignments"], centered["Assignments"])
+        observed = centered["Centered observations"]
+        np.testing.assert_array_equal(observed.to_numpy(), [[-6., 0.], [-4., 0.], [4., 0.], [6., 0.]])
+        np.testing.assert_array_equal(centered["Centers (fitting scale)"].to_numpy(), [[-5., 0.], [5., 0.]])
+        np.testing.assert_array_equal(centered["Assigned distances"]["Distance (k=2)"], [1.] * 4)
+        self.assertEqual(centered["Fit"].loc["Within-cluster SS", "Value"], 4.)
+        with self.assertRaises(FieldError) as failure:
+            analyse(option.CLUSTERING, frame, {**settings, option.SCALE: "unknown"})
+        self.assertEqual(failure.exception.field, option.SCALE)
+
+    @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
+    def test_centered_scan_uses_the_centered_values_for_gap_and_metrics(self):
+        frame = self.frame.dropna()
+        reference = frame - frame.mean()
+        settings = {"max_k": 4, "criterion": "gap", "gap_replicates": 5, "algorithm": "hartigan-wong",
+                    "retain_fits": True, "retain_initial": True}
+        expected = advanced.kmeans_scan(reference, ["x"], **settings)
+        result = advanced.kmeans_scan(frame, ["x"], column_scale="center", **settings)
+        pd.testing.assert_frame_equal(result.fitting_data, reference, check_exact=True)
+        pd.testing.assert_frame_equal(result.metrics, expected.metrics, check_exact=True)
+        np.testing.assert_array_equal(result.report_fits[3].initial_centers, expected.report_fits[3].initial_centers)
+
     # The patched kmeans counts calls in this process: keep the scan in one process.
     @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
     def test_gap_reference_uses_the_same_algorithm_and_limit_as_observed_fits(self):
@@ -74,6 +103,7 @@ class KmeansOptionsTests(unittest.TestCase):
         self.assertEqual((options["Seed"], options["Minimum k"], options["Maximum k"]), (53273, 1, 4))
         self.assertEqual(options[option.MAX_ITERATIONS], 10)
         self.assertEqual(options[option.ALGORITHM], option.HARTIGAN)
+        self.assertEqual(options[option.SCALE], option.STANDARDIZED)
         self.assertEqual(options["Criterion"], "Consensus (17 indices)")
         self.assertEqual(options["Krzanowski–Lai scaling"], "Unscaled WSS")
         tables = analyse(method, self.frame, options).tables
@@ -88,5 +118,18 @@ class KmeansOptionsTests(unittest.TestCase):
         self.assertIn("saved MacQueen settings", restored["Prism import notes"])
         selection = analyse(method, self.frame, restored).tables["Selection"]
         self.assertEqual(selection.loc[option.ALGORITHM, "Value"], option.MACQUEEN)
+        content["report"] = {"transformedData": True}
+        for saved, expected, table in (("CENTER", option.CENTERED, "Centered observations"),
+                                       ("NONE", option.UNSCALED, None)):
+            with self.subTest(saved=saved):
+                content["calc"]["transform"] = saved
+                _, method, restored = restore_recipe(sheet, parameters, frames)
+                self.assertEqual(restored[option.SCALE], expected)
+                tables = analyse(method, self.frame, restored).tables
+                self.assertNotIn("Standardized observations", tables)
+                if table:
+                    self.assertIn(table, tables)
+                else:
+                    self.assertNotIn("Centered observations", tables)
         content["calc"]["distance"]["type"] = "MANHATTAN"
         self.assertIsNone(restore_recipe(sheet, parameters, frames))

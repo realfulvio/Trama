@@ -4,7 +4,7 @@ import pandas as pd
 from scipy.stats import f
 
 from .field_error import FieldError
-from .kmeans_options import GAP_PLOT
+from .kmeans_options import GAP_PLOT, scale
 
 DETAILS = "Report cluster details"
 SCALED = "Report standardized observations"
@@ -27,7 +27,7 @@ def requested(options, *, scan=False):
             raise FieldError(name, "Choose whether to include this report.")
         if value:
             active.add(name)
-    if not options.get("Standardize", False):
+    if scale(options) == "none":
         active.discard(SCALED)
     if options.get("Criterion") not in GAP_CRITERIA and options.get(GAP_PLOT) is not True:
         active.discard(GAP)
@@ -56,7 +56,7 @@ def _gap_table(metrics):
     return table
 
 
-def result_tables(fits, raw, fitting_data, active, *, metrics=None):
+def result_tables(fits, raw, fitting_data, active, *, metrics=None, column_scale="standardize"):
     """Generate report tables from existing fits; all fits share complete observations."""
     variables = list(fitting_data.columns)
     values = fitting_data.to_numpy()
@@ -118,7 +118,8 @@ def result_tables(fits, raw, fitting_data, active, *, metrics=None):
     if assignments is not None:
         tables[ASSIGNMENTS_TABLE] = assignments
     if SCALED in active:
-        tables["Standardized observations"] = fitting_data
+        title = "Centered observations" if column_scale == "center" else "Standardized observations"
+        tables[title] = fitting_data
     if details:
         tables["Cluster details"] = pd.concat(details, ignore_index=True)
     if distances is not None:
