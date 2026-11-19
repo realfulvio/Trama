@@ -424,7 +424,8 @@ def _kmeans(frame, content, _results):
     from .cluster_consensus import KL_SCALING, UNSCALED_WSS
 
     calc = content["calc"]
-    if (calc["algorithm"] != "HARTIGAN_WONG" or calc["transform"] != "STANDARDIZE"
+    algorithm = {"HARTIGAN_WONG": selection.HARTIGAN, "MACQUEEN": selection.MACQUEEN}.get(calc["algorithm"])
+    if (algorithm is None or calc["transform"] != "STANDARDIZE"
             or calc["distance"]["type"] != "EUCLIDIAN" or calc["clusterMetrics"] is not True):
         return None
     variables = _roles(frame, content["data"]["variables"], 1, len(frame.columns))
@@ -468,9 +469,9 @@ def _kmeans(frame, content, _results):
     return selection.SELECTION, {
         "Variables": variables, "Minimum k": low, "Maximum k": high, "Standardize": True, "Seed": seed,
         "Criterion": "Consensus (17 indices)", "Gap simulations": gap_replicates, KL_SCALING: UNSCALED_WSS,
-        selection.ALGORITHM: selection.HARTIGAN, selection.MAX_ITERATIONS: iterations, **reports,
+        selection.ALGORITHM: algorithm, selection.ITERATION_FIELDS[algorithm]: iterations, **reports,
         "Prism import notes": (
-            "Recalculates the saved Hartigan–Wong settings with Trama initial centers and 20 Gap simulations. "
+            f"Recalculates the saved {algorithm} settings with Trama initial centers and 20 Gap simulations. "
             "Recreates enabled WSS, silhouette and Gap plots with native formatting. "
             "Saved partitions, tables and plots remain in archived views where available."
         ),

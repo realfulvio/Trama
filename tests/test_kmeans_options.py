@@ -78,5 +78,15 @@ class KmeansOptionsTests(unittest.TestCase):
         self.assertEqual(options["Krzanowski–Lai scaling"], "Unscaled WSS")
         tables = analyse(method, self.frame, options).tables
         self.assertEqual(tables["Selection"].loc["Suggested k", "Value"], 3)
+        content["calc"]["algorithm"] = "MACQUEEN"
+        content["calc"]["maxIterCount"] = 50
+        uid, method, restored = restore_recipe(sheet, parameters, frames)
+        self.assertEqual((uid, method), ("source", option.SELECTION))
+        self.assertEqual(restored[option.ALGORITHM], option.MACQUEEN)
+        self.assertEqual(restored[option.MACQUEEN_ITERATIONS], 50)
+        self.assertNotIn(option.MAX_ITERATIONS, restored)
+        self.assertIn("saved MacQueen settings", restored["Prism import notes"])
+        selection = analyse(method, self.frame, restored).tables["Selection"]
+        self.assertEqual(selection.loc[option.ALGORITHM, "Value"], option.MACQUEEN)
         content["calc"]["distance"]["type"] = "MANHATTAN"
         self.assertIsNone(restore_recipe(sheet, parameters, frames))
