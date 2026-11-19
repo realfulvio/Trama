@@ -15,6 +15,27 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### b7c4ee2 · Galleria di grafici e layout su Qt, pacchetto 03 (2026-11-19)
+
+PR draft verso `main` dal ramo `claude/project-thread-i504fp`, base `7a7340c`. **La consegna è il commit `b7c4ee2`.** Il commit dopo aggiunge solo questa nota. Guida per chi usa il programma: `docs/qt-gallery.md`.
+
+- Nuovo: **Visualizza → Galleria** (Ctrl+Maiusc+G). Schede con anteprima, nome, tipo e stato scritto a parole (Pronto, Non calcolato, Obsoleto, Calcolo non riuscito); viste Tutti/Grafici/Layout con conteggio; ricerca per nome (Ctrl+F) letterale, senza accenti, maiuscole e spazi doppi, con `$` come carattere normale. Frecce, Invio e doppio clic aprono il foglio con la navigazione normale (`open_sheet`), quindi il calcolo è quello ordinario con errori e Annulla; Esc o Alt+Sinistra tornano al foglio di partenza. La galleria non calcola mai e non sporca il progetto.
+- Anteprime: solo per le schede visibili, una figura per tick sul thread della GUI, in pausa mentre gira un calcolo, cache LRU da 64 schede invalidata da dati, Format Graph e ricalcolo. Sono disegnate con `savefig`, mai con un canvas nuovo, e non rubano il canvas della figura mostrata da un foglio. I layout si compongono pannello per pannello nelle proporzioni della pagina.
+- Scelte fuori specifica, da rivedere:
+  - La galleria prende il posto della pagina e la pagina di partenza resta nascosta (non distrutta); il foglio dati torna identico, gli altri si ricostruiscono con `show_sheet`.
+  - Filtro e testo di ricerca restano per la sessione e si azzerano cambiando progetto.
+  - I testi stanno in `trama_qt/gallery.py` (`g()`), non in `strings.py` né in `theme.py`, per non scontrarsi con #57, #58 e #59.
+  - Cinque icone nuove Lucide (ISC) in `assets/qt/icons/`.
+- Punti di conflitto con #57/#58/#59: `trama_qt/window.py` (azione `gallery`, gruppo Visualizza della barra, `update_actions`, `refresh`, `_replace_page`, `new_project`, `open_path`, `closeEvent`), `assets/qt/icons/` e questo file.
+- Da provare su Windows (NON PROVATO):
+  - Aprire `tests/data/qt_gallery/galleria.alab` (3 grafici, 2 layout), Visualizza → Galleria: cercare `Calibrazione $` trova una scheda; Invio la apre e la calcola; Esc torna al foglio dati.
+  - Anteprime nitide a 100% e 150%, e tema scuro; titolo e stato leggibili anche senza colore.
+  - Cambiare un dato e poi Format Graph: la scheda diventa "Obsoleto" o si ridisegna al ritorno in galleria.
+  - Un grafico con opzione sbagliata: scheda "Calcolo non riuscito", aprirlo mostra il motivo e non chiede dialoghi.
+  - Con molti grafici scorrere con la barra e col rotellino: i clic restano pronti.
+  - `python -m trama_qt --smoke CARTELLA` a 100% e 150%: i passi "gallery" non devono dare problemi.
+- Test attesi: `tests.test_qt_gallery` 38/38 OK, `tests.test_qt_shell` 21/21 OK. Misure con 120 schede in `/mnt/project-files/qt-galleria-095/`.
+
 ### 9c10a2f · Formule, cella con Invio e testo SVG: consegna finale per la 0.95 (2026-11-19)
 
 **Consegna finale per la 0.95: il commit `9c10a2f`.** Il commit dopo aggiunge solo questa nota. Integra quella revisione.

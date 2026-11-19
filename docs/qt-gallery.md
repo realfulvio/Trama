@@ -47,4 +47,4 @@ Una pagina breve spiega cosa fare (creare un grafico con Ctrl+G e riaprire la ga
 - `trama_qt/gallery_thumbs.py`: cache LRU e servizio di anteprime (solo thread della GUI, una figura per tick, `savefig` e mai un canvas nuovo).
 - `trama_qt/gallery.py`: modello, delegato e pagina. Ganci per il verificatore: `window.actions["gallery"]`, lista `sheetGallery`, casella `gallerySearch`, `UserRole` = riferimento della navigazione (es. `("graph", 0)`).
 - `trama_qt/window.py`: `toggle_gallery`, `open_gallery`, `close_gallery`, `_drop_gallery`; `refresh()` e `_replace_page` tengono la galleria coerente.
-- Test: `tests/test_qt_gallery.py` (37 test); misura con 120 schede: `python tests/perf_qt_gallery.py --mode lazy|eager`; smoke: passi "gallery" di `python -m trama_qt --smoke`.
+- Test: `tests/test_qt_gallery.py` (38 test); misura con 120 schede: `python tests/perf_qt_gallery.py --mode lazy|eager`; smoke: passi "gallery" di `python -m trama_qt --smoke`.
