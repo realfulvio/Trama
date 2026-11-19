@@ -1050,12 +1050,16 @@ def _imported_layout(options, layout_data=None):
 
 
 def analyse(method, frame, options, *, layout_data=None, cancel=None):
+    from .prism_xml_binding import SCATCHARD, scatchard
+
     o = options
     if o.get("Linear trend") and method != "One-way ANOVA":
         from .trend_anova import reject_unless_one_way
         reject_unless_one_way(method)
     if method == SAVED_XY:
         return _imported_xy(frame, o)
+    if method == SCATCHARD:
+        return scatchard(frame, o)
     if method == SAVED_BINARY_RESULT:
         return Result({o.get(PRISM_RESULT_SHEET, "Saved results"): frame})
     if method == SAVED_BINARY_GRAPH:

@@ -34,6 +34,7 @@ from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLEC
                                    PRISM_GRAPH_STYLE, PRISM_NOTES, PRISM_PREVIEW, PRISM_TITLE,
                                    SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT,
                                    SAVED_EDITABLE_GRAPH, SAVED_XY, panel_source_style, resolve_layout_panel_graphs)
+from analisi.prism_xml_binding import SCATCHARD
 from analisi.shape_interaction import ShapeHistory
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.workbench import analyse
@@ -45,7 +46,7 @@ PROJECT_SUFFIXES = {".alab", ".prism", ".prismt", ".pzf", ".pzt", ".pzfx", ".xml
 DATA_SUFFIXES = {".csv", ".tsv", ".txt", ".xlsx"}
 OPEN_FILTER = "*.alab *.csv *.tsv *.txt *.xlsx *.prism *.prismt *.pzt *.pzfx *.pzf *.xml"
 PRISM_GRAPH_METHODS = {SAVED_XY, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}
-SAVED_VIEWS = {SAVED_BINARY_GRAPH, SAVED_BINARY_RESULT, SAVED_BINARY_LAYOUT, SAVED_EDITABLE_GRAPH}
+SAVED_VIEWS = {SAVED_BINARY_GRAPH, SAVED_BINARY_RESULT, SAVED_BINARY_LAYOUT, SAVED_EDITABLE_GRAPH, SCATCHARD}
 HIERARCHY_GRAPH = "Hierarchy graph"
 MAX_TABLES = 256
 
