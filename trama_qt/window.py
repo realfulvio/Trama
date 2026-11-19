@@ -10,7 +10,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolb
 from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QStringListModel, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence
-from PySide6.QtWidgets import (QCompleter, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+from PySide6.QtWidgets import (QComboBox, QCompleter, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
                                QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QSplitter, QStackedWidget,
                                QTabBar, QTabWidget, QToolBar, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
@@ -20,7 +20,8 @@ from analisi.analysis_chain import ChainCancelled
 from analisi.field_error import FieldError
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, ui
 from analisi.monte_carlo import MonteCarloCancelled
-from analisi.prism_restore import SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT
+from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS
+from analisi.prism_restore import PRISM_GRAPH_LINK, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH
 from analisi.text_import import TEXT_SUFFIXES
 from analisi.workbench import GRAPH_METHODS, GROUPS
 
@@ -29,8 +30,8 @@ from .analysis_dialog import AnalysisDialog
 from .flow import FlowLayout
 from .labels import method_label
 from .models import WorksheetModel, column_label
-from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, CalculationControl, Project,
-                      Run, compute, run_view, stored_prism_view)
+from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, SAVED_VIEWS,
+                      CalculationControl, Project, Run, compute, run_view, stored_prism_view)
 from .sheet import FrameView, WorksheetView
 from .strings import qt
 
@@ -39,7 +40,6 @@ try:
 except Exception:  # pragma: no cover
     threshold_text = None
 
-READ_ONLY_VIEWS = {SAVED_BINARY_GRAPH, SAVED_BINARY_RESULT, SAVED_BINARY_LAYOUT}
 GRAPHING = tuple(GROUPS.get("Graphing", ())) + ("Plot a function",)
 
 
@@ -425,7 +425,8 @@ class MainWindow(QMainWindow):
         self.actions["copy"].setEnabled(data)
         for key in ("duplicate_family", "save_family"):
             self.actions[key].setEnabled(kind is not None and idle)
-        self.actions["change"].setEnabled(on_run and idle)
+        changeable = kind in {"result", "graph"} and self.project.runs[self.selected[1]].method not in SAVED_VIEWS
+        self.actions["change"].setEnabled(changeable and idle)
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
         self.actions["inspector"].setEnabled(graph and idle)
@@ -855,13 +856,50 @@ class MainWindow(QMainWindow):
         if failures:
             page.notice(qt("qt.stale", error="; ".join(dict.fromkeys(failures))))
 
+    def _imported_graph_actions(self, page, run):
+        link = run.options.get(PRISM_GRAPH_LINK)
+        editable = run.method == SAVED_EDITABLE_GRAPH
+        if editable:
+            page.button(ui("Edit graph data"), lambda: self.open_sheet(("data", run.title)),
+                        primary=True, icon="table")
+        if not isinstance(link, str) or not link:
+            return
+        target = SAVED_BINARY_GRAPH if editable else SAVED_EDITABLE_GRAPH
+        matches = [index for index, other in enumerate(self.project.runs)
+                   if other.method == target and other.options.get(PRISM_GRAPH_LINK) == link]
+        if len(matches) == 1:
+            label = ui("View original" if editable else "Open editable graph")
+            page.button(label, lambda: self.open_sheet(("graph", matches[0])), icon="chart-line")
+
+    def _imported_layout_actions(self, page, run):
+        graphs = self.project.layout_panel_graphs(run)
+        if not graphs:
+            return
+        panels = run.options.get(PRISM_EDITABLE_PANELS)
+        if not isinstance(panels, list):
+            panels = []
+        captions = {panel["id"]: panel.get("title") for panel in panels
+                    if isinstance(panel, dict) and isinstance(panel.get("id"), str)}
+        choice = QComboBox()
+        choice.setAccessibleName(ui("Edit panel data…"))
+        choice.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        choice.setMinimumContentsLength(18)
+        for panel, graph in graphs.items():
+            choice.addItem(f"{panel} · {captions.get(panel) or graph.name}", graph.title)
+        page.actions_row.addWidget(choice)
+        page.button(ui("Edit panel data…"), lambda: self.open_sheet(("data", choice.currentData())),
+                    primary=True, icon="table")
+
     def _run_page(self, kind, index):
         run = self.project.runs[index]
         subtitle = run.notes or (tr("command.analysis_results") if kind == "result" else tr("ribbon.graph"))
         page = Page(run.name, subtitle)
         result = run.result
-        editable = run.method not in READ_ONLY_VIEWS
-        if editable and kind != "saved-layout":
+        if kind == "graph" and run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}:
+            self._imported_graph_actions(page, run)
+        elif kind == "saved-layout":
+            self._imported_layout_actions(page, run)
+        if run.method not in SAVED_VIEWS and kind != "saved-layout":
             page.button(tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal")
         page.button(qt("qt.recalculate"), self.recalculate, icon="history")
         if kind == "result" and result is not None:
@@ -1130,6 +1168,8 @@ class MainWindow(QMainWindow):
             return
         index = self.selected[1]
         run = self.project.runs[index]
+        if run.method in SAVED_VIEWS:
+            return
         try:
             frame = self.project.input_frame(run)
         except ValueError as error:

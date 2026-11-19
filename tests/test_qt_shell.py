@@ -817,6 +817,70 @@ class QtShellTests(unittest.TestCase):
             window.open_path(path, import_data=True)
         self.assertEqual(list(window.project.tables), ["misure"])
 
+    def test_imported_graph_and_layout_link_to_editable_data(self):
+        from unittest.mock import patch
+
+        from PySide6.QtWidgets import QComboBox, QPushButton
+        from analisi.data import Dataset, save_project
+        from analisi.i18n import ui
+        from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA
+        from analisi.prism_restore import (
+            BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK, PRISM_GRAPH_STYLE,
+            SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_EDITABLE_GRAPH,
+        )
+        from analisi.workbench import Result
+
+        path = self.folder / "legacy.alab"
+        save_project(path, {
+            "Original": Dataset(pd.DataFrame({"Drawing": [1]}), table_format=BINARY_GRAPH_COLLECTION,
+                                analyses=[(SAVED_BINARY_GRAPH, {PRISM_GRAPH_LINK: "graph-a"}),
+                                          (SAVED_BINARY_GRAPH, {PRISM_GRAPH_LINK: "unmatched"})]),
+            "Coordinates": Dataset(pd.DataFrame({"Y": [6.], "Lower error": [1.]}), analyses=[
+                (SAVED_EDITABLE_GRAPH, {PRISM_GRAPH_LINK: "graph-a", PRISM_GRAPH_STYLE: {}})]),
+            "Page": Dataset(pd.DataFrame({"Drawing": [1]}), table_format=BINARY_LAYOUT_COLLECTION, analyses=[
+                (SAVED_BINARY_LAYOUT, {PRISM_PANEL_DATA: {"1": "graph-a", "2": "unmatched"},
+                                       PRISM_EDITABLE_PANELS: [{"id": "1", "title": "Panel A"}]})]),
+        })
+        window = self.window
+        panel_errors = []
+
+        def render(run, frame, control=None, layout_data=None, pairwise=None):
+            if run.method == SAVED_BINARY_LAYOUT:
+                panel_errors.append(layout_data["1"][0]["Lower error"].iat[0])
+            return Result({})
+
+        def click(caption):
+            button = next(button for button in window.page.findChildren(QPushButton) if button.text() == ui(caption))
+            button.click()
+            self.wait()
+
+        with patch("trama_qt.project.compute", side_effect=render):
+            window.open_path(path)
+            window.open_sheet(("graph", 0))
+            self.wait()
+            click("Open editable graph")
+            self.assertEqual(window.selected, ("graph", 2))
+            self.assertFalse(window.actions["change"].isEnabled())
+            click("View original")
+            self.assertEqual(window.selected, ("graph", 0))
+            click("Open editable graph")
+            click("Edit graph data")
+            self.assertEqual(window.selected, ("data", "Coordinates"))
+            window.open_sheet(("graph", 1))
+            self.wait()
+            self.assertNotIn(ui("Open editable graph"), [item.text() for item in window.page.findChildren(QPushButton)])
+            window.open_sheet(("saved-layout", 3))
+            self.wait()
+            choice = window.page.findChild(QComboBox)
+            self.assertEqual((choice.count(), choice.currentText()), (1, "1 · Panel A"))
+            click("Edit panel data…")
+            self.assertEqual(window.selected, ("data", "Coordinates"))
+            self.assertTrue(window.edit_cell("Coordinates", 0, 1, "2.5"))
+            self.wait()
+            window.undo()
+            self.wait()
+        self.assertEqual(panel_errors, [1., 2.5, 1.])
+
     def test_layout_compose_edit_reopen(self):
         from trama_qt.layout_dialog import LayoutDialog
         window = self.window

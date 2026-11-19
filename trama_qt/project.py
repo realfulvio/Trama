@@ -421,20 +421,26 @@ class Project:
         return {"settings": settings, "method": method, "options": deepcopy(options), "tables": tables,
                 "key": (run.title, slot)}
 
-    def layout_panel_data(self, run):
-        """Data of the editable graphs a saved layout draws again."""
+    def layout_panel_graphs(self, run):
+        """Resolve a saved layout's panel links to unique editable graphs."""
         links = run.options.get(PRISM_PANEL_DATA)
         if run.method != SAVED_BINARY_LAYOUT or not isinstance(links, dict):
-            return None
+            return {}
         graphs = {}
         for item in self.runs:
             link = item.options.get(PRISM_GRAPH_LINK)
             if (item.method == SAVED_EDITABLE_GRAPH and item.title in self.tables and isinstance(link, str)
                     and isinstance(item.options.get(PRISM_GRAPH_STYLE), dict)):
                 graphs[link] = None if link in graphs else item
-        return {panel: (self.tables[graphs[link].title].frame(mask_excluded=True),
-                        graphs[link].options[PRISM_GRAPH_STYLE])
+        return {panel: graphs[link]
                 for panel, link in links.items() if isinstance(link, str) and graphs.get(link)}
+
+    def layout_panel_data(self, run):
+        """Data of the editable graphs a saved layout draws again."""
+        if run.method != SAVED_BINARY_LAYOUT or not isinstance(run.options.get(PRISM_PANEL_DATA), dict):
+            return None
+        return {panel: (self.tables[graph.title].frame(mask_excluded=True), graph.options[PRISM_GRAPH_STYLE])
+                for panel, graph in self.layout_panel_graphs(run).items()}
 
     def layout_figure(self, layout):
         by_reference = {run.reference: run for run in self.runs}
@@ -716,7 +722,12 @@ class Project:
         return self.table_runs(title)
 
     def table_runs(self, title):
-        return [run for run in self.runs if run.title == title and run.source is None]
+        affected = [run for run in self.runs if run.title == title and run.source is None]
+        if any(run.method == SAVED_EDITABLE_GRAPH for run in affected):
+            affected.extend(run for run in self.runs
+                            if run.title != title and run.method == SAVED_BINARY_LAYOUT
+                            and any(graph.title == title for graph in self.layout_panel_graphs(run).values()))
+        return affected
 
     def paste(self, title, top, left, rows, label="Paste"):
         return self.edit(title, label, lambda dataset: paste_block(dataset, top, left, rows))
