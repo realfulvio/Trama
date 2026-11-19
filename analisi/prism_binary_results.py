@@ -177,7 +177,7 @@ def _view_kind(records, slot):
     return kinds[0] if len(kinds) == 1 else None
 
 
-def _x_sequence(records, rows):
+def _x_sequence(records, rows, *, source_free=False):
     # Sequence records use two single- or double-precision slots for origin and step.
     # The latter has a zero status in this layout even when its step is active.
     contents = _record_once(records, 0x10)
@@ -188,7 +188,7 @@ def _x_sequence(records, rows):
     attributes_short = Struct("<6I").pack(1, 16, 4, 2, 0, 0)
     attributes_long = Struct("<12I").pack(2, 16, 16, 2, 0, 1, 0, 0, 0, 0, 0, 0)
     if (precision not in (0, 1) or count != 2 or len(contents) != 6 + 2 * _NUMERIC_CELL[precision].size
-            or _record_once(records, 0x90) != b"\0\0"
+            or _record_once(records, 0x90) != (b"\1\0" if source_free else b"\0\0")
             or not (attributes == attributes_long or precision == 0 and attributes == attributes_short)):
         raise _UnsupportedSheet("Unrecognized saved X sequence")
     title_runs = _record_once(records, 0x64, required=False)
@@ -204,7 +204,8 @@ def _x_sequence(records, rows):
     return [start + index * step for index in range(rows)]
 
 
-def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remaining_cells, fonts):
+def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remaining_cells, fonts,
+                       *, source_free=False):
     if unpack_from("<i", layout)[0] != -1 or len(datasets) > MAX_COLUMNS:
         return None
     x_uid = None
@@ -218,7 +219,7 @@ def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remain
         if (uid < 0 or uid in fields or analysis != analysis_id or owner != sheet_id
                 or storage != _RESULT_STORAGE or repeats != 1 or count != rows or rows < 0):
             raise _UnsupportedSheet("Invalid curve data set ownership or dimensions")
-        if (kind, role, form, rows) == (4, 4, 11, 0) and x_uid is None:
+        if (kind, role, form) == (4, 4, 11) and rows in ((0, 1) if source_free else (0,)) and x_uid is None:
             x_uid = uid
         elif (kind, role, form) != (1, 40, _PLAIN):
             return None
@@ -234,7 +235,7 @@ def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remain
     if len(fields) * height > remaining_cells:
         raise _UnsupportedSheet("Saved curve exceeds the size limit")
     x_records = fields[x_uid][2]
-    columns = [_x_sequence(x_records, height)]
+    columns = [_x_sequence(x_records, height, source_free=source_free)]
     headers = []
     for position, uid in enumerate((x_uid, *y_uids)):
         _, rows, records = fields[uid]

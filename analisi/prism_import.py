@@ -483,6 +483,14 @@ def _prism_xml(path, info_sheets=None, *, restore=False):
         from .prism_xml_xy import attach_xml_error_graphs
 
         attach_xml_error_graphs(root, ns, xml_sources)
+    elif restore and not xml_tables:
+        from .prism_xml_generated import recover_generated_graphs
+        from .prism_xml_xy import template_data
+
+        payload = template_data(root, ns)
+        if payload is not None:
+            for title, frame in recover_generated_graphs(payload):
+                _store_table(tables, title, frame)
     if info_sheets is not None:
         _xml_info(root, ns, info_sheets, skipped)
     return _finish(tables, skipped, info_sheets)

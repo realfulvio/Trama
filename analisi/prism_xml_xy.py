@@ -29,22 +29,33 @@ _MAX_GRAPH_POINTS = 50_000
 _MAX_TICKS = 200
 
 
-def attach_xml_error_graphs(root, namespace, sources):
-    """Attach native recipes to their source tables. Bad artwork does not stop data import."""
+def template_data(root, namespace):
+    """Decode the one bounded binary Template element without executing its content."""
     templates = root.findall(namespace + "Template")
-    if not sources or len(templates) != 1:
-        return
+    if len(templates) != 1:
+        return None
     template = templates[0]
     if len(template) or template.get(_TEMPLATE_TYPE) != "bin.base64":
-        return
+        return None
     try:
         compressed = b64decode("".join((template.text or "").split()), validate=True)
         decoder = decompressobj()
         data = decoder.decompress(compressed, MAX_ENTRY + 1)
-        if len(data) > MAX_ENTRY or not decoder.eof or decoder.unused_data or decoder.unconsumed_tail:
-            return
+    except (ValueError, ZlibError):
+        return None
+    if len(data) <= MAX_ENTRY and decoder.eof and not decoder.unused_data and not decoder.unconsumed_tail:
+        return data
+    return None
+
+
+def attach_xml_error_graphs(root, namespace, sources):
+    """Attach native recipes to their source tables. Bad artwork does not stop data import."""
+    data = template_data(root, namespace)
+    if data is None:
+        return
+    try:
         index, encoding, graphs, tables = _project_records(data, sources)
-    except (ValueError, ZlibError, StructError):
+    except (ValueError, StructError):
         return
 
     try:

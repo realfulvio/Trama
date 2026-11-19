@@ -937,9 +937,12 @@ def _imported_xy(frame, options, layout_data=None):
     from .prism_mv_scatter import APPEARANCE, appearance_record, apply_axes
     from .prism_xml_binding_layout import XML_BINDING_XY, render_binding_graph
     from .prism_xml_xy import XML_ERROR_BARS, render_xml_error_graph
+    from .prism_xml_generated import XML_GENERATED_XY, render_generated_graph
     from .prism_zip_column import ZIP_COLUMN, render_aligned_column
     from .prism_zip_xy import ZIP_SPARSE_XY, render_sparse_xy
 
+    if XML_GENERATED_XY in options:
+        return render_generated_graph(frame, options[XML_GENERATED_XY])
     if XML_ERROR_BARS in options:
         return render_xml_error_graph(frame, options)
     if XML_BINDING_XY in options:
