@@ -1,0 +1,488 @@
+[
+  {
+    "name": "balanced/Difference/direct",
+    "csv": "balanced.csv",
+    "input_rows": 8,
+    "numeric": [
+      "Occasion |",
+      "First",
+      "Second"
+    ],
+    "method": "Bland–Altman for repeated pairs",
+    "options": {
+      "Subject": "Subject $",
+      "Occasion": "Occasion |",
+      "First": "First",
+      "Second": "Second",
+      "Mode": "Difference",
+      "Coverage": 95,
+      "Confidence intervals": "None"
+    },
+    "tables": {
+      "Agreement": {
+        "count": 1,
+        "columns": [
+          "Bias",
+          "Within-subject variance",
+          "Between-subject variance",
+          "Lower agreement limit",
+          "Upper agreement limit"
+        ],
+        "rows": [
+          {
+            "Bias": 1.75,
+            "Within-subject variance": 2.0,
+            "Between-subject variance": 7.916666666666666,
+            "Lower agreement limit": -4.422071503032839,
+            "Upper agreement limit": 7.922071503032839
+          }
+        ]
+      },
+      "Subjects": {
+        "count": 4,
+        "columns": [],
+        "rows": []
+      },
+      "Pairs": {
+        "count": 8,
+        "columns": [
+          "Source row"
+        ],
+        "rows": [
+          {
+            "Source row": 1
+          },
+          {
+            "Source row": 2
+          },
+          {
+            "Source row": 3
+          },
+          {
+            "Source row": 4
+          },
+          {
+            "Source row": 5
+          },
+          {
+            "Source row": 6
+          },
+          {
+            "Source row": 7
+          },
+          {
+            "Source row": 8
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "balanced/Difference/reverse",
+    "csv": "balanced.csv",
+    "input_rows": 8,
+    "numeric": [
+      "Occasion |",
+      "First",
+      "Second"
+    ],
+    "method": "Bland–Altman for repeated pairs",
+    "options": {
+      "Subject": "Subject $",
+      "Occasion": "Occasion |",
+      "First": "Second",
+      "Second": "First",
+      "Mode": "Difference",
+      "Coverage": 95,
+      "Confidence intervals": "None"
+    },
+    "tables": {
+      "Agreement": {
+        "count": 1,
+        "columns": [
+          "Bias",
+          "Within-subject variance",
+          "Between-subject variance",
+          "Lower agreement limit",
+          "Upper agreement limit"
+        ],
+        "rows": [
+          {
+            "Bias": -1.75,
+            "Within-subject variance": 2.0,
+            "Between-subject variance": 7.916666666666666,
+            "Lower agreement limit": -7.922071503032839,
+            "Upper agreement limit": 4.422071503032839
+          }
+        ]
+      },
+      "Subjects": {
+        "count": 4,
+        "columns": [],
+        "rows": []
+      },
+      "Pairs": {
+        "count": 8,
+        "columns": [
+          "Source row"
+        ],
+        "rows": [
+          {
+            "Source row": 1
+          },
+          {
+            "Source row": 2
+          },
+          {
+            "Source row": 3
+          },
+          {
+            "Source row": 4
+          },
+          {
+            "Source row": 5
+          },
+          {
+            "Source row": 6
+          },
+          {
+            "Source row": 7
+          },
+          {
+            "Source row": 8
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "balanced/Log ratio/direct",
+    "csv": "balanced.csv",
+    "input_rows": 8,
+    "numeric": [
+      "Occasion |",
+      "First",
+      "Second"
+    ],
+    "method": "Bland–Altman for repeated pairs",
+    "options": {
+      "Subject": "Subject $",
+      "Occasion": "Occasion |",
+      "First": "First",
+      "Second": "Second",
+      "Mode": "Log ratio",
+      "Coverage": 95,
+      "Confidence intervals": "None"
+    },
+    "tables": {
+      "Agreement": {
+        "count": 1,
+        "columns": [
+          "Bias",
+          "Within-subject variance",
+          "Between-subject variance",
+          "Lower agreement limit",
+          "Upper agreement limit"
+        ],
+        "rows": [
+          {
+            "Bias": 1.0571095521079865,
+            "Within-subject variance": 0.0034845584271208734,
+            "Between-subject variance": 0.012643219300735994,
+            "Lower agreement limit": 0.8241789103503746,
+            "Upper agreement limit": 1.355871390451965
+          }
+        ]
+      },
+      "Subjects": {
+        "count": 4,
+        "columns": [],
+        "rows": []
+      },
+      "Pairs": {
+        "count": 8,
+        "columns": [
+          "Source row"
+        ],
+        "rows": [
+          {
+            "Source row": 1
+          },
+          {
+            "Source row": 2
+          },
+          {
+            "Source row": 3
+          },
+          {
+            "Source row": 4
+          },
+          {
+            "Source row": 5
+          },
+          {
+            "Source row": 6
+          },
+          {
+            "Source row": 7
+          },
+          {
+            "Source row": 8
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "unequal/Difference/direct",
+    "csv": "unequal.csv",
+    "input_rows": 10,
+    "numeric": [
+      "Occasion |",
+      "First",
+      "Second"
+    ],
+    "method": "Bland–Altman for repeated pairs",
+    "options": {
+      "Subject": "Subject $",
+      "Occasion": "Occasion |",
+      "First": "First",
+      "Second": "Second",
+      "Mode": "Difference",
+      "Coverage": 95,
+      "Confidence intervals": "None"
+    },
+    "tables": {
+      "Agreement": {
+        "count": 1,
+        "columns": [
+          "Bias",
+          "Within-subject variance",
+          "Between-subject variance",
+          "Lower agreement limit",
+          "Upper agreement limit"
+        ],
+        "rows": [
+          {
+            "Bias": 3.1,
+            "Within-subject variance": 5.0,
+            "Between-subject variance": 15.128571428571426,
+            "Lower agreement limit": -5.6933542099848005,
+            "Upper agreement limit": 11.8933542099848
+          }
+        ]
+      },
+      "Subjects": {
+        "count": 4,
+        "columns": [],
+        "rows": []
+      },
+      "Pairs": {
+        "count": 10,
+        "columns": [
+          "Source row"
+        ],
+        "rows": [
+          {
+            "Source row": 1
+          },
+          {
+            "Source row": 2
+          },
+          {
+            "Source row": 3
+          },
+          {
+            "Source row": 4
+          },
+          {
+            "Source row": 5
+          },
+          {
+            "Source row": 6
+          },
+          {
+            "Source row": 7
+          },
+          {
+            "Source row": 8
+          },
+          {
+            "Source row": 9
+          },
+          {
+            "Source row": 10
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "unequal/Difference/reverse",
+    "csv": "unequal.csv",
+    "input_rows": 10,
+    "numeric": [
+      "Occasion |",
+      "First",
+      "Second"
+    ],
+    "method": "Bland–Altman for repeated pairs",
+    "options": {
+      "Subject": "Subject $",
+      "Occasion": "Occasion |",
+      "First": "Second",
+      "Second": "First",
+      "Mode": "Difference",
+      "Coverage": 95,
+      "Confidence intervals": "None"
+    },
+    "tables": {
+      "Agreement": {
+        "count": 1,
+        "columns": [
+          "Bias",
+          "Within-subject variance",
+          "Between-subject variance",
+          "Lower agreement limit",
+          "Upper agreement limit"
+        ],
+        "rows": [
+          {
+            "Bias": -3.1,
+            "Within-subject variance": 5.0,
+            "Between-subject variance": 15.128571428571426,
+            "Lower agreement limit": -11.8933542099848,
+            "Upper agreement limit": 5.6933542099848005
+          }
+        ]
+      },
+      "Subjects": {
+        "count": 4,
+        "columns": [],
+        "rows": []
+      },
+      "Pairs": {
+        "count": 10,
+        "columns": [
+          "Source row"
+        ],
+        "rows": [
+          {
+            "Source row": 1
+          },
+          {
+            "Source row": 2
+          },
+          {
+            "Source row": 3
+          },
+          {
+            "Source row": 4
+          },
+          {
+            "Source row": 5
+          },
+          {
+            "Source row": 6
+          },
+          {
+            "Source row": 7
+          },
+          {
+            "Source row": 8
+          },
+          {
+            "Source row": 9
+          },
+          {
+            "Source row": 10
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "unequal/Log ratio/direct",
+    "csv": "unequal.csv",
+    "input_rows": 10,
+    "numeric": [
+      "Occasion |",
+      "First",
+      "Second"
+    ],
+    "method": "Bland–Altman for repeated pairs",
+    "options": {
+      "Subject": "Subject $",
+      "Occasion": "Occasion |",
+      "First": "First",
+      "Second": "Second",
+      "Mode": "Log ratio",
+      "Coverage": 95,
+      "Confidence intervals": "None"
+    },
+    "tables": {
+      "Agreement": {
+        "count": 1,
+        "columns": [
+          "Bias",
+          "Within-subject variance",
+          "Between-subject variance",
+          "Lower agreement limit",
+          "Upper agreement limit"
+        ],
+        "rows": [
+          {
+            "Bias": 1.099984090504752,
+            "Within-subject variance": 0.006146344582625252,
+            "Between-subject variance": 0.017821898965434794,
+            "Lower agreement limit": 0.8120936213402301,
+            "Upper agreement limit": 1.4899328939029388
+          }
+        ]
+      },
+      "Subjects": {
+        "count": 4,
+        "columns": [],
+        "rows": []
+      },
+      "Pairs": {
+        "count": 10,
+        "columns": [
+          "Source row"
+        ],
+        "rows": [
+          {
+            "Source row": 1
+          },
+          {
+            "Source row": 2
+          },
+          {
+            "Source row": 3
+          },
+          {
+            "Source row": 4
+          },
+          {
+            "Source row": 5
+          },
+          {
+            "Source row": 6
+          },
+          {
+            "Source row": 7
+          },
+          {
+            "Source row": 8
+          },
+          {
+            "Source row": 9
+          },
+          {
+            "Source row": 10
+          }
+        ]
+      }
+    }
+  }
+]
