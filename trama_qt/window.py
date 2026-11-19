@@ -42,6 +42,7 @@ from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_S
 from .sessions import MAX_PROJECT_TABS, Sessions
 from .shape_canvas import GraphDrawing
 from .sheet import FrameView, WorksheetView
+from .status_label import StatusLabel
 from .strings import qt
 
 try:
@@ -413,7 +414,7 @@ class MainWindow(QMainWindow):
 
         status = self.statusBar()
         status.setSizeGripEnabled(True)
-        self.message = QLabel(qt("qt.ready"))
+        self.message = StatusLabel(qt("qt.ready"))
         status.addWidget(self.message, 1)
         self.cell_label = QLabel("")
         status.addPermanentWidget(self.cell_label)

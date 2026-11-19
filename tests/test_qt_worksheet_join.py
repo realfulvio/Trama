@@ -399,6 +399,10 @@ class QtJoinTests(unittest.TestCase):
         self.window.refresh_runs([project.runs[0]])
         self.wait()
         self.assertIn('"Gone $ sheet" is not in this project', project.runs[0].calculation_error)
+        status = self.window.message  # the long status line elides instead of widening the window
+        self.assertIn('"Gone $ sheet"', status.text())
+        self.assertEqual(status.toolTip(), status.text())
+        self.assertLess(status.minimumSizeHint().width(), status.fontMetrics().horizontalAdvance(status.text()))
 
         def relink(dialog):
             editor = dialog.join
