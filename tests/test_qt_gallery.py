@@ -428,6 +428,15 @@ class GalleryWindowTests(unittest.TestCase):
         if expected is not None:
             self.assertEqual(gallery.service.drawn, expected)
 
+    def visit_all_cards(self):
+        """Scroll every card into view before checking the total preview count."""
+        view = self.window.gallery.view
+        for row in range(view.model().rowCount()):
+            view.scrollTo(view.model().index(row, 0))
+            self.settle_previews()
+        view.scrollToTop()
+        self.settle_previews()
+
     def open_fixture(self, *, calculate=False):
         self.window.open_path(FIXTURE)
         self.wait()
@@ -618,7 +627,7 @@ class GalleryWindowTests(unittest.TestCase):
     def test_previews_follow_data_and_format_changes_and_recalculation(self):
         self.open_fixture(calculate=True)
         gallery = self.open_gallery()
-        self.settle_previews()
+        self.visit_all_cards()
         entry = next(entry for entry in gallery.entries if entry.ref == ("graph", 0))
         first = gallery.service.cache.get(entry)
         self.assertIsNotNone(first)
@@ -656,7 +665,7 @@ class GalleryWindowTests(unittest.TestCase):
         export_graph(project.runs[0].result.figure, before_graph)
         project.export_layout(project.layouts[0], before_layout)
         self.open_gallery()
-        self.settle_previews()
+        self.visit_all_cards()
         self.assertGreaterEqual(self.window.gallery.service.drawn, 5)
         self.window.close_gallery()
         after_graph, after_layout = self.folder / "graph-after.png", self.folder / "layout-after.png"
@@ -705,7 +714,7 @@ class GalleryWindowTests(unittest.TestCase):
     def test_a_new_project_removes_the_gallery_and_its_previews(self):
         self.open_fixture(calculate=True)
         gallery = self.open_gallery()
-        self.settle_previews()
+        self.visit_all_cards()
         service = gallery.service
         self.assertGreaterEqual(len(service.cache), 5)
         self.window.project.dirty = False
