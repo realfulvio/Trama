@@ -96,7 +96,7 @@ def verify_file(path, fmt):
             from xml.etree import ElementTree
 
             root = ElementTree.parse(path).getroot()
-            if not root.tag.endswith("svg"):
+            if root.tag not in {"svg", "{http://www.w3.org/2000/svg}svg"}:
                 raise ValueError("The file is not an SVG document.")
         else:
             import pypdfium2 as pdfium
@@ -199,13 +199,20 @@ class BatchExport:
             self._close_rest(CANCELLED)
             return False
         item, outcome = self.items[self.position], self.outcomes[self.position]
-        staged = self.staging / f"{self.position:03d}{Path(item.filename).suffix}"
+        suffix = "." + self.format
+        staged = self.staging / f"{self.position:03d}{suffix}"
         try:
+            filename = item.filename
+            if not isinstance(filename, str) or not filename.endswith(suffix):
+                raise ValueError("The file name must use the selected export format.")
+            stem = filename[:-len(suffix)]
+            if stem != safe_stem(stem):
+                raise ValueError("The file name must be a single valid name in the export folder.")
             item.render(staged)
             verify_file(staged, self.format)
-            outcome.status, outcome.reason = self._publish(staged, item.filename)
+            outcome.status, outcome.reason = self._publish(staged, filename)
             if outcome.status == DONE:
-                outcome.path = self.folder / item.filename
+                outcome.path = self.folder / filename
         except Exception as error:  # Any failure of one figure; the others still get their chance.
             outcome.status, outcome.reason = ERROR, str(error) or type(error).__name__
         finally:

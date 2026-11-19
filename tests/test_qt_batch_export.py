@@ -148,6 +148,22 @@ class BatchWriterTests(unittest.TestCase):
             self.assertEqual(len(self.listing()), 6)
             self.assertEqual(sorted(p.name for p in self.root.iterdir()), ["out"])  # Nothing outside the folder.
 
+    def test_rejects_unsafe_or_mismatched_file_names_before_rendering(self):
+        render = mock.Mock()
+        invalid_names = ["", "nested/A.svg", r"nested\A.svg", "CON.svg",
+                         "A .svg", "A.png", "A.svg:stream"]
+        items = [bx.BatchItem("A", name, render) for name in invalid_names]
+        outcomes = bx.BatchExport(self.folder, "svg", items).run()
+        self.assertEqual([item.status for item in outcomes], [bx.ERROR] * len(items))
+        render.assert_not_called()
+        self.assertEqual(self.listing(), [])
+
+    def test_rejects_an_xml_root_that_is_not_svg(self):
+        path = self.root / "invalid.svg"
+        path.write_text("<not-svg/>", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            bx.verify_file(path, "svg")
+
     def test_renderer_error_continues_and_leaves_no_temporary(self):
         batch = bx.BatchExport(self.folder, "png", self.items(["A", "B", "C"], "png", fail={"B"}))
         outcomes = batch.run()
@@ -339,6 +355,16 @@ class BatchExportWindowTests(unittest.TestCase):
             dialog.refresh()
             dialog.start_export()
         return script
+
+    def test_dialog_is_released_after_closing(self):
+        from PySide6.QtCore import QCoreApplication, QEvent
+        from trama_qt.batch_export_dialog import BatchExportDialog
+
+        window = self.open_fixture(layout=False)
+        with mock.patch.object(BatchExportDialog, "exec", return_value=0):
+            window.export_batch()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.assertFalse(window.findChildren(BatchExportDialog))
 
     def test_three_figures_in_each_format_then_suffixed(self):
         import pypdfium2 as pdfium

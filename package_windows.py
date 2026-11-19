@@ -20,7 +20,7 @@ def main():
     for name in ("features.md", "getting-started.md", "compatibility.md", "development.md", "legal.md",
                  "competing-risks.md", "kmeans-algorithms.md", "independent-roc-curves.md", "ancova-090.md",
                  "grouped-distributions.md", "qt-migration.md", "qt-canvas-095.md", "qt-gallery.md",
-                 "project-tabs-qt.md", "release-094.md",
+                 "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "release-094.md",
                  "release-093.md", "validation-093.md",
                  "release-092.md", "validation-092.md", "release-091.md", "validation-091.md",
                  "pca-regression-087.md", "release-090.md", "validation-090.md",

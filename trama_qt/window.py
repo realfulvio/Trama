@@ -2598,11 +2598,14 @@ class MainWindow(QMainWindow):
             return
         folder = project.path.parent if project.path is not None else ""
         dialog = BatchExportDialog(self, project, rows, folder)
-        dialog.exec()
-        if dialog.outcomes is not None:
-            counts = dialog.counts()
-            self.status(batch_text("status", done=counts["done"], total=len(dialog.outcomes),
-                                   folder=dialog.batch.folder.name or str(dialog.batch.folder)))
+        try:
+            dialog.exec()
+            if dialog.outcomes is not None:
+                counts = dialog.counts()
+                self.status(batch_text("status", done=counts["done"], total=len(dialog.outcomes),
+                                       folder=dialog.batch.folder.name or str(dialog.batch.folder)))
+        finally:
+            dialog.deleteLater()
 
     def open_classic(self):
         if self.busy():

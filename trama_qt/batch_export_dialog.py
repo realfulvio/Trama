@@ -411,7 +411,7 @@ class BatchExportDialog(QDialog):
         self.export_button.setVisible(False)
         self.close_button.setText(text("cancel"))
         self._announce()
-        QTimer.singleShot(0, self._advance)
+        QTimer.singleShot(0, self, self._advance)
 
     def _announce(self):
         batch = self.batch
@@ -428,7 +428,7 @@ class BatchExportDialog(QDialog):
         self._show_outcomes()
         if more:
             self._announce()
-            QTimer.singleShot(0, self._advance)
+            QTimer.singleShot(0, self, self._advance)
         else:
             self._finish()
 
