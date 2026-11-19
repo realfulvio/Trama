@@ -26,6 +26,14 @@ Trama è sviluppato dai contributori del progetto e si basa sul lavoro della com
 
 Il pacchetto Windows raccoglie gli avvisi delle distribuzioni installate nella cartella **Third-party licenses**, compresi quelli del runtime Python. Alcuni componenti incorporano altre librerie con avvisi propri: va conservata l'intera cartella, non soltanto questa tabella. Versioni e dipendenze dirette sono fissate in [requirements.txt](requirements.txt); per una distribuzione specifica fanno riferimento i testi inclusi in quell'archivio.
 
+## Distribuzione di Qt
+
+Trama 0.95 distribuisce Qt 6.12.0, PySide6 Essentials 6.12.0 e Shiboken6 6.12.0 come librerie dinamiche non modificate, separate da `Trama.exe`. Le DLL e i moduli nativi si trovano nella cartella `_internal` del portabile e possono essere sostituiti con build compatibili. La licenza di Trama consente il debug delle modifiche alle librerie secondo la LGPL.
+
+- [Sorgenti di Qt 6.12.0](https://download.qt.io/official_releases/qt/6.12/6.12.0/single/)
+- [Sorgenti di PySide6 e Shiboken6 6.12.0](https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.12.0-src/)
+- Testi [LGPL 3.0](assets/qt/licenses/LGPL-3.0.txt) e [GPL 3.0](assets/qt/licenses/GPL-3.0.txt). Nel portabile i testi si trovano in `_internal/assets/qt/licenses/`.
+
 ## Metodi, campioni e strumenti
 
 Metodi statistici, scelte implementative e fonti dei campioni sono documentati nella [copertura tecnica](docs/coverage.md) e nelle relative prove. I campioni esterni non diventano MIT perché letti da Trama. Le loro attribuzioni e licenze restano applicabili; dove i file non sono redistribuibili, il sorgente non ne concede una copia.
