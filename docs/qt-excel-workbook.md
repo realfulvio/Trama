@@ -127,7 +127,7 @@ scrivibili (la causa originale resta in `__cause__`), `FileExistsError` con `ove
 Misure nel container Linux di sviluppo (4 CPU logiche Xeon 2,3 GHz, 15 GB) su due fogli da 50.000 × 20
 (14 colonne decimali, 3 intere, 3 di testo): vedi `excel-timings.txt` dello smoke. Ordine di grandezza:
 apertura + anteprima < 1 s, import di entrambi i fogli ≈ 8 s, export ≈ 13 s (22,9 MB), risposta ad Annulla
-< 0,2 s. La scrittura usa openpyxl in modalità streaming; con `lxml` installato sarebbe più veloce, ma non è
+entro 0,5 s (0,08–0,4 s nelle quattro prove). La scrittura usa openpyxl in modalità streaming; con `lxml` installato sarebbe più veloce, ma non è
 una dipendenza di Trama.
 
 Due accorgimenti: l'export scrive l'elemento `<dimension>` di ogni foglio, e la lettura non analizza un intero
