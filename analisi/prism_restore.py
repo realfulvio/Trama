@@ -521,7 +521,7 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
     from .prism_binary_graphs import read_binary_graphs
     from .prism_binary_layouts import read_binary_layouts
     from .prism_binary_results import restore_binary_results
-    from .prism_emf_edit import CURVE, POINTS
+    from .prism_emf_edit import CURVE, LIMIT_SOURCE, POINTS
     from .prism_layout_edit import PRISM_EDITABLE_PANELS
     from .prism_pdf_stacks import STACK_KIND
 
@@ -578,9 +578,10 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
             if uid not in editable:
                 continue
             frame, style = editable[uid]
-            if len(tables) >= 256 or cells + frame.size > MAX_CELLS:
-                break
             kind = style.get("kind")
+            binding = style.get(LIMIT_SOURCE)
+            if binding is None and (len(tables) >= 256 or cells + frame.size > MAX_CELLS):
+                continue
             if kind == STACK_KIND:
                 if graph["preview"]["format"] != "pdf":
                     continue
@@ -594,8 +595,9 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
                 if graph["preview"]["format"] != "emf":
                     continue
                 table_format = EDITABLE_PRISM_EMF
-                notes = ("Edit coordinates and any displayed error distances in the graph data sheet. "
-                         "The editable view retains the saved drawing. The original graph remains available.")
+                notes = ("Edit coordinates and displayed endpoints in the original worksheet." if binding is not None else
+                         "Edit coordinates and any displayed error distances in the graph data sheet.")
+                notes += " The editable view retains the saved drawing. The original graph remains available."
                 if style.get("fixed_overlays"):
                     notes += " The overlaid observations retain their saved positions."
                 if style.get("cached_curve"):
@@ -605,16 +607,20 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
             else:
                 table_format = EDITABLE_PRISM_XY
                 notes = "Editable XY graph with recovered Prism formatting. Original drawing remains available."
-            frame.attrs["table_format"] = table_format
-            frame.attrs["prism_recipes"] = [(SAVED_EDITABLE_GRAPH, {
+            if binding is not None:
+                frame = sources[binding["sheet"]]
+            else:
+                frame.attrs["table_format"] = table_format
+            frame.attrs.setdefault("prism_recipes", []).append((SAVED_EDITABLE_GRAPH, {
                 PRISM_TITLE: graph["title"] + " · Editable",
                 PRISM_NOTES: notes,
                 PRISM_GRAPH_STYLE: style,
                 PRISM_GRAPH_LINK: graph_links[uid],
                 **({PRISM_PREVIEW: graph["preview"]} if table_format != EDITABLE_PRISM_XY else {}),
-            })]
-            _store_table(tables, f'Prism graph data · {graph["title"]}', frame)
-            cells += frame.size
+            }))
+            if binding is None:
+                _store_table(tables, f'Prism graph data · {graph["title"]}', frame)
+                cells += frame.size
             if table_format in (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF):
                 linked[uid] = (frame, style)
         _link_layout_panel_data(layouts, graph_links, linked)

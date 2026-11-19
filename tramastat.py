@@ -172,6 +172,7 @@ from analisi.theme_preferences import load_ribbon_expanded, load_theme, save_rib
 from analisi.modern_workspace import ModernWorksheet
 from analisi.project_tabs import MAX_PROJECT_TABS, ProjectSession, ProjectTabs
 from analisi.prism_binary_graphs import render_binary_graph
+from analisi.prism_emf_edit import LIMIT_SOURCE
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS, edited_layout_preview
 from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK, PRISM_GRAPH_STYLE,
                                    PRISM_NOTES, PRISM_PREVIEW, PRISM_TITLE, SAVED_BINARY_GRAPH,
@@ -5466,7 +5467,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                        command=lambda: self.open_graph_view(related)).pack(side="left")
         if editable:
             ttk.Button(bar, text=ui("Edit graph data"), command=lambda: self.show("data", run.title)).pack(side="left", padx=5)
-            if self.tables[run.title].table_format not in EDITABLE_PRISM_FIXED_VALUES:
+            if self.tables[run.title].table_format not in EDITABLE_PRISM_FIXED_VALUES and PRISM_PREVIEW not in run.options:
                 ttk.Button(bar, text=ui("Format…"), command=self.format_graph).pack(side="left", padx=(0, 6))
 
     def layout_panel_graphs(self, run):
@@ -5549,7 +5550,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             run = self.runs[self.selected[1]]
         if run.method == SAVED_BINARY_GRAPH:
             return "Use Open editable graph when available, or export the original drawing in its saved vector format."
-        if run.method == SAVED_EDITABLE_GRAPH and self.tables[run.title].table_format in EDITABLE_PRISM_FIXED_VALUES:
+        if run.method == SAVED_EDITABLE_GRAPH and (
+                self.tables[run.title].table_format in EDITABLE_PRISM_FIXED_VALUES or PRISM_PREVIEW in run.options):
             return "Use Edit graph data to change values in the recovered drawing."
         if self.pending is not None:
             return "Wait for the current calculation to finish."
@@ -7659,7 +7661,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 original = (run is not None and run.method in {SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT}
                             and PRISM_PREVIEW in run.options)
                 editable_emf = (run is not None and run.method == SAVED_EDITABLE_GRAPH
-                                and self.tables[run.title].table_format == EDITABLE_PRISM_EMF)
+                                and (self.tables[run.title].table_format == EDITABLE_PRISM_EMF
+                                     or LIMIT_SOURCE in (run.options.get(PRISM_GRAPH_STYLE) or {})))
                 figure = self.layout_figure if run is None else run.result.figure if run.result else None
                 filetypes = [("PNG image", "*.png"), ("SVG", "*.svg"), ("PDF", "*.pdf")] if figure else []
                 original_suffix = None

@@ -14,6 +14,7 @@ from .prism_binary_graphs import validate_binary_graph
 
 CURVE = "emf-xy-curve"
 POINTS = "emf-xy-errors"
+LIMIT_SOURCE = "limit_source"
 _XY = ["X", "Y"]
 _ERRORS = ["Upper error", "Lower error"]
 _MAX_POINTS = 256
@@ -348,9 +349,14 @@ def edit_emf_preview(frame, style, preview):
     try:
         kind = style["kind"]
         _require(kind in (CURVE, POINTS))
-        fields = _XY if kind == CURVE else [*_XY, *_ERRORS]
-        _require(list(frame.columns) == [*fields, "Series"])
-        values = frame[fields].to_numpy(dtype=float, na_value=np.nan)
+        if kind == POINTS and LIMIT_SOURCE in style:
+            from .prism_emf_limits import points_from_limit_source
+
+            values = points_from_limit_source(frame, style[LIMIT_SOURCE])
+        else:
+            fields = _XY if kind == CURVE else [*_XY, *_ERRORS]
+            _require(list(frame.columns) == [*fields, "Series"])
+            values = frame[fields].to_numpy(dtype=float, na_value=np.nan)
         result = (_edit_curve if kind == CURVE else _edit_points)(raw, values, style)
     except (IndexError, KeyError, TypeError, OverflowError) as error:
         raise ValueError("Invalid saved XY drawing or worksheet values.") from error

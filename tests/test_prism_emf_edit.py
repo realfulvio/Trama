@@ -129,6 +129,33 @@ class EditableEmfTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "absent"):
             edit_emf_preview(frame, style, preview)
 
+        # The original sheet stores endpoints, and its column names do not
+        # necessarily agree with the sides visible in the saved drawing.
+        sheet = pd.DataFrame({
+            "Dose": [0., 4., 8.],
+            "A [Center]": [None, 6., None], "A [Upper]": [None, 4., None], "A [Lower]": [None, 7., None],
+            "B [Center]": [None, None, 7.], "B [Upper]": [None, None, 5.], "B [Lower]": [None, None, 8.],
+        })
+        style["limit_source"] = {
+            "sheet": 8, "x": "Dose", "size": 3,
+            "groups": [
+                {"columns": list(sheet.columns[1:4]), "points": [[1, None, 2]]},
+                {"columns": list(sheet.columns[4:7]), "points": [[2, 3, 2]]},
+            ],
+        }
+        self.assertEqual(edit_emf_preview(sheet, style, preview), preview)
+        sheet.loc[1, "A [Upper]"] = 3.
+        sheet.loc[1, "A [Lower]"] = 9.  # This endpoint is absent from the drawing.
+        sheet.loc[2, ["Dose", "B [Center]", "B [Upper]", "B [Lower]"]] = [8.1, 7.5, 5.5, 9.]
+        self.assertEqual(validate_binary_graph(edit_emf_preview(sheet, style, preview)), edited)
+        sheet.loc[2, "B [Lower]"] = 7.
+        with self.assertRaisesRegex(ValueError, r"B \[Lower\]"):
+            edit_emf_preview(sheet, style, preview)
+        sheet.loc[2, "B [Lower]"] = 9.
+        sheet.loc[0, "B [Center]"] = 2.
+        with self.assertRaisesRegex(ValueError, "point rows"):
+            edit_emf_preview(sheet, style, preview)
+
 
 if __name__ == "__main__":
     unittest.main()

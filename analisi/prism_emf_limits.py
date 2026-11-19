@@ -8,7 +8,7 @@ import pandas as pd
 from .prism_binary import _DATASET, _XY_LIMITS
 from .prism_binary_editable import _id_array, _one, _preview
 from .prism_emf_edit import (
-    POINTS, _ERRORS, _MAX_POINTS, _XY, _classic_commands, _drawing_series,
+    LIMIT_SOURCE, POINTS, _ERRORS, _MAX_POINTS, _XY, _classic_commands, _drawing_series,
     _geometry, _point_pixels, _project, _require, _xy_group_links,
 )
 
@@ -90,6 +90,7 @@ def _visible_errors(values, cache, nudge, style):
     pixels = cache[:4 * n].reshape(n, 4) * [1, -1, -1, -1] + [left, bottom, bottom, bottom]
     _require(np.all(np.abs(center - pixels[:, :2]) <= 2))
     errors = np.full((n, 2), np.nan)
+    sides = [[None, None] for _ in range(n)]
     for i, point in enumerate(pixels):
         for index, displayed in enumerate(point[2:]):
             if displayed == point[1]:
@@ -99,8 +100,44 @@ def _visible_errors(values, cache, nudge, style):
             side = int(displayed > point[1])
             _require(distance != 0 and (distance < 0) == bool(side) and np.isnan(errors[i, side]))
             errors[i, side] = abs(distance)
+            sides[i][side] = index + 2
         _require(not np.isnan(errors[i]).all())
-    return errors
+    return errors, sides
+
+
+def points_from_limit_source(frame, binding):
+    """Read the worksheet endpoints that actually have strokes in the saved drawing."""
+    _require(len(frame) == binding["size"], "Keep the original point rows in the graph’s source sheet.")
+    x = binding["x"]
+    points = []
+    for group in binding["groups"]:
+        columns = group["columns"]
+        saved = group["points"]
+        _require(len(columns) == 3 and 0 < len(saved) <= _MAX_POINTS - len(points))
+        sheet = frame[columns]
+        rows = np.flatnonzero(sheet.notna().any(axis=1))
+        _require(rows.tolist() == [row for row, _, _ in saved],
+                 "Keep the original point rows in the graph’s source sheet.")
+        used = frame.iloc[rows]
+        centers = used[columns[0]].to_numpy(dtype=float, na_value=np.nan)
+        abscissae = used[x].to_numpy(dtype=float, na_value=np.nan)
+        _require(np.isfinite(centers).all() and np.isfinite(abscissae).all(),
+                 "Enter finite coordinates for the saved points.")
+        for i, (row, upper, lower) in enumerate(saved):
+            center = float(centers[i])
+            errors = [np.nan, np.nan]
+            for side, endpoint in enumerate((upper, lower)):
+                if endpoint is None:
+                    continue
+                _require(endpoint in (2, 3))
+                name = columns[endpoint - 1]
+                value = sheet[name].iat[row]
+                distance = (float(value) - center) * (1 if side == 0 else -1) if pd.notna(value) else np.nan
+                _require(np.isfinite(distance) and distance > 0,
+                         f"Keep the displayed endpoint in {name}, row {row + 1}, on its original side of the point.")
+                errors[side] = distance
+            points.append([abscissae[i], center, *errors])
+    return np.asarray(points, dtype=float)
 
 
 def read_emf_limit_points(graph, sources, tables, remaining_cells):
@@ -114,7 +151,7 @@ def read_emf_limit_points(graph, sources, tables, remaining_cells):
               for entry in [_DATASET.unpack(payload)]}
     series = _drawing_series(graph, 0, (0xA,))
     _require(len({uid for uid, _, _ in series}) == len(series))
-    rows, nudges = [], []
+    rows, nudges, bindings = [], [], []
     bands = 0
     for uid, cache, attributes in series:
         repeats, columns = groups[uid]
@@ -128,10 +165,13 @@ def read_emf_limit_points(graph, sources, tables, remaining_cells):
         _require(mode in ((5, 7), (10, 7)))
         nudge, = unpack_from("<d", attributes, 128)
         values = source[[x, *columns]].to_numpy(dtype=float, na_value=np.nan)
-        values = values[~np.isnan(values[:, 1:]).all(axis=1)]
+        plotted = np.flatnonzero(~np.isnan(values[:, 1:]).all(axis=1))
+        values = values[plotted]
         _require(0 < len(values) <= _MAX_POINTS - len(rows) and np.isfinite(values).all()
                  and np.isfinite(nudge) and (len(rows) + len(values)) * 5 <= remaining_cells)
-        errors = _visible_errors(values, cache, nudge, style)
+        errors, sides = _visible_errors(values, cache, nudge, style)
+        bindings.append({"columns": list(columns), "points": [[row, *pair]
+                         for row, pair in zip(plotted.tolist(), sides, strict=True)]})
         label = str(columns[0]).removesuffix(" [Center]")
         rows.extend([*point[:2], *error, label] for point, error in zip(values, errors, strict=True))
         nudges.extend([nudge] * len(values))
@@ -140,6 +180,7 @@ def read_emf_limit_points(graph, sources, tables, remaining_cells):
     points = frame.iloc[:, :4].to_numpy(dtype=float)
     style["source"] = [[None if np.isnan(value) else value for value in row] for row in points.tolist()]
     style["limit_nudges"] = nudges
+    style[LIMIT_SOURCE] = {"sheet": sheet, "x": x, "size": len(source), "groups": bindings}
     if bands:
         style["fixed_band"] = True
     edit_limit_points(_preview(graph), points, style)

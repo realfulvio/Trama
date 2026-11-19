@@ -27,6 +27,7 @@ from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attac
                                     graph_problem as pairwise_graph_problem, read_section as read_pairwise,
                                     source_problem as pairwise_source_problem, sync_letters_table)
 from analisi.presentation import apply_style, compose_layout
+from analisi.prism_emf_edit import LIMIT_SOURCE
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS
 from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK,
                                    PRISM_GRAPH_STYLE, PRISM_NOTES, PRISM_PREVIEW, PRISM_TITLE,
@@ -607,9 +608,10 @@ class Project:
         if run.method in {SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT} and fmt in ("emf", "pdf"):
             return fmt
         dataset = self.tables.get(run.title)
+        style = run.options.get(PRISM_GRAPH_STYLE)
         if (run.method == SAVED_EDITABLE_GRAPH and fmt == "emf" and dataset is not None
-                and dataset.table_format in {EDITABLE_PRISM_EMF, EDITABLE_PRISM_COLUMNS}
-                and isinstance(run.options.get(PRISM_GRAPH_STYLE), dict)):
+                and isinstance(style, dict)
+                and (dataset.table_format in {EDITABLE_PRISM_EMF, EDITABLE_PRISM_COLUMNS} or LIMIT_SOURCE in style)):
             return fmt
         return None
 
@@ -678,7 +680,8 @@ class Project:
         if run.method == SAVED_BINARY_GRAPH:
             return ui("Use Open editable graph when available, or export the original drawing in its saved "
                       "vector format.")
-        if run.method == SAVED_EDITABLE_GRAPH and self.tables[run.title].table_format in EDITABLE_PRISM_FIXED_VALUES:
+        if run.method == SAVED_EDITABLE_GRAPH and (
+                self.tables[run.title].table_format in EDITABLE_PRISM_FIXED_VALUES or PRISM_PREVIEW in run.options):
             return ui("Use Edit graph data to change values in the recovered drawing.")
         if run.result is None or run.result.figure is None or not run.result.figure.axes:
             return ui("Calculate the graph first.")
