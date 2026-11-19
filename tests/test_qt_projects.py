@@ -156,7 +156,8 @@ class ProjectTabsTests(unittest.TestCase):
         if self.window.job is not None:
             self.window.job = None
             self.window.timer.stop()
-        self.window.close()
+        with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Discard):
+            self.window.close()  # An Inspector draft left by a test would ask here.
         self.app.processEvents()
 
     # -- helpers --------------------------------------------------------------------------------------
@@ -559,25 +560,65 @@ class ProjectTabsTests(unittest.TestCase):
         self.assertTrue(window.isVisible())
 
     # -- Inspector draft ------------------------------------------------------------------------------
-    def test_inspector_draft_keeps_the_original_tab_when_cancelled(self):
+    def draft_in_a(self):
+        """Tab A on its graph with an Inspector draft (a new title), B open behind it."""
         window = self.window
         self.open(self.a)
         window.open_sheet(("graph", 0))
         self.wait()
-        self.open(self.b)  # B is first; A's graph is shown again below.
+        self.open(self.b)
         window.switch_project(window.sessions[0])
-        window.inspector_wanted = True
-        window.show_sheet("graph", 0)
+        window.toggle_inspector()
         inspector = window.inspector
         self.assertIsNotNone(inspector)
-        draft = mock.PropertyMock(return_value=True)
-        with mock.patch.object(type(inspector), "has_draft", draft):
-            with self.answer(QMessageBox.StandardButton.Cancel):
-                self.assertFalse(window.switch_project(window.sessions[1]))
+        inspector.widgets["title"].setText("Bozza di A")
+        inspector._now("title")
+        self.assertTrue(inspector.has_draft)
+        return inspector, window.project.runs[0].result.figure.axes[0]
+
+    def test_inspector_draft_keeps_the_original_tab_and_draft_when_cancelled(self):
+        window = self.window
+        inspector, axes = self.draft_in_a()
+        with self.answer(QMessageBox.StandardButton.Cancel) as asked:
+            self.assertFalse(window.switch_project(window.sessions[1]))
+            asked.assert_called_once()
         self.assertIs(window.sessions.active, window.sessions[0])
         self.assertIs(window.inspector, inspector)
+        self.assertTrue(inspector.has_draft)
+        self.assertEqual(axes.get_title(), "Bozza di A")
         self.assertEqual(self.bar.currentIndex(), 0)
         self.assertTrue(window.inspector_wanted)
+        self.assertFalse(window.sessions[1].project.dirty)
+
+    def test_inspector_draft_applied_lands_in_its_own_project(self):
+        window = self.window
+        inspector, axes = self.draft_in_a()
+        one, two = window.sessions[0].project, window.sessions[1].project
+        with self.answer(QMessageBox.StandardButton.Apply):
+            self.assertTrue(window.switch_project(window.sessions[1]))
+        self.assertIs(window.sessions.active, window.sessions[1])
+        self.assertEqual(one.runs[0].style["title"], "Bozza di A")
+        self.assertTrue(one.dirty)
+        self.assertIsNone((two.runs[0].style or {}).get("title"))
+        self.assertFalse(two.dirty)
+
+    def test_inspector_draft_discarded_restores_the_confirmed_style(self):
+        window = self.window
+        inspector, axes = self.draft_in_a()
+        one = window.sessions[0].project
+        with self.answer(QMessageBox.StandardButton.Discard):
+            self.assertTrue(window.switch_project(window.sessions[1]))
+        self.assertNotEqual(axes.get_title(), "Bozza di A")
+        self.assertIsNone((one.runs[0].style or {}).get("title"))
+        self.assertFalse(one.dirty)
+
+    def test_closing_a_tab_with_an_inspector_draft_asks_first(self):
+        window = self.window
+        inspector, axes = self.draft_in_a()
+        with self.answer(QMessageBox.StandardButton.Cancel):
+            self.assertFalse(window.close_project())
+        self.assertEqual(self.bar.count(), 2)
+        self.assertIs(window.inspector, inspector)
 
     def test_inspector_wish_is_kept_per_tab(self):
         window = self.window
@@ -679,6 +720,54 @@ class ProjectTabsTests(unittest.TestCase):
         self.assertIs(window.sessions.active, window.sessions[0])
         self.assertEqual(self.bar.count(), 2)
         self.assertEqual(self.cell(window.sessions[1].project, 0, 1), 103)
+
+    # -- command line and drops ----------------------------------------------------------------------
+    def test_command_line_project_opens_in_the_first_tab(self):
+        from trama_qt import app as trama_app
+        from trama_qt.window import MainWindow
+        seen = {}
+
+        def fake_exec(*args):
+            for widget in QApplication.topLevelWidgets():
+                if isinstance(widget, MainWindow) and widget is not self.window and widget.isVisible():
+                    seen["window"] = widget
+            return 0
+
+        language = active_language()
+        self.addCleanup(set_language, language)
+        with mock.patch.object(QApplication, "exec", fake_exec), \
+                mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": str(self.folder / "config"),
+                                               "APPDATA": str(self.folder / "config")}):
+            self.assertEqual(trama_app.main(["trama", "--flag", str(self.b)]), 0)
+        window = seen["window"]
+        self.addCleanup(window.close)
+        self.assertEqual(len(window.sessions), 1)
+        self.assertEqual(window.project.path, self.b)
+        self.assertEqual(window.selected, ("data", "Misure"))
+        window.sessions.active.project.dirty = False
+
+    def test_dropped_files_open_tabs(self):
+        from PySide6.QtCore import QMimeData, QPointF, QUrl
+        from PySide6.QtGui import QDropEvent
+        window = self.window
+
+        def drop(path):
+            mime = QMimeData()
+            mime.setUrls([QUrl.fromLocalFile(str(path))])
+            window.dropEvent(QDropEvent(QPointF(5, 5), Qt.DropAction.CopyAction, mime, Qt.MouseButton.LeftButton,
+                                        Qt.KeyboardModifier.NoModifier))
+            self.wait()
+
+        drop(self.a)
+        drop(self.b)
+        self.assertEqual(self.bar.count(), 2)
+        drop(self.a)  # Already open: its tab, no duplicate.
+        self.assertEqual(self.bar.count(), 2)
+        self.assertEqual(window.project.path, self.a)
+        other = self.folder / "nota.docx"
+        other.write_text("x")
+        drop(other)  # Not a project or data file: ignored.
+        self.assertEqual(self.bar.count(), 2)
 
     # -- keyboard -------------------------------------------------------------------------------------
     def test_keyboard_switches_and_closes_tabs(self):
