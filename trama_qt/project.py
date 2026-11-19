@@ -15,7 +15,8 @@ import pandas as pd
 from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCancelled, ResultSource,
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
-from analisi.data import EDITABLE_PRISM_FIXED_VALUES, Dataset, load_tables, load_workspace, save_project
+from analisi.data import (EDITABLE_PRISM_FIXED_VALUES, Dataset, info_references, load_tables, load_workspace,
+                          save_project)
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.grid_data import clear_block, grow_rows, paste_block
 from analisi.i18n import tr, ui
@@ -257,6 +258,60 @@ class Project:
             self.runs.extend(self.runs_for(title, dataset))
         self.dirty = True
         return titles
+
+    def update_info_sheets(self, sheets):
+        """Replace the Info sheets. Returns the runs to recalculate: those of tables whose formulas read a
+        constant that changed (the classic window does the same)."""
+        validate_info_sheets(tuple(sheets.values()), self.tables)
+        scoped = info_contexts(sheets.values())
+        contexts, stale = {}, []
+        for title, dataset in self.tables.items():
+            context = scoped.get(title, scoped[None])
+            if context == dataset.info:
+                continue
+            contexts[title] = context
+            names = {name for expression in dataset.formulas.values() for name in info_references(expression)}
+            missing = object()
+            if any(context.get(name, missing) != dataset.info.get(name, missing) for name in names):
+                stale.append(title)
+        self.info_sheets = sheets
+        for title, context in contexts.items():
+            self.tables[title].info = context
+        self.dirty = True
+        return [run for run in self.runs if run.title in stale]
+
+    def apply_family(self, bundle):
+        """Add a finished family copy, all or nothing. Returns the navigator reference of the copied focus."""
+        for title in bundle.tables:
+            if title in self.tables:
+                raise ValueError(f'A data table named "{title}" already exists.')
+        runs_before, layouts_before = len(self.runs), len(self.layouts)
+        infos_before, dirty_before = self.info_sheets, self.dirty
+        try:
+            self.tables.update(bundle.tables)
+            for title, dataset in bundle.tables.items():
+                self.runs.extend(self.runs_for(title, dataset))
+            self.layouts.extend(bundle.layouts)
+            if bundle.infos:
+                self.update_info_sheets({**self.info_sheets, **{sheet.uid: sheet for sheet in bundle.infos}})
+            self.dirty = True
+        except Exception:
+            for title in bundle.tables:
+                self.tables.pop(title, None)
+            del self.runs[runs_before:]
+            del self.layouts[layouts_before:]
+            self.info_sheets, self.dirty = infos_before, dirty_before
+            raise
+        kind, key = bundle.focus
+        if kind in {"result", "graph", "saved-layout"}:
+            index = next((i for i, run in enumerate(self.runs) if run.reference == key), None)
+            if index is not None:
+                return kind, index
+        elif kind == "layout":
+            return kind, layouts_before + key
+        elif kind in {"info", "data"} and (kind == "data" or key in self.info_sheets):
+            return kind, key
+        return "data", next(iter(bundle.tables))
 
     def new_table(self, name, rows=20, columns=3):
         frame = pd.DataFrame({f"Column {index + 1}": pd.Series([pd.NA] * rows, dtype="Float64")

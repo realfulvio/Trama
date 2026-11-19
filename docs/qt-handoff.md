@@ -15,6 +15,15 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### FAMILY · Famiglie di esperimenti su Qt (2026-11-19)
+
+- Nuovo: Home → Duplica famiglia… e Salva famiglia come… (anche col tasto destro nel navigatore). Codice in `trama_qt/family.py` e `trama_qt/window.py`, più `Project.apply_family` e `Project.update_info_sheets`. Stesso motore della versione Tk (`analisi.family_workflow`): anteprima di tabelle, analisi, layout e fogli info; nome della nuova tabella o prefisso per gli altri fogli; layout inclusi. Copia e salvataggio girano in background e si possono annullare: annullando la copia non viene aggiunto niente. I risultati copiati si calcolano quando apri il foglio.
+- Da provare su Windows:
+  - Duplicare una tabella con grafico e layout: il nome già usato deve dare l'errore nel dialogo; con "Repeat" compaiono la tabella, il grafico e il layout copiati.
+  - Salva famiglia come su un file nuovo, poi riaprirlo in Qt e in Tk.
+  - Scegliere il file del progetto corrente deve dare l'errore.
+- Test attesi: `tests.test_qt_shell` 14/14 OK.
+
 ### 597075b · Confronti a coppie e lettere compatte su Qt (2026-11-19)
 
 - Nuovo: scheda Grafico, Confronti a coppie… e Lettere compatte… (`trama_qt/pairwise.py`, comando in `trama_qt/window.py`). Stessa sezione della ricetta della versione Tk: sorgente (ANOVA a una via con post-hoc, Kruskal–Wallis con Dunn, t-test appaiato fra due colonne del grafico), tutte o solo le coppie spuntate, asterischi o valore P, soglia, colore; in modalità lettere alfa, identificatori, posizione, dimensione e anteprima. Applica ricalcola il grafico; Rimuovi toglie i confronti.

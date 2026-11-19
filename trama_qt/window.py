@@ -206,6 +206,8 @@ class MainWindow(QMainWindow):
         a("copy", tr("command.copy_cells"), lambda: self._sheet_call("copy"), icon="copy")
         a("paste", tr("ribbon.paste"), lambda: self._sheet_call("paste"), icon="clipboard-paste")
         a("new_table", tr("command.new_table"), self.new_table, icon="table", shortcut="Ctrl+T")
+        a("duplicate_family", ui("Duplicate family…"), self.duplicate_family, icon="copy")
+        a("save_family", ui("Save family as…"), self.save_family_as, icon="save")
         a("insert_row", qt("qt.insert_row"), self.insert_row, icon="rows-3")
         a("insert_column", qt("qt.insert_column"), self.insert_column, icon="columns-3")
         a("delete_rows", qt("qt.delete_rows"), self.delete_rows, icon="trash-2")
@@ -334,7 +336,7 @@ class MainWindow(QMainWindow):
                                          "classic", "language", "about"]),
             (tr("ribbon.modern.home"), ["paste", "cut", "copy", "|", "undo", "redo", "|", "new_table", "insert_row",
                                          "insert_column", "exclude", "|", "*analyze", "new_graph", "|", "recalculate",
-                                         "export"]),
+                                         "export", "|", "duplicate_family", "save_family"]),
             (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
                                             "use_result"]),
@@ -416,6 +418,8 @@ class MainWindow(QMainWindow):
         for key in ("cut", "paste", "insert_row", "insert_column", "delete_rows", "exclude"):
             self.actions[key].setEnabled(editable and idle)
         self.actions["copy"].setEnabled(data)
+        for key in ("duplicate_family", "save_family"):
+            self.actions[key].setEnabled(kind is not None and idle)
         self.actions["change"].setEnabled(on_run and idle)
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
@@ -522,6 +526,10 @@ class MainWindow(QMainWindow):
             menu.addAction(self.actions["analyze"])
             menu.addAction(self.actions["new_graph"])
         menu.addAction(self.actions["new_table"])
+        if ref:
+            menu.addSeparator()
+            menu.addAction(self.actions["duplicate_family"])
+            menu.addAction(self.actions["save_family"])
         menu.exec(self.navigator.viewport().mapToGlobal(position))
 
     # == pages ====================================================================================
@@ -1214,6 +1222,126 @@ class MainWindow(QMainWindow):
         self._start(future, job.control, done, qt("qt.updating", count=len(job.selected)))
         if self.selected and self.selected[0] != "data":
             self.show_sheet(*self.selected)
+
+    # == families ================================================================================
+    def _family_start(self):
+        """The selected sheet as the engine names it, after bringing the stored project up to date."""
+        from .family import family_ref
+        selected = family_ref(self.project, self.selected)
+        if selected is None:
+            self.error(tr("family.select"))
+            return None
+        if self.busy(warn=False):
+            self.error(tr("family.wait"))
+            return None
+        if not self.settle_graph_draft():
+            return None
+        self.project.sync_links(persist=True)
+        return selected
+
+    def _family_job(self, job, control, *, running, cancelled, failed, finish, discard_when_cancelled):
+        project = self.project
+
+        def done(future, was_cancelled):
+            from analisi.family_workflow import FamilyError
+            from .family import family_error_text
+            try:
+                outcome = future.result()
+            except ChainCancelled:
+                self.status(cancelled)
+                return
+            except Exception as error:
+                message = tr(failed, error=family_error_text(error) if isinstance(error, FamilyError) else error)
+                self.status(message)
+                self.error(message)
+                return
+            if (discard_when_cancelled and was_cancelled) or self.project is not project:
+                self.status(cancelled)
+                return
+            try:
+                finish(outcome)
+            except Exception as error:
+                message = tr(failed, error=error)
+                self.status(message)
+                self.error(message)
+
+        self._start(self.worker.submit(job), control, done, running)
+
+    def duplicate_family(self):
+        from analisi.family_workflow import duplicate_family
+        from .family import FamilyDialog, family_describer, family_error_text
+        selected = self._family_start()
+        if selected is None:
+            return
+        describe = family_describer(self.project, selected, export=False)
+        kind, key = selected
+        if kind == "data":
+            initial = base = tr("family.default_name", title=key)
+            number = 2
+            while initial in self.project.tables:
+                initial, number = f"{base} ({number})", number + 1
+        else:
+            initial = tr("family.default_prefix")
+        error, _ = describe(initial, True)
+        if error is not None and error.field != "name":
+            self.error(family_error_text(error))
+            return
+        dialog = FamilyDialog(self, "duplicate", kind, describe, initial=initial)
+        if dialog.exec() != FamilyDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        name, include = dialog.result
+        project, control = self.project, CalculationControl()
+        tables, layouts, infos = project.tables, project.layouts, tuple(project.info_sheets.values())
+
+        def finish(bundle):
+            focus = project.apply_family(bundle)
+            self.open_sheet(focus)
+            self.status(tr("family.duplicated", tables=len(bundle.tables), analyses=bundle.analysis_count,
+                           layouts=len(bundle.layouts), infos=len(bundle.infos)))
+
+        self._family_job(lambda: duplicate_family(tables, layouts, infos, selected, name=name, include_layouts=include,
+                                                  cancel=control.cancel),
+                         control, running=tr("family.copying"), cancelled=tr("family.cancelled"),
+                         failed="family.failed", finish=finish, discard_when_cancelled=True)
+
+    def save_family_as(self):
+        from analisi.family_workflow import same_file, save_family
+        from .family import FamilyDialog, family_describer, family_error_text
+        selected = self._family_start()
+        if selected is None:
+            return
+        describe = family_describer(self.project, selected, export=True)
+        error, _ = describe("", True)
+        if error is not None:
+            self.error(family_error_text(error))
+            return
+        dialog = FamilyDialog(self, "save", selected[0], describe)
+        if dialog.exec() != FamilyDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        _, include = dialog.result
+        path, _ = QFileDialog.getSaveFileName(self, tr("family.save_title"), tr("family.default_file"),
+                                              f"{tr('prompt.project_filetype')} (*.alab)")
+        if not path:
+            return
+        path = Path(path)
+        if path.suffix.lower() != ".alab":
+            self.error(tr("error.alab_name"))
+            return
+        project, control = self.project, CalculationControl()
+        if project.path is not None and same_file(path, project.path):
+            self.error(tr("family.error.current-path"))
+            return
+        tables, layouts, infos = project.tables, project.layouts, tuple(project.info_sheets.values())
+        source = project.path
+
+        def finish(bundle):
+            self.status(tr("family.saved", name=path.name, tables=len(bundle.tables), analyses=bundle.analysis_count,
+                           layouts=len(bundle.layouts), infos=len(bundle.infos)))
+
+        self._family_job(lambda: save_family(path, tables, layouts, infos, selected, include_layouts=include,
+                                             source_path=source, cancel=control.cancel),
+                         control, running=tr("family.saving"), cancelled=tr("family.save_cancelled"),
+                         failed="family.save_failed", finish=finish, discard_when_cancelled=False)
 
     def recalculate(self):
         if self.busy() or not self.selected or not self.settle_graph_draft():

@@ -23,6 +23,7 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 - Inspector dei grafici (Ctrl+Maiusc+I): pannello laterale con anteprima dal vivo, Applica/Annulla, clic sul grafico per scegliere box e violini; chiede cosa fare di una bozza prima di salvare, esportare o ricalcolare.
 - Annotazioni di testo e frecce sul grafico (Grafico → Annotazioni grafico…).
 - Confronti a coppie e lettere compatte su box, violini e grafici a colonne (Grafico → Confronti a coppie… / Lettere compatte…): sorgente, coppie, asterischi o valori P, soglia, colore; lettere con alfa, identificatori, posizione e dimensione.
+- Famiglie di esperimenti (Home → Duplica famiglia… / Salva famiglia come…, anche dal menu del navigatore): anteprima del contenuto, nome o prefisso, layout inclusi; copia e salvataggio in background, annullabili.
 - Forme sul grafico (Grafico → Forme del grafico…): linee con o senza frecce, rettangoli ed ellissi, con tratto, riempimento, motivo, opacità, livello e coordinate in frazioni o dati; ordinabili.
 - Layout (Ctrl+L): nuovo e modifica, con nome, carta, colonne, sfondo e fino a 12 pannelli ordinabili.
 - Tema "Scientifico compatto"/Vetro: Figtree, icone Lucide, accento #0B7A73.
@@ -30,7 +31,7 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 ## Cosa resta su Tk (fasi successive)
 
 1. Esporta con opzioni (dimensione in mm, DPI, testo SVG) come nella finestra classica.
-2. Famiglie di esperimenti, interfaccia delle catene di analisi.
+2. Interfaccia delle catene di analisi.
 3. Modifica dei fogli info, procedura guidata di importazione testo.
 4. Porting dello smoke test (`--smoke`) su Qt e collaudo DPI su Windows reale.
 

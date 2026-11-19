@@ -411,6 +411,47 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(run.options[pg.SECTION]["Display"], pg.LETTERS)
         self.assertTrue(pg.drawn_letters(run.result.figure))
 
+    def test_duplicate_and_save_family(self):
+        from unittest import mock
+        from trama_qt.family import FamilyDialog
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        window.open_sheet(("data", "groups"))
+        self.assertTrue(window.actions["duplicate_family"].isEnabled())
+        seen = {}
+
+        def duplicate(dialog):
+            seen["preview"] = dialog.preview.toPlainText()
+            dialog.name.setText("groups")
+            dialog.accept()
+            seen["problem"] = dialog.problem.text()  # The name is taken.
+            dialog.name.setText("Repeat")
+            dialog.accept()
+            return FamilyDialog.DialogCode.Accepted
+
+        with mock.patch.object(FamilyDialog, "exec", duplicate):
+            window.duplicate_family()
+            self.wait()
+        self.assertIn("Column graph", seen["preview"])
+        self.assertTrue(seen["problem"])
+        self.assertIn("Repeat", window.project.tables)
+        self.assertEqual([run.method for run in window.project.runs if run.title == "Repeat"], ["Column graph"])
+        self.assertEqual(window.selected, ("data", "Repeat"))
+        self.assertTrue(window.project.dirty)
+
+        target = self.folder / "family.alab"
+        window.open_sheet(("graph", window.project.runs.index(graph)))
+        self.wait()
+        with mock.patch.object(FamilyDialog, "exec", lambda dialog: dialog.accept() or FamilyDialog.DialogCode.Accepted), \
+                mock.patch("trama_qt.window.QFileDialog.getSaveFileName", return_value=(str(target), "")):
+            window.save_family_as()
+            self.wait()
+        self.assertTrue(target.exists())
+        from analisi.data import load_workspace
+        tables, _, _ = load_workspace(target, include_info=True)
+        self.assertEqual(list(tables), ["groups"])
+
     def test_format_xy_graph_recipe(self):
         window = self.window
         self.open_example()
