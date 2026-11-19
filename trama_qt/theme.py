@@ -124,6 +124,7 @@ def stylesheet():
         color: {t['text2']}; margin-right: 2px; }}
     QTabBar#ribbonTabs::tab:selected {{ color: {t['text']}; border-bottom: 2px solid {t['accent']}; font-weight: 600; }}
     QTabBar#ribbonTabs::tab:hover {{ color: {t['text']}; }}
+    QToolBar#commandTools {{ border: none; background: transparent; spacing: 2px; }}
     QToolButton {{ border: none; border-radius: 6px; padding: 5px 8px; background: transparent; }}
     QToolButton:hover {{ background: {t['hover']}; }}
     QToolButton:pressed, QToolButton:checked {{ background: {t['tint']}; }}

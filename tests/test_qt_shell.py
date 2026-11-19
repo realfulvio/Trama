@@ -2,14 +2,10 @@
 
 Skipped when PySide6 (or the Qt platform libraries) are not installed.
 """
-import os
 from pathlib import Path
 import tempfile
 import time
 import unittest
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("MPLBACKEND", "QtAgg")
 
 try:
     from PySide6.QtCore import Qt
@@ -25,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def _app():
-    app = QApplication.instance() or QApplication([])
+    app = QApplication.instance() or QApplication(["trama-qt-tests", "-platform", "offscreen"])
     from trama_qt import theme
     theme.load_fonts()
     theme.apply(app)
@@ -977,6 +973,21 @@ class QtShellTests(unittest.TestCase):
                 failures.append(f"{method}: {type(error).__name__}: {error}")
         self.app.processEvents()
         self.assertEqual(failures, [])
+
+    def test_compact_ribbon_keeps_classic_command_reachable(self):
+        from PySide6.QtWidgets import QToolButton
+
+        window = self.window
+        window.resize(600, 480)
+        window.ribbon_tabs.setCurrentIndex(0)
+        self.app.processEvents()
+        self.assertLessEqual(window.width(), 600)
+        toolbar = window.ribbon.currentWidget()
+        classic = window.actions["classic"]
+        if not toolbar.widgetForAction(classic).isVisible():
+            overflow = toolbar.findChild(QToolButton, "qt_toolbar_ext_button")
+            self.assertTrue(overflow.isVisible())
+            self.assertIn(classic, overflow.menu().actions())
 
 
 if __name__ == "__main__":

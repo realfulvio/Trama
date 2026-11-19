@@ -11,8 +11,9 @@ from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QStringListModel, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (QCompleter, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
-                               QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QScrollArea, QSplitter, QStackedWidget,
-                               QTabBar, QTabWidget, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+                               QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QSplitter, QStackedWidget,
+                               QTabBar, QTabWidget, QToolBar, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+                               QWidget)
 
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
@@ -306,18 +307,6 @@ class MainWindow(QMainWindow):
         engine.setObjectName("muted")
         status.addPermanentWidget(engine)
 
-    def _tool(self, key, *, text=True, primary=False):
-        button = QToolButton()
-        button.setDefaultAction(self.actions[key])
-        button.setAutoRaise(True)
-        button.setIconSize(theme.icon_size(18))
-        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon if text
-                                  else Qt.ToolButtonStyle.ToolButtonIconOnly)
-        if primary:
-            button.setObjectName("primary")
-            button.setIcon(theme.icon(self.icons.get(key, "sigma"), theme.T["on_accent"]))
-        return button
-
     def _command_bar(self):
         bar = QFrame()
         bar.setObjectName("commandBar")
@@ -363,31 +352,22 @@ class MainWindow(QMainWindow):
         ]
         for title, keys in groups:
             self.ribbon_tabs.addTab(title)
-            row = QWidget()
-            row_layout = QHBoxLayout(row)
-            row_layout.setContentsMargins(0, 2, 0, 0)
-            row_layout.setSpacing(2)
+            row = QToolBar(title, self.ribbon)
+            row.setObjectName("commandTools")
+            row.setMovable(False)
+            row.setIconSize(theme.icon_size(18))
+            row.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             for key in keys:
                 if key == "|":
-                    line = QFrame()
-                    line.setFrameShape(QFrame.Shape.VLine)
-                    line.setStyleSheet(f"color: {theme.T['border']};")
-                    row_layout.addWidget(line)
-                    continue
-                primary = key.startswith("*")
-                key = key.lstrip("*")
-                button = self._tool(key, primary=primary)
-                row_layout.addWidget(button)
-            row_layout.addStretch(1)
-            # A long tab scrolls sideways instead of setting the window's minimum width (small screens, 150%).
-            scroller = QScrollArea()
-            scroller.setWidget(row)
-            scroller.setWidgetResizable(True)
-            scroller.setFrameShape(QFrame.Shape.NoFrame)
-            scroller.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            scroller.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-            scroller.setMinimumHeight(row.sizeHint().height() + scroller.horizontalScrollBar().sizeHint().height())
-            self.ribbon.addWidget(scroller)
+                    row.addSeparator()
+                else:
+                    action = self.actions[key.lstrip("*")]
+                    row.addAction(action)
+                    if key.startswith("*"):
+                        button = row.widgetForAction(action)
+                        button.setObjectName("primary")
+                        button.setIcon(theme.icon(self.icons.get(key[1:], "sigma"), theme.T["on_accent"]))
+            self.ribbon.addWidget(row)
         self.ribbon_tabs.currentChanged.connect(self.ribbon.setCurrentIndex)
         self.ribbon_tabs.setCurrentIndex(1)
         layout.addWidget(self.ribbon)

@@ -137,7 +137,12 @@ class AnalysisDialog(QDialog):
         self.rows = {}
         method = current[0] if current and current[0] in METHODS else None
         self.method = method or self._first_method()
-        self.resize(940, 640)
+        screen = self.screen()
+        if screen is None:
+            self.resize(940, 640)
+        else:
+            available = screen.availableGeometry()
+            self.resize(min(940, available.width() - 32), min(640, available.height() - 48))
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(14, 14, 14, 12)
