@@ -2150,7 +2150,7 @@ class MainWindow(QMainWindow):
             if "navigator" in view:
                 self.navigator.verticalScrollBar().setValue(view["navigator"])
 
-        QTimer.singleShot(0, scroll)
+        QTimer.singleShot(0, self, scroll)
 
     def _activate(self, session, *, capture=True):
         if capture:

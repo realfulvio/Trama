@@ -495,9 +495,10 @@ class Project:
             snapshot = job.pairwise[identifier]
             if snapshot and (source := references.get(snapshot.get("key"))) in fresh:
                 snapshot = {**snapshot, "tables": fresh[source].tables}
-            return compute(job.clones[identifier], frame.copy(deep=True), control=job.control,
-                           layout_data=job.layout_data[identifier], pairwise=snapshot,
-                           result=outcome.value if outcome is not None else None)
+            options = {"control": job.control, "layout_data": job.layout_data[identifier], "pairwise": snapshot}
+            if outcome is not None:
+                options["result"] = outcome.value
+            return compute(job.clones[identifier], frame.copy(deep=True), **options)
 
         return evaluate_graph(job.graph, job.selected, job.roots, job.cached, calculate, cancel=job.control.cancel,
                               progress=job.control.report, on_result=lambda key, value: fresh.__setitem__(key, value))
