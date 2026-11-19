@@ -1,8 +1,8 @@
 """Format Graph on Qt: title, labels, fonts, axes, series and reference lines.
 
 The dialog edits the same style dictionary as the classic one (``analisi.graph_dialog``) and validates
-it with the engine, axis guides and bands included. Settings that have their own editor in the classic
-window (axis breaks, legend formatting, annotations, shapes, Q–Q panels, dendrogram style) are kept unchanged.
+it with the engine, legend formatting, axis guides, bands and breaks included. Annotations have their own
+dialog; shapes, Q–Q panels and the dendrogram style are kept unchanged.
 """
 from copy import deepcopy
 
@@ -68,8 +68,7 @@ def choice_text(labels, value):
 
 
 # Kept as they are: edited elsewhere (annotations) or by an editor that is not on Qt yet.
-KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, LEGEND_OPTIONS_KEY,
-        "hierarchical")
+KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical")
 
 
 class Choice(QComboBox):
@@ -204,6 +203,29 @@ class GraphFormatDialog(QDialog):
             row.addWidget(self.accent, 1)
             row.addWidget(_color_button(self.accent))
             form.addRow(tr("graph.field.accent"), row)
+        self.legend_options = deepcopy(self.style.get(LEGEND_OPTIONS_KEY) or {})
+        row = QHBoxLayout()
+        button = QPushButton(tr("legend_editor.button"))
+        button.clicked.connect(self.edit_legend)
+        row.addWidget(button)
+        self.legend_summary = QLabel()
+        self.legend_summary.setObjectName("muted")
+        row.addWidget(self.legend_summary, 1)
+        form.addRow("", row)
+        self._legend_summary()
+
+    def _legend_summary(self):
+        from .legend import legend_summary
+
+        self.legend_summary.setText(legend_summary(self.legend_options))
+
+    def edit_legend(self):
+        from .legend import LegendEditor
+
+        dialog = LegendEditor(self, self.axes.figure, self.legend_options)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.result is not None:
+            self.legend_options = dialog.result
+            self._legend_summary()
 
     def _axes(self):
         page = self._tab(tr("graph.format.axes"))
@@ -473,6 +495,8 @@ class GraphFormatDialog(QDialog):
                 style[key] = deepcopy(self.style[key])
         if self.axis_breaks:
             style[AXIS_BREAKS] = deepcopy(self.axis_breaks)
+        if self.legend_options:
+            style[LEGEND_OPTIONS_KEY] = deepcopy(self.legend_options)
         for key, records in self.guide_records.items():
             style.pop(key, None)
             if records:
@@ -576,7 +600,10 @@ class GraphFormatDialog(QDialog):
             from .axis_breaks import translate_breaks_error
             from .axis_guides import translate_guide_error
 
-            for translate in (translate_message, translate_guide_error, translate_breaks_error):
+            from .legend import translate_legend_error
+
+            for translate in (translate_message, translate_legend_error, translate_guide_error,
+                              translate_breaks_error):
                 text = translate(error)
                 if text != str(error):
                     break

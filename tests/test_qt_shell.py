@@ -376,6 +376,35 @@ class QtShellTests(unittest.TestCase):
         self.wait()
         self.assertEqual(window.project.runs[index].style[AXIS_BREAKS]["axis"], "y")
 
+    def test_legend_formatting(self):
+        from analisi.graph_legend import LEGEND_OPTIONS_KEY
+        from trama_qt.legend import LegendEditor
+        window = self.window
+        self.open_example()
+        graph = self.run_method("XY series", {"X": "Control", "Y columns": ["Treated"]})
+        figure = graph.result.figure
+        editor = LegendEditor(window, figure, {})
+        self.assertFalse(editor.non_native)
+        editor.title.setText("Gruppi")
+        editor.columns.setText("abc")
+        editor.accept()
+        self.assertIsNone(editor.result)
+        self.assertTrue(editor.problem.text())
+        editor.columns.setText("1")
+        editor.frame.set("hidden")
+        editor.accept()
+        options = editor.result
+        self.assertEqual(options["title"], "Gruppi")
+        self.assertIs(options["frame"], False)
+
+        def change(dialog):
+            dialog.legend_options = options
+
+        style = self.format_with(graph, change)
+        self.assertEqual(style[LEGEND_OPTIONS_KEY]["title"], "Gruppi")
+        legend = graph.result.figure.axes[0].get_legend() or graph.result.figure.legends[0]
+        self.assertEqual(legend.get_title().get_text(), "Gruppi")
+
     def test_layout_compose_edit_reopen(self):
         from trama_qt.layout_dialog import LayoutDialog
         window = self.window
