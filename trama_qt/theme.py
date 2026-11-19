@@ -878,17 +878,17 @@ def apply(app, *, dark=None):
         dark = mode == "dark" or (mode == "system" and system_dark(app))
     app.removeEventFilter(_POLISH)
     app.installEventFilter(_POLISH)
+    STATE["dark"] = bool(dark)
+    T.clear()
+    T.update(DARK if dark else LIGHT)
+    _icon_pixmap.cache_clear()
     if not STATE["connected"]:
+        app.setStyle("Fusion")
         try:
             app.styleHints().colorSchemeChanged.connect(_system_changed)
         except AttributeError:
             pass
         STATE["connected"] = True
-    STATE["dark"] = bool(dark)
-    T.clear()
-    T.update(DARK if dark else LIGHT)
-    _icon_pixmap.cache_clear()
-    app.setStyle("Fusion")
     app.setPalette(palette())
     app.setFont(font())
     app.setStyleSheet(stylesheet())

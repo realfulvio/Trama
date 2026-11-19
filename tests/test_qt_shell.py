@@ -1284,6 +1284,16 @@ class QtShellTests(unittest.TestCase):
             self.assertIn(classic, overflow.menu().actions())
 
     # -- look and feel -----------------------------------------------------------------------------
+    def test_theme_switch_keeps_the_existing_qt_style(self):
+        from unittest.mock import patch
+        from trama_qt import theme
+
+        self.addCleanup(lambda: theme.apply(self.app))
+        with patch.object(self.app, "setStyle", wraps=self.app.setStyle) as set_style:
+            theme.apply(self.app, dark=True)
+            theme.apply(self.app, dark=False)
+            set_style.assert_not_called()
+
     def test_light_dark_and_system_themes(self):
         from trama_qt import theme
         window = self.window
