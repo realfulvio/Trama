@@ -163,6 +163,8 @@ def _draw_connector(figure, connector, width, height, units):
 
 def render_positioned_layout(frame, layout, panel_data=None):
     """Redraw the worksheet-linked panels in their saved page rectangles."""
+    from .prism_xml_binding_layout import render_binding_graph
+
     if panel_data is not None and isinstance(layout, dict) and isinstance(layout.get("panels"), list):
         for number in range(1, len(layout["panels"]) + 1):
             if str(number) not in panel_data:
@@ -181,7 +183,11 @@ def render_positioned_layout(frame, layout, panel_data=None):
                             height_ratios=(top, bottom - top, height - bottom))
             page = figure.add_subfigure(grid[1, 1])
             axes = page.add_axes(panel.get("axes_box", (.09, .18, .86, .67)))
-            render_sparse_xy(source, style, panel["title"], axes=axes)
+            if style.get("kind") in ("binding", "ratio"):
+                other = (panel_data or {}).get(panel.get("binding_panel"))
+                render_binding_graph(source, style, panel["title"], binding=other, axes=axes)
+            else:
+                render_sparse_xy(source, style, panel["title"], axes=axes)
             axes.title.set_fontsize(10)
             axes.tick_params(labelsize=8)
             if legend := axes.get_legend():

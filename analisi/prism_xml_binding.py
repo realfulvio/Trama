@@ -23,7 +23,7 @@ _FIT_OPTIONS = (1, 0, 2, 0, 35, 16, 0, 9, 1, 1, 1, 1, -1, -1)
 
 
 def restored_binding_recipes(data, sources):
-    """Yield a worksheet, method and settings only when the indexed source matches."""
+    """Yield identities, worksheet and recipe only when the indexed source matches."""
     single_series = {key: (frame, x, groups[0][1][0]) for key, (frame, x, groups) in sources.items()
                      if len(groups) == 1 and len(groups[0][1]) == 1}
     if not single_series:
@@ -56,7 +56,7 @@ def restored_binding_recipes(data, sources):
             continue
         frame, x, y = single_series[sheet]
         if is_numeric_dtype(frame[x]) and is_numeric_dtype(frame[y]):
-            yield frame, method, {"X": x, "Y": y, **options}
+            yield uid, sheet, frame, method, {"X": x, "Y": y, **options}
 
 
 def _summary(contents, heading):

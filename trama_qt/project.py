@@ -433,7 +433,7 @@ class Project:
 
     def layout_panel_data(self, run):
         """Data of the editable graphs a saved layout draws again."""
-        if run.method != SAVED_BINARY_LAYOUT or not isinstance(run.options.get(PRISM_PANEL_DATA), dict):
+        if not isinstance(run.options.get(PRISM_PANEL_DATA), dict):
             return None
         return {panel: (self.tables[graph.title].frame(mask_excluded=True),
                         panel_source_style(graph.method, graph.options))
@@ -762,7 +762,7 @@ class Project:
         affected = [run for run in self.runs if run.title == title and run.source is None]
         if any(isinstance(run.options.get(PRISM_GRAPH_LINK), str) for run in affected):
             affected.extend(run for run in self.runs
-                            if run.title != title and run.method == SAVED_BINARY_LAYOUT
+                            if run.title != title and isinstance(run.options.get(PRISM_PANEL_DATA), dict)
                             and any(graph.title == title for graph in self.layout_panel_graphs(run).values()))
         return affected
 

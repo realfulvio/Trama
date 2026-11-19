@@ -38,9 +38,10 @@ PRISM_NOTES = "Prism import notes"
 def panel_source_style(method, options):
     """Identify a saved graph that can be recalculated from live worksheet data."""
     if method == SAVED_XY:
+        from .prism_xml_binding_layout import XML_BINDING_XY
         from .prism_zip_xy import ZIP_SPARSE_XY
 
-        style = options.get(ZIP_SPARSE_XY)
+        style = options.get(XML_BINDING_XY, options.get(ZIP_SPARSE_XY))
     elif method == SAVED_EDITABLE_GRAPH:
         style = options.get(PRISM_GRAPH_STYLE)
     else:
@@ -50,12 +51,14 @@ def panel_source_style(method, options):
 
 def resolve_layout_panel_graphs(run, runs, tables):
     from .prism_layout_edit import PRISM_PANEL_DATA
+    from .prism_xml_binding_layout import XML_BINDING_XY
     from .prism_zip_layout import ZIP_LAYOUT
 
     links = run.options.get(PRISM_PANEL_DATA)
-    if run.method != SAVED_BINARY_LAYOUT or not isinstance(links, dict):
+    companion = run.method == SAVED_XY and XML_BINDING_XY in run.options
+    if (run.method != SAVED_BINARY_LAYOUT and not companion) or not isinstance(links, dict):
         return {}
-    expected = SAVED_XY if ZIP_LAYOUT in run.options else SAVED_EDITABLE_GRAPH
+    expected = SAVED_XY if companion or ZIP_LAYOUT in run.options else SAVED_EDITABLE_GRAPH
     graphs = {}
     for item in runs:
         link = item.options.get(PRISM_GRAPH_LINK)
