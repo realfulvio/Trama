@@ -60,8 +60,9 @@ def main(argv=None):
         print(f"Qt smoke: {status} ({argv[position]})")
         return 0 if status == "PASS" else 1
 
+    from .recovery import RecoveryController
     from .window import MainWindow
-    window = MainWindow()
+    window = MainWindow(recovery=RecoveryController.for_profile())  # Recovery copies in the user's profile.
     window.show()
     theme.keep_on_screen(window)
     if splash is not None:

@@ -73,7 +73,13 @@ class RecoveryLimitError(ValueError):
 
 
 class RecoveryDamaged(ValueError):
-    """A copy exists but its payload is missing, truncated or altered."""
+    """A copy exists but its reference or payload is missing, truncated or altered. ``code`` names the case for the
+    interface: reference_unreadable, reference_invalid, payload_missing, payload_unreadable, payload_size or
+    payload_checksum."""
+
+    def __init__(self, message, code):
+        super().__init__(message)
+        self.code = code
 
 
 class RecoveryBusy(RuntimeError):
@@ -186,13 +192,13 @@ class RecoveryStore:
         except FileNotFoundError:
             raise
         except (OSError, UnicodeError) as error:
-            raise RecoveryDamaged(f"The reference cannot be read: {error}") from error
+            raise RecoveryDamaged(f"The reference cannot be read: {error}", "reference_unreadable") from error
         try:
             record = json.loads(text)
         except ValueError as error:
-            raise RecoveryDamaged("The reference is not valid JSON.") from error
+            raise RecoveryDamaged("The reference is not valid JSON.", "reference_invalid") from error
         if not isinstance(record, dict) or record.get("schema") != SCHEMA:
-            raise RecoveryDamaged("The reference has an unknown schema.")
+            raise RecoveryDamaged("The reference has an unknown schema.", "reference_invalid")
         generation = record.get("generation")
         checks = (
             record.get("session_key") == key,
@@ -206,7 +212,7 @@ class RecoveryStore:
             record.get("owner") is None or isinstance(record.get("owner"), str),
         )
         if not all(checks):
-            raise RecoveryDamaged("The reference is incomplete.")
+            raise RecoveryDamaged("The reference is incomplete.", "reference_invalid")
         return record
 
     def _verified(self, record):
@@ -215,13 +221,13 @@ class RecoveryStore:
         try:
             data = path.read_bytes()
         except FileNotFoundError as error:
-            raise RecoveryDamaged("The project file of this copy is missing.") from error
+            raise RecoveryDamaged("The project file of this copy is missing.", "payload_missing") from error
         except OSError as error:
-            raise RecoveryDamaged(f"The project file of this copy cannot be read: {error}") from error
+            raise RecoveryDamaged(f"The project file of this copy cannot be read: {error}", "payload_unreadable") from error
         if len(data) != record["size"]:
-            raise RecoveryDamaged("The project file of this copy has the wrong size.")
+            raise RecoveryDamaged("The project file of this copy has the wrong size.", "payload_size")
         if sha256(data).hexdigest() != record["sha256"]:
-            raise RecoveryDamaged("The project file of this copy does not match its checksum.")
+            raise RecoveryDamaged("The project file of this copy does not match its checksum.", "payload_checksum")
         return data
 
     def _check_payload(self, record):
@@ -230,17 +236,17 @@ class RecoveryStore:
         try:
             size = path.stat().st_size
         except FileNotFoundError as error:
-            raise RecoveryDamaged("The project file of this copy is missing.") from error
+            raise RecoveryDamaged("The project file of this copy is missing.", "payload_missing") from error
         except OSError as error:
-            raise RecoveryDamaged(f"The project file of this copy cannot be read: {error}") from error
+            raise RecoveryDamaged(f"The project file of this copy cannot be read: {error}", "payload_unreadable") from error
         if size != record["size"]:
-            raise RecoveryDamaged("The project file of this copy has the wrong size.")
+            raise RecoveryDamaged("The project file of this copy has the wrong size.", "payload_size")
         try:
             digest = _digest(path)
         except OSError as error:
-            raise RecoveryDamaged(f"The project file of this copy cannot be read: {error}") from error
+            raise RecoveryDamaged(f"The project file of this copy cannot be read: {error}", "payload_unreadable") from error
         if digest != record["sha256"]:
-            raise RecoveryDamaged("The project file of this copy does not match its checksum.")
+            raise RecoveryDamaged("The project file of this copy does not match its checksum.", "payload_checksum")
 
     def _keys(self):
         try:
@@ -276,13 +282,13 @@ class RecoveryStore:
                 except FileNotFoundError:
                     continue  # Discarded between the listing and the read.
                 except RecoveryDamaged as error:
-                    problems.append(self._problem(key, str(error)))
+                    problems.append(self._problem(key, str(error), error.code))
                     continue
                 snapshots.append(self._public(record))
         snapshots.sort(key=lambda item: (-item["written"], item["title"].casefold(), item["session_key"]))
         return snapshots, problems
 
-    def _problem(self, key, reason):
+    def _problem(self, key, reason, code):
         size, owner, title = 0, None, None
         for path in [self._reference(key), *self._payloads(key).values()]:
             try:
@@ -296,7 +302,7 @@ class RecoveryStore:
                 title = raw.get("title") if isinstance(raw.get("title"), str) else None
         except (OSError, ValueError, UnicodeError):
             pass
-        return {"session_key": key, "reason": reason, "size": size, "owner": owner, "title": title}
+        return {"session_key": key, "reason": reason, "code": code, "size": size, "owner": owner, "title": title}
 
     def list_snapshots(self):
         """The valid copies, newest first (then by title and key): dicts with ``session_key``, ``generation``,
@@ -305,8 +311,8 @@ class RecoveryStore:
         return self.scan()[0]
 
     def problems(self):
-        """The copies that cannot be recovered: dicts with ``session_key``, ``reason``, ``size``, ``owner`` and
-        ``title`` (when the reference still tells)."""
+        """The copies that cannot be recovered: dicts with ``session_key``, ``reason`` (English), ``code`` (see
+        ``RecoveryDamaged``), ``size``, ``owner`` and ``title`` (when the reference still tells)."""
         return self.scan()[1]
 
     def read_snapshot(self, session_key):

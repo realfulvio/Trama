@@ -231,6 +231,8 @@ class Project:
         self.recovery_generation = 0
         self.recovered_from = None  # The original of a recovered copy (str), which stays on disk untouched.
         self.recovered_title = None
+        self.recovery_base_title = None  # The title the copy was taken under (without "recovered").
+        self.save_suggestion = None  # Where Save as proposes to put a recovered copy.
         self.source_stamp = None
 
     @property
@@ -401,7 +403,7 @@ class Project:
         save_project(path, self.tables, layouts=self.layouts, info_sheets=tuple(self.info_sheets.values()))
         self.path = path
         self.dirty = False
-        self.recovered_from = self.recovered_title = None
+        self.recovered_from = self.recovered_title = self.recovery_base_title = self.save_suggestion = None
         self.source_stamp = _file_stamp(path)
 
     def snapshot(self):
