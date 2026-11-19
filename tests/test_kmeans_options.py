@@ -43,6 +43,8 @@ class KmeansOptionsTests(unittest.TestCase):
             analyse(option.CLUSTERING, self.frame, options)
         self.assertEqual(failure.exception.field, option.MAX_ITERATIONS)
 
+    # The patched kmeans counts calls in this process: keep the scan in one process.
+    @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
     def test_gap_reference_uses_the_same_algorithm_and_limit_as_observed_fits(self):
         options = {**self.options, "Criterion": "Gap", "Maximum k": 4, "Gap simulations": 5,
                    option.MAX_ITERATIONS: 23}
