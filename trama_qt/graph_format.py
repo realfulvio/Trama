@@ -2,7 +2,7 @@
 
 The dialog edits the same style dictionary as the classic one (``analisi.graph_dialog``) and validates
 it with the engine, legend formatting, axis guides, bands and breaks included. Annotations and shapes have
-their own dialogs; Q–Q panels and the dendrogram style are kept unchanged.
+their own dialogs, as do dendrograms and clustered heat maps. Q–Q panel settings are preserved.
 """
 from copy import deepcopy
 
@@ -17,6 +17,7 @@ from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
 from analisi.graph_annotations import ANNOTATIONS
 from analisi.graph_legend import LEGEND_OPTIONS_KEY
 from analisi.graph_shapes import SHAPES
+from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.i18n import tr, translate_message
 from analisi.presentation import (FONT_FAMILIES, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
                                   active_series_fields, apply_style, axis_has_numeric_ticks, graph_series,
@@ -121,7 +122,7 @@ class GraphFormatDialog(QDialog):
     def __init__(self, parent, axes, style, *, xy=None):
         super().__init__(parent)
         self.setWindowTitle(tr("graph.format.title"))
-        self.axes, self.style, self.xy = axes, style, xy
+        self.axes, self.style, self.xy = axes, deepcopy(style), xy
         self.result = self.xy_update = self.xy_result = None
         self.series = graph_series(axes)
         self.series_values = {key: {name: str(value) for name, value in options.items()}
@@ -219,6 +220,10 @@ class GraphFormatDialog(QDialog):
         row.addWidget(self.legend_summary, 1)
         form.addRow("", row)
         self._legend_summary()
+        if describe_hierarchical_artists(self.axes.figure):
+            button = QPushButton(tr("hierarchy.style.button"))
+            button.clicked.connect(self.edit_hierarchical)
+            form.addRow("", button)
 
     def _legend_summary(self):
         from .legend import legend_summary
@@ -232,6 +237,16 @@ class GraphFormatDialog(QDialog):
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.result is not None:
             self.legend_options = dialog.result
             self._legend_summary()
+
+    def edit_hierarchical(self):
+        from .hierarchical_style import HierarchicalStyleDialog
+
+        dialog = HierarchicalStyleDialog(self, self.axes.figure, self.style.get("hierarchical"))
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            if dialog.result:
+                self.style["hierarchical"] = dialog.result
+            else:
+                self.style.pop("hierarchical", None)
 
     def _axes(self):
         page = self._tab(tr("graph.format.axes"))

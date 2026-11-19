@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFormLayout, QFrame, QGroup
                                QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from analisi.axis_breaks import AXIS_BREAKS
+from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.i18n import tr, translate_message
 from analisi.presentation import (LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES, active_series_fields, apply_style,
                                   axis_has_numeric_ticks, capture_defaults, graph_groups, graph_series,
@@ -103,6 +104,10 @@ class GraphInspector(QFrame):
             label.setObjectName("errorBanner")
             label.setWordWrap(True)
             self.body.addWidget(label)
+        if describe_hierarchical_artists(self.figure):
+            button = QPushButton(tr("hierarchy.style.button"))
+            button.clicked.connect(self.edit_hierarchical)
+            self.body.addWidget(button)
         self._data_section()
         self._axes_section()
         self._page_section()
@@ -334,6 +339,21 @@ class GraphInspector(QFrame):
                                         else "graph.inspector.xy_hint"))
 
     # -- editing ---------------------------------------------------------------------------------------
+    def edit_hierarchical(self):
+        from .hierarchical_style import HierarchicalStyleDialog
+
+        self._flush()
+        dialog = HierarchicalStyleDialog(self, self.figure, self.draft.get("hierarchical"))
+        if dialog.exec() != HierarchicalStyleDialog.DialogCode.Accepted:
+            return
+        candidate = deepcopy(self.draft)
+        if dialog.result:
+            candidate["hierarchical"] = dialog.result
+        else:
+            candidate.pop("hierarchical", None)
+        if candidate != self.draft:
+            self._preview(candidate)
+
     def _schedule(self, source):
         if self._loading:
             return
