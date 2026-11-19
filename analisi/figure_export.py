@@ -130,9 +130,9 @@ def _verify(path, plan):
                 raise ValueError(f"The rendered image is {image.size[0]} × {image.size[1]} px, not {plan['pixels'][0]} × {plan['pixels'][1]}.")
 
 
-def export_figure(figure, path, settings):
+def export_figure(figure, path, settings, *, size_inches=None):
     """Write `figure` to `path`; the destination is replaced only after a verified render."""
-    plan = plan_export(figure.get_size_inches(), settings)
+    plan = plan_export(figure.get_size_inches() if size_inches is None else size_inches, settings)
     path = Path(path)
     check_destination(path, plan["format"])
     handle, name = tempfile.mkstemp(prefix=f".{path.stem}-", suffix=path.suffix, dir=path.parent)

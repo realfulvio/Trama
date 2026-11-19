@@ -24,7 +24,9 @@ from analisi.monte_carlo import MonteCarloCancelled
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS
 from analisi.prism_restore import (PRISM_GRAPH_LINK, PRISM_PREVIEW, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
                                    SAVED_EDITABLE_GRAPH, SAVED_XY)
+from analisi.prism_zip_layout import ZIP_LAYOUT
 from analisi.prism_xml_xy import XML_ERROR_BARS
+from analisi.prism_zip_xy import ZIP_SPARSE_XY
 from analisi.text_import import TEXT_SUFFIXES
 from analisi.workbench import GRAPH_METHODS, GROUPS
 
@@ -44,10 +46,11 @@ except Exception:  # pragma: no cover
     threshold_text = None
 
 GRAPHING = tuple(GROUPS.get("Graphing", ())) + ("Plot a function",)
+SOURCE_XY = {XML_ERROR_BARS, ZIP_SPARSE_XY}
 
 
 def _saved_recipe(run):
-    return run.method in SAVED_VIEWS or (run.method == SAVED_XY and XML_ERROR_BARS in run.options)
+    return run.method in SAVED_VIEWS or (run.method == SAVED_XY and not SOURCE_XY.isdisjoint(run.options))
 
 
 def preferred_view(run, result):
@@ -84,7 +87,7 @@ def safe_csv(path, frame, index=False):
     data.to_csv(path, index=index, encoding="utf-8-sig")
 
 
-def export_graph(figure, path, settings=None):
+def export_graph(figure, path, settings=None, *, size_inches=None):
     """A graph at its own size, 300 dpi for images unless ``settings`` say otherwise, verified before it
     replaces the file."""
     from analisi.figure_export import export_figure
@@ -92,10 +95,33 @@ def export_graph(figure, path, settings=None):
         suffix = Path(path).suffix.lower()
         fmt = {".svg": "svg", ".pdf": "pdf", ".tif": "tiff", ".tiff": "tiff"}.get(suffix, "png")
         settings = {"format": fmt, "dpi": 300} if fmt in {"png", "tiff"} else {"format": fmt}
-    export_figure(figure, path, settings)
+    export_figure(figure, path, settings, size_inches=size_inches)
+
+
+def imported_paper(run):
+    if run is not None and ZIP_LAYOUT in run.options:
+        return run.options[ZIP_LAYOUT]["paper"]
+    return None
 
 
 _KEEP = object()  # ``_ask``: keep the input of the analysis.
+
+
+class PaperPreview(QWidget):
+    """Fit a page to the viewport without distorting its saved aspect ratio."""
+
+    def __init__(self, canvas, paper):
+        super().__init__()
+        self.canvas = canvas
+        self.canvas.setParent(self)
+        self.canvas.setMinimumSize(0, 0)
+        self.aspect = paper[0] / paper[1]
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        width = min(self.width(), int(self.height() * self.aspect))
+        height = int(width / self.aspect)
+        self.canvas.setGeometry((self.width() - width) // 2, (self.height() - height) // 2, width, height)
 
 
 class Job:
@@ -806,7 +832,7 @@ class MainWindow(QMainWindow):
         self.show_home() if not self.project.tables else self.show_sheet("data", next(iter(self.project.tables)))
         self.refresh_runs([run for run in stale if run.result is not None])
 
-    def _canvas(self, page, figure, *, toolbar=True, run=None):
+    def _canvas(self, page, figure, *, toolbar=True, run=None, paper=None):
         canvas = FigureCanvasQTAgg(figure)
         canvas.setMinimumSize(200, 160)
         page.canvases.append(canvas)
@@ -818,7 +844,7 @@ class MainWindow(QMainWindow):
         row = QWidget()
         line = QHBoxLayout(row)
         line.setContentsMargins(0, 0, 0, 0)
-        line.addWidget(canvas, 1)
+        line.addWidget(canvas if paper is None else PaperPreview(canvas, paper), 1)
         page.add(row, 1)
         if run is not None and self.inspector_wanted and self.project.graph_format_problem(run) is None:
             self._open_inspector(run, canvas, line)
@@ -932,18 +958,23 @@ class MainWindow(QMainWindow):
                 button.setObjectName("importedPanelGeometry")
             if graphs or run.options.get(PRISM_PANEL_EDITS):
                 page.button(tr("layout.export_current_emf"), lambda: self.export_current_layout_emf(run), icon="upload")
-        if not graphs:
-            return
         if not isinstance(panels, list):
             panels = []
         captions = {panel["id"]: panel.get("title") for panel in panels
                     if isinstance(panel, dict) and isinstance(panel.get("id"), str)}
+        entries = [(f"{panel} · {captions.get(panel) or graph.name}", graph.title) for panel, graph in graphs.items()]
+        if ZIP_LAYOUT in run.options and run.result is not None:
+            entries = [(f'{number} · {panel["title"]}', run.title)
+                       for number, panel in enumerate(run.options[ZIP_LAYOUT]["panels"], 1)]
+        if not entries:
+            return
         choice = QComboBox()
         choice.setAccessibleName(ui("Edit panel data…"))
+        choice.setObjectName("importedPanelSource")
         choice.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         choice.setMinimumContentsLength(18)
-        for panel, graph in graphs.items():
-            choice.addItem(f"{panel} · {captions.get(panel) or graph.name}", graph.title)
+        for caption, table in entries:
+            choice.addItem(caption, table)
         page.actions_row.addWidget(choice)
         page.button(ui("Edit panel data…"), lambda: self.open_sheet(("data", choice.currentData())),
                     primary=True, icon="table")
@@ -955,7 +986,7 @@ class MainWindow(QMainWindow):
         result = run.result
         if kind == "graph" and run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}:
             self._imported_graph_actions(page, run)
-        elif kind == "graph" and run.method == SAVED_XY and XML_ERROR_BARS in run.options:
+        elif kind == "graph" and run.method == SAVED_XY and not SOURCE_XY.isdisjoint(run.options):
             button = page.button(ui("Edit graph data"), lambda: self.open_sheet(("data", run.title)),
                                  primary=True, icon="table")
             button.setObjectName("importedGraphSource")
@@ -1013,7 +1044,7 @@ class MainWindow(QMainWindow):
                 warning = None
             if warning:
                 page.notice(warning)
-            self._canvas(page, result.figure, run=run if kind == "graph" else None)
+            self._canvas(page, result.figure, run=run if kind == "graph" else None, paper=imported_paper(run))
         else:
             page.notice(qt("qt.not_calculated"))
             page.layout_.addStretch(1)
@@ -1876,7 +1907,7 @@ class MainWindow(QMainWindow):
                     elif kind == "layout":
                         self.project.export_layout(layout, path)
                     else:
-                        export_graph(figure, path)
+                        export_graph(figure, path, size_inches=imported_paper(run))
             else:
                 if kind == "data":
                     frame, index = self.project.tables[key].frame(mask_excluded=True), False
@@ -1940,7 +1971,10 @@ class MainWindow(QMainWindow):
                           "Imported graphs and layouts keep their original export."))
             return
         layout_size = page_size(layout.columns, len(layout.panels), layout.paper) if layout is not None else None
-        dialog = ExportOptionsDialog(self, tuple(figure.get_size_inches()), raster_panels=kind == "saved-layout",
+        raster_panels = kind == "saved-layout" and ZIP_LAYOUT not in run.options
+        recorded_paper = imported_paper(None if layout is not None else run)
+        size = tuple(recorded_paper or figure.get_size_inches())
+        dialog = ExportOptionsDialog(self, size, raster_panels=raster_panels,
                                      layout_size=layout_size)
         if dialog.exec() != ExportOptionsDialog.DialogCode.Accepted or dialog.result is None:
             return
@@ -1960,7 +1994,7 @@ class MainWindow(QMainWindow):
             if layout is not None:
                 self.project.export_layout(layout, path, settings)
             else:
-                export_graph(figure, path, settings)
+                export_graph(figure, path, settings, size_inches=recorded_paper)
         except (OSError, ValueError, TypeError) as error:
             self.error(error)
             return

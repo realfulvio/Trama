@@ -933,9 +933,12 @@ def _classic_analysis(method, frame, options, predict, run):
 def _imported_xy(frame, options):
     from .prism_mv_scatter import APPEARANCE, appearance_record, apply_axes
     from .prism_xml_xy import XML_ERROR_BARS, render_xml_error_graph
+    from .prism_zip_xy import ZIP_SPARSE_XY, render_sparse_xy
 
     if XML_ERROR_BARS in options:
         return render_xml_error_graph(frame, options)
+    if ZIP_SPARSE_XY in options:
+        return render_sparse_xy(frame, options[ZIP_SPARSE_XY], options.get(PRISM_TITLE, "Prism XY graph"))
 
     style = appearance_record(options[APPEARANCE]) if APPEARANCE in options else None
     data = engine.complete(frame, ["X", "Y", "Dataset"], ["Series", "Geometry"])
@@ -1057,6 +1060,10 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
 
         return Result({}, _preview_figure(render_binary_graph(o.get(PRISM_PREVIEW))))
     if method == SAVED_BINARY_LAYOUT:
+        from .prism_zip_layout import ZIP_LAYOUT, render_positioned_layout
+
+        if ZIP_LAYOUT in o:
+            return Result({}, render_positioned_layout(frame, o[ZIP_LAYOUT]))
         return Result({}, _imported_layout(o, layout_data))
     if method == SAVED_EDITABLE_GRAPH:
         from .prism_emf_edit import CURVE, POINTS, edit_emf_preview
