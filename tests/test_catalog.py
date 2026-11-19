@@ -156,6 +156,9 @@ class CatalogTests(unittest.TestCase):
             "Reshape replicates": {"Variables": ["x", "y"], "Row label": "Factor"},
             "Outlier test (Grubbs)": {"Response": "z", "Alpha": .05},
             "Transpose X and Y": {"X": "x", "Y sets": [{"name": "Y", "mode": "Single", "columns": ["y"]}]},
+            "Join worksheets by key": {"Join right sheet": "Sites", "Join left keys": ["Group"],
+                                       "Join right keys": ["Group"], "Join type": "Left",
+                                       "Join cardinality": "Many-to-one"},
             "Identify outliers": {"Variables": ["x", "y", "z"], "Method": "ROUT", "Q (%)": 1.},
             "Power and sample size": {"Goal": "Sample size", "Design": "Independent t", "Standardized effect": .5,
                                       "Alpha": .05, "Target power": .8, "ANOVA groups": 3},
@@ -205,7 +208,10 @@ class CatalogTests(unittest.TestCase):
                 if name == HIERARCHY_GRAPH:
                     tree = analyse("Hierarchical clustering", data, cases["Hierarchical clustering"])
                     selected = result_frame(tree, "Merges")
-                results = analyse(name, selected, options)
+                # The application resolves the right worksheet of a join and passes it with the recipe.
+                extra = ({"join_data": pd.DataFrame({"Group": ["A", "B"], "Site": ["North", "South"]})}
+                         if name == "Join worksheets by key" else {})
+                results = analyse(name, selected, options, **extra)
                 self.assertTrue(results.figure if name == HIERARCHY_GRAPH else results.tables)
                 self.assertTrue(all(isinstance(table, pd.DataFrame) for table in results.tables.values()))
                 self.assertEqual(results.figure is not None, name in GRAPH_METHODS)

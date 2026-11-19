@@ -15,6 +15,26 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Unisci fogli per chiave, pacchetto Unione-Fogli-Chiavi 0.96 (2026-11-19)
+
+PR draft verso main (ramo `claude/worksheet-key-join`, base main 4c07db6). Windows NON PROVATO. Guida per chi usa il programma: `docs/worksheet-join.md`.
+
+- Nuovo metodo **Analyze → Data Processing → Join worksheets by key** (IT **Unisci fogli per chiave**). Il motore è in `analisi/worksheet_join.py`, i testi EN/IT in `analisi/worksheet_join_text.py`. Chiavi tipizzate (testo letterale, 1 = 1.0 senza perdita sugli interi grandi, `"1"` ≠ 1, bool solo con bool, vuoto/escluso/non finito = nessuna corrispondenza), da 1 a 4 coppie, Inner/Left/Full, quattro cardinalità, budget di 100.000 righe e 2.000.000 di celle controllato prima di espandere. I risultati sono Joined data, Join provenance e Join diagnostics.
+- Qt: editor dedicato `trama_qt/worksheet_join.py` (foglio di destra, coppie affiancate, tipo e cardinalità), agganciato in `analysis_dialog.py`. Gli errori riaprono il dialogo con il cursore sul campo giusto, anche sulla singola coppia.
+- Progetto: `Project.join_sources`, `join_problem`, `join_data` e `readers`. Il foglio di destra si legge sul thread della finestra (`frame(mask_excluded=True)`) e viaggia nel `RefreshJob`, quindi una modifica di uno dei due fogli ricalcola l'unione e le analisi collegate. Le unioni restano fuori dal precompute parallelo (`LOCAL_METHODS`).
+- Famiglie: Duplica famiglia continua a leggere lo stesso foglio di destra, a meno che non sia copiato anche lui. Salva famiglia come porta con sé il foglio di destra.
+- Tk classica: il metodo non compare nel menu; una ricetta esistente resta intatta e mostra `join.classic`.
+- Barra di stato: `trama_qt/status_label.py` taglia con i puntini un messaggio lungo invece di allargare la finestra (tooltip con il testo intero, `text()` invariato).
+- Da provare su Windows, a 100% e 150%, chiaro e scuro:
+  - Aprire `tests/data/worksheet_join/unione-campioni.alab`, foglio `Misure $`, Unisci fogli per chiave: foglio `Anagrafica | visite`, coppie Sample↔ID e Visit↔Time, Completa, Uno a molti → 8 righe come nella guida.
+  - Rifare con Uno a uno: errore, il dialogo si riapre su Cardinalità e si corregge lì.
+  - Modificare una cella del foglio di destra, poi Annulla: il risultato segue entrambe le volte.
+  - Salvare, chiudere, riaprire: il risultato si ricalcola uguale. Export CSV dei tre fogli di risultato.
+  - Dialogo in italiano a 150%: coppie, didascalie e note leggibili, senza tagli.
+  - `python -m trama_qt --smoke CARTELLA` alle due scale: i passi `join-*` non devono dare problemi.
+- Test attesi: `tests.test_worksheet_join` 24/24, `tests.test_qt_worksheet_join` 14/14, `tests.test_catalog`, `tests.test_qt_shell`, `tests.test_family_workflow`. Misure in `tests/perf_worksheet_join.py`.
+- Conflitti attesi con #57-#64: `window.py` (`_ask`, `calculate_candidate`, import e costruttore della barra di stato), `analysis_dialog.py` (`__init__`, `configure_fields`, `focus_field`, `options`, `accept`, `_message`), `project.py` (`compute`, `RefreshJob`, `plan_refresh`, `run_refresh`, `table_runs`), `smoke.py` (due righe dopo global_fit), `analisi/i18n.py` (registro dei testi), `analisi/workbench.py` (METHODS e GROUPS), cima di questo file.
+
 ### Più progetti in schede nella finestra Qt, pacchetto Progetti 0.95 (2026-11-19)
 
 PR draft verso main (ramo `claude/project-thread-hz1cm2`, base main 7a7340c). Windows NON PROVATO.

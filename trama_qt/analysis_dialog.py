@@ -25,6 +25,7 @@ from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
 from . import anova_model, global_fit
+from . import worksheet_join as join_editor
 from .labels import choice_label, field_label, method_label
 from .strings import qt
 from .theme import fit_dialog
@@ -130,8 +131,12 @@ class ParameterTable(QTableWidget):
 
 
 class AnalysisDialog(QDialog):
-    def __init__(self, parent, frame, *, current=None, only=None, error=None, error_field=None):
+    def __init__(self, parent, frame, *, current=None, only=None, error=None, error_field=None,
+                 join_sources=None, join_left=None):
         super().__init__(parent)
+        # Join worksheets by key: the other data sheets with their columns, and the title of the left one.
+        self.join_sources, self.join_left = join_sources, join_left
+        self.join = None
         self.setWindowTitle(qt("qt.analysis_title"))
         self.data = frame
         self.current = current
@@ -272,6 +277,7 @@ class AnalysisDialog(QDialog):
         self.rows.clear()
         self.hidden.clear()
         self.anova = None
+        self.join = None
         pages, scrolls = {}, {}
         # Global fit custom equation adds Equation, Parameters, Series constraints and Response pages.
         for key, name in (("variables", qt("qt.variables")), *global_fit.pages(self.method),
@@ -299,7 +305,9 @@ class AnalysisDialog(QDialog):
         numeric = [str(name) for name in self.data.select_dtypes(include="number").columns]
         categorical = [name for name in columns if name not in numeric] or columns
         numeric_position = category_position = 0
-        for label, kind in METHODS[self.method].items():
+        # Join worksheets by key has an editor of its own (trama_qt.worksheet_join), attached below.
+        fields = {} if self.method == join_editor.wj.METHOD else METHODS[self.method]
+        for label, kind in fields.items():
             variable = (kind in VARIABLE_KINDS or label == "Input format") and label not in {
                 "Comparison factor", "Condition on factors"}
             form = pages.get(global_fit.page_of(self.method, label)) or (variables if variable else options)
@@ -390,10 +398,13 @@ class AnalysisDialog(QDialog):
             self.rows[label] = (caption, widget, form)
         self.anova = anova_model.attach(self, saved)
         global_fit.attach(self)
+        self.join = join_editor.attach(self, pages, saved)
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
 
     def focus_field(self, name, error=None):
+        if self.join is not None:
+            return self.join.focus(name, error)
         row = self.rows.get(name)
         if row is None:
             return False
@@ -411,6 +422,8 @@ class AnalysisDialog(QDialog):
 
     # -- values ----------------------------------------------------------------------------------
     def options(self):
+        if self.join is not None:
+            return self.join.options()
         options = {}
         for name, (kind, control) in self.controls.items():
             if name in self.hidden:
@@ -465,6 +478,8 @@ class AnalysisDialog(QDialog):
                 self.anova.check(options)  # the engine's cheap checks; the fit stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            if self.join is not None:
+                self.join.check(options)
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
@@ -477,6 +492,8 @@ class AnalysisDialog(QDialog):
     def _message(self, error, field=None):
         if self.method == global_fit.GLOBAL_CUSTOM_EQUATION:
             return global_fit.describe_error(error, field)
+        if self.method == join_editor.wj.METHOD:
+            return join_editor.message(error)
         return str(error)
 
     def show_error(self, error, field=None):

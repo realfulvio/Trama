@@ -42,6 +42,7 @@ from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_S
 from .sessions import MAX_PROJECT_TABS, Sessions
 from .shape_canvas import GraphDrawing
 from .sheet import FrameView, WorksheetView
+from .status_label import StatusLabel
 from .strings import qt
 
 try:
@@ -413,7 +414,7 @@ class MainWindow(QMainWindow):
 
         status = self.statusBar()
         status.setSizeGripEnabled(True)
-        self.message = QLabel(qt("qt.ready"))
+        self.message = StatusLabel(qt("qt.ready"))
         status.addWidget(self.message, 1)
         self.cell_label = QLabel("")
         status.addPermanentWidget(self.cell_label)
@@ -1482,7 +1483,9 @@ class MainWindow(QMainWindow):
     def _ask(self, title, frame, *, current=None, only=None, index=None, error=None, error_field=None, source=_KEEP):
         """Ask for the parameters, then calculate. ``source`` sets the result an analysis reads (a new link, or
         Change input result…); by default a new analysis reads its data table and an edit keeps its input."""
-        dialog = AnalysisDialog(self, frame, current=current, only=only, error=error, error_field=error_field)
+        reads = (self.project.runs[index].source if index is not None else None) if source is _KEEP else source
+        dialog = AnalysisDialog(self, frame, current=current, only=only, error=error, error_field=error_field,
+                                join_sources=self.project.join_sources(title, reads), join_left=title)
         if dialog.exec() != AnalysisDialog.DialogCode.Accepted or dialog.result is None:
             return
         method, options = dialog.result
@@ -1760,6 +1763,7 @@ class MainWindow(QMainWindow):
     def calculate_candidate(self, candidate, frame, index, *, only=None):
         pairwise = self.project.pairwise_snapshot(candidate)
         layout_data = self.project.layout_panel_data(candidate)
+        join_data = self.project.join_data(candidate)  # read here: the worker never looks a sheet up
         control = CalculationControl()
 
         def done(future, cancelled):
@@ -1790,7 +1794,8 @@ class MainWindow(QMainWindow):
             if dependents:
                 self.refresh_runs(dependents)
 
-        future = self.worker.submit(compute, candidate, frame, control, layout_data, pairwise)
+        extra = {} if join_data is None else {"join_data": join_data}
+        future = self.worker.submit(compute, candidate, frame, control, layout_data, pairwise, **extra)
         self._start(future, control, done, qt("qt.running", method=method_label(candidate.method)))
 
     def refresh_runs(self, runs):

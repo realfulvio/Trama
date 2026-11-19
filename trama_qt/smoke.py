@@ -218,6 +218,8 @@ class Smoke:
             self.anova(window)
             from .global_fit_smoke import exercise as global_fit
             global_fit(self, window)
+            from .join_smoke import exercise as worksheet_join
+            worksheet_join(self, window)
             from .projects_smoke import run as project_tabs
             project_tabs(self, window)
             from .canvas_smoke import check_canvas

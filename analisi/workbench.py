@@ -69,6 +69,7 @@ from .plot_function import PLOT_FUNCTION
 from .robust_curve import OPTIONS as ROBUST_CURVE_OPTIONS, ROBUST_CURVE, robust_curve
 from .nb2_regression import NB2, OPTIONS as NB2_OPTIONS, analysis as nb2_analysis
 from .transpose_xy import OPTIONS as TRANSPOSE_OPTIONS, TRANSPOSE_XY, transpose_xy
+from .worksheet_join import METHOD as WORKSHEET_JOIN, OPTIONS as WORKSHEET_JOIN_OPTIONS, join_worksheets
 from .paired_graphs import (BEFORE_AFTER, BEFORE_AFTER_OPTIONS, TRAJECTORIES, TRAJECTORY_OPTIONS, before_after,
                             subject_trajectories)
 from .spline_fit import SPLINE_FIT
@@ -318,13 +319,14 @@ METHODS = {
         for field in dict.fromkeys(field for fields in EXTRACT_FIELDS.values() for field in fields)
     }},
     REFERENCE_NORMALIZATION: REFERENCE_NORMALIZATION_OPTIONS,
+    WORKSHEET_JOIN: WORKSHEET_JOIN_OPTIONS,
     **EXTRA_METHODS,
 }
 
 GROUPS = {
     "Data Processing": ("Transform", "Transform concentrations (X)", "Normalize", REFERENCE_NORMALIZATION, "Prune rows",
                         "Remove baseline and column math", "Fraction of total", EXTRACT_REARRANGE, SELECT_TRANSFORM,
-                        "Reshape replicates", TRANSPOSE_XY,
+                        "Reshape replicates", TRANSPOSE_XY, WORKSHEET_JOIN,
                         "Outlier test (Grubbs)", OUTLIERS),
     "Data Exploration and Summary": ("Descriptive statistics", "Row statistics", NORMALITY,
                                     "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX, RMCORR,
@@ -1052,8 +1054,12 @@ def _imported_layout(options, layout_data=None):
     return figure
 
 
-def analyse(method, frame, options, *, layout_data=None, cancel=None):
+def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=None):
+    """Calculate ``method`` on ``frame``. ``join_data`` is the evaluated right worksheet of
+    Join worksheets by key, already resolved by the application (the engine never looks sheets up)."""
     o = options
+    if method == WORKSHEET_JOIN:
+        return join_worksheets(frame, join_data, o, cancel=cancel)
     if o.get("Linear trend") and method != "One-way ANOVA":
         from .trend_anova import reject_unless_one_way
         reject_unless_one_way(method)

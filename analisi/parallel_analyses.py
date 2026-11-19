@@ -9,6 +9,8 @@ fresh results of other analyses, error handling.
 Kept in the calling thread (never sent to a worker):
     * Monte Carlo studies, which report progress to the status bar while they run;
     * results imported from other files (``Saved …`` methods), which render stored previews;
+    * Join worksheets by key, which also reads a second worksheet (``join_data``) that a single-frame job
+      does not carry;
     * XY series, which are cheaper than the transfer;
     * forest plots, before/after graphs and heat maps, whose figures keep local functions (axis converters,
       legend formatters) that cannot be pickled. Making those functions module-level lets them move to a
@@ -26,11 +28,13 @@ from .heatmap import HEAT_MAP
 from .monte_carlo import MONTE_CARLO
 from .paired_graphs import BEFORE_AFTER
 from .parallel import process_count, run_tasks
+from .worksheet_join import METHOD as WORKSHEET_JOIN
 from .workbench import SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY
 from .xy_series import XY_METHOD
 
 LOCAL_METHODS = frozenset({MONTE_CARLO, XY_METHOD, SAVED_XY, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
-                           SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, FOREST_PLOT, BEFORE_AFTER, HEAT_MAP})
+                           SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, FOREST_PLOT, BEFORE_AFTER, HEAT_MAP,
+                           WORKSHEET_JOIN})
 
 
 def analysis_task(job, cancel=None):
