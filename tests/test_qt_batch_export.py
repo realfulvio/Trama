@@ -286,9 +286,14 @@ class BatchExportWindowTests(unittest.TestCase):
         self.app.processEvents()
 
     def _close(self):
-        self.window.project.dirty = False
+        from PySide6.QtCore import QEvent
+
+        for session in self.window.sessions:
+            session.project.dirty = False
         self.window.dispose_inspector()
         self.window.close()
+        self.window.deleteLater()
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.app.processEvents()
 
     def wait(self, timeout=60):
