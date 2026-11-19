@@ -143,7 +143,8 @@ class Page(QWidget):
         """Detach matplotlib figures from the canvases that are about to be deleted."""
         for canvas in self.canvases:
             figure = canvas.figure
-            FigureCanvasBase(figure)
+            if figure.canvas is canvas:
+                FigureCanvasBase(figure)
         self.canvases.clear()
 
 

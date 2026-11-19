@@ -206,6 +206,7 @@ class QtShellTests(unittest.TestCase):
         graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
         window.toggle_inspector()
         inspector = window.inspector
+        self.assertIs(graph.result.figure.canvas, inspector.canvas)
         self.assertIsNotNone(inspector)
         axes = graph.result.figure.axes[0]
         inspector.widgets["title"].setText("Anteprima")
