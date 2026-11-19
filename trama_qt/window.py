@@ -154,6 +154,9 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self._poll)
         self.actions = {}
         self.icons = {}
+        self.inspector = None
+        self.inspector_wanted = False
+        self.inspector_element = None
         self.setAcceptDrops(True)
         self.setWindowIcon(QIcon(str(theme.ASSETS / "trama.png")))
         self._build()
@@ -191,7 +194,7 @@ class MainWindow(QMainWindow):
         a("save", tr("command.save_project"), self.save, icon="save", shortcut="Ctrl+S")
         a("save_as", tr("command.save_project_as"), lambda: self.save(as_new=True), shortcut="Ctrl+Shift+S")
         a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+E")
-        a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-text")
+        a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")
         a("classic", qt("qt.classic"), self.open_classic, icon="history", tip=qt("qt.classic_hint"))
         a("language", tr("command.language"), self.choose_language, icon="type")
         a("about", qt("qt.about"), self.about, icon="info")
@@ -211,6 +214,7 @@ class MainWindow(QMainWindow):
         a("change", tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal",
           shortcut="Ctrl+P")
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
+        a("inspector", tr("graph.inspector.title"), self.toggle_inspector, icon="paintbrush", shortcut="Ctrl+Shift+I")
         a("new_layout", tr("command.new_layout"), self.new_layout, icon="layout-grid", shortcut="Ctrl+L")
         a("edit_layout", tr("command.edit_layout"), lambda: self.new_layout(edit=True), icon="layout-grid")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
@@ -328,7 +332,7 @@ class MainWindow(QMainWindow):
             (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
                                             "use_result"]),
-            (tr("ribbon.modern.graph"), ["*new_graph", "|", "format_graph", "change", "recalculate", "|", "new_layout",
+            (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "change", "recalculate", "|", "new_layout",
                                           "edit_layout", "|", "export"]),
             (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
         ]
@@ -408,6 +412,9 @@ class MainWindow(QMainWindow):
         self.actions["change"].setEnabled(on_run and idle)
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
+        self.actions["inspector"].setEnabled(graph and idle)
+        if self.inspector is not None:
+            self.inspector.setEnabled(idle)
         self.actions["new_layout"].setEnabled(idle and bool(self.project.layout_candidates()))
         self.actions["edit_layout"].setEnabled(idle and kind == "layout")
         self.actions["recalculate"].setEnabled((on_run or kind == "layout") and idle)
@@ -517,6 +524,7 @@ class MainWindow(QMainWindow):
         self.page_layout.addWidget(page)
 
     def show_home(self):
+        self.dispose_inspector()
         self.selected = None
         self.sheet = None
         page = Page("Trama", tr("status.welcome"))
@@ -544,6 +552,7 @@ class MainWindow(QMainWindow):
                 self.refresh_runs(runs)
 
     def show_sheet(self, kind, key):
+        self.dispose_inspector()  # Before the new page builds its own panel.
         self.selected = (kind, key)
         self.sheet = None
         self.result_tabs = None
@@ -622,7 +631,7 @@ class MainWindow(QMainWindow):
         page.add(notes, 2)
         return page
 
-    def _canvas(self, page, figure, *, toolbar=True):
+    def _canvas(self, page, figure, *, toolbar=True, run=None):
         canvas = FigureCanvasQTAgg(figure)
         canvas.setMinimumSize(200, 160)
         page.canvases.append(canvas)
@@ -630,9 +639,75 @@ class MainWindow(QMainWindow):
             tools = NavigationToolbar2QT(canvas, page)
             tools.setIconSize(theme.icon_size(18))
             page.add(tools, 0)
-        page.add(canvas, 1)
+        row = QWidget()
+        line = QHBoxLayout(row)
+        line.setContentsMargins(0, 0, 0, 0)
+        line.addWidget(canvas, 1)
+        page.add(row, 1)
+        if run is not None and self.inspector_wanted and self.project.graph_format_problem(run) is None:
+            self._open_inspector(run, canvas, line)
         canvas.draw_idle()
         return canvas
+
+    # == inspector =================================================================================
+    def _open_inspector(self, run, canvas, line):
+        from .inspector import GraphInspector
+
+        def closed():
+            self.inspector_wanted = False
+            self.dispose_inspector()
+
+        self.inspector = GraphInspector(run, canvas, confirmed=lambda: run.style,
+                                        commit=lambda style: self.commit_style(run, style), closed=closed,
+                                        element=self.inspector_element)
+        line.addWidget(self.inspector)
+
+    def dispose_inspector(self):
+        inspector, self.inspector = self.inspector, None
+        if inspector is not None:
+            self.inspector_element = inspector._element_key
+            inspector.dispose()
+            inspector.hide()
+            inspector.setParent(None)
+            inspector.deleteLater()
+            if self.page is not None:
+                for canvas in self.page.canvases:
+                    canvas.draw_idle()
+
+    def toggle_inspector(self):
+        if self.inspector is not None:
+            self.inspector.cancel()
+            return
+        if self.busy() or not self.selected or self.selected[0] != "graph":
+            return
+        problem = self.project.graph_format_problem(self.project.runs[self.selected[1]])
+        if problem:
+            self.error(problem)
+            return
+        self.inspector_wanted = True
+        self.show_sheet(*self.selected)
+        if self.inspector is not None:
+            self.inspector.selector.setFocus()
+
+    def commit_style(self, run, style):
+        self.project.commit_style(run, style)
+        self.update_title()
+        self.status(qt("qt.style_applied"))
+
+    def settle_graph_draft(self):
+        """Before leaving the drawn style behind: apply or discard an Inspector draft, or stay."""
+        inspector = self.inspector
+        if inspector is None or not inspector.has_draft:
+            return True
+        answer = QMessageBox.question(
+            self, tr("graph.inspector.title"), qt("qt.inspector_draft"),
+            QMessageBox.StandardButton.Apply | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+        if answer == QMessageBox.StandardButton.Apply:
+            return inspector.apply()
+        if answer == QMessageBox.StandardButton.Discard:
+            inspector.discard()
+            return True
+        return False
 
     def _layout_page(self, index):
         layout = self.project.layouts[index]
@@ -670,7 +745,8 @@ class MainWindow(QMainWindow):
             page.button(qt("qt.export_table"), self.export, icon="upload")
         elif result is not None:
             if kind == "graph" and self.project.graph_format_problem(run) is None:
-                page.button(tr("graph.format.title"), self.format_graph, primary=True, icon="palette")
+                page.button(tr("graph.inspector.title"), self.toggle_inspector, primary=True, icon="paintbrush")
+                page.button(tr("graph.format.title"), self.format_graph, icon="palette")
             page.button(qt("qt.export_graph"), self.export, icon="upload")
         if kind == "result" and result is not None and result.figure is not None:
             page.button(tr("ribbon.graph"), lambda: self.open_sheet(("graph", index)), icon="chart-line")
@@ -708,7 +784,7 @@ class MainWindow(QMainWindow):
                 warning = None
             if warning:
                 page.notice(warning)
-            self._canvas(page, result.figure)
+            self._canvas(page, result.figure, run=run if kind == "graph" else None)
         else:
             page.notice(qt("qt.not_calculated"))
             page.layout_.addStretch(1)
@@ -896,6 +972,8 @@ class MainWindow(QMainWindow):
     def change_parameters(self):
         if self.busy() or not self.selected or self.selected[0] not in {"result", "graph"}:
             return
+        if not self.settle_graph_draft():
+            return
         index = self.selected[1]
         run = self.project.runs[index]
         try:
@@ -908,6 +986,8 @@ class MainWindow(QMainWindow):
     def format_graph(self):
         if self.busy() or not self.selected or self.selected[0] != "graph":
             return
+        if self.inspector is not None:
+            self.inspector.discard()  # The dialog edits the confirmed style, as in the classic window.
         run = self.project.runs[self.selected[1]]
         problem = self.project.graph_format_problem(run)
         if problem:
@@ -1022,7 +1102,7 @@ class MainWindow(QMainWindow):
             self.show_sheet(*self.selected)
 
     def recalculate(self):
-        if self.busy() or not self.selected:
+        if self.busy() or not self.selected or not self.settle_graph_draft():
             return
         kind, key = self.selected
         if kind in {"result", "graph", "saved-layout"}:
@@ -1141,7 +1221,7 @@ class MainWindow(QMainWindow):
             self.refresh()
 
     def save(self, *, as_new=False):
-        if self.busy():
+        if self.busy() or not self.settle_graph_draft():
             return False
         if not self.project.tables and not self.project.info_sheets:
             return False
@@ -1165,7 +1245,7 @@ class MainWindow(QMainWindow):
         return True
 
     def export(self):
-        if not self.selected:
+        if not self.selected or not self.settle_graph_draft():
             return
         kind, key = self.selected
         try:
@@ -1220,7 +1300,7 @@ class MainWindow(QMainWindow):
             self.error(error)
 
     def export_pdf_bundle(self):
-        if self.busy():
+        if self.busy() or not self.settle_graph_draft():
             return
         from .pdf_bundle import PdfBundleDialog, bundle_sheets
         graphs = [index for index, run in enumerate(self.project.runs) if preferred_view(run, run.result) == "graph"

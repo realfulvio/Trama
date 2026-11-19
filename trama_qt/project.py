@@ -582,6 +582,14 @@ class Project:
             xy = {"frame": self.tables[run.title].frame(mask_excluded=True), "options": dict(run.options)}
         return style, xy
 
+    def commit_style(self, run, style):
+        """Store a style already drawn on the figure (the Inspector previews it before Apply)."""
+        run.style = style
+        run.result.style_warning = breaks_warning(run.result.figure, style)
+        self.tables[run.title].graph_styles[run.slot] = style
+        sync_letters_table(run.result)
+        self.dirty = True
+
     def apply_format(self, run, style, *, xy_update=None, xy_result=None):
         if run.method == XY_METHOD and xy_update is not None:
             run.options = xy_update

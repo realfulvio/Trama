@@ -80,6 +80,9 @@ _TEXT = {
                       "Interruzioni, guide e bande degli assi restano invariate; si modificano nell'interfaccia classica."),
     "qt.format_graph_problem": ("This graph cannot be formatted here: {reason}",
                                 "Questo grafico non si può formattare qui: {reason}"),
+    "qt.inspector_draft": ("The Inspector has changes that are not applied. Apply them, discard them, or go back "
+                           "to the graph?", "L'Inspector ha modifiche non applicate. Applicarle, scartarle o "
+                           "tornare al grafico?"),
     "qt.style_applied": ("Graph style applied.", "Stile del grafico applicato."),
     "qt.formula_column": ("Calculated columns are changed with Formula in the classic interface.",
                           "Le colonne calcolate si modificano con Formula nell'interfaccia classica."),

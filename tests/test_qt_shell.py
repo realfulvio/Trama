@@ -202,6 +202,46 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(reopened.style["title"], "Formatted")
         self.assertEqual(reopened.result.figure.axes[0].get_title(), "Formatted")
 
+    def test_inspector_preview_apply_and_cancel(self):
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        window.toggle_inspector()
+        inspector = window.inspector
+        self.assertIsNotNone(inspector)
+        axes = graph.result.figure.axes[0]
+        inspector.widgets["title"].setText("Anteprima")
+        inspector._now("title")
+        self.assertEqual(axes.get_title(), "Anteprima")  # Previewed on the live figure...
+        self.assertNotEqual((graph.style or {}).get("title"), "Anteprima")  # ...not yet confirmed.
+        inspector.widgets["ymin"].setText("1")
+        inspector._now("yrange")
+        self.assertIn("yrange", inspector.errors)  # Both limits are needed.
+        inspector.widgets["ymax"].setText("9")
+        inspector._now("yrange")
+        self.assertNotIn("yrange", inspector.errors)
+        self.assertEqual(axes.get_ylim(), (1.0, 9.0))
+        self.assertTrue(inspector.apply())
+        self.assertEqual(graph.style["title"], "Anteprima")
+        self.assertEqual(window.project.tables["groups"].graph_styles[graph.slot]["title"], "Anteprima")
+
+        inspector.widgets["title"].setText("Bozza")
+        inspector._now("title")
+        self.assertTrue(inspector.has_draft)
+        inspector.cancel()  # Closing restores the confirmed style.
+        self.assertIsNone(window.inspector)
+        self.assertEqual(axes.get_title(), "Anteprima")
+
+        # Leaving the graph with a draft also restores the confirmed style; the panel comes back on the graph.
+        window.toggle_inspector()
+        window.inspector.widgets["title"].setText("Bozza")
+        window.inspector._now("title")
+        window.show_sheet("data", "groups")
+        self.assertEqual(axes.get_title(), "Anteprima")
+        window.inspector_wanted = True
+        window.show_sheet("graph", window.project.runs.index(graph))
+        self.assertIsNotNone(window.inspector)
+
     def test_format_xy_graph_recipe(self):
         window = self.window
         self.open_example()

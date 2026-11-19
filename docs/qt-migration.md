@@ -20,12 +20,13 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 - Tabelle dei risultati, grafici matplotlib (barra di navigazione), layout salvati, fogli info in sola lettura.
 - Apri/importa (stessi formati della versione Tk), salva `.alab`, esporta tabelle CSV e grafici PNG/SVG/PDF/TIFF a 300 dpi con verifica del file; layout in PDF e SVG vettoriali; File → Esporta più fogli in PDF con ordine, larghezza e sfondo trasparente.
 - Format Graph (Ctrl+Maiusc+F): titolo ed etichette, font e dimensioni, legenda, cornice, griglie, assi (scala, minimo/massimo, passo, tacche, decimali), serie (colore, linea, simbolo, etichetta), asse destro e stile delle serie XY, linee di riferimento, ripristino dei predefiniti. Interruzioni, guide e bande degli assi, formato della legenda e annotazioni restano come sono e si modificano in Tk.
+- Inspector dei grafici (Ctrl+Maiusc+I): pannello laterale con anteprima dal vivo, Applica/Annulla, clic sul grafico per scegliere box e violini; chiede cosa fare di una bozza prima di salvare, esportare o ricalcolare.
 - Layout (Ctrl+L): nuovo e modifica, con nome, carta, colonne, sfondo e fino a 12 pannelli ordinabili.
 - Tema "Scientifico compatto"/Vetro: Figtree, icone Lucide, accento #0B7A73.
 
 ## Cosa resta su Tk (fasi successive)
 
-1. Inspector dei grafici, forme e annotazioni; editor di interruzioni, guide e bande degli assi e del formato della legenda.
+1. Forme e annotazioni; editor di interruzioni, guide e bande degli assi e del formato della legenda.
 2. Esporta con opzioni (dimensione in mm, DPI, testo SVG) come nella finestra classica.
 3. Famiglie di esperimenti, interfaccia delle catene di analisi, confronti a coppie sul grafico.
 4. Modifica dei fogli info, procedura guidata di importazione testo.
