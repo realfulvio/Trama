@@ -4874,3 +4874,6 @@ from .reshape_long_wide_text import EN as _RESHAPE_EN, IT as _RESHAPE_IT  # noqa
 
 _EN.update(_RESHAPE_EN)
 _IT.update(_RESHAPE_IT)
+for _key, _text in _RESHAPE_EN.items():
+    if _key == "reshape.method" or _key.startswith("reshape.field."):
+        KEY_BY_LABEL.setdefault(_text, _key)
