@@ -1339,6 +1339,33 @@ class QtShellTests(unittest.TestCase):
         self.assertTrue(card.isVisible())
         self.assertGreater(window.body.sizes()[0], 100)
 
+    def test_windows_menu_and_combo_shapes_do_not_depend_on_dwm_rounding(self):
+        from unittest.mock import patch
+
+        from PySide6.QtCore import QPoint
+        from PySide6.QtWidgets import QComboBox, QMenu
+        from trama_qt import theme
+
+        menu = QMenu(self.window)
+        menu.addAction("First action")
+        combo = QComboBox(self.window)
+        combo.addItems(["First option", "Second option"])
+        self.addCleanup(menu.close)
+        self.addCleanup(combo.close)
+        combo.show()
+        with patch.object(theme, "WINDOWS", True):
+            menu.popup(self.window.mapToGlobal(QPoint(25, 25)))
+            self.app.processEvents()
+            self.assertTrue(menu.mask().contains(menu.rect().center()))
+            self.assertFalse(menu.mask().contains(menu.rect().topLeft()))
+            menu.close()
+            combo.showPopup()
+            self.app.processEvents()
+            popup = combo.view().window()
+            self.assertTrue(popup.mask().contains(popup.rect().center()))
+            self.assertFalse(popup.mask().contains(popup.rect().topLeft()))
+            combo.hidePopup()
+
     def test_a_second_navigator_toggle_reverses_the_running_slide(self):
         from unittest.mock import patch
 

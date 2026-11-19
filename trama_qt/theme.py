@@ -13,9 +13,9 @@ import tempfile
 from PySide6.QtCore import (QByteArray, QEasingCurve, QEvent, QObject, QPoint, QRect, QRectF, QSettings, QSize, Qt,
                             QVariantAnimation, Signal)
 from PySide6.QtGui import (QColor, QFont, QFontDatabase, QIcon, QIconEngine, QImage, QPainter, QPainterPath, QPalette,
-                           QPixmap)
+                           QPixmap, QRegion)
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import (QApplication, QDialog, QFrame, QGraphicsBlurEffect, QGraphicsOpacityEffect,
+from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QGraphicsBlurEffect, QGraphicsOpacityEffect,
                                QGraphicsPixmapItem, QGraphicsScene, QMainWindow, QMenu, QScrollArea, QTabBar,
                                QVBoxLayout, QWidget)
 
@@ -53,8 +53,7 @@ FAMILY = ["Segoe UI"]
 MODES = ("system", "light", "dark")
 STATE = {"mode": "system", "dark": False, "connected": False}
 CARD_RADIUS = 12
-# Windows 11 rounds menus and drop-down lists itself (with the system shadow); elsewhere the style sheet does.
-MENU_RADIUS = 0 if WINDOWS else 8
+MENU_RADIUS = 8
 
 
 class _Signals(QObject):
@@ -785,7 +784,7 @@ class _WindowPolish(QObject):
     """Every dialog fits the screen it opens on and a modal one frosts its main window; every top-level window
     gets the native frame of the theme; menus get rounded corners."""
 
-    WATCHED = {QEvent.Type.Show, QEvent.Type.Hide, QEvent.Type.Polish}
+    WATCHED = {QEvent.Type.Show, QEvent.Type.Hide, QEvent.Type.Polish, QEvent.Type.Resize}
 
     def eventFilter(self, watched, event):
         kind = event.type()
@@ -797,6 +796,13 @@ class _WindowPolish(QObject):
             return False
         if not watched.isWindow():
             return False
+        if WINDOWS and kind in {QEvent.Type.Show, QEvent.Type.Resize}:
+            if isinstance(watched, QMenu) or (watched.windowType() == Qt.WindowType.Popup
+                                             and isinstance(watched.parentWidget(), QComboBox)):
+                # Frameless Qt popups can stay square even when DWM accepts the rounding preference.
+                outline = QPainterPath()
+                outline.addRoundedRect(QRectF(watched.rect()), MENU_RADIUS, MENU_RADIUS)
+                watched.setMask(QRegion(outline.toFillPolygon().toPolygon()))
         if kind == QEvent.Type.Show:
             native_frame(watched)
             if isinstance(watched, QDialog):
