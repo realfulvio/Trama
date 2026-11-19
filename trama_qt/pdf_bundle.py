@@ -9,6 +9,8 @@ from analisi.data import decimal_comma
 from analisi.i18n import tr
 from analisi.layout_geometry import page_size
 
+from .theme import fit_dialog
+
 
 @dataclass(frozen=True)
 class BundleEntry:
@@ -86,6 +88,7 @@ class PdfBundleDialog(QDialog):
         form = QFormLayout(pages)
         self.width = QLineEdit()
         self.width.setMaximumWidth(140)
+        self.width.setAccessibleName(tr("pdf.width"))
         form.addRow(tr("pdf.width"), self.width)
         self.transparent = QCheckBox(tr("pdf.transparent"))
         form.addRow("", self.transparent)
@@ -112,7 +115,7 @@ class PdfBundleDialog(QDialog):
         self.width.textChanged.connect(self.refresh)
         self.transparent.toggled.connect(self.refresh)
         self.refresh()
-        self.resize(560, 520)
+        fit_dialog(self, 560, 520)
 
     def fill(self, selected):
         self.list.blockSignals(True)
