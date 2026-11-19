@@ -134,6 +134,52 @@ class WindowFormulaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsupported expression"):
             formula(frame, "IBETA(X,1)")
 
+    def test_normal_distribution_formulas_support_defaults_and_stable_tails(self):
+        frame = pd.DataFrame({"X": [-2., 0., 2., 12., np.nan, np.inf]})
+        left = [erfc(-x / np.sqrt(2)) / 2 if np.isfinite(x) else np.nan for x in frame["X"]]
+        right = [erfc(x / np.sqrt(2)) / 2 if np.isfinite(x) else np.nan for x in frame["X"]]
+        np.testing.assert_allclose(formula(frame, "NORMDIST(X)"), left, atol=0)
+        np.testing.assert_allclose(formula(frame, "NORMDIST(100+2*X,100,2)"), left, atol=0)
+        np.testing.assert_allclose(formula(frame, 'ZDIST(X,"RIGHT")'), right, atol=0)
+        np.testing.assert_allclose(formula(frame, 'ZDIST(X,"two")'), 2 * np.minimum(left, right), atol=0)
+        np.testing.assert_allclose(formula(frame, 'NORMINV(ZDIST(X,"right"),100,2,"right")').iloc[:4],
+                                   100 + 2 * frame["X"].iloc[:4])
+        np.testing.assert_allclose(formula(frame, 'ZINV(ZDIST(X,"two"),"two")').iloc[:4],
+                                   frame["X"].iloc[:4].abs(), atol=1e-13)
+        np.testing.assert_allclose(formula(frame, "ZPDF(X)").iloc[:4],
+                                   np.exp(-frame["X"].iloc[:4] ** 2 / 2) / np.sqrt(2 * np.pi), atol=0)
+        self.assertAlmostEqual(formula(frame, "NORMPDF(8,8,2)").iloc[0], 1 / (2 * np.sqrt(2 * np.pi)))
+        self.assertAlmostEqual(formula(frame, "PROBIT(.5)").iloc[0], 5.)
+        self.assertAlmostEqual(formula(frame, "NORMINV(.5,1e308)").iloc[0], 1e308)
+        np.testing.assert_allclose(formula(frame, "NORMDIST(1e308,-1e308,1e308)"),
+                                   [erfc(-2 / np.sqrt(2)) / 2] * len(frame))
+
+    def test_other_distribution_formulas_match_elementary_special_cases(self):
+        frame = pd.DataFrame({"X": [0., 1., 2., 3., 4.]})
+        x = frame["X"].to_numpy()
+        np.testing.assert_allclose(formula(frame, "TDIST(X,1)"), .5 - np.arctan(x) / np.pi)
+        np.testing.assert_allclose(formula(frame, "TPDF(X,1)"), 1 / (np.pi * (1 + x * x)))
+        np.testing.assert_allclose(formula(frame, "TINV(.25,1)"), [1 / np.tan(np.pi / 8)] * len(x))
+        np.testing.assert_allclose(formula(frame, "CHIDIST(X,2)"), np.exp(-x / 2))
+        np.testing.assert_allclose(formula(frame, "CHISQC(X,2)"), -np.expm1(-x / 2))
+        np.testing.assert_allclose(formula(frame, "CHIINV(CHIDIST(X,2),2)"), x, atol=1e-14)
+        np.testing.assert_allclose(formula(frame, "FDIST(X,2,2)"), 1 / (1 + x))
+        np.testing.assert_allclose(formula(frame, "FPDF(X,2,2)"), 1 / (1 + x) ** 2)
+        np.testing.assert_allclose(formula(frame, "FINV(FDIST(X,2,2),2,2)"), x, atol=1e-14)
+        np.testing.assert_allclose(formula(frame, "FINV(1e-30,2,2)"), [1e30] * len(x))
+        np.testing.assert_allclose(formula(frame, "BINOMIAL(X,3,.5)"), [1, .875, .5, .125, 0])
+
+    def test_distribution_formulas_leave_invalid_values_blank(self):
+        frame = pd.DataFrame({"X": [0., 1., 2.]})
+        for expression in ("NORMDIST(X,0,0)", "TDIST(X,0)", "FINV(X+2,2,2)", "ZINV(-1)",
+                           "PROBIT(0)", "BINOMIAL(X,1.5,.5)", "BINOMIAL(X+.5,3,.5)", "FPDF(0,1,3)"):
+            with self.subTest(expression=expression):
+                self.assertTrue(formula(frame, expression).isna().all())
+        with self.assertRaisesRegex(ValueError, '"left", "right" or "two"'):
+            formula(frame, 'ZDIST(X,"unknown")')
+        with self.assertRaisesRegex(ValueError, "Unsupported expression"):
+            formula(frame, "TDIST(X)")
+
     def test_row_statistics_use_each_groups_filtered_reference(self):
         frame = pd.DataFrame({"X": [6, 3, 9, 3, 1, np.nan, 4, 5],
                               "Group": ["A", "A", "A", "A", "B", "A", "B", None],

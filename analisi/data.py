@@ -19,6 +19,7 @@ import pandas as pd
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
 from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, valid_analysis_id
 from .analysis_labels import validate_labels
+from .formula_distributions import DISTRIBUTION_FORMULA_FUNCTIONS
 from .formula_special import SPECIAL_FORMULA_FUNCTIONS
 from .formula_windows import WINDOW_FUNCTION, lower_window_clauses, worksheet_statistic
 
@@ -213,6 +214,7 @@ COLUMN_FORMULA_FUNCTIONS = {
 
 ELEMENTWISE_FORMULA_FUNCTIONS = {
     **SPECIAL_FORMULA_FUNCTIONS,
+    **DISTRIBUTION_FORMULA_FUNCTIONS,
     "CEIL": (1, np.ceil), "FLOOR": (1, np.floor), "INT": (1, np.trunc), "SGN": (1, np.sign),
     "SQR": (1, np.square),
     "ABS": (1, np.abs), "SQRT": (1, np.sqrt), "EXP": (1, np.exp), "LN": (1, np.log),
@@ -343,7 +345,8 @@ def formula(frame, expression, *, info=None):
                                            sort_keys=sort_keys, bounds=bounds)
             if name in FUNCTIONS:
                 arity, function = FUNCTIONS[name]
-                if len(node.args) == arity:
+                supported = len(node.args) == arity if isinstance(arity, int) else len(node.args) in arity
+                if supported:
                     return function(*(evaluate(arg, filter_text=filter_text) for arg in node.args))
         raise ValueError("Unsupported expression in calculated column.")
 

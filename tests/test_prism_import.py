@@ -159,6 +159,22 @@ class PrismImportTests(unittest.TestCase):
         np.testing.assert_allclose(reopened["Gamma"], [1, 24, np.nan])
         np.testing.assert_allclose(reopened["Tail"], [np.exp(-1), np.exp(-5), np.nan])
 
+    def test_zip_restores_distribution_functions_with_optional_arguments(self):
+        path = self.path / "probability.prismt"
+        table = {"uid": "table", "format": "multivariable", "dataFormat": "y_single",
+                 "dataSets": ["a", "b", "c"]}
+        sets = {"a": {"title": "Dose"}}
+        for uid, title, expression in (("b", "Cumulative", "NORMDIST(A)"),
+                                       ("c", "Upper", 'ZDIST(A,"right")')):
+            sets[uid] = {"title": title, "valuesStorageData": {
+                "@class": "TransformDataSource", "transform": expression}}
+        write_archive(path, table, sets, "0,9,9\n2,9,9\n", (2, 3))
+        data = Dataset(load_tables(path)["Experiment"])
+        self.assertEqual(set(data.formulas), {"Cumulative", "Upper"})
+        np.testing.assert_allclose(data.frame()[["Cumulative", "Upper"]].sum(axis=1), [1, 1])
+        data.raw.at[1, "Dose"] = 0
+        np.testing.assert_allclose(data.frame()["Upper"], [.5, .5])
+
     def test_legacy_wrapper_uses_sheet_sequence_dates_and_upper_lower_endpoints(self):
         source = self.path / "example.xml"
         source.write_text(

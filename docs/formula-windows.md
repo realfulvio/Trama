@@ -56,6 +56,22 @@ defined. `PERC(x)` divides a percentage by 100. For example,
 `=Dose * PERC(12.5)` gives one eighth of each dose. Undefined values and
 nonfinite special-function results leave the cell blank.
 
+## Distributions
+
+`NORMDIST(x, mean, sd, tail)`, `NORMINV(p, mean, sd, tail)` and
+`NORMPDF(x, mean, sd)` default to mean 0 and SD 1. The corresponding
+standard normal functions are `ZDIST(z, tail)`, `ZINV(p, tail)` and `ZPDF(z)`.
+Use the text `"left"` (the default), `"right"` or `"two"` for the tail.
+The two-tail probability doubles the smaller tail. Its inverse returns the
+upper quantile for half that probability. `PROBIT(p)` gives `5 + ZINV(p)`.
+
+`TDIST(t, df)`, `CHIDIST(x, df)` and `FDIST(f, df1, df2)` give upper-tail
+probabilities. `TINV(p, df)` uses a two-tail probability. `CHIINV(p, df)` and
+`FINV(p, df1, df2)` use an upper-tail probability. `CHISQC(x, df)` gives a
+lower-tail probability. `TPDF(t, df)` and `FPDF(f, df1, df2)` give densities.
+`BINOMIAL(k, n, p)` gives the probability of at least k successes in n trials.
+Invalid numeric arguments and nonfinite results leave the cell blank.
+
 ## Centering, standardizing and ranking
 
 `CENTER(Column)` subtracts the mean of the usable values from each value. `STANDARDIZE(Column)` and `ZSCORE(Column)` divide the centered values by the sample standard deviation. A constant column or a single usable observation leaves standardized values blank.
