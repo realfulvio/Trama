@@ -3,6 +3,7 @@
 Skipped when PySide6 (or the Qt platform libraries) are not installed.
 """
 from base64 import b64encode
+from math import ceil
 from pathlib import Path
 from struct import pack
 import tempfile
@@ -101,6 +102,9 @@ class QtShellTests(unittest.TestCase):
             self.app.processEvents()
             canvas.draw()
             self.assertEqual(tuple(figure.get_size_inches()), paper)
+            height_pixels, width_pixels, _channels = canvas.buffer_rgba().shape
+            self.assertGreaterEqual(width_pixels, ceil(canvas.width() * canvas.device_pixel_ratio))
+            self.assertGreaterEqual(height_pixels, ceil(canvas.height() * canvas.device_pixel_ratio))
             widths.append(canvas.width())
             ratios.append(title.get_window_extent(canvas.get_renderer()).height / figure.bbox.height)
         self.assertLess(widths[1], widths[0] * 0.65)

@@ -119,7 +119,9 @@ class PaperCanvas(FigureCanvasQTAgg):
         if self.figure is None or size.isEmpty():
             return
         width, height = self.paper
-        self.figure.dpi = self.device_pixel_ratio * min(size.width() / width, size.height() / height)
+        ratio = self.device_pixel_ratio
+        # Cover the last pixel even when the physical canvas dimensions round up.
+        self.figure.dpi = max((size.width() * ratio + 1) / width, (size.height() * ratio + 1) / height)
         super().resizeEvent(event)
         self.figure.set_size_inches(self.paper, forward=False)
 
