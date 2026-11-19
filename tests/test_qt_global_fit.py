@@ -10,6 +10,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 try:
     from PySide6.QtWidgets import QApplication, QWidget
@@ -378,16 +379,11 @@ class GlobalFitWindowTests(unittest.TestCase):
             self.assertEqual(summary["DF residual"], 6)
 
             # Cancel before confirming: nothing changes and nothing is recalculated.
-            original = AnalysisDialog.exec
-
             def cancel(dialog):
                 dialog.controls["Parameters"][1].set_scope(0, "Shared")
                 return AnalysisDialog.DialogCode.Rejected
-            AnalysisDialog.exec = cancel
-            try:
+            with patch.object(AnalysisDialog, "exec", cancel):
                 window.change_parameters()
-            finally:
-                AnalysisDialog.exec = original
             self.assertIsNone(window.job)
             self.assertEqual(window.project.runs[0].options, RECIPE)
 
@@ -395,11 +391,8 @@ class GlobalFitWindowTests(unittest.TestCase):
             def accept(dialog):
                 dialog.accept()
                 return dialog.result and AnalysisDialog.DialogCode.Accepted
-            AnalysisDialog.exec = accept
-            try:
+            with patch.object(AnalysisDialog, "exec", accept):
                 window.change_parameters()
-            finally:
-                AnalysisDialog.exec = original
             self.wait(window)
             self.assertEqual(window.project.runs[0].options, RECIPE)
 
