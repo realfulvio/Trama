@@ -1339,6 +1339,23 @@ class QtShellTests(unittest.TestCase):
         self.assertTrue(card.isVisible())
         self.assertGreater(window.body.sizes()[0], 100)
 
+    def test_a_second_navigator_toggle_reverses_the_running_slide(self):
+        from unittest.mock import patch
+
+        from PySide6.QtTest import QTest
+        from trama_qt import theme
+
+        window = self.window
+        width = window.body.sizes()[0]
+        self.assertGreater(width, 0)
+        with patch.object(theme, "animations_enabled", return_value=True):
+            window.actions["navigator"].trigger()
+            QTest.qWait(40)
+            window.actions["navigator"].trigger()
+            QTest.qWait(350)
+        self.assertTrue(window.nav_card.isVisible())
+        self.assertEqual(window.body.sizes()[0], width)
+
     def test_worksheet_uses_tabular_figures(self):
         from PySide6.QtGui import QFont
         self.window.new_table()

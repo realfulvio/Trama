@@ -179,6 +179,8 @@ class MainWindow(QMainWindow):
         self.inspector_wanted = False
         self.inspector_element = None
         self.navigator_width = 250
+        self.navigator_open = True
+        self.navigator_slide = None
         self.setAcceptDrops(True)
         self.setWindowIcon(QIcon(str(theme.ASSETS / "trama.png")))
         self._build()
@@ -439,14 +441,20 @@ class MainWindow(QMainWindow):
 
     def toggle_navigator(self):
         """Slide the navigator closed or open (at once when animations are off)."""
-        card = self.nav_card
-        if card.isVisible():
-            width = self.body.sizes()[0]
+        width = self.body.sizes()[0]
+        if self.navigator_open and self.navigator_slide is None:
             self.navigator_width = width or self.navigator_width
-            theme.slide_splitter(self.body, width, 0, done=lambda: card.setVisible(False))
-        else:
-            card.setVisible(True)
-            theme.slide_splitter(self.body, 0, self.navigator_width)
+        theme.stop_animation(self.navigator_slide)
+        self.navigator_open = not self.navigator_open
+        if self.navigator_open:
+            self.nav_card.show()
+
+        def finish():
+            self.nav_card.setVisible(self.navigator_open)
+            self.navigator_slide = None
+
+        target = self.navigator_width if self.navigator_open else 0
+        self.navigator_slide = theme.slide_splitter(self.body, width, target, done=finish)
 
     def update_title(self):
         title = self.project.title

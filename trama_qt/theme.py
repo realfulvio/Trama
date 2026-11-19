@@ -505,7 +505,7 @@ def _animate(parent, start, end, step, *, duration=180, done=None, curve=QEasing
     return animation
 
 
-def _stop(animation):
+def stop_animation(animation):
     """Stop a running transition; one that already finished has deleted itself."""
     if animation is None:
         return
@@ -538,7 +538,7 @@ def slide_splitter(splitter, start, end, done=None, duration=200):
         value = int(value)
         splitter.setSizes([value, max(total - value, 0)])
 
-    _animate(splitter, int(start), int(end), step, duration=duration, done=done)
+    return _animate(splitter, int(start), int(end), step, duration=duration, done=done)
 
 
 class SlidingTabBar(QTabBar):
@@ -566,7 +566,7 @@ class SlidingTabBar(QTabBar):
         if self._bar.isNull() or not self.isVisible():
             self._set(target)
             return
-        _stop(self._animation)
+        stop_animation(self._animation)
         self._animation = _animate(self, QRectF(self._bar), target, self._set, duration=220)
 
     def tabLayoutChange(self):
@@ -721,7 +721,7 @@ class GlassVeil(QWidget):
         self.dialogs.discard(dialog_id)
         if self.dialogs:
             return
-        _stop(self._animation)
+        stop_animation(self._animation)
         self._animation = None
         self.parentWidget().removeEventFilter(self)
         _animate(self, self.progress, 0.0, self._set, duration=140, done=self.deleteLater,
