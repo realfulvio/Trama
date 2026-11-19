@@ -28,6 +28,7 @@ from .pairwise_graph import SECTION, read_section
 from .presentation import Layout
 from .prism_layout_edit import PRISM_PANEL_DATA
 from .prism_restore import (PRISM_GRAPH_LINK, PRISM_TITLE, SAVED_BINARY_LAYOUT, panel_source_style)
+from . import worksheet_join
 
 MAX_TABLES = 256
 MAX_LAYOUTS = 128
@@ -283,7 +284,10 @@ def plan_family(tables, layouts, infos, selected, *, include_layouts=True, expor
     by_table = {}
     for title, slot in members:
         by_table.setdefault(title, []).append(slot)
-    included = [title for title in tables if title in by_table or title == start]
+    # A self-contained export also carries the right worksheet of every join, so the joins open on their own.
+    # A copy in the same project keeps reading the original right sheet, which is certainly there.
+    joined = _join_sources(tables, members) if export else set()
+    included = [title for title in tables if title in by_table or title == start or title in joined]
     slots = {title: tuple(sorted(by_table.get(title, ()))) for title in included}
 
     shared = 0
@@ -462,8 +466,24 @@ def _recovered_links(options):
     return links
 
 
-def _remap_options(options, slot_map, old_count, new_count, link_map):
+def _join_sources(tables, members):
+    """Titles of the existing right worksheets read by the joins among ``members``."""
+    found = set()
+    for title, slot in members:
+        method, options = tables[title].analyses[slot]
+        right = worksheet_join.right_title(options) if method == worksheet_join.METHOD else None
+        if right in tables:
+            found.add(right)
+    return found
+
+
+def _remap_options(options, slot_map, old_count, new_count, link_map, table_names=None):
     options = deepcopy(options)
+    right = worksheet_join.right_title(options)
+    if right is not None and table_names and right in table_names and worksheet_join.LEFT_KEYS in options:
+        # The right worksheet of a join travels with the family: the copy reads the copied sheet. A sheet
+        # that stays behind keeps its exact title; nothing is relinked by a name that merely collides.
+        options[worksheet_join.RIGHT_SHEET] = table_names[right]
     section = options.get(SECTION)
     if isinstance(section, dict):
         settings, _ = read_section(options)
@@ -541,7 +561,8 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph):
         dataset, slots, mapping = tables[title], plan.slots[title], slot_maps[title]
         old_count, new_count = len(dataset.analyses), len(slots)
         analyses = [(dataset.analyses[slot][0],
-                     _remap_options(dataset.analyses[slot][1], mapping, old_count, new_count, link_map))
+                     _remap_options(dataset.analyses[slot][1], mapping, old_count, new_count, link_map,
+                                    table_names if dataset.analyses[slot][0] == worksheet_join.METHOD else None))
                     for slot in slots]
         sources = {}
         for slot in slots:

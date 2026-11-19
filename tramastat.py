@@ -281,6 +281,7 @@ from analisi.global_uncertainty import (BAND_DRAWING as GLOBAL_DRAWING, CURVE_BA
 from analisi.select_transform import CALCULATED, FILTERS, SELECT_TRANSFORM
 from analisi.select_transform_dialog import CalculatedVariables, RowFilters
 from analisi.transpose_dialog import TransposeSets
+from analisi.worksheet_join import METHOD as WORKSHEET_JOIN
 from analisi.transpose_xy import (ROW_TITLE as TRANSPOSE_TITLE, SETS_LIST, TRANSPOSE_XY, X as TRANSPOSE_X,
                                   Y_SETS as SETS_LIST_LABEL,
                                   propose_sets, proposed_x)
@@ -1039,6 +1040,7 @@ class AnalysisDialog(simpledialog.Dialog):
         search = self.query.get().strip().casefold()
         for group, methods in GROUPS.items():
             matches = [name for name in methods if (not self.only or name in self.only)
+                       and name != WORKSHEET_JOIN  # edited only in the Qt window (trama_qt.worksheet_join)
                        and (name != HIERARCHY_GRAPH or name == self.method or hierarchy_view_available(self.data))
                        and any(search in caption.casefold() for caption in (name, group, ui(name), ui(group)))]
             if not matches:
@@ -7205,6 +7207,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if run.method in PRISM_GRAPH_METHODS:
             self.error(ui("Use Format Graph for an imported XY graph, or Export for its original preview."))
             return
+        if run.method == WORKSHEET_JOIN:
+            self.error(tr("join.classic"))
+            return
         try:
             frame = self.input_frame(run)
         except ValueError as error:
@@ -7400,6 +7405,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     @staticmethod
     def compute(run, frame, result=None, control=None, layout_data=None, pairwise=None):
+        if run.method == WORKSHEET_JOIN:
+            # The join reads a second worksheet; the classic window keeps the recipe and leaves it to Qt.
+            raise ValueError(tr("join.classic"))
         if result is None:
             if run.method == MONTE_CARLO_METHOD and control is not None:
                 result = monte_carlo(frame, run.options, progress=control.report, cancel=control.cancel)
