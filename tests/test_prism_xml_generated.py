@@ -46,7 +46,7 @@ def _analysis(*, has_input=False):
     return _group(0x8039, pack("<H", 4), body)
 
 
-def _figure():
+def _figure(*, percent=False):
     body = _record(9, b"Generator test\0") + _record(0x14, pack("<2i", 1, 7))
     body += _record(0x15, pack("<3i", 2, 11, 9)) + _record(0x16, pack("<H6i", 2, 1, 0, 0, 2, 0, 0))
     for index, end, step, name_id in ((20, 3, 1, 30), (21, 24, 6, 31), (22, 24, 6, 33)):
@@ -57,6 +57,8 @@ def _figure():
         pack_into("<H", axis, 54, index)
         pack_into("<H3d", scale, 0, index, 0, end, end / 1200)
         pack_into("<Hd", scale, 52, 2, step)
+        if name_id == 31 and percent:
+            scale[102] = ord("%")
         body += _record(0x17, axis) + _group(0x8025, scale)
     chart = bytearray(48)
     pack_into("<4h", chart, 0, 200, 300, 1400, 1500)
@@ -81,7 +83,8 @@ def _template(**options):
     links = b"".join(_record(0x0D, pack("<6I", uid - 1, uid, 1, 0, 0, 0)) for uid in (1, 2))
     datasets = _dataset(0, 0) + _dataset(1, 2, changed=options.get("changed")) + _dataset(2, 4)
     table = _group(0x8008, pack("<H", 7), layout + links + datasets)
-    data = bytearray(_project([6], _analysis(has_input=options.get("has_input")), table, _figure()))
+    data = bytearray(_project([6], _analysis(has_input=options.get("has_input")), table,
+                              _figure(percent=options.get("percent"))))
     index_start = 8 + len(_record(0x8001, bytes(12))) + len(_record(0x8002, b""))
     pack_into("<I", data, index_start + 44, 1)
     pack_into("<I", data, index_start + 2060, 4)
@@ -101,7 +104,7 @@ class GeneratedGraphTests(unittest.TestCase):
     def test_original_values_order_appearance_and_edit_roundtrip(self):
         with TemporaryDirectory() as folder:
             path = Path(folder) / "generator.pzt"
-            _write(path)
+            _write(path, percent=True)
             info = []
             tables = load_tables(path, restore_prism=True, info_sheets=info)
             self.assertEqual(info[0].fields, (("Batch", "S1"),))
@@ -114,6 +117,9 @@ class GeneratedGraphTests(unittest.TestCase):
             self.assertEqual(axes.get_xlabel(), "Dose")
             self.assertEqual(axes.get_title(), "Generated response")
             self.assertEqual(tuple(axes.get_xticks()), (0, 1, 2, 3))
+
+            self.assertEqual(axes.yaxis.get_major_formatter()(18, 0), "18%")
+            self.assertNotIn("%", axes.xaxis.get_major_formatter().format_data_short(3))
             self.assertEqual([line.get_color() for line in axes.lines], ["#007144", "#220077"])
             self.assertEqual([text.get_text() for text in axes.texts], ["Marker $ 4"])
             self.assertEqual(view.tables["Saved equations"]["Parameters"].tolist(), ["S=2", "S=4"])
@@ -129,6 +135,7 @@ class GeneratedGraphTests(unittest.TestCase):
             result = analyse(method, loaded.frame(mask_excluded=True), options)
             self.assertEqual(list(result.figure.axes[0].lines[1].get_ydata()), [6, 7.5, 10])
             self.assertTrue(result.tables["Saved XY coordinates"]["Y"].isna().iloc[0])
+            self.assertEqual(result.figure.axes[0].yaxis.get_major_formatter()(18, 0), "18%")
 
     def test_denied_ownership_and_mismatched_samples_keep_info(self):
         with TemporaryDirectory() as folder:

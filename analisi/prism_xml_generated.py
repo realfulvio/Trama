@@ -4,7 +4,7 @@ from math import ceil, floor, isfinite
 from struct import Struct, error as StructError, unpack_from
 
 from matplotlib.figure import Figure
-from matplotlib.ticker import FixedLocator
+from matplotlib.ticker import FixedLocator, FuncFormatter
 import numpy as np
 import pandas as pd
 
@@ -77,8 +77,12 @@ def _axis_settings(graph, labels):
         _require(isfinite(step) and step > 0 and isfinite(origin) and minor_count <= 10)
         ticks = _ticks(axis["bounds"], step, origin)
         minor = _ticks(axis["bounds"], step / minor_count, origin) if minor_count > 1 else []
-        entries.append({"bounds": axis["bounds"], "label": labels.get(axis["title"], ""),
-                        "ticks": ticks, "minor": minor, "grid": bool(settings[42])})
+        config = {"bounds": axis["bounds"], "label": labels.get(axis["title"], ""),
+                  "ticks": ticks, "minor": minor, "grid": bool(settings[42])}
+        # The extended scale record stores the literal percent suffix at this position.
+        if len(settings) == 134 and settings[102:112] == b"%" + bytes(9):
+            config["percent"] = True
+        entries.append(config)
     return entries
 
 
@@ -244,6 +248,8 @@ def _render(frame, style):
         axis.set_major_locator(FixedLocator(config["ticks"]))
         axis.set_minor_locator(FixedLocator(config["minor"]))
         axis.set_label_text(config["label"], parse_math=False)
+        if config.get("percent") is True:
+            axis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:g}%"))
         if config["grid"]:
             axis.grid(True, which="major", color="#a0a0a4", linewidth=.65)
             axis.grid(True, which="minor", color="#a0a0a4", linewidth=.35, linestyle=":")
