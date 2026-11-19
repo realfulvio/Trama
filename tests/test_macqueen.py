@@ -1,11 +1,12 @@
 """MacQueen uses updated centroids within each pass through the worksheet."""
+import os
 import unittest
 from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 
-from analisi import advanced, kmeans_options as options
+from analisi import advanced, kmeans_options as options, parallel
 from analisi.field_error import FieldError
 from analisi.kmeans_reports import CENTROIDS
 from analisi.stats import kmeans
@@ -35,7 +36,8 @@ class MacQueenTests(unittest.TestCase):
 
     def test_seeded_scan_runs_macqueen_on_gap_references_too(self):
         settings = {**self.fit_options, "Seed": 12, "Criterion": "Gap", "Maximum k": 2, "Gap simulations": 5}
-        with patch.object(advanced, "kmeans", wraps=advanced.kmeans) as call:
+        with (patch.dict(os.environ, {parallel.ENVIRONMENT: "1"}),
+              patch.object(advanced, "kmeans", wraps=advanced.kmeans) as call):
             first = analyse(options.SELECTION, self.frame, settings)
         second = analyse(options.SELECTION, self.frame, settings)
         self.assertEqual(call.call_count, 12)

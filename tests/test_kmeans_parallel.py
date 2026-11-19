@@ -75,10 +75,11 @@ class ParallelScanTests(unittest.TestCase):
             self.assertEqual(found.report_fits[k].inertia, fit.inertia)
 
     def test_every_criterion_and_algorithm_is_identical(self):
-        for algorithm in ("lloyd", "hartigan-wong"):
+        for algorithm in ("lloyd", "hartigan-wong", "macqueen"):
             for criterion in ("silhouette", "gap", "consensus"):
                 with self.subTest(algorithm=algorithm, criterion=criterion):
-                    options = dict(max_k=6, criterion=criterion, gap_replicates=6, algorithm=algorithm)
+                    options = dict(max_k=6, criterion=criterion, gap_replicates=6, algorithm=algorithm,
+                                   max_iterations=100 if algorithm == "macqueen" else 10)
                     self.assertSameScan(scan(1, **options), scan(3, **options))
 
     def test_reference_failures_follow_the_serial_order(self):

@@ -18,8 +18,8 @@ from analisi.anova_terms import TERM_LIST
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
 from analisi.field_error import FieldError
-from analisi import mean_permutation
-from analisi.i18n import tr
+from analisi import kmeans_options, mean_permutation
+from analisi.i18n import tr, ui
 from analisi.select_transform import SELECT_TRANSFORM
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
@@ -390,8 +390,25 @@ class AnalysisDialog(QDialog):
             self.rows[label] = (caption, widget, form)
         self.anova = anova_model.attach(self, saved)
         global_fit.attach(self)
+        if self.method in kmeans_options.METHODS:
+            algorithm = self.controls[kmeans_options.ALGORITHM][1]
+            algorithm.currentIndexChanged.connect(self._sync_kmeans_options)
+            self._sync_kmeans_options()
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
+
+    def _sync_kmeans_options(self):
+        algorithm = self.controls[kmeans_options.ALGORITHM][1].currentData()
+        fields = {field: key == algorithm for key, field in kmeans_options.ITERATION_FIELDS.items()}
+        if self.method == kmeans_options.CLUSTERING:
+            fields[kmeans_options.INITIAL_ROWS] = algorithm in kmeans_options.ITERATION_FIELDS
+        for name, visible in fields.items():
+            _, control, form = self.rows[name]
+            form.setRowVisible(control, visible)
+            if visible:
+                self.hidden.discard(name)
+            else:
+                self.hidden.add(name)
 
     def focus_field(self, name, error=None):
         row = self.rows.get(name)
@@ -465,6 +482,8 @@ class AnalysisDialog(QDialog):
                 self.anova.check(options)  # the engine's cheap checks; the fit stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            if self.method in kmeans_options.METHODS:
+                kmeans_options.fit_options(self.method, self.data, options)
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
@@ -477,6 +496,8 @@ class AnalysisDialog(QDialog):
     def _message(self, error, field=None):
         if self.method == global_fit.GLOBAL_CUSTOM_EQUATION:
             return global_fit.describe_error(error, field)
+        if self.method in kmeans_options.METHODS:
+            return ui(str(error))
         return str(error)
 
     def show_error(self, error, field=None):
