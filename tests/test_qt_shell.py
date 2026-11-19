@@ -338,6 +338,44 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.project.tables["groups"].analyses[graph.slot][1]["Series style"],
                          {"Treated": "Line and points"})
 
+    def test_axis_breaks_on_xy_graph(self):
+        from analisi.axis_breaks import AXIS_BREAKS
+        from trama_qt.axis_breaks import AxisBreaksDialog
+        window = self.window
+        self.open_example()
+        graph = self.run_method("XY series", {"X": "Control", "Y columns": ["Treated"]})
+        axes = graph.result.figure.axes[0]
+        dialog = AxisBreaksDialog(window, axes, {})
+        self.assertFalse(dialog.gap.isEnabled())
+        dialog.axis.set("y")
+        dialog.count.set("2")
+        for (row, name), text in {(0, "low"): "5,5", (0, "high"): "6", (0, "share"): "50",
+                                  (1, "low"): "6,2", (1, "high"): "6,8", (1, "share"): "40"}.items():
+            dialog.cells[(row, name)].setText(text)
+        dialog.accept()
+        self.assertIsNone(dialog.result)  # Shares add up to 90.
+        self.assertTrue(dialog.problem.text())
+        dialog.cells[(1, "share")].setText("50")
+        dialog.accept()
+        record = dialog.result
+        self.assertEqual(record["axis"], "y")
+
+        def change(format_dialog):
+            self.assertIsNotNone(format_dialog.breaks_summary)
+            format_dialog.axis_breaks = record
+            format_dialog._break_states()
+            self.assertFalse(format_dialog.axis_fields["y"]["min"].isEnabled())
+
+        style = self.format_with(graph, change)
+        self.assertEqual(style[AXIS_BREAKS]["segments"][1]["low"], 6.2)
+        saved = self.folder / "breaks.alab"
+        window.project.save(saved)
+        window.open_path(saved)
+        index = next(i for i, r in enumerate(window.project.runs) if r.method == "XY series")
+        window.open_sheet(("graph", index))
+        self.wait()
+        self.assertEqual(window.project.runs[index].style[AXIS_BREAKS]["axis"], "y")
+
     def test_layout_compose_edit_reopen(self):
         from trama_qt.layout_dialog import LayoutDialog
         window = self.window
