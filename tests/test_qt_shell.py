@@ -767,6 +767,55 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(runs[1].source, ResultSource(runs[0].uid, "Transformed"))
         self.assertEqual(runs[2].source, ResultSource(runs[0].uid, "Transformed"))
 
+    def test_text_import_wizard(self):
+        from unittest import mock
+        from trama_qt.text_import import TextImportDialog
+        window = self.window
+        path = self.folder / "misure.txt"
+        path.write_text("ID;Dose;Risposta;Note\n1;0,5;10,2;a\n2;1,0;-99;b\n3;1,5;12,9*;c\n4;2,0;14,1;d\n"
+                        "5;2,5;15,0;e\n", encoding="utf-8")
+        seen = {}
+
+        def choose(dialog):
+            seen["first"] = dialog.summary.text()
+            dialog.bounds["first_column"].setText("x")
+            dialog.refresh_preview()
+            seen["problem"] = dialog.summary.text()
+            dialog.accept()
+            seen["refused"] = dialog.result is None
+            dialog.bounds["first_column"].setText("2")
+            dialog.bounds["last_column"].setText("3")
+            dialog.bounds["last_row"].setText("4")
+            dialog.missing.setText("-99")
+            dialog.mark_excluded.setChecked(True)
+            dialog.refresh_preview()
+            seen["preview"] = [dialog.table.horizontalHeaderItem(column).text()
+                               for column in range(dialog.table.columnCount())]
+            seen["marked"] = dialog.table.item(2, 1).text()
+            dialog.accept()
+            return TextImportDialog.DialogCode.Accepted
+
+        with mock.patch.object(TextImportDialog, "exec", choose):
+            window.open_path(path, import_data=True)
+        self.assertIn("5", seen["first"])
+        self.assertTrue(seen["problem"])
+        self.assertTrue(seen["refused"])
+        self.assertEqual(seen["preview"], ["Dose", "Risposta"])
+        self.assertEqual(seen["marked"], "* 12.9")
+        self.assertEqual(window.selected, ("data", "misure"))
+        dataset = window.project.tables["misure"]
+        frame = dataset.frame()
+        self.assertEqual(list(frame.columns), ["Dose", "Risposta"])
+        self.assertEqual(len(frame), 4)
+        self.assertAlmostEqual(frame["Dose"].iloc[1], 1.0)
+        self.assertTrue(pd.isna(frame["Risposta"].iloc[1]))
+        self.assertTrue(pd.isna(dataset.frame(mask_excluded=True)["Risposta"].iloc[2]))
+
+        # Cancel adds nothing.
+        with mock.patch.object(TextImportDialog, "exec", lambda dialog: TextImportDialog.DialogCode.Rejected):
+            window.open_path(path, import_data=True)
+        self.assertEqual(list(window.project.tables), ["misure"])
+
     def test_layout_compose_edit_reopen(self):
         from trama_qt.layout_dialog import LayoutDialog
         window = self.window

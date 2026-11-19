@@ -20,6 +20,7 @@ from analisi.field_error import FieldError
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, ui
 from analisi.monte_carlo import MonteCarloCancelled
 from analisi.prism_restore import SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT
+from analisi.text_import import TEXT_SUFFIXES
 from analisi.workbench import GRAPH_METHODS, GROUPS
 
 from . import theme
@@ -1642,6 +1643,13 @@ class MainWindow(QMainWindow):
                     project.origin, project.dirty = path, False
                 self.project = project
                 self.status(tr("status.opened", name=path.name))
+            elif import_data and suffix in TEXT_SUFFIXES:  # Import text data: choose rows, columns and format.
+                from .text_import import TextImportDialog
+                dialog = TextImportDialog(self, path)
+                if dialog.exec() != TextImportDialog.DialogCode.Accepted or dialog.result is None:
+                    return
+                titles = self.project.add_tables({path.stem: dialog.result})
+                self.status(qt("qt.imported", count=len(titles)))
             else:
                 titles = self.project.load(path)
                 self.status(qt("qt.imported", count=len(titles)))

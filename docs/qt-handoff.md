@@ -15,6 +15,16 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### TEXTIMPORT · Importazione guidata di file di testo su Qt (2026-11-19)
+
+- Nuovo: File → Importa nel progetto… su un file .csv, .tsv o .txt apre l'importazione guidata. Codice in `trama_qt/text_import.py` e in `open_path` di `trama_qt/window.py`, stesso motore della versione Tk (`analisi.text_import`). Si sceglie separatore, decimali, intestazione, prima e ultima riga e colonna con salto, codice dei mancanti e `*` finale che esclude il valore. L'anteprima filtrata si aggiorna dal vivo e gli errori compaiono nel dialogo. I testi sono in italiano anche dove il dialogo Tk restava in inglese. Aprire un file di testo con Apri resta diretto.
+- Con questo commit tutte le funzioni della finestra classica sono anche su Qt. Restano il porting dello smoke test e il collaudo DPI su Windows.
+- Da provare su Windows:
+  - File .txt con `;` e virgola decimale (ID;Dose;Risposta;Note), colonne 2–3, ultima riga 4, codice mancante -99, `*` finale attivo: in anteprima compaiono Dose e Risposta, il valore con `*` è segnato e dopo l'importazione è escluso.
+  - Prima colonna "x" deve dare l'errore nel dialogo senza chiuderlo.
+  - Un file non UTF-8 deve dare il messaggio di errore e non aprire il dialogo.
+- Test attesi: `tests.test_qt_shell` 18/18 OK.
+
 ### ad09d92 · Catene di analisi su Qt (2026-11-19)
 
 - Nuovo: Analizza questo risultato…, Analisi sorgente e Cambia risultato di ingresso… nella pagina dei risultati e dei grafici collegati, nella scheda Analizza e nel menu del tasto destro. Codice in `trama_qt/analysis_source.py` (scelta di sorgente e tabella, stesso comportamento del dialogo Tk) e `trama_qt/window.py` (`analyze_result_table`, `source_analysis`, `change_input_result`; `_ask` accetta la sorgente). Nel navigatore i risultati collegati compaiono sotto la loro sorgente. Il ricalcolo a catena c'era già.
