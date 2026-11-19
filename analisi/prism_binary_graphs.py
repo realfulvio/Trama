@@ -2,10 +2,11 @@
 
 from base64 import b64decode, b64encode
 from binascii import Error
+import os
 from pathlib import Path
 from struct import unpack_from
 import sys
-from tempfile import TemporaryDirectory
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 from PIL import Image, ImageChops, ImageOps
 
@@ -308,6 +309,24 @@ def _decode_preview(preview, *, layout=False):
 def validate_binary_graph(preview, *, layout=False):
     """Return the original vector bytes after validating the project preview."""
     return _decode_preview(preview, layout=layout)[0]
+
+
+def export_binary_graph(path, preview, *, layout=False):
+    """Write a validated saved drawing without replacing the destination on failure."""
+    data = validate_binary_graph(preview, layout=layout)
+    path = Path(path)
+    suffix = f".{preview['format']}"
+    if path.suffix.lower() != suffix:
+        raise ValueError(f"Use a {suffix} file name for this drawing.")
+    temp = None
+    try:
+        with NamedTemporaryFile(dir=path.parent, delete=False) as handle:
+            temp = Path(handle.name)
+            handle.write(data)
+        os.replace(temp, path)
+    finally:
+        if temp is not None:
+            temp.unlink(missing_ok=True)
 
 
 def _graph_index(payload):

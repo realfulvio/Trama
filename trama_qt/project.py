@@ -15,8 +15,8 @@ import pandas as pd
 from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCancelled, ResultSource,
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
-from analisi.data import (EDITABLE_PRISM_FIXED_VALUES, Dataset, info_references, load_tables, load_workspace,
-                          save_project)
+from analisi.data import (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, Dataset,
+                          info_references, load_tables, load_workspace, save_project)
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.grid_data import clear_block, grow_rows, paste_block
 from analisi.i18n import tr, ui
@@ -27,10 +27,11 @@ from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attac
                                     graph_problem as pairwise_graph_problem, read_section as read_pairwise,
                                     source_problem as pairwise_source_problem, sync_letters_table)
 from analisi.presentation import apply_style, compose_layout
-from analisi.prism_layout_edit import PRISM_PANEL_DATA
+from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS
 from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK,
-                                   PRISM_GRAPH_STYLE, PRISM_NOTES, PRISM_TITLE, SAVED_BINARY_GRAPH,
-                                   SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY)
+                                   PRISM_GRAPH_STYLE, PRISM_NOTES, PRISM_PREVIEW, PRISM_TITLE,
+                                   SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT,
+                                   SAVED_EDITABLE_GRAPH, SAVED_XY)
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.workbench import analyse
 from analisi.worksheet_history import WorksheetHistory, WorksheetState
@@ -599,6 +600,34 @@ class Project:
         return key
 
     # -- export ---------------------------------------------------------------------------------------
+    def imported_vector_format(self, run):
+        """The available vector export format for a recovered drawing."""
+        preview = run.options.get(PRISM_PREVIEW)
+        fmt = preview.get("format") if isinstance(preview, dict) else None
+        if run.method in {SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT} and fmt in ("emf", "pdf"):
+            return fmt
+        dataset = self.tables.get(run.title)
+        if (run.method == SAVED_EDITABLE_GRAPH and fmt == "emf" and dataset is not None
+                and dataset.table_format in {EDITABLE_PRISM_EMF, EDITABLE_PRISM_COLUMNS}
+                and isinstance(run.options.get(PRISM_GRAPH_STYLE), dict)):
+            return fmt
+        return None
+
+    def export_imported_vector(self, run, path, *, current_layout=False):
+        from analisi.prism_binary_graphs import export_binary_graph
+        from analisi.prism_layout_edit import edit_panel_artwork, export_edited_layout
+
+        options = run.options
+        preview = options[PRISM_PREVIEW]
+        if current_layout:
+            export_edited_layout(path, preview, options.get(PRISM_EDITABLE_PANELS),
+                                 options.get(PRISM_PANEL_EDITS), self.layout_panel_data(run))
+            return
+        if run.method == SAVED_EDITABLE_GRAPH:
+            frame = self.tables[run.title].frame(mask_excluded=True)
+            preview = edit_panel_artwork(frame, options[PRISM_GRAPH_STYLE], preview)
+        export_binary_graph(path, preview, layout=run.method == SAVED_BINARY_LAYOUT)
+
     def layout_panel_figures(self, layout):
         runs = self.layout_runs(layout)
         if len(runs) != len(layout.panels) or any(run.result is None or run.result.figure is None for run in runs):

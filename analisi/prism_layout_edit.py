@@ -2,12 +2,10 @@
 from base64 import b64encode
 from collections import Counter, defaultdict
 from math import isfinite
-import os
 from pathlib import Path
 from struct import pack_into, unpack_from
-from tempfile import NamedTemporaryFile
 
-from .prism_binary_graphs import validate_binary_graph
+from .prism_binary_graphs import export_binary_graph, validate_binary_graph
 from .prism_emf_edit import CURVE, POINTS, _emf_records, edit_emf_preview
 
 
@@ -176,13 +174,4 @@ def export_edited_layout(path, preview, panels, edits, panel_data=None):
     if path.suffix.lower() != ".emf":
         raise ValueError("Use an .emf file name for the layout drawing.")
     current = edited_layout_preview(preview, panels, edits, panel_data)
-    data = validate_binary_graph(current, layout=True)
-    temp = None
-    try:
-        with NamedTemporaryFile(dir=path.parent, delete=False) as handle:
-            temp = Path(handle.name)
-            handle.write(data)
-        os.replace(temp, path)
-    finally:
-        if temp is not None:
-            temp.unlink(missing_ok=True)
+    export_binary_graph(path, current, layout=True)

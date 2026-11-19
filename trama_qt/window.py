@@ -20,7 +20,7 @@ from analisi.analysis_chain import ChainCancelled
 from analisi.field_error import FieldError
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, ui
 from analisi.monte_carlo import MonteCarloCancelled
-from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS
+from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS
 from analisi.prism_restore import PRISM_GRAPH_LINK, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH
 from analisi.text_import import TEXT_SUFFIXES
 from analisi.workbench import GRAPH_METHODS, GROUPS
@@ -873,6 +873,8 @@ class MainWindow(QMainWindow):
 
     def _imported_layout_actions(self, page, run):
         graphs = self.project.layout_panel_graphs(run)
+        if self.project.imported_vector_format(run) == "emf" and (graphs or run.options.get(PRISM_PANEL_EDITS)):
+            page.button(tr("layout.export_current_emf"), lambda: self.export_current_layout_emf(run), icon="upload")
         if not graphs:
             return
         panels = run.options.get(PRISM_EDITABLE_PANELS)
@@ -906,7 +908,7 @@ class MainWindow(QMainWindow):
             page.button(qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
             page.button(tr("chain.analyze_result"), self.analyze_result_table, icon="git-compare")
             page.button(qt("qt.export_table"), self.export, icon="upload")
-        elif result is not None:
+        elif result is not None or self.project.imported_vector_format(run):
             if kind == "graph" and self.project.graph_format_problem(run) is None:
                 page.button(tr("graph.inspector.title"), self.toggle_inspector, primary=True, icon="paintbrush")
                 page.button(tr("graph.format.title"), self.format_graph, icon="palette")
@@ -1754,6 +1756,7 @@ class MainWindow(QMainWindow):
                     lines += ["", "Notes", *(f"> {line}" for line in sheet.notes.splitlines())]
                     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
             elif kind in {"graph", "layout", "saved-layout"}:
+                run = None
                 if kind == "layout":
                     layout = self.project.layouts[key]
                     figure, name = self.project.layout_figure(layout), layout.name
@@ -1761,15 +1764,27 @@ class MainWindow(QMainWindow):
                     run = self.project.runs[key]
                     figure = run.result.figure if run.result is not None else None
                     name = run.name
-                if figure is None:
+                vector = self.project.imported_vector_format(run) if run is not None else None
+                if figure is None and vector is None:
                     raise ValueError(qt("qt.layout_missing"))
+                filters = [("PNG (*.png)", ".png"), ("SVG (*.svg)", ".svg"),
+                           ("PDF (*.pdf)", ".pdf"), ("TIFF (*.tif *.tiff)", ".tif")] if figure is not None else []
+                native_suffix = f".{vector}" if vector else None
+                if native_suffix:
+                    label = qt("qt.vector_edited" if run.method == SAVED_EDITABLE_GRAPH else "qt.vector_original")
+                    filters = [(f"{vector.upper()} — {label} (*{native_suffix})", native_suffix),
+                               *(item for item in filters if item[1] != native_suffix)]
                 path, chosen = QFileDialog.getSaveFileName(
-                    self, qt("qt.export_graph"), f"{name}.png",
-                    "PNG (*.png);;SVG (*.svg);;PDF (*.pdf);;TIFF (*.tif *.tiff)")
+                    self, qt("qt.export_graph"), f"{name}{filters[0][1]}",
+                    ";;".join(label for label, _ in filters))
                 if path:
                     if not Path(path).suffix:
-                        path += {"SVG": ".svg", "PDF": ".pdf", "TIFF": ".tif"}.get(chosen.split(" ")[0], ".png")
-                    if kind == "layout":
+                        path += dict(filters).get(chosen, filters[0][1])
+                    if Path(path).suffix.lower() == native_suffix:
+                        self.project.export_imported_vector(run, path)
+                    elif figure is None:
+                        raise ValueError(qt("qt.layout_missing"))
+                    elif kind == "layout":
                         self.project.export_layout(layout, path)
                     else:
                         export_graph(figure, path)
@@ -1794,6 +1809,21 @@ class MainWindow(QMainWindow):
                 self.status(qt("qt.exported", name=Path(path).name))
         except (OSError, ValueError, TypeError) as error:
             self.error(error)
+
+    def export_current_layout_emf(self, run):
+        if not self.settle_graph_draft():
+            return
+        path, _ = QFileDialog.getSaveFileName(self, tr("layout.export_current_emf"), f"{run.name}.emf", "EMF (*.emf)")
+        if not path:
+            return
+        if not Path(path).suffix:
+            path += ".emf"
+        try:
+            self.project.export_imported_vector(run, path, current_layout=True)
+        except (OSError, ValueError, TypeError) as error:
+            self.error(error)
+            return
+        self.status(qt("qt.exported", name=Path(path).name))
 
     def export_with_options(self):
         """File → Export with options…: size in mm, DPI, transparency and SVG text for a graph or layout."""

@@ -112,7 +112,7 @@ class LayoutEditTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), expected)
             with self.assertRaisesRegex(ValueError, "file name"):
                 export_edited_layout(path.with_suffix(".pdf"), original, panels, edits)
-            with patch("analisi.prism_layout_edit.os.replace", side_effect=PermissionError("locked")):
+            with patch("analisi.prism_binary_graphs.os.replace", side_effect=PermissionError("locked")):
                 with self.assertRaisesRegex(PermissionError, "locked"):
                     export_edited_layout(path, original, panels, {})
             self.assertEqual(path.read_bytes(), expected)

@@ -2,7 +2,9 @@
 
 Skipped when PySide6 (or the Qt platform libraries) are not installed.
 """
+from base64 import b64encode
 from pathlib import Path
+from struct import pack
 import tempfile
 import time
 import unittest
@@ -18,6 +20,16 @@ import pandas as pd
 from analisi.i18n import tr
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _vector_record(data, fmt="emf"):
+    return {"format": fmt, "data": b64encode(data).decode("ascii")}
+
+
+def _emf_drawing(records, count=1):
+    header = pack("<II8i4sIII", 1, 108, 0, 0, 120, 80,
+                  0, 0, 5080, 3387, b" EMF", 0x10000, 128 + len(records), count + 2)
+    return header.ljust(108, b"\0") + records + pack("<5I", 14, 20, 0, 0, 20)
 
 
 def _app():
@@ -880,6 +892,106 @@ class QtShellTests(unittest.TestCase):
             window.undo()
             self.wait()
         self.assertEqual(panel_errors, [1., 2.5, 1.])
+
+    def test_export_imported_original_vectors_without_rendering(self):
+        from io import BytesIO
+        from unittest.mock import patch
+
+        from matplotlib.figure import Figure
+        from PySide6.QtWidgets import QFileDialog
+        from analisi.prism_restore import PRISM_PREVIEW, SAVED_BINARY_GRAPH
+        from trama_qt.project import Run
+
+        original_emf = _emf_drawing(pack("<II4i", 43, 24, 4, 6, 12, 18))
+        pdf = BytesIO()
+        figure = Figure(figsize=(2, 1))
+        figure.add_subplot().plot([0, 1], [0, 1])
+        figure.savefig(pdf, format="pdf")
+        window = self.window
+        window.selected = ("graph", 0)
+        for fmt, data in (("emf", original_emf), ("pdf", pdf.getvalue())):
+            with self.subTest(fmt=fmt):
+                run = Run(SAVED_BINARY_GRAPH, "Drawing", {PRISM_PREVIEW: _vector_record(data, fmt)})
+                window.project.runs = [run]
+                target = self.folder / "Original"
+                with patch.object(QFileDialog, "getSaveFileName", return_value=(str(target), "")) as dialog:
+                    window.export()
+                self.assertTrue(dialog.call_args.args[3].startswith(f"{fmt.upper()} "))
+                self.assertEqual(target.with_suffix(f".{fmt}").read_bytes(), data)
+
+    def test_export_edited_imported_xy_keeps_vector_error_bars(self):
+        from unittest.mock import patch
+
+        from PySide6.QtWidgets import QFileDialog
+        from analisi.data import Dataset, EDITABLE_PRISM_EMF
+        from analisi.prism_emf_edit import POINTS
+        from analisi.prism_restore import PRISM_GRAPH_STYLE, PRISM_PREVIEW, SAVED_EDITABLE_GRAPH
+        from trama_qt.project import Run
+
+        def line(x, y, xx, yy):
+            return pack("<II2iII2i", 27, 16, x, y, 54, 16, xx, yy)
+
+        marker = pack("<II4i", 42, 24, 35, 35, 45, 45)
+        unchanged = line(30, 20, 50, 20) + line(10, 15, 90, 15)
+        original = _emf_drawing(marker + line(40, 20, 40, 50) + line(30, 50, 50, 50) + unchanged, 9)
+        edited = _emf_drawing(marker + line(40, 20, 40, 60) + line(30, 60, 50, 60) + unchanged, 9)
+        axes = {"bounds": [0., 10.], "unit": .1, "scale": "linear"}
+        style = {"kind": POINTS, "chart": [0, 0, 100, 100], "axes": [axes, axes],
+                 "source": [[4., 6., 2., 1.]]}
+        run = Run(SAVED_EDITABLE_GRAPH, "XY", {PRISM_GRAPH_STYLE: style, PRISM_PREVIEW: _vector_record(original)})
+        frame = pd.DataFrame({"X": [4.], "Y": [6.], "Upper error": [2.], "Lower error": [2.], "Series": ["A"]})
+        window = self.window
+        window.project.tables["XY"] = Dataset(frame, table_format=EDITABLE_PRISM_EMF)
+        window.project.runs = [run]
+        window.selected = ("graph", 0)
+        target = self.folder / "Adjusted.emf"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(target), "")):
+            window.export()
+        self.assertEqual(target.read_bytes(), edited)
+        self.assertEqual(run.options[PRISM_PREVIEW], _vector_record(original))
+
+    def test_export_imported_layout_preserves_original_and_current_emf(self):
+        from unittest.mock import patch
+
+        from PySide6.QtWidgets import QFileDialog, QPushButton
+        from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS
+        from analisi.prism_restore import PRISM_PREVIEW, SAVED_BINARY_LAYOUT
+        from analisi.workbench import Result
+        from trama_qt.project import Run
+
+        inner = _emf_drawing(pack("<II4i", 43, 24, 4, 6, 12, 18))
+        image_size = len(inner) + 28
+        obj = pack("<HH6I", 0x4008, 0x0501, image_size, image_size - 12,
+                   0xDBC01001, 2, 4, len(inner)) + inner
+        draw = pack("<HH4I4f", 0x401A, 0x4001, 44, 32, 0xFFFFFFFF, 2, 0, 0, 120, 80)
+        second = draw + pack("<4h", 120, 80, 100, 60)
+
+        def layout(first):
+            commands = obj + draw + pack("<4h", *first) + second
+            return _emf_drawing(pack("<III4s", 70, 16 + len(commands), 4 + len(commands), b"EMF+") + commands)
+
+        original = layout((10, 10, 100, 60))
+        edited = layout((14, 18, 76, 42))
+        run = Run(SAVED_BINARY_LAYOUT, "Page", {
+            PRISM_PREVIEW: _vector_record(original),
+            PRISM_EDITABLE_PANELS: [{"id": "1", "bounds": [10, 10, 110, 70]},
+                                    {"id": "2", "bounds": [120, 80, 220, 140]}],
+            PRISM_PANEL_EDITS: {"1": [14, 18, 90, 60]},
+        }, result=Result({}))
+        window = self.window
+        window.project.runs = [run]
+        window.show_sheet("saved-layout", 0)
+        button = next((button for button in window.page.findChildren(QPushButton)
+                       if button.text() == tr("layout.export_current_emf")), None)
+        self.assertIsNotNone(button, "The layout must offer its current drawing separately")
+        current = self.folder / "Current"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(current), "")):
+            button.click()
+        self.assertEqual(current.with_suffix(".emf").read_bytes(), edited)
+        archive = self.folder / "Original.emf"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(archive), "")):
+            window.export()
+        self.assertEqual(archive.read_bytes(), original)
 
     def test_layout_compose_edit_reopen(self):
         from trama_qt.layout_dialog import LayoutDialog

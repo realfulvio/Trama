@@ -15,6 +15,8 @@ _TEXT = {
     "qt.use_as_data": ("Use result as data", "Usa risultato come dati"),
     "qt.export_table": ("Export table…", "Esporta tabella…"),
     "qt.export_graph": ("Export graph…", "Esporta grafico…"),
+    "qt.vector_original": ("Original drawing", "Disegno originale"),
+    "qt.vector_edited": ("Edited drawing", "Disegno modificato"),
     "qt.unsaved_title": ("Unsaved changes", "Modifiche non salvate"),
     "qt.unsaved": ("Save the changes to {name}?", "Salvare le modifiche a {name}?"),
     "qt.running": ("Calculating {method}…", "Calcolo di {method}…"),
