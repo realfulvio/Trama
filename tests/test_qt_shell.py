@@ -362,6 +362,55 @@ class QtShellTests(unittest.TestCase):
         self.wait()
         self.assertEqual(window.project.runs[index].style[SHAPES][0]["hatch"], "diagonal")
 
+    def test_pairwise_comparisons_and_letters(self):
+        from unittest import mock
+        from analisi import pairwise_graph as pg
+        from trama_qt.pairwise import PairwiseDialog
+        window = self.window
+        self.open_example()
+        self.run_method("Paired t-test (columns)", {"First": "Control", "Second": "Treated"})
+        window.open_sheet(("data", "groups"))
+        self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        index = len(window.project.runs) - 1
+        window.open_sheet(("graph", index))
+        self.wait()
+        self.assertTrue(window.actions["pairwise"].isEnabled())
+        seen = {}
+
+        def run_dialog(dialog):
+            seen["rows"] = len(dialog.rows)
+            dialog.cutoff.setText("2")
+            dialog.filter.set(pg.AT_OR_BELOW)
+            dialog.accept()
+            seen["problem"] = dialog.problem.text()
+            dialog.cutoff.setText("0,05")
+            dialog.filter.set(pg.NO_FILTER)
+            dialog.label.set(pg.P_VALUE)
+            dialog.accept()
+            return PairwiseDialog.DialogCode.Accepted
+
+        with mock.patch.object(PairwiseDialog, "exec", run_dialog):
+            window.pairwise_comparisons()
+            self.wait()
+        self.assertEqual(seen["rows"], 1)
+        self.assertTrue(seen["problem"])  # Cutoff above 1.
+        run = window.project.runs[index]
+        self.assertEqual(run.options[pg.SECTION]["Label"], pg.P_VALUE)
+        self.assertTrue(pg.drawn_brackets(run.result.figure))
+
+        def letters(dialog):
+            self.assertEqual(dialog.display.value(), pg.LETTERS)
+            dialog.accept()
+            return PairwiseDialog.DialogCode.Accepted
+
+        window.open_sheet(("graph", index))
+        with mock.patch.object(PairwiseDialog, "exec", letters):
+            window.pairwise_comparisons(letters=True)
+            self.wait()
+        run = window.project.runs[index]
+        self.assertEqual(run.options[pg.SECTION]["Display"], pg.LETTERS)
+        self.assertTrue(pg.drawn_letters(run.result.figure))
+
     def test_format_xy_graph_recipe(self):
         window = self.window
         self.open_example()

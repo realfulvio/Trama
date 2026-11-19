@@ -22,16 +22,17 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 - Format Graph (Ctrl+Maiusc+F): titolo ed etichette, font e dimensioni, legenda, cornice, griglie, assi (scala, minimo/massimo, passo, tacche, decimali), serie (colore, linea, simbolo, etichetta), asse destro e stile delle serie XY, linee di riferimento, tacche e griglie aggiuntive (guide) e intervalli ombreggiati (bande) degli assi, interruzioni degli assi sui grafici XY (2 o 3 segmenti, suggerite dai dati), formato della legenda (titolo, colonne, ordine, cornice, sfondo, etichette delle voci), ripristino dei predefiniti.
 - Inspector dei grafici (Ctrl+Maiusc+I): pannello laterale con anteprima dal vivo, Applica/Annulla, clic sul grafico per scegliere box e violini; chiede cosa fare di una bozza prima di salvare, esportare o ricalcolare.
 - Annotazioni di testo e frecce sul grafico (Grafico → Annotazioni grafico…).
+- Confronti a coppie e lettere compatte su box, violini e grafici a colonne (Grafico → Confronti a coppie… / Lettere compatte…): sorgente, coppie, asterischi o valori P, soglia, colore; lettere con alfa, identificatori, posizione e dimensione.
 - Forme sul grafico (Grafico → Forme del grafico…): linee con o senza frecce, rettangoli ed ellissi, con tratto, riempimento, motivo, opacità, livello e coordinate in frazioni o dati; ordinabili.
 - Layout (Ctrl+L): nuovo e modifica, con nome, carta, colonne, sfondo e fino a 12 pannelli ordinabili.
 - Tema "Scientifico compatto"/Vetro: Figtree, icone Lucide, accento #0B7A73.
 
 ## Cosa resta su Tk (fasi successive)
 
-2. Esporta con opzioni (dimensione in mm, DPI, testo SVG) come nella finestra classica.
-3. Famiglie di esperimenti, interfaccia delle catene di analisi, confronti a coppie sul grafico.
-4. Modifica dei fogli info, procedura guidata di importazione testo.
-5. Porting dello smoke test (`--smoke`) su Qt e collaudo DPI su Windows reale.
+1. Esporta con opzioni (dimensione in mm, DPI, testo SVG) come nella finestra classica.
+2. Famiglie di esperimenti, interfaccia delle catene di analisi.
+3. Modifica dei fogli info, procedura guidata di importazione testo.
+4. Porting dello smoke test (`--smoke`) su Qt e collaudo DPI su Windows reale.
 
 Quando tutto è migrato si toglie `--tk` e la dipendenza da Tk.
 

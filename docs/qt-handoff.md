@@ -15,6 +15,12 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### PAIRS · Confronti a coppie e lettere compatte su Qt (2026-11-19)
+
+- Nuovo: scheda Grafico, Confronti a coppie… e Lettere compatte… (`trama_qt/pairwise.py`, comando in `trama_qt/window.py`). Stessa sezione della ricetta della versione Tk: sorgente (ANOVA a una via con post-hoc, Kruskal–Wallis con Dunn, t-test appaiato fra due colonne del grafico), tutte o solo le coppie spuntate, asterischi o valore P, soglia, colore; in modalità lettere alfa, identificatori, posizione, dimensione e anteprima. Applica ricalcola il grafico; Rimuovi toglie i confronti.
+- Da provare su Windows: tabella con due colonne, t-test appaiato Control/Treated, grafico a colonne delle due colonne, Confronti a coppie con valore P, Applica: compare la parentesi; poi Lettere compatte: compaiono le lettere e il foglio "Comparison letters". Salvare e riaprire in Qt e in Tk. Una soglia 2 deve dare errore. Controllare anche i testi in italiano.
+- Test attesi: `tests.test_qt_shell` 13/13 OK.
+
 ### 714713a · Forme del grafico su Qt (2026-11-19)
 
 - Nuovo: Grafico → Forme del grafico… (`trama_qt/shapes.py`): elenco con aggiungi, modifica, duplica, elimina, su/giù, elimina tutto; editor di linea (frecce: estremi, stile, dimensione), rettangolo ed ellisse (riempimento, motivo e suo colore), tratto, spessore, stile linea, opacità, livello sopra/sotto i dati, coordinate in frazioni del grafico o in unità dei dati. Stessi record e validazione di `analisi.graph_shapes`. Il disegno col mouse sul grafico resta in Tk.

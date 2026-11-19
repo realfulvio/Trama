@@ -27,8 +27,8 @@ from . import theme
 from .analysis_dialog import AnalysisDialog
 from .labels import method_label
 from .models import WorksheetModel, column_label
-from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, CalculationControl, Project, compute,
-                      run_view, stored_prism_view)
+from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, CalculationControl, Project,
+                      Run, compute, run_view, stored_prism_view)
 from .sheet import FrameView, WorksheetView
 from .strings import qt
 
@@ -218,6 +218,9 @@ class MainWindow(QMainWindow):
         a("inspector", tr("graph.inspector.title"), self.toggle_inspector, icon="paintbrush", shortcut="Ctrl+Shift+I")
         a("annotations", tr("command.graph_annotations"), self.edit_annotations, icon="type")
         a("shapes", tr("shape.button"), self.edit_shapes, icon="shapes")
+        a("pairwise", tr("command.pairwise"), self.pairwise_comparisons, icon="git-compare")
+        a("compact_letters", tr("command.compact_letters"), lambda: self.pairwise_comparisons(letters=True),
+          icon="type")
         a("new_layout", tr("command.new_layout"), self.new_layout, icon="layout-grid", shortcut="Ctrl+L")
         a("edit_layout", tr("command.edit_layout"), lambda: self.new_layout(edit=True), icon="layout-grid")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
@@ -335,7 +338,8 @@ class MainWindow(QMainWindow):
             (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
                                             "use_result"]),
-            (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "shapes", "change", "recalculate", "|", "new_layout",
+            (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "shapes",
+                                          "pairwise", "compact_letters", "change", "recalculate", "|", "new_layout",
                                           "edit_layout", "|", "export"]),
             (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
         ]
@@ -419,6 +423,8 @@ class MainWindow(QMainWindow):
         self.actions["annotations"].setEnabled(graph and idle and self.project.runs[self.selected[1]].method
                                                not in PRISM_GRAPH_METHODS)
         self.actions["shapes"].setEnabled(self.actions["annotations"].isEnabled())
+        for key in ("pairwise", "compact_letters"):
+            self.actions[key].setEnabled(graph and idle)
         if self.inspector is not None:
             self.inspector.setEnabled(idle)
         self.actions["new_layout"].setEnabled(idle and bool(self.project.layout_candidates()))
@@ -1043,6 +1049,70 @@ class MainWindow(QMainWindow):
         from analisi.graph_shapes import SHAPES
         from .shapes import GraphShapesDialog
         self._edit_drawings(SHAPES, GraphShapesDialog, "shape.native", "shape.applied")
+
+    def pairwise_comparisons(self, *, letters=False):
+        """Insert → Pairwise Comparisons…: label pairs of a graph with an analysis of the same table."""
+        from analisi import pairwise_graph as pg
+        from analisi.inference import DUNN_ADJUSTMENT
+        from .pairwise import PairwiseDialog
+
+        if self.busy() or not self.selected or self.selected[0] != "graph":
+            return
+        index = self.selected[1]
+        run = self.project.runs[index]
+        problem = (pg.graph_problem(run.method, run.options) if run.method not in PRISM_GRAPH_METHODS
+                   else "Pairwise comparisons are available on native box, violin and column graphs.")
+        if not problem and (run.result is None or run.result.figure is None or not run.result.figure.axes):
+            problem = "Calculate the graph first."
+        if problem:
+            self.error(ui(problem))
+            return
+        settings, _ = pg.read_section(run.options)
+        sources = []
+        for other in self.project.runs:
+            if (other is run or other.title != run.title
+                    or pg.source_problem(run.method, run.options, other.method, other.options)):
+                continue
+            detail = (f"Post-hoc: {other.options.get('Post-hoc')}" if other.method == pg.ONE_WAY
+                      else f"Dunn: {other.options.get(DUNN_ADJUSTMENT, 'Bonferroni')}" if other.method == pg.KRUSKAL
+                      else f"{other.options.get('First')} vs {other.options.get('Second')}")
+            sources.append((other.slot, other.method,
+                            f"{other.name}  ·  {detail}  ·  {ui('analysis')} {other.slot + 1}"))
+        if not sources and pg.SECTION not in run.options:
+            self.error(ui("Analyze this table first with a one-way ANOVA with multiple comparisons, a Kruskal–Wallis "
+                          "test with Dunn comparisons, or a paired t-test of two graphed columns. FDR is not used."))
+            return
+        if not self.settle_graph_draft():
+            return
+        try:
+            frame = self.project.input_frame(run)
+        except ValueError as error:
+            self.error(error)
+            return
+        endpoint = pg.endpoint_resolver(run.method)
+
+        def load_rows(slot):
+            source = next(other for other in self.project.runs if other.title == run.title and other.slot == slot)
+            if source.result is None:
+                source.result = compute(source, frame)
+            return pg.comparison_rows(source.method, source.result.tables, source.options, endpoint)
+
+        dialog = PairwiseDialog(self, sources, settings, pg.graph_anchors(run.result.figure.axes[0]), load_rows,
+                                display=pg.LETTERS if letters else None)
+        if dialog.exec() != PairwiseDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        action, record = dialog.result
+        options = dict(run.options)
+        if action == "remove":
+            options.pop(pg.SECTION, None)
+        else:
+            options[pg.SECTION] = record
+        if options == run.options:
+            self.status(ui("Pairwise comparisons unchanged."))
+            return
+        candidate = Run(run.method, run.title, options, slot=run.slot, style=run.style, uid=run.uid,
+                        source=run.source, label=run.label)
+        self.calculate_candidate(candidate, frame, index)
 
     def _edit_drawings(self, key, dialog_class, native, applied):
         """Annotations or shapes of the selected native graph: a list dialog, then one style change."""
