@@ -435,6 +435,10 @@ class HierarchicalStyleGeometryTests(unittest.TestCase):
         self.assertGreaterEqual(title.y0, 0)
         heat_box = described["heatmap"]["axes"].get_window_extent(renderer)
         self.assertGreater(heat_box.height, bar.height * 4)
+        row_box = described["row"]["axes"].get_window_extent(renderer)
+        column_box = described["column"]["axes"].get_window_extent(renderer)
+        np.testing.assert_allclose([row_box.y0, row_box.y1], [heat_box.y0, heat_box.y1], atol=0.01)
+        np.testing.assert_allclose([column_box.x0, column_box.x1], [heat_box.x0, heat_box.x1], atol=0.01)
         self.assertEqual(len(image.callbacks.callbacks.get("changed", {})), 1)
         apply_hierarchical_style(figure, {"heatmap": {"colorbar": False}})
         self.assertFalse(slot.get_visible())
@@ -455,6 +459,24 @@ class HierarchicalStyleGeometryTests(unittest.TestCase):
         apply_hierarchical_style(figure, {"row": {"width": 2}})
         self.assertEqual(list(gridspec.get_width_ratios()), captured[0])
         self.assertEqual(list(gridspec.get_height_ratios()), captured[1])
+
+    def test_square_cells_keep_both_trees_aligned_after_resize(self):
+        figure = _heat()
+        for orientation in ("horizontal", "vertical"):
+            apply_hierarchical_style(figure, {"heatmap": {"orientation": orientation, "cell_aspect": "equal"}})
+            for size in ((8.4, 6.4), (10, 3), (4, 6)):
+                with self.subTest(orientation=orientation, size=size):
+                    figure.set_size_inches(*size)
+                    _draw(figure)
+                    artists = describe_hierarchical_artists(figure)
+                    heat, row, column = (artists[key]["axes"].bbox for key in ("heatmap", "row", "column"))
+                    np.testing.assert_allclose([row.y0, row.y1], [heat.y0, heat.y1], atol=0.01)
+                    np.testing.assert_allclose([column.x0, column.x1], [heat.x0, heat.x1], atol=0.01)
+                    self.assertAlmostEqual(heat.height / heat.width, 2)
+        apply_hierarchical_style(figure, {})
+        artists = describe_hierarchical_artists(figure)
+        self.assertIsNone(artists["row"]["axes"].get_axes_locator())
+        self.assertIsNone(artists["column"]["axes"].get_axes_locator())
 
     def test_one_direction_and_standalone_orientations(self):
         rows = _heat(**{"Direction": "Rows"})

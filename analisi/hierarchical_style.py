@@ -7,12 +7,14 @@ previous draft. ``{}`` restores that captured appearance.
 """
 
 from copy import deepcopy
+from functools import partial
 import math
 
 import numpy as np
 from matplotlib import colormaps
 from matplotlib.colors import Colormap, to_hex, to_rgba
 from matplotlib.ticker import AutoLocator, MultipleLocator
+from matplotlib.transforms import Bbox
 
 
 class _ExactReverse(Colormap):
@@ -515,10 +517,14 @@ def register_heatmap(figure, axes, image, colorbar):
         },
     }
     meta["layout_captured"] = {
+        "gridspec": gridspec,
         "width_ratios": widths,
         "height_ratios": heights,
         "heatmap_slot": (spec.rowspan.start, spec.colspan.start),
         "colorbar_slot": (color_spec.rowspan.start, color_spec.colspan.start),
+        "tree_slots": {key: (component["axes"].get_subplotspec().rowspan.start,
+                             component["axes"].get_subplotspec().colspan.start)
+                       for key, component in meta["components"].items() if key in TREE_KEYS},
     }
     layout = {}
     if "row" in meta["components"] and len(widths) >= 2 and widths[1]:
@@ -673,14 +679,6 @@ def _apply_tree(comp, merged, override):
     _apply_distance(comp, merged)
 
 
-def _outer_gridspec(meta):
-    for key in TREE_KEYS:
-        comp = meta["components"].get(key)
-        if comp is not None:
-            return comp["axes"].get_subplotspec().get_gridspec()
-    return meta["components"]["heatmap"]["axes"].get_subplotspec().get_gridspec()
-
-
 def _retarget_child_removes(axes):
     """Bind child removal to this axes after a figure deepcopy.
 
@@ -755,11 +753,23 @@ def _apply_heatmap(figure, meta, merged):
     colorbar.ax.set_visible(bool(merged["colorbar"]))
 
 
+def _align_tree(matrix, dimension, tree, _renderer):
+    """Match the matrix's actual outline when its aspect ratio shrinks its grid cell."""
+    slot = matrix.get_position(original=True)
+    view = matrix.get_position()
+    tree_slot = tree.get_position(original=True)
+    if dimension == "row":
+        x = tree_slot.x0 + view.x0 - slot.x0
+        return Bbox.from_bounds(x, view.y0, tree_slot.width, view.height)
+    y = tree_slot.y0 + view.y1 - slot.y1
+    return Bbox.from_bounds(view.x0, y, view.width, tree_slot.height)
+
+
 def _apply_layout(meta, canonical, heat_merged):
     captured = meta.get("layout_captured")
     if not captured:
         return
-    gridspec = _outer_gridspec(meta)
+    gridspec = captured["gridspec"]
     widths = list(captured["width_ratios"])
     heights = list(captured["height_ratios"])
     layout = canonical.get("layout", {})
@@ -772,23 +782,29 @@ def _apply_layout(meta, canonical, heat_merged):
     shown = bool(heat_merged and heat_merged["colorbar"] and heat_merged["orientation"] == "vertical")
     if heat is not None and len(widths) >= 3 and not shown:
         widths[2] = _COLLAPSED
-    gridspec.set_width_ratios(widths)
-    gridspec.set_height_ratios(heights)
     if heat is None:
         return
     heat_row, heat_col = captured["heatmap_slot"]
-    bar_row, bar_col = captured["colorbar_slot"]
+    bar_slot = captured["colorbar_slot"]
     colorbar = heat.get("colorbar")
     if colorbar is None:
         return
     if horizontal:
-        # hspace is a fraction of an equal cell, so a small value still clears rotated tick labels.
-        inner = gridspec[heat_row, heat_col].subgridspec(2, 1, height_ratios=(1, 0.055), hspace=0.22)
-        heat["axes"].set_subplotspec(inner[0, 0])
-        colorbar.ax.set_subplotspec(inner[1, 0])
-    else:
-        heat["axes"].set_subplotspec(gridspec[heat_row, heat_col])
-        colorbar.ax.set_subplotspec(gridspec[bar_row, bar_col])
+        # One shared grid keeps both tree axes aligned with the matrix when the bar moves below it.
+        bar_slot = (len(heights), heat_col)
+        heights.append(heights[heat_row] * .055)
+        if "horizontal_grid" not in captured:
+            captured["horizontal_grid"] = heat["axes"].figure.add_gridspec(len(heights), len(widths), hspace=.08)
+        gridspec = captured["horizontal_grid"]
+    gridspec.set_width_ratios(widths)
+    gridspec.set_height_ratios(heights)
+    square_cells = heat_merged["cell_aspect"] == "equal"
+    for key, slot in captured["tree_slots"].items():
+        tree = meta["components"][key]["axes"]
+        tree.set_subplotspec(gridspec[slot])
+        tree.set_axes_locator(partial(_align_tree, heat["axes"], key) if square_cells else None)
+    heat["axes"].set_subplotspec(gridspec[heat_row, heat_col])
+    colorbar.ax.set_subplotspec(gridspec[bar_slot])
 
 
 def apply_hierarchical_style(figure, options):
