@@ -36,7 +36,7 @@ Prima di chiudere il dialogo girano i controlli economici del motore (`anova_ss.
 
 ## Ripetere dalla GUI (dati sintetici)
 
-Tabella (anche in `/mnt/project-files/qt-anova-095/` come `unbalanced.csv`):
+Tabella sintetica (`unbalanced.csv` del pacchetto; le prime 8 righe sono `balanced.csv`):
 
 ```
 Response,Treatment $,Visit : phase

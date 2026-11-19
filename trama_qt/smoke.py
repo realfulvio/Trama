@@ -296,6 +296,10 @@ class Smoke:
             order.down.click()
             dialog.tabs.widget(1).ensureWidgetVisible(order)
             self.shot(dialog, "anova-type-one")
+            squeezed = [box.text() for box in editor.boxes.values()
+                        if box.isVisible() and box.height() < box.minimumSizeHint().height()]
+            if squeezed:
+                self.problem(f"anova: term check boxes drawn below their height: {squeezed}")
             dialog.accept()
             return dialog.result is not None
 

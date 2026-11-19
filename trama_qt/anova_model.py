@@ -23,7 +23,7 @@ Every editor starts from copies of the recipe being edited, so Cancel leaves the
 """
 from itertools import combinations
 
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
                                QListWidget, QListWidgetItem, QPushButton, QSizePolicy, QVBoxLayout, QWidget)
 
@@ -272,15 +272,19 @@ class TermEditor(QWidget):
                 grid = group.layout()
                 members = [term for term in self.available() if len(term) == size]
                 for index, term in enumerate(members):
-                    box = QCheckBox(_mnemonic_free(label(term)))
+                    box = QCheckBox(_mnemonic_free(label(term)), group)
                     box.setToolTip(" × ".join(term))
                     box.setChecked(frozenset(term) in self.chosen)
                     box.toggled.connect(lambda checked, term=term: self._toggle(term, checked))
                     grid.addWidget(box, index // _COLUMNS, index % _COLUMNS)
+                    # Shown now, not by the layout's queued show: the page measures the new boxes at once,
+                    # so a scrolling page never squeezes them under their height.
+                    box.setVisible(True)
                     self.boxes[term] = box
         finally:
             self._building = False
         self.sync()
+        self.updateGeometry()
 
     def sync(self):
         """Show what the mode needs: the term check boxes and tools only for Selected terms."""
@@ -511,6 +515,9 @@ class AnovaFields:
         self.kind_box.currentIndexChanged.connect(lambda _index: self.order.sync())
         self.order.moved.connect(self.editor.refresh)
         self.editor.changed.connect(self.order.describe)
+        self.editor.changed.connect(self.relayout)
+        self.kind_box.currentIndexChanged.connect(lambda _index: self.relayout())
+        self._relayout_pending = False
         self.order.refresh()
         self.editor.refresh()  # the term check boxes follow the order of the recipe being edited
         self.sync_mode()
@@ -530,6 +537,30 @@ class AnovaFields:
     def kind(self):
         value = self.kind_box.currentData()
         return value if value in (TYPE_I, TYPE_II, TYPE_III) else TYPE_III
+
+    def relayout(self):
+        """Measure the Options page again once the editors settle.
+
+        Notes appear, wrap and vanish as the choices change. The scrolling page sizes itself by height for
+        width; a measure taken in the same event as the change can be short, and the term check boxes would
+        then be drawn squeezed. One deferred pass per burst of changes recomputes it.
+        """
+        if self._relayout_pending:
+            return
+        self._relayout_pending = True
+
+        def run():
+            self._relayout_pending = False
+            page = self.form.parentWidget()
+            if page is None:
+                return
+            for widget in (self.editor, self.order):
+                widget.updateGeometry()
+            self.form.invalidate()
+            self.form.activate()  # lay the page out now, so what is drawn next is already measured
+            page.updateGeometry()
+
+        QTimer.singleShot(0, self.editor, run)
 
     def _factors_changed(self, _item=None):
         self.order.refresh()
