@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboB
                                QProgressBar, QPushButton, QSplitter, QStackedWidget, QTabBar, QTabWidget, QToolBar,
                                QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
+from analisi import parallel
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
 from analisi.field_error import FieldError
@@ -315,6 +316,7 @@ class MainWindow(QMainWindow):
         a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")
         a("classic", qt("qt.classic"), self.open_classic, icon="history", tip=qt("qt.classic_hint"))
         a("language", tr("command.language"), self.choose_language, icon="type")
+        a("processes", tr("processes.command"), self.choose_processes, icon="sliders-horizontal")
         a("about", qt("qt.about"), self.about, icon="info")
         a("exit", tr("command.exit"), self.close, shortcut="Ctrl+Q")
         a("undo", tr("command.undo"), self.undo, icon="undo-2", shortcut="Ctrl+Z")
@@ -503,6 +505,7 @@ class MainWindow(QMainWindow):
                                           "edit_layout", "|", "export", "export_options"]),
             (tr("ribbon.modern.view"), ["gallery", "navigator", "|", "theme_system", "theme_light", "theme_dark", "|",
                                          "language", "classic"]),
+            (tr("processes.settings"), ["language", "processes"]),
         ]
         for title, keys in groups:
             self.ribbon_tabs.addTab(title)
@@ -2541,6 +2544,17 @@ class MainWindow(QMainWindow):
             subprocess.Popen(command, close_fds=True)
         except OSError as error:
             self.error(error)
+
+    def choose_processes(self):
+        if self.busy():
+            return
+        from .processes import ProcessesDialog
+
+        path = config_path()
+        dialog = ProcessesDialog(path, self)
+        if dialog.exec() == ProcessesDialog.DialogCode.Accepted:
+            parallel.configure(dialog.setting)
+            self.status(tr("processes.saved", count=parallel.status()["processes"]))
 
     def choose_language(self):
         codes = list(LANGUAGE_NAMES)

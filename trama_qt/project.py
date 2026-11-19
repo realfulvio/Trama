@@ -27,6 +27,7 @@ from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attac
                                     comparison_rows as pairwise_rows, endpoint_resolver as pairwise_endpoint,
                                     graph_problem as pairwise_graph_problem, read_section as read_pairwise,
                                     source_problem as pairwise_source_problem, sync_letters_table)
+from analisi.parallel_analyses import precompute as precompute_analyses
 from analisi.presentation import apply_style, compose_layout
 from analisi.prism_emf_edit import LIMIT_SOURCE
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS
@@ -131,15 +132,16 @@ def _attach_pairwise(result, frame, pairwise, method):
     attach_pairwise(result.figure, rows, pairwise["settings"], message=message)
 
 
-def compute(run, frame, control=None, layout_data=None, pairwise=None):
-    """Calculate one run on the worker thread (the same steps as ``tramastat.App.compute``)."""
-    if run.method == MONTE_CARLO_METHOD and control is not None:
-        result = monte_carlo(frame, run.options, progress=control.report, cancel=control.cancel)
-    elif run.method == XY_METHOD:
-        result = xy_series(frame, run.options, left_scale=(run.style or {}).get("yscale", "linear"))
-    else:
-        result = analyse(run.method, frame, run.options, layout_data=layout_data,
-                         cancel=control.cancel if control is not None else None)
+def compute(run, frame, control=None, layout_data=None, pairwise=None, *, result=None):
+    """Calculate a run and apply its style and comparisons on the window's worker thread."""
+    if result is None:
+        if run.method == MONTE_CARLO_METHOD and control is not None:
+            result = monte_carlo(frame, run.options, progress=control.report, cancel=control.cancel)
+        elif run.method == XY_METHOD:
+            result = xy_series(frame, run.options, left_scale=(run.style or {}).get("yscale", "linear"))
+        else:
+            result = analyse(run.method, frame, run.options, layout_data=layout_data,
+                             cancel=control.cancel if control is not None else None)
     if result.figure is not None and run.style:
         try:
             apply_style(result.figure, run.style)
@@ -478,13 +480,24 @@ class Project:
         references = {clone.reference: identifier for identifier, clone in job.clones.items()}
         fresh = dict(job.cached)
         job.control.report(0, len(job.selected))
+        # The engine calculation of the root runs needs only their worksheet.
+        # Comparisons and downstream tables are applied in dependency order.
+        prepared = precompute_analyses(
+            [(identifier, job.clones[identifier].method, frame, job.clones[identifier].options)
+             for identifier, frame in job.roots.items() if job.layout_data[identifier] is None],
+            cancel=job.control.cancel,
+        )
 
         def calculate(identifier, frame):
+            outcome = prepared.get(identifier)
+            if outcome is not None and outcome.error is not None:
+                raise outcome.error
             snapshot = job.pairwise[identifier]
             if snapshot and (source := references.get(snapshot.get("key"))) in fresh:
                 snapshot = {**snapshot, "tables": fresh[source].tables}
             return compute(job.clones[identifier], frame.copy(deep=True), control=job.control,
-                           layout_data=job.layout_data[identifier], pairwise=snapshot)
+                           layout_data=job.layout_data[identifier], pairwise=snapshot,
+                           result=outcome.value if outcome is not None else None)
 
         return evaluate_graph(job.graph, job.selected, job.roots, job.cached, calculate, cancel=job.control.cancel,
                               progress=job.control.report, on_result=lambda key, value: fresh.__setitem__(key, value))

@@ -32,7 +32,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from . import roc as roc_module
+from . import parallel, roc as roc_module
 from .field_error import FieldError
 from .monte_carlo import MonteCarloCancelled
 from .processing import _column
@@ -294,22 +294,62 @@ class _Cohort:
 
 # ----- bootstrap -----------------------------------------------------------------------------------------------------
 
-def _bootstrap(cohorts, settings, total, check):
-    """Areas of the replicates on the chosen scale. ``check`` raises when the calculation was cancelled."""
+def _check_cancel(cancel):
+    if cancel is not None and cancel.is_set():
+        raise IndependentRocCancelled("Independent ROC calculation cancelled.")
+
+
+def _draws(rng, sizes):
+    return [rng.integers(0, size, size=size) for size in sizes]
+
+
+def _bootstrap_block(cohorts, sizes, rng, area, cutoff, count, block, cancel):
+    cohort_a, cohort_b = cohorts
+    area_a, area_b = np.empty(count), np.empty(count)
+    for start in range(0, count, block):
+        _check_cancel(cancel)
+        for index in range(start, min(start + block, count)):
+            draws = _draws(rng, sizes)
+            area_a[index] = _scaled(cohort_a.resample_area(draws[0], draws[1], cutoff), area, cutoff)
+            area_b[index] = _scaled(cohort_b.resample_area(draws[2], draws[3], cutoff), area, cutoff)
+    _check_cancel(cancel)
+    return area_a, area_b
+
+
+def _bootstrap_task(item, cancel):
+    cohorts, sizes, state, area, cutoff, count, block = item
+    bitgen = np.random.PCG64()
+    bitgen.state = state
+    return _bootstrap_block(cohorts, sizes, np.random.Generator(bitgen), area, cutoff, count, block, cancel)
+
+
+def _bootstrap(cohorts, settings, total, cancel):
+    """Calculate the original PCG64 sequence on the chosen area scale."""
     cohort_a, cohort_b = cohorts
     replicates, cutoff, area = settings[REPLICATES], settings[MAX_FPR], settings[AREA]
     rng = np.random.Generator(np.random.PCG64(settings[SEED]))
     sizes = (cohort_a.n, cohort_a.m, cohort_b.n, cohort_b.m)
-    area_a, area_b = np.empty(replicates), np.empty(replicates)
     block = int(min(MAX_BLOCK, max(1, BLOCK_VALUES // total)))
-    for start in range(0, replicates, block):
-        check()
-        for index in range(start, min(start + block, replicates)):
-            draws = [rng.integers(0, size, size=size) for size in sizes]
-            area_a[index] = _scaled(cohort_a.resample_area(draws[0], draws[1], cutoff), area, cutoff)
-            area_b[index] = _scaled(cohort_b.resample_area(draws[2], draws[3], cutoff), area, cutoff)
-    check()
-    return area_a, area_b
+    processes = parallel.warm_process_count()
+    if processes <= 1 or replicates * total < 500_000:
+        return _bootstrap_block(cohorts, sizes, rng, area, cutoff, replicates, block, cancel)
+
+    # The full PCG64 state includes the buffered half word. Splitting on
+    # complete draw boundaries keeps odd sample sizes reproducible too.
+    jobs = []
+    chunk = (replicates + 2 * processes - 1) // (2 * processes)
+    for start in range(0, replicates, chunk):
+        _check_cancel(cancel)
+        count = min(chunk, replicates - start)
+        jobs.append((cohorts, sizes, rng.bit_generator.state, area, cutoff, count, block))
+        if start + count < replicates:
+            for index in range(count):
+                if index % block == 0:
+                    _check_cancel(cancel)
+                _draws(rng, sizes)
+    parts = parallel.run_tasks(_bootstrap_task, jobs, with_cancel=True, cancel=cancel)
+    _check_cancel(cancel)
+    return tuple(np.concatenate(values) for values in zip(*parts, strict=True))
 
 
 def _spread(values):
@@ -327,11 +367,7 @@ def _curve_table(thresholds, fpr, tpr, sign):
 def independent_roc(frame, options, *, cancel=None):
     """Return the Result of Compare independent ROC curves. ``cancel`` is an optional threading.Event."""
 
-    def check():
-        if cancel is not None and cancel.is_set():
-            raise IndependentRocCancelled("Independent ROC calculation cancelled.")
-
-    check()
+    _check_cancel(cancel)
     settings, values, total = _prepare(frame, options)
     sizes = {field: len(column) for field, column in values.items()}
     area, cutoff, inference = settings[AREA], settings[MAX_FPR], settings[INFERENCE]
@@ -377,7 +413,7 @@ def independent_roc(frame, options, *, cancel=None):
             note = "Zero variance: the standard error is zero, so Z, p and the interval are not defined."
     else:
         cohorts = [_Cohort(oriented[CONTROL_A], oriented[PATIENT_A]), _Cohort(oriented[CONTROL_B], oriented[PATIENT_B])]
-        replicates_a, replicates_b = _bootstrap(cohorts, settings, total, check)
+        replicates_a, replicates_b = _bootstrap(cohorts, settings, total, cancel)
         differences = replicates_a - replicates_b
         variance = _spread(differences)
         se = float(np.sqrt(variance))
@@ -396,7 +432,7 @@ def independent_roc(frame, options, *, cancel=None):
             replicate_table = pd.DataFrame({"Replicate": np.arange(1, settings[REPLICATES] + 1),
                                             "Area A": replicates_a, "Area B": replicates_b,
                                             "Difference": differences})
-    check()
+    _check_cancel(cancel)
     row.update({"Variance of difference": variance, "SE": se, **undefined, "Status": status, "Note": note})
     summary = pd.DataFrame([row], columns=SUMMARY_COLUMNS)
     for name in ("Maximum FPR", "Bootstrap replicates", "Bootstrap seed"):

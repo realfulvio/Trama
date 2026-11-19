@@ -1,6 +1,12 @@
 """Trama desktop entry point."""
 import sys
 
+if __name__ == "__main__":
+    # First statement on purpose: in the Windows portable build every calculation process starts this same
+    # executable, and freeze_support() turns it into a worker before any window or import happens.
+    import multiprocessing
+    multiprocessing.freeze_support()
+
 if __name__ == "__main__" and "--smoke" not in sys.argv[1:]:
     # Qt is the interface from 0.95; --tk (or a missing PySide6) opens the classic Tk window.
     from trama_qt import qt_available
@@ -168,6 +174,9 @@ from analisi.pairwise_graph import (LETTERS as COMPACT_LETTERS, SECTION as PAIRW
 from analisi.fit_weights import INVERSE_VARIANCE, NOTE_KEYS, UNWEIGHTED, uses_fitted_y, uses_observed_y
 from analisi.i18n import config_path, load_language, set_language, tr, translate_message, ui, fixed_choice_keys
 from analisi.language_dialog import LanguageDialog
+from analisi import parallel
+from analisi.parallel_analyses import precompute as precompute_analyses
+from analisi.processes_dialog import ProcessesDialog
 from analisi.theme_preferences import load_ribbon_expanded, load_theme, save_ribbon_expanded, ThemeDialog
 from analisi.modern_workspace import ModernWorksheet
 from analisi.project_tabs import MAX_PROJECT_TABS, ProjectSession, ProjectTabs
@@ -4548,6 +4557,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         settings = tk.Menu(menu, tearoff=False)
         settings.add_command(label=tr("theme.command"), command=self.choose_theme)
         settings.add_command(label=ui("Language…"), command=self.choose_language)
+        settings.add_command(label=tr("processes.command"), command=self.choose_processes)
         menu.add_cascade(label=tr("theme.settings"), menu=settings)
         menus["Settings"] = settings
         self.menu_entries["Settings", "Theme…"] = settings, 0
@@ -6133,8 +6143,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         missing = [(run, self.tables[run.title].frame(mask_excluded=True), self.pairwise_snapshot(run))
                    for run in distinct.values() if run.result is None]
         self.status.set(tr("interface.updating", name=layout.name))
-        self.pending = self.worker.submit(lambda: [(run, self.compute(run, frame, pairwise=pairwise))
-                                                   for run, frame, pairwise in missing])
+
+        def calculate():
+            prepared = precompute_analyses([(id(run), run.method, frame, run.options) for run, frame, _ in missing])
+            return [(run, self.compute(run, frame, self.prepared_result(prepared, run), pairwise=pairwise))
+                    for run, frame, pairwise in missing]
+
+        self.pending = self.worker.submit(calculate)
 
         def check():
             if not self.pending.done():
@@ -6768,11 +6783,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
         def calculate():
             results, fresh = [], {}
+            # Several processes compute the analyses themselves; styles, comparison brackets and errors are
+            # still handled below, one run at a time and in this order.
+            prepared = precompute_analyses([(id(run), run.method, frame, run.options) for run, frame in affected],
+                                           cancel=control.cancel if control is not None else None)
             for (run, frame), pairwise in zip(affected, snapshots, strict=True):
                 if pairwise and pairwise.get("tables") is None and pairwise.get("key") in fresh:
                     pairwise = {**pairwise, "tables": fresh[pairwise["key"]]}
                 try:
-                    result = self.compute(run, frame, control=control, pairwise=pairwise)
+                    result = self.compute(run, frame, self.prepared_result(prepared, run), control=control,
+                                          pairwise=pairwise)
                     results.append((run, result, None))
                     fresh[run.title, run.slot] = result.tables
                 except MonteCarloCancelled:
@@ -7369,6 +7389,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         return tr("axis_breaks.status.ignored", reason=translate_breaks_error(ValueError(reason)))
 
     @staticmethod
+    def prepared_result(prepared, run):
+        """The result a worker process computed for ``run``, None to compute it here, or its error raised."""
+        outcome = prepared.get(id(run))
+        if outcome is None:
+            return None
+        if outcome.error is not None:
+            raise outcome.error
+        return outcome.value
+
+    @staticmethod
     def compute(run, frame, result=None, control=None, layout_data=None, pairwise=None):
         if result is None:
             if run.method == MONTE_CARLO_METHOD and control is not None:
@@ -7842,6 +7872,14 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if dialog.saved:
             self.status.set(tr("theme.saved"))
 
+    def choose_processes(self):
+        """Settings → Multicore calculation…: applies at once; the pool is rebuilt on the next calculation."""
+        dialog = ProcessesDialog(self.root, config_path(), error=self.error)
+        if dialog.saved:
+            parallel.configure(dialog.result)
+            self.status.set(tr("processes.saved", count=parallel.process_count()))
+        return dialog.result
+
     def choose_language(self):
         """Edit → Language…: store the preference for the next start; the open session is untouched."""
         dialog = LanguageDialog(self.root, config_path(), error=self.error)
@@ -7869,6 +7907,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 self.switch_project(original)
                 return
         self.worker.shutdown(wait=False)
+        parallel.shutdown()
         self.root.destroy()
 
 
@@ -15178,6 +15217,7 @@ def smoke(root, app, directory, legacy_reference=None):
 def main(*, root=None, on_ready=None):
     # Read once at startup: Edit → Language… changes the file, the running window keeps its language.
     set_language(load_language(config_path()))
+    parallel.configure(parallel.load_setting(config_path()))
     configure_native_dpi()
     root = tk.Tk() if root is None else root
     app = App(root)

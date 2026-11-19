@@ -35,8 +35,11 @@ def main(argv=None):
         splash.show()
         app.processEvents()
 
+    from analisi import parallel
     from analisi.i18n import active_language, config_path, load_language, set_language
-    set_language(load_language(config_path()))
+    path = config_path()
+    set_language(load_language(path))
+    parallel.configure(parallel.load_setting(path))
     theme.install_qt_translations(app, active_language())
     import matplotlib
     matplotlib.use("QtAgg")
@@ -63,10 +66,13 @@ def main(argv=None):
     theme.keep_on_screen(window)
     if splash is not None:
         splash.finish(window)
-    path = _file_argument(argv)
-    if path:
-        window.open_path(path)
-    return app.exec()
+    filename = _file_argument(argv)
+    try:
+        if filename:
+            window.open_path(filename)
+        return app.exec()
+    finally:
+        parallel.shutdown()
 
 
 if __name__ == "__main__":

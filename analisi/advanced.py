@@ -13,6 +13,7 @@ from statsmodels.stats.multitest import multipletests
 from . import cluster_consensus as consensus
 from .anova_terms import CONTROL_FIELD
 from .field_error import FieldError
+from .parallel import run_tasks
 from .stats import Clusters, _anova_model, _cluster_data, _design_grid, kmeans
 
 
@@ -67,6 +68,28 @@ def _cluster_scores(values, distances, fit):
     return silhouettes.mean(), calinski, davies
 
 
+def _reference_inertias(job):
+    """WSS of one Gap reference set for every eligible k, or the error of that fit (worker task).
+
+    Errors are returned, not raised: whether one matters depends on the earlier replicates, which the
+    caller replays in the original order."""
+    values, columns, counts, seed, fit_options = job
+    reference = pd.DataFrame(values, columns=columns)
+    found = []
+    for count in counts:
+        try:
+            found.append(kmeans(reference, columns, count, seed=seed, **fit_options).inertia)
+        except Exception as error:
+            found.append(error)
+    return found
+
+
+def _scan_fit(job):
+    """One observed k-means fit of the scan (worker task)."""
+    data, columns, count, standardize, seed, retain_initial, fit_options = job
+    return kmeans(data, columns, count, standardize, seed, retain_initial=retain_initial, **fit_options)
+
+
 def _gap_scores(metrics, values, columns, seed, replicates, *, allow_failed_references=False, fit_options):
     metrics["Gap"] = np.nan
     metrics["Gap SE"] = np.nan
@@ -77,18 +100,23 @@ def _gap_scores(metrics, values, columns, seed, replicates, *, allow_failed_refe
     rng = np.random.default_rng(seed)
     reference_wss = np.full((replicates, len(eligible)), np.nan)
     failed = set()
-    for replica in range(replicates):
-        reference = pd.DataFrame(rng.uniform(low, high, size=values.shape), columns=columns)
-        for index, count in enumerate(eligible):
+    # The reference sets come from one random stream: draw them here, in the original order, and fit them on
+    # several processes. Every fit uses its own generator from ``seed``, so the WSS values do not depend on
+    # the number of processes. A reference fit that fails is skipped in the later replicates, as before.
+    counts = tuple(eligible)
+    jobs = [(rng.uniform(low, high, size=values.shape), columns, counts, seed, fit_options)
+            for _ in range(replicates)]
+    for replica, found in enumerate(run_tasks(_reference_inertias, jobs)):
+        for index, inertia in enumerate(found):
             if index in failed:
                 continue
-            try:
-                inertia = kmeans(reference, columns, count, seed=seed, **fit_options).inertia
-            except ValueError:
+            if isinstance(inertia, ValueError):
                 if not allow_failed_references:
-                    raise
+                    raise inertia
                 failed.add(index)
                 continue
+            if isinstance(inertia, Exception):
+                raise inertia
             if allow_failed_references and (not np.isfinite(inertia) or inertia <= 0):
                 failed.add(index)
             else:
@@ -186,8 +214,12 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     distances = squareform(pairs.distances if pairs is not None else pdist(values)) if score_distances else None
     rows, fits, partitions = [], {}, {}
     fit_options = {"algorithm": algorithm, "max_iterations": max_iterations}
-    for count in candidates:
-        fit = kmeans(data, columns, count, standardize, seed, retain_initial=retain_initial, **fit_options)
+    # The fits are independent (each one seeds its own generator); scores follow in k order, as before.
+    jobs = [(data, columns, count, standardize, seed, retain_initial, fit_options) for count in candidates]
+    for count, outcome in zip(candidates, run_tasks(_scan_fit, jobs, outcomes=True), strict=True):
+        if outcome.error is not None:
+            raise outcome.error
+        fit = outcome.value
         fits[count] = fit
         scores = _cluster_scores(values, distances, fit) if 1 < count < n else (np.nan,) * 3
         rows.append((count, fit.inertia, *scores))

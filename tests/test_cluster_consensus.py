@@ -269,6 +269,8 @@ class ScanIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.frame = pd.DataFrame({"x": [0., .1, .2, .3, .4, 10., 10.1, 10.2, 10.3, 10.4, 20., 20.2]})
 
+    # The patched kmeans counts calls in this process: keep the scan in one process.
+    @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
     def test_each_observed_fit_runs_once_and_gap_budget_is_counted(self):
         calls = []
         original = advanced.kmeans

@@ -35,6 +35,8 @@ class KmeansReportTests(unittest.TestCase):
         self.assertIn("Descriptive", anova["Interpretation"])
         self.assertAlmostEqual(result.tables["Cluster variation"].loc[2, "Explained variation (%)"], 100 * 100 / 104)
 
+    # The patched kmeans counts calls in this process: keep the scan in one process.
+    @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
     def test_opt_in_does_not_change_lloyd_fits_and_scan_reports_reuse_every_fit_once(self):
         options = {**self.fit, "Standardize": True, "Maximum k": 3, "Criterion": "Gap",
                    "Gap simulations": 5, k.ALGORITHM: k.LLOYD}
@@ -72,6 +74,8 @@ class KmeansReportTests(unittest.TestCase):
         self.assertTrue(result.tables["Cluster ANOVA"]["Nominal p"].isna().all())
         self.assertTrue(result.tables["Cluster variation"]["Explained variation (%)"].isna().all())
 
+    # The patched kmeans counts calls in this process: keep the scan in one process.
+    @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
     def test_diagnostic_panels_reuse_consensus_fits_metrics_and_gap_uncertainty(self):
         options = {**self.fit, "Maximum k": 3, "Criterion": "Consensus (17 indices)", "Gap simulations": 5,
                    "Show WSS plot": True, "Show silhouette plot": True, "Show Gap plot": True}

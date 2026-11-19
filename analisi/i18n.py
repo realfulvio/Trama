@@ -1366,6 +1366,12 @@ _IT.update(_GRAPH_IT)
 _EN.update(_AICC_EN)
 _IT.update(_AICC_IT)
 
+# Settings → Multicore calculation… (analisi.parallel).
+from .parallel_text import EN as _PROCESSES_EN, IT as _PROCESSES_IT  # noqa: E402
+
+_EN.update(_PROCESSES_EN)
+_IT.update(_PROCESSES_IT)
+
 # Nonlinear and global nonlinear regression: one line under the Weighting field explains its denominator.
 _WEIGHTING_EN = {
     "weighting.note.unweighted": "Every point counts equally: the fit minimises the sum of squared residuals r².",
@@ -1399,6 +1405,12 @@ _WEIGHTING_IT = {
 }
 _EN.update(_WEIGHTING_EN)
 _IT.update(_WEIGHTING_IT)
+
+# Permutation test for mean difference (0.93): captions, choices, notes and the exact engine messages.
+from .mean_permutation_text import EN as _PERMUTATION_EN, IT as _PERMUTATION_IT  # noqa: E402
+
+_EN.update(_PERMUTATION_EN)
+_IT.update(_PERMUTATION_IT)
 
 # Mann–Whitney and Wilcoxon signed-rank dialogs.
 _EN["rank.hint"] = ("Automatic uses the exact conditional p value, with ties, while it fits the work limit, "
