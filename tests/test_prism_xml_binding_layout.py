@@ -18,7 +18,16 @@ def _data_table(uid, analysis, x, y, role=8):
     return _group(0x8008, pack("<H", uid), b"".join(_group(0x800F, field) for field in fields))
 
 
-def _graph(uid, name, owners, links):
+def _note(uid, text, bounds, flags=0):
+    header = bytearray(30)
+    pack_into("<H", header, 0, 2)
+    pack_into("<4h", header, 18, *bounds)
+    pack_into("<H", header, 28, flags)
+    body = _group(0x802B, pack("<H", uid) + bytes(16), _record(0x2C, text))
+    return _group(0x8020, header, body)
+
+
+def _graph(uid, name, owners, links, notes=b""):
     body = _record(9, name + b"\0") + _record(0x14, pack("<3i", 2, *owners))
     body += _record(0x15, pack("<3i", 2, 11, 10))
     body += _record(0x16, pack("<H", 2) + b"".join(pack("<3i", *link) for link in links))
@@ -35,7 +44,7 @@ def _graph(uid, name, owners, links):
     pack_into("<4h", chart, 0, 200, 200, 1400, 1400)
     pack_into("<H", chart, 32, 30)
     body += _record(0x13, chart)
-    objects = b""
+    objects = notes
     for key, link, color in zip((10, 11), links, ("236789", "258479"), strict=True):
         header = bytearray(144)
         pack_into("<8H", header, 0, key, 0, link[0], 1, 2, 0, 0, 2)
@@ -64,7 +73,10 @@ def _write(path, *, unknown_link=False):
         pack_into("<i", template, offset + relative, value)
     records = (_data_table(8, -1, 104, 105) + _data_table(9, 4, 106, 107, role=40)
                + _data_table(10, 6, 108, 109) + _data_table(12, -1, 110, 111)
-               + _graph(20, b"Saturation chart", (8, 9), ((105, -1, -1), (107, 2, 2)))
+               + _graph(20, b"Saturation chart", (8, 9), ((105, -1, -1), (107, 2, 2)),
+                        _note(52, b"Estimate $ 60\rManual note", (260, 320, 520, 580))
+                        + _note(53, b"Hidden note", (240, 310, 490, 460), 0x200)
+                        + _note(54, b"Invalid position", (680, 360, 610, 420)))
                + _graph(21, b"Scatchard chart", (10, 12), ((109, 2, 2), (112 if unknown_link else 111, -1, -1)))
                + _layout())
     write_project(path, bytes(template[:-2]) + records + bytes(template[-2:]))
@@ -116,6 +128,35 @@ class BindingLayoutTests(unittest.TestCase):
             run = next(item for item in project.runs if item.method == SAVED_BINARY_LAYOUT)
             _refresh(project, [run])
             self.assertEqual(run.result.figure.axes[1].lines[1].get_ydata().tolist(), [24, 0])
+
+    def test_multiline_graph_notes_remain_literal_in_the_linked_layout(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "binding.pzt"
+            _write(path)
+            project = Project()
+            project.load(path)
+
+            for roundtrip in (False, True):
+                if roundtrip:
+                    saved = path.with_suffix(".alab")
+                    project.save(saved)
+                    project = Project()
+                    project.load(saved)
+                saturation = next(run for run in project.runs if run.name == "Saturation chart")
+                layout = next(run for run in project.runs if run.method == SAVED_BINARY_LAYOUT)
+                _refresh(project, [saturation, layout])
+                for figure in (saturation.result.figure, layout.result.figure):
+                    axes = figure.axes[0]
+                    note, = axes.texts
+                    self.assertEqual(note.get_text(), "Estimate $ 60\nManual note")
+                    self.assertFalse(note.get_parse_math())
+                    self.assertIs(note.get_transform(), axes.transAxes)
+                    self.assertAlmostEqual(note.get_position()[0], .05)
+                    self.assertAlmostEqual(note.get_position()[1], .90)
+                if not roundtrip:
+                    _refresh(project, project.paste("Binding", 0, 1, [["12"]]))
+                    self.assertEqual(layout.result.figure.axes[0].texts[0].get_text(),
+                                     "Estimate $ 60\nManual note")
 
     def test_unresolved_series_does_not_attach_a_layout(self):
         with TemporaryDirectory() as folder:

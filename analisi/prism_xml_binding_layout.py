@@ -83,6 +83,17 @@ def _caption(details, encoding, flags):
     return identity, "" if flags & 0x200 else caption
 
 
+def _annotation(header, chart, caption):
+    # The text content box excludes the surrounding padding used by the graph object.
+    left, top, right, bottom = unpack_from("<4h", chart)
+    x0, y0, x1, y1 = unpack_from("<4h", header, 18)
+    if not (left < right and top < bottom and x0 < x1 and y0 < y1):
+        return None
+    x = (x0 - left) / (right - left)
+    y = (bottom - y0) / (bottom - top)
+    return [x, y, caption] if -1 <= x <= 2 and -1 <= y <= 2 else None
+
+
 def _chart_style(records, encoding, observed, calculated):
     chart = _one(records, 0x13)
     _require(len(chart) == 48)
@@ -93,17 +104,25 @@ def _chart_style(records, encoding, observed, calculated):
     _require(len(scene_header) == 12)
     objects = list(_subgroups(scene, 0x8020))
     order = _id_array(_one(records, 0x15))
-    series, labels = {}, {}
+    axis_labels = {unpack_from("<H", payload, 48)[0] for tag, path, payload in records
+                   if tag == 0x17 and not path}
+    axis_labels.update(names)
+    series, labels, notes = {}, {}, []
     for header, details in objects:
         _require(len(header) == 30)
         kind, = unpack_from("<H", header)
         if kind == 2:
+            flags, = unpack_from("<H", header, 28)
             try:
-                identity, caption = _caption(details, encoding, unpack_from("<H", header, 28)[0])
+                identity, caption = _caption(details, encoding, flags)
             except (ValueError, StructError):
                 continue
             _require(identity not in labels)
             labels[identity] = caption
+            if caption and not flags and identity not in axis_labels:
+                note = _annotation(header, chart, caption)
+                if note is not None:
+                    notes.append(note)
         elif kind == 9:
             drawing = _one(details, 0x8028)
             _require(len(drawing) == 144)
@@ -123,6 +142,8 @@ def _chart_style(records, encoding, observed, calculated):
                 if uid in labels}
     style = {"axes": list(_linear_axes(records)), "captions": captions,
              "observed": styles[observed], "calculated": styles[calculated]}
+    if notes:
+        style["annotations"] = notes
     plot = _saved_plot_box(records, objects)
     if plot is not None:
         style["plot"] = plot
@@ -217,4 +238,9 @@ def render_binding_graph(frame, style, title, *, binding=None, axes=None):
     axes.spines[["right", "top"]].set_visible(False)
     for text in (axes.title, axes.xaxis.label, axes.yaxis.label):
         text.set_parse_math(False)
+    notes = style.get("annotations", ())
+    _require(isinstance(notes, (list, tuple)) and len(notes) <= 32)
+    for x, y, caption in notes:
+        _require(-1 <= x <= 2 and -1 <= y <= 2 and isinstance(caption, str) and len(caption) <= 240)
+        axes.text(x, y, caption, transform=axes.transAxes, ha="left", va="top", fontsize=10, parse_math=False)
     return Result({}, figure)
