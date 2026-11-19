@@ -1,0 +1,58 @@
+"""Start Trama on Qt: language, fonts, theme, a short splash and the main window."""
+import os
+import sys
+
+# The worksheet and graphs are drawn with the Qt backend; set before pyplot can be imported anywhere.
+os.environ.setdefault("MPLBACKEND", "QtAgg")
+
+
+def _file_argument(argv):
+    for argument in argv[1:]:
+        if not argument.startswith("--"):
+            return argument
+    return None
+
+
+def main(argv=None):
+    argv = list(sys.argv if argv is None else argv)
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QGuiApplication, QIcon, QPixmap
+    from PySide6.QtWidgets import QApplication, QSplashScreen
+
+    QGuiApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    app = QApplication.instance() or QApplication(argv)
+    app.setApplicationName("Trama")
+    app.setOrganizationName("TramaStat")
+
+    from . import theme
+    splash = None
+    logo = QPixmap(str(theme.ASSETS / "brand" / "trama-wordmark-light.png"))
+    if not logo.isNull():
+        ratio = app.primaryScreen().devicePixelRatio() if app.primaryScreen() else 1.0
+        logo = logo.scaledToWidth(int(420 * ratio), Qt.TransformationMode.SmoothTransformation)
+        logo.setDevicePixelRatio(ratio)
+        splash = QSplashScreen(logo)
+        splash.show()
+        app.processEvents()
+
+    from analisi.i18n import config_path, load_language, set_language
+    set_language(load_language(config_path()))
+    import matplotlib
+    matplotlib.use("QtAgg")
+    theme.load_fonts()
+    theme.apply(app)
+    app.setWindowIcon(QIcon(str(theme.ASSETS / "trama.png")))
+
+    from .window import MainWindow
+    window = MainWindow()
+    window.show()
+    if splash is not None:
+        splash.finish(window)
+    path = _file_argument(argv)
+    if path:
+        window.open_path(path)
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
