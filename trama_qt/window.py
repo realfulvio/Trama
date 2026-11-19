@@ -1252,7 +1252,7 @@ class MainWindow(QMainWindow):
             page.button(qt("qt.export_graph"), self.export, icon="upload")
         if kind == "result" and result is not None and result.figure is not None:
             page.button(tr("ribbon.graph"), lambda: self.open_sheet(("graph", index)), icon="chart-line")
-        if kind == "graph" and run_view(run.method) == "result":
+        if kind == "graph" and (run_view(run.method) == "result" or XML_GENERATED_XY in run.options):
             page.button(tr("command.analysis_results"), lambda: self.open_sheet(("result", index)), icon="sigma")
         if run.source is not None:
             page.button(tr("chain.source_analysis"), self.source_analysis, icon="chevron-up")

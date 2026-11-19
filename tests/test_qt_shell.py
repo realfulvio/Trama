@@ -878,6 +878,25 @@ class QtShellTests(unittest.TestCase):
             window.open_path(path, import_data=True)
         self.assertEqual(list(window.project.tables), ["misure"])
 
+    def test_recovered_theoretical_graph_exposes_saved_equations(self):
+        from PySide6.QtWidgets import QPushButton
+        from test_prism_xml_generated import _write
+
+        path = self.folder / "generated.pzt"
+        _write(path)
+        self.window.open_path(path)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        results = next(button for button in self.window.page.findChildren(QPushButton)
+                       if button.text() == tr("command.analysis_results"))
+        results.click()
+        self.assertEqual(self.window.selected, ("result", 0))
+        tabs = self.window.result_tabs
+        self.assertEqual([tabs.tabText(index) for index in range(tabs.count())],
+                         ["Saved XY coordinates", "Saved equations"])
+        self.assertEqual(self.window.project.runs[0].result.tables["Saved equations"]["Parameters"].tolist(),
+                         ["S=2", "S=4"])
+
     def test_imported_graph_and_layout_link_to_editable_data(self):
         from unittest.mock import patch
 
