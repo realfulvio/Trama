@@ -12,7 +12,7 @@ from test_prism_binary_editable import _group
 from test_prism_binary_graphs import _record
 
 
-def _graph(markers, fen_id=8):
+def _graph(markers, fen_id=8, saved_presentation=False):
     graph = _record(0x14, pack("<2i", 1, 14))
     graph += _record(0x15, pack("<3i", 2, 21, 20))
     graph += _record(0x16, pack("<H6i", 2, 205, -1, -1, 206, -1, -1))
@@ -21,6 +21,7 @@ def _graph(markers, fen_id=8):
         axis, scale = bytearray(60), bytearray(134)
         pack_into("<2d", axis, 16, low, high)
         pack_into("<H", axis, 42, 1200)
+        pack_into("<H", axis, 48, 30 + uid)
         pack_into("<H", axis, 54, uid)
         pack_into("<H3d", scale, 0, uid, low, high, (high - low) / 1200)
         pack_into("<d", scale, 54, tick)
@@ -32,6 +33,22 @@ def _graph(markers, fen_id=8):
         pack_into("<4H", header, 58, 8, 3, 8, 0)
         header[68:71] = bytes.fromhex(color)
         objects += _group(0x8020, pack("<H", 9) + bytes(28), _group(0x8028, header))
+    if saved_presentation:
+        chart = bytearray(48)
+        pack_into("<H", chart, 32, 30)
+        graph += _record(0x13, chart)
+        for identity, hidden, caption in ((30, True, b"Saved title"), (31, False, b"Elapsed $ hours"),
+                                          (32, True, b"Source units"), (33, True, b"Right axis")):
+            flags = 0x200 if hidden else 0
+            header = pack("<H", 2) + bytes(26) + pack("<H", flags)
+            text = _record(0x102C, caption)
+            text += _record(0x102D, pack("<HHIHIHI", 1, 2, 0, 1, 12, 10, 65001))
+            objects += _group(0x8020, header, _group(0x902B, pack("<H", identity) + bytes(16), text))
+        for key, _, _ in markers:
+            header = pack("<H", 14) + bytes(26) + pack("<H", 0x202)
+            legend = _record(0x9D, pack("<3i", 1, 203, key) + bytes(492))
+            legend += _record(0x209D, pack("<IfI", 2, 8, key))
+            objects += _group(0x8020, header, legend)
     graph += _group(0x8018, bytes(12), objects)
     return b"PCFFGRA4" + _group(0x8001, bytes(12), _group(0x8012, pack("<H", fen_id), graph))
 
@@ -59,7 +76,7 @@ def _layout(graph_id=9, arrow_direction=0):
     return b"PCFFGRA4" + _group(0x8001, bytes(12), units + _group(0x8035, pack("<H", 0), layout))
 
 
-def _write(project, *, bad_link=False, layout_link=None, arrow_direction=0):
+def _write(project, *, bad_link=False, layout_link=None, arrow_direction=0, saved_presentation=False):
     table = {"format": "xy", "dataFormat": "y_single", "uid": "raw",
              "xDataSet": "x", "dataSets": ["first", "second"]}
     members = {
@@ -85,14 +102,31 @@ def _write(project, *, bad_link=False, layout_link=None, arrow_direction=0):
             archive.writestr(name, json.dumps(data))
         archive.writestr("data/tables/raw/data.csv", "1,3,\n2,,\n3,5,\n")
         archive.writestr("graphs/chart/data.bin", _graph([(20, 205, "22aaff"),
-                                                         (21, 207 if bad_link else 206, "ff0088")]))
+                                                         (21, 207 if bad_link else 206, "ff0088")],
+                                                        saved_presentation=saved_presentation))
         if layout_link is not None:
-            detail = _graph([(20, 205, "22aaff"), (21, 206, "ff0088")], fen_id=9)
+            detail = _graph([(20, 205, "22aaff"), (21, 206, "ff0088")], fen_id=9,
+                            saved_presentation=saved_presentation)
             archive.writestr("graphs/detail/data.bin", detail)
             archive.writestr("layouts/page/data.bin", _layout(layout_link, arrow_direction))
 
 
 class PrismZipSparseXYTests(unittest.TestCase):
+    def test_saved_labels_and_marker_presentation_apply_to_graph_and_layout(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "saved-style.pzt"
+            _write(path, layout_link=9, saved_presentation=True)
+            table = Dataset(load_tables(path, restore_prism=True)["Signals"])
+            for method, settings in (table.analyses[0], table.analyses[2]):
+                figure = analyse(method, table.frame(mask_excluded=True), settings).figure
+                for axes in figure.axes:
+                    self.assertEqual(axes.get_title(), "")
+                    self.assertEqual(axes.get_xlabel(), "Elapsed $ hours")
+                    self.assertEqual(axes.get_ylabel(), "")
+                    self.assertIsNone(axes.get_legend())
+                    self.assertEqual([line.get_marker() for line in axes.lines], ["v"])
+                    self.assertEqual([line.get_markersize() for line in axes.lines], [8])
+
     def test_initially_empty_series_remains_linked_to_its_original_column(self):
         with TemporaryDirectory() as scratch:
             path = Path(scratch) / "test.pzt"

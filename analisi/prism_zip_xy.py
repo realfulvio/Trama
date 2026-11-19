@@ -19,6 +19,8 @@ _MAX_GRAPH_BYTES = 2 * 1024 * 1024
 _MAX_POINTS = 50_000
 _MAX_TICKS = 200
 _LINKS = Struct("<3i")
+_TEXT_PROPERTY = Struct("<HI")
+_MARKERS = {1: "s", 3: "v", 5: "o"}
 
 
 def _graph_records(data, fen_id):
@@ -49,6 +51,63 @@ def _linear_axes(records):
                "ticks": [origin + i * step for i in range(ceil(first - 1e-10), floor(last + 1e-10) + 1)]}
 
 
+def _plain_zip_text(detail):
+    header = _one(detail, 0x902B)
+    _require(len(header) == 18)
+    text, = [bytes(p) for tag, path, p in detail if tag == 0x102C and path == (0x102B,)]
+    style, = [p for tag, path, p in detail if tag == 0x102D and path == (0x102B,)]
+    runs, count, start = unpack_from("<HHI", style)
+    _require(runs == 1 and start == 0 and len(style) == 8 + count * _TEXT_PROPERTY.size)
+    properties = dict(_TEXT_PROPERTY.iter_unpack(style[8:]))
+    _require(properties.get(10) == 65001 and 1 <= properties.get(1, 0) <= 48)
+    label = text.decode("utf-8")
+    _require(len(label) <= 240 and all(char.isprintable() for char in label))
+    rgba = properties.get(8, 0xFF000000).to_bytes(4, "little")
+    _require(rgba[3] == 255)
+    return unpack_from("<H", header)[0], label, properties[1], "#" + rgba[:3].hex()
+
+
+def _saved_captions(records, objects):
+    try:
+        chart = _one(records, 0x13)
+        _require(len(chart) == 48)
+        x, y = _axis_config(records)
+        ids = (unpack_from("<H", chart, 32)[0], x["title"], y["title"])
+        _require(len(set(ids)) == 3)
+        names = dict(zip(ids, ("title", "xlabel", "ylabel"), strict=True))
+        captions = {}
+        for header, details in objects:
+            if unpack_from("<H", header)[0] != 2:
+                continue
+            text_header = _one(details, 0x902B)
+            _require(len(text_header) == 18)
+            name = names.get(unpack_from("<H", text_header)[0])
+            if name is not None:
+                _require(name not in captions)
+                hidden = bool(unpack_from("<H", header, 28)[0] & 0x200)
+                captions[name] = "" if hidden else _plain_zip_text(details)[1]
+        return captions
+    except (KeyError, ValueError, StructError):
+        return {}
+
+
+def _hidden_legend_keys(objects):
+    entries = {}
+    for header, details in objects:
+        if unpack_from("<H", header)[0] != 14:
+            continue
+        try:
+            description, marker = _one(details, 0x9D), _one(details, 0x209D)
+            _require(len(description) in (56, 504) and len(marker) == 12)
+            key, = unpack_from("<I", description, 8)
+            kind, _, linked_key = unpack_from("<IfI", marker)
+            _require(kind == 2 and linked_key == key and key not in entries)
+            entries[key] = bool(unpack_from("<H", header, 28)[0] & 0x200)
+        except (ValueError, StructError):
+            return set()
+    return {key for key, hidden in entries.items() if hidden}
+
+
 def _series(records, columns):
     order = _id_array(_one(records, 0x15))
     links = _one(records, 0x16)
@@ -60,9 +119,11 @@ def _series(records, columns):
     _require(linked == columns.keys())
 
     scene, = list(_subgroups(records, 0x8018))
+    objects = list(_subgroups(scene[1], 0x8020))
+    _require(all(len(header) == 30 for header, _ in objects))
+    hidden = _hidden_legend_keys(objects)
     styles, seen = {}, set()
-    for header, details in _subgroups(scene[1], 0x8020):
-        _require(len(header) == 30)
+    for header, details in objects:
         if unpack_from("<H", header)[0] != 9:
             continue
         style = _one(details, 0x8028)
@@ -71,9 +132,15 @@ def _series(records, columns):
         _require(key not in styles and (family, visible, error, draw) == (0, 1, 0, 0)
                  and dataset in linked and dataset not in seen and style[71] == 0)
         seen.add(dataset)
-        styles[key] = {"column": columns[dataset], "color": "#" + bytes(style[68:71]).hex()}
+        item = {"column": columns[dataset], "color": "#" + bytes(style[68:71]).hex()}
+        marker, size = unpack_from("<2H", style, 60)
+        if marker in _MARKERS and 1 <= size <= 30:
+            item.update(marker=_MARKERS[marker], marker_size=size)
+        if key in hidden:
+            item["legend"] = False
+        styles[key] = item
     _require(len(order) == len(styles) and set(order) == styles.keys() and seen == linked)
-    return [styles[key] for key in order]
+    return [styles[key] for key in order], _saved_captions(records, objects)
 
 
 def saved_sparse_xy(archive, graph, graph_uid, owners, sources):
@@ -114,7 +181,8 @@ def _saved_sparse_xy(archive, graph, graph_uid, owners, sources):
     _require(0 < member.file_size <= _MAX_GRAPH_BYTES and type(graph.get("fenID")) is int)
     records = _graph_records(archive.read(member), graph["fenID"])
     _require(_id_array(_one(records, 0x14)) == [sheet["fenID"]])
-    return frame, {"x": x, "series": _series(records, columns), "axes": list(_linear_axes(records))}
+    series, captions = _series(records, columns)
+    return frame, {"x": x, "series": series, "axes": list(_linear_axes(records)), "captions": captions}
 
 
 def render_sparse_xy(frame, style, title, *, axes=None):
@@ -133,8 +201,10 @@ def _render_sparse_xy(frame, style, title, axes):
         axes = figure.add_subplot()
     else:
         figure = axes.get_figure(root=True)
-    axes.set_title(title, parse_math=False)
-    axes.set_xlabel(style["x"], parse_math=False)
+    captions = style.get("captions", {})
+    axes.set_title(captions.get("title", title), parse_math=False)
+    axes.set_xlabel(captions.get("xlabel", style["x"]), parse_math=False)
+    axes.set_ylabel(captions.get("ylabel", ""), parse_math=False)
     axes.spines[["right", "top"]].set_visible(False)
     for scale, ticks, limits in zip(scales, (axes.set_xticks, axes.set_yticks),
                                     (axes.set_xlim, axes.set_ylim), strict=True):
@@ -154,12 +224,14 @@ def _render_sparse_xy(frame, style, title, axes):
         if not valid.any():
             continue
         shown_x, shown_y = x[valid], y[valid]
-        axes.plot(shown_x, shown_y, color=color, marker="o", linestyle="none", label=column)
+        label = column if item.get("legend", True) else "_nolegend_"
+        axes.plot(shown_x, shown_y, color=color, marker=item.get("marker", "o"),
+                  markersize=item.get("marker_size"), linestyle="none", label=label)
         portions.append(pd.DataFrame({"X": shown_x, "Y": shown_y, "Series": column,
                                       "Dataset": number, "Geometry": "points"}))
     if not portions:
         raise ValueError("The saved graph has no complete XY points.")
-    if len(portions) <= 15:
+    if len(portions) <= 15 and axes.get_legend_handles_labels()[0]:
         for label in axes.legend().get_texts():
             label.set_parse_math(False)
     return Result({"Saved XY coordinates": pd.concat(portions, ignore_index=True)}, figure)

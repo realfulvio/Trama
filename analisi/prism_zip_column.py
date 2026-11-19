@@ -11,13 +11,12 @@ import pandas as pd
 
 from .prism_binary_editable import _axis_config, _id_array, _one, _require, _subgroups
 from .prism_import import _identifier, _json_object
-from .prism_zip_xy import _graph_records, _linear_axes, _MAX_GRAPH_BYTES, _MAX_POINTS, _MAX_TICKS
+from .prism_zip_xy import _graph_records, _linear_axes, _plain_zip_text, _MAX_GRAPH_BYTES, _MAX_POINTS, _MAX_TICKS
 from .reporting import Result
 
 
 ZIP_COLUMN = "Prism ZIP aligned column"
 _POINT_SIZE = 249
-_TEXT_PROPERTY = Struct("<HI")
 
 
 def _point_colors(records, key, dataset, rows):
@@ -39,22 +38,6 @@ def _point_colors(records, key, dataset, rows):
     default = points[-stride:]
     _require(default[0] == 0 and unpack_from("<3I", default, 4) == (dataset, 0, 0))
     return colors
-
-
-def _text(detail):
-    header = _one(detail, 0x902B)
-    _require(len(header) == 18)
-    text, = [bytes(p) for tag, path, p in detail if tag == 0x102C and path == (0x102B,)]
-    style, = [p for tag, path, p in detail if tag == 0x102D and path == (0x102B,)]
-    runs, count, start = unpack_from("<HHI", style)
-    _require(runs == 1 and start == 0 and len(style) == 8 + count * _TEXT_PROPERTY.size)
-    properties = dict(_TEXT_PROPERTY.iter_unpack(style[8:]))
-    _require(properties.get(10) == 65001 and 1 <= properties.get(1, 0) <= 48)
-    label = text.decode("utf-8")
-    _require(len(label) <= 240 and all(char.isprintable() for char in label))
-    rgba = properties.get(8, 0xFF000000).to_bytes(4, "little")
-    _require(rgba[3] == 255)
-    return unpack_from("<H", header)[0], label, properties[1], "#" + rgba[:3].hex()
 
 
 def _column_style(records, column, dataset, rows):
@@ -91,7 +74,7 @@ def _column_style(records, column, dataset, rows):
             _require(axis not in hidden_axes)
             hidden_axes[axis] = bool(flags & 0x800)
         elif kind == 2 and not flags & 0x200:
-            identity, text, size, color = _text(detail)
+            identity, text, size, color = _plain_zip_text(detail)
             _require(identity not in labels)
             labels[identity] = text
             if identity not in chart_labels:
