@@ -15,7 +15,7 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
-### SMOKE · Smoke Qt e schermi piccoli al 150% (2026-11-19)
+### b78e602 · Smoke Qt e schermi piccoli al 150% (2026-11-19)
 
 - Nuovo: `python -m trama_qt --smoke CARTELLA` (`trama_qt/smoke.py`), il collaudo da desktop per Qt descritto in `docs/qt-migration.md`. Gira in inglese e in italiano. Salva gli screenshot della finestra su ogni foglio e di ogni dialogo, poi scrive `report.txt` e `status.txt` (PASS o FAIL). Fallisce se un dialogo non entra nello schermo o se un testo è tagliato.
 - Corretto quello che lo smoke ha trovato emulando schermi al 150%:
