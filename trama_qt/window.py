@@ -40,6 +40,7 @@ from .models import WorksheetModel, column_label
 from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, SAVED_VIEWS,
                       CalculationControl, Project, Run, compute, run_view, stored_prism_view)
 from .sessions import MAX_PROJECT_TABS, Sessions
+from .templates import sync_actions as sync_template_actions, t as template_text
 from .shape_canvas import GraphDrawing
 from .sheet import FrameView, WorksheetView
 from .strings import qt
@@ -311,6 +312,10 @@ class MainWindow(QMainWindow):
           shortcut="Ctrl+I")
         a("save", tr("command.save_project"), self.save, icon="save", shortcut="Ctrl+S")
         a("save_as", tr("command.save_project_as"), lambda: self.save(as_new=True), shortcut="Ctrl+Shift+S")
+        a("save_template", template_text("save_action"), self.save_template, icon="file-down",
+          tip=template_text("save_tip"))
+        a("new_from_template", template_text("new_action"), self.new_from_template, icon="sparkles",
+          tip=template_text("new_tip"))
         a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+E")
         a("export_options", tr("command.export_with_options"), self.export_with_options, icon="download")
         a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")
@@ -490,6 +495,7 @@ class MainWindow(QMainWindow):
         self.ribbon = QStackedWidget()
         groups = [
             (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "close_project", "|",
+                                         "save_template", "new_from_template", "|",
                                          "export", "export_options",
                                          "export_pdf", "|",
                                          "classic", "language", "about"]),
@@ -664,6 +670,7 @@ class MainWindow(QMainWindow):
         for key in ("next_project", "previous_project"):  # Switching waits for the calculation (Cancel stays on).
             self.actions[key].setEnabled(idle and len(self.sessions) > 1)
         self.actions["new_project"].setEnabled(idle and not self.sessions.full())
+        sync_template_actions(self)
         self.project_tabs.setEnabled(idle)
         self.new_tab_button.setEnabled(idle and not self.sessions.full())
         self.actions["export"].setEnabled(kind is not None)
@@ -1955,6 +1962,15 @@ class MainWindow(QMainWindow):
                                              source_path=source, cancel=control.cancel),
                          control, running=tr("family.saving"), cancelled=tr("family.save_cancelled"),
                          failed="family.save_failed", finish=finish, discard_when_cancelled=False)
+
+    # == analysis templates (trama_qt/templates.py) =============================================
+    def save_template(self):
+        from .templates import save_template
+        save_template(self)
+
+    def new_from_template(self, path=None):
+        from .templates import new_from_template
+        new_from_template(self, path)
 
     def recalculate(self):
         if self.busy() or not self.selected or not self.settle_graph_draft():

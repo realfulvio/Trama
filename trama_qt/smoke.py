@@ -220,6 +220,8 @@ class Smoke:
             global_fit(self, window)
             from .projects_smoke import run as project_tabs
             project_tabs(self, window)
+            from .templates_smoke import run as analysis_templates
+            analysis_templates(self, window)
             from .canvas_smoke import check_canvas
             self.notes += check_canvas(self)  # Last: it replaces the project with its own.
         except Exception:  # noqa: BLE001 - the report must say what broke, then the next language runs.
