@@ -31,6 +31,7 @@ from .labels import method_label
 from .models import WorksheetModel, column_label
 from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, CalculationControl, Project,
                       Run, compute, run_view, stored_prism_view)
+from .shape_canvas import GraphDrawing
 from .sheet import FrameView, WorksheetView
 from .strings import qt
 
@@ -250,6 +251,8 @@ class MainWindow(QMainWindow):
                              ("linear", "Linear regression"), ("nonlinear", "Nonlinear regression"),
                              ("survival", "Kaplan–Meier survival"), ("contingency", "Contingency table")):
             a(name, method_label(method), lambda method=method: self.analyze(method=method))
+        self.drawing = GraphDrawing(self)  # Pointer tools of the graph canvas: actions before the ribbon.
+        self.drawing.create_actions()
 
         central = QWidget()
         root = QVBoxLayout(central)
@@ -347,7 +350,7 @@ class MainWindow(QMainWindow):
                                             "use_result", "|", "analyze_result", "source_analysis",
                                             "change_input"]),
             (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "shapes",
-                                          "pairwise", "compact_letters", "change", "recalculate", "|", "new_layout",
+                                          "draw", "pairwise", "compact_letters", "change", "recalculate", "|", "new_layout",
                                           "edit_layout", "|", "export", "export_options"]),
             (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
         ]
@@ -364,6 +367,8 @@ class MainWindow(QMainWindow):
                 else:
                     action = self.actions[key.lstrip("*")]
                     row.addAction(action)
+                    if action.menu() is not None:
+                        row.widgetForAction(action).setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
                     if key.startswith("*"):
                         button = row.widgetForAction(action)
                         button.setObjectName("primary")
@@ -448,14 +453,17 @@ class MainWindow(QMainWindow):
         for key in ("analyze", "new_graph", "descriptive", "ttest", "anova", "correlation", "linear", "nonlinear",
                     "survival", "contingency"):
             self.actions[key].setEnabled(has_data and idle)
-        self.actions["undo"].setEnabled(idle and self.project.history.can_apply())
-        self.actions["redo"].setEnabled(idle and self.project.history.can_apply(redo=True))
+        shape_run = self.drawing.history_run()  # On a graph with drawing steps, Undo/Redo belong to that graph.
+        history = shape_run.shape_history if shape_run is not None else self.project.history
+        self.actions["undo"].setEnabled(idle and history.can_apply())
+        self.actions["redo"].setEnabled(idle and history.can_apply(redo=True))
         for key in ("open", "import", "new_project", "save", "save_as", "classic"):
             self.actions[key].setEnabled(idle)
         self.actions["export"].setEnabled(kind is not None)
         self.actions["export_options"].setEnabled(kind in {"graph", "layout", "saved-layout"})
         self.actions["export_pdf"].setEnabled(idle and (bool(self.project.layouts) or any(
             run.result is not None and run.result.figure is not None for run in self.project.runs)))
+        self.drawing.sync()
 
     # == navigator ================================================================================
     def _section(self, title):
@@ -567,6 +575,7 @@ class MainWindow(QMainWindow):
         self.page_layout.addWidget(page)
 
     def show_home(self):
+        self.drawing.detach()
         self.dispose_inspector()
         self.flush_info()
         self.info_editor = None
@@ -597,6 +606,7 @@ class MainWindow(QMainWindow):
                 self.refresh_runs(runs)
 
     def show_sheet(self, kind, key):
+        self.drawing.detach()  # Closes a pointer preview; the new graph page attaches its own canvas.
         self.dispose_inspector()  # Before the new page builds its own panel.
         self.flush_info()
         self.info_editor = None
@@ -768,6 +778,8 @@ class MainWindow(QMainWindow):
         line.setContentsMargins(0, 0, 0, 0)
         line.addWidget(canvas, 1)
         page.add(row, 1)
+        if run is not None:
+            self.drawing.attach(page, canvas, tools if toolbar else None, run)
         if run is not None and self.inspector_wanted and self.project.graph_format_problem(run) is None:
             self._open_inspector(run, canvas, line)
         canvas.draw_idle()
@@ -820,6 +832,7 @@ class MainWindow(QMainWindow):
 
     def settle_graph_draft(self):
         """Before leaving the drawn style behind: apply or discard an Inspector draft, or stay."""
+        self.drawing.cancel()  # A pointer preview is never saved, exported or recalculated.
         inspector = self.inspector
         if inspector is None or not inspector.has_draft:
             return True
@@ -1055,6 +1068,10 @@ class MainWindow(QMainWindow):
 
     def undo(self, *, redo=False):
         if self.busy():
+            return
+        shape_run = self.drawing.history_run()
+        if shape_run is not None:
+            self.drawing.apply_history(shape_run, redo=redo)
             return
         try:
             title, affected = self.project.undo(redo=redo)
@@ -1577,6 +1594,7 @@ class MainWindow(QMainWindow):
 
     # == background calculation ==================================================================
     def _start(self, future, control, done, label):
+        self.drawing.cancel()
         self.job = Job(future, control, done, label)
         self.status(label)
         self.progress.setRange(0, 0)
@@ -1883,6 +1901,7 @@ class MainWindow(QMainWindow):
                 break
 
     def closeEvent(self, event):
+        self.drawing.cancel()
         if self.job is not None and self.job.control is not None:
             self.job.control.cancel.set()
         if not self.confirm_saved():

@@ -18,6 +18,7 @@ from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
 from analisi.data import (EDITABLE_PRISM_FIXED_VALUES, Dataset, info_references, load_tables, load_workspace,
                           save_project)
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
+from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, grow_rows, paste_block
 from analisi.i18n import tr, ui
 from analisi.info import info_contexts, validate_info_sheets
@@ -31,6 +32,7 @@ from analisi.prism_layout_edit import PRISM_PANEL_DATA
 from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK,
                                    PRISM_GRAPH_STYLE, PRISM_NOTES, PRISM_TITLE, SAVED_BINARY_GRAPH,
                                    SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY)
+from analisi.shape_interaction import ShapeHistory
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.workbench import analyse
 from analisi.worksheet_history import WorksheetHistory, WorksheetState
@@ -70,6 +72,8 @@ class Run:
     uid: str = field(default_factory=lambda: str(uuid4()), repr=False)
     source: ResultSource | None = None
     label: str | None = None
+    # Undo/Redo of the drawings of this graph only: never shared with the worksheet or another graph.
+    shape_history: ShapeHistory = field(default_factory=ShapeHistory, repr=False, compare=False)
 
     @property
     def reference(self):
@@ -567,6 +571,8 @@ class Project:
             index = len(self.runs) - 1
         else:
             previous = self.runs[index]
+            if previous.uid == run.uid:
+                run.shape_history = previous.shape_history  # Same graph, same drawings: keep its Undo steps.
             self.runs[index] = run
             recipes[run.slot] = run.method, run.options
             dependents = [other for other in self.runs if other is not run and (
@@ -663,8 +669,15 @@ class Project:
             xy = {"frame": self.tables[run.title].frame(mask_excluded=True), "options": dict(run.options)}
         return style, xy
 
-    def commit_style(self, run, style):
-        """Store a style already drawn on the figure (the Inspector previews it before Apply)."""
+    @staticmethod
+    def record_shapes(run, style):
+        """One step of the graph's drawing history when ``style`` changes its shapes."""
+        run.shape_history.record((run.style or {}).get(SHAPES, []), (style or {}).get(SHAPES, []))
+
+    def commit_style(self, run, style, *, record_shapes=True):
+        """Store a style already drawn on the figure (the Inspector and the canvas tools preview it first)."""
+        if record_shapes:
+            self.record_shapes(run, style)
         run.style = style
         run.result.style_warning = breaks_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
@@ -678,6 +691,7 @@ class Project:
             self.tables[run.title].analyses[run.slot] = (run.method, run.options)
         else:
             apply_style(run.result.figure, style)
+        self.record_shapes(run, style)
         run.style = style
         run.result.style_warning = breaks_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
