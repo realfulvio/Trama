@@ -1,0 +1,9 @@
+Sample $,Rep,Visit,Measure
+001,1,A | Start,5
+001,1,Fine à,6
+001,2,A | Start,0
+001,2,Fine à,
+002,1,A | Start,8
+002,1,Fine à,7
+002,2,A | Start,9
+002,2,Fine à,11

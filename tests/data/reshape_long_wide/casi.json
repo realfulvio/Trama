@@ -1,0 +1,395 @@
+[
+  {
+    "name": "widen",
+    "csv": "long.csv",
+    "input_rows": 8,
+    "numeric": [
+      "Rep",
+      "Measure"
+    ],
+    "method": "Reshape long and wide",
+    "options": {
+      "ID columns": [
+        "Sample $",
+        "Rep"
+      ],
+      "Direction": "Long to wide",
+      "Name column": "Visit",
+      "Value column": "Measure"
+    },
+    "tables": {
+      "Reshaped data": {
+        "count": 4,
+        "columns": [
+          "Sample $",
+          "Rep",
+          "A | Start",
+          "Fine à"
+        ],
+        "rows": [
+          {
+            "Sample $": "001",
+            "Rep": 1,
+            "A | Start": 5,
+            "Fine à": 6
+          },
+          {
+            "Sample $": "001",
+            "Rep": 2,
+            "A | Start": 0,
+            "Fine à": null
+          },
+          {
+            "Sample $": "002",
+            "Rep": 1,
+            "A | Start": 8,
+            "Fine à": 7
+          },
+          {
+            "Sample $": "002",
+            "Rep": 2,
+            "A | Start": 9,
+            "Fine à": 11
+          }
+        ]
+      },
+      "Source map": {
+        "count": 8,
+        "columns": [
+          "Source row",
+          "Source column",
+          "Result row",
+          "Result column"
+        ],
+        "rows": [
+          {
+            "Source row": 1,
+            "Source column": "Measure",
+            "Result row": 1,
+            "Result column": "A | Start"
+          },
+          {
+            "Source row": 2,
+            "Source column": "Measure",
+            "Result row": 1,
+            "Result column": "Fine à"
+          },
+          {
+            "Source row": 3,
+            "Source column": "Measure",
+            "Result row": 2,
+            "Result column": "A | Start"
+          },
+          {
+            "Source row": 4,
+            "Source column": "Measure",
+            "Result row": 2,
+            "Result column": "Fine à"
+          },
+          {
+            "Source row": 5,
+            "Source column": "Measure",
+            "Result row": 3,
+            "Result column": "A | Start"
+          },
+          {
+            "Source row": 6,
+            "Source column": "Measure",
+            "Result row": 3,
+            "Result column": "Fine à"
+          },
+          {
+            "Source row": 7,
+            "Source column": "Measure",
+            "Result row": 4,
+            "Result column": "A | Start"
+          },
+          {
+            "Source row": 8,
+            "Source column": "Measure",
+            "Result row": 4,
+            "Result column": "Fine à"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "lengthen",
+    "csv": "wide.csv",
+    "input_rows": 4,
+    "numeric": [
+      "Rep",
+      "A | Start",
+      "Fine à"
+    ],
+    "method": "Reshape long and wide",
+    "options": {
+      "ID columns": [
+        "Sample $",
+        "Rep"
+      ],
+      "Direction": "Wide to long",
+      "Measure columns": [
+        "A | Start",
+        "Fine à"
+      ],
+      "Output names": "Visit",
+      "Output values": "Measure",
+      "Drop missing values": false
+    },
+    "tables": {
+      "Reshaped data": {
+        "count": 8,
+        "columns": [
+          "Sample $",
+          "Rep",
+          "Visit",
+          "Measure"
+        ],
+        "rows": [
+          {
+            "Sample $": "001",
+            "Rep": 1,
+            "Visit": "A | Start",
+            "Measure": 5
+          },
+          {
+            "Sample $": "001",
+            "Rep": 1,
+            "Visit": "Fine à",
+            "Measure": 6
+          },
+          {
+            "Sample $": "001",
+            "Rep": 2,
+            "Visit": "A | Start",
+            "Measure": 0
+          },
+          {
+            "Sample $": "001",
+            "Rep": 2,
+            "Visit": "Fine à",
+            "Measure": null
+          },
+          {
+            "Sample $": "002",
+            "Rep": 1,
+            "Visit": "A | Start",
+            "Measure": 8
+          },
+          {
+            "Sample $": "002",
+            "Rep": 1,
+            "Visit": "Fine à",
+            "Measure": 7
+          },
+          {
+            "Sample $": "002",
+            "Rep": 2,
+            "Visit": "A | Start",
+            "Measure": 9
+          },
+          {
+            "Sample $": "002",
+            "Rep": 2,
+            "Visit": "Fine à",
+            "Measure": 11
+          }
+        ]
+      },
+      "Source map": {
+        "count": 8,
+        "columns": [
+          "Source row",
+          "Source column",
+          "Result row",
+          "Result column"
+        ],
+        "rows": [
+          {
+            "Source row": 1,
+            "Source column": "A | Start",
+            "Result row": 1,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 1,
+            "Source column": "Fine à",
+            "Result row": 2,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 2,
+            "Source column": "A | Start",
+            "Result row": 3,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 2,
+            "Source column": "Fine à",
+            "Result row": 4,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 3,
+            "Source column": "A | Start",
+            "Result row": 5,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 3,
+            "Source column": "Fine à",
+            "Result row": 6,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 4,
+            "Source column": "A | Start",
+            "Result row": 7,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 4,
+            "Source column": "Fine à",
+            "Result row": 8,
+            "Result column": "Measure"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "lengthen-drop",
+    "csv": "wide.csv",
+    "input_rows": 4,
+    "numeric": [
+      "Rep",
+      "A | Start",
+      "Fine à"
+    ],
+    "method": "Reshape long and wide",
+    "options": {
+      "ID columns": [
+        "Sample $",
+        "Rep"
+      ],
+      "Direction": "Wide to long",
+      "Measure columns": [
+        "A | Start",
+        "Fine à"
+      ],
+      "Output names": "Visit",
+      "Output values": "Measure",
+      "Drop missing values": true
+    },
+    "tables": {
+      "Reshaped data": {
+        "count": 7,
+        "columns": [
+          "Sample $",
+          "Rep",
+          "Visit",
+          "Measure"
+        ],
+        "rows": [
+          {
+            "Sample $": "001",
+            "Rep": 1,
+            "Visit": "A | Start",
+            "Measure": 5
+          },
+          {
+            "Sample $": "001",
+            "Rep": 1,
+            "Visit": "Fine à",
+            "Measure": 6
+          },
+          {
+            "Sample $": "001",
+            "Rep": 2,
+            "Visit": "A | Start",
+            "Measure": 0
+          },
+          {
+            "Sample $": "002",
+            "Rep": 1,
+            "Visit": "A | Start",
+            "Measure": 8
+          },
+          {
+            "Sample $": "002",
+            "Rep": 1,
+            "Visit": "Fine à",
+            "Measure": 7
+          },
+          {
+            "Sample $": "002",
+            "Rep": 2,
+            "Visit": "A | Start",
+            "Measure": 9
+          },
+          {
+            "Sample $": "002",
+            "Rep": 2,
+            "Visit": "Fine à",
+            "Measure": 11
+          }
+        ]
+      },
+      "Source map": {
+        "count": 7,
+        "columns": [
+          "Source row",
+          "Source column",
+          "Result row",
+          "Result column"
+        ],
+        "rows": [
+          {
+            "Source row": 1,
+            "Source column": "A | Start",
+            "Result row": 1,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 1,
+            "Source column": "Fine à",
+            "Result row": 2,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 2,
+            "Source column": "A | Start",
+            "Result row": 3,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 3,
+            "Source column": "A | Start",
+            "Result row": 4,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 3,
+            "Source column": "Fine à",
+            "Result row": 5,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 4,
+            "Source column": "A | Start",
+            "Result row": 6,
+            "Result column": "Measure"
+          },
+          {
+            "Source row": 4,
+            "Source column": "Fine à",
+            "Result row": 7,
+            "Result column": "Measure"
+          }
+        ]
+      }
+    }
+  }
+]

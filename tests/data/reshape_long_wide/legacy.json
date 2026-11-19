@@ -1,0 +1,487 @@
+[
+ {
+  "method": "Reshape replicates",
+  "options": {
+   "Variables": [
+    "Dose $",
+    "Response | A"
+   ]
+  },
+  "tables": {
+   "Long format": {
+    "columns": [
+     "Row",
+     "Series",
+     "Replicate",
+     "Value"
+    ],
+    "index": [
+     "0",
+     "1",
+     "2",
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10",
+     "11"
+    ],
+    "rows": [
+     [
+      "1",
+      "'Dose $'",
+      "1",
+      "0.5"
+     ],
+     [
+      "2",
+      "'Dose $'",
+      "1",
+      "1.0"
+     ],
+     [
+      "3",
+      "'Dose $'",
+      "1",
+      "2.0"
+     ],
+     [
+      "4",
+      "'Dose $'",
+      "1",
+      "0.5"
+     ],
+     [
+      "5",
+      "'Dose $'",
+      "1",
+      "1.0"
+     ],
+     [
+      "6",
+      "'Dose $'",
+      "1",
+      "2.0"
+     ],
+     [
+      "1",
+      "'Response | A'",
+      "1",
+      "10.2"
+     ],
+     [
+      "2",
+      "'Response | A'",
+      "1",
+      "11.8"
+     ],
+     [
+      "3",
+      "'Response | A'",
+      "1",
+      "14.1"
+     ],
+     [
+      "4",
+      "'Response | A'",
+      "1",
+      "9.7"
+     ],
+     [
+      "5",
+      "'Response | A'",
+      "1",
+      "12.2"
+     ],
+     [
+      "6",
+      "'Response | A'",
+      "1",
+      null
+     ]
+    ]
+   }
+  }
+ },
+ {
+  "method": "Reshape replicates",
+  "options": {
+   "Variables": [
+    "Dose $",
+    "Response | A"
+   ],
+   "Row label": "Group à"
+  },
+  "tables": {
+   "Long format": {
+    "columns": [
+     "Group à",
+     "Series",
+     "Replicate",
+     "Value"
+    ],
+    "index": [
+     "0",
+     "1",
+     "2",
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10",
+     "11"
+    ],
+    "rows": [
+     [
+      "'Ctrl'",
+      "'Dose $'",
+      "1",
+      "0.5"
+     ],
+     [
+      "'Ctrl'",
+      "'Dose $'",
+      "1",
+      "1.0"
+     ],
+     [
+      "'Ctrl'",
+      "'Dose $'",
+      "1",
+      "2.0"
+     ],
+     [
+      "'Drug'",
+      "'Dose $'",
+      "1",
+      "0.5"
+     ],
+     [
+      "'Drug'",
+      "'Dose $'",
+      "1",
+      "1.0"
+     ],
+     [
+      "'Drug'",
+      "'Dose $'",
+      "1",
+      "2.0"
+     ],
+     [
+      "'Ctrl'",
+      "'Response | A'",
+      "1",
+      "10.2"
+     ],
+     [
+      "'Ctrl'",
+      "'Response | A'",
+      "1",
+      "11.8"
+     ],
+     [
+      "'Ctrl'",
+      "'Response | A'",
+      "1",
+      "14.1"
+     ],
+     [
+      "'Drug'",
+      "'Response | A'",
+      "1",
+      "9.7"
+     ],
+     [
+      "'Drug'",
+      "'Response | A'",
+      "1",
+      "12.2"
+     ],
+     [
+      "'Drug'",
+      "'Response | A'",
+      "1",
+      null
+     ]
+    ]
+   }
+  }
+ },
+ {
+  "method": "Extract and rearrange",
+  "options": {
+   "Output table": "XY",
+   "Independent (X) variable": "Dose $",
+   "Response variable": "Response | A",
+   "Grouping variable": "Group à",
+   "Subject/replicate variable": "Subject"
+  },
+  "tables": {
+   "Rearranged data": {
+    "columns": [
+     "Dose $",
+     "Ctrl [1]",
+     "Ctrl [2]",
+     "Ctrl [3]",
+     "Drug [1]",
+     "Drug [2]",
+     "Drug [3]"
+    ],
+    "index": [
+     "0",
+     "1",
+     "2"
+    ],
+    "rows": [
+     [
+      "np.float64(0.5)",
+      "10.2",
+      null,
+      null,
+      "9.7",
+      null,
+      null
+     ],
+     [
+      "np.float64(1.0)",
+      null,
+      "11.8",
+      null,
+      null,
+      "12.2",
+      null
+     ],
+     [
+      "np.float64(2.0)",
+      null,
+      null,
+      "14.1",
+      null,
+      null,
+      null
+     ]
+    ]
+   },
+   "Notes": {
+    "columns": [
+     "Value"
+    ],
+    "index": [
+     "'Input rows'",
+     "'Rows used'",
+     "'Rows with missing data'"
+    ],
+    "rows": [
+     [
+      "6"
+     ],
+     [
+      "5"
+     ],
+     [
+      "1"
+     ]
+    ]
+   }
+  }
+ },
+ {
+  "method": "Extract and rearrange",
+  "options": {
+   "Output table": "Column",
+   "Response variable": "Response | A",
+   "Grouping variable": "Group à",
+   "Only include complete rows": false
+  },
+  "tables": {
+   "Rearranged data": {
+    "columns": [
+     "Ctrl",
+     "Drug"
+    ],
+    "index": [
+     "0",
+     "1",
+     "2",
+     "3",
+     "4",
+     "5"
+    ],
+    "rows": [
+     [
+      "10.2",
+      null
+     ],
+     [
+      "11.8",
+      null
+     ],
+     [
+      "14.1",
+      null
+     ],
+     [
+      null,
+      "9.7"
+     ],
+     [
+      null,
+      "12.2"
+     ],
+     [
+      null,
+      null
+     ]
+    ]
+   },
+   "Notes": {
+    "columns": [
+     "Value"
+    ],
+    "index": [
+     "'Input rows'",
+     "'Rows used'",
+     "'Rows with missing data'"
+    ],
+    "rows": [
+     [
+      "6"
+     ],
+     [
+      "5"
+     ],
+     [
+      "1"
+     ]
+    ]
+   }
+  }
+ },
+ {
+  "method": "Extract and rearrange",
+  "options": {
+   "Output table": "Grouped",
+   "Response variable": "Response | A",
+   "Row factor variable": "Sex",
+   "Column factor variable": "Group à"
+  },
+  "tables": {
+   "Rearranged data": {
+    "columns": [
+     "Row title",
+     "Ctrl [1]",
+     "Ctrl [2]",
+     "Drug [1]",
+     "Drug [2]"
+    ],
+    "index": [
+     "0",
+     "1"
+    ],
+    "rows": [
+     [
+      "'F'",
+      "10.2",
+      "14.1",
+      "12.2",
+      null
+     ],
+     [
+      "'M'",
+      "11.8",
+      null,
+      "9.7",
+      null
+     ]
+    ]
+   },
+   "Notes": {
+    "columns": [
+     "Value"
+    ],
+    "index": [
+     "'Input rows'",
+     "'Rows used'",
+     "'Rows with missing data'"
+    ],
+    "rows": [
+     [
+      "6"
+     ],
+     [
+      "5"
+     ],
+     [
+      "1"
+     ]
+    ]
+   }
+  }
+ },
+ {
+  "method": "Extract and rearrange",
+  "options": {
+   "Output table": "Contingency",
+   "Row (treatment) variable": "Group à",
+   "Column (outcome) variable": "Sex",
+   "Count variable": "Count"
+  },
+  "tables": {
+   "Rearranged data": {
+    "columns": [
+     "Row title",
+     "F",
+     "M"
+    ],
+    "index": [
+     "0",
+     "1"
+    ],
+    "rows": [
+     [
+      "'Ctrl'",
+      "5",
+      "5"
+     ],
+     [
+      "'Drug'",
+      "1",
+      "10"
+     ]
+    ]
+   },
+   "Notes": {
+    "columns": [
+     "Value"
+    ],
+    "index": [
+     "'Input rows'",
+     "'Rows used'",
+     "'Rows with missing data'",
+     "'Invalid counts skipped'"
+    ],
+    "rows": [
+     [
+      "6"
+     ],
+     [
+      "6"
+     ],
+     [
+      "0"
+     ],
+     [
+      "0"
+     ]
+    ]
+   }
+  }
+ }
+]
