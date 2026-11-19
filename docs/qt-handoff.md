@@ -15,6 +15,22 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Stabilità K-means per la 0.96 (ramo `claude/project-thread-2qvhxr`, base main `4c07db6`, 2026-11-19)
+
+Pacchetto Trama-Claude-Stabilita-KMeans-096, in tre commit: motore, dialogo Qt, smoke con documentazione. Windows NON PROVATO.
+
+- Nuovo: Analizza → Raggruppamento → **Stabilità K-means** (*K-means stability*). Il motore è `analisi/kmeans_stability.py` e usa `analisi.stats.kmeans` per ogni fit. Il dialogo è quello generico. `trama_qt/kmeans_stability.py` mostra il limite di iterazioni solo con Hartigan–Wong, esegue i controlli e i budget del motore quando si preme Esegui (prima di qualsiasi worker) e traduce i messaggi. Il worker passa annullamento e avanzamento (`compute` in `trama_qt/project.py`). Guida: `docs/kmeans-stability.md`. Esempio: `docs/examples/Stabilita-KMeans.alab`.
+- Multicore: i fit vanno al pool condiviso di `analisi.parallel` a blocchi di 32, secondo l'impostazione di Calcolo multicore (Impostazioni). Con un processo restano un ciclo sul worker Qt, con un passo di avanzamento per fit. Il metodo è in `LOCAL_METHODS` di `analisi/parallel_analyses.py`: non viene mai mandato intero a un worker, così c'è un solo livello di parallelismo (i fit) e l'avanzamento arriva alla barra di stato. Con 1, 2 e 4 processi le tabelle sono identiche (`tests.test_kmeans_stability.PoolTests` e misure nella PR).
+- Nuovo smoke dedicato: `python -m trama_qt.kmeans_stability_smoke CARTELLA` (con `--dark` per il tema scuro). Fa il percorso reale in inglese e in italiano: dialogo con errori corretti sul posto, budget rifiutato, risultato, layout, esportazioni, salvataggio, modifica ed esclusione di una cella, annullamento. Scrive screenshot, `report.txt` e `status.txt`.
+- Da provare su Windows:
+  - Lo smoke dedicato a 100% e 150%, con tema chiaro e scuro.
+  - Aprire `docs/examples/Stabilita-KMeans.alab`, poi Cambia parametri. Con Ricampionamenti 2000 l'errore compare nel dialogo, sul campo. Con Frazione campionata `82,5` il calcolo parte. Con Hartigan–Wong compare il limite di iterazioni.
+  - Ricampionamenti 1500, Esegui, poi Annulla durante il calcolo: ricetta e risultato precedenti restano.
+  - Esportare il grafico in SVG e PDF e metterlo in un layout.
+  - Calcolo multicore… a 1 e a 4 processi (o `TRAMA_PROCESSES`): stesse tabelle, annullamento pronto anche con il pool.
+- Conflitti attesi: questa voce con #63 e #64, che scrivono in cima allo stesso file. `analisi/workbench.py` (gruppo Clustering, `METHODS`, `GRAPH_METHODS`) e la coda di `analisi/interface_catalog.py` con #37 Silhouette. `window.py` e `smoke.py` non sono toccati.
+- Test attesi: `tests.test_kmeans_stability`, `tests.test_kmeans_stability_example`, `tests.test_qt_kmeans_stability`, `tests.test_catalog` e `tests.test_parallel_analyses` tutti OK. Gli esiti della suite completa sono nella PR.
+
 ### Stili di figura riutilizzabili (pacchetto Stili-Figura-Qt-095, ramo `claude/project-thread-wihrrt`, 2026-11-19)
 
 - Grafico → Stili di figura… (accanto a Format Graph): salva colore, caratteri, cornice, griglia e legenda di un grafico come stile con nome, lo mostra in anteprima su un altro grafico senza ricalcolo e lo applica con un solo `commit_style`. Libreria in `graph-style-presets.json` accanto a `preferences.json`, import/export JSON di un solo stile. Guida: `docs/qt-graph-style-presets.md`.

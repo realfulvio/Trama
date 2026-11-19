@@ -75,6 +75,7 @@ class CatalogTests(unittest.TestCase):
             "K-means model selection": {"Variables": ["x", "z"], "Maximum k": 4,
                                         "Standardize": True, "Seed": 42, "Criterion": "Silhouette"},
             "K-means clustering": {"Variables": ["x", "z"], "Clusters": 2, "Standardize": True, "Seed": 42},
+            "K-means stability": {"Variables": ["x", "z"], "Maximum k": 3, "Resamples": 10, "Seed": 42},
             "Hierarchical clustering": {"Variables": ["x", "z"], "Clusters": 2, "Standardize": True,
                                         "Linkage": "average", "Distance": "euclidean"},
             HIERARCHY_GRAPH: {"Graph output": "Heat map"},

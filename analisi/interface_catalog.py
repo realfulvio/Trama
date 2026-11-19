@@ -1197,3 +1197,69 @@ MESSAGES.update({
                                     "La densità è fuori dall'intervallo numerico supportato."),
     "grouped.error.number": ("{field} must be a number.", "{field} deve essere un numero."),
 })
+
+# K-means stability (0.96): the method, its fields and its engine messages. Recipes keep the English keys and
+# values; the sheet titles and the worksheet text stay literal.
+CAPTIONS.update({
+    "K-means stability": "Stabilità K-means",
+    "Resamples": "Ricampionamenti",
+    "Sample fraction (%)": "Frazione campionata (%)",
+    "Seed runs": "Ripetizioni con altri semi",
+    "Report k": "k dei report per osservazione",
+    "Show co-assignment matrix": "Mostra la matrice di co-assegnazione",
+})
+
+MESSAGES.update({
+    "kstab.error.whole": ("{field}: enter a whole number from {low} to {high}.",
+                          "{field}: inserisci un numero intero da {low} a {high}."),
+    "kstab.error.number": ("{field}: enter a number from {low} to {high}.",
+                           "{field}: inserisci un numero da {low} a {high}."),
+    "kstab.error.flag": ("{field}: choose on or off.", "{field}: scegli sì o no."),
+    "kstab.error.variables": ("Select from {low} to {high} numeric columns.",
+                              "Seleziona da {low} a {high} colonne numeriche."),
+    "kstab.error.once": ("Select each column only once.", "Seleziona ogni colonna una sola volta."),
+    "kstab.error.missing": ('Column "{name}" is not in the table.', 'La colonna "{name}" non è nella tabella.'),
+    "kstab.error.duplicate": ('More than one column is called "{name}".',
+                              'Più di una colonna si chiama "{name}".'),
+    "kstab.error.complex": ('Column "{name}" contains complex data.', 'La colonna "{name}" contiene dati complessi.'),
+    "kstab.error.text": ('Column "{name}" contains text.', 'La colonna "{name}" contiene testo.'),
+    "kstab.error.empty": ("No row has a number in every selected column.",
+                          "Nessuna riga ha un numero in tutte le colonne scelte."),
+    "kstab.error.rows": ("Use at most {limit} complete rows (this selection has {count}).",
+                         "Usa al massimo {limit} righe complete (questa selezione ne ha {count})."),
+    "kstab.error.constant": ('Column "{name}" is constant and cannot be standardized.',
+                             'La colonna "{name}" è costante e non si può standardizzare.'),
+    "kstab.error.tiny": ("There are only {count} complete rows: samples are too small for k = 2.",
+                         "Ci sono solo {count} righe complete: i campioni sono troppo piccoli per k = 2."),
+    "kstab.error.max_sample": ("With {count} complete rows a sample holds at most {largest} rows: "
+                               "choose Maximum k up to {limit}.",
+                               "Con {count} righe complete un campione contiene al massimo {largest} righe: "
+                               "scegli un k massimo fino a {limit}."),
+    "kstab.error.fraction": ("Each sample has {sample} of {count} rows and needs at least {needed} "
+                             "(Maximum k + 1): raise the sample fraction.",
+                             "Ogni campione ha {sample} righe su {count} e gliene servono almeno {needed} "
+                             "(k massimo + 1): aumenta la frazione campionata."),
+    "kstab.error.distinct": ("Maximum k cannot exceed the {count} distinct observations.",
+                             "Il k massimo non può superare le {count} osservazioni distinte."),
+    "kstab.error.cells": ("N × Maximum k must be at most {limit} ({count} rows × {k} = {product}).",
+                          "N × k massimo deve essere al massimo {limit} ({count} righe × {k} = {product})."),
+    "kstab.error.fits": ("This request needs {fits} K-means fits; the limit is {limit}. "
+                         "Lower Resamples, Seed runs or the range of k.",
+                         "Questa richiesta richiede {fits} fit K-means; il limite è {limit}. "
+                         "Riduci i ricampionamenti, le ripetizioni con altri semi o l'intervallo di k."),
+    "kstab.error.work": ("This request needs {work} work units; the limit is {limit}. "
+                         "Lower Resamples, Seed runs, the range of k or the number of variables.",
+                         "Questa richiesta richiede {work} unità di lavoro; il limite è {limit}. "
+                         "Riduci i ricampionamenti, le ripetizioni con altri semi, l'intervallo di k "
+                         "o il numero di variabili."),
+    "kstab.error.matrix": ("The co-assignment matrix needs at most {limit} complete rows (this selection has {count}).",
+                           "La matrice di co-assegnazione richiede al massimo {limit} righe complete "
+                           "(questa selezione ne ha {count})."),
+    "kstab.error.reference": ("No reference partition could be fitted for k = {low}–{high}. {reason}",
+                              "Non è stato possibile calcolare nessuna partizione di riferimento per k = "
+                              "{low}–{high}. {reason}"),
+    "kstab.error.algorithm": ("Choose a K-means algorithm.", "Scegli un algoritmo K-means."),
+    "kstab.error.iterations": ("Enter a whole number from 1 to 1000.", "Inserisci un numero intero da 1 a 1000."),
+    "kstab.error.iteration_limit": ("Hartigan–Wong reached the maximum number of iterations.",
+                                    "Hartigan–Wong ha raggiunto il limite di iterazioni."),
+})

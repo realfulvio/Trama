@@ -8,6 +8,8 @@ fresh results of other analyses, error handling.
 
 Kept in the calling thread (never sent to a worker):
     * Monte Carlo studies, which report progress to the status bar while they run;
+    * K-means stability, which reports progress too and spreads its own K-means fits over the pool (one
+      granularity: its fits, never the whole analysis inside a worker);
     * results imported from other files (``Saved …`` methods), which render stored previews;
     * XY series, which are cheaper than the transfer;
     * forest plots, before/after graphs and heat maps, whose figures keep local functions (axis converters,
@@ -23,13 +25,14 @@ from __future__ import annotations
 
 from .forest_plot import FOREST_PLOT
 from .heatmap import HEAT_MAP
+from .kmeans_stability import METHOD as KMEANS_STABILITY
 from .monte_carlo import MONTE_CARLO
 from .paired_graphs import BEFORE_AFTER
 from .parallel import process_count, run_tasks
 from .workbench import SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY
 from .xy_series import XY_METHOD
 
-LOCAL_METHODS = frozenset({MONTE_CARLO, XY_METHOD, SAVED_XY, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
+LOCAL_METHODS = frozenset({MONTE_CARLO, KMEANS_STABILITY, XY_METHOD, SAVED_XY, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
                            SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, FOREST_PLOT, BEFORE_AFTER, HEAT_MAP})
 
 

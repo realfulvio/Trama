@@ -27,6 +27,7 @@ from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
 from . import anova_model, global_fit, planned_contrasts
+from . import kmeans_stability as stability_options
 from .labels import choice_label, field_label, method_label
 from .strings import qt
 from .theme import fit_dialog
@@ -144,6 +145,7 @@ class AnalysisDialog(QDialog):
         self.rows = {}
         self.hidden = set()  # fields the current choices hide: left out of options()
         self.anova = None  # Multifactor ANOVA bindings (trama_qt.anova_model)
+        self.stability = None  # K-means stability bindings (trama_qt.kmeans_stability)
         method = current[0] if current and current[0] in METHODS else None
         self.method = method or self._first_method()
         fit_dialog(self, 940, 640)
@@ -203,6 +205,8 @@ class AnalysisDialog(QDialog):
 
         self.fill_methods()
         self.configure_fields()
+        if error and self.stability is not None:  # engine errors reopen here; word them in the active language
+            self.banner.setText(self.stability.message(error))
         if error_field:
             if self.anova is not None and error:  # engine errors reopen here; word them in the active language
                 self.banner.setText(self.anova.message(FieldError(error_field, str(error))))
@@ -277,6 +281,7 @@ class AnalysisDialog(QDialog):
         self.rows.clear()
         self.hidden.clear()
         self.anova = None
+        self.stability = None
         pages, scrolls = {}, {}
         # Global fit custom equation adds Equation, Parameters, Series constraints and Response pages.
         for key, name in (("variables", qt("qt.variables")), *global_fit.pages(self.method),
@@ -407,6 +412,7 @@ class AnalysisDialog(QDialog):
             algorithm.currentIndexChanged.connect(self._sync_kmeans_options)
             self.controls[kmeans_options.SCALE][1].currentIndexChanged.connect(self._sync_kmeans_options)
             self._sync_kmeans_options()
+        self.stability = stability_options.attach(self)
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
 
@@ -497,6 +503,8 @@ class AnalysisDialog(QDialog):
             options = global_fit.confirm(self, self.options())
             if self.anova is not None:
                 self.anova.check(options)  # the engine's cheap checks; the fit stays on the worker
+            if self.stability is not None:
+                self.stability.check(options)  # the engine's checks and budgets; the fits stay on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
             if self.method in kmeans_options.METHODS:
@@ -516,6 +524,8 @@ class AnalysisDialog(QDialog):
             return global_fit.describe_error(error, field)
         if self.method in kmeans_options.METHODS:
             return ui(str(error))
+        if self.stability is not None:  # K-means stability: engine messages in the active language
+            return self.stability.message(error)
         return str(error)
 
     def show_error(self, error, field=None):

@@ -23,6 +23,7 @@ from analisi.grid_data import clear_block, grow_rows, paste_block
 from analisi.i18n import tr, ui
 from analisi.info import info_contexts, validate_info_sheets
 from analisi.monte_carlo import MONTE_CARLO as MONTE_CARLO_METHOD, MonteCarloCancelled, monte_carlo
+from analisi.kmeans_stability import METHOD as KMEANS_STABILITY, analysis as kmeans_stability
 from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attach_pairwise,
                                     comparison_rows as pairwise_rows, endpoint_resolver as pairwise_endpoint,
                                     graph_problem as pairwise_graph_problem, read_section as read_pairwise,
@@ -138,6 +139,8 @@ def compute(run, frame, control=None, layout_data=None, pairwise=None, *, result
     if result is None:
         if run.method == MONTE_CARLO_METHOD and control is not None:
             result = monte_carlo(frame, run.options, progress=control.report, cancel=control.cancel)
+        elif run.method == KMEANS_STABILITY and control is not None:  # one progress step per K-means fit
+            result = kmeans_stability(frame, run.options, cancel=control.cancel, progress=control.report)
         elif run.method == XY_METHOD:
             result = xy_series(frame, run.options, left_scale=(run.style or {}).get("yscale", "linear"))
         else:

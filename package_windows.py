@@ -29,7 +29,7 @@ def main():
                  "pca-reports.md", "release-086.md", "validation-086.md",
                  "release-085.md", "validation-085.md",
                  "formula-windows.md", "distribution-formulas.md", "confidence-ellipses.md",
-                 "anova-terms-083.md", "anova-ss-types.md", "anova-planned-contrasts.md", "rm-anova-sphericity.md",
+                 "anova-terms-083.md", "anova-ss-types.md", "anova-planned-contrasts.md", "rm-anova-sphericity.md", "kmeans-stability.md",
                  "curve-pipeline.md", "deming-multiseries-093.md", "exact-binomial.md", "repeated-measures-correlation.md",
                  "meta-analysis.md", "cox-exact-ties.md", "nb2-regression.md",
                  "release-084.md", "validation-084.md", "hierarchical-style-081.md", "release-083.md", "validation-083.md",
@@ -57,7 +57,7 @@ def main():
     shutil.rmtree(bundle / "docs" / "media", ignore_errors=True)
     # Product media only. Raw extracted resources and historical imported
     # drawings are research evidence, not approved redistribution assets.
-    for folder in ("workflows-093", "hartigan-wong-092", "pca-import-091", "pca-regression-090", "pca-regression-087", "pca-overlays-089", "categorical-scatter-088", "pca-reports-087", "anova-ellipses-085", "anova-terms-083", "anova-ss-types", "rm-sphericity", "hierarchical-style-084", "conditional-hierarchical", "graph-legends", "experiment-families", "variance-ratio-079", "hierarchical-import", "analysis-chains", "fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
+    for folder in ("workflows-093", "kmeans-stability-096", "hartigan-wong-092", "pca-import-091", "pca-regression-090", "pca-regression-087", "pca-overlays-089", "categorical-scatter-088", "pca-reports-087", "anova-ellipses-085", "anova-terms-083", "anova-ss-types", "rm-sphericity", "hierarchical-style-084", "conditional-hierarchical", "graph-legends", "experiment-families", "variance-ratio-079", "hierarchical-import", "analysis-chains", "fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
                    "anova-diagnostics-070", "variance-assumptions-070", "reference-normalization"):
         source = root / "docs" / "media" / folder
         if source.is_dir():
@@ -68,7 +68,7 @@ def main():
         (bundle / "docs" / "media").mkdir(exist_ok=True)
         shutil.copy2(robust_image, bundle / "docs" / "media" / robust_image.name)
     # Remove research material that could remain in a reused build directory.
-    for name in ("Laboratorio.alab", "rm-two-way-sphericity.alab", "Curve-pipeline.alab", "Assi-interrotti.alab"):
+    for name in ("Laboratorio.alab", "rm-two-way-sphericity.alab", "Curve-pipeline.alab", "Assi-interrotti.alab", "Stabilita-KMeans.alab"):
         example = root / "docs" / "examples" / name
         if example.is_file():
             (bundle / "docs" / "examples").mkdir(exist_ok=True)
