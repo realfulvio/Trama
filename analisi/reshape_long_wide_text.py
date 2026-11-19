@@ -1,0 +1,151 @@
+"""English and Italian text of Reshape long and wide (analisi.reshape_long_wide, trama_qt.reshape_long_wide).
+
+The recipe and the result tables keep the canonical English names; these strings are only what the window shows.
+``reshape.error.*`` are the exact engine messages: ``translate_message`` matches them and copies the placeholder
+values literally (column names, levels and row numbers are never translated).
+"""
+
+EN = {
+    "reshape.method": "Reshape long and wide",
+    "reshape.field.direction": "Direction",
+    "reshape.field.ids": "ID columns",
+    "reshape.field.name": "Name column",
+    "reshape.field.value": "Value column",
+    "reshape.field.measures": "Measure columns",
+    "reshape.field.output_names": "Output names",
+    "reshape.field.output_values": "Output values",
+    "reshape.field.drop": "Drop missing values",
+    "reshape.choice.long_to_wide": "Long to wide",
+    "reshape.choice.wide_to_long": "Wide to long",
+    "reshape.note.long_to_wide": "One row for each ID, one column for each level of the name column, in order of "
+                                 "first appearance. Two rows with the same ID and level are an error: nothing is "
+                                 "averaged.",
+    "reshape.note.wide_to_long": "One row for each measure: the ID columns are repeated, the measure name and its "
+                                 "value go into two new columns.",
+    "reshape.note.ids": "The ID columns identify a row of the result. Checked columns are used from top to bottom.",
+    "reshape.note.measures": "Checked columns become rows in this order.",
+    "reshape.note.drop": "Zeros, false values and text are always kept.",
+    "reshape.caption.up": "Move up",
+    "reshape.caption.down": "Move down",
+    "reshape.caption.move_up": "Move {column} up",
+    "reshape.caption.move_down": "Move {column} down",
+    "reshape.tab.preview": "Preview",
+    "reshape.preview.title": "Result preview",
+    "reshape.preview.rows_one": "1 row",
+    "reshape.preview.rows_many": "{count} rows",
+    "reshape.preview.columns_one": "1 column",
+    "reshape.preview.columns_many": "{count} columns",
+    "reshape.preview.summary": "Result: {rows} and {columns}. Mapped cells: {mapped}. Blank cells: {missing}.",
+    "reshape.preview.hidden_rows_one": "1 more row is not shown.",
+    "reshape.preview.hidden_rows_many": "{count} more rows are not shown.",
+    "reshape.preview.hidden_columns_one": "1 more column is not shown.",
+    "reshape.preview.hidden_columns_many": "{count} more columns are not shown.",
+    "reshape.preview.complete": "The preview shows the whole result.",
+    "reshape.preview.limit": "The preview shows at most {rows} rows and {columns} columns.",
+    "reshape.preview.error": "Not ready to run: {message}",
+    "reshape.classic": "Reshape long and wide is edited in the Qt window. The classic window calculates the saved "
+                       "recipe but has no editor for it.",
+    "reshape.error.direction": 'Choose "Long to wide" or "Wide to long".',
+    "reshape.error.list": "The column list is not valid.",
+    "reshape.error.no_ids": "Choose at least one ID column.",
+    "reshape.error.no_measures": "Choose at least one measure column.",
+    "reshape.error.missing_column": 'Column "{column}" is not in the table.',
+    "reshape.error.twice": 'Column "{column}" is listed twice.',
+    "reshape.error.already_id": 'Column "{column}" is already an ID column.',
+    "reshape.error.choose_name": "Choose the column that holds the level names.",
+    "reshape.error.choose_value": "Choose the column that holds the values.",
+    "reshape.error.same": "The name column and the value column must be different.",
+    "reshape.error.no_rows": "The table has no rows with data in the chosen columns.",
+    "reshape.error.key_blank": 'Row {row} has no value in ID column "{column}".',
+    "reshape.error.level_blank": 'Row {row} has no value in the name column "{column}".',
+    "reshape.error.collision": 'Rows {first} and {second} give the same column name "{name}" from different '
+                               'values: {left} and {right}.',
+    "reshape.error.level_key": 'The level "{name}" (row {row}) has the same name as an ID column.',
+    "reshape.error.duplicate_level": 'Rows {first} and {second} have the same ID and level "{name}". Add an ID '
+                                     'column that tells them apart, or remove one of the rows.',
+    "reshape.error.duplicate_id": "Rows {first} and {second} have the same ID. Add an ID column that tells them "
+                                  "apart.",
+    "reshape.error.names_empty": "Enter a name for the column of names.",
+    "reshape.error.values_empty": "Enter a name for the column of values.",
+    "reshape.error.output_id": 'The name "{name}" is already used by an ID column.',
+    "reshape.error.output_same": "The column of names and the column of values need different names.",
+    "reshape.error.drop": "Choose whether blank measures are left out.",
+    "reshape.error.columns": "The result would have {count} columns; the limit is {limit}.",
+    "reshape.error.cells": "The result would have {cells} cells ({rows} rows × {columns} columns); the limit is "
+                           "{limit}.",
+    "reshape.error.map": "The source map would have {count} rows; the limit is {limit}.",
+    "reshape.error.cancelled": "Reshape cancelled.",
+}
+
+IT = {
+    "reshape.method": "Rimodella lungo e largo",
+    "reshape.field.direction": "Direzione",
+    "reshape.field.ids": "Colonne ID",
+    "reshape.field.name": "Colonna dei nomi",
+    "reshape.field.value": "Colonna dei valori",
+    "reshape.field.measures": "Colonne delle misure",
+    "reshape.field.output_names": "Intestazione dei nomi",
+    "reshape.field.output_values": "Intestazione dei valori",
+    "reshape.field.drop": "Escludi i valori mancanti",
+    "reshape.choice.long_to_wide": "Da lungo a largo",
+    "reshape.choice.wide_to_long": "Da largo a lungo",
+    "reshape.note.long_to_wide": "Una riga per ogni ID, una colonna per ogni livello della colonna dei nomi, "
+                                 "nell'ordine in cui compaiono. Due righe con lo stesso ID e lo stesso livello "
+                                 "sono un errore: niente viene mediato.",
+    "reshape.note.wide_to_long": "Una riga per ogni misura: le colonne ID si ripetono, il nome della misura e il suo "
+                                 "valore vanno in due colonne nuove.",
+    "reshape.note.ids": "Le colonne ID identificano una riga del risultato. Le colonne spuntate si usano dall'alto "
+                        "in basso.",
+    "reshape.note.measures": "Le colonne spuntate diventano righe in questo ordine.",
+    "reshape.note.drop": "Zeri, valori falsi e testi restano sempre.",
+    "reshape.caption.up": "Sposta su",
+    "reshape.caption.down": "Sposta giù",
+    "reshape.caption.move_up": "Sposta su {column}",
+    "reshape.caption.move_down": "Sposta giù {column}",
+    "reshape.tab.preview": "Anteprima",
+    "reshape.preview.title": "Anteprima del risultato",
+    "reshape.preview.rows_one": "1 riga",
+    "reshape.preview.rows_many": "{count} righe",
+    "reshape.preview.columns_one": "1 colonna",
+    "reshape.preview.columns_many": "{count} colonne",
+    "reshape.preview.summary": "Risultato: {rows} e {columns}. Celle mappate: {mapped}. Celle vuote: {missing}.",
+    "reshape.preview.hidden_rows_one": "Un'altra riga non è mostrata.",
+    "reshape.preview.hidden_rows_many": "Altre {count} righe non sono mostrate.",
+    "reshape.preview.hidden_columns_one": "Un'altra colonna non è mostrata.",
+    "reshape.preview.hidden_columns_many": "Altre {count} colonne non sono mostrate.",
+    "reshape.preview.complete": "L'anteprima mostra tutto il risultato.",
+    "reshape.preview.limit": "L'anteprima mostra al massimo {rows} righe e {columns} colonne.",
+    "reshape.preview.error": "Non si può ancora eseguire: {message}",
+    "reshape.classic": "Rimodella lungo e largo si modifica nella finestra Qt. La finestra classica calcola la "
+                       "ricetta salvata ma non ha un editor per questa analisi.",
+    "reshape.error.direction": 'Scegli "Da lungo a largo" o "Da largo a lungo".',
+    "reshape.error.list": "L'elenco delle colonne non è valido.",
+    "reshape.error.no_ids": "Scegli almeno una colonna ID.",
+    "reshape.error.no_measures": "Scegli almeno una colonna delle misure.",
+    "reshape.error.missing_column": 'La colonna "{column}" non è nella tabella.',
+    "reshape.error.twice": 'La colonna "{column}" compare due volte.',
+    "reshape.error.already_id": 'La colonna "{column}" è già una colonna ID.',
+    "reshape.error.choose_name": "Scegli la colonna che contiene i nomi dei livelli.",
+    "reshape.error.choose_value": "Scegli la colonna che contiene i valori.",
+    "reshape.error.same": "La colonna dei nomi e quella dei valori devono essere diverse.",
+    "reshape.error.no_rows": "La tabella non ha righe con dati nelle colonne scelte.",
+    "reshape.error.key_blank": 'Alla riga {row} manca il valore nella colonna ID "{column}".',
+    "reshape.error.level_blank": 'Alla riga {row} manca il valore nella colonna dei nomi "{column}".',
+    "reshape.error.collision": 'Le righe {first} e {second} danno lo stesso nome di colonna "{name}" a partire da '
+                               'valori diversi: {left} e {right}.',
+    "reshape.error.level_key": 'Il livello "{name}" (riga {row}) ha lo stesso nome di una colonna ID.',
+    "reshape.error.duplicate_level": 'Le righe {first} e {second} hanno lo stesso ID e lo stesso livello "{name}". '
+                                     'Aggiungi una colonna ID che le distingua, oppure togli una delle due righe.',
+    "reshape.error.duplicate_id": "Le righe {first} e {second} hanno lo stesso ID. Aggiungi una colonna ID che le "
+                                  "distingua.",
+    "reshape.error.names_empty": "Scrivi un'intestazione per la colonna dei nomi.",
+    "reshape.error.values_empty": "Scrivi un'intestazione per la colonna dei valori.",
+    "reshape.error.output_id": 'Il nome "{name}" è già usato da una colonna ID.',
+    "reshape.error.output_same": "La colonna dei nomi e quella dei valori devono avere intestazioni diverse.",
+    "reshape.error.drop": "Indica se escludere le misure vuote.",
+    "reshape.error.columns": "Il risultato avrebbe {count} colonne; il limite è {limit}.",
+    "reshape.error.cells": "Il risultato avrebbe {cells} celle ({rows} righe × {columns} colonne); il limite è "
+                           "{limit}.",
+    "reshape.error.map": "La mappa delle celle avrebbe {count} righe; il limite è {limit}.",
+    "reshape.error.cancelled": "Rimodellamento annullato.",
+}

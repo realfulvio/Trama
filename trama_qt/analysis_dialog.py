@@ -25,6 +25,7 @@ from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
 from . import anova_model, global_fit
+from . import reshape_long_wide as reshape_editor
 from .labels import choice_label, field_label, method_label
 from .strings import qt
 from .theme import fit_dialog
@@ -141,6 +142,7 @@ class AnalysisDialog(QDialog):
         self.rows = {}
         self.hidden = set()  # fields the current choices hide: left out of options()
         self.anova = None  # Multifactor ANOVA bindings (trama_qt.anova_model)
+        self.reshape = None  # Reshape long and wide editor (trama_qt.reshape_long_wide)
         method = current[0] if current and current[0] in METHODS else None
         self.method = method or self._first_method()
         fit_dialog(self, 940, 640)
@@ -272,6 +274,7 @@ class AnalysisDialog(QDialog):
         self.rows.clear()
         self.hidden.clear()
         self.anova = None
+        self.reshape = None
         pages, scrolls = {}, {}
         # Global fit custom equation adds Equation, Parameters, Series constraints and Response pages.
         for key, name in (("variables", qt("qt.variables")), *global_fit.pages(self.method),
@@ -299,7 +302,9 @@ class AnalysisDialog(QDialog):
         numeric = [str(name) for name in self.data.select_dtypes(include="number").columns]
         categorical = [name for name in columns if name not in numeric] or columns
         numeric_position = category_position = 0
-        for label, kind in METHODS[self.method].items():
+        # Reshape long and wide has an editor of its own (trama_qt.reshape_long_wide), attached below.
+        fields = {} if self.method == reshape_editor.METHOD else METHODS[self.method]
+        for label, kind in fields.items():
             variable = (kind in VARIABLE_KINDS or label == "Input format") and label not in {
                 "Comparison factor", "Condition on factors"}
             form = pages.get(global_fit.page_of(self.method, label)) or (variables if variable else options)
@@ -390,10 +395,13 @@ class AnalysisDialog(QDialog):
             self.rows[label] = (caption, widget, form)
         self.anova = anova_model.attach(self, saved)
         global_fit.attach(self)
+        self.reshape = reshape_editor.attach(self, pages, saved)
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
 
     def focus_field(self, name, error=None):
+        if self.reshape is not None:
+            return self.reshape.focus(name, error)
         row = self.rows.get(name)
         if row is None:
             return False
@@ -411,6 +419,8 @@ class AnalysisDialog(QDialog):
 
     # -- values ----------------------------------------------------------------------------------
     def options(self):
+        if self.reshape is not None:
+            return self.reshape.options()
         options = {}
         for name, (kind, control) in self.controls.items():
             if name in self.hidden:
@@ -465,6 +475,8 @@ class AnalysisDialog(QDialog):
                 self.anova.check(options)  # the engine's cheap checks; the fit stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            if self.reshape is not None:
+                self.reshape.check(options)  # keys and levels only; the matrix is built on the worker
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
@@ -477,6 +489,8 @@ class AnalysisDialog(QDialog):
     def _message(self, error, field=None):
         if self.method == global_fit.GLOBAL_CUSTOM_EQUATION:
             return global_fit.describe_error(error, field)
+        if self.method == reshape_editor.METHOD:
+            return reshape_editor.message(error)
         return str(error)
 
     def show_error(self, error, field=None):

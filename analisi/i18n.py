@@ -4868,3 +4868,9 @@ _IT.update(_META_IT)
 for _key, _text in _META_EN.items():
     if _key.startswith(("meta.field.", "meta.choice.", "meta.tab.")):
         KEY_BY_LABEL.setdefault(_text, _key)
+
+# Analyze → Data Processing → Reshape long and wide (analisi.reshape_long_wide, 0.96).
+from .reshape_long_wide_text import EN as _RESHAPE_EN, IT as _RESHAPE_IT  # noqa: E402
+
+_EN.update(_RESHAPE_EN)
+_IT.update(_RESHAPE_IT)
