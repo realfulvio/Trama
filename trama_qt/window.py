@@ -156,6 +156,7 @@ class MainWindow(QMainWindow):
         self.sessions = Sessions(Project())  # One per project tab; ``project`` and ``selected`` are the active one's.
         self.project_number = 1
         self._queued = []  # Files that arrived (drop, command line) while a calculation ran.
+        self._deferred = []  # Tab changes that wait for the recalculation a just-typed edit started.
         self._close_pending = False
         self.page = None
         self.sheet = None
@@ -1737,6 +1738,9 @@ class MainWindow(QMainWindow):
             self._close_pending = False
             QTimer.singleShot(0, self.close)
             return
+        deferred, self._deferred = self._deferred, []
+        for retry in deferred:
+            retry()
         queued, self._queued = self._queued, []
         for path, import_data in queued:
             self.open_path(path, import_data=import_data)  # Queues again by itself if this one starts a job.
@@ -1772,9 +1776,10 @@ class MainWindow(QMainWindow):
                 sheet.closeEditor(editor, QAbstractItemDelegate.EndEditHint.NoHint)
         sheet.model().flush_edits()
 
-    def prepare_project_change(self):
+    def prepare_project_change(self, retry=None):
         """Before leaving the active tab: settle the Inspector draft, store typed cells and Info notes, and make
-        sure no calculation is running. False keeps the active tab as it is."""
+        sure no calculation is running. False keeps the active tab as it is. When storing the last edit starts a
+        recalculation, ``retry`` runs once it has ended (the edit stays with its own project meanwhile)."""
         if self.busy(warn=False):
             self.status(qt("qt.wait_projects"))
             return False
@@ -1782,8 +1787,12 @@ class MainWindow(QMainWindow):
             return False
         self._commit_sheet_edit()
         self.flush_info()
-        if self.busy(warn=False):  # The last edit started a recalculation: the tab waits for it.
-            self.status(qt("qt.wait_projects"))
+        if self.busy(warn=False):
+            if retry is not None:
+                self._deferred.append(retry)
+                self.status(qt("qt.switch_later"))
+            else:
+                self.status(qt("qt.wait_projects"))
             return False
         return True
 
@@ -1860,7 +1869,7 @@ class MainWindow(QMainWindow):
         """Make ``session`` the active tab. False (and the tab strip unchanged) when the active tab must stay."""
         if session is self.sessions.active:
             return True
-        if session not in self.sessions.items or not self.prepare_project_change():
+        if session not in self.sessions.items or not self.prepare_project_change(lambda: self.switch_project(session)):
             self._sync_tabs()
             return False
         self._activate(session)
@@ -1884,7 +1893,7 @@ class MainWindow(QMainWindow):
         if self.sessions.full():
             self.error(qt("qt.too_many_projects", count=MAX_PROJECT_TABS))
             return
-        if not self.prepare_project_change():
+        if not self.prepare_project_change(self.new_project):
             return
         self.project_number += 1
         self._activate(self.sessions.add(Project(self.project_number)))
@@ -1893,7 +1902,7 @@ class MainWindow(QMainWindow):
         """Close one project tab: Save, Discard or Cancel for that project only. The last tab becomes empty."""
         if session is not None and not self.switch_project(session):
             return False
-        if not self.prepare_project_change() or not self.confirm_saved():
+        if not self.prepare_project_change(lambda: self.close_project(session)) or not self.confirm_saved():
             return False
         closing = self.sessions.active
         target = self.sessions.neighbour(closing)
@@ -1958,7 +1967,7 @@ class MainWindow(QMainWindow):
                 reuse = self.project.is_empty()
                 if not reuse and self.sessions.full():
                     raise ValueError(qt("qt.too_many_projects", count=MAX_PROJECT_TABS))
-                if not self.prepare_project_change():
+                if not self.prepare_project_change(lambda: self.open_path(path, import_data=import_data)):
                     return
                 number = self.project.number if reuse else self.project_number + 1
                 project = Project(number)

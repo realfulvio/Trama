@@ -90,6 +90,8 @@ _TEXT = {
     "qt.wait_projects": ("Wait for the current calculation (or cancel it) before switching, opening or closing "
                          "projects.", "Attendi la fine del calcolo (o annullalo) prima di cambiare, aprire o "
                          "chiudere progetti."),
+    "qt.switch_later": ("The project changes when the calculation ends.",
+                        "Il progetto cambierà al termine del calcolo."),
     "qt.open_later": ("{name} opens when the current calculation finishes.",
                       "{name} si aprirà al termine del calcolo in corso."),
     "qt.too_many_projects": ("Close a project before opening more than {count} at once.",
