@@ -56,7 +56,7 @@ AUTO = "auto"
 PREFERENCE_KEY = "processes"
 ENVIRONMENT = "TRAMA_PROCESSES"
 MAX_AUTO = 8
-MAX_PROCESSES = 64
+MAX_PROCESSES = 61 if sys.platform == "win32" else 64
 SLOTS = 64
 POLL_SECONDS = 0.05
 WORKER_ENVIRONMENT = {
@@ -168,6 +168,13 @@ def process_count():
         return 1
     override = os.environ.get(ENVIRONMENT)
     return resolve(override if override is not None else _configured)
+
+
+def warm_process_count():
+    """Count usable processes when a request can reuse a running pool."""
+    count = process_count()
+    with _lock:
+        return count if _pool is not None and _pool.size == count and _pool.warm else 1
 
 
 def status():
@@ -316,21 +323,19 @@ class _Pool:
     def close(self):
         for slot in range(SLOTS):
             self.flags[slot] = 1
-        try:
-            self.executor.shutdown(wait=False, cancel_futures=True)
-        finally:
-            terminate = getattr(self.executor, "terminate_workers", None)  # Python 3.14
-            if terminate is not None:
+        terminate = getattr(self.executor, "terminate_workers", None)
+        if terminate is not None:
+            terminate()
+            return
+        # On Python 3.13 shutdown releases the executor's reference to its workers.
+        processes = list((getattr(self.executor, "_processes", None) or {}).values())
+        self.executor.shutdown(wait=False, cancel_futures=True)
+        for process in processes:
+            if process.is_alive():
                 try:
-                    terminate()
-                except Exception:
+                    process.terminate()
+                except (OSError, ValueError):
                     pass
-            else:
-                for process in list((getattr(self.executor, "_processes", None) or {}).values()):
-                    try:
-                        process.terminate()
-                    except Exception:
-                        pass
 
 
 def _get_pool(size):

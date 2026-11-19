@@ -35,6 +35,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from . import parallel
 from .processing import FieldError
 from .reporting import Result, _plot
 
@@ -514,20 +515,47 @@ def study_figure(plan, rows):
     return figure
 
 
-def monte_carlo(frame, options, *, progress=None, cancel=None):
-    """Run a study. ``progress(done, total)`` is called after each block from the calling thread; ``cancel`` is an
-    object with ``is_set()`` checked between blocks."""
-    plan = check_options(frame, options)
-    parts, done = [], 0
-    for start, stop in blocks(plan):
-        if cancel is not None and cancel.is_set():
-            raise MonteCarloCancelled("Monte Carlo study cancelled.")
-        parts.append(simulate_block(plan, start, stop))
-        done = stop
-        if progress is not None:
-            progress(done, plan.replicates)
+def _check_cancel(cancel):
     if cancel is not None and cancel.is_set():
         raise MonteCarloCancelled("Monte Carlo study cancelled.")
+
+
+def _simulate_task(item, cancel):
+    plan, schedule = item
+    parts = []
+    for start, stop in schedule:
+        _check_cancel(cancel)
+        parts.append(simulate_block(plan, start, stop))
+    return parts
+
+
+def monte_carlo(frame, options, *, progress=None, cancel=None):
+    """Run a study with the same per-replicate stream regardless of process count."""
+    plan = check_options(frame, options)
+    schedule = blocks(plan)
+    _check_cancel(cancel)
+    # Avoid paying the worker start-up cost for short simulations.
+    processes = parallel.warm_process_count()
+    if plan.replicates >= 4096 and processes > 1:
+        chunk = (len(schedule) + 2 * processes - 1) // (2 * processes)
+        jobs = [(plan, schedule[start:start + chunk]) for start in range(0, len(schedule), chunk)]
+        capacity = block_size(plan) * chunk
+
+        def report(done, total):
+            if progress is not None and (cancel is None or not cancel.is_set()):
+                # A conservative count when the shorter last task finishes first.
+                progress(plan.replicates - (total - done) * capacity, plan.replicates)
+
+        batches = parallel.run_tasks(_simulate_task, jobs, cancel=cancel, with_cancel=True, progress=report)
+        parts = [part for batch in batches for part in batch]
+    else:
+        parts = []
+        for start, stop in schedule:
+            _check_cancel(cancel)
+            parts.append(simulate_block(plan, start, stop))
+            if progress is not None:
+                progress(stop, plan.replicates)
+    _check_cancel(cancel)
     rows = replicate_table(plan, parts)
     figure = None if plan.graph == GRAPH_NONE else study_figure(plan, rows)
     return Result({REPLICATE_SHEET: rows, SUMMARY_SHEET: summary_table(plan, rows),
