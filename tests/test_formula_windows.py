@@ -1,5 +1,6 @@
 """Regression cases for worksheet statistics scoped to groups and filters."""
 import json
+from math import erf, erfc
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -93,6 +94,45 @@ class WindowFormulaTests(unittest.TestCase):
         frame = pd.DataFrame({"X": [1.6e308, 1.2e308]})
         np.testing.assert_allclose(formula(frame, "CENTER(X)"), [2e307, -2e307])
         np.testing.assert_allclose(formula(frame, "STANDARDIZE(X)"), [.5 ** .5, -(.5 ** .5)])
+
+    def test_gamma_functions_leave_poles_overflow_and_blank_inputs_empty(self):
+        root_pi = np.sqrt(np.pi)
+        frame = pd.DataFrame({"X": [-1.5, -1, -.5, 0, .5, 1, 5, 172, np.nan, np.inf]})
+        np.testing.assert_allclose(formula(frame, "GAMMA(X)"),
+                                   [4 * root_pi / 3, np.nan, -2 * root_pi, np.nan, root_pi,
+                                    1, 24, np.nan, np.nan, np.nan])
+        np.testing.assert_allclose(formula(frame, "GAMMALN(X)").iloc[:7],
+                                   [np.log(4 * root_pi / 3), np.nan, np.nan, np.nan,
+                                    np.log(root_pi), 0, np.log(24)], atol=1e-14)
+        self.assertAlmostEqual(formula(frame, "PSI(3)").iloc[0], 1.5 - np.euler_gamma)
+        self.assertTrue(formula(frame, "PSI(-2)").isna().all())
+        self.assertTrue(np.isfinite(formula(frame, "GAMMALN(X)").iloc[7]))
+
+    def test_regularized_gamma_beta_and_error_functions_use_real_domains(self):
+        frame = pd.DataFrame({"X": [-1., 0, .25, 1, 2, np.nan, np.inf]})
+        np.testing.assert_allclose(formula(frame, "IGAMMA(1,X)"),
+                                   [np.nan, 0, -np.expm1(-.25), -np.expm1(-1), -np.expm1(-2), np.nan, np.nan])
+        np.testing.assert_allclose(formula(frame, "IGAMMAC(1,X)"),
+                                   [np.nan, 1, np.exp(-.25), np.exp(-1), np.exp(-2), np.nan, np.nan])
+        np.testing.assert_allclose(formula(frame, "BETA(2,3)"), [1 / 12] * len(frame))
+        self.assertTrue(formula(frame, "BETA(-.5,3)").isna().all())
+        np.testing.assert_allclose(formula(frame, "IBETA(2,1,X)"), [np.nan, 0, .0625, 1, np.nan, np.nan, np.nan])
+        for name, reference in (("ERF", erf), ("ERFC", erfc)):
+            np.testing.assert_allclose(formula(frame, f"{name}(X)"),
+                                       [reference(x) if np.isfinite(x) else np.nan for x in frame["X"]])
+
+    def test_bessel_and_percentage_formulas_broadcast_and_preserve_rows(self):
+        frame = pd.DataFrame({"X": [-1., .4, 1., 2., np.nan], "Order": [.5, .5, .5, np.nan, .5]},
+                             index=[7, 2, 8, 1, 3])
+        constant = np.sqrt(2 / (np.pi * frame["X"].iloc[1:3]))
+        for name, trig in (("BESSELJ", np.sin), ("BESSELY", lambda x: -np.cos(x))):
+            result = formula(frame, f"{name}(Order, X)")
+            self.assertEqual(result.index.tolist(), frame.index.tolist())
+            np.testing.assert_allclose(result.iloc[1:3], constant * trig(frame["X"].iloc[1:3]))
+            self.assertTrue(result.iloc[[0, 3, 4]].isna().all())
+        np.testing.assert_allclose(formula(frame, "X*PERC(12.5)"), frame["X"] / 8)
+        with self.assertRaisesRegex(ValueError, "Unsupported expression"):
+            formula(frame, "IBETA(X,1)")
 
     def test_row_statistics_use_each_groups_filtered_reference(self):
         frame = pd.DataFrame({"X": [6, 3, 9, 3, 1, np.nan, 4, 5],

@@ -41,6 +41,21 @@ The hyperbolic functions are `SINH`, `COSH` and `TANH`, with inverses `ARCSINH`,
 
 `CEIL` rounds up and `FLOOR` rounds down. `INT` discards the fractional part toward zero. `SGN` gives −1, 0 or 1 according to sign, and `SQR` squares each value. The same functions are available to editable imported formulas.
 
+## Special functions
+
+`GAMMA(x)` and `PSI(x)` leave poles blank. `GAMMALN(x)` gives the real
+logarithm wherever the gamma function is positive. `IGAMMA(shape, x)` and
+`IGAMMAC(shape, x)` give the regularized lower and upper incomplete gamma
+functions for positive shape and nonnegative x. `BETA(a, b)` and
+`IBETA(a, b, x)` use positive shapes, and the regularized incomplete beta
+accepts x from 0 to 1.
+
+`ERF(x)` and `ERFC(x)` give the error function and its complement.
+`BESSELJ(order, x)` and `BESSELY(order, x)` give real Bessel values where
+defined. `PERC(x)` divides a percentage by 100. For example,
+`=Dose * PERC(12.5)` gives one eighth of each dose. Undefined values and
+nonfinite special-function results leave the cell blank.
+
 ## Centering, standardizing and ranking
 
 `CENTER(Column)` subtracts the mean of the usable values from each value. `STANDARDIZE(Column)` and `ZSCORE(Column)` divide the centered values by the sample standard deviation. A constant column or a single usable observation leaves standardized values blank.

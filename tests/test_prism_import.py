@@ -140,6 +140,25 @@ class PrismImportTests(unittest.TestCase):
         data.raw.loc[2, "Fraction"] = .75
         self.assertAlmostEqual(data.frame()["Odds"].iloc[2], np.log(3))
 
+    def test_zip_restores_special_functions_and_recomputes_after_an_edit(self):
+        path = self.path / "special.prismt"
+        table = {"uid": "table", "format": "multivariable", "dataFormat": "y_single",
+                 "dataSets": ["a", "b", "c"]}
+        sets = {"a": {"title": "Dose"}}
+        for uid, title, expression in (("b", "Gamma", "GAMMA(A)"), ("c", "Tail", "IGAMMAC(1,A)")):
+            sets[uid] = {"title": title, "valuesStorageData": {
+                "@class": "TransformDataSource", "transform": expression}}
+        write_archive(path, table, sets, "1,0,0\n4,0,0\n-1,0,0\n", (3, 3))
+        data = Dataset(load_tables(path)["Experiment"])
+        self.assertEqual(set(data.formulas), {"Gamma", "Tail"})
+        np.testing.assert_allclose(data.frame()["Gamma"], [1, 6, np.nan])
+        data.raw.at[1, "Dose"] = 5
+        destination = self.path / "native.alab"
+        save_project(destination, {"Experiment": data})
+        reopened = load_project(destination)["Experiment"].frame()
+        np.testing.assert_allclose(reopened["Gamma"], [1, 24, np.nan])
+        np.testing.assert_allclose(reopened["Tail"], [np.exp(-1), np.exp(-5), np.nan])
+
     def test_legacy_wrapper_uses_sheet_sequence_dates_and_upper_lower_endpoints(self):
         source = self.path / "example.xml"
         source.write_text(

@@ -19,6 +19,7 @@ import pandas as pd
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
 from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, valid_analysis_id
 from .analysis_labels import validate_labels
+from .formula_special import SPECIAL_FORMULA_FUNCTIONS
 from .formula_windows import WINDOW_FUNCTION, lower_window_clauses, worksheet_statistic
 
 MAX_ENTRY = 32 * 1024 * 1024
@@ -211,6 +212,7 @@ COLUMN_FORMULA_FUNCTIONS = {
 
 
 ELEMENTWISE_FORMULA_FUNCTIONS = {
+    **SPECIAL_FORMULA_FUNCTIONS,
     "CEIL": (1, np.ceil), "FLOOR": (1, np.floor), "INT": (1, np.trunc), "SGN": (1, np.sign),
     "SQR": (1, np.square),
     "ABS": (1, np.abs), "SQRT": (1, np.sqrt), "EXP": (1, np.exp), "LN": (1, np.log),
