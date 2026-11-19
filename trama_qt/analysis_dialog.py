@@ -25,6 +25,7 @@ from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
 from . import anova_model, global_fit
+from . import bland_altman_repeated as repeated_agreement
 from .labels import choice_label, field_label, method_label
 from .strings import qt
 from .theme import fit_dialog
@@ -141,6 +142,7 @@ class AnalysisDialog(QDialog):
         self.rows = {}
         self.hidden = set()  # fields the current choices hide: left out of options()
         self.anova = None  # Multifactor ANOVA bindings (trama_qt.anova_model)
+        self.repeated = None  # Bland–Altman for repeated pairs (trama_qt.bland_altman_repeated)
         method = current[0] if current and current[0] in METHODS else None
         self.method = method or self._first_method()
         fit_dialog(self, 940, 640)
@@ -200,6 +202,8 @@ class AnalysisDialog(QDialog):
 
         self.fill_methods()
         self.configure_fields()
+        if error and self.repeated is not None:  # engine errors reopen here; word them in the active language
+            self.banner.setText(self.repeated.message(error))
         if error_field:
             if self.anova is not None and error:  # engine errors reopen here; word them in the active language
                 self.banner.setText(self.anova.message(FieldError(error_field, str(error))))
@@ -272,6 +276,7 @@ class AnalysisDialog(QDialog):
         self.rows.clear()
         self.hidden.clear()
         self.anova = None
+        self.repeated = None
         pages, scrolls = {}, {}
         # Global fit custom equation adds Equation, Parameters, Series constraints and Response pages.
         for key, name in (("variables", qt("qt.variables")), *global_fit.pages(self.method),
@@ -390,6 +395,7 @@ class AnalysisDialog(QDialog):
             self.rows[label] = (caption, widget, form)
         self.anova = anova_model.attach(self, saved)
         global_fit.attach(self)
+        self.repeated = repeated_agreement.attach(self)
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
 
@@ -463,6 +469,8 @@ class AnalysisDialog(QDialog):
             options = global_fit.confirm(self, self.options())
             if self.anova is not None:
                 self.anova.check(options)  # the engine's cheap checks; the fit stays on the worker
+            if self.repeated is not None:
+                self.repeated.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
         except FieldError as error:
@@ -477,6 +485,8 @@ class AnalysisDialog(QDialog):
     def _message(self, error, field=None):
         if self.method == global_fit.GLOBAL_CUSTOM_EQUATION:
             return global_fit.describe_error(error, field)
+        if self.repeated is not None:  # Bland–Altman for repeated pairs: engine messages in the active language
+            return self.repeated.message(error)
         return str(error)
 
     def show_error(self, error, field=None):
