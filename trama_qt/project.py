@@ -606,20 +606,29 @@ class Project:
         return PdfLayoutPage(layout.name, layout.columns, self.layout_panel_figures(layout), layout.paper,
                              layout.background)
 
-    def export_layout(self, layout, path):
-        """PDF and SVG keep the panels vector; PNG and TIFF render the page at 300 dpi."""
+    def export_layout(self, layout, path, settings=None):
+        """PDF and SVG keep the panels vector; PNG and TIFF render the page (300 dpi unless ``settings`` say).
+
+        ``settings`` come from Export with options; without them the format follows the file suffix.
+        """
         from analisi.figure_export import export_figure, export_pdf_bundle
-        suffix = Path(path).suffix.lower()
-        if suffix == ".pdf":
-            export_pdf_bundle([self.layout_pdf_page(layout)], path, {"format": "pdf"})
-        elif suffix == ".svg":
+        from analisi.layout_geometry import WHITE
+        if settings is None:
+            suffix = Path(path).suffix.lower()
+            fmt = {".pdf": "pdf", ".svg": "svg", ".tif": "tiff", ".tiff": "tiff"}.get(suffix, "png")
+            settings = {"format": fmt} if fmt in {"pdf", "svg"} else {"format": fmt, "dpi": 300}
+        fmt = settings["format"]
+        if fmt == "pdf":
+            export_pdf_bundle([self.layout_pdf_page(layout)], path, settings)
+        elif fmt == "svg":
             from analisi.layout_svg import export_layout_svg
-            export_layout_svg(layout.name, layout.columns, self.layout_panel_figures(layout), path, {"format": "svg"},
+            export_layout_svg(layout.name, layout.columns, self.layout_panel_figures(layout), path, settings,
                               paper=layout.paper, background=layout.background)
         else:
+            background = WHITE if settings.get("transparent") else layout.background
             figure = compose_layout(layout.name, layout.columns, self.layout_panel_figures(layout),
-                                    paper=layout.paper, background=layout.background)
-            export_figure(figure, path, {"format": "tiff" if suffix in {".tif", ".tiff"} else "png", "dpi": 300})
+                                    paper=layout.paper, background=background)
+            export_figure(figure, path, settings)
 
     def export_pdf_pages(self, refs, path, settings, names):
         from analisi.figure_export import export_pdf_bundle

@@ -26,15 +26,15 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 - Confronti a coppie e lettere compatte su box, violini e grafici a colonne (Grafico → Confronti a coppie… / Lettere compatte…): sorgente, coppie, asterischi o valori P, soglia, colore; lettere con alfa, identificatori, posizione e dimensione.
 - Famiglie di esperimenti (Home → Duplica famiglia… / Salva famiglia come…, anche dal menu del navigatore): anteprima del contenuto, nome o prefisso, layout inclusi; copia e salvataggio in background, annullabili.
 - Forme sul grafico (Grafico → Forme del grafico…): linee con o senza frecce, rettangoli ed ellissi, con tratto, riempimento, motivo, opacità, livello e coordinate in frazioni o dati; ordinabili.
+- File → Esporta con opzioni… per grafici e layout: preset Schermo/Stampa/Vettoriale, PNG/TIFF/SVG/PDF, larghezza in mm, DPI, sfondo trasparente e testo SVG come testo o tracciati, con dimensione finale in anteprima; le scelte restano per la sessione.
 - Layout (Ctrl+L): nuovo e modifica, con nome, carta, colonne, sfondo e fino a 12 pannelli ordinabili.
 - Tema "Scientifico compatto"/Vetro: Figtree, icone Lucide, accento #0B7A73.
 
 ## Cosa resta su Tk (fasi successive)
 
-1. Esporta con opzioni (dimensione in mm, DPI, testo SVG) come nella finestra classica.
-2. Interfaccia delle catene di analisi.
-3. Procedura guidata di importazione testo.
-4. Porting dello smoke test (`--smoke`) su Qt e collaudo DPI su Windows reale.
+1. Interfaccia delle catene di analisi.
+2. Procedura guidata di importazione testo.
+3. Porting dello smoke test (`--smoke`) su Qt e collaudo DPI su Windows reale.
 
 Quando tutto è migrato si toglie `--tk` e la dipendenza da Tk.
 

@@ -15,6 +15,16 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### EXPORT · Esporta con opzioni su Qt (2026-11-19)
+
+- Nuovo: File → Esporta con opzioni… (anche nella scheda Grafico) per grafici, layout e layout salvati. Codice in `trama_qt/export_options.py`; `export_graph` e `Project.export_layout` accettano le impostazioni. Stesse scelte del dialogo Tk: preset Schermo/Stampa/Vettoriale/Personalizzato, formato PNG/TIFF/SVG/PDF, larghezza in mm (vuota = dimensione attuale o pagina del layout), DPI per PNG e TIFF, sfondo trasparente, testo SVG come testo o tracciati, riga con dimensione finale in mm e pixel. Le scelte restano per la sessione. La destinazione passa da `check_destination`.
+- Da provare su Windows:
+  - Grafico a colonne, PNG a 85 mm e 200 DPI: il file deve essere largo 669 px.
+  - Lo stesso in SVG con testo come tracciati: il file non deve contenere `<text>`.
+  - Layout di due grafici in PDF a 180 mm: pagina larga 180 mm. In PNG deve comparire la nota sul raster.
+  - Larghezza "abc" deve dare l'errore nel dialogo senza chiuderlo. Controllare i testi in italiano a 150%.
+- Test attesi: `tests.test_qt_shell` 16/16 OK.
+
 ### fc63fa9 · Modifica dei fogli Info su Qt (2026-11-19)
 
 - Nuovo: Home → Nuovo foglio Info…; nella pagina del foglio Proprietà… (nome e ambito), Sposta su/giù, Elimina foglio Info…, costanti modificabili (aggiungi, elimina, ↑↓), note con grassetto, corsivo e sottolineato (pulsanti o Ctrl+B/I/U) e Importa note… Codice in `trama_qt/info_editor.py`, `Project.change_info`/`move_info`/`update_info_sheets`. Le note si salvano dopo una pausa, uscendo dal foglio e prima di salvare. Gli stili sono contati in caratteri Python, quindi le emoji non spostano la formattazione.

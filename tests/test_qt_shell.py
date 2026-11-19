@@ -578,6 +578,86 @@ class QtShellTests(unittest.TestCase):
         legend = graph.result.figure.axes[0].get_legend() or graph.result.figure.legends[0]
         self.assertEqual(legend.get_title().get_text(), "Gruppi")
 
+    def test_export_with_options(self):
+        from unittest import mock
+        from PIL import Image
+        from trama_qt import export_options
+        from trama_qt.export_options import ExportOptionsDialog
+        self.addCleanup(lambda: (export_options.SESSION.clear(),
+                                 export_options.SESSION.update(preset="Screen", **export_options.fe.PRESETS["Screen"])))
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        window.open_sheet(("graph", window.project.runs.index(graph)))
+        self.wait()
+        self.assertTrue(window.actions["export_options"].isEnabled())
+        seen = {}
+
+        def png(dialog):
+            dialog.format.setCurrentText("PNG")
+            dialog.width.setText("abc")
+            dialog.accept()
+            seen["problem"] = dialog.summary.text()
+            dialog.width.setText("85")
+            dialog.dpi.setText("200")
+            seen["preset"] = dialog.preset.currentData()
+            seen["summary"] = dialog.summary.text()
+            dialog.accept()
+            return ExportOptionsDialog.DialogCode.Accepted
+
+        target = self.folder / "graph"
+        with mock.patch.object(ExportOptionsDialog, "exec", png), \
+                mock.patch("trama_qt.window.QFileDialog.getSaveFileName", return_value=(str(target), "")):
+            window.export_with_options()
+        self.assertTrue(seen["problem"])
+        self.assertEqual(seen["preset"], "Custom")
+        self.assertIn("669", seen["summary"])
+        with Image.open(self.folder / "graph.png") as image:
+            self.assertEqual(image.size[0], 669)
+        self.assertEqual(export_options.SESSION["width_mm"], 85)
+
+        # The next dialog starts from the session's choices; SVG text as paths.
+        def svg(dialog):
+            seen["width"] = dialog.width.text()
+            dialog.format.setCurrentText("SVG")
+            dialog.svg_text.setCurrentIndex(1)
+            dialog.accept()
+            return ExportOptionsDialog.DialogCode.Accepted
+
+        with mock.patch.object(ExportOptionsDialog, "exec", svg), \
+                mock.patch("trama_qt.window.QFileDialog.getSaveFileName",
+                           return_value=(str(self.folder / "graph.svg"), "")):
+            window.export_with_options()
+        self.assertEqual(seen["width"], "85")
+        text = (self.folder / "graph.svg").read_text(encoding="utf-8")
+        self.assertIn("<path", text)
+        self.assertNotIn("<text", text)
+
+        # A layout: vector PDF at a chosen width.
+        window.show_sheet("data", "groups")
+        self.run_method("Box / violin plot", {"Variables": ["Control", "Treated"]})
+        from analisi.layout_geometry import AUTO_PAPER, WHITE
+        from analisi.presentation import Layout
+        key = window.project.put_layout(Layout("Figura", 2, [run.reference for run in window.project.runs],
+                                               AUTO_PAPER, WHITE))
+        window.open_sheet(("layout", key))
+        self.wait()
+
+        def pdf(dialog):
+            seen["layout_note"] = dialog.note.text()
+            dialog.format.setCurrentText("PDF")
+            dialog.width.setText("180")
+            dialog.accept()
+            return ExportOptionsDialog.DialogCode.Accepted
+
+        with mock.patch.object(ExportOptionsDialog, "exec", pdf), \
+                mock.patch("trama_qt.window.QFileDialog.getSaveFileName",
+                           return_value=(str(self.folder / "layout.pdf"), "")):
+            window.export_with_options()
+        import pypdfium2 as pdfium
+        page = pdfium.PdfDocument(str(self.folder / "layout.pdf"))[0]
+        self.assertAlmostEqual(page.get_width() / 72 * 25.4, 180, delta=0.5)
+
     def test_layout_compose_edit_reopen(self):
         from trama_qt.layout_dialog import LayoutDialog
         window = self.window

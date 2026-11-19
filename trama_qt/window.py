@@ -71,12 +71,15 @@ def safe_csv(path, frame, index=False):
     data.to_csv(path, index=index, encoding="utf-8-sig")
 
 
-def export_graph(figure, path):
-    """A graph at its own size, 300 dpi for images, verified before it replaces the file."""
+def export_graph(figure, path, settings=None):
+    """A graph at its own size, 300 dpi for images unless ``settings`` say otherwise, verified before it
+    replaces the file."""
     from analisi.figure_export import export_figure
-    suffix = Path(path).suffix.lower()
-    fmt = {".svg": "svg", ".pdf": "pdf", ".tif": "tiff", ".tiff": "tiff"}.get(suffix, "png")
-    export_figure(figure, path, {"format": fmt, "dpi": 300} if fmt in {"png", "tiff"} else {"format": fmt})
+    if settings is None:
+        suffix = Path(path).suffix.lower()
+        fmt = {".svg": "svg", ".pdf": "pdf", ".tif": "tiff", ".tiff": "tiff"}.get(suffix, "png")
+        settings = {"format": fmt, "dpi": 300} if fmt in {"png", "tiff"} else {"format": fmt}
+    export_figure(figure, path, settings)
 
 
 class Job:
@@ -195,6 +198,7 @@ class MainWindow(QMainWindow):
         a("save", tr("command.save_project"), self.save, icon="save", shortcut="Ctrl+S")
         a("save_as", tr("command.save_project_as"), lambda: self.save(as_new=True), shortcut="Ctrl+Shift+S")
         a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+E")
+        a("export_options", tr("command.export_with_options"), self.export_with_options, icon="download")
         a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")
         a("classic", qt("qt.classic"), self.open_classic, icon="history", tip=qt("qt.classic_hint"))
         a("language", tr("command.language"), self.choose_language, icon="type")
@@ -333,7 +337,8 @@ class MainWindow(QMainWindow):
         layout.addLayout(top)
         self.ribbon = QStackedWidget()
         groups = [
-            (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "|", "export", "export_pdf", "|",
+            (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "|", "export", "export_options",
+                                         "export_pdf", "|",
                                          "classic", "language", "about"]),
             (tr("ribbon.modern.home"), ["paste", "cut", "copy", "|", "undo", "redo", "|", "new_table", "insert_row",
                                          "insert_column", "exclude", "|", "*analyze", "new_graph", "|", "recalculate",
@@ -343,7 +348,7 @@ class MainWindow(QMainWindow):
                                             "use_result"]),
             (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "shapes",
                                           "pairwise", "compact_letters", "change", "recalculate", "|", "new_layout",
-                                          "edit_layout", "|", "export"]),
+                                          "edit_layout", "|", "export", "export_options"]),
             (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
         ]
         for title, keys in groups:
@@ -445,6 +450,7 @@ class MainWindow(QMainWindow):
         for key in ("open", "import", "new_project", "save", "save_as", "classic"):
             self.actions[key].setEnabled(idle)
         self.actions["export"].setEnabled(kind is not None)
+        self.actions["export_options"].setEnabled(kind in {"graph", "layout", "saved-layout"})
         self.actions["export_pdf"].setEnabled(idle and (bool(self.project.layouts) or any(
             run.result is not None and run.result.figure is not None for run in self.project.runs)))
 
@@ -1624,6 +1630,58 @@ class MainWindow(QMainWindow):
                 self.status(qt("qt.exported", name=Path(path).name))
         except (OSError, ValueError, TypeError) as error:
             self.error(error)
+
+    def export_with_options(self):
+        """File → Export with options…: size in mm, DPI, transparency and SVG text for a graph or layout."""
+        if not self.selected or self.selected[0] not in {"graph", "layout", "saved-layout"}:
+            self.error(ui("Select a calculated graph or layout to export with options."))
+            return
+        if not self.settle_graph_draft():
+            return
+        from analisi.figure_export import check_destination
+        from analisi.layout_geometry import page_size
+        from .export_options import FORMAT_NAMES, ExportOptionsDialog
+        kind, key = self.selected
+        layout = self.project.layouts[key] if kind == "layout" else None
+        if layout is not None:
+            figure, name = self.project.layout_figure(layout), layout.name
+        else:
+            run = self.project.runs[key]
+            figure = run.result.figure if run.result is not None else None
+            name = run.name
+            if run.calculation_error:
+                self.error(tr("reference.stale_export"))
+                return
+        if figure is None or not figure.axes:
+            self.error(ui("Export with options is available for calculated native graphs and layouts. "
+                          "Imported graphs and layouts keep their original export."))
+            return
+        layout_size = page_size(layout.columns, len(layout.panels), layout.paper) if layout is not None else None
+        dialog = ExportOptionsDialog(self, tuple(figure.get_size_inches()), raster_panels=kind == "saved-layout",
+                                     layout_size=layout_size)
+        if dialog.exec() != ExportOptionsDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        settings = dialog.result
+        fmt = settings["format"]
+        label = next(text for text, value in FORMAT_NAMES.items() if value == fmt)
+        suffix = ".tif" if fmt == "tiff" else f".{fmt}"
+        pattern = "*.tif *.tiff" if fmt == "tiff" else f"*{suffix}"
+        path, _ = QFileDialog.getSaveFileName(self, tr("command.export_with_options"), f"{name}{suffix}",
+                                              f"{label} ({pattern})")
+        if not path:
+            return
+        if not Path(path).suffix:
+            path += suffix
+        try:
+            check_destination(path, fmt)
+            if layout is not None:
+                self.project.export_layout(layout, path, settings)
+            else:
+                export_graph(figure, path, settings)
+        except (OSError, ValueError, TypeError) as error:
+            self.error(error)
+            return
+        self.status(tr("interface.exported", name=Path(path).name))
 
     def export_pdf_bundle(self):
         if self.busy() or not self.settle_graph_draft():
