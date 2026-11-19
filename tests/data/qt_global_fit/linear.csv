@@ -1,0 +1,9 @@
+X,Y,Series,SD
+0,1.25,Control $,0.5
+1,2.75,Control $,0.5
+2,4.75,Control $,0.5
+3,7.25,Control $,0.5
+0,3.75,Batch B,1.0
+1,6.25,Batch B,1.0
+2,8.25,Batch B,1.0
+3,9.75,Batch B,1.0

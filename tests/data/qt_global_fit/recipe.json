@@ -1,0 +1,36 @@
+{
+  "X": "X",
+  "Y": "Y",
+  "Group": "Series",
+  "Equation": "A+B*X",
+  "Parameters": [
+    {
+      "name": "A",
+      "start": 1.0,
+      "lower": null,
+      "upper": null,
+      "fixed": false,
+      "shared": false
+    },
+    {
+      "name": "B",
+      "start": 1.0,
+      "lower": 0.0,
+      "upper": 4.0,
+      "fixed": false,
+      "shared": true
+    }
+  ],
+  "Series constraints": [
+    {
+      "series": "Control $",
+      "parameters": {
+        "A": {
+          "fixed": 1.0
+        }
+      }
+    }
+  ],
+  "Weighting": "Unweighted",
+  "Curve points": 21
+}

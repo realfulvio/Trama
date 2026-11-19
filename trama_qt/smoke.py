@@ -211,6 +211,8 @@ class Smoke:
             self.shot(window, "inspector")
             window.dispose_inspector()
             self.editors(window, refs)
+            from .global_fit_smoke import exercise as global_fit
+            global_fit(self, window)
         except Exception:  # noqa: BLE001 - the report must say what broke, then the next language runs.
             self.problem("stopped:\n" + traceback.format_exc())
         finally:
