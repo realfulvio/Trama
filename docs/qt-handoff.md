@@ -15,6 +15,14 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### cd1faeb · Fit globale: editor Qt di coefficienti e vincoli per serie (2026-11-19, ramo `claude/project-thread-7tdnhf`)
+
+Pacchetto `Trama-Claude-Qt-Fit-Globali-095`, base main `7a7340c`. PR draft separata (non è la #56). Dettagli, sovrapposizioni con il pacchetto ANOVA in `analysis_dialog.py` e istruzioni GUI in `docs/qt-global-fit-095.md`.
+
+- Nuovo `trama_qt/global_fit.py`: editor Coefficienti (Locale/Condiviso/Fisso, Leggi dall'equazione) ed editor Vincoli di serie (campi per serie e coefficiente, vincoli non applicabili e loro rimozione). Il dialogo ha le pagine del classico e chiama `check_options` prima del worker.
+- Da provare su Windows: `linear.csv` di `tests/data/qt_global_fit`, A Locale, B Condiviso 0–4, `Control $` A fisso 1 → A 1 e 4, B 2, df 6; errore B Inferiore 3 / Superiore 1 con cursore sulla cella; Group → SD e "Rimuovi vincoli non applicabili"; `python -m trama_qt --smoke` a 100% e 150% (immagini `*-global-*.png`).
+- Test attesi: `tests.test_qt_global_fit` 14/14, `tests.test_qt_shell` 20/20, suite globali OK; `verify.py --repo . --qt` del pacchetto tutto PASS.
+
 ### 9c10a2f · Formule, cella con Invio e testo SVG: consegna finale per la 0.95 (2026-11-19)
 
 **Consegna finale per la 0.95: il commit `9c10a2f`.** Il commit dopo aggiunge solo questa nota. Integra quella revisione.

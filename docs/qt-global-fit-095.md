@@ -77,7 +77,7 @@ non di logica:
 | `tests.test_global_custom_fit`, `test_global_custom_profiles`, `test_global_response_bands`, `test_global_response_queries`, `test_global_uncertainty_contract`, `test_qt_shell`, `test_qt_global_fit` | 121 OK |
 | `python -m trama_qt --smoke`, Xvfb 1024×768, EN e IT | PASS, 98 screenshot |
 | `python -m trama_qt --smoke`, Xvfb 1600×1000, EN e IT | PASS, 98 screenshot |
-| Suite completa (un file per volta, Xvfb, py3.12 + Tk 8.6) | vedi `SUITE` qui sotto |
+| Suite completa (263 file, uno per volta, Xvfb 1920×1080, py3.12 + Tk 8.6, Qt offscreen) | 3514 test; unico rosso `test_formula_windows` (1 failure + 1 error), identico sulla base 7a7340c (pandas 3.1, non introdotto qui) |
 
 Accettazione del pacchetto, punto per punto (test in `tests/test_qt_global_fit.py`):
 
