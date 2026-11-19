@@ -316,6 +316,8 @@ class MainWindow(QMainWindow):
           tip=template_text("save_tip"))
         a("new_from_template", template_text("new_action"), self.new_from_template, icon="sparkles",
           tip=template_text("new_tip"))
+        for key in ("save_template", "new_from_template"):  # Short ribbon captions; menus and search keep the full text.
+            self.actions[key].setIconText(template_text(f"{key}_short"))
         a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+E")
         a("export_options", tr("command.export_with_options"), self.export_with_options, icon="download")
         a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")

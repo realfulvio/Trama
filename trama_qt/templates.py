@@ -35,6 +35,8 @@ _TEXT = {
                  "observations.", "Salva il metodo di questo progetto (colonne, formule, analisi, grafici e layout) "
                  "senza le osservazioni."),
     "new_action": ("New project from template…", "Nuovo progetto da modello…"),
+    "save_template_short": ("Save template", "Salva modello"),
+    "new_from_template_short": ("From template", "Da modello"),
     "new_tip": ("Applies an analysis template to new data in a new project tab.",
                 "Applica un modello di analisi a nuovi dati in una nuova scheda di progetto."),
     "save_title": ("Save as analysis template", "Salva come modello di analisi"),
@@ -155,12 +157,12 @@ _TEXT = {
     "formulas_note": ("Formulas come from the template and need no assignment: {names}",
                       "Le formule vengono dal modello e non richiedono assegnazione: {names}"),
     "create": ("Create project", "Crea progetto"),
-    "reading": ("Reading template {name}…", "Lettura del modello {name}…"),
-    "saving": ("Saving template {name}…", "Salvataggio del modello {name}…"),
+    "reading": ("Reading the template…", "Lettura del modello…"),
+    "saving": ("Saving the template…", "Salvataggio del modello…"),
     "saved": ("Template saved: {name} ({tables} table(s), {analyses} analysis(es)). The project is unchanged.",
               "Modello salvato: {name} ({tables} tabelle, {analyses} analisi). Il progetto non è cambiato."),
     "save_cancelled": ("Saving the template was cancelled.", "Salvataggio del modello annullato."),
-    "building": ("Building the project from {name}…", "Costruzione del progetto da {name}…"),
+    "building": ("Building the project…", "Costruzione del progetto…"),
     "build_cancelled": ("The new project was not created (cancelled).", "Il nuovo progetto non è stato creato "
                         "(annullato)."),
     "built": ("New project from {name}: {analyses} analysis(es) calculated on the new data.",
@@ -434,7 +436,7 @@ def save_template(window):
 
     window._start(window.worker.submit(write_template, path, tables, layouts=layouts, info_sheets=infos,
                                        source_path=source, cancel=control.cancel),
-                  control, done, t("saving", name=path.name))
+                  control, done, t("saving"))
 
 
 # ---------------------------------------------------------------------------
@@ -802,7 +804,7 @@ def new_from_template(window, path=None):
         if not cancelled:  # The assistant opens once the window has finished with this job.
             QTimer.singleShot(0, window, lambda: _assist(window, template, path))
 
-    window._start(window.worker.submit(read_template, path), control, read_done, t("reading", name=path.name))
+    window._start(window.worker.submit(read_template, path), control, read_done, t("reading"))
 
 
 def _destination_problem(window):
@@ -878,7 +880,7 @@ def _assist(window, template, path):
 
     window._start(window.worker.submit(instantiate_template, template, frames, mapping, avoid=avoid,
                                        cancel=control.cancel),
-                  control, built, t("building", name=path.name))
+                  control, built, t("building"))
 
 
 def sync_actions(window):

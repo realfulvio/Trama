@@ -347,7 +347,7 @@ def run(smoke, window):
     with mock.patch.object(templates, "instantiate_template", slow), driving(smoke, [wizard_ok]):
         window.new_from_template(target)
         end = time.monotonic() + 30  # Read, assistant, then the build that waits for Cancel.
-        while not (window.job is not None and window.job.label.startswith(templates.t("building", name="")[:8]))\
+        while not (window.job is not None and window.job.label.startswith(templates.t("building")))\
                 and time.monotonic() < end:
             smoke.app.processEvents()
             time.sleep(0.02)
