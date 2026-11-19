@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QDialogButtonBox, Q
 
 from analisi import figure_export as fe
 from analisi.data import decimal_comma
-from analisi.i18n import active_language, ui
+from analisi.i18n import active_language, tr, ui
 
 CUSTOM = "Custom"
 FORMAT_NAMES = {"PNG": "png", "TIFF": "tiff", "SVG": "svg", "PDF": "pdf"}
@@ -80,6 +80,8 @@ class ExportOptionsDialog(QDialog):
         self.note.setWordWrap(True)
         form.addRow(self.note)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(tr("language.ok"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
@@ -176,6 +178,7 @@ class ExportOptionsDialog(QDialog):
             return
         SESSION.clear()
         SESSION.update(preset=self.preset.currentData(),
-                       **{k: v for k, v in settings.items() if k in {"format", "width_mm", "dpi", "transparent"}})
+                       **{k: v for k, v in settings.items()
+                          if k in {"format", "width_mm", "dpi", "transparent", "svg_text"}})
         self.result = settings
         super().accept()

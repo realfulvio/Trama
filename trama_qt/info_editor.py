@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget)
 
-from analisi.i18n import active_language, ui
+from analisi.i18n import active_language, tr, ui
 from analisi.info import (MAX_INFO_FIELDS, MAX_INFO_NOTES, NOTE_BOLD, NOTE_ITALIC, NOTE_STYLE_MASK, NOTE_UNDERLINE,
                           InfoSheet)
 
@@ -72,6 +72,8 @@ class InfoDetails(QDialog):
         self.problem.setVisible(False)
         form.addRow(self.problem)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(tr("language.ok"))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)

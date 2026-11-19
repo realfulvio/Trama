@@ -14,7 +14,7 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 
 ## Cosa c'è (fase 1, essenziale)
 
-- Foglio dati virtuale (`QTableView`): modifica, incolla/taglia/copia, Canc, inserisci/elimina righe e colonne, rinomina, escludi celle, annulla/ripeti, colonne calcolate in sola lettura.
+- Foglio dati virtuale (`QTableView`): modifica, incolla/taglia/copia, Canc, inserisci/elimina righe e colonne, rinomina, escludi celle, annulla/ripeti. Colonne calcolate con Home → Formula…: si aggiungono o si cambiano, anche con doppio clic sull'intestazione, e l'espressione viene verificata prima di tenerla.
 - Dialogo analisi per tutti i 95 metodi del motore, con ricerca, campi tradotti e messaggio di errore sul campo.
 - Calcolo in background con avanzamento e annulla; ricalcolo a catena dei risultati collegati quando cambiano i dati.
 - Tabelle dei risultati, grafici matplotlib (barra di navigazione), layout salvati.
@@ -26,7 +26,7 @@ Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface*
 - Confronti a coppie e lettere compatte su box, violini e grafici a colonne (Grafico → Confronti a coppie… / Lettere compatte…): sorgente, coppie, asterischi o valori P, soglia, colore; lettere con alfa, identificatori, posizione e dimensione.
 - Famiglie di esperimenti (Home → Duplica famiglia… / Salva famiglia come…, anche dal menu del navigatore): anteprima del contenuto, nome o prefisso, layout inclusi; copia e salvataggio in background, annullabili.
 - Forme sul grafico (Grafico → Forme del grafico…): linee con o senza frecce, rettangoli ed ellissi, con tratto, riempimento, motivo, opacità, livello e coordinate in frazioni o dati; ordinabili.
-- File → Esporta con opzioni… per grafici e layout: preset Schermo/Stampa/Vettoriale, PNG/TIFF/SVG/PDF, larghezza in mm, DPI, sfondo trasparente e testo SVG come testo o tracciati, con dimensione finale in anteprima; le scelte restano per la sessione.
+- File → Esporta con opzioni… per grafici e layout: preset Schermo/Stampa/Vettoriale, PNG/TIFF/SVG/PDF, larghezza in mm, DPI, sfondo trasparente e testo SVG come testo o tracciati, con dimensione finale in anteprima; le scelte restano per la sessione, compreso il testo SVG.
 - Catene di analisi: Analizza questo risultato… (nuova analisi sulla tabella dei risultati aperta), Analisi sorgente, Cambia risultato di ingresso… (sorgente e tabella, con controllo dei cicli e revisione dei parametri); nel navigatore i risultati collegati stanno sotto la loro sorgente. Anche nella scheda Analizza e col tasto destro.
 - File → Importa nel progetto… su un file .csv/.tsv/.txt apre l'importazione guidata: separatore, decimali, intestazione, prima/ultima riga e colonna con salto, codice dei mancanti, `*` finale che esclude il valore, anteprima filtrata dal vivo. Aprire un file di testo senza importare resta diretto, come in Tk.
 - Layout (Ctrl+L): nuovo e modifica, con nome, carta, colonne, sfondo e fino a 12 pannelli ordinabili.

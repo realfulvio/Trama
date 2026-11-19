@@ -791,6 +791,10 @@ class Project:
             dataset.raw = frame
         return self.edit(title, "Rename column", change)
 
+    def set_formula(self, title, name, expression):
+        """Add a calculated column, or change the expression of an existing one."""
+        return self.edit(title, "Edit formula", lambda dataset: dataset.set_formula(name.strip(), expression))
+
     def toggle_exclusion(self, title, cells):
         def change(dataset):
             current = set(dataset.excluded)

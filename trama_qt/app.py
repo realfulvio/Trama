@@ -35,8 +35,9 @@ def main(argv=None):
         splash.show()
         app.processEvents()
 
-    from analisi.i18n import config_path, load_language, set_language
+    from analisi.i18n import active_language, config_path, load_language, set_language
     set_language(load_language(config_path()))
+    theme.install_qt_translations(app, active_language())
     import matplotlib
     matplotlib.use("QtAgg")
     theme.load_fonts()

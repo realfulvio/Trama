@@ -15,6 +15,22 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### FINAL · Formule, cella con Invio e testo SVG: consegna finale per la 0.95 (2026-11-19)
+
+**Consegna finale per la 0.95: il commit `FINAL`.** Il commit dopo aggiunge solo questa nota. Integra quella revisione.
+
+- Colonne calcolate su Qt. Home → Formula… aggiunge una colonna calcolata o ne cambia una. Il doppio clic sull'intestazione di una colonna calcolata apre la sua formula, al posto del messaggio che rimandava a Tk. L'espressione viene verificata sulla tabella prima di tenerla e si può annullare. Codice in `trama_qt/formula.py` e `Project.set_formula`. Con questo la parità con la finestra classica è completa. La riproduzione di Codex (doppio clic sulla colonna calcolata) ora apre la formula.
+- La cella si chiude con Invio: `closeEditor` usa `QAbstractItemDelegate.EndEditHint`, come nel candidato di Codex. Il test con F2, valore e Invio controlla che il valore sia scritto e che la selezione scenda di una riga.
+- Esporta con opzioni ricorda anche Testo SVG (Tracciati) per la sessione.
+- OK e Annulla tradotti in Esporta con opzioni, Formula e Proprietà del foglio Info. I testi di Qt (pulsanti dei messaggi, dialoghi file) usano `qtbase_it.qm` di PySide6 se presente (`theme.install_qt_translations`). Per il portabile serve che PyInstaller includa `PySide6/Qt/translations/qtbase_it.qm`.
+- Nota per l'integrazione: la barra comandi troppo larga è corretta qui con lo scorrimento laterale di ogni scheda (b78e602). Il tuo candidato usa l'overflow delle azioni. Tieni la soluzione che preferisci: lo smoke Qt controlla solo che la finestra entri nello schermo.
+- Da provare su Windows:
+  - Formula… con nome "Double" e `=Control *` dà l'errore nel dialogo; con `=Control * 2` la colonna compare. Il doppio clic sulla sua intestazione riapre la formula; cambiarla in `* 3` e poi Annulla.
+  - Esportare in SVG con Tracciati, poi riaprire il dialogo: Testo SVG resta su Tracciati.
+  - In italiano, i pulsanti Salva/Non salvare/Annulla del messaggio di chiusura con modifiche.
+  - `python -m trama_qt --smoke` a 100% e 150%.
+- Test attesi: `tests.test_qt_shell` 20/20 OK. Nel container la suite completa dà 63 errori, tutti `No module named 'tkinter'` (il container non ha Tk); nessun altro errore.
+
 ### b78e602 · Smoke Qt e schermi piccoli al 150% (2026-11-19)
 
 - Nuovo: `python -m trama_qt --smoke CARTELLA` (`trama_qt/smoke.py`), il collaudo da desktop per Qt descritto in `docs/qt-migration.md`. Gira in inglese e in italiano. Salva gli screenshot della finestra su ogni foglio e di ogni dialogo, poi scrive `report.txt` e `status.txt` (PASS o FAIL). Fallisce se un dialogo non entra nello schermo o se un testo è tagliato.

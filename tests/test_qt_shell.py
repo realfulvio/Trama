@@ -634,6 +634,10 @@ class QtShellTests(unittest.TestCase):
         text = (self.folder / "graph.svg").read_text(encoding="utf-8")
         self.assertIn("<path", text)
         self.assertNotIn("<text", text)
+        self.assertEqual(export_options.SESSION["svg_text"], "paths")  # The next dialog starts from Paths.
+        dialog = ExportOptionsDialog(window, (4, 3))
+        self.assertEqual(dialog.svg_text.currentData(), "paths")
+        dialog.deleteLater()
 
         # A layout: vector PDF at a chosen width.
         window.show_sheet("data", "groups")
@@ -891,6 +895,59 @@ class QtShellTests(unittest.TestCase):
         self.assertIn((2, 1), window.project.tables["groups"].excluded)
         window.project.rename_column("groups", 1, "Drug")
         self.assertEqual(list(window.project.tables["groups"].raw.columns), ["Control", "Drug"])
+
+    def test_formula_columns_and_cell_editing(self):
+        from unittest import mock
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QApplication as _App
+        from trama_qt.formula import FormulaDialog
+        window = self.window
+        self.open_example()
+        self.assertTrue(window.actions["formula"].isEnabled())
+
+        def new_column(dialog):
+            dialog.name.setText("Double")
+            dialog.expression.setPlainText("=Control *")
+            dialog.accept()
+            seen["problem"] = dialog.problem.text()
+            dialog.expression.setPlainText("=Control * 2")
+            dialog.accept()
+            return FormulaDialog.DialogCode.Accepted
+
+        seen = {}
+        with mock.patch.object(FormulaDialog, "exec", new_column):
+            window.edit_formula()
+        self.assertTrue(seen["problem"])
+        dataset = window.project.tables["groups"]
+        self.assertEqual(dataset.formulas, {"Double": "=Control * 2"})
+        self.assertAlmostEqual(dataset.frame()["Double"].iloc[0], 8.2)
+
+        # A double click on the calculated column's header opens its formula to change.
+        def change(dialog):
+            seen["loaded"] = (dialog.name.text(), dialog.expression.toPlainText())
+            dialog.expression.setPlainText("=Control * 3")
+            dialog.accept()
+            return FormulaDialog.DialogCode.Accepted
+
+        with mock.patch.object(FormulaDialog, "exec", change):
+            window.rename_column(2)
+        self.assertEqual(seen["loaded"], ("Double", "=Control * 2"))
+        self.assertAlmostEqual(window.project.tables["groups"].frame()["Double"].iloc[0], 12.3)
+        window.undo()
+        self.assertEqual(window.project.tables["groups"].formulas["Double"], "=Control * 2")
+
+        # F2, a value and Enter write the cell and move down one row.
+        sheet = window.sheet
+        sheet.setFocus()
+        sheet.setCurrentIndex(sheet.model().index(0, 0))
+        QTest.keyClick(sheet, Qt.Key.Key_F2)
+        editor = _App.focusWidget()
+        editor.setText("9")
+        QTest.keyClick(editor, Qt.Key.Key_Return)
+        self.app.processEvents()
+        self.wait()
+        self.assertAlmostEqual(window.project.tables["groups"].raw.iloc[0, 0], 9.0)
+        self.assertEqual(window.sheet.currentIndex().row(), 1)
 
     def test_desktop_smoke(self):
         """python -m trama_qt --smoke, in English on the test screen: every dialog fits and nothing is clipped."""

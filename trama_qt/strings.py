@@ -80,8 +80,6 @@ _TEXT = {
                            "to the graph?", "L'Inspector ha modifiche non applicate. Applicarle, scartarle o "
                            "tornare al grafico?"),
     "qt.style_applied": ("Graph style applied.", "Stile del grafico applicato."),
-    "qt.formula_column": ("Calculated columns are changed with Formula in the classic interface.",
-                          "Le colonne calcolate si modificano con Formula nell'interfaccia classica."),
 }
 
 

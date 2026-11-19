@@ -254,6 +254,25 @@ class _DialogsOnScreen(QObject):
 _ON_SCREEN = _DialogsOnScreen()
 
 
+_TRANSLATOR = None
+
+
+def install_qt_translations(app, language):
+    """Qt's own texts (standard buttons of message boxes, file dialogs) in the active language, when the
+    translations shipped with PySide6 are present; English otherwise."""
+    from PySide6.QtCore import QLibraryInfo, QTranslator
+    global _TRANSLATOR
+    if _TRANSLATOR is not None:
+        app.removeTranslator(_TRANSLATOR)
+        _TRANSLATOR = None
+    if language == "en":
+        return
+    translator = QTranslator(app)
+    if translator.load(f"qtbase_{language}", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
+        app.installTranslator(translator)
+        _TRANSLATOR = translator
+
+
 def apply(app, *, dark=False):
     app.removeEventFilter(_ON_SCREEN)
     app.installEventFilter(_ON_SCREEN)

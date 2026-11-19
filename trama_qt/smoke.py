@@ -164,6 +164,7 @@ class Smoke:
         from .window import MainWindow
         self.language = language
         set_language(language)
+        theme.install_qt_translations(self.app, language)
         self.window = window = MainWindow()
         window.error = lambda error: self.problem(f"error shown: {error}")
         available = self.screen_rect(window)
@@ -192,7 +193,7 @@ class Smoke:
             text.write_text("ID;Dose;Response\n1;0,5;10,2\n2;1,0;11,8\n", encoding="utf-8")
             for name, command in (("analyze", window.analyze), ("layout", window.new_layout),
                                   ("info", window.new_info), ("family", window.duplicate_family),
-                                  ("pdf", window.export_pdf_bundle),
+                                  ("pdf", window.export_pdf_bundle), ("formula", window.edit_formula),
                                   ("text-import", lambda: window.open_path(text, import_data=True))):
                 with self.dialogs(name):
                     command()
@@ -266,4 +267,6 @@ def run(folder, languages=LANGUAGES):
             smoke.run_language(language)
     finally:
         set_language(previous)
+        from . import theme
+        theme.install_qt_translations(smoke.app, previous)
     return smoke.report()

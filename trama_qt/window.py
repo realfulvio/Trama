@@ -220,6 +220,7 @@ class MainWindow(QMainWindow):
         a("save_family", ui("Save family as…"), self.save_family_as, icon="save")
         a("insert_row", qt("qt.insert_row"), self.insert_row, icon="rows-3")
         a("insert_column", qt("qt.insert_column"), self.insert_column, icon="columns-3")
+        a("formula", ui("Formula…"), self.edit_formula, icon="sigma")
         a("delete_rows", qt("qt.delete_rows"), self.delete_rows, icon="trash-2")
         a("exclude", tr("ribbon.exclude"), self.toggle_exclusion, icon="filter")
         a("analyze", tr("ribbon.analyze"), self.analyze, icon="sigma", shortcut="Ctrl+Shift+A")
@@ -349,7 +350,7 @@ class MainWindow(QMainWindow):
                                          "export_pdf", "|",
                                          "classic", "language", "about"]),
             (tr("ribbon.modern.home"), ["paste", "cut", "copy", "|", "undo", "redo", "|", "new_table", "insert_row",
-                                         "insert_column", "exclude", "|", "*analyze", "new_graph", "|", "recalculate",
+                                         "insert_column", "formula", "exclude", "|", "*analyze", "new_graph", "|", "recalculate",
                                          "export", "|", "new_info", "duplicate_family", "save_family"]),
             (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
@@ -438,7 +439,7 @@ class MainWindow(QMainWindow):
         data = kind == "data"
         editable = data and not stored_prism_view(self.project.tables[self.selected[1]])
         idle = self.job is None
-        for key in ("cut", "paste", "insert_row", "insert_column", "delete_rows", "exclude"):
+        for key in ("cut", "paste", "insert_row", "insert_column", "delete_rows", "exclude", "formula"):
             self.actions[key].setEnabled(editable and idle)
         self.actions["copy"].setEnabled(data)
         for key in ("duplicate_family", "save_family"):
@@ -1033,13 +1034,32 @@ class MainWindow(QMainWindow):
             return
         dataset = self.project.tables[title]
         if not 0 <= column < len(dataset.raw.columns):
-            if column >= len(dataset.raw.columns) and column < len(dataset.raw.columns) + len(dataset.formulas):
-                self.error(qt("qt.formula_column"))
+            formulas = list(dataset.formulas)
+            if 0 <= column - len(dataset.raw.columns) < len(formulas):  # A calculated column: change its formula.
+                self.edit_formula(formulas[column - len(dataset.raw.columns)])
             return
         name, ok = QInputDialog.getText(self, qt("qt.rename_column"), qt("qt.column_name"),
                                         text=str(dataset.raw.columns[column]))
         if ok:
             self._apply_edit(title, lambda: self.project.rename_column(title, column, name))
+
+    def edit_formula(self, name=None):
+        """Formula…: a new calculated column, or the one selected (or double-clicked) to change."""
+        title = self._active_table()
+        if title is None or self.busy():
+            return
+        dataset = self.project.tables[title]
+        if name is None and self.sheet is not None:
+            current = self.sheet.currentIndex()
+            formulas = list(dataset.formulas)
+            position = current.column() - len(dataset.raw.columns) if current.isValid() else -1
+            name = formulas[position] if 0 <= position < len(formulas) else ""
+        from .formula import FormulaDialog
+        dialog = FormulaDialog(self, dataset, name or "")
+        if dialog.exec() != FormulaDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        column, expression = dialog.result
+        self._apply_edit(title, lambda: self.project.set_formula(title, column, expression))
 
     def toggle_exclusion(self):
         title = self._active_table()

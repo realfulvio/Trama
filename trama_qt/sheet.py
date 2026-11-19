@@ -1,7 +1,7 @@
 """Table views: the editable worksheet and the read-only result tables."""
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QGuiApplication, QKeySequence
-from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QMenu, QTableView
+from PySide6.QtWidgets import QAbstractItemDelegate, QAbstractItemView, QHeaderView, QMenu, QTableView
 
 from analisi.grid_data import clipboard_decimal_mark, clipboard_rows, copy_block
 from analisi.i18n import tr
@@ -78,8 +78,8 @@ class WorksheetView(QTableView):
 
     def closeEditor(self, editor, hint):
         # Enter moves down, as in the classic grid and in spreadsheets.
-        if hint == QAbstractItemView.EndEditHint.SubmitModelCache:
-            hint = QAbstractItemView.EndEditHint.NoHint
+        if hint == QAbstractItemDelegate.EndEditHint.SubmitModelCache:  # PySide6 has the enum on the delegate.
+            hint = QAbstractItemDelegate.EndEditHint.NoHint
             super().closeEditor(editor, hint)
             current = self.currentIndex()
             if current.isValid() and current.row() + 1 < self.model().rowCount():
