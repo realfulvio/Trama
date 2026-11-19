@@ -15,6 +15,29 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Rifinitura grafica Vetro su Qt · ramo `claude/project-thread-n2ib1i` (2026-11-19)
+
+Ramo nuovo da main `7a7340c`, solo interfaccia: `analisi/` non è toccato. Anteprima con schermate prima/dopo e video in `/mnt/project-files/qt-rifinitura-1119/` (fuori dal repo).
+
+- Tema chiaro, scuro o "Come il sistema" (predefinito): Visualizza → Come il sistema / Chiaro / Scuro. La scelta resta salvata (`QSettings` TramaStat/Trama, chiave `qt/theme`), `TRAMA_THEME=light|dark|system` la forza. In "Come il sistema" il tema cambia da solo quando Windows passa da chiaro a scuro (`styleHints().colorSchemeChanged`). I grafici restano su carta bianca.
+- Icone: ogni icona Lucide è un `QIconEngine` (`theme.SvgIcon`) che disegna l'SVG alla dimensione e alla scala del monitor in cui compare, quindi resta nitida anche spostando la finestra tra schermi con scala diversa, e prende il colore del tema al momento del disegno. La barra di matplotlib usa le stesse icone (`theme.plot_toolbar`). Nuove icone Lucide: house, arrow-left, arrow-right, move, check, monitor, chart-spline.
+- Ombre morbide sotto i due pannelli, disegnate a nove fette dallo sfondo della finestra (`theme.ShadowCanvas`): nessun `QGraphicsEffect` su tabelle e grafici, quindi lo scorrimento della griglia non rallenta.
+- Vetro: quando si apre un dialogo modale, la finestra principale dietro viene sfocata e velata (`theme.GlassVeil`), con dissolvenza in 200 ms. Il dialogo resta una finestra nativa.
+- Angoli arrotondati e controlli disegnati da noi: caselle di spunta e pulsanti di opzione col colore Trama, frecce dei menu a tendina e dei campi numerici, schede dei dialoghi a pillola, riquadri arrotondati, pulsante principale con leggero gradiente, scrollbar sottili. Su Windows 11 menu e tendine hanno gli angoli arrotondati e l'ombra di sistema (DWM); altrove li arrotonda il foglio di stile.
+- Barra del titolo su Windows 11: dark mode nativa nel tema scuro e colore della barra uguale allo sfondo (`theme.native_frame`, DWM attributi 20, 33, 35, 36). Su Windows 10 non succede nulla.
+- Animazioni brevi: barra che scorre sotto la scheda attiva, dissolvenza della barra comandi e del foglio aperto, navigatore che si chiude e si apre scorrendo, velo del vetro. Si spengono da sole se Windows ha "Effetti di animazione" disattivato, offscreen (test e smoke) o con `TRAMA_NO_ANIMATIONS=1`.
+- Cifre tabulari (Figtree `tnum`) nella griglia e nelle tabelle dei risultati.
+- Ispettore largo 330 px invece di 310: a 150% con i campi arrotondati compariva la barra di scorrimento orizzontale.
+- Da provare su Windows, a 100% e 150%:
+  - Visualizza → Scuro, poi Chiaro, poi Come il sistema; con "Come il sistema" cambiare il tema di Windows (Impostazioni → Personalizzazione → Colori) con Trama aperta: deve seguire senza riavvio. Barra del titolo scura nel tema scuro.
+  - Analizza…: la finestra dietro si sfoca e si vela; chiudendo il dialogo torna nitida. Lo stesso con Formato grafico e i dialoghi annidati (il velo resta finché è aperto il primo).
+  - Tasto destro sul navigatore e una tendina qualsiasi: angoli arrotondati con ombra, senza bordi neri.
+  - Caselle di spunta, frecce delle tendine e dei campi numerici visibili anche nel portabile PyInstaller (servono il modulo QtSvg e il plugin `imageformats/qsvg`).
+  - Spostare la finestra tra un monitor al 100% e uno al 150%: icone nitide su entrambi.
+  - Con "Effetti di animazione" spento in Windows non deve muoversi nulla.
+  - `python -m trama_qt --smoke` alle due scale, anche con `TRAMA_THEME=dark`.
+- Test attesi: `tests.test_qt_shell` 26/26 OK (5 nuovi: temi, icone SVG, vetro dei dialoghi modali, ombre e navigatore, cifre tabulari). Smoke Qt nel container: PASS a 1920×1080 100% (chiaro e scuro), 1920×1080 150% (chiaro e scuro), 1366×768 150%.
+
 ### cd1faeb · Fit globale: editor Qt di coefficienti e vincoli per serie (2026-11-19, ramo `claude/project-thread-7tdnhf`)
 
 Pacchetto `Trama-Claude-Qt-Fit-Globali-095`, base main `7a7340c`. PR draft separata (non è la #56). Dettagli, sovrapposizioni con il pacchetto ANOVA in `analysis_dialog.py` e istruzioni GUI in `docs/qt-global-fit-095.md`.

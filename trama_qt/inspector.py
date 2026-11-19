@@ -46,7 +46,7 @@ class GraphInspector(QFrame):
     def __init__(self, run, canvas, *, confirmed, commit, closed, element=None, parent=None):
         super().__init__(parent)
         self.setObjectName("card")
-        self.setFixedWidth(310)
+        self.setFixedWidth(330)  # Room for the rounded fields at 150% without a sideways scroll bar.
         self.run, self.canvas, self.figure = run, canvas, canvas.figure
         self._confirmed, self._commit, self._closed = confirmed, commit, closed
         self._xy = run.method == XY_METHOD

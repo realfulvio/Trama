@@ -1256,6 +1256,97 @@ class QtShellTests(unittest.TestCase):
             self.assertTrue(overflow.isVisible())
             self.assertIn(classic, overflow.menu().actions())
 
+    # -- look and feel -----------------------------------------------------------------------------
+    def test_light_dark_and_system_themes(self):
+        from trama_qt import theme
+        window = self.window
+        self.addCleanup(lambda: (theme.STATE.update(mode="system"), theme.apply(self.app)))
+        theme.set_mode("dark", self.app, remember=False)
+        self.app.processEvents()
+        self.assertTrue(theme.STATE["dark"])
+        self.assertEqual(theme.T["bg"], theme.DARK["bg"])
+        self.assertIn(theme.DARK["bg"], self.app.styleSheet())
+        self.assertTrue(window.actions["theme_dark"].isChecked())
+        self.assertFalse(window.actions["theme_light"].isChecked())
+        heading = window.navigator.topLevelItem(0)
+        self.assertEqual(heading.foreground(0).color().name().upper(), theme.DARK["text2"].upper())
+        theme.set_mode("light", self.app, remember=False)
+        self.assertEqual(theme.T["bg"], theme.LIGHT["bg"])
+        self.assertTrue(window.actions["theme_light"].isChecked())
+        theme.STATE["mode"] = "system"  # The offscreen platform reports no dark scheme.
+        theme.apply(self.app)
+        self.assertEqual(theme.STATE["dark"], theme.system_dark(self.app))
+
+    def test_icons_are_drawn_from_svg_at_any_scale_and_follow_the_theme(self):
+        from PySide6.QtCore import QSize
+        from trama_qt import theme
+        self.addCleanup(lambda: theme.apply(self.app))
+        icon = theme.icon("sigma", "text2")
+        for ratio in (1.0, 1.5, 2.0):
+            pixmap = icon.pixmap(QSize(18, 18), ratio)
+            self.assertEqual(pixmap.width(), round(18 * ratio))
+            self.assertEqual(pixmap.devicePixelRatio(), ratio)
+
+        def ink(pixmap):
+            image = pixmap.toImage()
+            return max(((image.pixelColor(x, y).alpha(), image.pixelColor(x, y).name())
+                        for x in range(image.width()) for y in range(image.height())))
+
+        theme.apply(self.app, dark=False)
+        light = ink(icon.pixmap(QSize(24, 24), 1.0))
+        theme.apply(self.app, dark=True)
+        dark = ink(icon.pixmap(QSize(24, 24), 1.0))
+        self.assertGreater(light[0], 200)
+        self.assertNotEqual(light[1], dark[1])
+
+    def test_modal_dialog_frosts_the_window_behind_it(self):
+        from PySide6.QtCore import QEvent
+        from PySide6.QtWidgets import QDialog
+        from trama_qt.theme import GlassVeil
+        dialog = QDialog(self.window)
+        dialog.setModal(True)
+        dialog.show()
+        self.app.processEvents()
+        veils = [child for child in self.window.children() if isinstance(child, GlassVeil)]
+        self.assertEqual(len(veils), 1)
+        self.assertEqual(veils[0].geometry(), self.window.rect())
+        self.assertEqual(veils[0].progress, 1.0)  # No animation offscreen.
+        dialog.reject()
+        self.app.processEvents()
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.assertEqual([child for child in self.window.children() if isinstance(child, GlassVeil)], [])
+        plain = QDialog(self.window)  # Not modal: the window stays clear.
+        plain.show()
+        self.app.processEvents()
+        self.assertEqual([child for child in self.window.children() if isinstance(child, GlassVeil)], [])
+        plain.close()
+
+    def test_panels_cast_a_soft_shadow_and_the_navigator_slides(self):
+        from trama_qt import theme
+        window = self.window
+        central = window.centralWidget()
+        self.assertIsInstance(central, theme.ShadowCanvas)
+        self.app.processEvents()
+        image = central.grab().toImage()
+        card = window.nav_card
+        below = card.mapTo(central, card.rect().bottomLeft())
+        shade = image.pixelColor(below.x() + card.width() // 2, below.y() + 6)
+        self.assertNotEqual(shade.name().upper(), theme.T["bg"].upper())
+        window.toggle_navigator()
+        self.assertFalse(card.isVisible())
+        window.toggle_navigator()
+        self.app.processEvents()
+        self.assertTrue(card.isVisible())
+        self.assertGreater(window.body.sizes()[0], 100)
+
+    def test_worksheet_uses_tabular_figures(self):
+        from PySide6.QtGui import QFont
+        self.window.new_table()
+        self.app.processEvents()
+        font = self.window.sheet.font()
+        if hasattr(font, "featureValue"):
+            self.assertEqual(font.featureValue(QFont.Tag("tnum")), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

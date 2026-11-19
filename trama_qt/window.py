@@ -9,10 +9,11 @@ from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QStringListModel, Qt, QTimer
-from PySide6.QtGui import QAction, QIcon, QKeySequence
-from PySide6.QtWidgets import (QComboBox, QCompleter, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
+from PySide6.QtWidgets import (QComboBox, QCompleter, QFileDialog, QFrame, QHBoxLayout, QInputDialog,
+                               QLabel, QLineEdit,
                                QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QSplitter, QStackedWidget,
-                               QTabBar, QTabWidget, QToolBar, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+                               QTabWidget, QToolBar, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                                QWidget)
 
 from analisi._version import VERSION
@@ -129,7 +130,7 @@ class Page(QWidget):
         if primary:
             button.setObjectName("primary")
         if icon:
-            button.setIcon(theme.icon(icon, theme.T["on_accent"] if primary else None, 16))
+            button.setIcon(theme.icon(icon, "on_accent" if primary else None, 16))
         button.clicked.connect(handler)
         self.actions_row.addWidget(button)
         return button
@@ -177,11 +178,13 @@ class MainWindow(QMainWindow):
         self.info_editor = None
         self.inspector_wanted = False
         self.inspector_element = None
+        self.navigator_width = 250
         self.setAcceptDrops(True)
         self.setWindowIcon(QIcon(str(theme.ASSETS / "trama.png")))
         self._build()
         self.refresh()
         self.show_home()
+        theme.SIGNALS.changed.connect(self._theme_changed)
         screen = self.screen().availableGeometry() if self.screen() else None
         if screen is not None:
             self.resize(min(1280, screen.width() - 40), min(820, screen.height() - 60))
@@ -253,6 +256,13 @@ class MainWindow(QMainWindow):
         a("source_analysis", tr("chain.source_analysis"), self.source_analysis, icon="chevron-up")
         a("change_input", tr("chain.change_input"), self.change_input_result, icon="arrow-up-down")
         a("navigator", tr("command.toggle_navigator"), self.toggle_navigator, icon="panel-bottom", shortcut="Ctrl+F1")
+        themes = QActionGroup(self)
+        for mode, icon in (("system", "monitor"), ("light", "sun"), ("dark", "moon")):
+            action = a(f"theme_{mode}", qt(f"qt.theme_{mode}"), lambda mode=mode: theme.set_mode(mode), icon=icon,
+                       tip=qt("qt.theme_hint"))
+            action.setCheckable(True)
+            action.setChecked(theme.STATE["mode"] == mode)
+            themes.addAction(action)
         a("search", qt("qt.search"), self.focus_search, shortcut="Ctrl+K")
         for name, method in (("descriptive", "Descriptive statistics"), ("ttest", "t-test"),
                              ("anova", "One-way ANOVA"), ("correlation", "Correlation"),
@@ -260,15 +270,16 @@ class MainWindow(QMainWindow):
                              ("survival", "Kaplan–Meier survival"), ("contingency", "Contingency table")):
             a(name, method_label(method), lambda method=method: self.analyze(method=method))
 
-        central = QWidget()
+        central = theme.ShadowCanvas()  # Paints the soft shadows under the two panels.
         root = QVBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         root.addWidget(self._command_bar())
 
         body = QSplitter(Qt.Orientation.Horizontal)
-        body.setContentsMargins(10, 10, 10, 6)
-        body.setHandleWidth(10)
+        body.setContentsMargins(12, 12, 12, 16)
+        body.setHandleWidth(12)
+        self.body = body
         nav_card = QFrame()
         nav_card.setObjectName("card")
         nav_layout = QVBoxLayout(nav_card)
@@ -286,11 +297,13 @@ class MainWindow(QMainWindow):
         nav_layout.addWidget(self.navigator)
         self.nav_card = nav_card
         body.addWidget(nav_card)
+        central.add_card(nav_card)
         page_card = QFrame()
         page_card.setObjectName("card")
         self.page_layout = QVBoxLayout(page_card)
         self.page_layout.setContentsMargins(0, 0, 0, 0)
         body.addWidget(page_card)
+        central.add_card(page_card)
         body.setStretchFactor(0, 0)
         body.setStretchFactor(1, 1)
         body.setSizes([250, 900])
@@ -324,7 +337,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(10, 4, 10, 6)
         layout.setSpacing(2)
         top = QHBoxLayout()
-        self.ribbon_tabs = QTabBar()
+        self.ribbon_tabs = theme.SlidingTabBar()
         self.ribbon_tabs.setObjectName("ribbonTabs")
         self.ribbon_tabs.setDrawBase(False)
         self.ribbon_tabs.setExpanding(False)
@@ -334,7 +347,7 @@ class MainWindow(QMainWindow):
         self.search.setPlaceholderText(qt("qt.search"))
         self.search.setClearButtonEnabled(True)
         self.search.setMaximumWidth(320)
-        self.search.addAction(theme.icon("search", theme.T["text3"], 16), QLineEdit.ActionPosition.LeadingPosition)
+        self.search.addAction(theme.icon("search", "text3", 16), QLineEdit.ActionPosition.LeadingPosition)
         self.completer = QCompleter(self)
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.completer.setFilterMode(Qt.MatchFlag.MatchContains)
@@ -358,7 +371,8 @@ class MainWindow(QMainWindow):
             (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "shapes",
                                           "pairwise", "compact_letters", "change", "recalculate", "|", "new_layout",
                                           "edit_layout", "|", "export", "export_options"]),
-            (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
+            (tr("ribbon.modern.view"), ["navigator", "|", "theme_system", "theme_light", "theme_dark", "|",
+                                         "language", "classic"]),
         ]
         for title, keys in groups:
             self.ribbon_tabs.addTab(title)
@@ -376,14 +390,24 @@ class MainWindow(QMainWindow):
                     if key.startswith("*"):
                         button = row.widgetForAction(action)
                         button.setObjectName("primary")
-                        button.setIcon(theme.icon(self.icons.get(key[1:], "sigma"), theme.T["on_accent"]))
+                        button.setIcon(theme.icon(self.icons.get(key[1:], "sigma"), "on_accent"))
             self.ribbon.addWidget(row)
-        self.ribbon_tabs.currentChanged.connect(self.ribbon.setCurrentIndex)
+        self.ribbon_tabs.currentChanged.connect(self._ribbon_page)
         self.ribbon_tabs.setCurrentIndex(1)
         layout.addWidget(self.ribbon)
         names = [action.text().replace("&", "") for action in self.actions.values() if action.text()]
         self.completer.setModel(QStringListModel(sorted(set(names)), self))
         return bar
+
+    def _ribbon_page(self, index):
+        self.ribbon.setCurrentIndex(index)
+        theme.fade_in(self.ribbon.currentWidget(), 140)
+
+    def _theme_changed(self):
+        """Colours that are not in the style sheet (navigator headings) are redrawn in the new theme."""
+        for mode in theme.MODES:
+            self.actions[f"theme_{mode}"].setChecked(theme.STATE["mode"] == mode)
+        self.refresh()
 
     # == small helpers ============================================================================
     def error(self, error):
@@ -414,7 +438,15 @@ class MainWindow(QMainWindow):
             getattr(self.sheet, name)()
 
     def toggle_navigator(self):
-        self.nav_card.setVisible(not self.nav_card.isVisible())
+        """Slide the navigator closed or open (at once when animations are off)."""
+        card = self.nav_card
+        if card.isVisible():
+            width = self.body.sizes()[0]
+            self.navigator_width = width or self.navigator_width
+            theme.slide_splitter(self.body, width, 0, done=lambda: card.setVisible(False))
+        else:
+            card.setVisible(True)
+            theme.slide_splitter(self.body, 0, self.navigator_width)
 
     def update_title(self):
         title = self.project.title
@@ -481,7 +513,7 @@ class MainWindow(QMainWindow):
     def _entry(self, section, text, ref, icon):
         item = QTreeWidgetItem([text])
         item.setData(0, Qt.ItemDataRole.UserRole, ref)
-        item.setIcon(0, theme.icon(icon, theme.T["text2"], 16))
+        item.setIcon(0, theme.icon(icon, "text2", 16))
         item.setToolTip(0, text)
         section.addChild(item)
         if ref == self.selected:
@@ -575,6 +607,7 @@ class MainWindow(QMainWindow):
             self.page.deleteLater()
         self.page = page
         self.page_layout.addWidget(page)
+        theme.fade_in(page)
 
     def show_home(self):
         self.dispose_inspector()
@@ -772,6 +805,7 @@ class MainWindow(QMainWindow):
         if toolbar:
             tools = NavigationToolbar2QT(canvas, page)
             tools.setIconSize(theme.icon_size(18))
+            theme.plot_toolbar(tools)
             page.add(tools, 0)
         row = QWidget()
         line = QHBoxLayout(row)

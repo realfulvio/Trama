@@ -41,6 +41,7 @@ def main(argv=None):
     import matplotlib
     matplotlib.use("QtAgg")
     theme.load_fonts()
+    theme.STATE["mode"] = theme.saved_mode()  # Light, dark or as the system (View tab).
     theme.apply(app)
     app.setWindowIcon(QIcon(str(theme.ASSETS / "trama.png")))
 
