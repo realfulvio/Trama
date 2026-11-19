@@ -11,6 +11,10 @@ See [0.93 validation](validation-093.md) for complete GUI regressions and native
 [features](features.md), and [format compatibility](compatibility.md).
 Tests document particular cases and are not a clinical or regulatory certification.
 
+## Changes in the 0.96 beta candidate
+
+The Qt workspace supports [reusable figure styles](qt-graph-style-presets.md) and [batch export](qt-batch-export.md). Compatible XML projects can recover a one-site binding fit and its linked saturation and Scatchard layout. The observed points and manual line can be edited independently. [Supported import details](compatibility.md).
+
 ## Feature families and open work
 
 The table is a family-level development inventory. Detailed later increments and
