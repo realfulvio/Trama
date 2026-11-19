@@ -6749,7 +6749,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         links = {link for run in affected if isinstance(link := run.options.get(PRISM_GRAPH_LINK), str)}
         if links:
             for run in self.runs:
-                if run.method == SAVED_BINARY_LAYOUT and isinstance(panel_links := run.options.get(PRISM_PANEL_DATA), dict):
+                if isinstance(panel_links := run.options.get(PRISM_PANEL_DATA), dict):
                     if any(isinstance(link, str) and link in links for link in panel_links.values()):
                         run.result = None
         self.dirty = True
@@ -7481,7 +7481,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         parameter_profile = (run.method in ("Nonlinear regression", CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION)
                              and run.options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE)
         control = CalculationControl() if (parameter_profile or cancellable_run(run.method, run.options)) else None
-        layout_data = self.layout_panel_data(run) if run.method == SAVED_BINARY_LAYOUT else None
+        layout_data = self.layout_panel_data(run) if isinstance(run.options.get(PRISM_PANEL_DATA), dict) else None
         self.pending = self.worker.submit(self.compute, run, frame, None, control, layout_data, pairwise)
         self.begin_calculation(control)
         self.update_worksheet_history_buttons()

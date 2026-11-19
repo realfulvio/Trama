@@ -933,14 +933,19 @@ def _classic_analysis(method, frame, options, predict, run):
                    for title, parts in tables.items()}, figure)
 
 
-def _imported_xy(frame, options):
+def _imported_xy(frame, options, layout_data=None):
     from .prism_mv_scatter import APPEARANCE, appearance_record, apply_axes
+    from .prism_xml_binding_layout import XML_BINDING_XY, render_binding_graph
     from .prism_xml_xy import XML_ERROR_BARS, render_xml_error_graph
     from .prism_zip_column import ZIP_COLUMN, render_aligned_column
     from .prism_zip_xy import ZIP_SPARSE_XY, render_sparse_xy
 
     if XML_ERROR_BARS in options:
         return render_xml_error_graph(frame, options)
+    if XML_BINDING_XY in options:
+        binding = (layout_data or {}).get("binding")
+        return render_binding_graph(frame, options[XML_BINDING_XY], options.get(PRISM_TITLE, "Binding"),
+                                    binding=binding)
     if ZIP_SPARSE_XY in options:
         return render_sparse_xy(frame, options[ZIP_SPARSE_XY], options.get(PRISM_TITLE, "Prism XY graph"))
     if ZIP_COLUMN in options:
@@ -1053,12 +1058,16 @@ def _imported_layout(options, layout_data=None):
 
 
 def analyse(method, frame, options, *, layout_data=None, cancel=None):
+    from .prism_xml_binding import SCATCHARD, scatchard
+
     o = options
     if o.get("Linear trend") and method != "One-way ANOVA":
         from .trend_anova import reject_unless_one_way
         reject_unless_one_way(method)
     if method == SAVED_XY:
-        return _imported_xy(frame, o)
+        return _imported_xy(frame, o, layout_data)
+    if method == SCATCHARD:
+        return scatchard(frame, o)
     if method == SAVED_BINARY_RESULT:
         return Result({o.get(PRISM_RESULT_SHEET, "Saved results"): frame})
     if method == SAVED_BINARY_GRAPH:

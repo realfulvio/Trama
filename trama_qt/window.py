@@ -28,6 +28,7 @@ from analisi.prism_restore import (PRISM_GRAPH_LINK, PRISM_PREVIEW, SAVED_BINARY
 from analisi.prism_zip_layout import ZIP_LAYOUT
 from analisi.prism_zip_column import ZIP_COLUMN
 from analisi.prism_xml_xy import XML_ERROR_BARS
+from analisi.prism_xml_binding_layout import XML_BINDING_XY
 from analisi.prism_zip_xy import ZIP_SPARSE_XY
 from analisi.text_import import TEXT_SUFFIXES
 from analisi.workbench import GRAPH_METHODS, GROUPS
@@ -52,7 +53,7 @@ except Exception:  # pragma: no cover
     threshold_text = None
 
 GRAPHING = tuple(GROUPS.get("Graphing", ())) + ("Plot a function",)
-SOURCE_XY = {XML_ERROR_BARS, ZIP_SPARSE_XY, ZIP_COLUMN}
+SOURCE_XY = {XML_ERROR_BARS, XML_BINDING_XY, ZIP_SPARSE_XY, ZIP_COLUMN}
 
 
 def _saved_recipe(run):
