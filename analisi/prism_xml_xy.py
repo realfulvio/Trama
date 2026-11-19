@@ -16,6 +16,7 @@ from .prism_binary_editable import (_axis_config, _id_array, _one, _project_reco
                                     _text_object)
 from .prism_binary_graphs import _read_title
 from .prism_restore import PRISM_TITLE, SAVED_XY
+from .prism_xml_binding import restored_binding_fits
 from .reporting import Result
 
 XML_ERROR_BARS = "Prism XML XY errors"
@@ -44,6 +45,15 @@ def attach_xml_error_graphs(root, namespace, sources):
         index, encoding, graphs, tables = _project_records(data, sources)
     except (ValueError, ZlibError, StructError):
         return
+
+    try:
+        fits = list(restored_binding_fits(data, sources))
+    except (ValueError, StructError):
+        fits = []
+    for frame, options in fits:
+        recipes = frame.attrs.setdefault("prism_recipes", [])
+        if len(recipes) < 256:
+            recipes.append(("Nonlinear regression", options))
 
     for uid in index:
         graph = graphs.get(uid)
