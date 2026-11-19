@@ -1,11 +1,13 @@
 """Restore positioned pages whose graph links resolve to a shared XY worksheet."""
 
+from math import hypot
 from struct import error as StructError, unpack_from
 
 from matplotlib.colors import is_color_like
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
+from matplotlib.patches import Polygon
 
 from .prism_binary import _records
 from .prism_binary_editable import _one, _require, _subgroups
@@ -17,6 +19,7 @@ from .prism_zip_xy import render_sparse_xy
 ZIP_LAYOUT = "Prism ZIP layout"
 _MAX_BYTES = 2 * 1024 * 1024
 _MAX_OBJECTS = 32
+_ARROW_ENDS = {1: [1], 2: [0], 3: [0, 1]}
 
 
 def _positioned_records(data, fen_id):
@@ -47,7 +50,11 @@ def _connector(records):
         _require(len(point) == 20 and unpack_from("<I", point)[0] == 2 and not any(point[12:]))
         ends.append(list(unpack_from("<2i", point, 4)))
     _require(ends[0] != ends[1])
-    return {"ends": ends, "color": "#" + bytes(style[4:7]).hex(), "thickness": thickness}
+    connector = {"ends": ends, "color": "#" + bytes(style[4:7]).hex(), "thickness": thickness}
+    direction, profile, size = unpack_from("<3H", style, 8)
+    if direction in _ARROW_ENDS and (profile, size) == (1, 0):
+        connector["arrow_ends"] = _ARROW_ENDS[direction].copy()
+    return connector
 
 
 def _linked_objects(records, graphs):
@@ -113,9 +120,34 @@ def _page_size(layout):
         _require(0 <= left < right <= w and 0 <= top < bottom <= h)
     for connector in layout["connectors"]:
         start, end = connector["ends"]
+        arrow_ends = connector.get("arrow_ends", [])
         _require(start != end and all(0 <= x <= w and 0 <= y <= h for x, y in (start, end))
-                 and 0 < connector["thickness"] <= 200 and is_color_like(connector["color"]))
+                 and 0 < connector["thickness"] <= 200 and is_color_like(connector["color"])
+                 and arrow_ends in ([], [0], [1], [0, 1]) and all(type(end) is int for end in arrow_ends))
     return w, h
+
+
+def _draw_connector(figure, connector, width, height, units):
+    color = connector["color"]
+    x = tuple(point[0] / width for point in connector["ends"])
+    y = tuple(1 - point[1] / height for point in connector["ends"])
+    line = Line2D(x, y, transform=figure.transFigure, color=color,
+                  linewidth=72 * connector["thickness"] / units)
+    figure.add_artist(line)
+    for end in connector.get("arrow_ends", []):
+        tip_x, tip_y = connector["ends"][end]
+        other_x, other_y = connector["ends"][1 - end]
+        dx, dy = other_x - tip_x, other_y - tip_y
+        length = hypot(dx, dy)
+        # The default filled cap measures 90 by 72 file units at 600 units/inch
+        # in the reference drawings, independently of the stroke width.
+        head = min(units * .15, length / 2) / length
+        base_x, base_y = tip_x + dx * head, tip_y + dy * head
+        side_x, side_y = -.4 * dy * head, .4 * dx * head
+        vertices = ((tip_x / width, 1 - tip_y / height),
+                    ((base_x + side_x) / width, 1 - (base_y + side_y) / height),
+                    ((base_x - side_x) / width, 1 - (base_y - side_y) / height))
+        figure.add_artist(Polygon(vertices, transform=figure.transFigure, facecolor=color, edgecolor="none"))
 
 
 def render_positioned_layout(frame, layout):
@@ -140,11 +172,7 @@ def render_positioned_layout(frame, layout):
                 for label in legend.get_texts():
                     label.set_parse_math(False)
         for connector in layout["connectors"]:
-            ((x0, y0), (x1, y1)) = connector["ends"]
-            line = Line2D((x0 / width, x1 / width), (1 - y0 / height, 1 - y1 / height),
-                          transform=figure.transFigure, color=connector["color"],
-                          linewidth=72 * connector["thickness"] / layout["units_per_inch"])
-            figure.add_artist(line)
+            _draw_connector(figure, connector, width, height, layout["units_per_inch"])
         return figure
     except (KeyError, TypeError, ValueError, OverflowError) as error:
         raise ValueError("Invalid page geometry or source data for the saved layout.") from error

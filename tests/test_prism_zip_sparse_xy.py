@@ -36,7 +36,7 @@ def _graph(markers, fen_id=8):
     return b"PCFFGRA4" + _group(0x8001, bytes(12), _group(0x8012, pack("<H", fen_id), graph))
 
 
-def _layout(graph_id=9):
+def _layout(graph_id=9, arrow_direction=0):
     dimensions = pack("<2i", 850, 1100) + bytes(292)
     references = pack("<H", 2)
     references += b"".join(pack("<IH6s", uid, 65535, bytes(6)) for uid in (8, 9))
@@ -49,6 +49,7 @@ def _layout(graph_id=9):
                       for x, y in ((3900, 1750), (600, 2300)))
     stroke = bytearray(26)
     stroke[4:7] = bytes.fromhex("236789")
+    pack_into("<3H", stroke, 8, arrow_direction, 1, 0)
     pack_into("<f", stroke, 22, 6)
     endpoint_group = _group(0x80D8, pack("<I", 2) + bytes(28), points)
     objects += _group(0x8020, line, _record(0x23, stroke) + endpoint_group)
@@ -58,7 +59,7 @@ def _layout(graph_id=9):
     return b"PCFFGRA4" + _group(0x8001, bytes(12), units + _group(0x8035, pack("<H", 0), layout))
 
 
-def _write(project, *, bad_link=False, layout_link=None):
+def _write(project, *, bad_link=False, layout_link=None, arrow_direction=0):
     table = {"format": "xy", "dataFormat": "y_single", "uid": "raw",
              "xDataSet": "x", "dataSets": ["first", "second"]}
     members = {
@@ -88,7 +89,7 @@ def _write(project, *, bad_link=False, layout_link=None):
         if layout_link is not None:
             detail = _graph([(20, 205, "22aaff"), (21, 206, "ff0088")], fen_id=9)
             archive.writestr("graphs/detail/data.bin", detail)
-            archive.writestr("layouts/page/data.bin", _layout(layout_link))
+            archive.writestr("layouts/page/data.bin", _layout(layout_link, arrow_direction))
 
 
 class PrismZipSparseXYTests(unittest.TestCase):
@@ -153,6 +154,25 @@ class PrismZipSparseXYTests(unittest.TestCase):
             svg = Path(scratch) / "positioned.svg"
             figure.savefig(svg)
             self.assertNotIn("<image", svg.read_text(encoding="utf-8"))
+
+    def test_layout_arrows_keep_the_saved_direction_at_each_endpoint(self):
+        from matplotlib.patches import Polygon
+
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "arrows.pzt"
+            for direction, expected in ((1, ((600, 2300),)),
+                                        (2, ((3900, 1750),)),
+                                        (3, ((3900, 1750), (600, 2300)))):
+                with self.subTest(direction=direction):
+                    _write(path, layout_link=9, arrow_direction=direction)
+                    dataset = Dataset(load_tables(path, restore_prism=True)["Signals"])
+                    method, options = dataset.analyses[2]
+                    figure = analyse(method, dataset.frame(mask_excluded=True), options).figure
+                    heads = [artist for artist in figure.artists if isinstance(artist, Polygon)]
+                    self.assertEqual(len(heads), len(expected))
+                    for head, (x, y) in zip(heads, expected, strict=True):
+                        self.assertAlmostEqual(head.get_xy()[0][0], x / 5100)
+                        self.assertAlmostEqual(head.get_xy()[0][1], 1 - y / 6600)
 
     def test_layout_with_a_missing_panel_keeps_the_two_viewable_graphs(self):
         with TemporaryDirectory() as scratch:
