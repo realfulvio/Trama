@@ -20,6 +20,7 @@ from analisi.analysis_chain import ChainCancelled
 from analisi.field_error import FieldError
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, ui
 from analisi.monte_carlo import MonteCarloCancelled
+from analisi.presentation import apply_style, validate_graph_style
 from analisi.prism_restore import SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT
 from analisi.text_import import TEXT_SUFFIXES
 from analisi.workbench import GRAPH_METHODS, GROUPS
@@ -230,6 +231,8 @@ class MainWindow(QMainWindow):
         a("change", tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal",
           shortcut="Ctrl+P")
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
+        from .graph_style_preset_dialog import t as preset_text
+        a("graph_style_presets", preset_text("action"), self.graph_style_presets, icon="sparkles")
         a("inspector", tr("graph.inspector.title"), self.toggle_inspector, icon="paintbrush", shortcut="Ctrl+Shift+I")
         a("annotations", tr("command.graph_annotations"), self.edit_annotations, icon="type")
         a("shapes", tr("shape.button"), self.edit_shapes, icon="shapes")
@@ -346,7 +349,8 @@ class MainWindow(QMainWindow):
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
                                             "use_result", "|", "analyze_result", "source_analysis",
                                             "change_input"]),
-            (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "shapes",
+            (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "graph_style_presets",
+                                          "annotations", "shapes",
                                           "pairwise", "compact_letters", "change", "recalculate", "|", "new_layout",
                                           "edit_layout", "|", "export", "export_options"]),
             (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
@@ -428,6 +432,7 @@ class MainWindow(QMainWindow):
         self.actions["change"].setEnabled(on_run and idle)
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
+        self.actions["graph_style_presets"].setEnabled(graph and idle)
         self.actions["inspector"].setEnabled(graph and idle)
         self.actions["annotations"].setEnabled(graph and idle and self.project.runs[self.selected[1]].method
                                                not in PRISM_GRAPH_METHODS)
@@ -1230,6 +1235,56 @@ class MainWindow(QMainWindow):
             return
         self.show_sheet(*self.selected)
         self.status(qt("qt.style_applied"))
+
+    def graph_style_presets(self):
+        """Graph → Figure styles…: preview a saved style on the graph on screen and commit it once."""
+        from .graph_style_preset_dialog import GraphStylePresetDialog, message as preset_message, t as preset_text
+        from .graph_style_presets import PresetLibrary
+
+        if self.busy() or not self.selected or self.selected[0] != "graph":
+            return
+        index = self.selected[1]
+        run = self.project.runs[index]
+        problem = self.project.graph_format_problem(run)
+        if problem:
+            self.error(problem)
+            return
+        if not self.settle_graph_draft():
+            return
+        figure = run.result.figure
+        confirmed = deepcopy(run.style or {})
+        dialog = GraphStylePresetDialog(self, figure, self._figure_canvas(figure), confirmed, PresetLibrary())
+        accepted = dialog.exec() == GraphStylePresetDialog.DialogCode.Accepted and dialog.result is not None
+        style = dialog.result
+        dialog.deleteLater()
+        if not accepted:
+            return
+        # The dialog was modal, but the graph is read again before anything is stored.
+        current = self.project.runs[index] if index < len(self.project.runs) else None
+        if (self.selected != ("graph", index) or current is not run or run.result is None
+                or run.result.figure is not figure or (run.style or {}) != confirmed):
+            self.error(preset_text("changed"))
+            return
+        try:
+            validate_graph_style(figure.axes[0], style)
+            apply_style(figure, style)
+        except ValueError as error:
+            try:
+                apply_style(figure, confirmed)
+            except ValueError:
+                pass
+            self.error(preset_message(error))
+            return
+        self.commit_style(run, style)
+        self.show_sheet(*self.selected)
+        self.status(preset_text("applied"))
+
+    def _figure_canvas(self, figure):
+        """The canvas that shows ``figure`` on the active page, if any."""
+        for canvas in getattr(self.page, "canvases", ()) or ():
+            if canvas.figure is figure:
+                return canvas
+        return None
 
     def new_layout(self, *, edit=False):
         if self.busy():
