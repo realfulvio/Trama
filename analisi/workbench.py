@@ -16,6 +16,7 @@ from .anova_diagnostics import ensure_graph_budget as ensure_anova_graph_budget,
 from .anova_diagnostics import validate as validate_anova_diagnostics
 from .anova_ss import CHOICES as SS_CHOICES, KEY as SUMS_OF_SQUARES, SHEETS as ANOVA_SHEETS
 from .anova_ss import sums_of_squares as anova_sums_of_squares
+from . import anova_planned_contrasts as planned_contrasts
 from .anova_terms import (CHOICES as TERM_CHOICES, MODEL_TERMS, SHEET as MODEL_TERMS_SHEET, TERM_LIST, TERM_SELECTION,
                           active_factors as anova_active_factors, check_comparison_controls as check_anova_comparisons,
                           selection as anova_term_selection, terms_table as anova_terms_table)
@@ -260,7 +261,12 @@ METHODS = {
                          "Within factors (simple effects)": OPTIONAL_MULTIPLE, "Control level(s), separated by |": TEXT,
                          "Families": ("Separate", "Pooled"), "Reverse comparisons": False,
                          "Correction": ("Holm", "Holm–Šídák", "Šídák", "Bonferroni", "Tukey", "Dunnett", "None"),
-                         ANOVA_EFFECTS: False, ANOVA_ALPHA: 0.05, **ANOVA_DIAG_OPTIONS},
+                         ANOVA_EFFECTS: False, ANOVA_ALPHA: 0.05, **ANOVA_DIAG_OPTIONS,
+                         # Planned contrasts (0.96): read only when the contrast list is not empty.
+                         planned_contrasts.FACTORS: planned_contrasts.FACTOR_LIST,
+                         planned_contrasts.CONTRASTS: planned_contrasts.CONTRAST_LIST,
+                         planned_contrasts.CORRECTION: planned_contrasts.CORRECTIONS,
+                         planned_contrasts.ALPHA: planned_contrasts.DEFAULT_ALPHA},
     "Kaplan–Meier survival": {"Time": None, "Event columns": MULTIPLE, "Grouping variables": OPTIONAL_MULTIPLE,
                               PAIRWISE_CORRECTION: ("None", *PAIRWISE_METHODS), PAIRWISE_CONTROL: GROUP_CHOICE,
                               PAIRWISE_ADJUSTED: True, PAIRWISE_ALPHA: .05,
@@ -435,6 +441,11 @@ def _anova(frame, o):
     validate_anova_diagnostics(o)
     if terms is not None:
         check_anova_comparisons(o, factors, terms)
+    # Planned contrasts (0.96): None without contrasts, so the legacy path reads none of the new keys.
+    model_factors = anova_active_factors(factors, terms) if terms is not None else list(factors)
+    planned = planned_contrasts.check_request(o, model_factors)
+    if planned is not None:
+        planned_contrasts.check_categories(frame, y, model_factors)
     graph = anova_graph_choice(o)
     if graph != "None":
         count = _anova_row_count(frame, y, anova_active_factors(factors, terms) if terms is not None else factors)
@@ -462,6 +473,8 @@ def _anova(frame, o):
             reverse=o.get("Reverse comparisons", False), terms=terms)
     elif within or control:
         raise ValueError("Choose which factor or cells to compare.")
+    if planned is not None:  # the same fit: design, coefficients, residual SS and df of the table above
+        tables.update(planned_contrasts.tables(planned, model_factors, data, design, beta, error, df))
     figure = None
     if anova_diagnostics_active(o):
         extra, figure = build_anova_diagnostics(
