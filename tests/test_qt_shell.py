@@ -217,6 +217,42 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.project.tables["groups"].analyses[graph.slot][1]["Series style"],
                          {"Treated": "Line and points"})
 
+    def test_layout_compose_edit_reopen(self):
+        from trama_qt.layout_dialog import LayoutDialog
+        window = self.window
+        self.open_example()
+        self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        window.show_sheet("data", "groups")
+        self.run_method("Box / violin plot", {"Variables": ["Control", "Treated"]})
+        candidates = window.project.layout_candidates()
+        self.assertEqual(len(candidates), 2)
+        dialog = LayoutDialog(window, candidates)
+        dialog.accept()
+        self.assertIsNone(dialog.result)  # No panels yet.
+        self.assertTrue(dialog.problem.text())
+        dialog.available.selectAll()
+        dialog.add_selected()
+        dialog.panels.setCurrentRow(1)
+        dialog.move_selected(-1)
+        dialog.name.setText("Figura 1")
+        dialog.accept()
+        layout = dialog.result
+        self.assertEqual(layout.panels, [candidates[1].reference, candidates[0].reference])
+        key = window.project.put_layout(layout)
+        window.open_sheet(("layout", key))
+        self.wait()
+        self.assertEqual(window.selected, ("layout", key))
+        self.assertTrue(window.page.canvases)
+        self.assertTrue(window.actions["edit_layout"].isEnabled())
+
+        saved = self.folder / "layout.alab"
+        window.project.save(saved)
+        window.open_path(saved)
+        self.assertEqual([item.name for item in window.project.layouts], ["Figura 1"])
+        window.open_sheet(("layout", 0))
+        self.wait()
+        self.assertIsNotNone(window.project.layout_figure(window.project.layouts[0]))
+
     def test_insert_delete_rename_and_exclude(self):
         window = self.window
         self.open_example()

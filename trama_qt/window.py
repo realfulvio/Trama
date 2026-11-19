@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (QCompleter, QFileDialog, QFrame, QHBoxLayout, QIn
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
 from analisi.field_error import FieldError
-from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr
+from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, ui
 from analisi.monte_carlo import MonteCarloCancelled
 from analisi.prism_restore import SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT
 from analisi.workbench import GRAPH_METHODS, GROUPS
@@ -213,6 +213,8 @@ class MainWindow(QMainWindow):
         a("change", tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal",
           shortcut="Ctrl+P")
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
+        a("new_layout", tr("command.new_layout"), self.new_layout, icon="layout-grid", shortcut="Ctrl+L")
+        a("edit_layout", tr("command.edit_layout"), lambda: self.new_layout(edit=True), icon="layout-grid")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
         a("use_result", qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
         a("navigator", tr("command.toggle_navigator"), self.toggle_navigator, icon="panel-bottom", shortcut="Ctrl+F1")
@@ -328,7 +330,8 @@ class MainWindow(QMainWindow):
             (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
                                             "use_result"]),
-            (tr("ribbon.modern.graph"), ["*new_graph", "|", "format_graph", "change", "recalculate", "export"]),
+            (tr("ribbon.modern.graph"), ["*new_graph", "|", "format_graph", "change", "recalculate", "|", "new_layout",
+                                          "edit_layout", "|", "export"]),
             (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
         ]
         for title, keys in groups:
@@ -407,6 +410,8 @@ class MainWindow(QMainWindow):
         self.actions["change"].setEnabled(on_run and idle)
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
+        self.actions["new_layout"].setEnabled(idle and bool(self.project.layout_candidates()))
+        self.actions["edit_layout"].setEnabled(idle and kind == "layout")
         self.actions["recalculate"].setEnabled((on_run or kind == "layout") and idle)
         self.actions["use_result"].setEnabled(kind == "result" and idle)
         has_data = bool(self.project.tables)
@@ -632,6 +637,7 @@ class MainWindow(QMainWindow):
     def _layout_page(self, index):
         layout = self.project.layouts[index]
         page = Page(layout.name, tr("interface.layout_panels", count=len(layout.panels)))
+        page.button(tr("command.edit_layout"), lambda: self.new_layout(edit=True), primary=True, icon="layout-grid")
         page.button(tr("command.export"), self.export, icon="upload")
         page.button(qt("qt.recalculate"), self.recalculate, icon="history")
         page.finish_actions()
@@ -919,6 +925,28 @@ class MainWindow(QMainWindow):
             return
         self.show_sheet(*self.selected)
         self.status(qt("qt.style_applied"))
+
+    def new_layout(self, *, edit=False):
+        if self.busy():
+            return
+        key = self.selected[1] if edit and self.selected and self.selected[0] == "layout" else None
+        if edit and key is None:
+            return
+        current = self.project.layouts[key] if key is not None else None
+        candidates = self.project.layout_candidates(current)
+        if not candidates:
+            self.error(ui("Create one or more graphs before composing a layout."))
+            return
+        from .layout_dialog import LayoutDialog
+        dialog = LayoutDialog(self, candidates, current)
+        if dialog.exec() != LayoutDialog.DialogCode.Accepted or dialog.result is None or dialog.result == current:
+            return
+        try:
+            key = self.project.put_layout(dialog.result, key)
+        except ValueError as error:
+            self.error(error)
+            return
+        self.open_sheet(("layout", key))
 
     def calculate_candidate(self, candidate, frame, index, *, only=None):
         pairwise = self.project.pairwise_snapshot(candidate)

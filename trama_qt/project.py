@@ -504,6 +504,22 @@ class Project:
         self.sync_links(persist=True)
         return index, dependents
 
+    # -- layouts --------------------------------------------------------------------------------------
+    def layout_candidates(self, current=None):
+        return [run for run in self.runs if (run.result is not None and run.result.figure is not None)
+                or (current is not None and run.reference in current.panels)]
+
+    def put_layout(self, layout, key=None):
+        if key is None:
+            if len(self.layouts) >= 128:
+                raise ValueError(ui("A project supports up to 128 layouts."))
+            self.layouts.append(layout)
+            key = len(self.layouts) - 1
+        else:
+            self.layouts[key] = layout
+        self.dirty = True
+        return key
+
     # -- graph format -----------------------------------------------------------------------------
     def graph_format_problem(self, run):
         """Why this graph cannot be formatted, or None (as in the classic window)."""
