@@ -126,6 +126,8 @@ class CanvasSmoke:
 
     def open_project(self):
         self.window.project.dirty = False
+        if self.window.sessions.find(self.path) is self.window.sessions.active:
+            self.window.close_project()
         self.window.open_path(self.path)
         self.window.open_sheet(("graph", 0))
         self.smoke.wait()

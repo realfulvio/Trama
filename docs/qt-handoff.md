@@ -15,6 +15,26 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Più progetti in schede nella finestra Qt, pacchetto Progetti 0.95 (2026-11-19)
+
+PR draft verso main (ramo `claude/project-thread-hz1cm2`, base main 7a7340c). Windows NON PROVATO.
+
+- Una barra `QTabBar` (`projectTabs`) sopra la barra comandi, con **+** per Nuovo e × su ogni scheda. Ogni scheda ha il suo `Project` (dati, risultati, grafici, layout, Info, cronologia, dirty). `trama_qt/sessions.py` tiene le sessioni senza Qt; in `window.py` solo l'area file e lifecycle (`new_project`, `open_path`, `save`, `close_project`, `switch_project`, `closeEvent`), più le proprietà `project`, `selected`, `inspector_*` che puntano alla sessione attiva.
+- Comandi: Nuovo (Ctrl+N), Apri (Ctrl+O), Chiudi progetto (`window.actions["close_project"]`, Ctrl+W e Ctrl+F4), scheda successiva/precedente (Ctrl+Tab, Ctrl+Shift+Tab). Salva (Ctrl+S) salva la scheda attiva.
+- Stesso percorso (canonico, anche con link): attiva la scheda esistente. La scheda vuota iniziale si riusa. Import e dati CSV lavorano nella scheda attiva. Massimo 6 schede, come la finestra classica.
+- Prima di lasciare una scheda: bozza Inspector (annullare resta lì con la bozza), cella in modifica e note Info vengono salvate nel loro progetto. Se la scrittura avvia un ricalcolo, il cambio scheda parte alla fine.
+- Con un job attivo: schede, Nuovo, Apri e Chiudi sono disabilitati, Annulla calcolo resta raggiungibile. File arrivati nel frattempo (trascinati, riga di comando) si aprono a job finito. Un job porta con sé la sua scheda e non applica mai risultati a un'altra.
+- Chiusura: Salva/Scarta/Annulla solo per il progetto coinvolto. Chiusura della finestra: prima si chiedono tutte le decisioni (Salva/Scarta/Annulla per ogni scheda con modifiche), solo dopo si salva e si chiude; Annulla non salva nulla, un salvataggio fallito lascia la finestra con tutte le schede. L'ultima chiusura lascia una scheda vuota. Salva con nome non sovrascrive un progetto aperto in un'altra scheda (nemmeno Salva famiglia).
+- Etichette EN/IT con • per le modifiche non salvate; stesso nome → cartella che distingue; tooltip col percorso completo.
+- Test: `tests/test_qt_projects.py` (35: sessioni, isolamento con UUID uguali, percorso invalido, dati con app occupata, cancellazione, salvataggio fallito, bozza Inspector, chiusura con due schede dirty, tasti). Smoke: `python -m trama_qt --smoke` ora esegue anche `trama_qt/projects_smoke.py` (due progetti reali con grafico e layout, mouse e tastiera, salva solo A, chiusura/riapertura, CSV, apertura da riga di comando, errore di apertura, misura 10.000×30 in `projects-switch.txt`).
+- Da provare su Windows, a 100% e 150%:
+  - Aprire `sessione-a.alab` e `sessione-b.alab` (nel pacchetto, stesso foglio Misure): due schede, dati diversi, Ctrl+Tab e clic.
+  - Modificare B, tornare ad A, salvare A: B resta con il •, il file di B non cambia.
+  - Chiudere B con Annulla: resta aperta e sporca. Poi chiudere la finestra con due schede sporche e Annulla alla seconda.
+  - Lancio `tramastat.exe sessione-a.alab` e trascinare un secondo .alab sulla finestra.
+  - Tab con il tema scuro e a 150%: caption e × leggibili.
+- Conflitti attesi: `window.py` (area file e lifecycle e il costruttore), `strings.py`, `tests/test_qt_shell.py` (helper `reopen`: aprire un file già aperto ora attiva la sua scheda, quindi i test che salvano e rileggono chiudono prima la scheda), `smoke.py` (due righe dopo `self.editors`), cima di questo file.
+
 ### b7c4ee2 · Galleria di grafici e layout su Qt, pacchetto 03 (2026-11-19)
 
 PR draft verso `main` dal ramo `claude/project-thread-i504fp`, base `7a7340c`. **La consegna è il commit `b7c4ee2`.** Il commit dopo aggiunge solo questa nota. Guida per chi usa il programma: `docs/qt-gallery.md`.

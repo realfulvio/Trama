@@ -178,7 +178,7 @@ class GraphDrawing:
     # -- scope ---------------------------------------------------------------------------------------
     def selected_run(self):
         w = self.window
-        if w.selected and w.selected[0] == "graph" and 0 <= w.selected[1] < len(w.project.runs):
+        if w.gallery is None and w.selected and w.selected[0] == "graph" and 0 <= w.selected[1] < len(w.project.runs):
             return w.project.runs[w.selected[1]]
         return None
 
@@ -202,7 +202,8 @@ class GraphDrawing:
 
     def allowed(self):
         w, tools = self.window, self.toolbar
-        return (w.job is None and self.controller is not None and not (tools is not None and tools.mode)
+        return (w.gallery is None and w.job is None and self.controller is not None
+                and not (tools is not None and tools.mode)
                 and not (w.inspector is not None and w.inspector.has_draft))
 
     # -- page life -----------------------------------------------------------------------------------

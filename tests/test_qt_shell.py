@@ -130,6 +130,15 @@ class QtShellTests(unittest.TestCase):
         self.wait()
         return self.window.project.runs[-1]
 
+    def reopen(self, path):
+        """Read a saved project back from disk. Opening a file that is already open only shows its tab, so the
+        project closes first (it was just saved) and opens again in the tab left empty."""
+        self.assertTrue(self.window.close_project())
+        self.assertTrue(self.window.project.is_empty())
+        self.window.open_path(path)
+        self.app.processEvents()
+        self.assertEqual(Path(self.window.project.path), Path(path))
+
     def open_example(self):
         path = self.folder / "groups.csv"
         pd.DataFrame({"Control": [4.1, 5.0, 4.7, 5.3, 4.9], "Treated": [5.9, 6.3, 6.1, 5.7, 6.6]}).to_csv(
@@ -174,7 +183,7 @@ class QtShellTests(unittest.TestCase):
         window.project.save(saved)
         window.refresh()
         self.assertFalse(window.project.dirty)
-        window.open_path(saved)
+        self.reopen(saved)
         self.app.processEvents()
         self.assertIn("groups", window.project.tables)
         self.assertEqual(window.project.tables["groups"].raw.iat[1, 0], 9.0)
@@ -241,7 +250,7 @@ class QtShellTests(unittest.TestCase):
 
         saved = self.folder / "styled.alab"
         window.project.save(saved)
-        window.open_path(saved)
+        self.reopen(saved)
         index = next(i for i, r in enumerate(window.project.runs) if r.method == "Column graph")
         window.open_sheet(("graph", index))
         self.wait()
@@ -313,7 +322,7 @@ class QtShellTests(unittest.TestCase):
         self.assertIn("p < 0,05", [text.get_text() for text in axes.texts])
         saved = self.folder / "notes.alab"
         window.project.save(saved)
-        window.open_path(saved)
+        self.reopen(saved)
         index = next(i for i, r in enumerate(window.project.runs) if r.method == "Column graph")
         window.open_sheet(("graph", index))
         self.wait()
@@ -363,7 +372,7 @@ class QtShellTests(unittest.TestCase):
         window.project.apply_format(graph, dialog.result)
         saved = self.folder / "guides.alab"
         window.project.save(saved)
-        window.open_path(saved)
+        self.reopen(saved)
         index = next(i for i, r in enumerate(window.project.runs) if r.method == "Column graph")
         window.open_sheet(("graph", index))
         self.wait()
@@ -404,7 +413,7 @@ class QtShellTests(unittest.TestCase):
         window.project.apply_format(graph, dict(graph.style or {}, shapes=dialog.result))
         saved = self.folder / "shapes.alab"
         window.project.save(saved)
-        window.open_path(saved)
+        self.reopen(saved)
         index = next(i for i, r in enumerate(window.project.runs) if r.method == "Column graph")
         window.open_sheet(("graph", index))
         self.wait()
@@ -534,7 +543,7 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual((sheet.notes, sheet.note_styles), ("Nota importante", ((5, 15, NOTE_BOLD),)))
         saved = self.folder / "info.alab"
         window.project.save(saved)
-        window.open_path(saved)
+        self.reopen(saved)
         sheet = next(iter(window.project.info_sheets.values()))
         self.assertEqual((sheet.title, sheet.table), ("Esperimento", "groups"))
         self.assertIn(("Dose", "10"), sheet.fields)
@@ -591,7 +600,7 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(style[AXIS_BREAKS]["segments"][1]["low"], 6.2)
         saved = self.folder / "breaks.alab"
         window.project.save(saved)
-        window.open_path(saved)
+        self.reopen(saved)
         index = next(i for i, r in enumerate(window.project.runs) if r.method == "XY series")
         window.open_sheet(("graph", index))
         self.wait()
@@ -812,7 +821,7 @@ class QtShellTests(unittest.TestCase):
 
         saved = self.folder / "chain.alab"
         window.project.save(saved)
-        window.open_path(saved)
+        self.reopen(saved)
         runs = window.project.runs
         self.assertEqual(runs[1].source, ResultSource(runs[0].uid, "Transformed"))
         self.assertEqual(runs[2].source, ResultSource(runs[0].uid, "Transformed"))
@@ -1140,7 +1149,7 @@ class QtShellTests(unittest.TestCase):
 
         saved = self.folder / "layout.alab"
         window.project.save(saved)
-        window.open_path(saved)
+        self.reopen(saved)
         self.assertEqual([item.name for item in window.project.layouts], ["Figura 1"])
         window.open_sheet(("layout", 0))
         self.wait()

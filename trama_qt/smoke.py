@@ -218,12 +218,15 @@ class Smoke:
             self.anova(window)
             from .global_fit_smoke import exercise as global_fit
             global_fit(self, window)
+            from .projects_smoke import run as project_tabs
+            project_tabs(self, window)
             from .canvas_smoke import check_canvas
             self.notes += check_canvas(self)  # Last: it replaces the project with its own.
         except Exception:  # noqa: BLE001 - the report must say what broke, then the next language runs.
             self.problem("stopped:\n" + traceback.format_exc())
         finally:
-            window.project.dirty = False
+            for session in window.sessions:
+                session.project.dirty = False
             window.close()
             window.deleteLater()
             self.app.processEvents()
@@ -350,7 +353,7 @@ class Smoke:
                 self.problem("anova: Cancel changed the confirmed analysis")
         saved = self.folder / "anova.alab"
         window.project.save(saved)
-        window.project.dirty = False
+        window.close_project()
         window.open_path(saved)
         self.wait()
         index = next(i for i, item in enumerate(window.project.runs) if item.method == "Multifactor ANOVA")
@@ -395,6 +398,7 @@ class Smoke:
         project.put_layout(Layout("Figure 1", 2, [runs[index].reference for index in graphs], AUTO_PAPER, WHITE))
         path = self.folder / f"gallery-{self.language}.alab"
         project.save(path)
+        window.close_project()
         window.open_path(path)  # Opened from the file: every sheet waits for its calculation.
         self.wait()
         window.project.dirty = False
@@ -476,6 +480,7 @@ class Smoke:
         self.expect(export.is_file() and export.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n", "the figure was not exported")
 
         window.project.dirty = False  # A graph whose calculation fails the first time it is opened.
+        window.close_project()
         window.open_path(path)
         self.wait()
         project = window.project

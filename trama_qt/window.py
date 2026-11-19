@@ -10,11 +10,10 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolb
 from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QStringListModel, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
-from PySide6.QtWidgets import (QComboBox, QCompleter, QFileDialog, QFrame, QHBoxLayout, QInputDialog,
-                               QLabel, QLineEdit,
-                               QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QSplitter, QStackedWidget,
-                               QTabWidget, QToolBar, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-                               QWidget)
+from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboBox, QCompleter, QFileDialog, QFrame,
+                               QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
+                               QProgressBar, QPushButton, QSplitter, QStackedWidget, QTabBar, QTabWidget, QToolBar,
+                               QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
@@ -39,6 +38,7 @@ from .labels import method_label
 from .models import WorksheetModel, column_label
 from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, SAVED_VIEWS,
                       CalculationControl, Project, Run, compute, run_view, stored_prism_view)
+from .sessions import MAX_PROJECT_TABS, Sessions
 from .shape_canvas import GraphDrawing
 from .sheet import FrameView, WorksheetView
 from .strings import qt
@@ -147,8 +147,9 @@ class PaperPreview(QWidget):
 
 
 class Job:
-    def __init__(self, future, control, done, label):
+    def __init__(self, future, control, done, label, session=None):
         self.future, self.control, self.done, self.label = future, control, done, label
+        self.session = session  # The project tab that started it: its results never reach another tab.
 
 
 class Page(QWidget):
@@ -209,9 +210,11 @@ class Page(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.project = Project()
+        self.sessions = Sessions(Project())  # One per project tab; ``project`` and ``selected`` are the active one's.
         self.project_number = 1
-        self.selected = None
+        self._queued = []  # Files that arrived (drop, command line) while a calculation ran.
+        self._deferred = []  # Tab changes that wait for the recalculation a just-typed edit started.
+        self._close_pending = False
         self.page = None
         self.sheet = None
         self.result_tabs = None
@@ -226,8 +229,6 @@ class MainWindow(QMainWindow):
         self.gallery = None  # The open gallery of graphs and layouts, in place of the page (trama_qt/gallery.py).
         self.gallery_view = {"kind": None, "text": ""}  # Its filters: a state of the view, never saved.
         self.info_editor = None
-        self.inspector_wanted = False
-        self.inspector_element = None
         self.navigator_width = 250
         self.navigator_open = True
         self.navigator_slide = None
@@ -242,6 +243,40 @@ class MainWindow(QMainWindow):
             self.resize(min(1280, screen.width() - 40), min(820, screen.height() - 60))
         else:
             self.resize(1180, 760)
+
+    # == the active project tab ===================================================================
+    # The window works on the active session; switching tabs swaps these without copying any data.
+    @property
+    def project(self):
+        return self.sessions.active.project
+
+    @project.setter
+    def project(self, project):
+        self.sessions.active.project = project
+
+    @property
+    def selected(self):
+        return self.sessions.active.selected
+
+    @selected.setter
+    def selected(self, ref):
+        self.sessions.active.selected = ref
+
+    @property
+    def inspector_wanted(self):
+        return self.sessions.active.inspector_wanted
+
+    @inspector_wanted.setter
+    def inspector_wanted(self, wanted):
+        self.sessions.active.inspector_wanted = wanted
+
+    @property
+    def inspector_element(self):
+        return self.sessions.active.inspector_element
+
+    @inspector_element.setter
+    def inspector_element(self, element):
+        self.sessions.active.inspector_element = element
 
     # == construction =============================================================================
     def _action(self, key, text, handler, *, icon=None, shortcut=None, tip=None):
@@ -264,6 +299,13 @@ class MainWindow(QMainWindow):
         a = self._action
         a("new_project", tr("command.new_project"), self.new_project, icon="plus", shortcut="Ctrl+N")
         a("open", tr("command.open"), self.open_dialog, icon="folder-open", shortcut="Ctrl+O")
+        a("close_project", tr("command.close_project"), self.close_project, icon="x", shortcut="Ctrl+W",
+          tip=qt("qt.close_project_hint"))
+        self.actions["close_project"].setShortcuts([QKeySequence("Ctrl+W"), QKeySequence("Ctrl+F4")])
+        a("next_project", qt("qt.next_project"), lambda: self.step_project(1), shortcut="Ctrl+Tab")
+        a("previous_project", qt("qt.previous_project"), lambda: self.step_project(-1), shortcut="Ctrl+Shift+Tab")
+        self.actions["previous_project"].setShortcuts([QKeySequence("Ctrl+Shift+Tab"),
+                                                       QKeySequence("Ctrl+Shift+Backtab")])
         a("import", tr("command.import_into_project"), lambda: self.open_dialog(import_data=True), icon="file-up",
           shortcut="Ctrl+I")
         a("save", tr("command.save_project"), self.save, icon="save", shortcut="Ctrl+S")
@@ -330,6 +372,7 @@ class MainWindow(QMainWindow):
         root = QVBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+        root.addWidget(self._project_strip())
         root.addWidget(self._command_bar())
 
         body = QSplitter(Qt.Orientation.Horizontal)
@@ -386,6 +429,36 @@ class MainWindow(QMainWindow):
         engine.setObjectName("muted")
         status.addPermanentWidget(engine)
 
+    def _project_strip(self):
+        """One tab per open project, with New beside the last tab; each tab closes its own project."""
+        strip = QFrame()
+        strip.setObjectName("projectStrip")
+        row = QHBoxLayout(strip)
+        row.setContentsMargins(10, 4, 10, 0)
+        row.setSpacing(2)
+        tabs = self.project_tabs = QTabBar()
+        tabs.setObjectName("projectTabs")
+        tabs.setAccessibleName(qt("qt.projects"))
+        tabs.setDrawBase(False)
+        tabs.setExpanding(False)
+        tabs.setMovable(False)
+        tabs.setUsesScrollButtons(True)
+        tabs.setElideMode(Qt.TextElideMode.ElideMiddle)
+        tabs.addTab("")
+        tabs.currentChanged.connect(self._project_tab_changed)
+        tabs.tabCloseRequested.connect(self._project_tab_close)  # Also reached by the × of each tab.
+        row.addWidget(tabs)
+        self.new_tab_button = QToolButton()
+        self.new_tab_button.setObjectName("newProjectTab")
+        self.new_tab_button.setIcon(theme.icon("plus", theme.T["text2"], 16))
+        self.new_tab_button.setToolTip(qt("qt.new_project_hint"))
+        self.new_tab_button.setAccessibleName(tr("command.new_project"))
+        self.new_tab_button.setAutoRaise(True)
+        self.new_tab_button.clicked.connect(self.new_project)
+        row.addWidget(self.new_tab_button)
+        row.addStretch(1)
+        return strip
+
     def _command_bar(self):
         bar = QFrame()
         bar.setObjectName("commandBar")
@@ -414,7 +487,8 @@ class MainWindow(QMainWindow):
         layout.addLayout(top)
         self.ribbon = QStackedWidget()
         groups = [
-            (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "|", "export", "export_options",
+            (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "close_project", "|",
+                                         "export", "export_options",
                                          "export_pdf", "|",
                                          "classic", "language", "about"]),
             (tr("ribbon.modern.home"), ["paste", "cut", "copy", "|", "undo", "redo", "|", "new_table", "insert_row",
@@ -518,6 +592,30 @@ class MainWindow(QMainWindow):
             title = f"{self.selected[1]} — {title}"
         marker = "• " if self.project.dirty else ""
         self.setWindowTitle(f"{marker}{title} — Trama")
+        self._sync_tabs()
+
+    def _sync_tabs(self):
+        """The tab strip as the sessions are: one tab each, captions with the dirty marker, the active one current."""
+        bar = getattr(self, "project_tabs", None)
+        if bar is None:
+            return
+        bar.blockSignals(True)
+        try:
+            while bar.count() > len(self.sessions):
+                bar.removeTab(bar.count() - 1)
+            while bar.count() < len(self.sessions):
+                bar.addTab("")
+            for index in range(bar.count()):
+                if bar.tabButton(index, QTabBar.ButtonPosition.RightSide) is None:
+                    bar.setTabButton(index, QTabBar.ButtonPosition.RightSide, self._tab_close_button())
+            for index, (caption, tip) in enumerate(self.sessions.labels()):
+                if bar.tabText(index) != caption:
+                    bar.setTabText(index, caption)
+                bar.setTabToolTip(index, tip)
+                bar.setTabData(index, self.sessions[index].key)
+            bar.setCurrentIndex(self.sessions.index(self.sessions.active))
+        finally:
+            bar.blockSignals(False)
 
     def update_actions(self):
         kind = self.selected[0] if self.selected and self.gallery is None else None  # The gallery shows no sheet.
@@ -556,10 +654,15 @@ class MainWindow(QMainWindow):
             self.actions[key].setEnabled(has_data and idle)
         shape_run = self.drawing.history_run()  # On a graph with drawing steps, Undo/Redo belong to that graph.
         history = shape_run.shape_history if shape_run is not None else self.project.history
-        self.actions["undo"].setEnabled(idle and history.can_apply())
-        self.actions["redo"].setEnabled(idle and history.can_apply(redo=True))
-        for key in ("open", "import", "new_project", "save", "save_as", "classic"):
+        self.actions["undo"].setEnabled(idle and self.gallery is None and history.can_apply())
+        self.actions["redo"].setEnabled(idle and self.gallery is None and history.can_apply(redo=True))
+        for key in ("open", "import", "new_project", "save", "save_as", "classic", "close_project"):
             self.actions[key].setEnabled(idle)
+        for key in ("next_project", "previous_project"):  # Switching waits for the calculation (Cancel stays on).
+            self.actions[key].setEnabled(idle and len(self.sessions) > 1)
+        self.actions["new_project"].setEnabled(idle and not self.sessions.full())
+        self.project_tabs.setEnabled(idle)
+        self.new_tab_button.setEnabled(idle and not self.sessions.full())
         self.actions["export"].setEnabled(kind is not None)
         self.actions["export_options"].setEnabled(kind in {"graph", "layout", "saved-layout"})
         self.actions["export_pdf"].setEnabled(idle and (bool(self.project.layouts) or any(
@@ -761,6 +864,7 @@ class MainWindow(QMainWindow):
         self.info_editor = None
         self.selected = None
         self.sheet = None
+        self.result_tabs = None
         page = Page("Trama", tr("status.welcome"))
         page.button(tr("command.open"), self.open_dialog, primary=True, icon="folder-open")
         page.button(tr("command.new_table"), self.new_table, icon="table")
@@ -837,7 +941,9 @@ class MainWindow(QMainWindow):
         page.finish_actions()
         if read_only:
             page.notice(qt("qt.read_only"))
-        model = WorksheetModel(dataset, lambda row, column, text: self.edit_cell(title, row, column, text),
+        project = self.project  # Typing reaches this project only, even if it lands after a tab switch.
+        model = WorksheetModel(dataset, lambda row, column, text: self.edit_cell(title, row, column, text,
+                                                                                 project=project),
                                read_only=read_only)
         self.sheet = page.add(WorksheetView(model, self))
         self.sheet.setCurrentIndex(model.index(0, 0))
@@ -852,7 +958,9 @@ class MainWindow(QMainWindow):
         page.button(t("Move sheet down"), lambda: self.move_info(1), icon="chevron-down")
         page.button(t("Delete Info sheet…"), self.remove_info, icon="trash-2")
         page.finish_actions()
-        self.info_editor = page.add(InfoEditor(sheet, self.change_info, self.error))
+        project = self.project
+        self.info_editor = page.add(InfoEditor(
+            sheet, lambda revised: self.change_info(revised) if project is self.project else False, self.error))
         return page
 
     def flush_info(self):
@@ -974,9 +1082,10 @@ class MainWindow(QMainWindow):
             self.inspector_wanted = False
             self.dispose_inspector()
 
+        project = self.project
         self.inspector = GraphInspector(run, canvas, confirmed=lambda: run.style,
-                                        commit=lambda style: self.commit_style(run, style), closed=closed,
-                                        element=self.inspector_element)
+                                        commit=lambda style: self.commit_style(run, style, project=project),
+                                        closed=closed, element=self.inspector_element)
         line.addWidget(self.inspector)
 
     def dispose_inspector(self):
@@ -1006,10 +1115,14 @@ class MainWindow(QMainWindow):
         if self.inspector is not None:
             self.inspector.selector.setFocus()
 
-    def commit_style(self, run, style):
-        self.project.commit_style(run, style)
-        self.update_title()
-        self.status(qt("qt.style_applied"))
+    def commit_style(self, run, style, project=None):
+        project = self.project if project is None else project  # The run's own project, never another tab's.
+        project.commit_style(run, style)
+        if project is self.project:
+            self.update_title()
+            self.status(qt("qt.style_applied"))
+        else:
+            self._sync_tabs()
 
     def settle_graph_draft(self):
         """Before leaving the drawn style behind: apply or discard an Inspector draft, or stay."""
@@ -1201,7 +1314,10 @@ class MainWindow(QMainWindow):
         else:
             self.status(qt("qt.edited"))
 
-    def edit_cell(self, title, row, column, text):
+    def edit_cell(self, title, row, column, text, project=None):
+        if project is not None and project is not self.project:  # Typed in a tab that is no longer active.
+            self.status(qt("qt.edit_elsewhere"))
+            return False
         if self._active_table() != title:
             return False
         self._apply_edit(title, lambda: self.project.paste(title, row, column, [[text]], "Edit cell"))
@@ -1305,7 +1421,7 @@ class MainWindow(QMainWindow):
         self._apply_edit(title, lambda: self.project.toggle_exclusion(title, cells))
 
     def undo(self, *, redo=False):
-        if self.busy():
+        if self.gallery is not None or self.busy():
             return
         shape_run = self.drawing.history_run()
         if shape_run is not None:
@@ -1822,6 +1938,9 @@ class MainWindow(QMainWindow):
         if project.path is not None and same_file(path, project.path):
             self.error(tr("family.error.current-path"))
             return
+        if any(other.project.path is not None and same_file(path, other.project.path) for other in self.sessions):
+            self.error(qt("qt.save_conflict", name=path.name))  # A project open in another tab.
+            return
         tables, layouts, infos = project.tables, project.layouts, tuple(project.info_sheets.values())
         source = project.path
 
@@ -1864,7 +1983,7 @@ class MainWindow(QMainWindow):
     # == background calculation ==================================================================
     def _start(self, future, control, done, label):
         self.drawing.cancel()
-        self.job = Job(future, control, done, label)
+        self.job = Job(future, control, done, label, self.sessions.active)
         self.status(label)
         self.progress.setRange(0, 0)
         self.progress.setVisible(True)
@@ -1889,9 +2008,31 @@ class MainWindow(QMainWindow):
         self.cancel_button.setVisible(False)
         cancelled = job.control is not None and job.control.cancel.is_set()
         try:
-            job.done(job.future, cancelled)
+            if job.session is None or job.session is self.sessions.active:
+                job.done(job.future, cancelled)
+            elif job.session in self.sessions.items:  # Not reachable from the UI (tabs wait): never mix projects.
+                self._activate(job.session)
+                job.done(job.future, cancelled)
         finally:
             self.update_actions()
+            self._after_job()
+
+    def _after_job(self):
+        """Run what waited for the calculation: closing the window, then files that arrived meanwhile."""
+        if self.job is not None:
+            if self._close_pending:
+                self.cancel_calculation()
+            return
+        if self._close_pending:
+            self._close_pending = False
+            QTimer.singleShot(0, self.close)
+            return
+        deferred, self._deferred = self._deferred, []
+        for retry in deferred:
+            retry()
+        queued, self._queued = self._queued, []
+        for path, import_data in queued:
+            self.open_path(path, import_data=import_data)  # Queues again by itself if this one starts a job.
 
     def cancel_calculation(self):
         if self.job is not None and self.job.control is not None:
@@ -1899,26 +2040,228 @@ class MainWindow(QMainWindow):
             self.status(qt("qt.cancelled"))
 
     # == files ===================================================================================
+    def _ask_save(self):
+        """Save, Discard or Cancel for the active project."""
+        return QMessageBox.question(
+            self, qt("qt.unsaved_title"), qt("qt.unsaved", name=self.project.title),
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+
     def confirm_saved(self):
+        """Save, Discard or Cancel for the active project only. True when it may be left behind."""
         self.flush_info()
         if not self.project.dirty:
             return True
-        answer = QMessageBox.question(
-            self, qt("qt.unsaved_title"), qt("qt.unsaved", name=self.project.title),
-            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+        answer = self._ask_save()
         if answer == QMessageBox.StandardButton.Save:
             return self.save()
         return answer == QMessageBox.StandardButton.Discard
 
-    def new_project(self):
-        if self.busy() or not self.confirm_saved():
+    # == project tabs ============================================================================
+    def _commit_sheet_edit(self):
+        """A cell still being typed is stored in its own project before the tab changes."""
+        sheet = self.sheet
+        if sheet is None:
             return
-        self.project_number += 1
+        if sheet.state() == QAbstractItemView.State.EditingState:
+            editor = sheet.indexWidget(sheet.currentIndex())
+            if editor is not None:
+                sheet.commitData(editor)
+                sheet.closeEditor(editor, QAbstractItemDelegate.EndEditHint.NoHint)
+        sheet.model().flush_edits()
+
+    def prepare_project_change(self, retry=None):
+        """Before leaving the active tab: settle the Inspector draft, store typed cells and Info notes, and make
+        sure no calculation is running. False keeps the active tab as it is. When storing the last edit starts a
+        recalculation, ``retry`` runs once it has ended (the edit stays with its own project meanwhile)."""
+        if self.busy(warn=False):
+            self.status(qt("qt.wait_projects"))
+            return False
+        if not self.settle_graph_draft():
+            return False
+        self._commit_sheet_edit()
+        self.flush_info()
+        if self.busy(warn=False):
+            if retry is not None:
+                self._deferred.append(retry)
+                self.status(qt("qt.switch_later"))
+            else:
+                self.status(qt("qt.wait_projects"))
+            return False
+        return True
+
+    def _capture(self):
+        """What the active tab shows, kept for when it comes back. Nothing of the project is copied."""
+        session = self.sessions.active
+        self.dispose_inspector()  # Stores the element the Inspector had selected in this session.
+        self.flush_info()
+        self.info_editor = None
+        view = {"navigator": self.navigator.verticalScrollBar().value()}
+        if self.sheet is not None:
+            current = self.sheet.currentIndex()
+            if current.isValid():
+                view["cell"] = (current.row(), current.column())
+            view["scroll"] = (self.sheet.horizontalScrollBar().value(), self.sheet.verticalScrollBar().value())
+        if self.result_tabs is not None:
+            view["result_tab"] = self.result_tabs.currentIndex()
+        session.view = view
+        session.status = self.message.text()
+
+    def _valid_ref(self, ref):
+        if not ref:
+            return False
+        kind, key = ref
+        project = self.project
+        if kind == "data":
+            return key in project.tables
+        if kind == "info":
+            return key in project.info_sheets
+        count = len(project.layouts) if kind == "layout" else len(project.runs)
+        return isinstance(key, int) and 0 <= key < count
+
+    def _install(self):
+        """Show the active session as it was left: sheet, cell, scroll, result tab, navigator and status."""
+        session = self.sessions.active
+        view = dict(session.view)
+        ref = session.selected if self._valid_ref(session.selected) else None
+        if ref is None:
+            self.show_home()
+        else:
+            self.show_sheet(*ref)  # Never starts a calculation: a tab shows what its project holds.
+        sheet = self.sheet
+        if sheet is not None and "cell" in view:
+            row, column = view["cell"]
+            model = sheet.model()
+            if row < model.rowCount() and column < model.columnCount():
+                sheet.setCurrentIndex(model.index(row, column))
+        if self.result_tabs is not None and 0 <= view.get("result_tab", -1) < self.result_tabs.count():
+            self.result_tabs.setCurrentIndex(view["result_tab"])
+        self.status(session.status or qt("qt.ready"))
+        self._sync_tabs()
+
+        def scroll():  # After the layout has given the views their size.
+            if self.sessions.active is not session:
+                return
+            if sheet is not None and sheet is self.sheet and "scroll" in view:
+                sheet.horizontalScrollBar().setValue(view["scroll"][0])
+                sheet.verticalScrollBar().setValue(view["scroll"][1])
+            if "navigator" in view:
+                self.navigator.verticalScrollBar().setValue(view["navigator"])
+
+        QTimer.singleShot(0, scroll)
+
+    def _activate(self, session, *, capture=True):
+        if capture:
+            self._capture()
+        else:
+            self.dispose_inspector()
+            self.info_editor = None
         self._drop_gallery()
         self.gallery_view = {"kind": None, "text": ""}
-        self.project = Project(self.project_number)
-        self.show_home()
-        self.refresh()
+        self.sessions.active = session
+        self._install()
+
+    def switch_project(self, session):
+        """Make ``session`` the active tab. False (and the tab strip unchanged) when the active tab must stay."""
+        if session is self.sessions.active:
+            return True
+        if session not in self.sessions.items or not self.prepare_project_change(lambda: self.switch_project(session)):
+            self._sync_tabs()
+            return False
+        self._activate(session)
+        return True
+
+    def _project_tab_changed(self, index):
+        if 0 <= index < len(self.sessions) and self.sessions[index] is not self.sessions.active:
+            self.switch_project(self.sessions[index])
+
+    def _tab_close_button(self):
+        button = QToolButton()
+        button.setObjectName("projectTabClose")
+        button.setIcon(theme.icon("x", theme.T["text3"], 14))
+        button.setIconSize(theme.icon_size(14))
+        button.setAutoRaise(True)
+        button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        button.setToolTip(qt("qt.close_project_hint"))
+        button.setAccessibleName(tr("command.close_project"))
+        button.clicked.connect(lambda _checked=False, owner=button: self._tab_close_clicked(owner))
+        return button
+
+    def _tab_close_clicked(self, button):
+        for index in range(self.project_tabs.count()):
+            if self.project_tabs.tabButton(index, QTabBar.ButtonPosition.RightSide) is button:
+                self.project_tabs.tabCloseRequested.emit(index)
+                return
+
+    def _project_tab_close(self, index):
+        if 0 <= index < len(self.sessions):
+            self.close_project(self.sessions[index])
+
+    def step_project(self, offset):
+        if len(self.sessions) > 1:
+            self.switch_project(self.sessions.step(offset))
+
+    def new_project(self):
+        if self.busy():
+            return
+        if self.sessions.full():
+            self.error(qt("qt.too_many_projects", count=MAX_PROJECT_TABS))
+            return
+        if not self.prepare_project_change(self.new_project):
+            return
+        self.project_number += 1
+        self._activate(self.sessions.add(Project(self.project_number)))
+
+    def close_project(self, session=None):
+        """Close one project tab: Save, Discard or Cancel for that project only. The last tab becomes empty."""
+        if session is not None and not self.switch_project(session):
+            return False
+        if not self.prepare_project_change(lambda: self.close_project(session)) or not self.confirm_saved():
+            return False
+        closing = self.sessions.active
+        target = self.sessions.neighbour(closing)
+        if target is None:
+            self._drop_gallery()
+            self.gallery_view = {"kind": None, "text": ""}
+            self.dispose_inspector()
+            self.info_editor = None
+            closing.reset(Project(closing.project.number))
+            self._install()
+        else:
+            self._activate(target, capture=False)
+            self.sessions.remove(closing)
+            self._sync_tabs()
+            self.update_actions()
+        return True
+
+    def confirm_close(self):
+        """Closing the window: a decision for every project with changes before any tab is lost. Cancel (or a
+        failed save) keeps the window with all its tabs, on the project asked about."""
+        if not self.settle_graph_draft():
+            return False
+        self._commit_sheet_edit()
+        self.flush_info()
+        if self.job is not None:  # The last edit started a recalculation: close when it ends.
+            self._close_pending = True
+            self.status(qt("qt.closing_after_job"))
+            return False
+        active = self.sessions.active
+        decisions = []
+        for session in [active] + [other for other in self.sessions if other is not active]:
+            if not session.project.dirty:
+                continue
+            if session is not self.sessions.active:
+                self._activate(session)
+            answer = self._ask_save()
+            if answer == QMessageBox.StandardButton.Cancel:  # Nothing has been saved or closed yet.
+                return False
+            decisions.append((session, answer))
+        for session, answer in decisions:
+            if answer == QMessageBox.StandardButton.Save:
+                if session is not self.sessions.active:
+                    self._activate(session)
+                if not self.save():  # Failed or cancelled: the window stays, on that project.
+                    return False
+        return True
 
     def open_dialog(self, *, import_data=False):
         if self.busy():
@@ -1929,20 +2272,41 @@ class MainWindow(QMainWindow):
             self.open_path(path, import_data=import_data)
 
     def open_path(self, path, *, import_data=False):
+        """Open a project in its own tab (the empty tab is reused; a project already open is shown), or bring data
+        into the active project. Files that arrive during a calculation open when it ends."""
         path = Path(path)
+        if self.job is not None:
+            self._queued.append((path, import_data))
+            self.status(qt("qt.open_later", name=path.name))
+            return
         suffix = path.suffix.lower()
         replace = suffix == ".alab" or (suffix in PROJECT_SUFFIXES and not import_data)
         try:
             if replace:
-                if not self.project.is_empty() and not self.confirm_saved():
+                existing = self.sessions.find(path)
+                if existing is not None:
+                    if self.switch_project(existing):
+                        self.status(qt("qt.already_open", name=path.name))
                     return
-                project = Project(self.project_number)
-                titles = project.load(path)
+                reuse = self.project.is_empty()
+                if not reuse and self.sessions.full():
+                    raise ValueError(qt("qt.too_many_projects", count=MAX_PROJECT_TABS))
+                if not self.prepare_project_change(lambda: self.open_path(path, import_data=import_data)):
+                    return
+                number = self.project.number if reuse else self.project_number + 1
+                project = Project(number)
+                titles = project.load(path)  # Read first: a file that cannot be opened changes no tab.
                 if suffix != ".alab":
                     project.origin, project.dirty = path, False
-                self._drop_gallery()
-                self.gallery_view = {"kind": None, "text": ""}
-                self.project = project
+                if reuse:
+                    self._drop_gallery()
+                    self.gallery_view = {"kind": None, "text": ""}
+                    self.dispose_inspector()
+                    self.info_editor = None
+                    self.sessions.active.reset(project)
+                else:
+                    self.project_number = number
+                    self._activate(self.sessions.add(project))
                 self.status(tr("status.opened", name=path.name))
             elif import_data and suffix in TEXT_SUFFIXES:  # Import text data: choose rows, columns and format.
                 from .text_import import TextImportDialog
@@ -1954,8 +2318,8 @@ class MainWindow(QMainWindow):
             else:
                 titles = self.project.load(path)
                 self.status(qt("qt.imported", count=len(titles)))
-        except Exception as error:
-            self.error(error)
+        except Exception as error:  # Nothing changed: no tab was added and the active one is as it was.
+            self.error(qt("qt.open_failed", name=path.name, error=error))
             return
         sheets = [title for title in titles if not stored_prism_view(self.project.tables[title])]
         if sheets:
@@ -1982,6 +2346,9 @@ class MainWindow(QMainWindow):
             path = Path(name)
             if not path.suffix:
                 path = path.with_suffix(".alab")
+            if self.sessions.holding(path, besides=self.sessions.active) is not None:
+                self.error(qt("qt.save_conflict", name=path.name))  # Never overwrite a project open in another tab.
+                return False
         try:
             self.project.save(path)
         except (ValueError, OSError, TypeError) as error:
@@ -2206,9 +2573,13 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.drawing.cancel()
-        if self.job is not None and self.job.control is not None:
-            self.job.control.cancel.set()
-        if not self.confirm_saved():
+        if self.job is not None:  # Stop the calculation first; the window closes (asking as usual) when it ends.
+            self._close_pending = True
+            self.cancel_calculation()
+            self.status(qt("qt.closing_after_job"))
+            event.ignore()
+            return
+        if not self.confirm_close():
             event.ignore()
             return
         self.timer.stop()

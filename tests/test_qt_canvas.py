@@ -626,7 +626,7 @@ class QtCanvasTests(unittest.TestCase):
         expected = self.shapes
         self.assertEqual(len(expected), 3)
         self.assertTrue(self.window.save())
-        self.window.project.dirty = False
+        self.assertTrue(self.window.close_project())
         self.window.open_path(self.path)
         self.window.open_sheet(("graph", 0))
         self.wait()

@@ -235,6 +235,16 @@ def stylesheet():
     QLabel#pageTitle {{ font-size: 16pt; font-weight: 700; }}
     QLabel#pageSubtitle, QLabel#muted {{ color: {t['text2']}; }}
     QLabel#sectionTitle {{ color: {t['text2']}; font-weight: 600; }}
+    QFrame#projectStrip {{ background: {t['bg']}; }}
+    QTabBar#projectTabs::tab {{ background: transparent; color: {t['text2']}; margin: 4px 1px 0 0;
+        padding: 6px 6px 6px 12px; border: 1px solid transparent; border-bottom: none;
+        border-top-left-radius: 8px; border-top-right-radius: 8px; min-width: 96px; }}
+    QTabBar#projectTabs::tab:selected {{ background: {t['panel']}; color: {t['text']}; font-weight: 600;
+        border-color: {t['border']}; }}
+    QTabBar#projectTabs::tab:hover:!selected {{ background: {t['hover']}; color: {t['text']}; }}
+    QToolButton#projectTabClose {{ padding: 2px; border-radius: 5px; }}
+    QToolButton#projectTabClose:hover {{ background: {t['field']}; }}
+    QToolButton#newProjectTab {{ margin: 4px 0 0 2px; padding: 4px; }}
     QLabel#notice {{ background: {t['warning_bg']}; color: {t['warning']}; border-radius: 8px; padding: 8px 12px; }}
     QLabel#errorBanner {{ background: {t['error_bg']}; color: {t['error']}; border-radius: 8px; padding: 8px 12px; }}
 

@@ -45,6 +45,7 @@ class WorksheetModel(QAbstractTableModel):
         self.dataset = dataset
         self.edit = edit
         self.read_only = read_only
+        self.pending = []  # Typed cells waiting for the editor to close (see ``setData``).
         self.reload()
 
     def reload(self):
@@ -153,9 +154,15 @@ class WorksheetModel(QAbstractTableModel):
         if str(value) == self.data(index):
             return False
         # Applied after the editor closes: the edit can grow or reload the table.
-        row, column, text = index.row(), index.column(), str(value)
-        QTimer.singleShot(0, lambda: self.edit(row, column, text))
+        self.pending.append((index.row(), index.column(), str(value)))
+        QTimer.singleShot(0, self.flush_edits)
         return True
+
+    def flush_edits(self):
+        """Apply the typed cells now (the window calls this before it leaves the project tab)."""
+        pending, self.pending = self.pending, []
+        for row, column, text in pending:
+            self.edit(row, column, text)
 
 
 class FrameModel(QAbstractTableModel):

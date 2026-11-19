@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 from uuid import uuid4
 
 try:
@@ -607,7 +608,8 @@ class GalleryWindowTests(unittest.TestCase):
         self.assertIn("zzz", again.notice.text())
         again.closed.emit()
         self.window.project.dirty = False
-        self.window.open_path(FIXTURE)  # Another project: filters start over.
+        self.assertTrue(self.window.close_project())
+        self.window.open_path(FIXTURE)  # A newly opened project starts with empty filters.
         self.wait()
         fresh = self.open_gallery()
         self.assertEqual((fresh.kinds.currentIndex(), fresh.search.text()), (0, ""))
@@ -684,6 +686,21 @@ class GalleryWindowTests(unittest.TestCase):
                     if gallery.model.entry(row).ref == ("graph", 1))
         self.assertIn("Calculation failed", gallery.model.index(card).data(Qt.ItemDataRole.ToolTipRole))
         self.assertIsNone(gallery.model.index(card).data(Qt.ItemDataRole.UserRole + 2))  # No preview to draw.
+
+    def test_the_gallery_disables_drawing_and_history_on_the_hidden_graph(self):
+        self.open_fixture(calculate=True)
+        window = self.window
+        window.open_sheet(("graph", 0))
+        self.wait()
+        self.assertTrue(window.actions["draw"].isEnabled())
+        gallery = self.open_gallery()
+        self.assertFalse(window.actions["draw"].isEnabled())
+        self.assertFalse(window.actions["undo"].isEnabled())
+        with mock.patch.object(window.project, "undo") as undo:
+            window.undo()
+        undo.assert_not_called()
+        gallery.closed.emit()
+        self.assertTrue(window.actions["draw"].isEnabled())
 
     def test_a_new_project_removes_the_gallery_and_its_previews(self):
         self.open_fixture(calculate=True)
