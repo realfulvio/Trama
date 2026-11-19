@@ -183,8 +183,8 @@ class ThumbnailService(QObject):
         if self.task is not None and not any(_same(self.task.entry, entry) for entry in wanted):
             self._drop_task()  # It scrolled out of sight, or its results changed.
         self.queue = deque(entry for entry in wanted if self.task is None or not _same(self.task.entry, entry))
-        if self.task is not None or self.queue:
-            self._timer.start(TICK_MS)
+        if (self.task is not None or self.queue) and not self._timer.isActive():
+            self._timer.start(TICK_MS)  # Not restarted: asking again and again must not postpone the drawing.
 
     def clear(self):
         """The project changed: forget every preview and everything that was waiting."""

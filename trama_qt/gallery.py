@@ -237,9 +237,15 @@ class GalleryView(QListView):
         super().scrollContentsBy(dx, dy)
         self.moved.emit()
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
+    def updateGeometries(self):
+        """After every layout of the cards (a resize, a new scroll bar, another filter)."""
+        super().updateGeometries()
         self.moved.emit()
+
+    def viewportEvent(self, event):
+        if event.type() == QEvent.Type.Resize:
+            self.moved.emit()
+        return super().viewportEvent(event)
 
 
 class GalleryPage(QWidget):
