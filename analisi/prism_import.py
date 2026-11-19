@@ -29,7 +29,7 @@ _ZIP_SUMMARY = {key: _Y_SUMMARY[value] for key, value in {
     "y_plus_minus": "low-high", "y_high_low": "upper-lower-limits",
 }.items()}
 # These calls have matching semantics in the Prism and TramaStat evaluators.
-_FORMULA_CALLS = ELEMENTWISE_FORMULA_FUNCTIONS.keys() | COLUMN_FORMULA_FUNCTIONS.keys()
+_FORMULA_CALLS = ELEMENTWISE_FORMULA_FUNCTIONS.keys() | COLUMN_FORMULA_FUNCTIONS.keys() | {"MIN", "MAX", "SUM"}
 
 
 def _store_table(tables, title, frame):
@@ -86,6 +86,8 @@ def _formula_recipe(expression, columns, allowed_calls=_FORMULA_CALLS):
                     value.upper() in WINDOW_KEYWORDS or (value.upper() == "BY" and i > 0
                                                          and tokens[i - 1].string.upper() == "ORDER")):
                 value = value.upper()
+            elif not called and value.upper() == "MOD" and value not in columns:
+                value = "MOD"
             elif not called and value in columns:
                 name = columns[value]
                 result.extend([(tokenize.NAME, "COL"), (tokenize.OP, "("),

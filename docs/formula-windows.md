@@ -41,6 +41,20 @@ The hyperbolic functions are `SINH`, `COSH` and `TANH`, with inverses `ARCSINH`,
 
 `CEIL` rounds up and `FLOOR` rounds down. `INT` discards the fractional part toward zero. `SGN` gives −1, 0 or 1 according to sign, and `SQR` squares each value. The same functions are available to editable imported formulas.
 
+`ROUND(x, digits)` rounds to the specified number of decimal places, with halfway
+values rounded away from zero. Negative digits round to the left of the decimal
+point. Digits may come from another column and must be integers. Existing
+`ROUND(x)` formulas keep their ties-to-even rounding.
+
+`x MOD y` computes the remainder with the sign of the divisor. A zero divisor
+leaves the result blank. `FACT(n)` accepts nonnegative integers and leaves a
+blank when the factorial exceeds the numeric range.
+
+`MIN`, `MAX` and `SUM` with two or more arguments operate across each row.
+They skip missing numeric values and leave a row blank when it has no
+usable arguments. With one column argument they still use the entire column.
+These formulas can remain editable when imported from a compatible ZIP project.
+
 ## Special functions
 
 `GAMMA(x)` and `PSI(x)` leave poles blank. `GAMMALN(x)` gives the real

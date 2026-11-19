@@ -175,6 +175,29 @@ class PrismImportTests(unittest.TestCase):
         data.raw.at[1, "Dose"] = 0
         np.testing.assert_allclose(data.frame()["Upper"], [.5, .5])
 
+    def test_zip_arithmetic_formulas_stay_live_after_edits_and_reopening(self):
+        source = self.path / "arithmetic.prismt"
+        sets = {"a": {"title": "Source dose"}, "b": {"title": "Replicate"}}
+        for name, expression in (("rounded", "ROUND(A,1)"), ("remainder", "B mod 3"),
+                                 ("factorial", "FACT(B)"), ("row_total", "SUM(A,B,1)")):
+            sets[name] = {"title": name, "valuesStorageData": {"@class": "TransformDataSource",
+                                                              "transform": expression}}
+        write_archive(source, {"uid": "table", "format": "multivariable", "dataFormat": "y_single",
+                               "dataSets": list(sets)}, sets,
+                      "2.25,4,99,99,99,99\n-2.25,5,99,99,99,99\n", (2, 6))
+        data = Dataset(load_tables(source)["Experiment"])
+        self.assertEqual(set(data.formulas), set(sets) - {"a", "b"})
+        np.testing.assert_allclose(data.frame()["rounded"], [2.3, -2.3])
+        np.testing.assert_allclose(data.frame()["remainder"], [1, 2])
+
+        data.raw.at[0, "Replicate"] = 6
+        project = self.path / "arithmetic.alab"
+        save_project(project, {"Experiment": data})
+        reopened = load_project(project)["Experiment"]
+        self.assertEqual(reopened.formulas, data.formulas)
+        np.testing.assert_allclose(reopened.frame()["factorial"], [720, 120])
+        np.testing.assert_allclose(reopened.frame()["row_total"], [9.25, 3.75])
+
     def test_zip_restores_presence_formula_for_mixed_cells(self):
         path = self.path / "presence.prismt"
         table = {"uid": "table", "format": "multivariable", "dataFormat": "y_single", "dataSets": ["a", "b"]}

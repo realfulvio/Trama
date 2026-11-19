@@ -8217,6 +8217,8 @@ def smoke(root, app, directory, legacy_reference=None):
         app.import_file(path)
         recipes = {
             "Cumulative response": "SUM(Response) OVER Cohort ORDER BY Visit ROWS UNBOUNDED PRECEDING",
+            "Rounded score": "ROUND(Response / 3, 2) + (Visit MOD 2) + FACT(Visit)",
+            "Row total": "SUM(Response, Visit, 1)",
             "Mean through visit 2": "MEANIF(Response, Visit <= 2) OVER Cohort",
         }
         for name, recipe in recipes.items():
@@ -8225,27 +8227,30 @@ def smoke(root, app, directory, legacy_reference=None):
             assert prompts.call_args_list[0].args[0] == ui("Calculated column")
             assert "ROWS UNBOUNDED PRECEDING" in prompts.call_args_list[1].args[1]
 
-        def assert_values(cumulative, means):
+        def assert_values(cumulative, means, first_score, first_total):
             data = app.tables[title].frame(mask_excluded=True)
             np.testing.assert_allclose(data["Cumulative response"], cumulative)
             np.testing.assert_allclose(data["Mean through visit 2"], means)
+            np.testing.assert_allclose(data["Rounded score"], [first_score, 15.33, 13.67, 22, 12, 33.67])
+            np.testing.assert_allclose(data["Row total"], [first_total, 43, 24, 62, 33, 84])
 
-        assert_values([10, 100, 60, 60, 40, 180], [20, 50, 20, 50, 20, 50])
+        assert_values([10, 100, 60, 60, 40, 180], [20, 50, 20, 50, 20, 50], 5.33, 12)
         app.edit_cell(0, 0, "12")
-        assert_values([12, 100, 62, 60, 42, 180], [21, 50, 21, 50, 21, 50])
+        assert_values([12, 100, 62, 60, 42, 180], [21, 50, 21, 50, 21, 50], 6, 14)
         app.current_grid.active_cell = (0, 0)
         app.toggle_exclusion()
         expected = [0, 100, 50, 60, 30, 180], [30, 50, 30, 50, 30, 50]
-        assert_values(*expected)
+        assert_values(*expected, np.nan, 2)
         assert app.save()
         app.import_file(path)
         assert app.tables[title].formulas == recipes
-        assert_values(*expected)
+        assert_values(*expected, np.nan, 2)
         target = directory / "worksheet-statistics.csv"
         with patch.object(filedialog, "asksaveasfilename", return_value=str(target)):
             app.export()
         exported = load_tables(target)["worksheet-statistics"]
         np.testing.assert_allclose(exported["Cumulative response"], expected[0])
+        np.testing.assert_allclose(exported["Row total"], [2, 43, 24, 62, 33, 84])
         capture(root, "window-worksheet-statistics.png")
 
     def check_distribution_formulas_smoke():

@@ -90,6 +90,39 @@ class WindowFormulaTests(unittest.TestCase):
         np.testing.assert_allclose(formula(frame, "ARCCOSH(X)"), [np.nan, np.nan, np.nan, 0, 1.566799236972411, np.nan])
         np.testing.assert_allclose(formula(frame, "ARCTANH(X)"), [np.nan, 0, np.log(5 / 3) / 2, np.nan, np.nan, np.nan])
 
+    def test_round_accepts_rowwise_digits_and_preserves_single_argument_behavior(self):
+        frame = pd.DataFrame({"X": [2.675, -2.5, 125, -125, 1e308, 1, np.nan],
+                              "Places": [2, 0, -1, -1, 3, 1.5, 3]})
+        np.testing.assert_allclose(formula(frame, "ROUND(X, Places)"),
+                                   [2.68, -3, 130, -130, 1e308, np.nan, np.nan])
+        self.assertEqual(formula(frame, "ROUND(2.5)").iloc[0], 2)
+        self.assertEqual(formula(frame, "ROUND(125, -1000)").iloc[0], 0)
+        self.assertEqual(formula(frame, "ROUND(125.5, 1000)").iloc[0], 125.5)
+
+    def test_mod_uses_arithmetic_precedence_and_blanks_zero_divisors(self):
+        frame = pd.DataFrame({"X": [7, -7, 6, np.inf], "D": [-3, 3, 0, 2], "Mod": [1, 2, 3, 4]})
+        np.testing.assert_allclose(formula(frame, "X mOd D + 2"), [0, 4, np.nan, np.nan])
+        np.testing.assert_allclose(formula(frame, "7 MOD 0"), [np.nan] * len(frame))
+        np.testing.assert_allclose(formula(frame, "SUM(X) WHERE Mod MOD 2 = 1"), [13] * len(frame))
+        np.testing.assert_allclose(formula(frame, "Mod + 1"), [2, 3, 4, 5])
+
+    def test_factorial_rejects_nonintegers_and_blanks_overflow(self):
+        frame = pd.DataFrame({"X": [0, 5, -1, 1.5, 170, 171, np.nan]})
+        np.testing.assert_allclose(formula(frame, "FACT(X)"),
+                                   [1, 120, np.nan, np.nan, 7.257415615307999e306, np.nan, np.nan])
+
+    def test_aggregates_distinguish_single_column_and_rowwise_arguments(self):
+        frame = pd.DataFrame({"X": [1, 7, np.nan, np.nan], "Y": [3, 4, -2, np.nan],
+                              "Z": [2, 5, np.nan, np.nan]}, index=[9, 2, 6, 3])
+        for name, expected in (("MIN", [1, 4, -2, np.nan]), ("MAX", [3, 7, -2, np.nan]),
+                               ("SUM", [6, 16, -2, np.nan])):
+            with self.subTest(name=name):
+                result = formula(frame, f"{name}(X,Y,Z)")
+                self.assertTrue(result.index.equals(frame.index))
+                np.testing.assert_allclose(result, expected)
+        np.testing.assert_allclose(formula(frame, "SUM(X)"), [8] * len(frame))
+        np.testing.assert_allclose(formula(frame, "MAX(Y, 0)"), [3, 4, 0, 0])
+
     def test_centering_and_standardizing_large_finite_values(self):
         frame = pd.DataFrame({"X": [1.6e308, 1.2e308]})
         np.testing.assert_allclose(formula(frame, "CENTER(X)"), [2e307, -2e307])

@@ -4,9 +4,10 @@ from collections.abc import Mapping
 from copy import copy, deepcopy
 import csv
 from dataclasses import dataclass, field
+from decimal import Context, Decimal, ROUND_HALF_UP, localcontext
 from io import StringIO
 import json
-from math import isfinite
+from math import factorial, isfinite
 import operator
 import re
 import tokenize
@@ -21,7 +22,7 @@ from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, val
 from .analysis_labels import validate_labels
 from .distribution_formulas import DISTRIBUTION_FUNCTIONS, argument_count_message
 from .formula_special import SPECIAL_FORMULA_FUNCTIONS
-from .formula_windows import WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
+from .formula_windows import WINDOW_CLAUSES, WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
 
 MAX_ENTRY = 32 * 1024 * 1024
 MAX_CELLS = 2_000_000
@@ -145,8 +146,13 @@ def load_tables(path, *, restore_prism=False, info_sheets=None):
                                   decimal_mark="," if reader.dialect.delimiter == ";" else ".")}
 
 
+def _remainder(left, right):
+    result = np.remainder(left, right)
+    return np.where(np.isfinite(left) & np.isfinite(right), result, np.nan)
+
+
 BINARY = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
-          ast.Div: operator.truediv, ast.Pow: operator.pow, ast.Mod: operator.mod}
+          ast.Div: operator.truediv, ast.Pow: operator.pow, ast.Mod: _remainder}
 COMPARE = {ast.Eq: operator.eq, ast.NotEq: operator.ne, ast.Gt: operator.gt,
            ast.Lt: operator.lt, ast.GtE: operator.ge, ast.LtE: operator.le}
 def _conditional(condition, yes, no):
@@ -180,6 +186,60 @@ def _average_if(source, criterion, values):
 def _aggregate(fn, values):
     numbers = _numeric_present(values)
     return fn(numbers) if len(numbers) else np.nan
+
+
+def _formula_numbers(value):
+    array = np.asarray(value)
+    if array.ndim and array.dtype.kind in "OSUT":
+        array = pd.to_numeric(array, errors="coerce")
+    return np.asarray(array, dtype=float)
+
+
+def _add_present(left, right):
+    return np.where(np.isnan(left), right, np.where(np.isnan(right), left, left + right))
+
+
+def _aggregate_rows(column_operation, row_operation, values):
+    if len(values) == 1:
+        return _aggregate(column_operation, values[0])
+    numbers = map(_formula_numbers, values)
+    result = next(numbers)
+    result = np.where(np.isfinite(result), result, np.nan)
+    for number in numbers:
+        result = row_operation(result, np.where(np.isfinite(number), number, np.nan))
+    return result
+
+
+_FACTORIALS = np.array([float(factorial(n)) for n in range(171)])
+
+
+def _factorial(values):
+    numbers = _formula_numbers(values)
+    valid = (numbers >= 0) & (numbers <= 170) & (numbers == np.trunc(numbers))
+    index = np.where(valid, numbers, 0).astype(np.intp)
+    return np.where(valid, _FACTORIALS[index], np.nan)
+
+
+def _round_decimal(value, places):
+    if not isfinite(value) or not isfinite(places) or places != np.trunc(places):
+        return np.nan
+    if places < -308:
+        return 0.0
+    number = Decimal(str(value))
+    if places >= -number.as_tuple().exponent:
+        return value
+    quantum = Decimal((0, (1,), -int(places)))
+    return float(number.quantize(quantum))
+
+
+_round_rows = np.frompyfunc(_round_decimal, 2, 1)
+
+
+def _round(values, places=None):
+    if places is None:
+        return np.round(values)
+    with localcontext(Context(prec=340, rounding=ROUND_HALF_UP)):
+        return np.asarray(_round_rows(_formula_numbers(values), _formula_numbers(places)), dtype=float)
 
 
 def _numeric_column(values):
@@ -229,6 +289,7 @@ ELEMENTWISE_FORMULA_FUNCTIONS = {
     **DISTRIBUTION_FUNCTIONS,
     "ISBLANK": (1, _is_blank), "IS_DEFINED": (1, lambda values: np.logical_not(_is_blank(values))),
     "CEIL": (1, np.ceil), "FLOOR": (1, np.floor), "INT": (1, np.trunc), "SGN": (1, np.sign),
+    "ROUND": (range(1, 3), _round), "FACT": (1, _factorial),
     "SQR": (1, np.square),
     "ABS": (1, np.abs), "SQRT": (1, np.sqrt), "EXP": (1, np.exp), "LN": (1, np.log),
     "LOG": (1, np.log10), "LOG10": (1, np.log10), "LOG2": (1, np.log2), "POWER": (2, np.power),
@@ -241,17 +302,34 @@ ELEMENTWISE_FORMULA_FUNCTIONS = {
 }
 
 FUNCTIONS = {
-    **ELEMENTWISE_FORMULA_FUNCTIONS, **COLUMN_FORMULA_FUNCTIONS, "ROUND": (1, np.round),
+    **ELEMENTWISE_FORMULA_FUNCTIONS, **COLUMN_FORMULA_FUNCTIONS,
     "MEAN": (1, lambda v: _aggregate(np.mean, v)),
     "AVERAGE": (1, lambda v: _aggregate(np.mean, v)),
-    "SUM": (1, lambda v: _aggregate(np.sum, v)),
-    "MIN": (1, lambda v: _aggregate(np.min, v)),
-    "MAX": (1, lambda v: _aggregate(np.max, v)),
+    "SUM": (range(1, 129), lambda *v: _aggregate_rows(np.sum, _add_present, v)),
+    "MIN": (range(1, 129), lambda *v: _aggregate_rows(np.min, np.fmin, v)),
+    "MAX": (range(1, 129), lambda *v: _aggregate_rows(np.max, np.fmax, v)),
     "MEDIAN": (1, lambda v: _aggregate(np.median, v)),
     "COUNT": (1, lambda v: len(_numeric_present(v))),
     "AVERAGEIF": (3, _average_if), "IF": (3, _conditional),
     "AND": (2, np.logical_and), "OR": (2, np.logical_or), "NOT": (1, np.logical_not),
 }
+
+
+def _formula_operators(tokens):
+    result = []
+    previous = (None, "")
+    for token in tokens:
+        kind, value = token.type, token.string
+        if kind == tokenize.OP and value == "^":
+            value = "**"
+        elif kind == tokenize.NAME and value.upper() == "MOD":
+            operand = (previous[0] in {tokenize.NUMBER, tokenize.STRING} or previous == (tokenize.OP, ")")
+                       or previous[0] == tokenize.NAME and previous[1].upper() not in WINDOW_CLAUSES | {"BY"})
+            if operand:
+                kind, value = tokenize.OP, "%"
+        previous = (kind, value)
+        result.append(previous)
+    return result
 
 
 def _formula_tree(expression):
@@ -260,10 +338,7 @@ def _formula_tree(expression):
         raise ValueError("Enter a formula of up to 2048 characters.")
     try:
         tokens = tokenize.generate_tokens(StringIO(source).readline)
-        operators = [
-            (token.type, "**" if token.type == tokenize.OP and token.string == "^" else token.string)
-            for token in tokens
-        ]
+        operators = _formula_operators(tokens)
         return ast.parse(tokenize.untokenize(lower_window_clauses(operators)), mode="eval")
     except (SyntaxError, tokenize.TokenError) as error:
         raise ValueError("Invalid formula syntax.") from error
