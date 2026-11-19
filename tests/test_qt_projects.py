@@ -12,7 +12,7 @@ import unittest
 from unittest import mock
 
 try:
-    from PySide6.QtCore import Qt
+    from PySide6.QtCore import QEvent, Qt
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication, QMessageBox, QTabBar
 except ImportError:  # PySide6 missing, or libEGL/libGL missing on a headless machine.
@@ -158,6 +158,8 @@ class ProjectTabsTests(unittest.TestCase):
             self.window.timer.stop()
         with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Discard):
             self.window.close()  # An Inspector draft left by a test would ask here.
+        self.window.deleteLater()
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.app.processEvents()
 
     # -- helpers --------------------------------------------------------------------------------------

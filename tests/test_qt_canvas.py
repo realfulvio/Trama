@@ -66,8 +66,11 @@ class QtCanvasTests(unittest.TestCase):
         self.window.project.dirty = False
 
     def _close(self):
-        self.window.project.dirty = False
+        for session in self.window.sessions:
+            session.project.dirty = False
         self.window.close()
+        self.window.deleteLater()
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.app.processEvents()
 
     def wait(self, timeout=60):

@@ -13,7 +13,7 @@ from unittest import mock
 from uuid import uuid4
 
 try:
-    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtCore import QEvent, QPoint, Qt
     from PySide6.QtGui import QImage
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication, QLineEdit, QListView, QStyleOptionViewItem
@@ -397,8 +397,11 @@ class GalleryWindowTests(unittest.TestCase):
         self.app.processEvents()
 
     def _close(self):
-        self.window.project.dirty = False
+        for session in self.window.sessions:
+            session.project.dirty = False
         self.window.close()
+        self.window.deleteLater()
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.app.processEvents()
 
     def wait(self, timeout=60):
