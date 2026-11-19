@@ -50,10 +50,11 @@ def main():
 
     if args.mode == "eager":
         entries = [entry for entry in catalog(project) if entry.previewable]
+        ratio = app.primaryScreen().devicePixelRatio()  # The size the real gallery draws at on this screen.
         started = time.perf_counter()
         thumbs = []
         for entry in entries:
-            steps = gallery_thumbs.render(entry, project, (PREVIEW.width() * 2, PREVIEW.height() * 2))
+            steps = gallery_thumbs.render(entry, project, (round(PREVIEW.width() * ratio), round(PREVIEW.height() * ratio)))
             try:
                 while True:
                     next(steps)

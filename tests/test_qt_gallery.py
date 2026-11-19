@@ -547,6 +547,22 @@ class GalleryWindowTests(unittest.TestCase):
         self.assertTrue(sheet.isVisible())
         self.assertIs(self.window.focusWidget(), sheet)
 
+    def test_escape_in_the_search_box_goes_back_and_ctrl_f_comes_to_it(self):
+        self.open_fixture()
+        sheet = self.window.sheet
+        sheet.setFocus()
+        gallery = self.open_gallery()
+        gallery.view.setFocus()
+        QTest.keyClick(gallery.view, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
+        self.assertTrue(gallery.search.hasFocus())
+        QTest.keyClicks(gallery.search, "ab")
+        QTest.keyClick(gallery.search, Qt.Key.Key_Backspace)  # Editing keys stay in the box.
+        self.assertEqual(gallery.search.text(), "a")
+        self.assertIsNotNone(self.window.gallery)
+        QTest.keyClick(gallery.search, Qt.Key.Key_Escape)
+        self.assertIsNone(self.window.gallery)
+        self.assertIs(self.window.sheet, sheet)
+
     def test_back_button_returns_to_a_graph_with_its_canvas(self):
         self.open_fixture()
         self.window.open_sheet(("graph", 1))
