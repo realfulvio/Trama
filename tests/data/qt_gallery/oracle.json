@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "checks": [
+    {
+      "check": "fixture integrity",
+      "status": "PASS"
+    },
+    {
+      "check": "fixture oracle",
+      "status": "PASS"
+    }
+  ]
+}

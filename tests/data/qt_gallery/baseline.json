@@ -1,0 +1,18 @@
+{
+  "status": "FAIL",
+  "checks": [
+    {
+      "check": "fixture integrity",
+      "status": "PASS"
+    },
+    {
+      "check": "fixture oracle",
+      "status": "PASS"
+    },
+    {
+      "check": "Qt workflow",
+      "status": "FAIL",
+      "detail": "Missing Qt gallery action"
+    }
+  ]
+}

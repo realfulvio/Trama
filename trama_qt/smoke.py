@@ -214,6 +214,7 @@ class Smoke:
             self.shot(window, "inspector")
             window.dispose_inspector()
             self.editors(window, refs)
+            self.gallery(window)
             self.anova(window)
             from .global_fit_smoke import exercise as global_fit
             global_fit(self, window)
@@ -359,6 +360,170 @@ class Smoke:
         if reopened.options != confirmed or reopened.result is None:
             self.problem("anova: the reopened analysis differs or was not recalculated")
         self.shot(window, "anova-reopened")
+
+    # -- the gallery -------------------------------------------------------------------------------
+    def previews(self, gallery, timeout=40):
+        """Wait until every visible card that can have a preview has one."""
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            for _ in range(8):
+                self.app.processEvents()
+                time.sleep(0.01)
+            shown = [entry for entry in gallery.visible_entries() if entry.previewable]
+            if (gallery.service.task is None and not gallery.service.queue and not gallery._scan_timer.isActive()
+                    and all(gallery.service.cache.get(entry) is not None for entry in shown)):
+                return
+        self.problem("gallery: previews were not drawn in time")
+
+    def expect(self, condition, text):
+        if not condition:
+            self.problem(f"gallery: {text}")
+
+    def gallery(self, window):
+        """View → Gallery on a project that was just opened (no result yet), then recalculated and broken."""
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QFileDialog
+        from analisi.layout_geometry import AUTO_PAPER, WHITE
+        from analisi.presentation import Layout
+        from . import theme
+
+        project = window.project
+        project.layouts.clear()  # One numbered layout of two graphs, as a user names them: "Figure 1".
+        runs = project.runs
+        graphs = [index for index, run in enumerate(runs) if run.method in ("Column graph", "Box / violin plot")]
+        project.put_layout(Layout("Figure 1", 2, [runs[index].reference for index in graphs], AUTO_PAPER, WHITE))
+        path = self.folder / f"gallery-{self.language}.alab"
+        project.save(path)
+        window.open_path(path)  # Opened from the file: every sheet waits for its calculation.
+        self.wait()
+        window.project.dirty = False
+        project = window.project
+        xy = next(index for index, run in enumerate(project.runs) if run.method == "XY series")
+        project.runs[xy].label = "Calibration $ A"
+        window.open_sheet(("data", "groups"))
+        self.shot(window, "gallery-origin")
+        before = [run.result for run in project.runs]
+
+        window.actions["gallery"].trigger()
+        self.app.processEvents()
+        page = window.gallery
+        if page is None:
+            self.problem("gallery: the Gallery action did not open the gallery")
+            return
+        self.expect(page.view.objectName() == "sheetGallery" and page.search.objectName() == "gallerySearch",
+                    "object names of the list and the search box")
+        self.expect(page.view.model().rowCount() == len([e for e in page.entries]), "every card is listed")
+        self.expect(all(run.result is a for run, a in zip(project.runs, before)),
+                    "opening the gallery calculated or replaced a result")
+        self.previews(page)
+        self.shot(window, "gallery-pending")  # Placeholders say that there is no result yet.
+        QTest.keyClicks(page.search, "$")
+        self.app.processEvents()
+        self.expect(page.view.model().rowCount() == 1, f"search $ found {page.view.model().rowCount()} cards")
+        self.shot(window, "gallery-search-dollar")
+        page.view.setFocus()
+        QTest.keyClick(page.view, Qt.Key.Key_Return)  # Another sheet, with Enter: calculated the ordinary way.
+        self.wait()
+        self.expect(window.gallery is None and window.selected == ("graph", xy), "Enter did not open the graph")
+        self.expect(project.runs[xy].result is not None and all(
+            run.result is None for index, run in enumerate(project.runs) if index != xy), "only the opened sheet "
+                    "should be calculated")
+        self.shot(window, "gallery-opened-graph")
+
+        window.actions["gallery"].trigger()  # The "$" search is remembered: it is a state of the view.
+        page = window.gallery
+        self.expect(page is not None and page.search.text() == "$", "the search text is not remembered")
+        self.previews(page)
+        self.shot(window, "gallery-ready-card")
+        entry = page.entries and next((e for e in page.entries if e.ref == ("graph", xy)), None)
+        thumb = page.service.cache.get(entry) if entry is not None else None
+        self.expect(thumb is not None and thumb.pixmap is not None, "the calculated graph has no preview")
+        first = thumb
+        page.search.clear()
+        self.app.processEvents()
+        self.expect(page.view.model().rowCount() == len(page.entries), "clearing the search lists every card")
+        for row in range(page.view.model().rowCount()):  # The numbered layout opens as a layout.
+            if page.view.model().entry(row).name == "Figure 1":
+                page.view.setCurrentIndex(page.view.model().index(row))
+        page.view.setFocus()
+        QTest.keyClick(page.view, Qt.Key.Key_Return)
+        self.wait()
+        self.expect(window.selected is not None and window.selected[0] == "layout", "the layout did not open as a layout")
+        self.shot(window, "gallery-opened-layout")
+
+        window.open_sheet(("graph", xy))  # Recalculate: the preview must follow.
+        self.wait()
+        window.recalculate()
+        self.wait()
+        window.actions["gallery"].trigger()
+        page = window.gallery
+        self.previews(page)
+        self.shot(window, "gallery-recalculated")
+        entry = next((e for e in page.entries if e.ref == ("graph", xy)), None)
+        again = page.service.cache.get(entry) if entry is not None else None
+        self.expect(again is not None and again is not first, "the preview was not redrawn after the recalculation")
+        page.closed.emit()  # Esc: back to the sheet it came from.
+        self.expect(window.gallery is None and window.selected == ("graph", xy), "Back did not return to the graph")
+
+        export = self.folder / f"gallery-export-{self.language}.png"  # Export from the page, as before.
+        original = QFileDialog.getSaveFileName
+        QFileDialog.getSaveFileName = staticmethod(lambda *args, **kwargs: (str(export), "PNG (*.png)"))
+        try:
+            window.export()
+        finally:
+            QFileDialog.getSaveFileName = original
+        self.expect(export.is_file() and export.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n", "the figure was not exported")
+
+        window.project.dirty = False  # A graph whose calculation fails the first time it is opened.
+        window.open_path(path)
+        self.wait()
+        project = window.project
+        box = next(index for index, run in enumerate(project.runs) if run.method == "Column graph")
+        project.runs[box].options["Variables"] = ["Missing column"]  # Column graph 1/2 of the layout "Figure 1".
+        window.actions["gallery"].trigger()
+        page = window.gallery
+        for row in range(page.view.model().rowCount()):
+            if page.view.model().entry(row).ref == ("graph", box):
+                page.view.setCurrentIndex(page.view.model().index(row))
+        page.view.setFocus()
+        QTest.keyClick(page.view, Qt.Key.Key_Return)  # The ordinary calculation fails: a message, not a dialog.
+        self.wait()
+        self.expect(project.runs[box].result is None and project.runs[box].calculation_error, "the failure was not kept")
+        window.actions["gallery"].trigger()
+        page = window.gallery
+        self.previews(page)
+        states = {e.ref: e.state for e in page.entries}
+        self.expect(states.get(("graph", box)) == "error", f"a failed calculation is {states.get(('graph', box))}")
+        self.expect(states.get(("layout", 0)) == "error", f"its layout is {states.get(('layout', 0))}")
+        self.shot(window, "gallery-error")
+        page.closed.emit()
+
+        theme.apply(self.app, dark=True)  # The same page in the dark theme.
+        window.actions["gallery"].trigger()
+        page = window.gallery
+        self.shot(window, "gallery-dark")
+        theme.apply(self.app, dark=False)
+        page.closed.emit()
+        window.open_sheet(("graph", xy))  # One calculated graph, so that there is a preview to clean up.
+        self.wait()
+        window.actions["gallery"].trigger()
+        page = window.gallery
+        self.previews(page)
+
+        service = page.service
+        self.expect(len(service.cache) > 0, "no preview to clean up")
+        window.close_gallery()  # Closing frees every preview and every result it held.
+        self.expect(len(service.cache) == 0 and service.task is None and not service.queue,
+                    "the preview cache was not emptied when the gallery closed")
+        window.actions["gallery"].trigger()
+        page = window.gallery
+        self.previews(page)
+        service = page.service
+        window.project.dirty = False
+        window.new_project()  # Another project: nothing of the old one stays.
+        self.expect(window.gallery is None and len(service.cache) == 0,
+                    "the previews of the old project survived a new project")
 
     def report(self):
         screen = self.app.primaryScreen()
