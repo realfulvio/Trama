@@ -12831,6 +12831,8 @@ def smoke(root, app, directory, legacy_reference=None):
             dialog.controls["Standardize"][1].set(False)
             dialog.controls[choice.INITIAL_ROWS][1].set("1, 2")
             dialog.controls[kmeans_reports.CENTROIDS][1].set(True)
+            dialog.focus_field(choice.MACQUEEN_ITERATIONS)
+            assert dialog.field_rows[choice.MACQUEEN_ITERATIONS][1].winfo_viewable()
             capture(dialog, "window-macqueen-analysis.png")
 
         def verify():
