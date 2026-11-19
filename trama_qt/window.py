@@ -32,6 +32,7 @@ from .models import WorksheetModel, column_label
 from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, CalculationControl, Project,
                       Run, compute, run_view, stored_prism_view)
 from .sheet import FrameView, WorksheetView
+from .batch_export_dialog import text as batch_text
 from .strings import qt
 
 try:
@@ -207,6 +208,7 @@ class MainWindow(QMainWindow):
         a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+E")
         a("export_options", tr("command.export_with_options"), self.export_with_options, icon="download")
         a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")
+        a("export_batch", batch_text("command"), self.export_batch, icon="copy")
         a("classic", qt("qt.classic"), self.open_classic, icon="history", tip=qt("qt.classic_hint"))
         a("language", tr("command.language"), self.choose_language, icon="type")
         a("about", qt("qt.about"), self.about, icon="info")
@@ -337,7 +339,7 @@ class MainWindow(QMainWindow):
         self.ribbon = QStackedWidget()
         groups = [
             (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "|", "export", "export_options",
-                                         "export_pdf", "|",
+                                         "export_pdf", "export_batch", "|",
                                          "classic", "language", "about"]),
             (tr("ribbon.modern.home"), ["paste", "cut", "copy", "|", "undo", "redo", "|", "new_table", "insert_row",
                                          "insert_column", "formula", "exclude", "|", "*analyze", "new_graph", "|", "recalculate",
@@ -456,6 +458,7 @@ class MainWindow(QMainWindow):
         self.actions["export_options"].setEnabled(kind in {"graph", "layout", "saved-layout"})
         self.actions["export_pdf"].setEnabled(idle and (bool(self.project.layouts) or any(
             run.result is not None and run.result.figure is not None for run in self.project.runs)))
+        self.actions["export_batch"].setEnabled(self.actions["export_pdf"].isEnabled())
 
     # == navigator ================================================================================
     def _section(self, title):
@@ -1835,6 +1838,24 @@ class MainWindow(QMainWindow):
             return
         count = tr("pdf.one_page") if pages == 1 else tr("pdf.many_pages", count=pages)
         self.status(tr("pdf.exported", pages=count, name=Path(path).name))
+
+    def export_batch(self):
+        """File → Export multiple figures…: one PNG, SVG or PDF per graph or layout of the active project."""
+        if self.busy() or not self.settle_graph_draft():
+            return
+        from .batch_export_dialog import BatchExportDialog, batch_rows
+        project = self.project  # The active project: the dialog is modal, so it cannot change while it runs.
+        rows = batch_rows(project, PRISM_GRAPH_METHODS)
+        if not any(row.ready for row in rows):
+            self.error(" ".join([tr("pdf.empty"), *dict.fromkeys(row.reason for row in rows)]))
+            return
+        folder = project.path.parent if project.path is not None else ""
+        dialog = BatchExportDialog(self, project, rows, folder)
+        dialog.exec()
+        if dialog.outcomes is not None:
+            counts = dialog.counts()
+            self.status(batch_text("status", done=counts["done"], total=len(dialog.outcomes),
+                                   folder=dialog.batch.folder.name or str(dialog.batch.folder)))
 
     def open_classic(self):
         if self.busy():
