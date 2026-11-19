@@ -1,0 +1,346 @@
+[
+  {
+    "name": "balanced",
+    "csv": "logistic.csv",
+    "input_rows": 16,
+    "numeric": [
+      "Fold ID",
+      "X",
+      "Outcome"
+    ],
+    "method": "Validate binary logistic model",
+    "options": {
+      "Response": "Outcome",
+      "Predictors": [
+        "X"
+      ],
+      "Categorical predictors": [],
+      "Folds": 2,
+      "Seed": 0,
+      "Validation fold": "Fold ID",
+      "Threshold": 0.5,
+      "Calibration bins": 10
+    },
+    "tables": {
+      "Validation": {
+        "count": 1,
+        "columns": [
+          "Brier score",
+          "Log loss",
+          "ROC AUC",
+          "Average precision",
+          "TN",
+          "FP",
+          "FN",
+          "TP"
+        ],
+        "rows": [
+          {
+            "Brier score": 0.1875,
+            "Log loss": 0.5623351446188083,
+            "ROC AUC": 0.75,
+            "Average precision": 0.6875,
+            "TN": 6,
+            "FP": 2,
+            "FN": 2,
+            "TP": 6
+          }
+        ]
+      },
+      "Predictions": {
+        "count": 16,
+        "columns": [
+          "Source row",
+          "Fold",
+          "Observed",
+          "Probability"
+        ],
+        "rows": [
+          {
+            "Source row": 1,
+            "Fold": 1,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 2,
+            "Fold": 1,
+            "Observed": 1,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 3,
+            "Fold": 1,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 4,
+            "Fold": 1,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 5,
+            "Fold": 1,
+            "Observed": 1,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 6,
+            "Fold": 1,
+            "Observed": 0,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 7,
+            "Fold": 1,
+            "Observed": 1,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 8,
+            "Fold": 1,
+            "Observed": 1,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 9,
+            "Fold": 2,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 10,
+            "Fold": 2,
+            "Observed": 1,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 11,
+            "Fold": 2,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 12,
+            "Fold": 2,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 13,
+            "Fold": 2,
+            "Observed": 1,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 14,
+            "Fold": 2,
+            "Observed": 0,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 15,
+            "Fold": 2,
+            "Observed": 1,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 16,
+            "Fold": 2,
+            "Observed": 1,
+            "Probability": 0.75
+          }
+        ]
+      },
+      "Folds": {
+        "count": 2,
+        "columns": [],
+        "rows": []
+      },
+      "Calibration": {
+        "count": 10,
+        "columns": [],
+        "rows": []
+      },
+      "Confusion matrix": {
+        "count": 2,
+        "columns": [],
+        "rows": []
+      }
+    }
+  },
+  {
+    "name": "threshold-one",
+    "csv": "logistic.csv",
+    "input_rows": 16,
+    "numeric": [
+      "Fold ID",
+      "X",
+      "Outcome"
+    ],
+    "method": "Validate binary logistic model",
+    "options": {
+      "Response": "Outcome",
+      "Predictors": [
+        "X"
+      ],
+      "Categorical predictors": [],
+      "Folds": 2,
+      "Seed": 0,
+      "Validation fold": "Fold ID",
+      "Threshold": 1.0,
+      "Calibration bins": 10
+    },
+    "tables": {
+      "Validation": {
+        "count": 1,
+        "columns": [
+          "Brier score",
+          "Log loss",
+          "ROC AUC",
+          "Average precision",
+          "TN",
+          "FP",
+          "FN",
+          "TP"
+        ],
+        "rows": [
+          {
+            "Brier score": 0.1875,
+            "Log loss": 0.5623351446188083,
+            "ROC AUC": 0.75,
+            "Average precision": 0.6875,
+            "TN": 8,
+            "FP": 0,
+            "FN": 8,
+            "TP": 0
+          }
+        ]
+      },
+      "Predictions": {
+        "count": 16,
+        "columns": [
+          "Source row",
+          "Fold",
+          "Observed",
+          "Probability"
+        ],
+        "rows": [
+          {
+            "Source row": 1,
+            "Fold": 1,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 2,
+            "Fold": 1,
+            "Observed": 1,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 3,
+            "Fold": 1,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 4,
+            "Fold": 1,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 5,
+            "Fold": 1,
+            "Observed": 1,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 6,
+            "Fold": 1,
+            "Observed": 0,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 7,
+            "Fold": 1,
+            "Observed": 1,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 8,
+            "Fold": 1,
+            "Observed": 1,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 9,
+            "Fold": 2,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 10,
+            "Fold": 2,
+            "Observed": 1,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 11,
+            "Fold": 2,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 12,
+            "Fold": 2,
+            "Observed": 0,
+            "Probability": 0.25
+          },
+          {
+            "Source row": 13,
+            "Fold": 2,
+            "Observed": 1,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 14,
+            "Fold": 2,
+            "Observed": 0,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 15,
+            "Fold": 2,
+            "Observed": 1,
+            "Probability": 0.75
+          },
+          {
+            "Source row": 16,
+            "Fold": 2,
+            "Observed": 1,
+            "Probability": 0.75
+          }
+        ]
+      },
+      "Folds": {
+        "count": 2,
+        "columns": [],
+        "rows": []
+      },
+      "Calibration": {
+        "count": 10,
+        "columns": [],
+        "rows": []
+      },
+      "Confusion matrix": {
+        "count": 2,
+        "columns": [],
+        "rows": []
+      }
+    }
+  }
+]

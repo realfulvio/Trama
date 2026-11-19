@@ -128,6 +128,24 @@ def linear_fit(frame, response, predictors, categories):
     return tables, model, design, references, data
 
 
+def binomial_fit(observed, design):
+    """The Bernoulli GLM (logit link) of the Logistic family: IRLS, at most 100 iterations.
+
+    Shared by :func:`logistic_fit` and the cross-validated folds of ``analisi.logistic_validation``. A
+    statsmodels perfect-separation warning, a singular step or a fit that has not converged after 100
+    iterations raise ``ValueError`` with the historical messages.
+    """
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", PerfectSeparationWarning)
+            model = GLM(observed, design, family=Binomial()).fit(maxiter=100)
+            if not model.converged:
+                raise ValueError("The regression did not converge.")
+    except (PerfectSeparationWarning, PerfectSeparationError, np.linalg.LinAlgError) as error:
+        raise ValueError("Could not estimate the model reliably. Check separation and predictor variance.") from error
+    return model
+
+
 def logistic_fit(frame, response, predictors, categories):
     """Fit logistic regression once.
 
@@ -138,14 +156,7 @@ def logistic_fit(frame, response, predictors, categories):
     observed = data[response]
     if set(observed.unique()) != {0, 1}:
         raise ValueError("Logistic regression requires both outcomes 0 and 1.")
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", PerfectSeparationWarning)
-            model = GLM(observed, design, family=Binomial()).fit(maxiter=100)
-            if not model.converged:
-                raise ValueError("The regression did not converge.")
-    except (PerfectSeparationWarning, PerfectSeparationError, np.linalg.LinAlgError) as error:
-        raise ValueError("Could not estimate the model reliably. Check separation and predictor variance.") from error
+    model = binomial_fit(observed, design)
     tables = _report(model, design, references, len(frame), True)
     prediction = np.asarray(model.fittedvalues)
     tables["Fitted values"] = pd.DataFrame({"Observed": observed, "Fitted": prediction,
