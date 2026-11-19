@@ -1,8 +1,8 @@
 """Format Graph on Qt: title, labels, fonts, axes, series and reference lines.
 
 The dialog edits the same style dictionary as the classic one (``analisi.graph_dialog``) and validates
-it with the engine, legend formatting, axis guides, bands and breaks included. Annotations have their own
-dialog; shapes, Q–Q panels and the dendrogram style are kept unchanged.
+it with the engine, legend formatting, axis guides, bands and breaks included. Annotations and shapes have
+their own dialogs; Q–Q panels and the dendrogram style are kept unchanged.
 """
 from copy import deepcopy
 
@@ -67,7 +67,7 @@ def choice_text(labels, value):
     return tr(key) if key else value
 
 
-# Kept as they are: edited elsewhere (annotations) or by an editor that is not on Qt yet.
+# Kept as they are: edited by their own dialogs (annotations, shapes) or not editable on Qt yet.
 KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical")
 
 

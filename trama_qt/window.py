@@ -217,6 +217,7 @@ class MainWindow(QMainWindow):
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
         a("inspector", tr("graph.inspector.title"), self.toggle_inspector, icon="paintbrush", shortcut="Ctrl+Shift+I")
         a("annotations", tr("command.graph_annotations"), self.edit_annotations, icon="type")
+        a("shapes", tr("shape.button"), self.edit_shapes, icon="shapes")
         a("new_layout", tr("command.new_layout"), self.new_layout, icon="layout-grid", shortcut="Ctrl+L")
         a("edit_layout", tr("command.edit_layout"), lambda: self.new_layout(edit=True), icon="layout-grid")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
@@ -334,7 +335,7 @@ class MainWindow(QMainWindow):
             (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
                                             "use_result"]),
-            (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "change", "recalculate", "|", "new_layout",
+            (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "shapes", "change", "recalculate", "|", "new_layout",
                                           "edit_layout", "|", "export"]),
             (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
         ]
@@ -417,6 +418,7 @@ class MainWindow(QMainWindow):
         self.actions["inspector"].setEnabled(graph and idle)
         self.actions["annotations"].setEnabled(graph and idle and self.project.runs[self.selected[1]].method
                                                not in PRISM_GRAPH_METHODS)
+        self.actions["shapes"].setEnabled(self.actions["annotations"].isEnabled())
         if self.inspector is not None:
             self.inspector.setEnabled(idle)
         self.actions["new_layout"].setEnabled(idle and bool(self.project.layout_candidates()))
@@ -1033,33 +1035,42 @@ class MainWindow(QMainWindow):
         self.open_sheet(("layout", key))
 
     def edit_annotations(self):
+        from analisi.graph_annotations import ANNOTATIONS
+        from .annotations import GraphAnnotationsDialog
+        self._edit_drawings(ANNOTATIONS, GraphAnnotationsDialog, "annotation.native", "annotation.applied")
+
+    def edit_shapes(self):
+        from analisi.graph_shapes import SHAPES
+        from .shapes import GraphShapesDialog
+        self._edit_drawings(SHAPES, GraphShapesDialog, "shape.native", "shape.applied")
+
+    def _edit_drawings(self, key, dialog_class, native, applied):
+        """Annotations or shapes of the selected native graph: a list dialog, then one style change."""
         if self.busy() or not self.selected or self.selected[0] != "graph":
             return
         run = self.project.runs[self.selected[1]]
         problem = self.project.graph_format_problem(run)
         if problem or run.method in PRISM_GRAPH_METHODS:
-            self.error(problem or tr("annotation.native"))
+            self.error(problem or tr(native))
             return
         if not self.settle_graph_draft():
             return
-        from analisi.graph_annotations import ANNOTATIONS
-        from .annotations import GraphAnnotationsDialog
         style = deepcopy(run.style or {})
-        dialog = GraphAnnotationsDialog(self, run.result.figure.axes[0], style.get(ANNOTATIONS, []))
-        if dialog.exec() != GraphAnnotationsDialog.DialogCode.Accepted or dialog.result is None \
-                or dialog.result == style.get(ANNOTATIONS, []):
+        dialog = dialog_class(self, run.result.figure.axes[0], style.get(key, []))
+        if dialog.exec() != dialog_class.DialogCode.Accepted or dialog.result is None \
+                or dialog.result == style.get(key, []):
             return
         if dialog.result:
-            style[ANNOTATIONS] = dialog.result
+            style[key] = dialog.result
         else:
-            style.pop(ANNOTATIONS, None)
+            style.pop(key, None)
         try:
             self.project.apply_format(run, style)
         except ValueError as error:
             self.error(error)
             return
         self.show_sheet(*self.selected)
-        self.status(tr("annotation.applied"))
+        self.status(tr(applied))
 
     def calculate_candidate(self, candidate, frame, index, *, only=None):
         pairwise = self.project.pairwise_snapshot(candidate)

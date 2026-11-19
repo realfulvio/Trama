@@ -323,6 +323,45 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(style[AXIS_GUIDES][0]["label"], "soglia")
         self.assertEqual(style[AXIS_BANDS][0]["upper"], 6.0)
 
+    def test_shapes(self):
+        from analisi.graph_shapes import SHAPES
+        from trama_qt.shapes import GraphShapesDialog, ShapeEditor
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        self.assertTrue(window.actions["shapes"].isEnabled())
+        axes = graph.result.figure.axes[0]
+        editor = ShapeEditor(window, axes)
+        self.assertFalse(editor.fields["fill"].isEnabled())  # A line has no interior.
+        editor.fields["x2"].setText("0,2")
+        editor.fields["y2"].setText("0,3")
+        editor.accept()
+        self.assertIsNone(editor.result)  # Zero-length line.
+        self.assertTrue(editor.problem.text())
+        editor.fields["kind"].set("rectangle")
+        self.assertTrue(editor.fields["fill"].isEnabled())
+        editor.fields["x2"].setText("0,6")
+        editor.fields["y2"].setText("0,8")
+        editor.fields["fill"].setText("#ffeeaa")
+        editor.fields["hatch"].set("diagonal")
+        editor.accept()
+        rectangle = editor.result
+        self.assertEqual(rectangle["points"], [[0.2, 0.3], [0.6, 0.8]])
+        dialog = GraphShapesDialog(window, axes, [rectangle])
+        dialog.duplicate()
+        dialog.move(-1)
+        self.assertEqual(len(dialog.records), 2)
+        dialog.remove()
+        dialog.accept()
+        window.project.apply_format(graph, dict(graph.style or {}, shapes=dialog.result))
+        saved = self.folder / "shapes.alab"
+        window.project.save(saved)
+        window.open_path(saved)
+        index = next(i for i, r in enumerate(window.project.runs) if r.method == "Column graph")
+        window.open_sheet(("graph", index))
+        self.wait()
+        self.assertEqual(window.project.runs[index].style[SHAPES][0]["hatch"], "diagonal")
+
     def test_format_xy_graph_recipe(self):
         window = self.window
         self.open_example()
