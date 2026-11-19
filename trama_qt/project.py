@@ -6,6 +6,7 @@ that the Qt interface never imports Tk.
 """
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 import threading
 from uuid import uuid4
@@ -16,7 +17,7 @@ from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCanc
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
 from analisi.data import (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, Dataset,
-                          info_references, load_tables, load_workspace, save_project)
+                          info_references, load_tables, load_workspace, project_bytes, save_project)
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, grow_rows, paste_block
@@ -192,6 +193,26 @@ class RefreshJob:
     control: CalculationControl
 
 
+@dataclass(frozen=True)
+class Snapshot:
+    """A detached copy of what a project has confirmed, taken on the GUI thread and serialised elsewhere."""
+    tables: dict
+    layouts: list
+    info_sheets: tuple
+
+    def to_bytes(self):
+        """The .alab bytes, as Save writes them. Safe on any thread: nothing here is shared with the project."""
+        return project_bytes(self.tables, layouts=self.layouts, info_sheets=self.info_sheets)
+
+
+def _file_stamp(path):
+    try:
+        status = os.stat(path)
+    except (OSError, TypeError):
+        return None
+    return [status.st_size, status.st_mtime_ns]
+
+
 class Project:
     def __init__(self, number=1):
         self.number = number
@@ -201,14 +222,41 @@ class Project:
         self.info_sheets = {}
         self.path = None
         self.origin = None
+        self.revision = 0  # Grows at every change (each ``dirty = True``): recovery copies follow it.
         self.dirty = False
         self.history = WorksheetHistory()
+        # Recovery copies (trama_qt/recovery.py): one key for the life of this project, a sequence of generations,
+        # the original the copy refers to and the state that original had when it was opened or saved.
+        self.recovery_key = uuid4().hex
+        self.recovery_generation = 0
+        self.recovered_from = None  # The original of a recovered copy (str), which stays on disk untouched.
+        self.recovered_title = None
+        self.source_stamp = None
+
+    @property
+    def dirty(self):
+        return self._dirty
+
+    @dirty.setter
+    def dirty(self, value):
+        self._dirty = bool(value)
+        if value:
+            self.revision += 1
 
     # -- identity -------------------------------------------------------------------------------
     @property
     def title(self):
         path = self.path or self.origin
-        return path.name if path else tr("project.untitled", number=self.number)
+        if path:
+            return path.name
+        return self.recovered_title or tr("project.untitled", number=self.number)
+
+    @property
+    def recovery_source(self):
+        """The original this project stands for, as a string: the saved file, the imported file, or for a
+        recovered copy the original it came from."""
+        path = self.path or self.origin
+        return str(path) if path is not None else self.recovered_from
 
     def is_empty(self):
         return not self.tables and not self.info_sheets and not self.dirty and self.path is None
@@ -240,11 +288,13 @@ class Project:
             self.path = path
             self.history.clear()
             self.dirty = False
+            self.source_stamp = _file_stamp(path)
             return list(loaded)
         info_sheets = []
         tables = load_tables(path, restore_prism=True, info_sheets=info_sheets)
         if path.suffix.lower() in PROJECT_SUFFIXES and not self.tables:
             self.origin = path
+            self.source_stamp = _file_stamp(path)
         return self.add_tables(tables, info_sheets)
 
     def add_tables(self, tables, info_sheets=()):
@@ -351,6 +401,29 @@ class Project:
         save_project(path, self.tables, layouts=self.layouts, info_sheets=tuple(self.info_sheets.values()))
         self.path = path
         self.dirty = False
+        self.recovered_from = self.recovered_title = None
+        self.source_stamp = _file_stamp(path)
+
+    def snapshot(self):
+        """What a recovery copy holds, detached from the live project: data, formulas, exclusions, Info, recipes,
+        confirmed styles, layouts and analysis links. Results are left out (they are recalculated as after an
+        ordinary open), and so are drafts still open in the Inspector or in a dialog, which the project does not
+        hold yet. Neither ``path`` nor ``dirty`` change. Cheap: frames are copied, nothing is serialised here."""
+        tables = {}
+        for title, dataset in self.tables.items():
+            twin = copy(dataset)
+            twin.raw = dataset.raw.copy(deep=True)
+            twin.formulas = dict(dataset.formulas)
+            twin.analyses = deepcopy(dataset.analyses)
+            twin.excluded = set(dataset.excluded)
+            twin.graph_styles = deepcopy(dataset.graph_styles)
+            twin.info = dict(dataset.info)
+            twin.analysis_ids = dict(dataset.analysis_ids)
+            twin.analysis_sources = dict(dataset.analysis_sources)
+            twin.analysis_labels = dict(dataset.analysis_labels)
+            tables[title] = twin
+        _persist_links(self.runs, tables)
+        return Snapshot(tables, deepcopy(self.layouts), deepcopy(tuple(self.info_sheets.values())))
 
     # -- analysis links -------------------------------------------------------------------------
     def chain_ids(self):
@@ -359,23 +432,8 @@ class Project:
         return linked | parents
 
     def sync_links(self, *, persist=False):
-        linked = {run.uid for run in self.runs if run.source is not None}
-        if not persist:
-            return
-        for run in self.runs:
-            if run.slot < 0:
-                continue
-            dataset = self.tables[run.title]
-            if linked or run.slot in dataset.analysis_ids:
-                dataset.analysis_ids[run.slot] = run.uid
-            if run.source is not None:
-                dataset.analysis_sources[run.slot] = run.source
-            else:
-                dataset.analysis_sources.pop(run.slot, None)
-            if run.label is not None:
-                dataset.analysis_labels[run.slot] = run.label
-            else:
-                dataset.analysis_labels.pop(run.slot, None)
+        if persist:
+            _persist_links(self.runs, self.tables)
 
     def analysis_graph(self, *, replacement=None, additional=None):
         runs = list(self.runs)
@@ -873,6 +931,26 @@ class Project:
             return None, None
         self.dirty = True
         return change.title, self.table_runs(change.title)
+
+
+def _persist_links(runs, tables):
+    """Write the identity, source and name of every analysis into the tables that store its recipe: on the live
+    project before Save, on a detached copy for a recovery copy."""
+    linked = {run.uid for run in runs if run.source is not None}
+    for run in runs:
+        if run.slot < 0:
+            continue
+        dataset = tables[run.title]
+        if linked or run.slot in dataset.analysis_ids:
+            dataset.analysis_ids[run.slot] = run.uid
+        if run.source is not None:
+            dataset.analysis_sources[run.slot] = run.source
+        else:
+            dataset.analysis_sources.pop(run.slot, None)
+        if run.label is not None:
+            dataset.analysis_labels[run.slot] = run.label
+        else:
+            dataset.analysis_labels.pop(run.slot, None)
 
 
 def tr_formula_only():
