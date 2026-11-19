@@ -15,10 +15,10 @@ import pandas as pd
 from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCancelled, ResultSource,
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
-from analisi.data import Dataset, load_tables, load_workspace, save_project
+from analisi.data import EDITABLE_PRISM_FIXED_VALUES, Dataset, load_tables, load_workspace, save_project
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.grid_data import clear_block, grow_rows, paste_block
-from analisi.i18n import tr
+from analisi.i18n import tr, ui
 from analisi.info import info_contexts, validate_info_sheets
 from analisi.monte_carlo import MONTE_CARLO as MONTE_CARLO_METHOD, MonteCarloCancelled, monte_carlo
 from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attach_pairwise,
@@ -503,6 +503,45 @@ class Project:
         self.dirty = True
         self.sync_links(persist=True)
         return index, dependents
+
+    # -- graph format -----------------------------------------------------------------------------
+    def graph_format_problem(self, run):
+        """Why this graph cannot be formatted, or None (as in the classic window)."""
+        if run.method == SAVED_BINARY_GRAPH:
+            return ui("Use Open editable graph when available, or export the original drawing in its saved "
+                      "vector format.")
+        if run.method == SAVED_EDITABLE_GRAPH and self.tables[run.title].table_format in EDITABLE_PRISM_FIXED_VALUES:
+            return ui("Use Edit graph data to change values in the recovered drawing.")
+        if run.result is None or run.result.figure is None or not run.result.figure.axes:
+            return ui("Calculate the graph first.")
+        return None
+
+    def format_inputs(self, run):
+        """The style the dialog starts from and, for a native XY graph, its data and recipe."""
+        style = deepcopy(run.style or {})
+        xy = None
+        if run.method == XY_METHOD:
+            axis = dict(style.get("axis") or {})
+            y_axis = dict(axis.get("y") or {})
+            if "Y minimum" in run.options and "min" not in y_axis:
+                y_axis["min"], y_axis["max"] = run.options["Y minimum"], run.options["Y maximum"]
+                axis["y"] = y_axis
+                style["axis"] = axis
+            xy = {"frame": self.tables[run.title].frame(mask_excluded=True), "options": dict(run.options)}
+        return style, xy
+
+    def apply_format(self, run, style, *, xy_update=None, xy_result=None):
+        if run.method == XY_METHOD and xy_update is not None:
+            run.options = xy_update
+            run.result = xy_result
+            self.tables[run.title].analyses[run.slot] = (run.method, run.options)
+        else:
+            apply_style(run.result.figure, style)
+        run.style = style
+        run.result.style_warning = breaks_warning(run.result.figure, style)
+        self.tables[run.title].graph_styles[run.slot] = style
+        sync_letters_table(run.result)
+        self.dirty = True
 
     def use_result_as_data(self, run, table):
         frame = run.result.tables[table]

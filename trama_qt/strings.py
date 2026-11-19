@@ -76,6 +76,11 @@ _TEXT = {
     "qt.saved_view": ("Saved view", "Vista salvata"),
     "qt.exported": ("Exported {name}.", "Esportato {name}."),
     "qt.edited": ("Data updated.", "Dati aggiornati."),
+    "qt.graph_kept": ("Axis breaks, guides and bands stay as they are; edit them in the classic interface.",
+                      "Interruzioni, guide e bande degli assi restano invariate; si modificano nell'interfaccia classica."),
+    "qt.format_graph_problem": ("This graph cannot be formatted here: {reason}",
+                                "Questo grafico non si può formattare qui: {reason}"),
+    "qt.style_applied": ("Graph style applied.", "Stile del grafico applicato."),
     "qt.formula_column": ("Calculated columns are changed with Formula in the classic interface.",
                           "Le colonne calcolate si modificano con Formula nell'interfaccia classica."),
 }

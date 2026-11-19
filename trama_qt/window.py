@@ -212,6 +212,7 @@ class MainWindow(QMainWindow):
         a("new_graph", tr("command.new_graph"), self.new_graph, icon="chart-line", shortcut="Ctrl+G")
         a("change", tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal",
           shortcut="Ctrl+P")
+        a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
         a("use_result", qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
         a("navigator", tr("command.toggle_navigator"), self.toggle_navigator, icon="panel-bottom", shortcut="Ctrl+F1")
@@ -327,7 +328,7 @@ class MainWindow(QMainWindow):
             (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
                                             "use_result"]),
-            (tr("ribbon.modern.graph"), ["*new_graph", "|", "change", "recalculate", "export"]),
+            (tr("ribbon.modern.graph"), ["*new_graph", "|", "format_graph", "change", "recalculate", "export"]),
             (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
         ]
         for title, keys in groups:
@@ -404,6 +405,8 @@ class MainWindow(QMainWindow):
             self.actions[key].setEnabled(editable and idle)
         self.actions["copy"].setEnabled(data)
         self.actions["change"].setEnabled(on_run and idle)
+        graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
+        self.actions["format_graph"].setEnabled(graph and idle)
         self.actions["recalculate"].setEnabled((on_run or kind == "layout") and idle)
         self.actions["use_result"].setEnabled(kind == "result" and idle)
         has_data = bool(self.project.tables)
@@ -660,6 +663,8 @@ class MainWindow(QMainWindow):
             page.button(qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
             page.button(qt("qt.export_table"), self.export, icon="upload")
         elif result is not None:
+            if kind == "graph" and self.project.graph_format_problem(run) is None:
+                page.button(tr("graph.format.title"), self.format_graph, primary=True, icon="palette")
             page.button(qt("qt.export_graph"), self.export, icon="upload")
         if kind == "result" and result is not None and result.figure is not None:
             page.button(tr("ribbon.graph"), lambda: self.open_sheet(("graph", index)), icon="chart-line")
@@ -893,6 +898,27 @@ class MainWindow(QMainWindow):
             self.error(error)
             return
         self._ask(run.title, frame, current=(run.method, run.options), index=index)
+
+    def format_graph(self):
+        if self.busy() or not self.selected or self.selected[0] != "graph":
+            return
+        run = self.project.runs[self.selected[1]]
+        problem = self.project.graph_format_problem(run)
+        if problem:
+            self.error(problem)
+            return
+        from .graph_format import GraphFormatDialog
+        style, xy = self.project.format_inputs(run)
+        dialog = GraphFormatDialog(self, run.result.figure.axes[0], style, xy=xy)
+        if dialog.exec() != GraphFormatDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        try:
+            self.project.apply_format(run, dialog.result, xy_update=dialog.xy_update, xy_result=dialog.xy_result)
+        except ValueError as error:
+            self.error(error)
+            return
+        self.show_sheet(*self.selected)
+        self.status(qt("qt.style_applied"))
 
     def calculate_candidate(self, candidate, frame, index, *, only=None):
         pairwise = self.project.pairwise_snapshot(candidate)

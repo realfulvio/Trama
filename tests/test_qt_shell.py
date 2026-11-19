@@ -12,6 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MPLBACKEND", "QtAgg")
 
 try:
+    from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication
 except ImportError:  # PySide6 missing, or libEGL/libGL missing on a headless machine.
     QApplication = None
@@ -68,6 +69,12 @@ class QtShellTests(unittest.TestCase):
         frame = self.window.project.tables[title].frame(mask_excluded=True)
         from trama_qt.analysis_dialog import AnalysisDialog
         dialog = AnalysisDialog(self.window, frame, current=(method, {}))
+        for name, value in options.items():  # Tick the columns a user would tick.
+            kind, control = dialog.controls[name]
+            if isinstance(value, list) and hasattr(control, "item"):
+                for row in range(control.count()):
+                    item = control.item(row)
+                    item.setCheckState(Qt.CheckState.Checked if item.text() in value else Qt.CheckState.Unchecked)
         values = dialog.options()  # The dialog defaults, as a user pressing Run would send them.
         dialog.deleteLater()
         values.update(options)
@@ -143,6 +150,72 @@ class QtShellTests(unittest.TestCase):
             save_figure(figure, self.folder / "graph.svg", dpi=300)
             self.assertIs(figure.canvas, canvas)
             self.assertTrue((self.folder / "graph.svg").read_text(encoding="utf-8").lstrip().startswith("<?xml"))
+
+    def format_with(self, run, change):
+        from trama_qt.graph_format import GraphFormatDialog
+        style, xy = self.window.project.format_inputs(run)
+        dialog = GraphFormatDialog(self.window, run.result.figure.axes[0], style, xy=xy)
+        change(dialog)
+        dialog.accept()
+        self.assertIsNotNone(dialog.result, dialog.banner.text())
+        self.window.project.apply_format(run, dialog.result, xy_update=dialog.xy_update, xy_result=dialog.xy_result)
+        dialog.deleteLater()
+        return dialog.result
+
+    def test_format_graph_round_trip(self):
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        self.assertTrue(window.actions["format_graph"].isEnabled())
+
+        def change(dialog):
+            dialog.texts["title"].setText("Formatted")
+            dialog.fonts["title_size"].setText("15")
+            dialog.axis_fields["y"]["min"].setText("0")
+            dialog.axis_fields["y"]["max"].setText("10")
+            dialog.references.setPlainText("Y, 5, limit")
+
+        style = self.format_with(graph, change)
+        self.assertEqual(style["title"], "Formatted")
+        axes = graph.result.figure.axes[0]
+        self.assertEqual(axes.get_title(), "Formatted")
+        self.assertEqual(axes.get_ylim(), (0.0, 10.0))
+        self.assertTrue(window.project.dirty)
+
+        # A bad value stays in the dialog with a message instead of reaching the graph.
+        from trama_qt.graph_format import GraphFormatDialog
+        current, xy = window.project.format_inputs(graph)
+        dialog = GraphFormatDialog(window, axes, current, xy=xy)
+        dialog.axis_fields["y"]["min"].setText("abc")
+        dialog.accept()
+        self.assertIsNone(dialog.result)
+        self.assertTrue(dialog.banner.text())
+        dialog.deleteLater()
+
+        saved = self.folder / "styled.alab"
+        window.project.save(saved)
+        window.open_path(saved)
+        index = next(i for i, r in enumerate(window.project.runs) if r.method == "Column graph")
+        window.open_sheet(("graph", index))
+        self.wait()
+        reopened = window.project.runs[index]
+        self.assertEqual(reopened.style["title"], "Formatted")
+        self.assertEqual(reopened.result.figure.axes[0].get_title(), "Formatted")
+
+    def test_format_xy_graph_recipe(self):
+        window = self.window
+        self.open_example()
+        graph = self.run_method("XY series", {"X": "Control", "Y columns": ["Treated"]})
+
+        def change(dialog):
+            dialog.selector.setCurrentIndex(0)
+            dialog.draw.set("Line and points")
+            dialog.right["title"].setText("Right")
+
+        self.format_with(graph, change)
+        self.assertEqual(graph.options["Series style"], {"Treated": "Line and points"})
+        self.assertEqual(window.project.tables["groups"].analyses[graph.slot][1]["Series style"],
+                         {"Treated": "Line and points"})
 
     def test_insert_delete_rename_and_exclude(self):
         window = self.window
