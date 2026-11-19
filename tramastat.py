@@ -4424,7 +4424,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         height = max(570, min(725, self.root.winfo_screenheight() - 125))
         self.root.geometry(f"{width}x{height}+12+12")
         self.root.minsize(820, 570)
-        self.icon = tk.PhotoImage(file=ASSETS / "trama.png")
+        self.icon = tk.PhotoImage(master=root, file=ASSETS / "trama.png")
         root.iconphoto(True, self.icon)
         self.projects = {}
         self.active_project = None

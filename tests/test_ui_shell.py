@@ -92,6 +92,18 @@ class TkCase(unittest.TestCase):
 
 
 class CalculationStatusTests(TkCase):
+    def test_the_application_icon_belongs_to_its_own_root(self):
+        second = tk.Tk()
+        try:
+            app = tramastat.App(second)
+            try:
+                self.assertIs(app.icon.tk, second.tk)
+                self.assertEqual(second.tk.call("image", "type", str(app.icon)), "photo")
+            finally:
+                app.worker.shutdown(wait=True)
+        finally:
+            second.destroy()
+
     def test_long_status_keeps_the_cancel_button_visible_in_a_narrow_window(self):
         geometry = self.root.geometry()
         self.root.geometry("900x620+0+0")

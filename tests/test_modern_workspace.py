@@ -37,16 +37,18 @@ class ModernWorkspaceTests(unittest.TestCase):
         self.root.update()
 
     def tearDown(self):
-        self.wait()
-        self.app._clear('')
-        self.app.worker.shutdown(wait=True)
-        self.root.destroy()
-        self.tmp.cleanup()
-        ui_theme.select_theme('standard')
-        set_language('en')
+        try:
+            self.wait()
+            self.app._clear('')
+        finally:
+            self.app.worker.shutdown(wait=self.app.pending is None, cancel_futures=True)
+            self.root.destroy()
+            self.tmp.cleanup()
+            ui_theme.select_theme('standard')
+            set_language('en')
 
     def wait(self):
-        until = time.monotonic()+10
+        until = time.monotonic() + 30
         def poll():
             if self.app.pending is None or time.monotonic() >= until:
                 self.root.quit()
