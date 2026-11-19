@@ -22,6 +22,7 @@ from analisi.select_transform import SELECT_TRANSFORM
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
+from . import global_fit
 from .labels import choice_label, field_label, method_label
 from .strings import qt
 from .theme import fit_dialog
@@ -176,7 +177,7 @@ class AnalysisDialog(QDialog):
         self.banner.setWordWrap(True)
         self.banner.setVisible(bool(error))
         if error:
-            self.banner.setText(str(error))
+            self.banner.setText(self._message(error, error_field))
         work_layout.addWidget(self.banner)
         self.tabs = QTabWidget()
         work_layout.addWidget(self.tabs, 1)
@@ -196,7 +197,7 @@ class AnalysisDialog(QDialog):
         self.fill_methods()
         self.configure_fields()
         if error_field:
-            self.focus_field(error_field)
+            self.focus_field(error_field, error)
         if self.only and len(self.only) == 1:
             splitter.widget(0).setVisible(False)
 
@@ -263,8 +264,10 @@ class AnalysisDialog(QDialog):
         self.tabs.clear()
         self.controls.clear()
         self.rows.clear()
-        pages = {}
-        for name in (qt("qt.variables"), qt("qt.options")):
+        pages, scrolls = {}, {}
+        # Global fit custom equation adds Equation, Parameters, Series constraints and Response pages.
+        for key, name in (("variables", qt("qt.variables")), *global_fit.pages(self.method),
+                          ("options", qt("qt.options"))):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -275,12 +278,14 @@ class AnalysisDialog(QDialog):
             form.setContentsMargins(12, 12, 12, 12)
             form.setVerticalSpacing(8)
             scroll.setWidget(body)
-            pages[name] = form
+            pages[key], scrolls[key] = form, scroll
             self.tabs.addTab(scroll, name)
-        variables, options = pages.values()
+        variables, options = pages["variables"], pages["options"]
         saved = self._saved()
         if self.method == CUSTOM_EQUATION and not saved:
             saved = {"Equation": DEFAULT_EQUATION, "Parameters": [dict(record) for record in EXAMPLE_PARAMETERS]}
+        elif self.method == global_fit.GLOBAL_CUSTOM_EQUATION and not saved:
+            saved = global_fit.default_recipe()
         text_defaults = _text_defaults(self.method)
         columns = [str(name) for name in self.data.columns]
         numeric = [str(name) for name in self.data.select_dtypes(include="number").columns]
@@ -289,7 +294,7 @@ class AnalysisDialog(QDialog):
         for label, kind in METHODS[self.method].items():
             variable = (kind in VARIABLE_KINDS or label == "Input format") and label not in {
                 "Comparison factor", "Condition on factors"}
-            form = variables if variable else options
+            form = pages.get(global_fit.page_of(self.method, label)) or (variables if variable else options)
             caption = QLabel(field_label(label))
             caption.setWordWrap(True)
             caption.setMinimumWidth(150)
@@ -321,6 +326,9 @@ class AnalysisDialog(QDialog):
                 widget.setMinimumHeight(90)
             elif kind == PARAMETER_LIST:
                 widget = ParameterTable(saved.get(label, ()))
+            elif kind in (global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
+                # Global coefficient list / Global series constraints (Global fit custom equation).
+                widget = global_fit.build_editor(kind, label, saved, self)
             elif isinstance(kind, tuple) or kind in (None, OPTIONAL, GROUP_CHOICE):
                 widget = QComboBox()
                 widget.setMinimumContentsLength(18)
@@ -363,13 +371,18 @@ class AnalysisDialog(QDialog):
                 if label in saved:
                     self.controls[label] = ("kept", deepcopy(saved[label]))
                 continue
-            form.addRow(caption, widget)
+            if kind in (global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
+                form.addRow(caption)
+                form.addRow(widget)
+            else:
+                form.addRow(caption, widget)
             self.controls[label] = (kind, widget)
             self.rows[label] = (caption, widget, form)
+        global_fit.attach(self)
         if options.rowCount() == 0:
-            self.tabs.removeTab(1)
+            self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
 
-    def focus_field(self, name):
+    def focus_field(self, name, error=None):
         row = self.rows.get(name)
         if row is None:
             return False
@@ -380,7 +393,9 @@ class AnalysisDialog(QDialog):
                 self.tabs.setCurrentIndex(index)
                 scroll.ensureWidgetVisible(widget)
                 break
-        widget.setFocus()
+        # A compound editor puts the cursor on the cell the error is about.
+        if not (hasattr(widget, "focus_problem") and widget.focus_problem(error)):
+            widget.setFocus()
         return True
 
     # -- values ----------------------------------------------------------------------------------
@@ -413,6 +428,8 @@ class AnalysisDialog(QDialog):
                 options[name] = control.toPlainText().strip()
             elif kind == PARAMETER_LIST:
                 options[name] = control.values()
+            elif kind in (global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
+                options[name] = control.values()
             elif kind == GROUP_CHOICE:
                 options[name] = control.currentText().strip()
             else:
@@ -428,21 +445,26 @@ class AnalysisDialog(QDialog):
 
     def accept(self):
         try:
-            options = self.options()
+            options = global_fit.confirm(self, self.options())
         except FieldError as error:
             self.show_error(error, error.field)
             return
-        except ValueError as error:
+        except (ValueError, OverflowError) as error:
             self.show_error(error)
             return
         self.result = (self.method, options)
         super().accept()
 
+    def _message(self, error, field=None):
+        if self.method == global_fit.GLOBAL_CUSTOM_EQUATION:
+            return global_fit.describe_error(error, field)
+        return str(error)
+
     def show_error(self, error, field=None):
-        self.banner.setText(str(error))
+        self.banner.setText(self._message(error, field))
         self.banner.setVisible(True)
         if field:
-            self.focus_field(field)
+            self.focus_field(field, error)
 
 
 def choose(parent, frame, **options):
