@@ -1366,6 +1366,12 @@ _IT.update(_GRAPH_IT)
 _EN.update(_AICC_EN)
 _IT.update(_AICC_IT)
 
+# Settings → Multicore calculation… (analisi.parallel).
+from .parallel_text import EN as _PROCESSES_EN, IT as _PROCESSES_IT  # noqa: E402
+
+_EN.update(_PROCESSES_EN)
+_IT.update(_PROCESSES_IT)
+
 # Nonlinear and global nonlinear regression: one line under the Weighting field explains its denominator.
 _WEIGHTING_EN = {
     "weighting.note.unweighted": "Every point counts equally: the fit minimises the sum of squared residuals r².",

@@ -1,6 +1,12 @@
 """Trama desktop entry point."""
 import sys
 
+if __name__ == "__main__":
+    # First statement on purpose: in the Windows portable build every calculation process starts this same
+    # executable, and freeze_support() turns it into a worker before any window or import happens.
+    import multiprocessing
+    multiprocessing.freeze_support()
+
 if __name__ == "__main__" and "--smoke" not in sys.argv[1:]:
     # Qt is the interface from 0.95; --tk (or a missing PySide6) opens the classic Tk window.
     from trama_qt import qt_available
@@ -168,6 +174,8 @@ from analisi.pairwise_graph import (LETTERS as COMPACT_LETTERS, SECTION as PAIRW
 from analisi.fit_weights import INVERSE_VARIANCE, NOTE_KEYS, UNWEIGHTED, uses_fitted_y, uses_observed_y
 from analisi.i18n import config_path, load_language, set_language, tr, translate_message, ui, fixed_choice_keys
 from analisi.language_dialog import LanguageDialog
+from analisi import parallel
+from analisi.processes_dialog import ProcessesDialog
 from analisi.theme_preferences import load_ribbon_expanded, load_theme, save_ribbon_expanded, ThemeDialog
 from analisi.modern_workspace import ModernWorksheet
 from analisi.project_tabs import MAX_PROJECT_TABS, ProjectSession, ProjectTabs
@@ -4545,6 +4553,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         settings = tk.Menu(menu, tearoff=False)
         settings.add_command(label=tr("theme.command"), command=self.choose_theme)
         settings.add_command(label=ui("Language…"), command=self.choose_language)
+        settings.add_command(label=tr("processes.command"), command=self.choose_processes)
         menu.add_cascade(label=tr("theme.settings"), menu=settings)
         menus["Settings"] = settings
         self.menu_entries["Settings", "Theme…"] = settings, 0
@@ -7844,6 +7853,14 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if dialog.saved:
             self.status.set(tr("theme.saved"))
 
+    def choose_processes(self):
+        """Settings → Multicore calculation…: applies at once; the pool is rebuilt on the next calculation."""
+        dialog = ProcessesDialog(self.root, config_path(), error=self.error)
+        if dialog.saved:
+            parallel.configure(dialog.result)
+            self.status.set(tr("processes.saved", count=parallel.process_count()))
+        return dialog.result
+
     def choose_language(self):
         """Edit → Language…: store the preference for the next start; the open session is untouched."""
         dialog = LanguageDialog(self.root, config_path(), error=self.error)
@@ -7871,6 +7888,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 self.switch_project(original)
                 return
         self.worker.shutdown(wait=False)
+        parallel.shutdown()
         self.root.destroy()
 
 
@@ -15180,6 +15198,7 @@ def smoke(root, app, directory, legacy_reference=None):
 def main(*, root=None, on_ready=None):
     # Read once at startup: Edit → Language… changes the file, the running window keeps its language.
     set_language(load_language(config_path()))
+    parallel.configure(parallel.load_setting(config_path()))
     configure_native_dpi()
     root = tk.Tk() if root is None else root
     app = App(root)
