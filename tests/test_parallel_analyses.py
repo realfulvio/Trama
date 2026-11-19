@@ -114,12 +114,17 @@ class PrecomputeTests(unittest.TestCase):
         finally:
             set_language("en")
         italian = expected.figure.axes[0].get_title()
+        # Constrained layout can shift a spine by a pixel between successive
+        # renders. Render both figures once at the target DPI before comparing.
+        png(expected.figure)
+        expected_png = png(expected.figure)
         self.assertNotEqual(italian, english)
         self.assertTrue(any(outcome.remote for outcome in found.values()), "no analysis reached a worker")
         for outcome in found.values():
             self.assertIsNone(outcome.error)
             self.assertEqual(outcome.value.figure.axes[0].get_title(), italian)
-            self.assertEqual(png(outcome.value.figure), png(expected.figure))
+            png(outcome.value.figure)
+            self.assertEqual(png(outcome.value.figure), expected_png)
             for name, table in expected.tables.items():
                 pd.testing.assert_frame_equal(outcome.value.tables[name], table, check_exact=True)
 
