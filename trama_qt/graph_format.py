@@ -10,7 +10,7 @@ from matplotlib.colors import to_hex
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
-                               QPushButton, QTabWidget, QVBoxLayout, QWidget)
+                               QPushButton, QScrollArea, QTabWidget, QVBoxLayout, QWidget)
 
 from analisi.axis_breaks import AXIS_BREAKS, SUPPORT_ATTR, axis_breaks_reason
 from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
@@ -25,6 +25,8 @@ from analisi.probability_scale import FRACTION_SCALE, PERCENT_SCALE, PROBABILITY
 from analisi.qq_panels import PANEL_KEY
 from analisi.xy_series import (DRAW_STYLES, RECIPE_KEYS, SCALES as XY_SCALES, SIDES, assign_colors,
                                prune_options, xy_series)
+
+from .theme import fit_dialog
 
 # Captions are catalog keys shared with the classic dialog (analisi/graph_dialog.py, which needs Tk).
 AXIS_FIELDS = {"min": "graph.axis.min", "max": "graph.axis.max", "step": "graph.axis.step",
@@ -149,12 +151,15 @@ class GraphFormatDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         outer.addWidget(buttons)
-        self.resize(620, 560)
+        fit_dialog(self, 620, 560)
 
     # -- tabs ----------------------------------------------------------------------------------------
     def _tab(self, title):
         page = QWidget()
-        self.tabs.addTab(page, title)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(page)
+        self.tabs.addTab(scroll, title)
         return page
 
     def _appearance(self):
@@ -165,6 +170,7 @@ class GraphFormatDialog(QDialog):
                                     ("xlabel", "graph.field.xlabel", self.axes.get_xlabel()),
                                     ("ylabel", "graph.field.ylabel", self.axes.get_ylabel())):
             self.texts[key] = QLineEdit(str(self.style.get(key, value)))
+            self.texts[key].setAccessibleName(tr(caption))
             form.addRow(tr(caption), self.texts[key])
         self.choices = {}
         for key, caption, values, labels in (
@@ -248,6 +254,7 @@ class GraphFormatDialog(QDialog):
             fields = self.axis_fields[dimension] = {}
             for key, caption in AXIS_FIELDS.items():
                 fields[key] = QLineEdit("" if key not in options else str(options[key]))
+                fields[key].setAccessibleName(f"{box.title()}: {tr(caption)}")
                 form.addRow(tr(caption), fields[key])
             if not numeric:
                 note = QLabel(tr("graph.axis.categorical"))
@@ -480,6 +487,7 @@ class GraphFormatDialog(QDialog):
     def _focus(self, tab, widget=None):
         self.tabs.setCurrentIndex(tab)
         if widget is not None:
+            self.tabs.widget(tab).ensureWidgetVisible(widget)
             widget.setFocus()
             if isinstance(widget, QLineEdit):
                 widget.selectAll()

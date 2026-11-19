@@ -8,6 +8,8 @@ from analisi.i18n import tr
 from analisi.layout_geometry import AUTO_PAPER, PAPER_SIZES, WHITE
 from analisi.presentation import Layout
 
+from .theme import fit_dialog
+
 PANEL_LIMIT = 12
 
 
@@ -61,6 +63,7 @@ class LayoutDialog(QDialog):
         available = QGroupBox(tr("layout.available"))
         QVBoxLayout(available)
         self.available = QListWidget()
+        self.available.setAccessibleName(available.title())
         self.available.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.available.addItems(self.labels)
         self.available.itemDoubleClicked.connect(lambda _item: self.add_selected())
@@ -68,6 +71,7 @@ class LayoutDialog(QDialog):
         chosen = QGroupBox(tr("layout.panels"))
         QVBoxLayout(chosen)
         self.panels = QListWidget()
+        self.panels.setAccessibleName(chosen.title())
         chosen.layout().addWidget(self.panels)
         commands = QVBoxLayout()
         for key, handler in (("layout.add", self.add_selected), ("layout.remove", self.remove_selected),
@@ -94,7 +98,7 @@ class LayoutDialog(QDialog):
         outer.addWidget(buttons)
         self._swatch()
         self.fill_panels()
-        self.resize(720, 520)
+        fit_dialog(self, 720, 520)
 
     def _swatch(self, *_):
         color = QColor(self.background.text().strip())

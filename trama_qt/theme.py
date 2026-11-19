@@ -34,6 +34,15 @@ T = dict(LIGHT)
 FAMILY = ["Segoe UI"]
 
 
+def fit_dialog(dialog, width, height):
+    screen = dialog.screen()
+    if screen is not None:
+        bounds = screen.availableGeometry()
+        width = min(width, max(1, bounds.width() - 32))
+        height = min(height, max(1, bounds.height() - 48))
+    dialog.resize(width, height)
+
+
 def color(key):
     return QColor(T[key])
 

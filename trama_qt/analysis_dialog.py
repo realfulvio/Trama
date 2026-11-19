@@ -24,6 +24,7 @@ from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS,
 
 from .labels import choice_label, field_label, method_label
 from .strings import qt
+from .theme import fit_dialog
 
 try:  # Optional helpers: the dialog still works if a later refactor moves them.
     from analisi.hierarchical_workbench import hierarchy_view_available
@@ -137,12 +138,7 @@ class AnalysisDialog(QDialog):
         self.rows = {}
         method = current[0] if current and current[0] in METHODS else None
         self.method = method or self._first_method()
-        screen = self.screen()
-        if screen is None:
-            self.resize(940, 640)
-        else:
-            available = screen.availableGeometry()
-            self.resize(min(940, available.width() - 32), min(640, available.height() - 48))
+        fit_dialog(self, 940, 640)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(14, 14, 14, 12)
