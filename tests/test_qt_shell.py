@@ -242,6 +242,35 @@ class QtShellTests(unittest.TestCase):
         window.show_sheet("graph", window.project.runs.index(graph))
         self.assertIsNotNone(window.inspector)
 
+    def test_annotations(self):
+        from trama_qt.annotations import AnnotationEditor, GraphAnnotationsDialog
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        axes = graph.result.figure.axes[0]
+        editor = AnnotationEditor(window, axes)
+        editor.accept()
+        self.assertIsNone(editor.result)  # Empty text.
+        editor.text.setPlainText("p < 0,05")
+        editor.arrow.setChecked(True)
+        editor.target[0].setText("0,5")
+        editor.accept()
+        self.assertEqual(editor.result["target"], [0.5, 0.5])
+        dialog = GraphAnnotationsDialog(window, axes, [])
+        dialog.records.append(editor.result)
+        dialog.fill(0)
+        dialog.accept()
+        style = dict(graph.style or {}, annotations=dialog.result)
+        window.project.apply_format(graph, style)
+        self.assertIn("p < 0,05", [text.get_text() for text in axes.texts])
+        saved = self.folder / "notes.alab"
+        window.project.save(saved)
+        window.open_path(saved)
+        index = next(i for i, r in enumerate(window.project.runs) if r.method == "Column graph")
+        window.open_sheet(("graph", index))
+        self.wait()
+        self.assertEqual(window.project.runs[index].style["annotations"][0]["text"], "p < 0,05")
+
     def test_format_xy_graph_recipe(self):
         window = self.window
         self.open_example()

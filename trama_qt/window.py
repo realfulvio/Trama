@@ -1,5 +1,6 @@
 """The Trama main window on Qt: command bar, navigator, sheets and background calculations."""
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from pathlib import Path
 import subprocess
 import sys
@@ -215,6 +216,7 @@ class MainWindow(QMainWindow):
           shortcut="Ctrl+P")
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
         a("inspector", tr("graph.inspector.title"), self.toggle_inspector, icon="paintbrush", shortcut="Ctrl+Shift+I")
+        a("annotations", tr("command.graph_annotations"), self.edit_annotations, icon="type")
         a("new_layout", tr("command.new_layout"), self.new_layout, icon="layout-grid", shortcut="Ctrl+L")
         a("edit_layout", tr("command.edit_layout"), lambda: self.new_layout(edit=True), icon="layout-grid")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
@@ -332,7 +334,7 @@ class MainWindow(QMainWindow):
             (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
                                             "nonlinear", "survival", "contingency", "|", "change", "recalculate",
                                             "use_result"]),
-            (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "change", "recalculate", "|", "new_layout",
+            (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "annotations", "change", "recalculate", "|", "new_layout",
                                           "edit_layout", "|", "export"]),
             (tr("ribbon.modern.view"), ["navigator", "|", "language", "classic"]),
         ]
@@ -413,6 +415,8 @@ class MainWindow(QMainWindow):
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
         self.actions["inspector"].setEnabled(graph and idle)
+        self.actions["annotations"].setEnabled(graph and idle and self.project.runs[self.selected[1]].method
+                                               not in PRISM_GRAPH_METHODS)
         if self.inspector is not None:
             self.inspector.setEnabled(idle)
         self.actions["new_layout"].setEnabled(idle and bool(self.project.layout_candidates()))
@@ -1027,6 +1031,35 @@ class MainWindow(QMainWindow):
             self.error(error)
             return
         self.open_sheet(("layout", key))
+
+    def edit_annotations(self):
+        if self.busy() or not self.selected or self.selected[0] != "graph":
+            return
+        run = self.project.runs[self.selected[1]]
+        problem = self.project.graph_format_problem(run)
+        if problem or run.method in PRISM_GRAPH_METHODS:
+            self.error(problem or tr("annotation.native"))
+            return
+        if not self.settle_graph_draft():
+            return
+        from analisi.graph_annotations import ANNOTATIONS
+        from .annotations import GraphAnnotationsDialog
+        style = deepcopy(run.style or {})
+        dialog = GraphAnnotationsDialog(self, run.result.figure.axes[0], style.get(ANNOTATIONS, []))
+        if dialog.exec() != GraphAnnotationsDialog.DialogCode.Accepted or dialog.result is None \
+                or dialog.result == style.get(ANNOTATIONS, []):
+            return
+        if dialog.result:
+            style[ANNOTATIONS] = dialog.result
+        else:
+            style.pop(ANNOTATIONS, None)
+        try:
+            self.project.apply_format(run, style)
+        except ValueError as error:
+            self.error(error)
+            return
+        self.show_sheet(*self.selected)
+        self.status(tr("annotation.applied"))
 
     def calculate_candidate(self, candidate, frame, index, *, only=None):
         pairwise = self.project.pairwise_snapshot(candidate)
