@@ -15,6 +15,20 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Bland–Altman per coppie ripetute, pacchetto 02 del 0.96 (2026-11-20)
+
+PR draft verso main (ramo `claude/project-thread-y6nc6f`, base main 4c07db6). Windows NON PROVATO. Guida: `docs/bland-altman-repeated.md`.
+
+- Motore `analisi/bland_altman_repeated.py` (Group Comparison → Bland–Altman for repeated pairs): fogli Agreement, Subjects, Pairs, Excluded rows; grafici Pairs e Subject diagnostics; bootstrap per soggetti sul pool `analisi.parallel` a blocchi con stato PCG64 esatto (1 e N processi identici). Il Bland–Altman classico non cambia.
+- Qt: `trama_qt/bland_altman_repeated.py` (campi bootstrap solo con Subject bootstrap, controlli prima del worker, messaggi `barep.error.` in italiano) e 10 righe in `analysis_dialog.py`, come il binding di K-means stability. Nessuna modifica a `project.py`/`window.py`: il ricalcolo e l'annullamento usano il percorso generico.
+- Test: `tests/test_bland_altman_repeated.py` (motore), `tests/test_bland_altman_repeated_parallel.py` (pool reale a 4 processi), `tests/test_qt_bland_altman_repeated.py` (offscreen). Smoke: `python -m trama_qt.bland_altman_repeated_smoke CARTELLA [--dark]`.
+- Da provare su Windows, a 100% e 150%:
+  - Aprire `docs/examples/Bland-Altman-ripetute.alab`, aprire il grafico: 14 coppie, 6 soggetti, bias 4,571, limiti −1,192 e 10,33.
+  - Cambia parametri → Log ratio e Subject diagnostics; Subject bootstrap con 20.000 repliche e Annulla calcolo durante il calcolo (torna l'ultimo risultato).
+  - Impostazioni → processi 1 e Auto: stessi numeri in Agreement.
+  - Dialogo in italiano a 1024×768 e tema scuro: righe Livello, Repliche e Seme visibili solo col bootstrap.
+- Conflitti attesi: `analisi/workbench.py` (import, METHODS, GROUPS "Group Comparison", GRAPH_METHODS, `analyse`), coda di `analisi/interface_catalog.py`, `trama_qt/analysis_dialog.py` (stessi punti del binding K-means stability, PR #68), `tests/test_catalog.py`, `docs/features.md`, cima di questo file.
+
 ### Più progetti in schede nella finestra Qt, pacchetto Progetti 0.95 (2026-11-19)
 
 PR draft verso main (ramo `claude/project-thread-hz1cm2`, base main 7a7340c). Windows NON PROVATO.
