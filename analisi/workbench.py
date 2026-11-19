@@ -10,6 +10,8 @@ from .advanced import anova_comparisons, kmeans_scan
 from . import kmeans_options, kmeans_reports
 from .hartigan_wong import IterationLimitError
 from .cluster_consensus import DIMENSION_ADJUSTED, KL_CHOICES, KL_SCALING, UNSCALED_WSS
+from .kmeans_stability import METHOD as KMEANS_STABILITY, OPTIONS as KMEANS_STABILITY_OPTIONS
+from .kmeans_stability import analysis as kmeans_stability
 from .anova_diagnostics import OPTIONS as ANOVA_DIAG_OPTIONS
 from .anova_diagnostics import active as anova_diagnostics_active, build as build_anova_diagnostics
 from .anova_diagnostics import ensure_graph_budget as ensure_anova_graph_budget, graph_choice as anova_graph_choice
@@ -281,6 +283,7 @@ METHODS = {
                            kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
                            kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                            kmeans_options.INITIAL_ROWS: TEXT, **dict.fromkeys(kmeans_reports.COMMON, False)},
+    KMEANS_STABILITY: {**KMEANS_STABILITY_OPTIONS, "Variables": MULTIPLE},
     "Hierarchical clustering": {"Variables": MULTIPLE, "Observation labels": OPTIONAL, **HIERARCHICAL_OPTIONS},
     HIERARCHY_GRAPH: HIERARCHY_GRAPH_OPTIONS,
     "Scatter / confidence ellipse": {"X": None, "Y": None, "Group": OPTIONAL, **ELLIPSE_OPTIONS},
@@ -342,7 +345,8 @@ GROUPS = {
                          "Multifactor ANOVA", grouped_anova.METHOD, ANCOVA, "Contingency table",
                          "Bland–Altman", "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC),
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS),
-    "Clustering": ("K-means clustering", "K-means model selection", "Hierarchical clustering", HIERARCHY_GRAPH),
+    "Clustering": ("K-means clustering", "K-means model selection", KMEANS_STABILITY, "Hierarchical clustering",
+                   HIERARCHY_GRAPH),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
                  PARTS_GRAPH, "Box / violin plot", GROUPED_DISTRIBUTIONS, BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
     "Study Design and Simulation": ("Power and sample size", "Simulate data", MONTE_CARLO),
@@ -355,7 +359,7 @@ GRAPH_METHODS = frozenset({
     COMPARE_INDEPENDENT, CORRELATION_MATRIX, "Deming regression",
     "Global nonlinear regression", "Hierarchical clustering", HIERARCHY_GRAPH, "Histogram", FREQUENCY,
     "Interpolate a standard curve",
-    "K-means clustering", "K-means model selection", "Kaplan–Meier survival", COMPETING_RISKS,
+    "K-means clustering", "K-means model selection", KMEANS_STABILITY, "Kaplan–Meier survival", COMPETING_RISKS,
     "Linear regression", COMPARE_LINES, ANCOVA,
     "Mixed-effects model (REML)", LOGNORMAL, EQUIVALENCE, "Multiple t-tests", ROW_TESTS, "Nonlinear regression", ROBUST_CURVE, CUSTOM_EQUATION,
     GLOBAL_CUSTOM_EQUATION, "Principal component analysis",
@@ -1194,6 +1198,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return nb2_analysis(frame, o)
     if method == "Multifactor ANOVA":
         return _anova(frame, o)
+    if method == KMEANS_STABILITY:
+        return kmeans_stability(frame, o, cancel=cancel)
     if method in kmeans_options.METHODS:
         solve = _cluster_selection if method == kmeans_options.SELECTION else _kmeans
         try:
