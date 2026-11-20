@@ -108,6 +108,8 @@ class CatalogTests(unittest.TestCase):
             "Compare independent ROC curves": {"Control A": "x", "Patient A": "z", "Control B": "y", "Patient B": "p",
                                                "Direction A": "Higher in patients", "Direction B": "Lower in patients",
                                                "Area": "Full", "Inference": "DeLong"},
+            "Precision–recall curve": {"Outcome": "Event", "Positive": "1", "Negative": "0", "Score": "x",
+                                       "Second score": "z", "Second direction": "Lower is positive"},
             "Bland–Altman": {"First": "x", "Second": "y", "Method": "Difference"},
             "Bland–Altman for repeated pairs": {"Subject": "Subject", "First": "x", "Second": "y"},
             "Deming regression": {"X": "x", "Y": "y", "Y / X error variance": 1.},

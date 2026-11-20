@@ -1367,3 +1367,10 @@ MESSAGES.update({
     "barep.error.work": ("Bootstrap replicates × subjects = {a} × {b} exceeds the limit of {limit}.",
                          "Repliche bootstrap × soggetti = {a} × {b} supera il limite di {limit}."),
 })
+
+# Precision–recall curve (0.97): captions and engine messages live in their own section.
+from .precision_recall_catalog import CAPTIONS as _PRECISION_RECALL_CAPTIONS  # noqa: E402
+from .precision_recall_catalog import MESSAGES as _PRECISION_RECALL_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_PRECISION_RECALL_CAPTIONS)
+MESSAGES.update(_PRECISION_RECALL_MESSAGES)
