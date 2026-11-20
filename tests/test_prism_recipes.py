@@ -22,6 +22,56 @@ def source(analysis_class, version, content, frame, columns):
 
 
 class PrismRecipeTests(unittest.TestCase):
+    def test_extract_rearrange_restores_xy_column_and_weighted_counts(self):
+        frame = pd.DataFrame({"Time": [1, 2, 1, 2], "Value": [3, 5, 7, 9],
+                              "Arm 2": ["A", "A", "B", "B"], "Event": ["yes", "no", "yes", "yes"],
+                              "Visit": ["Visit 1", "Visit 2", "Visit 1", "Visit 2"],
+                              "Count": [2, 1, 4, 3]})
+        columns = {str(index): [label] for index, label in enumerate(frame.columns)}
+        time, value, arm, event, visit, count = (var(str(index)) for index in range(len(columns)))
+        cases = [
+            ("XY", {"xVariable": time, "yVariable": value, "groupingVariable": arm, "subjectType": "NO"},
+             {"type": "VARIABLE", "variable": visit},
+             {"Row title": ["Visit 1", "Visit 2"], "Time": [1, 2], "A": [3, 5], "B": [7, 9]}),
+            ("COLUMN", {"responseVariable": value, "columnFactorVariable": arm,
+                        "columnSubjectType": "VARIABLE", "subjectVariable": visit},
+             {"type": "NO", "variable": None},
+             {"Row title": ["Visit 1", "Visit 2"], "A": [3, 5], "B": [7, 9]}),
+            ("CONTINGENCY", {"rowVariable": arm, "columnVariable": event, "countVariable": count},
+             {"type": "NO", "variable": None},
+             {"Row title": ["A", "B"], "no": [1, 0], "yes": [2, 7]}),
+        ]
+        for name, arrangement, titles, expected in cases:
+            with self.subTest(name=name):
+                content = {"resultTableFormat": name, "includeVarNamePrefix": False, "reportCompleteRowsOnly": True,
+                           "rowTitles": titles, "dataArrangement": arrangement}
+                args = source("EXTRACT_REARRANGE", "0.0.1", content, frame, columns)
+                restored = restore_recipe(*args)
+                self.assertIsNotNone(restored)
+                _, method, options = restored
+                self.assertEqual(method, "Extract and rearrange")
+                table = analyse(method, frame, options).tables["Rearranged data"]
+                self.assertEqual(table.attrs["table_format"], name.lower())
+                pd.testing.assert_frame_equal(table, pd.DataFrame(expected), check_dtype=False, check_exact=True)
+                arrangement["unrecognizedSetting"] = True
+                self.assertIsNone(restore_recipe(*args))
+
+    def test_extract_rearrange_does_not_guess_subject_mode_or_unavailable_roles(self):
+        frame = pd.DataFrame({"Time": [1, 2], "Signal": [4, 5], "Replicate": ["s1", "s1"]})
+        columns = {"t": ["Time"], "r": ["Signal"], "s": ["Replicate"]}
+        arrangement = {"xVariable": var("t"), "yVariable": var("r"), "subjectVariable": var("s"),
+                       "subjectType": "NO"}
+        content = {"resultTableFormat": "XY", "includeVarNamePrefix": False, "reportCompleteRowsOnly": True,
+                   "rowTitles": {"type": "NO", "variable": None}, "dataArrangement": arrangement}
+        args = source("EXTRACT_REARRANGE", "0.0.1", content, frame, columns)
+        self.assertIsNone(restore_recipe(*args))
+        arrangement["subjectType"] = "SAME_X"
+        self.assertIsNone(restore_recipe(*args))
+        arrangement["subjectType"] = "VARIABLE"
+        self.assertEqual(restore_recipe(*args)[2]["Subject/replicate variable"], "Replicate")
+        arrangement["subjectVariable"] = var("missing")
+        self.assertIsNone(restore_recipe(*args))
+
     def test_factorial_resolves_columns_by_uid_and_preserves_interaction_order(self):
         x, y, response = var("x"), var("y", 1), var("r", 2)
         tx, ty = {"varIdx": 0, "varID": x}, {"varIdx": 1, "varID": y}

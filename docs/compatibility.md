@@ -29,6 +29,11 @@ Trama legge strutture supportate di **PZFX**, progetti XML/ZIP compatibili e dei
   di conteggi. Nelle analisi già create, **Cambia parametri…** applica la nuova
   disposizione al risultato e ricalcola le analisi collegate. **Annulla** lascia
   in vigore l'ultima configurazione confermata.
+- **Ricette di estrazione dai progetti ZIP:** le impostazioni riconosciute
+  recuperano XY, Colonna, Raggruppata e Contingenza. Si conservano i ruoli
+  delle colonne, la variabile dei conteggi e, quando definiti da una
+  variabile, i titoli delle righe e i soggetti supportati. Le opzioni di
+  abbinamento sconosciute mantengono il risultato archiviato, se presente.
 - **Modello ANOVA con termini scelti:** l'importazione di un'ANOVA multifattoriale ordinaria può conservare le singole interazioni salvate. La ricetta deve contenere un'intercetta, l'effetto principale di ogni fattore dichiarato e tutti gli effetti di ordine inferiore di ciascuna interazione. Sono supportate interazioni fino a tre fattori.
 - **Barre d’errore XY nei progetti ZIP:** le viste compatibili recuperano SD e SEM memorizzati, distanze superiori e inferiori e limiti espliciti. Se è salvato un solo estremo, la barra termina sul punto dall’altro lato. Le distanze disponibili sono modificabili nelle coordinate salvate.
 - **Limiti XY nei progetti binari:** per il sottotipo compatibile con limiti espliciti, la tabella recupera le subcolonne Centro, Superiore e Inferiore, conservando valori vuoti e limiti invertiti. Se punti e barre coincidono con la geometria salvata, la copia modificabile espone le distanze visibili sopra e sotto ogni punto. Un lato assente resta vuoto. Assi, annotazioni e banda ombreggiata mantengono la presentazione salvata. Quando la geometria corrisponde alle subcolonne del foglio XY originale, il grafico si aggiorna da quel foglio. I progetti già salvati con un foglio di coordinate dedicato continuano a usarlo.

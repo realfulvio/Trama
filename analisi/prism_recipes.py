@@ -407,18 +407,47 @@ def _select_transform(frame, content, _results):
 
 
 def _extract_rearrange(frame, content, _results):
-    from .extract_rearrange import COMPLETE, COLUMN_FACTOR, EXTRACT_REARRANGE, OUTPUT, PREFIX, RESPONSE, ROW_FACTOR
+    from . import extract_rearrange as extract
 
-    arrangement = content["dataArrangement"]
-    fields = {RESPONSE: "responseVariable", ROW_FACTOR: "rowFactorVariable", COLUMN_FACTOR: "columnFactorVariable"}
-    if (content["resultTableFormat"] != "GROUPED" or content["rowTitles"] != {"type": "NO", "variable": None}
-            or set(arrangement) != set(fields.values()) or type(content["includeVarNamePrefix"]) is not bool
-            or type(content["reportCompleteRowsOnly"]) is not bool):
+    format_name = content["resultTableFormat"]
+    format_title = {"XY": "XY", "COLUMN": "Column", "GROUPED": "Grouped", "CONTINGENCY": "Contingency"}[format_name]
+    prefix, complete = content["includeVarNamePrefix"], content["reportCompleteRowsOnly"]
+    if type(prefix) is not bool or type(complete) is not bool:
         return None
-    return EXTRACT_REARRANGE, {
-        OUTPUT: "Grouped", PREFIX: content["includeVarNamePrefix"], COMPLETE: content["reportCompleteRowsOnly"],
-        **{field: _column(frame, arrangement[key]) for field, key in fields.items()},
-    }
+    if not isinstance(content["dataArrangement"], dict):
+        return None
+    arrangement = content["dataArrangement"].copy()
+    fields = {
+        "XY": {extract.X: "xVariable", extract.RESPONSE: "yVariable", extract.GROUP: "groupingVariable"},
+        "COLUMN": {extract.RESPONSE: "responseVariable", extract.GROUP: "columnFactorVariable"},
+        "GROUPED": {extract.RESPONSE: "responseVariable", extract.ROW_FACTOR: "rowFactorVariable",
+                    extract.COLUMN_FACTOR: "columnFactorVariable"},
+        "CONTINGENCY": {extract.TREATMENT: "rowVariable", extract.OUTCOME: "columnVariable",
+                        extract.COUNT: "countVariable"},
+    }[format_name]
+    if format_name != "CONTINGENCY":
+        mode_key = "subjectType" if format_name == "XY" else "columnSubjectType"
+        subject_mode = arrangement.pop(mode_key, "NO")
+        if subject_mode == "VARIABLE":
+            if arrangement.get("subjectVariable") is None:
+                return None
+            fields[extract.SUBJECT] = "subjectVariable"
+        elif subject_mode != "NO" or arrangement.pop("subjectVariable", None) is not None:
+            return None
+
+    titles = content["rowTitles"]
+    options = {extract.OUTPUT: format_title, extract.PREFIX: prefix, extract.COMPLETE: complete}
+    if titles != {"type": "NO", "variable": None}:
+        if (format_title not in {"XY", "Column"} or not isinstance(titles, dict)
+                or set(titles) != {"type", "variable"}
+                or titles["type"] != "VARIABLE"):
+            return None
+        options[extract.TITLES] = _column(frame, titles["variable"])
+    for field, key in fields.items():
+        reference = arrangement.pop(key, None)
+        if reference is not None or field not in extract.EXTRACT_OPTIONAL_FIELDS:
+            options[field] = _column(frame, reference)
+    return None if arrangement else (extract.EXTRACT_REARRANGE, options)
 
 
 def _grouped_anova(frame, content, _results):
