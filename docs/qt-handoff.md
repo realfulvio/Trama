@@ -17,7 +17,7 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ### Correlazione intraclasse, pacchetto ICC-Misure-Continue (2026-11-20)
 
-PR draft verso main (ramo `claude/icc-misure-continue`, base main df1d591 = v0.96.0). Windows: vedi la PR per l'esito delle prove sul desktop fisico. Guida: `docs/icc.md`.
+PR draft verso main (ramo `claude/icc-misure-continue`, base main df1d591 = v0.96.0). Windows 10 fisico (1920×1080, 100 %, DPI 96, 2026-11-20): suite completa 4169 test OK (base 4111 OK), smoke generale PASS, smoke ICC chiaro e scuro PASS, verificatore 9/9; 150 % e secondo monitor NON PROVATI. Evidenze nella PR. Guida: `docs/icc.md`.
 
 - Motore `analisi/icc.py` (Group Comparison → Intraclass correlation, dopo Bland–Altman for repeated pairs): fogli ICC, ANOVA components, Subjects, Settings, Excluded rows; grafico dei profili; quattro coefficienti McGraw–Wong; dati centrati sulla mediana e scalati per una potenza di due esatta (ICC invariante, niente overflow); bootstrap per soggetti sul pool `analisi.parallel` a blocchi con stato PCG64 esatto (1 e N processi identici), budget 20 milioni di celle controllato prima di estrarre.
 - Qt: `trama_qt/icc.py` (campi bootstrap solo con Bootstrap CI, riepilogo, valutatori nell'ordine di selezione, controlli prima del worker, messaggi `icc.error.` in italiano) e 8 righe in `analysis_dialog.py`, come il binding di Bland–Altman per coppie ripetute. Una riga in `AnalysisDialog.options()` rimette `Raters` nell'ordine in cui sono stati spuntati. Nessuna modifica a `project.py`/`window.py`.
