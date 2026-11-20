@@ -27,6 +27,7 @@ from .category_graphs import (COLUMN_GRAPH, COLUMN_STYLES, GROUPED_GRAPH, GROUPE
                               category_graph)
 from .ancova import ANCOVA, OPTIONS as ANCOVA_OPTIONS, ancova
 from .bubble import BUBBLE, OPTIONS as BUBBLE_OPTIONS, bubble_plot
+from . import bland_altman_repeated as ba_repeated
 from .compare_lines import COMPARE_LINES, OPTIONS as COMPARE_LINES_OPTIONS, compare_lines
 from .contingency import CONTINGENCY, CONTINGENCY_OPTIONS, contingency
 from .distribution_graphs import BOX_VIOLIN, OPTIONS as BOX_VIOLIN_OPTIONS, box_violin
@@ -320,6 +321,7 @@ METHODS = {
     BOX_VIOLIN: BOX_VIOLIN_OPTIONS,
     GROUPED_DISTRIBUTIONS: GROUPED_DISTRIBUTIONS_OPTIONS,
     BUBBLE: BUBBLE_OPTIONS,
+    ba_repeated.METHOD: ba_repeated.OPTIONS,
     BEFORE_AFTER: BEFORE_AFTER_OPTIONS,
     TRAJECTORIES: TRAJECTORY_OPTIONS,
     FOREST_PLOT: FOREST_OPTIONS,
@@ -355,7 +357,7 @@ GROUPS = {
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
                          "Multifactor ANOVA", grouped_anova.METHOD, ANCOVA, "Contingency table",
-                         "Bland–Altman", "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC),
+                         "Bland–Altman", ba_repeated.METHOD, "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC),
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS),
     "Clustering": ("K-means clustering", "K-means model selection", KMEANS_STABILITY, "Hierarchical clustering",
                    HIERARCHY_GRAPH),
@@ -367,7 +369,7 @@ GROUPS = {
 # These analyses create a graph when calculated. Keep their Graphs entry
 # available while a reopened project's results are still unloaded.
 GRAPH_METHODS = frozenset({
-    *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", "Correlation", CORRELATE_CONTROL,
+    *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", ba_repeated.METHOD, "Correlation", CORRELATE_CONTROL,
     COMPARE_INDEPENDENT, CORRELATION_MATRIX, "Deming regression",
     "Global nonlinear regression", "Hierarchical clustering", HIERARCHY_GRAPH, "Histogram", FREQUENCY,
     "Interpolate a standard curve",
@@ -1290,6 +1292,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return monte_carlo(frame, o)
     if method == INDEPENDENT_ROC:
         return independent_roc(frame, o, cancel=cancel)
+    if method == ba_repeated.METHOD:
+        return ba_repeated.analyse(frame, o, cancel=cancel)
     if method == "Histogram":
         return _distribution(method, frame, o)
     if method == REFERENCE_NORMALIZATION:

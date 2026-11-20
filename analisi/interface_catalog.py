@@ -1270,3 +1270,55 @@ from .logistic_validation_catalog import MESSAGES as _LOGISTIC_VALIDATION_MESSAG
 
 CAPTIONS.update(_LOGISTIC_VALIDATION_CAPTIONS)
 MESSAGES.update(_LOGISTIC_VALIDATION_MESSAGES)
+
+# Bland–Altman for repeated pairs (0.96): method, fields and engine messages. Recipes keep the English keys and
+# values; sheet titles, column headers and worksheet text stay literal.
+CAPTIONS.update({
+    "Bland–Altman for repeated pairs": "Bland–Altman per coppie ripetute",
+    "Occasion": "Occasione",
+    "Mode": "Modalità",
+    "Coverage": "Copertura (%)",
+    "Confidence intervals": "Intervalli di confidenza",
+    "Log ratio": "Logaritmo del rapporto",
+    "Subject diagnostics": "Diagnostica per soggetto",
+})
+
+MESSAGES.update({
+    "barep.error.column": ("Choose a column for {field}.", "Scegli una colonna per {field}."),
+    "barep.error.distinct": ("Choose two different columns for First and Second.",
+                             "Scegli due colonne diverse per Prima variabile e Seconda variabile."),
+    "barep.error.subject_column": ("Subject, First and Second must be different columns.",
+                                   "Soggetto, Prima variabile e Seconda variabile devono essere colonne diverse."),
+    "barep.error.occasion_column": ("Occasion must be a column other than Subject, First and Second.",
+                                    "Occasione deve essere una colonna diversa da Soggetto, Prima variabile e "
+                                    "Seconda variabile."),
+    "barep.error.choice": ("Choose a valid value for {field}.", "Scegli un valore valido per {field}."),
+    "barep.error.percent": ("{field} must be a number greater than 0 and less than 100.",
+                            "{field} deve essere un numero maggiore di 0 e minore di 100."),
+    "barep.error.whole": ("{field} must be a whole number from {low} to {high}.",
+                          "{field} deve essere un numero intero da {low} a {high}."),
+    "barep.error.missing": ('Column "{name}" is not in the table.', 'La colonna "{name}" non è nella tabella.'),
+    "barep.error.duplicate": ('More than one column is called "{name}".', 'Più di una colonna si chiama "{name}".'),
+    "barep.error.numbers": ('Column "{name}" must contain numbers.', 'La colonna "{name}" deve contenere numeri.'),
+    "barep.error.finite": ('Column "{name}" has a value that is not a finite number in row {row}.',
+                           'La colonna "{name}" ha un valore che non è un numero finito alla riga {row}.'),
+    "barep.error.magnitude": ('Column "{name}" has a value outside −1e100 to 1e100 in row {row}.',
+                              'La colonna "{name}" ha un valore fuori da −1e100 … 1e100 alla riga {row}.'),
+    "barep.error.positive": ('Log ratio needs positive values: column "{name}" has {value} in row {row}.',
+                             'Il logaritmo del rapporto richiede valori positivi: la colonna "{name}" ha {value} '
+                             'alla riga {row}.'),
+    "barep.error.repeated_occasion": ('Subject "{subject}" has occasion "{occasion}" in rows {a} and {b}. '
+                                      "Each subject and occasion may hold one pair.",
+                                      'Il soggetto "{subject}" ha l’occasione "{occasion}" alle righe {a} e {b}. '
+                                      "Ogni soggetto e occasione può avere una sola coppia."),
+    "barep.error.pairs": ("Use at most {limit} pairs (this selection has {count}).",
+                          "Usa al massimo {limit} coppie (questa selezione ne ha {count})."),
+    "barep.error.subjects": ("At least {low} subjects with complete pairs are needed; {count} found.",
+                             "Servono almeno {low} soggetti con coppie complete; trovati {count}."),
+    "barep.error.within": ("No subject has two complete pairs: the within-subject variance needs at least one "
+                           "repeated pair.",
+                           "Nessun soggetto ha due coppie complete: la varianza entro soggetto richiede almeno "
+                           "una coppia ripetuta."),
+    "barep.error.work": ("Bootstrap replicates × subjects = {a} × {b} exceeds the limit of {limit}.",
+                         "Repliche bootstrap × soggetti = {a} × {b} supera il limite di {limit}."),
+})
