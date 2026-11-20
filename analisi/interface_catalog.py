@@ -1367,3 +1367,55 @@ MESSAGES.update({
     "barep.error.work": ("Bootstrap replicates × subjects = {a} × {b} exceeds the limit of {limit}.",
                          "Repliche bootstrap × soggetti = {a} × {b} supera il limite di {limit}."),
 })
+
+# Intraclass correlation (0.97). Canonical recipes stay English; these captions are display text.
+CAPTIONS.update({
+    "Intraclass correlation": "Correlazione intraclasse",
+    "Raters": "Valutatori",
+    "Definition": "Definizione",
+    "Unit": "Unità",
+    "Bootstrap CI": "IC bootstrap",
+    "Profile graph": "Grafico dei profili",
+    "Absolute agreement": "Accordo assoluto",
+    "Consistency": "Coerenza",
+    "Single measure": "Misura singola",
+    "Mean of raters": "Media dei valutatori",
+})
+
+MESSAGES.update({
+    "icc.error.raters_columns": ("Choose columns for {field}.", "Scegli le colonne per {field}."),
+    "icc.error.raters_min": ("Choose at least two columns for {field}.", "Scegli almeno due colonne per {field}."),
+    "icc.error.raters_once": ("Choose each column of {field} only once.",
+                              "Scegli ogni colonna di {field} una sola volta."),
+    "icc.error.raters_max": ("Use at most {limit} raters (this selection has {count}).",
+                             "Usa al massimo {limit} valutatori (questa selezione ne ha {count})."),
+    "icc.error.subject_column": ("Choose a column for {field}.", "Scegli una colonna per {field}."),
+    "icc.error.subject_overlap": ("{field} must be a column other than the {raters}.",
+                                  "{field} deve essere una colonna diversa dai {raters}."),
+    "icc.error.choice": ("Choose a valid value for {field}.", "Scegli un valore valido per {field}."),
+    "icc.error.percent": ("{field} must be a number greater than 0 and less than 100.",
+                          "{field} deve essere un numero maggiore di 0 e minore di 100."),
+    "icc.error.whole": ("{field} must be a whole number from {low} to {high}.",
+                        "{field} deve essere un numero intero da {low} a {high}."),
+    "icc.error.missing": ('Column "{name}" is not in the table.', 'La colonna "{name}" non è nella tabella.'),
+    "icc.error.duplicate": ('More than one column is called "{name}".', 'Più di una colonna si chiama "{name}".'),
+    "icc.error.numbers": ('Column "{name}" must contain numbers.', 'La colonna "{name}" deve contenere numeri.'),
+    "icc.error.finite": ('Column "{name}" has a value that is not a finite number in row {row}.',
+                         'La colonna "{name}" ha un valore che non è un numero finito alla riga {row}.'),
+    "icc.error.magnitude": ('Column "{name}" has a value outside −1e100 to 1e100 in row {row}.',
+                            'La colonna "{name}" ha un valore fuori da −1e100 … 1e100 alla riga {row}.'),
+    "icc.error.rows": ("Use at most {limit} rows (this selection has {count}).",
+                       "Usa al massimo {limit} righe (questa selezione ne ha {count})."),
+    "icc.error.few": ("At least {low} complete rows are needed; {count} found.",
+                      "Servono almeno {low} righe complete; trovate {count}."),
+    "icc.error.work": ("Bootstrap would resample {cells} cells (replicates × rows × raters); the limit is {limit}.",
+                       "Il bootstrap ricampionerebbe {cells} celle (repliche × righe × valutatori); il limite è "
+                       "{limit}."),
+    "icc.summary.counts": ("{complete} complete subjects · {raters} raters · incomplete rows left out: {excluded}",
+                           "{complete} soggetti completi · {raters} valutatori · righe incomplete escluse: "
+                           "{excluded}"),
+    "icc.summary.order": ("Order of the raters: {names}", "Ordine dei valutatori: {names}"),
+    "icc.summary.unit": ("{definition}, {unit}", "{definition}, {unit}"),
+    "icc.summary.none": ("Choose at least two rater columns.", "Scegli almeno due colonne di valutatori."),
+    "icc.summary.caption": ("Summary", "Riepilogo"),
+})

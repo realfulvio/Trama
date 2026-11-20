@@ -110,6 +110,7 @@ class CatalogTests(unittest.TestCase):
                                                "Area": "Full", "Inference": "DeLong"},
             "Bland–Altman": {"First": "x", "Second": "y", "Method": "Difference"},
             "Bland–Altman for repeated pairs": {"Subject": "Subject", "First": "x", "Second": "y"},
+            "Intraclass correlation": {"Raters": ["x", "y", "z"], "Subject": "Subject"},
             "Deming regression": {"X": "x", "Y": "y", "Y / X error variance": 1.},
             "Area under curve": {"X": "x", "Y": "y", "Baseline": 10.},
             "Interpolate a standard curve": {"X": "x", "Y": "y", "Unknown responses": "Unknown"},
