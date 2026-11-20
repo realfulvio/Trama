@@ -335,7 +335,7 @@ GROUPS = {
                                     "Area under curve", "Principal component analysis",
                                     "Adjust a stack of p values", "Control false discoveries", META_ANALYSIS),
     "Regression and Curves": ("Linear regression", COMPARE_LINES, "Deming regression", "Multiple regression",
-                              LOGISTIC_VALIDATION, NB2, "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
+                              NB2, LOGISTIC_VALIDATION, "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
                               "Interpolate a standard curve", SPLINE_FIT,
                               "Smooth / differentiate / integrate", PLOT_FUNCTION),
