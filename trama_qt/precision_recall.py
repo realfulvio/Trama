@@ -24,7 +24,7 @@ WATCHED = (OUTCOME, POSITIVE, NEGATIVE, SCORE, SECOND_SCORE)
 _TEXT = {
     "samples": ("Common samples: {n} · Positives: {positives} · Negatives: {negatives} · Prevalence: {prevalence}",
                 "Campioni comuni: {n} · Positivi: {positives} · Negativi: {negatives} · Prevalenza: {prevalence}"),
-    "left_out": ("{count} row(s) left out for blank cells.", "{count} riga/righe escluse per celle vuote."),
+    "left_out": ("Rows left out for blank cells: {count}.", "Righe escluse per celle vuote: {count}."),
     "later": ("The sample count appears when you press Run.", "Il conteggio dei campioni compare dopo Esegui."),
 }
 

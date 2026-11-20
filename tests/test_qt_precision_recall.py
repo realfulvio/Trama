@@ -139,7 +139,7 @@ class PrecisionRecallDialogTests(unittest.TestCase):
         self.settle(dialog)
         self.assertEqual(dialog.precision.info.text(),
                          "Common samples: 8 · Positives: 3 · Negatives: 5 · Prevalence: 0.375\n"
-                         "2 row(s) left out for blank cells.")
+                         "Rows left out for blank cells: 2.")
         fill(dialog, **{"Second score": ""})
         self.settle(dialog)
         self.assertIn("Common samples: 9 ", dialog.precision.info.text())
@@ -149,7 +149,7 @@ class PrecisionRecallDialogTests(unittest.TestCase):
         self.settle(dialog)
         self.assertEqual(dialog.precision.info.text(),
                          "Campioni comuni: 8 · Positivi: 3 · Negativi: 5 · Prevalenza: 0,375\n"
-                         "2 riga/righe escluse per celle vuote.")
+                         "Righe escluse per celle vuote: 2.")
         fill(dialog, **{"Positive": "x"})
         self.settle(dialog)
         self.assertIn("non è né Positivo", dialog.precision.info.text())
