@@ -198,6 +198,7 @@ class RepeatedAgreementSmoke(Smoke):
                 window.project.save(self.saved)
                 self.reference = {name: frame.copy() for name, frame in tables.items()}
 
+            self.dismiss(index)
             run = self.change(index, {"Graph": "Subject diagnostics"})
             self.expect(run.calculation_error is None and "Within-subject" in run.result.figure.axes[0].get_title(),
                         "subject diagnostics did not draw")
@@ -217,6 +218,25 @@ class RepeatedAgreementSmoke(Smoke):
             window.close()
             window.deleteLater()
             self.app.processEvents()
+
+    def dismiss(self, index):
+        """Change parameters, edit the fields, then Cancel: the confirmed recipe and result stay as they were."""
+        window = self.window
+        run = window.project.runs[index]
+        options, result = dict(run.options), run.result
+
+        def script(dialog):
+            fill(dialog, {"Mode": "Log ratio", "Coverage": "80"})
+            dialog.reject()
+            return False
+
+        window.open_sheet(("graph", index))
+        self.ask(window.change_parameters, script)
+        self.wait()
+        run = window.project.runs[index]
+        self.expect(window.job is None and run.options == options and run.result is result,
+                    "Cancel in the dialog changed the recipe")
+        self.note("Change parameters → Cancel kept the confirmed recipe")
 
     def recalculate(self, title, index):
         window = self.window
