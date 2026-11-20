@@ -34,23 +34,26 @@ def _transfer(values, centers, counts, labels, alternative, row, target):
 
 def _quick(values, centers, counts, labels, alternative, changed_in_optimum):
     size = len(values)
-    last_change = np.where(changed_in_optimum, 0, -size)
+    last_change = np.where(changed_in_optimum, 0, -size).tolist()
     touched = np.zeros(len(counts), dtype=bool)
     idle = 0
     for step in range(1, 50 * size + 1):
         row = (step - 1) % size
         origin, target = labels[row], alternative[row]
         idle += 1
-        if counts[origin] > 1 and max(last_change[origin], last_change[target]) + size > step:
+        origin_count = counts[origin]
+        cutoff = step - size
+        if origin_count > 1 and (last_change[origin] > cutoff or last_change[target] > cutoff):
             x = values[row]
             delta = centers[[origin, target]] - x
             distance = np.einsum("ij,ij->i", delta, delta)
-            removed = distance[0] * counts[origin] / (counts[origin] - 1)
-            added = distance[1] * counts[target] / (counts[target] + 1)
+            target_count = counts[target]
+            removed = distance[0] * origin_count / (origin_count - 1)
+            added = distance[1] * target_count / (target_count + 1)
             if added < removed:
                 _transfer(values, centers, counts, labels, alternative, row, target)
-                last_change[[origin, target]] = step
-                touched[[origin, target]] = True
+                last_change[origin] = last_change[target] = step
+                touched[origin] = touched[target] = True
                 idle = 0
         if idle == size:
             return touched
@@ -98,7 +101,8 @@ def fit_hartigan_wong(values, initial_rows, max_iterations=10):
     centers = np.vstack([values[labels == i].mean(axis=0) for i in range(k)])
     quick_touched = np.ones(k, dtype=bool)
     opt_steps = 0
-    last_opt = np.full(k, -n, dtype=int)
+    # A transfer keeps both clusters eligible for the next cycle through the rows.
+    live_through = np.zeros(k, dtype=int)
     idle = 0
     finished = False
     for iteration in range(1, max_iterations + 1):
@@ -108,7 +112,7 @@ def fit_hartigan_wong(values, initial_rows, max_iterations=10):
             idle += 1
             origin = labels[row]
             if counts[origin] > 1:
-                candidates = quick_touched | (last_opt + n > opt_steps)
+                candidates = quick_touched | (live_through > opt_steps)
                 if candidates[origin]:
                     candidates[:] = True
                 candidates[alternative[row]] = True
@@ -117,15 +121,15 @@ def fit_hartigan_wong(values, initial_rows, max_iterations=10):
                 distances = np.einsum("ij,ij->i", ds, ds)
                 cost = distances * counts / (counts + 1)
                 cost[~candidates] = np.inf
-                target = int(np.argmin(cost))
+                target = int(cost.argmin())
                 alt = alternative[row]
                 if cost[target] == cost[alt]:
                     target = alt
                 removed = distances[origin] * counts[origin] / (counts[origin] - 1)
                 if cost[target] < removed:
                     _transfer(values, centers, counts, labels, alternative, row, target)
-                    last_opt[[origin, target]] = opt_steps
-                    changed_in_optimum[[origin, target]] = True
+                    live_through[origin] = live_through[target] = opt_steps + n
+                    changed_in_optimum[origin] = changed_in_optimum[target] = True
                     idle = 0
                 else:
                     alternative[row] = target
