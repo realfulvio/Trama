@@ -2804,7 +2804,9 @@ class AnalysisDialog(simpledialog.Dialog):
         if note is None or not note.winfo_exists() or rm_sphericity.FIELD not in self.controls:
             return
         key = {rm_sphericity.NONE: "rm.sphericity.note.none",
-               rm_sphericity.LEGACY: "rm.sphericity.note.legacy"}.get(
+               rm_sphericity.LEGACY: "rm.sphericity.note.legacy",
+               rm_sphericity.HF: "rm.sphericity.note.hf",
+               rm_sphericity.LOWER: "rm.sphericity.note.lower"}.get(
             self.controls[rm_sphericity.FIELD][1].get(), "rm.sphericity.note.gg")
         note.configure(text=tr(key))
 

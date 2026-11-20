@@ -79,15 +79,25 @@ class ChoiceTests(DialogCase):
             dialog.controls[FIELD][1].set(rm_sphericity.CANONICAL)
             dialog.update()
             seen["note_gg"] = dialog.sphericity_note.cget("text")
+            dialog.controls[FIELD][1].set(rm_sphericity.HF)
+            dialog.update()
+            seen["note_hf"] = dialog.sphericity_note.cget("text")
+            dialog.controls[FIELD][1].set(rm_sphericity.LOWER)
+            dialog.update()
+            seen["note_lower"] = dialog.sphericity_note.cget("text")
 
         seen = self.drive(action)
-        self.assertEqual(seen["values"], ("None", "Geisser–Greenhouse"))
-        self.assertEqual(seen["labels"], ("None", "Geisser–Greenhouse"))
+        self.assertEqual(seen["values"], ("None", "Geisser–Greenhouse", "Huynh-Feldt", "Lower bound"))
+        self.assertEqual(seen["labels"], ("None", "Geisser–Greenhouse", "Huynh-Feldt", "Lower bound"))
         self.assertEqual(seen["start"], "None")
         self.assertEqual(seen["state"], "readonly")
         self.assertIn("assume sphericity", seen["note_none"])
-        for phrase in ("omnibus", "post-hoc", "Mauchly", "Huynh–Feldt", "REML", "complete design"):
+        for phrase in ("omnibus", "post-hoc", "Mauchly", "REML", "complete design"):
             self.assertIn(phrase, seen["note_gg"])
+        for phrase in ("Huynh–Feldt estimates", "does not test sphericity", "Mauchly", "complete design"):
+            self.assertIn(phrase, seen["note_hf"])
+        for phrase in ("Lower bound", "1/d", "most conservative", "complete design"):
+            self.assertIn(phrase, seen["note_lower"])
 
     def test_the_one_way_spelling_appears_only_for_a_recipe_that_uses_it(self):
         current = {"Response": "Response", "Factors": [VISIT], "Subject": "Subject", FIELD: LEGACY}
@@ -103,8 +113,8 @@ class ChoiceTests(DialogCase):
 
         frame = long().drop(columns=CONDITION).groupby(["Subject", VISIT], as_index=False)["Response"].mean()
         seen = self.drive(action, frame=frame, current=current)
-        self.assertEqual(seen["values"], ("None", "Geisser–Greenhouse", LEGACY))
-        self.assertEqual(seen["labels"][2], "Geisser–Greenhouse (one-way, saved recipe)")
+        self.assertEqual(seen["values"], ("None", "Geisser–Greenhouse", "Huynh-Feldt", "Lower bound", LEGACY))
+        self.assertEqual(seen["labels"][4], "Geisser–Greenhouse (one-way, saved recipe)")
         self.assertEqual(seen["shown"], "Geisser–Greenhouse (one-way, saved recipe)")
         self.assertIn("Saved recipe", seen["note"])
         self.assertTrue(seen["ok"])
@@ -119,14 +129,23 @@ class ChoiceTests(DialogCase):
             seen["caption"] = dialog.field_rows[FIELD][0].cget("text")
             seen["none"] = dialog.choice_bindings[FIELD].labels[0]
             seen["note"] = dialog.sphericity_note.cget("text")
+            dialog.controls[FIELD][1].set(rm_sphericity.HF)
+            dialog.update()
+            seen["note_hf"] = dialog.sphericity_note.cget("text")
+            seen["labels"] = dialog.choice_bindings[FIELD].labels
+            dialog.controls[FIELD][1].set(rm_sphericity.CANONICAL)
+            dialog.update()
             self.choose(dialog)
             seen["ok"] = dialog.validate()
             seen["options"] = dict(dialog.result[1])
 
         seen = self.drive(action)
+        self.assertEqual(seen["labels"], ("Nessuno", "Geisser–Greenhouse", "Huynh–Feldt", "Limite inferiore"))
+        for phrase in ("Huynh–Feldt stima", "Mauchly", "disegno completo"):
+            self.assertIn(phrase, seen["note_hf"])
         self.assertEqual(seen["caption"], "Correzione della sfericità")
         self.assertEqual(seen["none"], "Nessuno")
-        for phrase in ("omnibus", "post-hoc", "Mauchly", "Huynh–Feldt", "REML"):
+        for phrase in ("omnibus", "post-hoc", "Mauchly", "REML"):
             self.assertIn(phrase, seen["note"])
         self.assertTrue(seen["ok"])
         self.assertEqual(seen["options"][FIELD], "Geisser–Greenhouse")
@@ -244,7 +263,7 @@ class Wording(LanguageMixin, unittest.TestCase):
             self.assertEqual(i18n.CATALOGS["en"][catalog], english, key)
             self.assertTrue(i18n.CATALOGS["it"][catalog], key)
             self.assertEqual(i18n.placeholders(english), i18n.placeholders(i18n.CATALOGS["it"][catalog]), key)
-        for key in ("choice.legacy", "note.none", "note.gg", "note.legacy"):
+        for key in ("choice.legacy", "note.none", "note.gg", "note.hf", "note.lower", "note.legacy"):
             self.assertTrue(i18n.CATALOGS["it"]["rm.sphericity." + key], key)
 
     def test_format_error_translates_with_literal_values_and_names_the_field(self):

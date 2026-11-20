@@ -3597,12 +3597,26 @@ _RM_SPHERICITY_EN = {
     "rm.sphericity.note.gg": "Each effect gets its own Greenhouse–Geisser epsilon from the contrast scores of that effect. "
                              "Epsilon shrinks the degrees of freedom of its F test, so they can be fractional. "
                              "The corrected p values are for the omnibus tests. This choice adds no post-hoc "
-                             "correction, no Mauchly test, no Huynh–Feldt correction and no REML mixed model. "
+                             "correction, no Mauchly test and no REML mixed model. "
                              "It needs a complete design: one numeric Response from every subject in every cell of "
                              "one or two within-subject Factors.",
+    "rm.sphericity.note.hf": "Huynh–Feldt estimates the epsilon of each effect from its Greenhouse–Geisser epsilon, "
+                             "which is biased downwards in small samples. It is limited to the interval from 1/d to "
+                             "1 and shrinks the degrees of freedom of the F test, so they can be fractional. "
+                             "It estimates epsilon; it does not test sphericity, and there is no Mauchly test. "
+                             "The Sphericity sheet reports both epsilons, the corrected degrees of freedom and "
+                             "p, and says when the estimate was limited or could not be computed. It needs a "
+                             "complete design: one numeric Response from every subject in every cell of one or "
+                             "two within-subject Factors.",
+    "rm.sphericity.note.lower": "Lower bound uses the smallest possible epsilon, 1/d for an effect with d contrasts, "
+                                "for the most conservative F test. The F ratios do not change. It does not estimate "
+                                "the sphericity of the data and does not test it. The Sphericity sheet reports the "
+                                "epsilon applied, the corrected degrees of freedom and p. It needs a complete "
+                                "design: one numeric Response from every subject in every cell of one or two "
+                                "within-subject Factors.",
     "rm.sphericity.note.legacy": "Saved recipe: the one-way Geisser–Greenhouse correction for a single Factor. "
                                  "Choose Geisser–Greenhouse to correct one or two Factors.",
-    "rm.sphericity.error.choice": "Choose None or Geisser–Greenhouse.",
+    "rm.sphericity.error.choice": "Choose None, Geisser–Greenhouse, Huynh-Feldt or Lower bound.",
     "rm.sphericity.error.legacy_two": "The one-way Geisser–Greenhouse choice applies to a single Factor. "
                                       "Choose Geisser–Greenhouse to correct two Factors.",
     "rm.sphericity.error.factors": "Choose one or two within-subject Factors.",
@@ -3647,12 +3661,26 @@ _RM_SPHERICITY_IT = {
     "rm.sphericity.note.gg": "Ogni effetto ha un proprio epsilon di Greenhouse–Geisser, calcolato dai punteggi dei "
                              "suoi contrasti. L’epsilon riduce i gradi di libertà del test F, che possono quindi "
                              "essere frazionari. I valori p corretti sono quelli dei test omnibus. Questa scelta "
-                             "non aggiunge correzioni post-hoc, test di Mauchly, correzione di Huynh–Feldt né un "
-                             "modello misto REML. Richiede un disegno completo: una Risposta numerica di ogni "
+                             "non aggiunge correzioni post-hoc, test di Mauchly né un modello misto REML. "
+                             "Richiede un disegno completo: una Risposta numerica di ogni "
                              "soggetto in ogni cella di uno o due Fattori entro soggetto.",
+    "rm.sphericity.note.hf": "Huynh–Feldt stima l’epsilon di ogni effetto a partire dal suo epsilon di "
+                             "Greenhouse–Geisser, che nei campioni piccoli è distorto verso il basso. È limitato "
+                             "all’intervallo da 1/d a 1 e riduce i gradi di libertà del test F, che possono quindi "
+                             "essere frazionari. Stima epsilon, non verifica la sfericità: non c’è il test di "
+                             "Mauchly. Il foglio Sphericity riporta i due epsilon, i gradi di libertà corretti e "
+                             "p, e segnala quando la stima è stata limitata o non si è potuta calcolare. Richiede "
+                             "un disegno completo: una Risposta numerica di ogni soggetto in ogni cella di uno o "
+                             "due Fattori entro soggetto.",
+    "rm.sphericity.note.lower": "Il limite inferiore usa il minimo epsilon possibile, 1/d per un effetto con d "
+                                "contrasti, per il test F più prudente. I rapporti F non cambiano. Non stima la "
+                                "sfericità dei dati e non la verifica. Il foglio Sphericity riporta l’epsilon "
+                                "applicato, i gradi di libertà corretti e p. Richiede un disegno completo: una "
+                                "Risposta numerica di ogni soggetto in ogni cella di uno o due Fattori entro "
+                                "soggetto.",
     "rm.sphericity.note.legacy": "Ricetta salvata: correzione di Geisser–Greenhouse a una via per un solo Fattore. "
                                  "Scegli Geisser–Greenhouse per correggere uno o due Fattori.",
-    "rm.sphericity.error.choice": "Scegli Nessuno o Geisser–Greenhouse.",
+    "rm.sphericity.error.choice": "Scegli Nessuno, Geisser–Greenhouse, Huynh–Feldt o Limite inferiore.",
     "rm.sphericity.error.legacy_two": "La scelta Geisser–Greenhouse a una via vale per un solo Fattore. "
                                       "Scegli Geisser–Greenhouse per correggere due Fattori.",
     "rm.sphericity.error.factors": "Scegli uno o due Fattori entro soggetto.",

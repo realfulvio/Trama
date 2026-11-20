@@ -1,0 +1,73 @@
+{
+  "reference": {
+    "program": "R",
+    "version": "4.3.3 (2024-02-29)",
+    "calculation": "stats::anova.mlm(test = 'Spherical') for F, df and the Greenhouse-Geisser and Huynh-Feldt p; epsilons from stats:::sphericity (GG.eps, HF.eps before min(1, .)); lower-bound p = pf(F, 1, den Df / num Df, lower.tail = FALSE)",
+    "source": "stats/R/mlm.R of the R sources: HF.eps <- ((n + 1) * pp * GG.eps - 2) / (pp * (n - pp * GG.eps)) and min(1, HF.eps) before the test, with n the residual df (subjects - 1) and pp the contrast dimension",
+    "script": "reference.R"
+  },
+  "dataset": "second-dataset.csv",
+  "subjects": 8,
+  "effects": {
+    "Time": {
+      "F": 17.211600770098226,
+      "numdf": 3,
+      "dendf": 21,
+      "p": 7.124611548141251e-06,
+      "gg_p": 0.00014427831590367485,
+      "hf_p": 9.52903039755337e-06,
+      "lb_p": 0.0043021543667757485,
+      "gg": 0.6830976573099182,
+      "hf": 0.9691776476789326,
+      "n": 8
+    },
+    "Dose": {
+      "F": 9.046514654741472,
+      "numdf": 2,
+      "dendf": 14,
+      "p": 0.0030062234663882424,
+      "gg_p": 0.005015030669231999,
+      "hf_p": 0.0030062234663882424,
+      "lb_p": 0.019724979728718849,
+      "gg": 0.8621799115713263,
+      "hf": 1.1178623057806159,
+      "n": 8
+    },
+    "Time:Dose": {
+      "F": 0.38973843931045515,
+      "numdf": 6,
+      "dendf": 42,
+      "p": 0.8814454380908618,
+      "gg_p": 0.6865411370865386,
+      "hf_p": 0.7519269045997846,
+      "lb_p": 0.5522318549136882,
+      "gg": 0.3371393258345834,
+      "hf": 0.474925329359301,
+      "n": 8
+    },
+    "One-way Time": {
+      "F": 9.238903600574158,
+      "numdf": 3,
+      "dendf": 21,
+      "p": 0.00042853682573459434,
+      "gg_p": 0.0035286129147625903,
+      "hf_p": 0.0010269116923026997,
+      "lb_p": 0.0188587047049509,
+      "gg": 0.6237060789238197,
+      "hf": 0.8428702715896981,
+      "n": 8
+    },
+    "One-way Dose": {
+      "F": 38.596725949321446,
+      "numdf": 2,
+      "dendf": 14,
+      "p": 2.0097899201128355e-06,
+      "gg_p": 9.253856444275988e-06,
+      "hf_p": 2.0097899201128355e-06,
+      "lb_p": 0.0004398160952158293,
+      "gg": 0.8571995748864575,
+      "hf": 1.1082177343830268,
+      "n": 8
+    }
+  }
+}
