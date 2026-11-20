@@ -189,6 +189,7 @@ class AnalysisDialog(QDialog):
         self.banner = QLabel()
         self.banner.setObjectName("errorBanner")
         self.banner.setWordWrap(True)
+        self.error_field = error_field
         self.banner.setVisible(bool(error))
         if error:
             self.banner.setText(self._message(error, error_field))
@@ -564,6 +565,7 @@ class AnalysisDialog(QDialog):
         return str(error)
 
     def show_error(self, error, field=None):
+        self.error_field = field
         self.banner.setText(self._message(error, field))
         self.banner.setVisible(True)
         if field:

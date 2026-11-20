@@ -2,9 +2,9 @@
 from copy import deepcopy
 import re
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget,
-                               QPlainTextEdit, QPushButton, QStackedWidget, QVBoxLayout, QWidget)
+                               QPlainTextEdit, QPushButton, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget)
 
 from analisi.i18n import tr, ui
 from analisi.select_transform import CALCULATED, COMPARISONS, FILTERS, MAX_RULES, MISSING, SELECT_TRANSFORM, TARGETS
@@ -52,6 +52,8 @@ def _pick(combo, value):
 class RecordEditor(QWidget):
     """Select and edit one ordered record at a time without changing the saved recipe."""
 
+    edited = Signal()
+
     def __init__(self, saved, hint):
         super().__init__()
         self.records = [dict(record) if isinstance(record, dict) else {} for record in saved] if isinstance(saved, list) else []
@@ -83,6 +85,7 @@ class RecordEditor(QWidget):
         self.form.setContentsMargins(0, 0, 0, 0)
         self.form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         outer.addWidget(self.detail)
+        outer.addStretch()
 
     def reload(self, row=0):
         self.list.blockSignals(True)
@@ -110,24 +113,28 @@ class RecordEditor(QWidget):
         if not self.loading and row >= 0:
             self.records[row] = self.read()
             self.list.item(row).setText(self.summary(self.records[row]))
+            self.edited.emit()
 
     def add(self):
         if len(self.records) < MAX_RULES:
             self.records.append(self.default())
             self.reload(len(self.records) - 1)
             self.first.setFocus()
+            self.edited.emit()
 
     def remove(self):
         row = self.list.currentRow()
         if row >= 0:
             self.records.pop(row)
             self.reload(row)
+            self.edited.emit()
 
     def move(self, step):
         row = self.list.currentRow()
         if row >= 0 and 0 <= row + step < len(self.records):
             self.records.insert(row + step, self.records.pop(row))
             self.reload(row + step)
+            self.edited.emit()
 
     def values(self):
         return deepcopy(self.records)
@@ -159,6 +166,7 @@ class FilterEditor(RecordEditor):
         self.value.setAccessibleName(ui("Value"))
         self.other_column = _combo(columns, "Comparison variable")
         self.input = QStackedWidget()
+        self.input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.input.addWidget(self.value)
         self.input.addWidget(self.other_column)
         for title, control in (("Variable", self.column), ("Condition", self.operator), ("Compare to", self.target),
@@ -270,6 +278,12 @@ def attach(dialog, forms, saved):
     variables = OrderedColumns(offered, output, "selectTransformOutput")
     variables.list.setAccessibleName(field_label("Variables"))
     entries = [("variables", "Variables", EDITOR, variables)]
+
+    def clear_error(name):
+        if dialog.error_field == name:
+            dialog.banner.hide()
+            dialog.error_field = None
+
     for key in ("First row", "Last row"):
         value = QLineEdit(str(saved.get(key) or ""))
         entries.append(("select_filters", key, "Text", value))
@@ -281,7 +295,10 @@ def attach(dialog, forms, saved):
         caption.setWordWrap(True)
         if name in {FILTERS, CALCULATED}:
             form.addRow(control)
+            control.edited.connect(lambda field=name: clear_error(field))
         else:
             form.addRow(caption, control)
+            if kind == "Text":
+                control.textChanged.connect(lambda _text, field=name: clear_error(field))
         dialog.controls[name] = (kind, control)
         dialog.rows[name] = (caption, control, form)

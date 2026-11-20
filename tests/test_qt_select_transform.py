@@ -76,6 +76,7 @@ class SelectTransformDialogTests(unittest.TestCase):
         self.assertIn("numero finito", dialog.banner.text())
         self.assertIs(dialog.focusWidget(), conditions.value)
         conditions.value.setText("1,5")
+        self.assertTrue(dialog.banner.isHidden())
         formulas.add_button.click()
         formulas.name.setText("Ricalcolo")
         formulas.expression.setPlainText('COL("missing")')
