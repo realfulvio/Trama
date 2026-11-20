@@ -223,6 +223,8 @@ class Smoke:
             planned_contrasts(self, window)
             from .global_fit_smoke import exercise as global_fit
             global_fit(self, window)
+            from .reshape_smoke import exercise as reshape_long_wide  # Reshape long and wide (0.96)
+            reshape_long_wide(self, window)
             from .projects_smoke import run as project_tabs
             project_tabs(self, window)
             from .canvas_smoke import check_canvas

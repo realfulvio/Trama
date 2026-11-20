@@ -281,6 +281,7 @@ from analisi.global_uncertainty import (BAND_DRAWING as GLOBAL_DRAWING, CURVE_BA
 from analisi.select_transform import CALCULATED, FILTERS, SELECT_TRANSFORM
 from analisi.select_transform_dialog import CalculatedVariables, RowFilters
 from analisi.transpose_dialog import TransposeSets
+from analisi.reshape_long_wide import METHOD as RESHAPE_LONG_WIDE
 from analisi.transpose_xy import (ROW_TITLE as TRANSPOSE_TITLE, SETS_LIST, TRANSPOSE_XY, X as TRANSPOSE_X,
                                   Y_SETS as SETS_LIST_LABEL,
                                   propose_sets, proposed_x)
@@ -1041,6 +1042,7 @@ class AnalysisDialog(simpledialog.Dialog):
         search = self.query.get().strip().casefold()
         for group, methods in GROUPS.items():
             matches = [name for name in methods if (not self.only or name in self.only)
+                       and name != RESHAPE_LONG_WIDE  # edited only in the Qt window (trama_qt.reshape_long_wide)
                        and (name != HIERARCHY_GRAPH or name == self.method or hierarchy_view_available(self.data))
                        and any(search in caption.casefold() for caption in (name, group, ui(name), ui(group)))]
             if not matches:
@@ -7218,6 +7220,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return
         if run.method in PRISM_GRAPH_METHODS:
             self.error(ui("Use Format Graph for an imported XY graph, or Export for its original preview."))
+            return
+        if run.method == RESHAPE_LONG_WIDE:
+            self.error(tr("reshape.classic"))
             return
         try:
             frame = self.input_frame(run)

@@ -159,6 +159,7 @@ class CatalogTests(unittest.TestCase):
             "Reshape replicates": {"Variables": ["x", "y"], "Row label": "Factor"},
             "Outlier test (Grubbs)": {"Response": "z", "Alpha": .05},
             "Transpose X and Y": {"X": "x", "Y sets": [{"name": "Y", "mode": "Single", "columns": ["y"]}]},
+            "Reshape long and wide": {"Direction": "Wide to long", "ID columns": ["x"], "Measure columns": ["y", "z"]},
             "Identify outliers": {"Variables": ["x", "y", "z"], "Method": "ROUT", "Q (%)": 1.},
             "Power and sample size": {"Goal": "Sample size", "Design": "Independent t", "Standardized effect": .5,
                                       "Alpha": .05, "Target power": .8, "ANOVA groups": 3},

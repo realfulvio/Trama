@@ -75,6 +75,7 @@ from .plot_function import PLOT_FUNCTION
 from .robust_curve import OPTIONS as ROBUST_CURVE_OPTIONS, ROBUST_CURVE, robust_curve
 from .nb2_regression import NB2, OPTIONS as NB2_OPTIONS, analysis as nb2_analysis
 from .transpose_xy import OPTIONS as TRANSPOSE_OPTIONS, TRANSPOSE_XY, transpose_xy
+from .reshape_long_wide import METHOD as RESHAPE_LONG_WIDE, OPTIONS as RESHAPE_OPTIONS, reshape_long_wide
 from .paired_graphs import (BEFORE_AFTER, BEFORE_AFTER_OPTIONS, TRAJECTORIES, TRAJECTORY_OPTIONS, before_after,
                             subject_trajectories)
 from .spline_fit import SPLINE_FIT
@@ -330,6 +331,7 @@ METHODS = {
     MONTE_CARLO: MONTE_CARLO_OPTIONS,
     SELECT_TRANSFORM: SELECT_OPTIONS,
     TRANSPOSE_XY: TRANSPOSE_OPTIONS,
+    RESHAPE_LONG_WIDE: RESHAPE_OPTIONS,
     EXTRACT_REARRANGE: {OUTPUT: EXTRACT_FORMATS, PREFIX: False, COMPLETE: True, **{
         field: OPTIONAL if field in EXTRACT_OPTIONAL_FIELDS else None
         for field in dict.fromkeys(field for fields in EXTRACT_FIELDS.values() for field in fields)
@@ -341,7 +343,7 @@ METHODS = {
 GROUPS = {
     "Data Processing": ("Transform", "Transform concentrations (X)", "Normalize", REFERENCE_NORMALIZATION, "Prune rows",
                         "Remove baseline and column math", "Fraction of total", EXTRACT_REARRANGE, SELECT_TRANSFORM,
-                        "Reshape replicates", TRANSPOSE_XY,
+                        "Reshape replicates", RESHAPE_LONG_WIDE, TRANSPOSE_XY,
                         "Outlier test (Grubbs)", OUTLIERS),
     "Data Exploration and Summary": ("Descriptive statistics", "Row statistics", NORMALITY,
                                     "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX, RMCORR,
@@ -1259,6 +1261,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return extract_rearrange(frame, o)
     if method == TRANSPOSE_XY:
         return transpose_xy(frame, o)
+    if method == RESHAPE_LONG_WIDE:
+        return reshape_long_wide(frame, o, cancel=cancel)
     if method == "Scatter / confidence ellipse":
         return _scatter(frame, o)
     if method == "XY error bars":
