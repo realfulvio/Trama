@@ -19,6 +19,7 @@ from analisi.anova_planned_contrasts import FACTOR_LIST as CONTRAST_FACTOR_LIST
 from analisi.anova_terms import TERM_LIST
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
+from analisi import extract_rearrange as extraction
 from analisi.field_error import FieldError
 from analisi import kmeans_options, kmeans_reports, mean_permutation
 from analisi.i18n import tr, ui
@@ -269,6 +270,7 @@ class AnalysisDialog(QDialog):
         if name in METHODS and name != self.method:
             self.method = name
             self.banner.setVisible(False)
+            self.error_field = None
             self.configure_fields()
 
     # -- fields ----------------------------------------------------------------------------------
@@ -327,6 +329,8 @@ class AnalysisDialog(QDialog):
                 continue  # the Planned contrasts… editor holds these fields
             variable = (kind in VARIABLE_KINDS or label == "Input format") and label not in {
                 "Comparison factor", "Condition on factors"}
+            if self.method == extraction.EXTRACT_REARRANGE and label == extraction.OUTPUT:
+                variable = True
             form = pages.get(global_fit.page_of(self.method, label)) or (variables if variable else options)
             caption_label = ("Report scaled observations"
                              if self.method in kmeans_options.METHODS and label == kmeans_reports.SCALED else label)
@@ -429,6 +433,13 @@ class AnalysisDialog(QDialog):
         self.repeated = repeated_agreement.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
         select_editor.attach(self, pages, saved)
+        if self.method == extraction.EXTRACT_REARRANGE:
+            output = self.controls[extraction.OUTPUT][1]
+            output.currentIndexChanged.connect(self._sync_extraction_fields)
+            for name, (kind, widget) in self.controls.items():
+                changed = widget.toggled if type(kind) is bool else widget.currentIndexChanged
+                changed.connect(lambda _value, field=name: self.clear_field_error(field))
+            self._sync_extraction_fields()
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
 
@@ -440,6 +451,18 @@ class AnalysisDialog(QDialog):
         fields[kmeans_reports.SCALED] = scale != kmeans_options.UNSCALED
         if self.method == kmeans_options.CLUSTERING:
             fields[kmeans_options.INITIAL_ROWS] = algorithm in kmeans_options.ITERATION_FIELDS
+        self._set_field_visibility(fields)
+
+    def _sync_extraction_fields(self):
+        output = self.controls[extraction.OUTPUT][1].currentData()
+        active = extraction.EXTRACT_FIELDS.get(output, ())
+        fields = {field: field in active for choices in extraction.EXTRACT_FIELDS.values() for field in choices}
+        fields[extraction.COMPLETE] = output in extraction.EXTRACT_FIELDS and output != "Contingency"
+        self._set_field_visibility(fields)
+        if self.error_field in self.hidden:
+            self.clear_field_error(self.error_field)
+
+    def _set_field_visibility(self, fields):
         for name, visible in fields.items():
             _, control, form = self.rows[name]
             form.setRowVisible(control, visible)
@@ -532,6 +555,8 @@ class AnalysisDialog(QDialog):
                 mean_permutation.check_options(self.data, options)
             if self.method == SELECT_TRANSFORM:
                 check_select_transform(self.data, options)
+            if self.method == extraction.EXTRACT_REARRANGE:
+                extraction.check_options(self.data, options)
             if self.method in kmeans_options.METHODS:
                 kmeans_options.scale(options)
                 kmeans_options.fit_options(self.method, self.data, options)
@@ -562,6 +587,10 @@ class AnalysisDialog(QDialog):
             return reshape_editor.message(error)
         if self.method == SELECT_TRANSFORM:
             return select_editor.message(error)
+        if self.method == extraction.EXTRACT_REARRANGE:
+            if str(error) == f"Choose a column for {field}.":
+                return qt("qt.choose_column", name=field_label(field))
+            return ui(str(error))
         return str(error)
 
     def show_error(self, error, field=None):
@@ -570,6 +599,11 @@ class AnalysisDialog(QDialog):
         self.banner.setVisible(True)
         if field:
             self.focus_field(field, error)
+
+    def clear_field_error(self, field):
+        if self.error_field == field:
+            self.banner.hide()
+            self.error_field = None
 
 
 def choose(parent, frame, **options):

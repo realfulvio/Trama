@@ -359,14 +359,8 @@ def _contingency(frame, names, *, prefix):
     return table, used, invalid
 
 
-def extract_rearrange(frame, options):
-    """Return the worksheet and row counts from an exclusion-masked input frame.
-
-    Worksheet type and column roles live in attrs so Dataset can adopt the
-    result. Sparse Column/XY outputs retain source positions. Compact outputs
-    combine compatible rows and keep the order of first occurrence. Grouped
-    replicates without subjects fill slots in source order within each cell.
-    """
+def check_options(frame, options):
+    """Resolve worksheet format and source columns without reading observations."""
     kind = options.get(OUTPUT, "XY")
     if not isinstance(kind, str) or kind not in EXTRACT_FORMATS:
         raise FieldError(OUTPUT, "Choose XY, Column, Grouped or Contingency.")
@@ -381,6 +375,18 @@ def extract_rearrange(frame, options):
             raise FieldError(field, f"Choose a column for {field}.")
         else:
             names[field] = name
+    return kind, names
+
+
+def extract_rearrange(frame, options):
+    """Return the worksheet and row counts from an exclusion-masked input frame.
+
+    Worksheet type and column roles live in attrs so Dataset can adopt the
+    result. Sparse Column/XY outputs retain source positions. Compact outputs
+    combine compatible rows and keep the order of first occurrence. Grouped
+    replicates without subjects fill slots in source order within each cell.
+    """
+    kind, names = check_options(frame, options)
     prefix = options.get(PREFIX, False)
     complete = options.get(COMPLETE, True)
     invalid = 0

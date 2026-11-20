@@ -279,11 +279,6 @@ def attach(dialog, forms, saved):
     variables.list.setAccessibleName(field_label("Variables"))
     entries = [("variables", "Variables", EDITOR, variables)]
 
-    def clear_error(name):
-        if dialog.error_field == name:
-            dialog.banner.hide()
-            dialog.error_field = None
-
     for key in ("First row", "Last row"):
         value = QLineEdit(str(saved.get(key) or ""))
         entries.append(("select_filters", key, "Text", value))
@@ -295,10 +290,10 @@ def attach(dialog, forms, saved):
         caption.setWordWrap(True)
         if name in {FILTERS, CALCULATED}:
             form.addRow(control)
-            control.edited.connect(lambda field=name: clear_error(field))
+            control.edited.connect(lambda field=name: dialog.clear_field_error(field))
         else:
             form.addRow(caption, control)
             if kind == "Text":
-                control.textChanged.connect(lambda _text, field=name: clear_error(field))
+                control.textChanged.connect(lambda _text, field=name: dialog.clear_field_error(field))
         dialog.controls[name] = (kind, control)
         dialog.rows[name] = (caption, control, form)

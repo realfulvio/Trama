@@ -499,6 +499,8 @@ Column factor variable|Variabile del fattore di colonna
 Row (treatment) variable|Variabile di riga (trattamento)
 Column (outcome) variable|Variabile di colonna (esito)
 Count variable|Variabile dei conteggi
+Choose XY, Column, Grouped or Contingency.|Scegli XY, Colonna, Raggruppata o Contingenza.
+Each source variable must have a unique name.|Ogni variabile di origine deve avere un nome univoco.
 Within factors|Fattori entro soggetto
 Between factors|Fattori tra soggetti
 Measurement columns|Colonne delle misure
