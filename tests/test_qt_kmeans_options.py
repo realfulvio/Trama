@@ -57,6 +57,9 @@ class QtKmeansOptionsTests(unittest.TestCase):
         iterations = dialog.controls[km.LLOYD_ITERATIONS][1]
         self.assertFalse(iterations.isHidden())
         self.assertEqual(dialog.rows[km.LLOYD_ITERATIONS][0].text(), "Limite di iterazioni Lloyd")
+        self.assertEqual(dialog.rows[km.ALGORITHM][0].text(), "Algoritmo k-means")
+        self.assertEqual(dialog.rows[km.SCALE][0].text(), "Scala delle colonne")
+        self.assertEqual(dialog.rows[km.GAP_REFERENCE][0].text(), "Geometria del riferimento Gap")
         iterations.setText("0")
         dialog.accept()
         self.assertIsNone(dialog.result)
