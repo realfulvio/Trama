@@ -14,6 +14,7 @@ import zipfile
 try:
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication, QDialog, QFileDialog
+    from trama_qt.icc import IccBinding
 except ImportError:  # PySide6 missing, or libEGL/libGL missing on a headless machine.
     QApplication = None
 
@@ -190,6 +191,15 @@ class IccDialogTests(unittest.TestCase):
             with self.assertRaises(FieldError) as caught:
                 icc.check_options(data, RECIPE)
             self.assertNotEqual(translate_message(str(caught.exception), icc.ERROR_PREFIX), str(caught.exception))
+        for english, italian in (
+                ("Bootstrap replicates must be a whole number from 199 to 5,000.",
+                 "Repliche bootstrap deve essere un numero intero da 199 a 5.000."),
+                ("Bootstrap would resample 20,000,001 cells (replicates × rows × raters); the limit is 20,000,000.",
+                 "Il bootstrap ricampionerebbe 20.000.001 celle (repliche × righe × valutatori); il limite è "
+                 "20.000.000."),
+                ("Use at most 100,000 rows (this selection has 100,001).",
+                 "Usa al massimo 100.000 righe (questa selezione ne ha 100.001).")):
+            self.assertEqual(IccBinding.message(FieldError("x", english)), italian)
         shown = self.dialog(current=(icc.METHOD, RECIPE), error="Choose at least two columns for Raters.",
                             error_field="Raters")
         self.assertEqual(shown.banner.text(), "Scegli almeno due colonne per Valutatori.")

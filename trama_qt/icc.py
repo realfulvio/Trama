@@ -7,6 +7,8 @@ of complete subjects, raters and unit sits under the columns, the engine's check
 the user presses Run (before any worker starts), and the English engine messages are shown in the active language.
 The recipe keeps the canonical English keys and values.
 """
+import re
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel
 
@@ -14,6 +16,13 @@ from analisi.i18n import tr, translate_message
 from analisi.icc import (BOOTSTRAP, DEFINITION, ERROR_PREFIX, METHOD, RATERS, UNIT, check_options, summary, visibility)
 
 from .labels import choice_label, field_label
+
+_GROUPED = re.compile(r"\d{1,3}(?:,\d{3})+")
+
+
+def _grouped(text):
+    """Digits the engine grouped with commas (5,000) are shown with dots, as the Italian catalog does (5.000)."""
+    return text.replace(",", ".") if _GROUPED.fullmatch(text) else text
 
 
 class IccBinding:
@@ -96,7 +105,9 @@ class IccBinding:
 
     @staticmethod
     def message(error):
-        return translate_message(str(error), ERROR_PREFIX, convert={"field": field_label, "raters": field_label})
+        counts = {name: _grouped for name in ("low", "high", "limit", "cells", "count")}
+        return translate_message(str(error), ERROR_PREFIX,
+                                 convert={"field": field_label, "raters": field_label, **counts})
 
 
 def attach(dialog, saved):
