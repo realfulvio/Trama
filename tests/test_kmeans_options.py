@@ -59,6 +59,7 @@ class KmeansOptionsTests(unittest.TestCase):
         self.assertEqual(result["Fit"].loc[option.INITIALIZATION, "Value"], option.KMEANS_PLUS_PLUS)
         explicit = analyse(option.CLUSTERING, self.frame, {**options, option.INITIAL_ROWS: "1, 5, 8"}).tables
         np.testing.assert_array_equal(explicit["Initial centroids"]["Initial center"], [0., 9., 19.])
+        self.assertNotIn(option.INITIALIZATION, explicit["Fit"].index)
 
     def test_plus_plus_can_select_distinct_rows_when_squared_distances_underflow(self):
         frame = pd.DataFrame({"x": [0., 1e-200, 1.]})

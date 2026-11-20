@@ -568,9 +568,9 @@ def _kmeans(frame, o):
     variables = o["Variables"]
     reports = kmeans_reports.requested(o)
     scale = kmeans_options.scale(o)
+    fit_options = kmeans_options.fit_options(kmeans_options.CLUSTERING, frame, o)
     fit = engine.kmeans(frame, variables, o["Clusters"], seed=o["Seed"], column_scale=scale,
-                        retain_initial=kmeans_reports.CENTROIDS in reports,
-                        **kmeans_options.fit_options(kmeans_options.CLUSTERING, frame, o))
+                        retain_initial=kmeans_reports.CENTROIDS in reports, **fit_options)
     figure, axes = _plot("K-means", variables[0], variables[1] if len(variables) > 1 else "Cluster")
     for label in sorted(fit.labels.unique()):
         subset = fit.data[fit.labels == label]
@@ -581,7 +581,7 @@ def _kmeans(frame, o):
     tables = {"Assignments": fit.data.assign(Cluster=fit.labels),
               "Centers (fitting scale)": fit.centers.set_axis(range(1, len(fit.centers) + 1)),
               "Fit": _report({"Within-cluster SS": fit.inertia, "N": len(fit.data)})}
-    _record_kmeans_algorithm(tables["Fit"], o)
+    _record_kmeans_algorithm(tables["Fit"], o, explicit_start="initial_rows" in fit_options)
     if reports:
         k = len(fit.centers)
         _, values = engine._cluster_data(fit.data, variables, k, scale)
@@ -590,13 +590,13 @@ def _kmeans(frame, o):
     return Result(tables, figure)
 
 
-def _record_kmeans_algorithm(report, options):
+def _record_kmeans_algorithm(report, options, *, explicit_start=False):
     algorithm = options.get(kmeans_options.ALGORITHM)
     field = kmeans_options.ITERATION_FIELDS.get(algorithm)
     if field:
         report.loc[kmeans_options.ALGORITHM, "Value"] = algorithm
         report.loc[field, "Value"] = options.get(field, kmeans_options.DEFAULT_ITERATIONS)
-        if (algorithm == kmeans_options.HARTIGAN
+        if (not explicit_start and algorithm == kmeans_options.HARTIGAN
                 and options.get(kmeans_options.INITIALIZATION) == kmeans_options.KMEANS_PLUS_PLUS):
             report.loc[kmeans_options.INITIALIZATION, "Value"] = kmeans_options.KMEANS_PLUS_PLUS
 
