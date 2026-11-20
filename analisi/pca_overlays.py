@@ -69,7 +69,8 @@ def configuration(options, point_view, group_column):
             raise FieldError(LEVEL, "The PCA overlay level must be strictly between 0 and 100.")
         settings["Level (%)"] = level
     appearance = options.get(SAVED_APPEARANCE)
-    if (kind == ellipses.MEAN_REGION and grouping == BY_POINTS and isinstance(appearance, dict)
+    if (kind in (ellipses.MEAN_REGION, ellipses.DATA_ELLIPSE) and grouping == BY_POINTS
+            and isinstance(appearance, dict)
             and appearance.get("column") == group_column and type(appearance.get("fill")) is bool):
         try:
             styles = ellipses.normalize_ellipse_group_styles({"Group": appearance.get("styles", {})})

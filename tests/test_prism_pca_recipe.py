@@ -8,11 +8,13 @@ import unittest
 from zipfile import ZipFile
 
 from matplotlib.colors import to_hex
+import numpy as np
 
 from analisi.analysis_chain import evaluate_graph
 from analisi.data import Dataset, load_project, load_tables, save_project, validate_analysis_links
 from analisi.kmeans_options import SELECTION
-from analisi import pca_overlays
+from analisi import ellipse_workbench, pca_overlays
+from analisi.pca_graphs import COORDINATES
 from analisi.prism_recipes import restore_recipe
 from analisi.prism_pca_smoke import INPUT, SOURCE_NAME, sample, write_project
 from analisi.workbench import analyse
@@ -101,6 +103,24 @@ class PrismPCARecipeTests(unittest.TestCase):
                              ["#0077cc80", "#ee992280"])
             self.assertEqual([to_hex(item.get_facecolor(), keep_alpha=True) for item in axes.patches
                               if item.get_facecolor()[3]], ["#0077cc40", "#ee992240"])
+
+    def test_imported_score_ellipses_show_the_dispersion_of_each_group(self):
+        with TemporaryDirectory() as directory:
+            archive = Path(directory) / "overlay.prismt"
+            write_project(archive)
+            add_score_graph(archive, level=90.)
+            dataset = Dataset(load_tables(archive, restore_prism=True)[SOURCE_NAME])
+            method, options = dataset.analyses[0]
+            self.assertEqual(options[pca_overlays.KIND], ellipse_workbench.DATA_ELLIPSE)
+            result = analyse(method, dataset.frame(), options)
+            coords = result.tables[COORDINATES]
+            lines = [line for line in result.figure.axes[0].lines if len(line.get_xdata()) == 181]
+            groups = result.tables[pca_overlays.SHEET]["Group"]
+            for group, line in zip(groups, lines, strict=True):
+                values = coords.loc[coords["Color group"] == group, ["Horizontal", "Vertical"]].to_numpy()
+                centered = np.column_stack((line.get_xdata(), line.get_ydata())) - values.mean(axis=0)
+                distances = np.einsum("ij,jk,ik->i", centered, np.linalg.inv(np.cov(values, rowvar=False)), centered)
+                np.testing.assert_allclose(distances, -2 * np.log(.1), rtol=1e-8, atol=0)
 
     def test_unmatched_or_invalid_graph_leaves_the_pca_recipe_available(self):
         for settings in ({"linked": False}, {"level": True}, {"level": 100}):

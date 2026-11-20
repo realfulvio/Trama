@@ -110,7 +110,7 @@ def saved_score_overlay(archive, analysis, input_frame, view_sources, options):
             return None
     except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
         return None
-    restored = {HORIZONTAL: x, VERTICAL: y, pca_overlays.KIND: ellipses.MEAN_REGION,
+    restored = {HORIZONTAL: x, VERTICAL: y, pca_overlays.KIND: ellipses.DATA_ELLIPSE,
                 pca_overlays.GROUPING: pca_overlays.BY_POINTS, pca_overlays.LEVEL: float(level)}
     labels = scores[score_group].dropna().unique()
     tokens = {str(label): typed_group_token(label) for label in labels}

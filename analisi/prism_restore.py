@@ -363,7 +363,7 @@ def _link_clustered_pca(producer, slot, cached, method, options):
 
 
 def _pca_overlay_note(options):
-    return (" Restores saved ellipse settings using Trama's mean confidence region."
+    return (" Restores the saved level and grouping as a data ellipse."
             if PCA_OVERLAY in options else "")
 
 
