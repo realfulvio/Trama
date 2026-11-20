@@ -93,6 +93,25 @@ comparisons outside filters are case-sensitive. Use `CASE_INSENSITIVE(expression
 to apply case-insensitive comparisons throughout an expression, including ordering
 comparisons. Imported formulas use it where needed to preserve their comparison rules.
 
+## Random samples
+
+`GAUSS(mean, sd)` draws from a normal distribution. `RND(lower, upper)` draws
+uniformly between two bounds. Each call draws one value per row. Missing
+arguments, a negative deviation, and reversed bounds leave that row blank.
+A zero deviation returns the mean, and equal bounds return their common value.
+
+When you confirm a calculated column, Trama saves the seed with its formula.
+For example, `=WITH_SEED(42, GAUSS(Dose, 1))` uses the same random sequence when
+you view, export or reopen the worksheet. Editing a parameter such as `Dose`
+recalculates the formula from the saved sequence. Change the seed in the formula
+editor for a new sample. Seeds are whole numbers from 0 through 2⁶⁴−1.
+The sequence follows worksheet row order, and separate random calls consume
+separate draws.
+
+Select and Transform applies the formulas to the selected rows. Imported
+random worksheet columns keep their recorded values. An imported live transform
+with random calls receives a seed for a new reproducible result.
+
 ## Distributions
 
 Use [probability, density and quantile formulas](distribution-formulas.md)

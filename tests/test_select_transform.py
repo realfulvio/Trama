@@ -20,6 +20,30 @@ class SelectTransformTests(unittest.TestCase):
     def output(self, **options):
         return select_transform(self.data, options).tables["Selected data"]
 
+    def test_project_candidate_keeps_a_replayable_random_transform(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from trama_qt.project import Project, compute
+        from analisi.select_transform import CALCULATED, SELECT_TRANSFORM
+
+        project = Project()
+        title, = project.add_tables({"Trial": self.data})
+        options = {"Variables": ["ID"], CALCULATED: [{"name": "Noise", "expression": "GAUSS(0, 1)"}]}
+        run = project.candidate(title, SELECT_TRANSFORM, options)
+        self.assertTrue(run.options[CALCULATED][0]["expression"].startswith("=WITH_SEED("))
+        self.assertEqual(options[CALCULATED][0]["expression"], "GAUSS(0, 1)")
+        first = compute(run, project.input_frame(run))
+        project.add_result(run, first)
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "seeded.alab"
+            project.save(path)
+            reopened = Project()
+            reopened.load(path)
+        next_run, = reopened.runs
+        self.assertEqual(run.options, next_run.options)
+        after = compute(next_run, reopened.input_frame(next_run))
+        np.testing.assert_array_equal(first.tables["Selected data"]["Noise"], after.tables["Selected data"]["Noise"])
+
     def test_multiple_conditions_and_formulas_keep_source_order(self):
         before = self.data.copy()
         result = self.output(

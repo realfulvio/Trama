@@ -18,6 +18,52 @@ class WindowFormulaTests(unittest.TestCase):
                                    "Category": [1, 1, "1", "1", "1", None],
                                    "Keep": [1, 0, 1, 0, 1, 1]})
 
+    def test_seeded_random_calls_draw_per_row_and_per_call(self):
+        frame = pd.DataFrame({"X": np.zeros(5000)})
+        uniform = formula(frame, "WITH_SEED(42, RND(-2, 4))")
+        self.assertTrue(uniform.between(-2, 4).all())
+        self.assertEqual(uniform.nunique(), len(frame))
+        self.assertAlmostEqual(uniform.mean(), 1., delta=.08)
+        np.testing.assert_array_equal(formula(frame, "WITH_SEED(42, RND(-2, 4))"), uniform)
+        self.assertFalse(formula(frame, "WITH_SEED(43, RND(-2, 4))").equals(uniform))
+        draws = formula(frame, "WITH_SEED(42, GAUSS(5, 2))")
+        self.assertAlmostEqual(draws.mean(), 5., delta=.08)
+        self.assertAlmostEqual(draws.std(), 2., delta=.08)
+        self.assertFalse(np.all(formula(frame, "WITH_SEED(42, RND(0, 1) - RND(0, 1))") == 0.))
+
+    def test_random_functions_validate_rowwise_parameters_and_large_uniform_intervals(self):
+        frame = pd.DataFrame({"A": [1., 5., np.nan, -1e308], "B": [1., -1., 3., 1e308]})
+        bounded = formula(frame, "WITH_SEED(9, RND(A, B))")
+        np.testing.assert_array_equal(bounded.iloc[:3], [1., np.nan, np.nan])
+        self.assertTrue(np.isfinite(bounded.iloc[3]) and -1e308 <= bounded.iloc[3] <= 1e308)
+        np.testing.assert_array_equal(formula(frame, "WITH_SEED(9, GAUSS(A, B - 1))").iloc[:3],
+                                      [1., np.nan, np.nan])
+        for bad in ("WITH_SEED(-1, RND(0, 1))", "WITH_SEED(18446744073709551616, RND(0, 1))",
+                    "RND(1)", "GAUSS(0, 1, 2)"):
+            with self.subTest(expression=bad), self.assertRaises(ValueError):
+                formula(frame, bad)
+
+    def test_unseeded_random_column_persists_a_sample_across_reads_exclusions_and_reopen(self):
+        data = Dataset(pd.DataFrame({"Dose": pd.Series([2., 4., 8.], dtype="Float64")}))
+        data.set_formula("With noise", "=GAUSS(Dose, 1)")
+        data.set_formula("Double", '=2 * COL("With noise")')
+        before = data.frame()
+        self.assertTrue(data.formulas["With noise"].startswith("=WITH_SEED("))
+        np.testing.assert_array_equal(before["Double"], 2 * before["With noise"])
+        self.assertEqual(data.raw.columns.tolist(), ["Dose"])
+        pd.testing.assert_frame_equal(data.frame(), before, check_exact=True)
+        data.excluded.add((1, 0))
+        self.assertTrue(np.isnan(data.frame()["With noise"].iloc[1]))
+        np.testing.assert_array_equal(data.frame()["With noise"].iloc[[0, 2]], before["With noise"].iloc[[0, 2]])
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "sample.alab"
+            save_project(path, {"Trial": data})
+            reopened = load_project(path)["Trial"]
+        self.assertEqual(reopened.formulas, data.formulas)
+        pd.testing.assert_frame_equal(reopened.frame(), data.frame(), check_exact=True)
+        reopened.set_formula("With noise", "=WITH_SEED(9, GAUSS(Dose, 1))")
+        self.assertFalse(reopened.frame()["With noise"].equals(data.frame()["With noise"]))
+
     def test_modified_bessel_and_hypergeometric_functions(self):
         x = np.array([.25, .5, .75])
         frame = pd.DataFrame({"X": [*x, np.nan]})
@@ -56,7 +102,7 @@ class WindowFormulaTests(unittest.TestCase):
                 write("document.json", {"sheets": {"data": ["source"]}})
                 write("data/sheets/source/sheet.json", {"title": "Visits", "table": {
                     "uid": "values", "format": "multivariable", "dataFormat": "y_single",
-                    "dataSets": ["group", "visit", "x", "label", "special", "logic"],
+                    "dataSets": ["group", "visit", "x", "label", "special", "logic", "archived"],
                 }})
                 write("data/sets/group.json", {"title": "Study group", "currentType": "categorical"})
                 write("data/sets/visit.json", {"title": "Visit"})
@@ -64,14 +110,16 @@ class WindowFormulaTests(unittest.TestCase):
                 for ident, title, expression in (("label", "Row ID", 'CONCATENATE(A, "-", B)'),
                                                  ("special", "Special value", "HYPGEOMETRICM(2, 2, C)"),
                                                  ("logic", "Decision",
-                                                  'IF(A >= "treatment" AND NOT B = 0, "Drug", "Other")')):
+                                                  'IF(A >= "treatment" AND NOT B = 0, "Drug", "Other")'),
+                                                 ("archived", "Saved sample", "RND(0, 1)")):
                     write(f"data/sets/{ident}.json", {"title": title, "valuesStorageData": {
                         "@class": "TransformDataSource", "transform": expression,
                     }})
                 archive.writestr("data/tables/values/data.csv",
-                                 "Placebo,3,.5,stored,999,stored\nTreatment,1,.84,stored,999,stored\n")
+                                 "Placebo,3,.5,stored,999,stored,.125\nTreatment,1,.84,stored,999,stored,.375\n")
             data = Dataset(load_tables(source)["Visits"])
             self.assertEqual(set(data.formulas), {"Row ID", "Special value", "Decision"})
+            np.testing.assert_array_equal(data.frame()["Saved sample"], [.125, .375])
             self.assertEqual(data.frame()["Row ID"].tolist(), ["Placebo-3", "Treatment-1"])
             self.assertEqual(data.frame()["Decision"].tolist(), ["Other", "Drug"])
             data.raw.iat[0, 1] = 7
@@ -81,6 +129,7 @@ class WindowFormulaTests(unittest.TestCase):
             save_project(dest, {"Visits": data})
             reopened = load_project(dest)["Visits"]
         self.assertEqual(reopened.formulas, data.formulas)
+        np.testing.assert_array_equal(reopened.frame()["Saved sample"], [.125, .375])
         self.assertEqual(reopened.frame()["Row ID"].tolist(), ["Placebo-7", "Treatment-0"])
         self.assertEqual(reopened.frame()["Decision"].tolist(), ["Other", "Other"])
         np.testing.assert_allclose(reopened.frame()["Special value"], [np.exp(.5)] * 2)

@@ -11,6 +11,7 @@ import json
 from math import factorial, isfinite
 import operator
 import re
+from secrets import randbits
 import tokenize
 from pathlib import Path
 from zipfile import ZipFile
@@ -398,16 +399,52 @@ def _worksheet_comparisons(tokens):
     return result
 
 
+RANDOM_FORMULA_CALLS = {"GAUSS", "RND"}
+_RANDOM_CALL_TEXT = re.compile(r"\b(?:GAUSS|RND)\s*\(", re.IGNORECASE)
+_SEED_PREFIX = re.compile(r"^WITH_SEED\s*\(\s*([0-9]{1,20})\s*,", re.IGNORECASE)
+
+
 def _formula_tree(expression):
     source = expression.strip().removeprefix("=").strip()
+    seed = None
+    if match := _SEED_PREFIX.match(source):
+        seed = int(match[1])
+        if seed >= 2**64 or not source.endswith(")"):
+            raise ValueError("Use WITH_SEED with a whole number from 0 through 2^64 − 1 and a formula.")
+        source = source[match.end():-1].strip()
     if not source or len(source) > 2048:
         raise ValueError("Enter a formula of up to 2048 characters.")
     try:
         tokens = tokenize.generate_tokens(StringIO(source).readline)
         window = lower_window_clauses(_formula_operators(tokens))
-        return ast.parse(tokenize.untokenize(_worksheet_comparisons(window)), mode="eval")
+        return ast.parse(tokenize.untokenize(_worksheet_comparisons(window)), mode="eval"), seed
     except (SyntaxError, tokenize.TokenError) as error:
         raise ValueError("Invalid formula syntax.") from error
+
+
+def seeded_formula(expression):
+    """Give a stored formula an independent seed once, leaving existing seeds intact."""
+    if not _RANDOM_CALL_TEXT.search(expression):
+        return expression
+    tree, seed = _formula_tree(expression)
+    if seed is not None or not any(
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id.upper() in RANDOM_FORMULA_CALLS for node in ast.walk(tree)):
+        return expression
+    source = expression.strip().removeprefix("=").strip()
+    return f"=WITH_SEED({randbits(64)}, {source})"
+
+
+def _random_values(name, rng, n, first, second):
+    first, second = (_formula_numbers(arg) for arg in (first, second))
+    finite = np.isfinite(first) & np.isfinite(second)
+    if name == "GAUSS":
+        return np.where(finite & (second >= 0), first + second * rng.standard_normal(n), np.nan)
+    fraction = rng.random(n)
+    # Interpolating between endpoints avoids overflow when upper - lower does not fit in float64.
+    values = first * (1 - fraction) + second * fraction
+    values = np.where(first == second, first, values)
+    return np.where(finite & (second >= first), values, np.nan)
 
 
 def _casefold_text(value):
@@ -420,7 +457,8 @@ def _casefold_text(value):
 
 def formula(frame, expression, *, info=None):
     """Evaluate arithmetic, comparisons and whitelisted functions only."""
-    tree = _formula_tree(expression)
+    tree, seed = _formula_tree(expression)
+    rng = None
     if sum(1 for _ in ast.walk(tree)) > 128:
         raise ValueError("Formula is too complex.")
 
@@ -449,6 +487,7 @@ def formula(frame, expression, *, info=None):
         return value
 
     def evaluate(node, *, raw=False, filter_text=False):
+        nonlocal rng
         if isinstance(node, ast.Constant) and type(node.value) in {int, float, str, bool}:
             return float(node.value) if type(node.value) in {int, float} else node.value
         if isinstance(node, ast.Name):
@@ -476,6 +515,13 @@ def formula(frame, expression, *, info=None):
             return COMPARE[operation](lhs, rhs)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.keywords:
             name = node.func.id.upper()
+            if name in RANDOM_FORMULA_CALLS:
+                if len(node.args) != 2:
+                    raise ValueError(argument_count_message(name, range(2, 3)))
+                if rng is None:
+                    rng = np.random.Generator(np.random.PCG64(seed))
+                return _random_values(name, rng, len(frame),
+                                      *(evaluate(arg, filter_text=filter_text) for arg in node.args))
             if name == "CASE_INSENSITIVE" and len(node.args) == 1:
                 return evaluate(node.args[0], raw=raw, filter_text=True)
             if name in {"COL", "INFO"} and len(node.args) == 1 and isinstance(node.args[0], ast.Constant):
@@ -535,7 +581,7 @@ def formula(frame, expression, *, info=None):
 
 def info_references(expression):
     """Return the constant names used by an already validated formula."""
-    tree = _formula_tree(expression)
+    tree, _ = _formula_tree(expression)
     return {
         node.args[0].value.strip().casefold()
         for node in ast.walk(tree)
@@ -612,7 +658,7 @@ class Dataset:
         if not name.strip() or name in self.raw:
             raise ValueError("Choose a new column name.")
         candidate = copy(self)
-        candidate.formulas = {**self.formulas, name: expression}
+        candidate.formulas = {**self.formulas, name: seeded_formula(expression)}
         candidate.frame()
         self.formulas = candidate.formulas
 

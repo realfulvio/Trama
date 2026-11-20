@@ -12,7 +12,7 @@ from zipfile import BadZipFile, ZipFile, is_zipfile
 import numpy as np
 
 from .data import (COLUMN_FORMULA_FUNCTIONS, ELEMENTWISE_FORMULA_FUNCTIONS, MAX_CELLS, MAX_COLUMNS, MAX_ENTRY,
-                   SHEET_LOGIC, _member, _table, formula, worksheet_logic_tokens)
+                   RANDOM_FORMULA_CALLS, SHEET_LOGIC, _member, _table, formula, worksheet_logic_tokens)
 from .formula_windows import CONDITIONAL_CALLS, WINDOW_CALLS, WINDOW_CLAUSES, WINDOW_KEYWORDS
 from .info import InfoSheet, MAX_INFO_FIELDS, MAX_INFO_SHEETS
 
@@ -67,7 +67,7 @@ def _identifier(value):
     return value
 
 
-def _formula_recipe(expression, columns):
+def _formula_recipe(expression, columns, *, allow_sampling=False):
     if not isinstance(expression, str) or len(expression) > 2048:
         raise ValueError("Unsupported Prism formula.")
     expression = expression.strip().removeprefix("=").strip()
@@ -75,6 +75,8 @@ def _formula_recipe(expression, columns):
     window_form = any(kind == tokenize.NAME and value.upper() in WINDOW_CLAUSES | CONDITIONAL_CALLS.keys()
                       for kind, value in tokens)
     allowed_calls = _FORMULA_CALLS | WINDOW_CALLS | CONDITIONAL_CALLS.keys() if window_form else _FORMULA_CALLS
+    if allow_sampling:
+        allowed_calls = allowed_calls | RANDOM_FORMULA_CALLS
     result, dependencies = [], set()
     compare_text = False
     for i, (kind, value) in enumerate(tokens):

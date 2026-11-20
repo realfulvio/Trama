@@ -72,9 +72,10 @@ class FormulaDialog(QDialog):
             self.expression.setFocus()
             return
         try:
-            copy(self.dataset).set_formula(name, expression)
+            candidate = copy(self.dataset)
+            candidate.set_formula(name, expression)
         except (ValueError, TypeError, OverflowError) as error:
             self.show_problem(t(str(error)))
             return
-        self.result = name, expression
+        self.result = name, candidate.formulas[name]
         super().accept()

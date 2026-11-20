@@ -40,6 +40,7 @@ from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLEC
                                    SAVED_EDITABLE_GRAPH, SAVED_XY, panel_source_style, resolve_layout_panel_graphs)
 from analisi.prism_xml_binding import SCATCHARD
 from analisi.shape_interaction import ShapeHistory
+from analisi.select_transform import SELECT_TRANSFORM, seeded_transform_options
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.workbench import analyse
 from analisi.worksheet_history import WorksheetHistory, WorksheetState
@@ -540,6 +541,8 @@ class Project:
     # -- analyses -------------------------------------------------------------------------------
     def candidate(self, title, method, options, *, index=None, source=None):
         """The Run a dialog asks for: a new analysis, or the edit of ``runs[index]`` keeping its identity."""
+        if method == SELECT_TRANSFORM:
+            options = seeded_transform_options(options)
         if index is None:
             dataset = self.tables[title]
             if source is None and len(dataset.analyses) - len(dataset.analysis_sources) >= 256:

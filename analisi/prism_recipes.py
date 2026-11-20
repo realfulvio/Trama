@@ -350,7 +350,7 @@ def _nonlinear(frame, content, _results):
 
 def _select_transform(frame, content, _results):
     from .prism_import import _formula_recipe, _letters
-    from .select_transform import CALCULATED, COMPARISONS, FILTERS, MAX_RULES, SELECT_TRANSFORM
+    from .select_transform import CALCULATED, COMPARISONS, FILTERS, MAX_RULES, SELECT_TRANSFORM, seeded_transform_options
 
     filters = content["rowFilters"]
     if filters["range"] != {"from": -1, "to": -1} or filters["variableVariable"] != []:
@@ -390,14 +390,19 @@ def _select_transform(frame, content, _results):
         if title in names or title.strip() != title or len(calculated) >= MAX_RULES:
             return None
         try:
-            expression, _ = _formula_recipe(definition, letters)
+            expression, _ = _formula_recipe(definition, letters, allow_sampling=True)
         except (ValueError, tokenize.TokenError):
             return None
         calculated.append({"name": title, "expression": expression})
         names.add(title)
     if not columns and not calculated:
         return None
-    return SELECT_TRANSFORM, {"Variables": columns, FILTERS: conditions, CALCULATED: calculated}
+    options = {"Variables": columns, FILTERS: conditions, CALCULATED: calculated}
+    seeded = seeded_transform_options(options)
+    if seeded is not options:
+        seeded["Prism import notes"] = ("The live transform uses a new reproducible random sample. "
+                                       "Saved result views contain the original recorded values.")
+    return SELECT_TRANSFORM, seeded
 
 
 

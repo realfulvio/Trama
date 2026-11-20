@@ -5,7 +5,7 @@ from operator import eq, ge, gt, le, lt, ne
 import numpy as np
 import pandas as pd
 
-from .data import MAX_CELLS, MAX_COLUMNS, decimal_comma, formula
+from .data import MAX_CELLS, MAX_COLUMNS, decimal_comma, formula, seeded_formula
 from .processing import FieldError
 from .reporting import Result
 
@@ -17,6 +17,24 @@ COMPARISONS = {"=": eq, "!=": ne, ">": gt, ">=": ge, "<": lt, "<=": le}
 TARGETS = ("Number", "Text", "Column")
 MAX_RULES = 32
 SELECT_OPTIONS = {"Variables": "Multiple (optional)", "First row": "Text", "Last row": "Text"}
+
+
+def seeded_transform_options(options):
+    """Set the seed of live transform recipes before they reach the worker."""
+    records = options.get(CALCULATED)
+    if not isinstance(records, list):
+        return options
+    seeded = []
+    for record in records:
+        if isinstance(record, dict) and isinstance(record.get("expression"), str):
+            try:
+                expression = seeded_formula(record["expression"])
+            except ValueError:
+                expression = record["expression"]  # The usual calculation reports the invalid formula.
+            if expression != record["expression"]:
+                record = {**record, "expression": expression}
+        seeded.append(record)
+    return {**options, CALCULATED: seeded} if seeded != records else options
 
 
 def _numeric(series):
