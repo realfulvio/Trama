@@ -15,6 +15,20 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Correlazione intraclasse, pacchetto ICC-Misure-Continue (2026-11-20)
+
+PR draft verso main (ramo `claude/icc-misure-continue`, base main df1d591 = v0.96.0). Windows 10 fisico (1920×1080, 100 %, DPI 96, 2026-11-20): suite completa 4169 test OK (base 4111 OK), smoke generale PASS, smoke ICC chiaro e scuro PASS, verificatore 9/9; 150 % e secondo monitor NON PROVATI. Evidenze nella PR. Guida: `docs/icc.md`.
+
+- Motore `analisi/icc.py` (Group Comparison → Intraclass correlation, dopo Bland–Altman for repeated pairs): fogli ICC, ANOVA components, Subjects, Settings, Excluded rows; grafico dei profili; quattro coefficienti McGraw–Wong; dati centrati sulla mediana e scalati per una potenza di due esatta (ICC invariante, niente overflow); bootstrap per soggetti sul pool `analisi.parallel` a blocchi con stato PCG64 esatto (1 e N processi identici), budget 20 milioni di celle controllato prima di estrarre.
+- Qt: `trama_qt/icc.py` (campi bootstrap solo con Bootstrap CI, riepilogo, valutatori nell'ordine di selezione, controlli prima del worker, messaggi `icc.error.` in italiano) e 8 righe in `analysis_dialog.py`, come il binding di Bland–Altman per coppie ripetute. Una riga in `AnalysisDialog.options()` rimette `Raters` nell'ordine in cui sono stati spuntati. Nessuna modifica a `project.py`/`window.py`.
+- Test: `tests/test_icc.py` (motore, oracolo a frazioni esatte e bootstrap con righe copiate), `tests/test_icc_parallel.py` (pool reale a 4 processi), `tests/test_qt_icc.py` (offscreen), fixture in `tests/data/icc/`. Smoke: `python -m trama_qt.icc_smoke CARTELLA [--dark]`.
+- Da provare su Windows, a 100% e 150%:
+  - Aprire `docs/examples/ICC-valutatori.alab`, aprire il grafico: 11 soggetti completi, 3 valutatori nell'ordine C, A, B.
+  - Cambia parametri → Consistency / Mean of raters; Bootstrap CI con 5.000 repliche e Annulla calcolo durante il calcolo (torna l'ultimo risultato).
+  - Impostazioni → processi 1 e Auto: stessi numeri nel foglio ICC.
+  - Dialogo in italiano a 1024×768 e tema scuro: righe Livello, Repliche e Seme visibili solo con IC bootstrap; spunta i valutatori in ordine diverso e controlla il riepilogo.
+- Conflitti attesi con i pacchetti Cochran-Q-Appaiato e Precisione-Richiamo (stessa base): `analisi/workbench.py` (import, METHODS, GROUPS "Group Comparison", GRAPH_METHODS, `analyse`), coda di `analisi/interface_catalog.py`, `trama_qt/analysis_dialog.py` (import, attributo, `configure_fields`, `options`, `accept`, `_message`), `tests/test_catalog.py`, `docs/features.md`, cima di questo file. Tutti banali (righe aggiunte vicine).
+
 ### Bland–Altman per coppie ripetute, pacchetto 02 del 0.96 (2026-11-20)
 
 PR draft verso main (ramo `claude/project-thread-y6nc6f`, base main 4c07db6). Windows NON PROVATO. Guida: `docs/bland-altman-repeated.md`.

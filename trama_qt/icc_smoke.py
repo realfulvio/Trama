@@ -1,0 +1,397 @@
+"""Intraclass correlation on the real Qt window: ``python -m trama_qt.icc_smoke FOLDER [--dark]``.
+
+Conventions of ``python -m trama_qt --smoke`` (``trama_qt/smoke.py``): the real screen, preferences in a temporary
+folder, synthetic data only, English then Italian. In each language it opens ``tests/data/icc/valutatori.csv`` (column
+names with spaces and symbols, one subject with a missing rating), finds the analysis in the catalog, has a single
+rater and a replicate count out of range refused in the dialog before any worker starts, runs with the subject
+bootstrap and the raters ticked in a chosen order, records the dialog and every result page, switches definition and
+unit, edits a cell, excludes a cell and undoes (automatic recalculation), cancels a change and checks that the last
+confirmed result comes back, then saves the project and reopens it in a new window.
+
+Writes into FOLDER: ``<lang>-*.png`` (as drawn at this scale); in the first language also ``icc.png/.svg/.pdf``,
+``icc-table.csv``, ``subjects.csv`` and ``icc-valutatori.alab``; ``report.txt`` and ``status.txt``.
+Exit code 0 on PASS, 1 on FAIL.
+"""
+import os
+from pathlib import Path
+import sys
+import tempfile
+import time
+import traceback
+from unittest import mock
+
+os.environ.setdefault("MPLBACKEND", "QtAgg")  # before pyplot can be imported anywhere
+
+import pandas as pd  # noqa: E402
+from PySide6 import __version__ as PYSIDE_VERSION  # noqa: E402
+from PySide6.QtCore import QRect, Qt  # noqa: E402
+from PySide6.QtWidgets import QDialog, QFileDialog  # noqa: E402
+
+from analisi import icc  # noqa: E402
+
+from .smoke import LANGUAGES, Smoke  # noqa: E402
+
+DATA = Path(__file__).resolve().parent.parent / "tests" / "data" / "icc"
+CSV = DATA / "valutatori.csv"
+A, B, C = "Valutatore A (mg/dl)", "Valutatore B (mg/dl)", "Valutatore C | mg/dl"
+SUBJECT = "Soggetto #"
+ORDER = [C, A, B]  # ticked in this order, which is also the order of the profile graph
+RUN = {"Bootstrap CI": True, "Bootstrap replicates": 999, "Seed": 2026}
+
+
+def fill(dialog, values):
+    for name, value in values.items():
+        _kind, control = dialog.controls[name]
+        if name == "Raters":
+            for position in range(control.count()):
+                control.item(position).setCheckState(Qt.CheckState.Unchecked)
+            for column in value:
+                for position in range(control.count()):
+                    if control.item(position).text() == column:
+                        control.item(position).setCheckState(Qt.CheckState.Checked)
+        elif hasattr(control, "findData"):
+            control.setCurrentIndex(control.findData(value))
+        elif hasattr(control, "setChecked"):
+            control.setChecked(bool(value))
+        else:
+            control.setText(str(value))
+
+
+class IccSmoke(Smoke):
+    def __init__(self, folder, dark=False):
+        super().__init__(folder)
+        self.dark = dark
+        self.saved = None
+        self.reference = None
+
+    def note(self, text):
+        self.notes.append(f"[{self.language}] {text}")
+
+    def shot(self, widget, name):
+        """Draw the figures first: an idle matplotlib canvas would be grabbed before its first paint."""
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+        for canvas in widget.findChildren(FigureCanvasQTAgg):
+            if canvas.isVisible():
+                canvas.draw()
+        end = time.monotonic() + .25
+        while time.monotonic() < end:
+            self.app.processEvents()
+            time.sleep(.01)
+        super().shot(widget, name)
+
+    def expect(self, condition, text):
+        if not condition:
+            self.problem(text)
+        return bool(condition)
+
+    def wait(self, window=None, timeout=120):
+        window = window or self.window
+        end = time.monotonic() + timeout
+        while window.job is not None and time.monotonic() < end:
+            self.app.processEvents()
+            time.sleep(.02)
+        self.app.processEvents()
+        self.expect(window.job is None, "a calculation is still running")
+
+    def ask(self, command, script):
+        from .analysis_dialog import AnalysisDialog
+        seen = []
+
+        def exec_(dialog):
+            seen.append(dialog)
+            dialog.show()
+            self.app.processEvents()
+            accepted = script(dialog)
+            return QDialog.DialogCode.Accepted if accepted and dialog.result else QDialog.DialogCode.Rejected
+
+        with mock.patch.object(AnalysisDialog, "exec", exec_):
+            command()
+        self.expect(seen, "the analysis dialog did not open")
+
+    def save_as(self, command, path):
+        with mock.patch.object(QFileDialog, "getSaveFileName", return_value=(str(path), "")):
+            command()
+        self.expect(path.exists() and path.stat().st_size > 0, f"{path.name} was not written")
+
+    # -- dialog ----------------------------------------------------------------------------------------
+    def first_dialog(self, dialog):
+        from .labels import method_label
+        dialog.query.setText(method_label(icc.METHOD))
+        items = [dialog.methods.topLevelItem(group).child(row)
+                 for group in range(dialog.methods.topLevelItemCount())
+                 for row in range(dialog.methods.topLevelItem(group).childCount())]
+        dialog._picked(next(item for item in items if item.data(0, Qt.ItemDataRole.UserRole) == icc.METHOD))
+        fill(dialog, {"Raters": [A]})
+        self.shot(dialog, "dialog-one-rater")
+        with mock.patch.object(icc, "bootstrap", side_effect=AssertionError("resampling in the dialog")):
+            dialog.accept()
+        self.expect(dialog.result is None and self.window.job is None, "a single rater reached the worker")
+        self.expect(dialog.focusWidget() is dialog.controls["Raters"][1], "Raters is not focused")
+        self.shot(dialog, "dialog-error")
+        self.note(f"refused in the dialog: {dialog.banner.text()}")
+
+        fill(dialog, {"Raters": ORDER, "Subject": SUBJECT})
+        self.expect(len(dialog.icc.summary.text().splitlines()) == 3, "the summary is incomplete")
+        self.note("summary: " + " | ".join(dialog.icc.summary.text().splitlines()))
+        self.shot(dialog, "dialog")
+        _caption, seed, form = dialog.rows["Seed"]
+        self.expect(not form.isRowVisible(seed), "Seed is shown without the bootstrap")
+
+        fill(dialog, {**RUN, "Bootstrap replicates": 50})
+        dialog.tabs.setCurrentIndex(dialog.tabs.count() - 1)
+        self.expect(form.isRowVisible(seed), "Seed is hidden with the bootstrap")
+        with mock.patch.object(icc, "bootstrap", side_effect=AssertionError("resampling in the dialog")):
+            dialog.accept()
+        self.expect(dialog.result is None and dialog.focusWidget() is dialog.controls["Bootstrap replicates"][1],
+                    "a wrong replicate count was not refused and focused")
+        self.shot(dialog, "dialog-error-replicates")
+        self.note(f"refused in the dialog: {dialog.banner.text()}")
+        fill(dialog, RUN)
+        self.shot(dialog, "dialog-bootstrap")
+        dialog.accept()
+        self.expect(dialog.result is not None, f"the corrected dialog was refused: {dialog.banner.text()!r}")
+        return True
+
+    def change(self, index, values):
+        def script(dialog):
+            fill(dialog, values)
+            dialog.accept()
+            return True
+        self.window.open_sheet(("graph", index))
+        self.wait()
+        self.ask(self.window.change_parameters, script)
+        self.wait()
+        return self.window.project.runs[index]
+
+    # -- run ---------------------------------------------------------------------------------------------
+    def run_language(self, language):
+        from analisi.i18n import set_language
+        from . import theme
+        from .window import MainWindow
+        self.language = language
+        set_language(language)
+        theme.install_qt_translations(self.app, language)
+        first = language == LANGUAGES[0]
+        self.window = window = MainWindow()
+        window.error = lambda error: self.problem(f"error shown: {error}")
+        available = self.screen_rect(window)
+        window.resize(min(1600, available.width()), min(1000, available.height()))
+        window.show()
+        theme.keep_on_screen(window)
+        self.app.processEvents()
+        try:
+            window.open_path(CSV)
+            self.wait()
+            title = window.selected[1]
+            started = time.perf_counter()
+            self.ask(window.actions["analyze"].trigger, self.first_dialog)
+            self.wait()
+            run = window.project.runs[-1]
+            index = window.project.runs.index(run)
+            self.note(f"first calculation (11 complete subjects, 3 raters, 999 replicates): "
+                      f"{time.perf_counter() - started:.2f} s")
+            self.expect(run.calculation_error is None and run.result is not None,
+                        f"not calculated: {run.calculation_error}")
+            self.expect(window.selected == ("graph", index), "the figure did not open first")
+            self.expect(run.options["Raters"] == ORDER and run.options["Seed"] == 2026, f"recipe {run.options}")
+            ticks = [text.get_text() for text in run.result.figure.axes[0].get_xticklabels()]
+            self.expect(ticks == ORDER, f"the profile graph does not follow the order of selection: {ticks}")
+            self.shot(window, "page-graph")
+            tables = run.result.tables
+            self.expect(list(tables) == ["ICC", "ANOVA components", "Subjects", "Settings", "Excluded rows"],
+                        f"sheets {list(tables)}")
+            row = tables["ICC"].iloc[0]
+            self.note("ICC: {:.4f}, CI {:.4f}–{:.4f}, N {}, raters {}, {}"
+                      .format(row["Estimate"], row["CI low"], row["CI high"], row["N"], row["Raters"],
+                              row["Interval status"]))
+            window.open_sheet(("result", index))
+            for name in tables:
+                window.result_tabs.setCurrentIndex(list(tables).index(name))
+                self.shot(window, "page-" + name.lower().replace(" ", "-"))
+                if first and name in ("ICC", "Subjects"):
+                    self.save_as(window.export, self.folder / ("icc-table.csv" if name == "ICC" else "subjects.csv"))
+            window.open_sheet(("graph", index))
+            if first:
+                for suffix in ("png", "svg", "pdf"):
+                    self.save_as(window.export, self.folder / f"icc.{suffix}")
+                svg = (self.folder / "icc.svg").read_text(encoding="utf-8")
+                self.expect("<path" in svg and "<image" not in svg, "the SVG is not fully vector")
+                self.saved = self.folder / "icc-valutatori.alab"
+                window.project.save(self.saved)
+                self.reference = {name: frame.copy() for name, frame in tables.items()}
+
+            self.dismiss(index)
+            before = run.result.tables["ICC"].iloc[0]["Estimate"]
+            run = self.change(index, {"Definition": "Consistency", "Unit": "Mean of raters"})
+            after = run.result.tables["ICC"].iloc[0]
+            self.expect(run.calculation_error is None and after["Definition"] == "Consistency"
+                        and after["Estimate"] != before, "consistency of the mean did not recalculate")
+            self.shot(window, "page-graph-consistency")
+            run = self.change(index, {"Definition": "Absolute agreement", "Unit": "Single measure"})
+            self.expect(abs(run.result.tables["ICC"].iloc[0]["Estimate"] - before) < 1e-15, "back to the first estimate")
+
+            self.recalculate(title, index)
+            self.cancel(index)
+            self.reopen()
+        except Exception:  # noqa: BLE001 - the report must say what broke, then the next language runs.
+            self.problem("stopped:\n" + traceback.format_exc())
+        finally:
+            window.project.dirty = False
+            window.close()
+            window.deleteLater()
+            self.app.processEvents()
+
+    def dismiss(self, index):
+        """Change parameters, edit the fields, then Cancel: the confirmed recipe and result stay as they were."""
+        window = self.window
+        run = window.project.runs[index]
+        options, result = dict(run.options), run.result
+
+        def script(dialog):
+            fill(dialog, {"Definition": "Consistency", "Bootstrap replicates": 400})
+            dialog.reject()
+            return False
+
+        window.open_sheet(("graph", index))
+        self.ask(window.change_parameters, script)
+        self.wait()
+        run = window.project.runs[index]
+        self.expect(window.job is None and run.options == options and run.result is result,
+                    "Cancel in the dialog changed the recipe")
+        self.note("Change parameters → Cancel kept the confirmed recipe")
+
+    def recalculate(self, title, index):
+        window = self.window
+        window.open_sheet(("data", title))
+        window.edit_cell(title, 4, 3, "97.5")
+        self.wait()
+        tables = window.project.runs[index].result.tables
+        self.expect(tables["ICC"].iloc[0]["N"] == 12 and "Excluded rows" not in tables,
+                    "completing row 5 did not add the subject")
+        window.open_sheet(("data", title))
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 2))
+        window.toggle_exclusion()
+        self.wait()
+        tables = window.project.runs[index].result.tables
+        self.expect(tables.get("Excluded rows") is not None
+                    and tables["Excluded rows"]["Source row"].tolist() == [1], "an excluded cell was not listed")
+        window.undo()
+        self.wait()
+        self.expect("Excluded rows" not in window.project.runs[index].result.tables, "undo did not restore row 1")
+        self.note("edit, exclusion and undo recalculated the analysis")
+
+    def cancel(self, index):
+        window = self.window
+        run = window.project.runs[index]
+        options, result = dict(run.options), run.result
+        started = []
+
+        def slow(plan, cancel=None, **_):  # the synthetic study is too small to stay busy for a click
+            started.append(time.perf_counter())
+            while not cancel.is_set():
+                time.sleep(.005)
+            icc.check_cancel(cancel)
+
+        def script(dialog):
+            fill(dialog, {"Bootstrap replicates": 5000})
+            dialog.accept()
+            return True
+
+        window.open_sheet(("graph", index))
+        with mock.patch.object(icc, "bootstrap", side_effect=slow):
+            self.ask(window.change_parameters, script)
+            end = time.monotonic() + 10
+            while not started and time.monotonic() < end:
+                self.app.processEvents()
+                time.sleep(.01)
+            clicked = time.perf_counter()
+            window.cancel_calculation()
+            self.wait()
+        run = window.project.runs[index]
+        self.expect(run.options == options and run.result is result, "cancelling changed the recipe or the result")
+        self.note(f"cancel: last confirmed result kept, latency {time.perf_counter() - clicked:.3f} s "
+                  "(bootstrap held open by the smoke)")
+
+    def reopen(self):
+        from .window import MainWindow
+        if self.saved is None:
+            return
+        other = MainWindow()
+        other.error = lambda error: self.problem(f"error shown on reopen: {error}")
+        other.show()
+        try:
+            other.open_path(self.saved)
+            self.wait(other)
+            other.open_sheet(("graph", 0))
+            self.wait(other)
+            reopened = other.project.runs[0]
+            for name, frame in self.reference.items():
+                try:
+                    pd.testing.assert_frame_equal(reopened.result.tables[name], frame, obj=name)
+                except AssertionError as error:
+                    self.problem(f"reopened {name} differs: {error}")
+            self.shot(other, "reopened")
+            self.note("saved project reopened with identical sheets")
+        finally:
+            other.project.dirty = False
+            other.close()
+            other.deleteLater()
+            self.app.processEvents()
+
+    def report(self):
+        screen = self.app.primaryScreen()
+        geometry = screen.availableGeometry() if screen else QRect()
+        lines = [f"Trama Qt · Intraclass correlation smoke · PySide6 {PYSIDE_VERSION} · platform "
+                 f"{self.app.platformName()} · theme {'dark' if self.dark else 'light'}",
+                 f"Screen {screen.name() if screen else '?'}: available {geometry.width()}×{geometry.height()}, "
+                 f"device pixel ratio {screen.devicePixelRatio() if screen else '?'}, "
+                 f"logical DPI {screen.logicalDotsPerInch() if screen else '?'}",
+                 f"Screenshots: {self.shots}", ""]
+        lines += self.notes + [""]
+        lines += self.problems or ["No problems found."]
+        (self.folder / "report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        status = "FAIL" if self.problems else "PASS"
+        (self.folder / "status.txt").write_text(status + "\n", encoding="utf-8")
+        return status
+
+
+def run(folder, languages=LANGUAGES, dark=False):
+    from analisi.i18n import active_language, set_language
+    from . import theme
+    smoke = IccSmoke(folder, dark)
+    previous = active_language()
+    try:
+        for language in languages:
+            smoke.run_language(language)
+    finally:
+        set_language(previous)
+        theme.install_qt_translations(smoke.app, previous)
+    return smoke.report()
+
+
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    folders = [argument for argument in argv if not argument.startswith("--")]
+    if len(folders) != 1:
+        print("Usage: python -m trama_qt.icc_smoke FOLDER [--dark]")
+        return 2
+    dark = "--dark" in argv
+    with tempfile.TemporaryDirectory() as config, \
+            mock.patch.dict(os.environ, {"APPDATA": config, "XDG_CONFIG_HOME": config}):
+        from PySide6.QtGui import QGuiApplication
+        from PySide6.QtWidgets import QApplication
+        QGuiApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+        app = QApplication.instance() or QApplication([sys.argv[0]])
+        app.setApplicationName("Trama")
+        import matplotlib
+        matplotlib.use("QtAgg")
+        from . import theme
+        theme.load_fonts()
+        theme.apply(app, dark=dark)
+        status = run(folders[0], dark=dark)
+    print(f"Intraclass correlation smoke: {status} ({folders[0]})")
+    return 0 if status == "PASS" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
