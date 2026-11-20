@@ -26,6 +26,7 @@ L’[editor delle legende](graph-legends.md) modifica titolo, colonne, cornice e
 - Selezione di intervalli, repliche in sottocolonne, copia/incolla con Excel, incolla speciale e trasposizione, annulla/ripeti ed esclusione di celle.
 - Formule nel foglio, costanti dai fogli Info, risultati riutilizzabili come dati, più progetti e navigazione fra fogli.
 - Importazione CSV, TSV e XLSX; salvataggio di dati, ricette e presentazione nel formato `.alab`.
+- [Rimodella lungo e largo](reshape-long-wide.md) trasforma la struttura di un foglio con anteprima e conserva la corrispondenza con le righe di origine.
 
 ## Confronti e inferenza
 

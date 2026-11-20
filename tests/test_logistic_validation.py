@@ -3,6 +3,8 @@
 The metric checks recompute everything from the exported Predictions sheet with brute-force definitions (pairwise
 AUC, the AP sum written out threshold by threshold, −log p), never with the engine's helpers.
 """
+import csv
+from io import StringIO
 from itertools import product
 import json
 import math
@@ -385,7 +387,7 @@ class CatalogTests(unittest.TestCase):
 
 
 class LegacyLogisticTests(unittest.TestCase):
-    """Multiple regression, Logistic family: every sheet as base 4c07db6 wrote it (17 significant digits)."""
+    """Compare each legacy sheet with the 4c07db6 export, allowing BLAS rounding in numeric cells."""
 
     def test_every_sheet_is_unchanged(self):
         legacy = DATA / "legacy"
@@ -397,8 +399,20 @@ class LegacyLogisticTests(unittest.TestCase):
             self.assertEqual(sorted(f"{name} - {title}.csv" for title in tables), frozen)
             for title, table in tables.items():
                 with self.subTest(recipe=name, sheet=title):
-                    expected = (legacy / f"{name} - {title}.csv").read_text(encoding="utf-8")
-                    self.assertEqual(table.to_csv(float_format="%.17g", lineterminator="\n"), expected)
+                    with (legacy / f"{name} - {title}.csv").open(encoding="utf-8", newline="") as stream:
+                        expected = list(csv.reader(stream))
+                    actual = csv.reader(StringIO(table.to_csv(float_format="%.17g", lineterminator="\n")))
+                    self.assertEqual(next(actual), expected[0])
+                    for current, saved in zip(actual, expected[1:], strict=True):
+                        self.assertEqual(current[0], saved[0])
+                        for value, reference in zip(current[1:], saved[1:], strict=True):
+                            if value == reference:
+                                continue
+                            try:
+                                close = math.isclose(float(value), float(reference), rel_tol=1e-12, abs_tol=1e-13)
+                            except ValueError:
+                                close = False
+                            self.assertTrue(close, (current[0], value, reference))
 
 
 if __name__ == "__main__":

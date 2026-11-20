@@ -96,6 +96,6 @@ Ogni tabella del risultato deve stare nei limiti dei fogli di Trama: al massimo 
 
 La ricetta salva solo i campi della direzione scelta, con i nomi e i valori canonici in inglese (`Direction`, `ID columns`, `Name column`, `Value column`, `Measure columns`, `Output names`, `Output values`, `Drop missing values`). Nel dialogo, passando da una direzione all'altra, le scelte dell'altra direzione restano e si ritrovano tornando indietro, ma non finiscono nel progetto.
 
-Esempio di progetto: `tests/data/reshape_long_wide/rimodella-visite.alab` (foglio con una cella esclusa, rimodellamento e grafico Column collegato al risultato).
+Il [progetto di esempio](examples/rimodella-visite.alab) contiene un foglio con una cella esclusa, un rimodellamento e un grafico Column collegato al risultato.
 
 Riferimento: H. Wickham, *Tidy Data*, Journal of Statistical Software 59(10), 2014, [doi:10.18637/jss.v059.i10](https://doi.org/10.18637/jss.v059.i10).

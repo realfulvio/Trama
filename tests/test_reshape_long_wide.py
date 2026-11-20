@@ -301,7 +301,8 @@ class RoundTrips(unittest.TestCase):
 class SyntheticProject(unittest.TestCase):
     def test_example_project_opens_and_recalculates_the_chain(self):
         from analisi.analysis_chain import ResultSource
-        tables = load_project(DATA / "rimodella-visite.alab")
+        example = Path(__file__).resolve().parents[1] / "docs" / "examples" / "rimodella-visite.alab"
+        tables = load_project(example)
         dataset = tables["reshape visits"]
         self.assertEqual(dataset.analyses[0], (METHOD, WIDEN | {"ID columns": ["Sample $", "Rep"]}))
         self.assertEqual(dataset.excluded, {(4, 3)})
