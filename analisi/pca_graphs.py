@@ -1,7 +1,7 @@
 """Scree, loadings and symmetric biplot views for principal component analysis.
 
-Scores and eigenvectors stay those of :func:`analisi.exploration.pca`, including its
-sample standard deviation and canonical eigenvector signs. A is the centered matrix,
+Scores and eigenvectors use :func:`analisi.exploration.pca` and its sample standard
+deviation. Imported recipes can retain the archived component directions. A is the centered matrix,
 divided by that standard deviation when standardization is on. The SVD is A = U D Vᵀ.
 Historical scores are U D and historical eigenvectors are V.
 
@@ -25,6 +25,7 @@ VERTICAL = "Vertical PC"
 LABEL = "Label column"
 SHOW_LABELS = "Show row labels"
 COLOR_GROUPS = "Color groups by"
+SAVED_DIRECTIONS = "PCA saved component directions"
 SCORES, LOADINGS, BIPLOT = "Scores", "Loadings", "Biplot"
 SCREE, PROPORTION = "Scree", "Proportion of variance"
 VIEWS = (SCORES, LOADINGS, BIPLOT, SCREE, PROPORTION)
@@ -39,7 +40,7 @@ _VARIANCE_SCALE = 1e-10
 _LABEL_LIMIT = 60
 MAX_COLOR_GROUPS = 40
 _BIPLOT = ("Symmetric biplot: row coordinates are U·sqrt(D) and variable coordinates are V·sqrt(D), "
-           "using the canonical eigenvector signs. The product of the two matrices over every component "
+           "using {directions}. The product of the two matrices over every component "
            "reconstructs the centered data matrix, after standardization when that option is on. "
            "A numerically zero singular value is zero in both.")
 _LOADINGS_STD = ("Loadings are eigenvectors multiplied by the square root of the sample eigenvalue. "
@@ -139,6 +140,28 @@ def _color_data(frame, options, view, mask):
 def _dead(eigenvalues):
     scale = float(np.max(eigenvalues)) if len(eigenvalues) else 0.0
     return np.asarray(eigenvalues, dtype=float) <= scale * _VARIANCE_SCALE
+
+
+def _apply_saved_directions(options, eigenvectors, scores, eigenvalues):
+    """Match the sign of each living component to a compatible standardized reference."""
+    references = options.get(SAVED_DIRECTIONS)
+    if options["Standardize"] is not True or not isinstance(references, dict):
+        return False
+    flipped = False
+    variables = set(eigenvectors.index)
+    for name in eigenvectors.columns[~_dead(eigenvalues)]:
+        reference = references.get(name)
+        if not isinstance(reference, dict) or reference.keys() != variables:
+            continue
+        values = [reference[variable] for variable in eigenvectors.index]
+        if any(type(value) not in (int, float) or not -1.000001 <= value <= 1.000001 for value in values):
+            continue
+        norm = np.linalg.norm(values)
+        if norm and eigenvectors[name].to_numpy() @ values < -.95 * norm:
+            eigenvectors[name] *= -1
+            scores[name] *= -1
+            flipped = True
+    return flipped
 
 
 def _coordinates(scores, eigenvectors, eigenvalues):
@@ -265,8 +288,9 @@ def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, va
     return figure, contours
 
 
-def _settings(view, standardize, labels_omitted):
-    notes = {"Graph display": view, "Biplot": _BIPLOT,
+def _settings(view, standardize, labels_omitted, saved_directions):
+    directions = "saved component directions" if saved_directions else "the canonical eigenvector signs"
+    notes = {"Graph display": view, "Biplot": _BIPLOT.format(directions=directions),
              "Loadings": _LOADINGS_STD if standardize else _LOADINGS_RAW}
     if labels_omitted:
         notes["Row labels"] = _LABELS_OMITTED
@@ -305,6 +329,7 @@ def pca_result(frame, options):
     regression = pca_regression.settings(frame, options)
     parts, eigenvectors, scores = exploration.pca(frame, variables, options["Standardize"])
     eigenvalues = parts["Eigenvalue"].to_numpy(dtype=float)
+    oriented = _apply_saved_directions(options, eigenvectors, scores, eigenvalues)
     variance = parts["Variance (%)"].to_numpy(dtype=float)
     names = list(parts.index)
     mask = _complete_mask(frame, variables)
@@ -332,7 +357,7 @@ def pca_result(frame, options):
         figure, _ = _figure(view, names, variance, eigenvalues, 0, 1, score_values, loadings, labels, variables, False,
                             parallel)
         tables = {"Explained variance": parts, "Eigenvectors": eigenvectors, "Scores": scores,
-                  COORDINATES: table, SETTINGS: _settings(view, bool(options["Standardize"]), False)}
+                  COORDINATES: table, SETTINGS: _settings(view, bool(options["Standardize"]), False, oriented)}
         tables.update(retention.tables)
         tables.update(pca_reports.optional_tables(frame, options, parts, eigenvectors, scores, retention))
         return _finish(tables, figure, frame, options, regression, parts, eigenvectors, scores, retention)
@@ -360,7 +385,7 @@ def pca_result(frame, options):
             "Vertical": [*rows[:, vertical], *variable_coordinates[:, vertical]],
         })
         drawn_rows, drawn_variables = rows, variable_coordinates
-    settings = _settings(view, bool(options["Standardize"]), omitted)
+    settings = _settings(view, bool(options["Standardize"]), omitted, oriented)
     if group_column is not None:
         values = group_values if view == SCORES else [*group_values, *([None] * len(variables))]
         table["Color group"] = pd.Series(values, dtype=object)

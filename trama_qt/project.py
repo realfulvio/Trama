@@ -22,6 +22,7 @@ from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, grow_rows, paste_block
 from analisi.i18n import tr, ui
 from analisi.info import info_contexts, validate_info_sheets
+from analisi.pca_graphs import SAVED_DIRECTIONS as PCA_SAVED_DIRECTIONS
 from analisi.pca_overlays import SAVED_APPEARANCE as PCA_OVERLAY_APPEARANCE
 from analisi.monte_carlo import MONTE_CARLO as MONTE_CARLO_METHOD, MonteCarloCancelled, monte_carlo
 from analisi.kmeans_stability import METHOD as KMEANS_STABILITY, analysis as kmeans_stability
@@ -549,7 +550,8 @@ class Project:
         run = self.runs[index]
         options = dict(options)
         if method == run.method:
-            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION, PCA_OVERLAY_APPEARANCE):
+            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION,
+                        PCA_OVERLAY_APPEARANCE, PCA_SAVED_DIRECTIONS):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:

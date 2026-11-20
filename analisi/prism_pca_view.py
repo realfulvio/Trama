@@ -1,7 +1,9 @@
-"""Recover confidence overlays on a saved PCA scores graph."""
+"""Recover component directions and overlays from saved PCA result sheets."""
 
 from collections import Counter
 import re
+
+import numpy as np
 
 from . import ellipse_workbench as ellipses, pca_overlays
 from .graph_legend import typed_group_token
@@ -71,6 +73,33 @@ def _component(scores, selector, component_count):
     if not 1 <= number <= component_count:
         raise ValueError("Expected a saved principal component.")
     return number
+
+
+def saved_component_directions(archive, analysis, view_sources, variables):
+    """Read finite loadings owned by this analysis, with the original variable labels."""
+    try:
+        record, = [item for item in analysis["resultSheets"] if item.get("title") == "Loadings"]
+        owner = _identifier(analysis["uid"])
+        view = _json_object(archive, f"analyses/{owner}/result_sheets/{_identifier(record['uid'])}.json")
+        if view.get("name") != "Loadings" or view.get("isInternal"):
+            return {}
+        table = view_sources[view["dataSheet"]]
+        if (list(table.columns[:1]) != ["Var"] or not table["Var"].is_unique
+                or set(table["Var"]) != set(variables)):
+            return {}
+        table = table.set_index("Var").loc[variables]
+        components = list(table)
+        if not components or components != [f"PC{index}" for index in range(1, len(components) + 1)]:
+            return {}
+        if len(components) > len(variables):
+            return {}
+        loadings = table.to_numpy(dtype=float)
+        if not np.isfinite(loadings).all() or (np.abs(loadings) > 1.000001).any():
+            return {}
+    except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+        return {}
+    return {name: dict(zip(variables, loadings[:, index].tolist(), strict=True))
+            for index, name in enumerate(components)}
 
 
 def saved_score_overlay(archive, analysis, input_frame, view_sources, options):

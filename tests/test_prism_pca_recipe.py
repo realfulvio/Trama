@@ -9,11 +9,12 @@ from zipfile import ZipFile
 
 from matplotlib.colors import to_hex
 import numpy as np
+import pandas as pd
 
 from analisi.analysis_chain import evaluate_graph
 from analisi.data import Dataset, load_project, load_tables, save_project, validate_analysis_links
 from analisi.kmeans_options import SELECTION
-from analisi import ellipse_workbench, pca_overlays
+from analisi import ellipse_workbench, exploration, pca_overlays
 from analisi.pca_graphs import COORDINATES
 from analisi.prism_recipes import restore_recipe
 from analisi.prism_pca_smoke import INPUT, SOURCE_NAME, sample, write_project
@@ -81,7 +82,67 @@ def add_score_graph(path, *, level=90., linked=True, fill=True):
             writer.writestr(key, value)
 
 
+
+def add_saved_loadings(path, loadings):
+    """Attach the result sheet using the same metadata as saved multivariable projects."""
+    with ZipFile(path) as reader:
+        members = {name: reader.read(name) for name in reader.namelist()}
+    analysis = json.loads(members["analyses/pca/sheet.json"])
+    analysis.update(uid="pca")
+    analysis["resultSheets"].append({"uid": "loadings-view", "title": "Loadings"})
+    columns = {"loadings-variable": "Var"}
+    columns.update({f"loadings-{name}": name for name in loadings.columns})
+    records = {"analyses/pca/sheet.json": analysis,
+               "analyses/pca/result_sheets/loadings-view.json": {"name": "Loadings", "dataSheet": "loadings",
+                                                                 "isVisible": True},
+               "data/sheets/loadings/sheet.json": {"table": {"uid": "loadings-values", "format": "multivariable",
+                   "dataFormat": "y_single", "dataSets": list(columns)}},
+               **{f"data/sets/{key}.json": {"title": value} for key, value in columns.items()}}
+    members.update({key: json.dumps(value) for key, value in records.items()})
+    members["data/tables/loadings-values/data.csv"] = loadings.to_csv(index=True, header=False)
+    with ZipFile(path, "w") as writer:
+        for key, value in members.items():
+            writer.writestr(key, value)
+
+
 class PrismPCARecipeTests(unittest.TestCase):
+    def test_archived_loadings_preserve_the_direction_of_recalculated_components(self):
+        frame, _ = sample()
+        variables = frame.columns[:3].tolist()
+        parts, axes, scores = exploration.pca(frame, variables)
+        directions = axes.mul(np.sqrt(parts["Eigenvalue"]), axis="columns")
+        directions.loc[:, "PC1"] *= -1
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "source.prismt"
+            write_project(source)
+            add_saved_loadings(source, directions.iloc[::-1])
+            tables = {title: Dataset(data) for title, data in load_tables(source, restore_prism=True).items()}
+            saved = Path(directory) / "reopened.alab"
+            save_project(saved, tables)
+            reopened = load_project(saved)[SOURCE_NAME]
+            method, options = reopened.analyses[0]
+            result = analyse(method, reopened.frame(), options)
+            pd.testing.assert_frame_equal(result.tables["Explained variance"], parts)
+            np.testing.assert_allclose(result.tables["Scores"]["PC1"], -scores["PC1"], rtol=1e-12)
+            np.testing.assert_allclose(result.tables["Eigenvectors"]["PC1"], -axes["PC1"], rtol=1e-12)
+            np.testing.assert_allclose(result.tables[COORDINATES]["Horizontal"], -scores["PC1"], rtol=1e-12)
+            np.testing.assert_allclose(result.tables["Scores"]["PC2"], scores["PC2"], rtol=1e-12)
+
+            raw = analyse(method, reopened.frame(), {**options, "Standardize": False})
+            _, _, raw_scores = exploration.pca(frame, variables, standardize=False)
+            pd.testing.assert_frame_equal(raw.tables["Scores"], raw_scores)
+
+            from trama_qt.project import Project
+
+            project = Project()
+            project.load(saved)
+            run = project.runs[0]
+            # A dialog sends only the visible analysis settings when changing a component axis.
+            from analisi.pca_graphs import SAVED_DIRECTIONS, HORIZONTAL
+
+            visible = {key: value for key, value in run.options.items() if key != SAVED_DIRECTIONS}
+            candidate = project.candidate(run.title, method, {**visible, HORIZONTAL: 3}, index=0)
+            self.assertEqual(candidate.options[SAVED_DIRECTIONS], run.options[SAVED_DIRECTIONS])
     def test_score_graph_recovers_level_and_palette_on_the_recalculable_recipe(self):
         with TemporaryDirectory() as directory:
             archive = Path(directory) / "overlay.prismt"

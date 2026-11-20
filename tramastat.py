@@ -294,7 +294,8 @@ from analisi.logistic_diagnostics import (LOGISTIC_CI, LOGISTIC_CUTOFF, LOGISTIC
                                           TABS as LOGISTIC_TABS)
 from analisi.pca_graphs import (COLOR_GROUPS as PCA_COLOR_GROUPS, GRAPH as PCA_GRAPH,
                                 HORIZONTAL as PCA_HORIZONTAL, LABEL as PCA_LABEL, ONE_DIMENSION as PCA_ONE_DIMENSION,
-                                POINT_VIEWS as PCA_POINT_VIEWS, SHOW_LABELS as PCA_SHOW_LABELS,
+                                POINT_VIEWS as PCA_POINT_VIEWS, SAVED_DIRECTIONS as PCA_SAVED_DIRECTIONS,
+                                SHOW_LABELS as PCA_SHOW_LABELS,
                                 TABS as PCA_TABS, VERTICAL as PCA_VERTICAL, validate as validate_pca_graph)
 from analisi.pca_regression import (CHOICE_KEYS as PCA_REGRESSION_CHOICE_KEYS, CONFIDENCE as PCR_CONFIDENCE,
                                     DEPENDENT as PCR_DEPENDENT, ENABLE as PCR_ENABLE,
@@ -7233,7 +7234,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         run = self.runs[index]
         method, options = dialog.result
         if method == run.method:
-            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION, pca_overlays.SAVED_APPEARANCE):
+            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION,
+                        pca_overlays.SAVED_APPEARANCE, PCA_SAVED_DIRECTIONS):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:

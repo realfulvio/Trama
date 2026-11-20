@@ -13,10 +13,10 @@ from .extract_rearrange import EXTRACT_REARRANGE, EXTRACT_TABLE
 from .hierarchical_workbench import HIERARCHY_GRAPH, TREE_AXIS
 from .kmeans_options import SELECTION
 from .kmeans_reports import ASSIGNMENTS_TABLE, assignment_column
-from .pca_graphs import COLOR_GROUPS
+from .pca_graphs import COLOR_GROUPS, SAVED_DIRECTIONS
 from .pca_overlays import KIND as PCA_OVERLAY, SAVED_APPEARANCE as PCA_OVERLAY_APPEARANCE
 from .prism_import import _identifier, _json_object, _store_table, _zip_table
-from .prism_pca_view import saved_score_overlay
+from .prism_pca_view import saved_component_directions, saved_score_overlay
 from .prism_recipes import restore_recipe
 from .prism_mv_scatter import APPEARANCE, saved_scatter
 
@@ -357,6 +357,9 @@ def _link_clustered_pca(producer, slot, cached, method, options):
                PRISM_NOTES: ("Uses the live K-means assignments as input. Trama recalculates standardized PCA "
                              "and the saved color grouping with its own samples from the saved seed."
                              + _pca_overlay_note(options))}
+    if SAVED_DIRECTIONS in options:
+        options[SAVED_DIRECTIONS] = {name: {mapping[column]: value for column, value in reference.items()}
+                                     for name, reference in options[SAVED_DIRECTIONS].items()}
     if PCA_OVERLAY_APPEARANCE in options:
         options[PCA_OVERLAY_APPEARANCE] = {**options[PCA_OVERLAY_APPEARANCE], "column": mapping[color]}
     return _append_linked_recipe(producer, slot, ASSIGNMENTS_TABLE, method, options)
@@ -519,6 +522,9 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             continue
         source, method, options = recipe
         options = {**options, PRISM_TITLE: label[:160]}
+        directions = saved_component_directions(archive, sheet, view_sources, options["Variables"])
+        if directions:
+            options[SAVED_DIRECTIONS] = directions
         overlay = saved_score_overlay(archive, sheet, view_sources[source], view_sources, options)
         if overlay:
             options.update(overlay[1])
