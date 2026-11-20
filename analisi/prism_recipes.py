@@ -439,7 +439,8 @@ def _kmeans(frame, content, _results):
     from .cluster_consensus import KL_SCALING, UNSCALED_WSS
 
     calc = content["calc"]
-    algorithm = {"HARTIGAN_WONG": selection.HARTIGAN, "MACQUEEN": selection.MACQUEEN}.get(calc["algorithm"])
+    algorithm = {"HARTIGAN_WONG": selection.HARTIGAN, "MACQUEEN": selection.MACQUEEN,
+                 "LLOYD_FORGY": selection.FORGY_LLOYD}.get(calc["algorithm"])
     scale = {"STANDARDIZE": selection.STANDARDIZED, "CENTER": selection.CENTERED,
              "NONE": selection.UNSCALED}.get(calc["transform"])
     if (algorithm is None or scale is None

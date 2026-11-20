@@ -11,10 +11,12 @@ SCALE = "Column scaling"
 STANDARDIZED, CENTERED, UNSCALED = "Standardized", "Centered", "Unscaled"
 SCALES = {STANDARDIZED: "standardize", CENTERED: "center", UNSCALED: "none"}
 ALGORITHM = "K-means algorithm"
-LLOYD, HARTIGAN, MACQUEEN = ALGORITHMS = ("Lloyd", "Hartigan–Wong", "MacQueen")
+LLOYD, HARTIGAN, MACQUEEN, FORGY_LLOYD = ALGORITHMS = ("Lloyd", "Hartigan–Wong", "MacQueen", "Forgy–Lloyd")
 MAX_ITERATIONS = "Hartigan–Wong iteration limit"
 MACQUEEN_ITERATIONS = "MacQueen iteration limit"
-ITERATION_FIELDS = {HARTIGAN: MAX_ITERATIONS, MACQUEEN: MACQUEEN_ITERATIONS}
+LLOYD_ITERATIONS = "Lloyd iteration limit"
+ITERATION_FIELDS = {HARTIGAN: MAX_ITERATIONS, MACQUEEN: MACQUEEN_ITERATIONS, FORGY_LLOYD: LLOYD_ITERATIONS}
+ENGINE_ALGORITHMS = {HARTIGAN: "hartigan-wong", MACQUEEN: "macqueen", FORGY_LLOYD: "forgy-lloyd"}
 INITIAL_ROWS = "Initial worksheet rows"
 DEFAULT_ITERATIONS = 10
 WSS_PLOT = "Show WSS plot"
@@ -65,8 +67,7 @@ def fit_options(method, frame, options):
             iterations = None
     if isinstance(iterations, bool) or not isinstance(iterations, Integral) or not 1 <= iterations <= 1000:
         raise FieldError(iteration_field, "Enter a whole number from 1 to 1000.")
-    values = {"algorithm": "hartigan-wong" if algorithm == HARTIGAN else "macqueen",
-              "max_iterations": iterations}
+    values = {"algorithm": ENGINE_ALGORITHMS[algorithm], "max_iterations": iterations}
     initial = options.get(INITIAL_ROWS, "")
     if method == SELECTION or initial is None or isinstance(initial, str) and not initial.strip():
         return values

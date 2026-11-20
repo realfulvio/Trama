@@ -821,6 +821,8 @@ def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloy
         return _hartigan_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial)
     if algorithm == "macqueen":
         return _macqueen_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial)
+    if algorithm == "forgy-lloyd":
+        return _forgy_lloyd_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial)
     if algorithm != "lloyd":
         raise ValueError("Choose a K-means algorithm.")
     if initial_rows is not None:
@@ -846,6 +848,54 @@ def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloy
     if best is None:
         raise ValueError("K-means did not converge to non-empty clusters.")
     return best
+
+
+def _forgy_lloyd_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial):
+    """One seeded K-means++ start followed by bounded Lloyd batch updates."""
+    if isinstance(max_iterations, bool) or not isinstance(max_iterations, Integral) or not 1 <= max_iterations <= 1000:
+        raise ValueError("Maximum iterations must be an integer from 1 to 1000.")
+    data, values = _cluster_data(frame, columns, count, scale)
+    n, width = values.shape
+    if n * count > 2_000_000 or count > len(np.unique(values, axis=0)):
+        raise ValueError("Too many clusters for the number of distinct observations.")
+    origin = values[0]
+    with np.errstate(over="ignore", invalid="ignore"):
+        shifted = values - origin
+    limit = np.sqrt(np.finfo(float).max / (4 * n * width))
+    if not np.isfinite(shifted).all() or np.abs(shifted).max() > limit:
+        raise ValueError("Variable magnitudes are too large to compute squared distances.")
+    if initial_rows is None:
+        # Normalization preserves distance weights and avoids numerical underflow in the draw.
+        extent = np.abs(shifted).max()
+        samples = shifted / extent if extent else shifted
+        positions = _kmeans_plus_plus_rows(samples, count, np.random.default_rng(seed))
+    else:
+        positions = np.asarray(initial_rows)
+        if positions.shape != (count,) or positions.dtype.kind not in "iu":
+            raise ValueError("Choose one initial row per cluster.")
+        if (positions < 0).any() or (positions >= n).any():
+            raise ValueError("Initial row positions are outside the complete data.")
+    initial = shifted[positions]
+    if len(np.unique(initial, axis=0)) != count:
+        raise ValueError("Initial observations must specify distinct centers.")
+
+    centers = initial
+    previous = None
+    for _ in range(max_iterations):
+        labels = cdist(shifted, centers, "sqeuclidean").argmin(axis=1)
+        if previous is not None and np.array_equal(labels, previous):
+            break
+        sizes = np.bincount(labels, minlength=count)
+        if (sizes == 0).any():
+            raise ValueError("K-means did not converge to non-empty clusters.")
+        sums = np.zeros_like(initial)
+        np.add.at(sums, labels, shifted)
+        centers = sums / sizes[:, None]
+        previous = labels
+    inertia = float(np.sum((shifted - centers[labels]) ** 2))
+    return Clusters(data, pd.Series(labels + 1, index=data.index, name="Cluster"),
+                    pd.DataFrame(centers + origin, columns=columns), inertia,
+                    initial_centers=pd.DataFrame(values[positions], columns=columns) if retain_initial else None)
 
 
 def _hartigan_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial):

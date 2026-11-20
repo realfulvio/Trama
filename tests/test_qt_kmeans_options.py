@@ -52,6 +52,22 @@ class QtKmeansOptionsTests(unittest.TestCase):
         self.assertTrue(macqueen.isHidden())
         self.assertNotIn(km.MACQUEEN_ITERATIONS, dialog.options())
 
+    def test_forgy_lloyd_preserves_its_iteration_limit_in_the_italian_dialog(self):
+        dialog = self.dialog(km.SELECTION, {km.ALGORITHM: km.FORGY_LLOYD, km.LLOYD_ITERATIONS: 12})
+        iterations = dialog.controls[km.LLOYD_ITERATIONS][1]
+        self.assertFalse(iterations.isHidden())
+        self.assertEqual(dialog.rows[km.LLOYD_ITERATIONS][0].text(), "Limite di iterazioni Lloyd")
+        iterations.setText("0")
+        dialog.accept()
+        self.assertIsNone(dialog.result)
+        self.assertIs(dialog.focusWidget(), iterations)
+        iterations.setText("12")
+        dialog.accept()
+        _, options = dialog.result
+        self.assertEqual(options[km.ALGORITHM], km.FORGY_LLOYD)
+        self.assertEqual(options[km.LLOYD_ITERATIONS], 12)
+        self.assertNotIn(km.MAX_ITERATIONS, options)
+
     def test_invalid_initial_rows_focus_in_place_and_corrected_fit_is_canonical(self):
         dialog = self.dialog(km.CLUSTERING, {km.ALGORITHM: km.MACQUEEN, "Standardize": False,
                                            km.INITIAL_ROWS: "1, 1", km.MACQUEEN_ITERATIONS: 0})

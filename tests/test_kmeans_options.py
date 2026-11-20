@@ -138,6 +138,47 @@ class KmeansOptionsTests(unittest.TestCase):
         content["calc"]["distance"]["type"] = "MANHATTAN"
         self.assertIsNone(restore_recipe(sheet, parameters, frames))
 
+    def test_forgy_lloyd_uses_the_requested_number_of_batch_updates(self):
+        frame = pd.DataFrame({"x": [0., 2., 3., 4., 10.]})
+        settings = {"Variables": ["x"], "Clusters": 2, "Seed": 42, option.SCALE: option.UNSCALED,
+                    option.ALGORITHM: option.FORGY_LLOYD, option.LLOYD_ITERATIONS: 1,
+                    option.INITIAL_ROWS: "1, 2", kmeans_reports.CENTROIDS: True}
+        first = analyse(option.CLUSTERING, frame, settings).tables
+        second = analyse(option.CLUSTERING, frame, {**settings, option.LLOYD_ITERATIONS: 2}).tables
+        self.assertEqual(first["Assignments"]["Cluster"].tolist(), [1, 2, 2, 2, 2])
+        self.assertEqual(second["Assignments"]["Cluster"].tolist(), [1, 1, 2, 2, 2])
+        np.testing.assert_allclose(first["Centers (fitting scale)"]["x"], [0, 4.75])
+        np.testing.assert_allclose(second["Centers (fitting scale)"]["x"], [1, 17 / 3])
+        self.assertEqual(first["Fit"].loc[option.LLOYD_ITERATIONS, "Value"], 1)
+
+    def test_saved_forgy_lloyd_opens_as_an_editable_scan(self):
+        content = {"data": {"variables": [var("signal")]},
+                   "calc": {"algorithm": "LLOYD_FORGY", "transform": "CENTER",
+                            "distance": {"type": "EUCLIDIAN", "value": 2.},
+                            "clusterMetrics": True, "clusterCount": {"min": 2, "max": 4},
+                            "maxIterCount": 12, "randomSeed": {"type": "AUTO", "value": 42}},
+                   "report": {"initialCentroids": True}}
+        sheet, parameters, frames = source("K_MEANS_CLUSTERING", "0.0.0", content, self.frame,
+                                            {"signal": ["x"]})
+        recovered = restore_recipe(sheet, parameters, frames)
+        self.assertIsNotNone(recovered)
+        uid, method, settings = recovered
+        self.assertEqual((uid, method), ("source", option.SELECTION))
+        self.assertEqual(settings[option.ALGORITHM], option.FORGY_LLOYD)
+        self.assertEqual(settings[option.LLOYD_ITERATIONS], 12)
+        self.assertEqual(settings[option.SCALE], option.CENTERED)
+        self.assertTrue(settings[kmeans_reports.CENTROIDS])
+        first = analyse(method, self.frame, settings).tables
+        second = analyse(method, self.frame, {**settings, "Minimum k": 3}).tables
+        centers = first["Initial centroids"]
+        self.assertEqual(first["Selection"].loc[option.LLOYD_ITERATIONS, "Value"], 12)
+        start_two = centers.loc[centers["k"] == 2, "Initial center"]
+        start_three = centers.loc[centers["k"] == 3, "Initial center"]
+        np.testing.assert_array_equal(start_two, start_three.iloc[:2])
+        np.testing.assert_allclose(start_three + self.frame["x"].mean(), [0, 19, 11])
+        pd.testing.assert_frame_equal(centers[centers["k"] == 3].reset_index(drop=True),
+                                      second["Initial centroids"].query("k == 3").reset_index(drop=True))
+
     def test_selected_gap_geometry_is_recorded_and_validated(self):
         options = {**self.options, "Criterion": "Gap", "Maximum k": 4, "Gap simulations": 5,
                    option.GAP_REFERENCE: option.GAP_PRINCIPAL_AXES}

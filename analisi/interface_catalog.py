@@ -118,10 +118,12 @@ Choose a supported K-means column scaling.|Scegli come scalare le colonne per il
 Choose a supported Gap reference geometry.|Scegli la geometria del riferimento Gap.
 K-means algorithm|Algoritmo k-means
 Lloyd|Lloyd
+Forgy–Lloyd|Forgy–Lloyd
 Hartigan–Wong|Hartigan–Wong
 MacQueen|MacQueen
 Hartigan–Wong iteration limit|Limite di iterazioni Hartigan–Wong
 MacQueen iteration limit|Limite di iterazioni MacQueen
+Lloyd iteration limit|Limite di iterazioni Lloyd
 Initial worksheet rows|Righe iniziali del foglio
 Report cluster details|Mostra i dettagli dei gruppi
 Report standardized observations|Mostra le osservazioni standardizzate
