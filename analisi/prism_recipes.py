@@ -297,6 +297,8 @@ def _survival(frame, content, _results):
 
 
 def _nonlinear(frame, content, _results):
+    from . import parameter_intervals
+
     design, data, model, method = (content[key] for key in ("variableDesign", "data", "model", "method"))
     equation = model["equation"]
     if ("".join(equation["definition"].split()) != "Y=100/(1+(IC50/X)^HillSlope)"
@@ -319,13 +321,26 @@ def _nonlinear(frame, content, _results):
     groups = _roles(frame, design["factorList"], 0, 4)
     if len({x, *responses, *groups}) != 1 + len(responses) + len(groups):
         return None
-    return "Nonlinear regression", {
+    options = {
         "X": x, "Y columns": responses, "Grouping variables": groups,
         "Model": "Normalized inhibition (variable slope)", "Weighting": "Unweighted",
         "Prism import notes": "Recalculates the inhibitory fit with a negative Hill slope. "
                               "Trama uses symmetric intervals and its own curve rendering. "
                               "Prism profile intervals and transformed parameters use saved views when available.",
     }
+    confidence = content.get("confidence")
+    if isinstance(confidence, dict):
+        level = confidence.get("confidenceLevel")
+        if (confidence.get("calcCI") is True and confidence.get("ciMethod") == "PROFILE_LIKELIHOOD"
+                and type(level) in (int, float) and 0 < level < 100):
+            options.update({
+                parameter_intervals.METHOD: parameter_intervals.PROFILE,
+                parameter_intervals.LEVEL: float(level),
+                "Prism import notes": "Recalculates the inhibitory fit with a negative Hill slope "
+                                      "and the saved profile confidence level. Transformed parameters "
+                                      "use saved views when available.",
+            })
+    return "Nonlinear regression", options
 
 
 

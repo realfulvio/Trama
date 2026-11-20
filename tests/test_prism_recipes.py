@@ -231,5 +231,18 @@ class PrismRecipeTests(unittest.TestCase):
         params = analyse(method, frame, options).tables["Parameters: All"]["Estimate"]
         self.assertAlmostEqual(params["IC50"], 5., delta=.1)
         self.assertAlmostEqual(params["Hill slope"], -1., delta=.1)
+        confidence = {"calcCI": True, "ciMethod": "PROFILE_LIKELIHOOD", "confidenceLevel": 92.5}
+        content["confidence"] = confidence
+        _, _, profiled = restore_recipe(*args)
+        self.assertEqual(profiled["Parameter intervals"], "Profile likelihood")
+        self.assertEqual(profiled["Parameter confidence level (%)"], 92.5)
+        tables = analyse(method, frame, profiled).tables
+        self.assertIn("CI 92.5% low", tables["Parameters: All"])
+        self.assertIn("Parameter CI status: All", tables)
+        for change in ({"calcCI": False}, {"confidenceLevel": True}, {"confidenceLevel": 100.},
+                       {"confidenceLevel": "92.5"}, {"ciMethod": "UNKNOWN"}):
+            with self.subTest(change=change):
+                content["confidence"] = {**confidence, **change}
+                self.assertEqual(restore_recipe(*args)[2], options)
         content["method"]["weighting"]["type"] = "RELATIVE"
         self.assertIsNone(restore_recipe(*args))
