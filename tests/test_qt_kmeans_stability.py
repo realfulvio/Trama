@@ -337,11 +337,13 @@ class StabilityWindowTests(unittest.TestCase):
         heavy = {"Maximum k": 4, "Resamples": 1500, "Seed runs": 0, "Show co-assignment matrix": False}
         self.through_dialog(window.change_parameters, heavy)
         self.assertIsNotNone(window.job)
-        deadline = time.monotonic() + .4
-        while time.monotonic() < deadline:
+        deadline = time.monotonic() + 10
+        total = 0
+        while window.job is not None and total == 0 and time.monotonic() < deadline:
             self.app.processEvents()
+            if window.job is not None:
+                _, total = window.job.control.progress()
             time.sleep(.01)
-        finished, total = window.job.control.progress()
         self.assertGreater(total, 1000)
         started = time.monotonic()
         window.cancel_calculation()

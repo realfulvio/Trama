@@ -127,6 +127,7 @@ class ValidationSmoke(Smoke):
         def exec_(dialog):
             seen.append(dialog)
             dialog.show()
+            dialog.activateWindow()
             self.app.processEvents()
             accepted = script(dialog)
             return QDialog.DialogCode.Accepted if accepted and dialog.result else QDialog.DialogCode.Rejected
