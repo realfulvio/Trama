@@ -120,6 +120,10 @@ class OrderedColumns(QWidget):
             self.list.setCurrentRow(0)
         self._buttons()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.list.doItemsLayout()  # items moved before the first show keep the size measured without the style
+
     def _buttons(self):
         row = self.list.currentRow()
         self.up.setEnabled(row > 0)

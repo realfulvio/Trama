@@ -100,7 +100,15 @@ class ReshapeEditorTests(unittest.TestCase):
         recipe = {"Direction": "Wide to long", "ID columns": ["Rep", "Sample $"], "Measure columns": ["Fine à"],
                   "Output names": "Visit", "Output values": "Measure", "Drop missing values": True}
         wide = pd.read_csv(DATA / "wide.csv", dtype={"Sample $": str})
-        self.assertEqual(self.dialog(wide, recipe).options(), recipe)
+        dialog = self.dialog(wide, recipe)
+        self.assertEqual(dialog.options(), recipe)
+        dialog.show()
+        self.app.processEvents()
+        ids = dialog.reshape.ids.list  # rows reordered before the first show are laid out with the style
+        rows = [ids.visualItemRect(ids.item(row)) for row in range(ids.count())]
+        self.assertEqual(len({rect.height() for rect in rows}), 1)
+        self.assertTrue(all(upper.bottom() < lower.top() for upper, lower in zip(rows, rows[1:])))
+        self.assertGreaterEqual(rows[0].height(), ids.fontMetrics().height() + 4)
 
     def test_preview_shows_size_head_and_hidden_parts(self):
         frame = pd.DataFrame({"id": np.repeat(np.arange(40), 20), "lev": np.tile([f"L {n}" for n in range(20)], 40),
