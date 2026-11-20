@@ -1,10 +1,10 @@
 """Translate the verified subset of Prism ZIP analysis settings to native recipes."""
-from itertools import combinations
 import tokenize
 
 import numpy as np
 from pandas.api.types import is_numeric_dtype
 
+from .anova_terms import MODEL_TERMS, SELECTED, TERM_SELECTION, active_factors, canonical_terms, full_terms
 from .survival_input import (CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_POLICIES, recode_statuses,
                              PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED, PAIRWISE_ALPHA)
 from .survival_plot import BAND, FINAL, PERCENT, MARKERS, UNCERTAINTY, UNITS
@@ -165,21 +165,25 @@ def _factorial(frame, content, results):
     factors = _roles(frame, [variable["id"] for variable in variables], 1, 8)
     if response in factors:
         return None
-    terms = []
+    saved_terms = []
     for term in predictor["definition"]:
         term_factors = _factor_indices(term, factors)
         if any(_column(frame, ref["varID"]) != name for ref, name in zip(term, term_factors, strict=True)):
             return None
-        terms.append(frozenset(term_factors))
-    order = max(map(len, terms), default=0)
-    if not 1 <= order <= min(3, len(factors)):
+        saved_terms.append(term_factors)
+    if saved_terms.count([]) != 1:
         return None
-    expected = {frozenset(term) for size in range(order + 1) for term in combinations(factors, size)}
-    if len(terms) != len(expected) or set(terms) != expected:
+    terms = canonical_terms([term for term in saved_terms if term], factors)
+    # Keep every declared predictor in the model so row eligibility still uses all selected columns.
+    if active_factors(factors, terms) != factors:
         return None
+    order = len(terms[-1])
+    selection = {}
+    if terms != full_terms(factors, order):
+        selection = {TERM_SELECTION: SELECTED, MODEL_TERMS: [list(term) for term in terms]}
     return "Multifactor ANOVA", {
         "Response": response, "Factors": factors, "Interaction order": order,
-        **_anova_effect_options(results, len(terms) - 1),
+        **selection, **_anova_effect_options(results, len(terms)),
         **_anova_post_tests(frame, post, response, factors),
     }
 

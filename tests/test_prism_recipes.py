@@ -1,3 +1,4 @@
+from itertools import product
 import unittest
 
 import pandas as pd
@@ -50,6 +51,33 @@ class PrismRecipeTests(unittest.TestCase):
         terms[-1].pop("CohenF")
         self.assertEqual(restore_recipe(*args, results), restore_recipe(*args))
         predictor["definition"].remove([ty])
+        self.assertIsNone(restore_recipe(*args))
+
+    def test_factorial_import_keeps_only_saved_interactions(self):
+        factors = ["Dose", "Batch", "Day"]
+        references = [var(name, i) for i, name in enumerate(factors)]
+        dose, batch, day = ({"varIdx": i, "varID": ref} for i, ref in enumerate(references))
+        predictor = {"variables": [{"id": ref, "effectType": "FIXED"} for ref in references],
+                     "definition": [[], [day], [dose], [batch], [batch, dose]]}
+        content = {"model": {"response": {"variable": {"id": var("y", 3)}, "definition": ""},
+                             "predictor": predictor}, "postTests": {"type": "NO_TESTS"}}
+        frame = pd.DataFrame([(str(a), str(b), str(c), 10 + 2 * a + 3 * b + 4 * c + 5 * a * b + noise)
+                              for a, b, c, noise in product((-1, 1), repeat=4)],
+                             columns=[*factors, "Value"])
+        columns = {name: [name] for name in factors}
+        args = source("MULTI_FACTOR_ANOVA", "0.0.0", content, frame, {**columns, "y": ["Value"]})
+        _, method, options = restore_recipe(*args)
+        self.assertEqual(options["Term selection"], "Selected terms")
+        self.assertEqual(options["Model terms"], [["Dose"], ["Batch"], ["Day"], ["Dose", "Batch"]])
+        table = analyse(method, frame, options).tables["ANOVA (type III)"]
+        self.assertEqual(list(table.index), ["Dose", "Batch", "Day", "Dose:Batch", "Residual"])
+        self.assertAlmostEqual(table.at["Dose:Batch", "SS"], 400)
+        self.assertAlmostEqual(table.at["Dose:Batch", "F"], 275)
+
+        predictor["definition"].append([dose, batch])
+        self.assertIsNone(restore_recipe(*args))
+        predictor["definition"].pop()
+        predictor["definition"].remove([])
         self.assertIsNone(restore_recipe(*args))
 
     def test_clustering_preserves_the_row_configuration(self):
