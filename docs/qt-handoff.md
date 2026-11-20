@@ -15,6 +15,21 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### ANOVA a misure ripetute: correzioni Huynh–Feldt e Limite inferiore (ramo `claude/anova-sfericita-hf`, base main `df1d591`, 2026-11-20)
+
+Pacchetto ANOVA-Sfericita-HF, in tre commit: motore con test, dialogo Qt, smoke con guida. Provato su un PC Windows 10 fisico, con i limiti indicati sotto: 150% di scala e due monitor restano NON PROVATI.
+
+- Nuovo: in Analizza → Confronto tra gruppi → ANOVA a misure ripetute le scelte di *Sphericity correction* diventano None, Geisser–Greenhouse, **Huynh-Feldt** e **Lower bound** (*Limite inferiore* in italiano), per uno o due fattori. I valori di ricetta restano in inglese, con il trattino ASCII in Huynh-Feldt. Guida `docs/rm-anova-sphericity.md`: esempi su due dataset sintetici, limiti, perché stimare ε non è un test di sfericità (nessun test di Mauchly).
+- Motore: `analisi/rm_sphericity.py` (`huynh_feldt`, `applied_epsilon`) e `repeated_measures_anova` in `analisi/inference.py`. Lower bound: ε = 1/d (df 1 e n − 1). Huynh–Feldt: (n·d·ε − 2) / (d·(n − 1 − d·ε)) dall'ε di Greenhouse–Geisser dell'effetto, limitato a [1/d, 1] con una nota che conserva il valore non limitato. Con d = 1 ε vale esattamente 1. Se il denominatore si annulla (n = 2, oppure autovalori uguali con n − 1 ≤ d) Huynh–Feldt è indefinito per quel solo effetto: ε, df e p restano vuoti e la nota dice perché, gli altri effetti e il Lower bound conservano i numeri. F, somme dei quadrati e termini d'errore non cambiano. Il foglio ANOVA riceve la colonna `Applied epsilon`; il foglio Sphericity delle due scelte nuove ha `Correction`, `Applied epsilon` e `Note`, anche con un solo fattore. None e Geisser–Greenhouse non cambiano di una cifra.
+- Qt: `trama_qt/rm_sphericity_dialog.py` (nota sotto il campo che segue la scelta, etichetta «ricetta salvata» della vecchia scelta a una via, controllo del disegno sul campo prima di avviare il worker, messaggio nella lingua attiva quando un errore del motore riapre il dialogo) e dieci righe in `trama_qt/analysis_dialog.py`, negli stessi punti dei binding di K-means stability e Bland–Altman per coppie ripetute.
+- Test: `tests/test_rm_sphericity_hf.py` (27: formule chiuse da basi di Helmert, secondo dataset sintetico contro R 4.3.3 `anova.mlm(test = "Spherical")` in `tests/data/rm_sphericity` con lo script che ha prodotto il file, casi degeneri, invarianti, validazione, testi), `tests/test_qt_rm_sphericity.py` (12, offscreen). Aggiornati i test del dialogo Tk e lo smoke Tk, che fissavano le due scelte di prima. Smoke Qt: `python -m trama_qt.rm_sphericity_smoke CARTELLA [--dark]`. Il verificatore del pacchetto passa sul candidato (8 righe di oracolo e 8 del dispatcher) e fallisce sulla base con «Choose None or Geisser–Greenhouse.».
+- Provato su Windows 10 fisico (Python 3.13, PySide6 6.12.0, schermo 1920×1080 a 96 DPI, 100%): smoke Qt sul desktop reale in chiaro e scuro, inglese e italiano, 0 differenze da R; smoke Tk `rm-two-way-sphericity` PASS; i quattro moduli di test del pacchetto (80 test) OK. Suite completa e confronto con la base sulla stessa macchina: nella descrizione della PR.
+- Da provare su Windows, a 100% e 150%:
+  - Aprire il dialogo ANOVA a misure ripetute, scheda Opzioni, scegliere con la tastiera Huynh-Feldt e Lower bound: la nota sotto il campo resta visibile a 1024×768 e in tema scuro.
+  - Su `tests/data/rm_sphericity/second-dataset.csv` (Response = Value, Factors = Time e Dose, Subject = Subject): Time con Huynh-Feldt ha ε 0,9692, df 2,908 e 20,35, p 9,53e−06; Dose è limitato a 1 con la nota; Time:Dose ha p 0,7519. Con Lower bound Time ha p 4,30e−03.
+  - Togliere una riga dei dati e rieseguire: il dialogo resta aperto con il messaggio sul campo Soggetto, in italiano e in inglese.
+- Conflitti attesi: `analisi/rm_sphericity.py`, `repeated_measures_anova` in `analisi/inference.py`, `analisi/i18n.py`, coda di `analisi/interface_catalog.py`, `tramastat.py` (`show_sphericity_note`), `trama_qt/analysis_dialog.py` (punti dei binding K-means stability e Bland–Altman ripetuti), `docs/coverage.md` e la cima di questo file.
+
 ### Bland–Altman per coppie ripetute, pacchetto 02 del 0.96 (2026-11-20)
 
 PR draft verso main (ramo `claude/project-thread-y6nc6f`, base main 4c07db6). Windows NON PROVATO. Guida: `docs/bland-altman-repeated.md`.
