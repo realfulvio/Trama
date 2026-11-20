@@ -538,6 +538,8 @@ Show as|Mostra come
 Confidence interval|Intervallo di confidenza
 Comparison family|Famiglia di confronti
 Sphericity correction|Correzione della sfericità
+Huynh-Feldt|Huynh–Feldt
+Lower bound|Limite inferiore
 Control|Controllo
 Patient|Paziente
 Control A|Controllo A

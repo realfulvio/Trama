@@ -30,6 +30,7 @@ from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS,
 from . import anova_model, global_fit, logistic_validation, planned_contrasts
 from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
+from . import rm_sphericity_dialog as sphericity_options
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
 from .labels import choice_label, field_label, method_label
@@ -151,6 +152,7 @@ class AnalysisDialog(QDialog):
         self.anova = None  # Multifactor ANOVA bindings (trama_qt.anova_model)
         self.stability = None  # K-means stability bindings (trama_qt.kmeans_stability)
         self.repeated = None  # Bland–Altman for repeated pairs (trama_qt.bland_altman_repeated)
+        self.sphericity = None  # Repeated measures ANOVA sphericity correction (trama_qt.rm_sphericity_dialog)
         self.reshape = None  # Reshape long and wide editor (trama_qt.reshape_long_wide)
         method = current[0] if current and current[0] in METHODS else None
         self.method = method or self._first_method()
@@ -216,6 +218,8 @@ class AnalysisDialog(QDialog):
             self.banner.setText(self.stability.message(error))
         if error and self.repeated is not None:  # engine errors reopen here; word them in the active language
             self.banner.setText(self.repeated.message(error))
+        if error and self.sphericity is not None:  # engine errors reopen here; word them in the active language
+            self.banner.setText(self.sphericity.message(error, error_field))
         if error_field:
             if self.anova is not None and error:  # engine errors reopen here; word them in the active language
                 self.banner.setText(self.anova.message(FieldError(error_field, str(error))))
@@ -293,6 +297,7 @@ class AnalysisDialog(QDialog):
         self.anova = None
         self.stability = None
         self.repeated = None
+        self.sphericity = None
         self.reshape = None
         pages, scrolls = {}, {}
         # Global fit custom equation adds Equation, Parameters, Series constraints and Response pages.
@@ -431,6 +436,7 @@ class AnalysisDialog(QDialog):
             self._sync_kmeans_options()
         self.stability = stability_options.attach(self)
         self.repeated = repeated_agreement.attach(self)
+        self.sphericity = sphericity_options.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
         select_editor.attach(self, pages, saved)
         if self.method == extraction.EXTRACT_REARRANGE:
@@ -551,6 +557,8 @@ class AnalysisDialog(QDialog):
                 self.stability.check(options)  # the engine's checks and budgets; the fits stay on the worker
             if self.repeated is not None:
                 self.repeated.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
+            if self.sphericity is not None:
+                self.sphericity.check(options)  # the design check of the corrections; the fit stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
             if self.method == SELECT_TRANSFORM:
@@ -583,6 +591,8 @@ class AnalysisDialog(QDialog):
             return logistic_validation.message(error)
         if self.repeated is not None:  # Bland–Altman for repeated pairs: engine messages in the active language
             return self.repeated.message(error)
+        if self.sphericity is not None:  # Repeated measures ANOVA: engine messages in the active language
+            return self.sphericity.message(error, field)
         if self.method == reshape_editor.METHOD:
             return reshape_editor.message(error)
         if self.method == SELECT_TRANSFORM:
