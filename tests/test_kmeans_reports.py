@@ -104,6 +104,20 @@ class KmeansReportTests(unittest.TestCase):
         self.assertIn("Gap", result.tables["Model metrics"])
         self.assertEqual(len(old.figure.axes), 1)
 
+    @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
+    def test_model_selection_and_wss_use_integer_ticks_for_narrow_ranges(self):
+        frame = pd.DataFrame({"x": [0., .2, .4, 2., 2.4, 3., 8., 8.5, 9.]})
+        for minimum, maximum in ((2, 4), (3, 3)):
+            with self.subTest(minimum=minimum, maximum=maximum):
+                options = {"Variables": ["x"], "Standardize": False, "Seed": 42, "Criterion": "Silhouette",
+                           "Minimum k": minimum, "Maximum k": maximum, "Show WSS plot": True}
+                result = analyse(k.SELECTION, frame, options)
+                self.assertEqual(len(result.figure.axes), 2)
+                for axes in result.figure.axes:
+                    ticks = axes.get_xticks()
+                    self.assertIn(3, ticks)
+                    np.testing.assert_array_equal(ticks, np.rint(ticks))
+
     def test_archive_restores_flags_for_reports_on_editable_recipe(self):
         content = {"data": {"variables": [var("signal")]},
                    "calc": {"algorithm": "HARTIGAN_WONG", "transform": "STANDARDIZE",

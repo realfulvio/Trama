@@ -652,7 +652,7 @@ def _add_kmeans_plots(figure, metrics, extra):
         axes = figure.add_subplot(slot)
         axes.set(title=titles[metric], xlabel="Number of clusters", ylabel=metric)
         axes.spines[["right", "top"]].set_visible(False)
-        axes.xaxis.get_major_locator().set_params(integer=True)
+        axes.xaxis.get_major_locator().set_params(integer=True, min_n_ticks=1)
         values = metrics[metric].to_numpy(dtype=float)
         if metric == "Gap":
             axes.errorbar(metrics.index, values, yerr=metrics["Gap SE"].to_numpy(dtype=float), fmt="o-")
@@ -663,6 +663,7 @@ def _add_kmeans_plots(figure, metrics, extra):
 def _scan_result(scan, o, criterion):
     metric = {"elbow": "WSS", "gap": "Gap"}.get(criterion, o["Criterion"])
     figure, axes = _plot("K-means model selection", "Number of clusters", metric)
+    axes.xaxis.get_major_locator().set_params(integer=True, min_n_ticks=1)
     if criterion == "gap":
         axes.errorbar(scan.metrics.index, scan.metrics[metric], yerr=scan.metrics["Gap SE"], fmt="o-", label=metric)
     else:
