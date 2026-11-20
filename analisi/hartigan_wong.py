@@ -36,28 +36,38 @@ def _quick(values, centers, counts, labels, alternative, changed_in_optimum):
     size = len(values)
     last_change = np.where(changed_in_optimum, 0, -size).tolist()
     touched = np.zeros(len(counts), dtype=bool)
+    # Keep scalar bookkeeping in Python and reuse storage for each pair of distances.
+    counts_list = counts.tolist()
+    labels_list = labels.tolist()
+    alternatives = alternative.tolist()
+    delta = np.empty((2, values.shape[1]), dtype=values.dtype)
+    delta_origin, delta_target = delta
     idle = 0
     for step in range(1, 50 * size + 1):
         row = (step - 1) % size
-        origin, target = labels[row], alternative[row]
+        origin, target = labels_list[row], alternatives[row]
         idle += 1
-        origin_count = counts[origin]
+        origin_count = counts_list[origin]
         cutoff = step - size
         if origin_count > 1 and (last_change[origin] > cutoff or last_change[target] > cutoff):
             x = values[row]
-            delta = centers[[origin, target]] - x
+            np.subtract(centers[origin], x, out=delta_origin)
+            np.subtract(centers[target], x, out=delta_target)
             distance = np.einsum("ij,ij->i", delta, delta)
-            target_count = counts[target]
+            target_count = counts_list[target]
             removed = distance[0] * origin_count / (origin_count - 1)
             added = distance[1] * target_count / (target_count + 1)
             if added < removed:
-                _transfer(values, centers, counts, labels, alternative, row, target)
+                _transfer(values, centers, counts_list, labels_list, alternatives, row, target)
                 last_change[origin] = last_change[target] = step
                 touched[origin] = touched[target] = True
                 idle = 0
         if idle == size:
-            return touched
-    raise ValueError("Hartigan-Wong quick transfers exceed their work budget.")
+            break
+    else:
+        raise ValueError("Hartigan-Wong quick transfers exceed their work budget.")
+    counts[:], labels[:], alternative[:] = counts_list, labels_list, alternatives
+    return touched
 
 
 def fit_hartigan_wong(values, initial_rows, max_iterations=10):
