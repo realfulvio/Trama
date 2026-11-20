@@ -10,6 +10,7 @@ from unittest import mock
 
 try:
     from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication
 except ImportError:  # PySide6 missing, or libEGL/libGL missing on a headless machine.
     QApplication = None
@@ -143,6 +144,9 @@ class ReshapeEditorTests(unittest.TestCase):
         self.assertTrue(dialog.reshape.ids.list.hasFocus())
         self.assertEqual(dialog.options()["Name column"], "Visit")  # nothing was lost
         dialog.reshape.ids.set_values(["Sample $", "Rep"])
+        self.assertTrue(dialog.reshape.timer.isActive())  # the debounced preview of the edit
+        QTest.qWait(400)
+        self.assertFalse(dialog.banner.isVisible())  # a fixed recipe clears the stale error
         dialog.accept()
         self.assertEqual(dialog.result, (METHOD, WIDEN))
 

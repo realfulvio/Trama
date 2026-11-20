@@ -67,7 +67,9 @@ def exercise(smoke, window):
         smoke.problem("reshape: the error does not put the cursor on ID columns")
     smoke.shot(dialog, "reshape-error")
     editor.ids.set_values(["Sample $", "Rep"])
-    editor.refresh_preview()
+    editor.refresh_preview(edited=True)  # what the debounced preview of the edit does
+    if dialog.banner.isVisible():
+        smoke.problem("reshape: the fixed recipe left the error banner on screen")
     dialog.tabs.setCurrentWidget(editor.preview_page)
     smoke.shot(dialog, "reshape-preview")
     if (editor.table.rowCount(), editor.table.columnCount()) != (4, 4):
