@@ -2502,6 +2502,7 @@ class AnalysisDialog(simpledialog.Dialog):
         algorithm = self.controls[kmeans_options.ALGORITHM][1].get()
         scale = self.controls[kmeans_options.SCALE][1].get()
         options = {**{field: key == algorithm for key, field in kmeans_options.ITERATION_FIELDS.items()},
+                   kmeans_options.INITIALIZATION: algorithm == kmeans_options.HARTIGAN,
                    kmeans_reports.SCALED: scale != kmeans_options.UNSCALED}
         if self.method == kmeans_options.CLUSTERING:
             return {**options, kmeans_options.INITIAL_ROWS: algorithm in kmeans_options.ITERATION_FIELDS}

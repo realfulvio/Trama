@@ -2,7 +2,9 @@
 
 L'opzione **Scala delle colonne** permette di usare i valori originali, sottrarre la media di ogni colonna oppure standardizzare con la deviazione standard campionaria. I centri e le distanze sono espressi nella scala del calcolo. La tabella delle osservazioni scalate è disponibile con centratura e standardizzazione.
 
-In **Raggruppamento k-means** e **Selezione del modello k-means** puoi scegliere **Lloyd**, **Forgy–Lloyd**, **Hartigan–Wong** e **MacQueen**. Lloyd usa più partenze K-means++ e conserva la soluzione con la somma dei quadrati interna più bassa. Per Hartigan–Wong, il limite di iterazioni conta i giri di trasferimenti ottimali e rapidi. Il calcolo con seme usa fino a dieci partenze da osservazioni distinte. Fra le partenze convergenti conserva la soluzione con la somma dei quadrati interna più bassa.
+In **Raggruppamento k-means** e **Selezione del modello k-means** puoi scegliere **Lloyd**, **Forgy–Lloyd**, **Hartigan–Wong** e **MacQueen**. Lloyd usa più partenze K-means++ e conserva la soluzione con la somma dei quadrati interna più bassa. Per Hartigan–Wong, il limite di iterazioni conta i giri di trasferimenti ottimali e rapidi.
+
+In Hartigan–Wong, **Inizializzazione k-means** offre **Migliore di 10 partenze** e **K-means++**. La prima opzione conserva, tra le partenze convergenti, quella con la somma dei quadrati interna più bassa. La seconda usa una sola partenza determinata dal seme, con gli stessi centroidi iniziali per un dato k anche se cambia l’intervallo richiesto. La scelta si applica anche alle simulazioni Gap. Le ricette senza questa impostazione usano **Migliore di 10 partenze**. Nel raggruppamento a k fisso, eventuali righe iniziali indicate nel foglio hanno precedenza.
 
 **Forgy–Lloyd** usa una sola partenza K-means++ determinata dal seme. Il limite conta gli aggiornamenti completi dei centroidi. Al limite il risultato riporta l’ultima assegnazione e i centroidi calcolati da quella assegnazione. Per dato, seme e scala identici, i primi k centroidi iniziali coincidono anche se cambia l’intervallo della selezione del modello.
 

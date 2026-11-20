@@ -434,6 +434,7 @@ class AnalysisDialog(QDialog):
     def _sync_kmeans_options(self):
         algorithm = self.controls[kmeans_options.ALGORITHM][1].currentData()
         fields = {field: key == algorithm for key, field in kmeans_options.ITERATION_FIELDS.items()}
+        fields[kmeans_options.INITIALIZATION] = algorithm == kmeans_options.HARTIGAN
         scale = self.controls[kmeans_options.SCALE][1].currentData()
         fields[kmeans_reports.SCALED] = scale != kmeans_options.UNSCALED
         if self.method == kmeans_options.CLUSTERING:

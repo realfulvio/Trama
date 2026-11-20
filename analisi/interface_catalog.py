@@ -117,6 +117,10 @@ Unscaled|Originali
 Choose a supported K-means column scaling.|Scegli come scalare le colonne per il k-means.
 Choose a supported Gap reference geometry.|Scegli la geometria del riferimento Gap.
 K-means algorithm|Algoritmo k-means
+K-means initialization|Inizializzazione k-means
+Best of 10 starts|Migliore di 10 partenze
+K-means++|K-means++
+Choose a K-means initialization.|Scegli l'inizializzazione k-means.
 Lloyd|Lloyd
 Forgy–Lloyd|Forgy–Lloyd
 Hartigan–Wong|Hartigan–Wong

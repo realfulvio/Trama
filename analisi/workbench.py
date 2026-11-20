@@ -289,6 +289,7 @@ METHODS = {
                                 "Gap simulations": 20, kmeans_options.GAP_REFERENCE: kmeans_options.GAP_GEOMETRIES,
                                 KL_SCALING: KL_CHOICES,
                                 kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
+                                kmeans_options.INITIALIZATION: kmeans_options.INITIALIZATIONS,
                                 kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                                 kmeans_options.MACQUEEN_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                                 kmeans_options.LLOYD_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
@@ -296,6 +297,7 @@ METHODS = {
     "K-means clustering": {"Variables": MULTIPLE, "Clusters": 2,
                            kmeans_options.SCALE: tuple(kmeans_options.SCALES), "Seed": 42,
                            kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
+                           kmeans_options.INITIALIZATION: kmeans_options.INITIALIZATIONS,
                            kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                            kmeans_options.MACQUEEN_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                            kmeans_options.LLOYD_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
@@ -594,6 +596,9 @@ def _record_kmeans_algorithm(report, options):
     if field:
         report.loc[kmeans_options.ALGORITHM, "Value"] = algorithm
         report.loc[field, "Value"] = options.get(field, kmeans_options.DEFAULT_ITERATIONS)
+        if (algorithm == kmeans_options.HARTIGAN
+                and options.get(kmeans_options.INITIALIZATION) == kmeans_options.KMEANS_PLUS_PLUS):
+            report.loc[kmeans_options.INITIALIZATION, "Value"] = kmeans_options.KMEANS_PLUS_PLUS
 
 
 def _consensus_selection(scan, o):

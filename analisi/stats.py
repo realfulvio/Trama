@@ -809,16 +809,28 @@ def _kmeans_plus_plus_rows(values, count, rng):
     while len(positions) < count:
         distance = cdist(values[positions[-1:]], values, metric="sqeuclidean")[0]
         nearest = np.minimum(nearest, distance)
-        weights = (nearest / nearest.sum()).cumsum()
-        positions.append(int(np.searchsorted(weights, rng.uniform())))
+        total = nearest.sum()
+        if total == 0:
+            # Squaring can round a separation between different observations to zero.
+            remaining = np.ones(len(values), dtype=bool)
+            for position in positions:
+                remaining &= np.any(values != values[position], axis=1)
+            positions.append(rng.choice(np.flatnonzero(remaining)))
+        else:
+            weights = (nearest / total).cumsum()
+            position = np.searchsorted(weights, rng.uniform(), side="right")
+            positions.append(position if position < len(values) else np.flatnonzero(nearest)[-1])
     return positions
 
 
 def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloyd",
-           max_iterations=10, initial_rows=None, retain_initial=False, column_scale=None):
+           max_iterations=10, initial_rows=None, retain_initial=False, column_scale=None,
+           kmeans_plus_plus=False):
+    """Fit K-means, optionally using a single K-means++ start for Hartigan–Wong."""
     scale = column_scale if column_scale is not None else ("standardize" if standardize else "none")
     if algorithm == "hartigan-wong":
-        return _hartigan_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial)
+        return _hartigan_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial,
+                                kmeans_plus_plus)
     if algorithm == "macqueen":
         return _macqueen_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial)
     if algorithm == "forgy-lloyd":
@@ -898,19 +910,29 @@ def _forgy_lloyd_kmeans(frame, columns, count, scale, seed, max_iterations, init
                     initial_centers=pd.DataFrame(values[positions], columns=columns) if retain_initial else None)
 
 
-def _hartigan_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial):
+def _hartigan_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial,
+                     kmeans_plus_plus):
     from .hartigan_wong import IterationLimitError, fit_hartigan_wong
 
     data, values = _cluster_data(frame, columns, count, scale)
     distinct = np.sort(np.unique(values, axis=0, return_index=True)[1])
     if count > len(distinct) or len(values) * count > 2_000_000:
         raise ValueError("Too many clusters for the number of distinct observations.")
-    if initial_rows is not None:
-        supplied = np.asarray(initial_rows)
-        if supplied.shape != (count,):
+    if initial_rows is not None or kmeans_plus_plus:
+        if initial_rows is None:
+            # Shift and scale for the probability draw; the fit uses the selected original rows.
+            with np.errstate(over="ignore", invalid="ignore"):
+                shifted = values - values[0]
+            if not np.isfinite(shifted).all():
+                raise ValueError("Variable magnitudes are too large to compute squared distances.")
+            extent = np.abs(shifted).max()
+            samples = shifted / extent if extent else shifted
+            chosen = _kmeans_plus_plus_rows(samples, count, np.random.default_rng(seed))
+        else:
+            chosen = np.asarray(initial_rows)
+        if np.shape(chosen) != (count,):
             raise ValueError("Choose one initial row per cluster.")
-        fit = fit_hartigan_wong(values, supplied, max_iterations)
-        chosen = supplied
+        fit = fit_hartigan_wong(values, chosen, max_iterations)
         if not fit.converged:
             raise IterationLimitError("Hartigan–Wong reached the maximum number of iterations.")
     else:

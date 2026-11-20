@@ -31,6 +31,7 @@ class KmeansOptionsTests(unittest.TestCase):
     def test_invalid_fit_settings_keep_the_field_identity(self):
         mappings = (
             (option.ALGORITHM, "other"), (option.MAX_ITERATIONS, float("nan")),
+            (option.INITIALIZATION, "other"),
             (option.MAX_ITERATIONS, 1001), (option.INITIAL_ROWS, "1, 1, 8"),
             (option.INITIAL_ROWS, "1, 3, 8"), (option.INITIAL_ROWS, "1, 5, 11"),
         )
@@ -44,6 +45,40 @@ class KmeansOptionsTests(unittest.TestCase):
         with self.assertRaises(FieldError) as failure:
             analyse(option.CLUSTERING, self.frame, options)
         self.assertEqual(failure.exception.field, option.MAX_ITERATIONS)
+
+    def test_seeded_kmeans_plus_plus_invokes_one_fit_and_reports_the_selected_rows(self):
+        from analisi import hartigan_wong
+
+        options = {**self.options, option.INITIAL_ROWS: "", option.INITIALIZATION: option.KMEANS_PLUS_PLUS,
+                   kmeans_reports.CENTROIDS: True}
+        with patch.object(hartigan_wong, "fit_hartigan_wong", wraps=hartigan_wong.fit_hartigan_wong) as fit:
+            result = analyse(option.CLUSTERING, self.frame, options).tables
+        self.assertEqual(fit.call_count, 1)
+        np.testing.assert_array_equal(fit.call_args.args[1], [0, 6, 5])
+        np.testing.assert_array_equal(result["Initial centroids"]["Initial center"], [0., 19., 11.])
+        self.assertEqual(result["Fit"].loc[option.INITIALIZATION, "Value"], option.KMEANS_PLUS_PLUS)
+        explicit = analyse(option.CLUSTERING, self.frame, {**options, option.INITIAL_ROWS: "1, 5, 8"}).tables
+        np.testing.assert_array_equal(explicit["Initial centroids"]["Initial center"], [0., 9., 19.])
+
+    def test_plus_plus_can_select_distinct_rows_when_squared_distances_underflow(self):
+        frame = pd.DataFrame({"x": [0., 1e-200, 1.]})
+        options = {**self.options, option.INITIAL_ROWS: "", option.INITIALIZATION: option.KMEANS_PLUS_PLUS,
+                   kmeans_reports.CENTROIDS: True}
+        tables = analyse(option.CLUSTERING, frame, options).tables
+        np.testing.assert_array_equal(np.sort(tables["Initial centroids"]["Initial center"]), frame["x"])
+
+    @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
+    def test_seeded_kmeans_plus_plus_reaches_observed_and_reference_fits(self):
+        options = {**self.options, "Criterion": "Gap", "Maximum k": 4, "Gap simulations": 5,
+                   option.INITIALIZATION: option.KMEANS_PLUS_PLUS, kmeans_reports.CENTROIDS: True}
+        with patch.object(advanced, "kmeans", wraps=advanced.kmeans) as fit:
+            result = analyse(option.SELECTION, self.frame, options).tables
+        self.assertEqual(fit.call_count, 24)
+        self.assertTrue(all(call.kwargs["kmeans_plus_plus"] for call in fit.call_args_list))
+        repeated = analyse(option.SELECTION, self.frame, {**options, "Minimum k": 3}).tables
+        centers = result["Initial centroids"]
+        pd.testing.assert_frame_equal(centers.query("k >= 3").reset_index(drop=True),
+                                      repeated["Initial centroids"], check_exact=True)
 
     def test_centering_reports_the_fit_scale_and_preserves_raw_assignments(self):
         frame = pd.DataFrame({"x": [0., 2., None, 10., 12.], "Constant": [1.1] * 5})
@@ -105,6 +140,7 @@ class KmeansOptionsTests(unittest.TestCase):
         self.assertEqual((options["Seed"], options["Minimum k"], options["Maximum k"]), (53273, 1, 4))
         self.assertEqual(options[option.MAX_ITERATIONS], 10)
         self.assertEqual(options[option.ALGORITHM], option.HARTIGAN)
+        self.assertNotIn(option.INITIALIZATION, options)
         self.assertEqual(options[option.SCALE], option.STANDARDIZED)
         self.assertEqual(options["Criterion"], "Consensus (17 indices)")
         self.assertEqual(options["Krzanowski–Lai scaling"], "Unscaled WSS")

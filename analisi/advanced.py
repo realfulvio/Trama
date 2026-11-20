@@ -192,7 +192,8 @@ def _check_scan_budget(n, dimensions, candidates, pairwise, *, simulate_gap, gap
 def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="silhouette",
                 *, min_k=1, gap_replicates=20, kl_scaling=consensus.DIMENSION_ADJUSTED,
                 algorithm="lloyd", max_iterations=10, retain_fits=False, retain_initial=False,
-                include_gap=False, column_scale=None, gap_reference=GAP_VARIABLE_RANGES, cancel=None):
+                include_gap=False, column_scale=None, gap_reference=GAP_VARIABLE_RANGES, cancel=None,
+                kmeans_plus_plus=False):
     """Compare fits from min_k through max_k, capped at the distinct row count.
 
     The silhouette, Calinski–Harabasz and Davies–Bouldin scores require
@@ -243,6 +244,8 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     distances = squareform(pairs.distances if pairs is not None else pdist(values)) if score_distances else None
     rows, fits, partitions = [], {}, {}
     fit_options = {"algorithm": algorithm, "max_iterations": max_iterations}
+    if kmeans_plus_plus:
+        fit_options["kmeans_plus_plus"] = True
     # The fits are independent (each one seeds its own generator); scores follow in k order, as before.
     observed_options = {**fit_options, "column_scale": scale}
     jobs = [(data, columns, count, standardize, seed, retain_initial, observed_options) for count in candidates]

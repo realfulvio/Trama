@@ -52,6 +52,20 @@ class QtKmeansOptionsTests(unittest.TestCase):
         self.assertTrue(macqueen.isHidden())
         self.assertNotIn(km.MACQUEEN_ITERATIONS, dialog.options())
 
+    def test_saved_initialization_is_visible_and_saves_the_canonical_value(self):
+        dialog = self.dialog(km.SELECTION, {km.ALGORITHM: km.HARTIGAN,
+                                          km.INITIALIZATION: km.KMEANS_PLUS_PLUS})
+        algorithm = dialog.controls[km.ALGORITHM][1]
+        initialization = dialog.controls[km.INITIALIZATION][1]
+        self.assertEqual(dialog.rows[km.INITIALIZATION][0].text(), "Inizializzazione k-means")
+        self.assertEqual(initialization.currentData(), km.KMEANS_PLUS_PLUS)
+        self.assertFalse(initialization.isHidden())
+        algorithm.setCurrentIndex(algorithm.findData(km.MACQUEEN))
+        self.assertTrue(initialization.isHidden())
+        self.assertNotIn(km.INITIALIZATION, dialog.options())
+        algorithm.setCurrentIndex(algorithm.findData(km.HARTIGAN))
+        self.assertEqual(dialog.options()[km.INITIALIZATION], km.KMEANS_PLUS_PLUS)
+
     def test_forgy_lloyd_preserves_its_iteration_limit_in_the_italian_dialog(self):
         dialog = self.dialog(km.SELECTION, {km.ALGORITHM: km.FORGY_LLOYD, km.LLOYD_ITERATIONS: 12})
         iterations = dialog.controls[km.LLOYD_ITERATIONS][1]

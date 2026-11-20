@@ -17,6 +17,8 @@ MACQUEEN_ITERATIONS = "MacQueen iteration limit"
 LLOYD_ITERATIONS = "Lloyd iteration limit"
 ITERATION_FIELDS = {HARTIGAN: MAX_ITERATIONS, MACQUEEN: MACQUEEN_ITERATIONS, FORGY_LLOYD: LLOYD_ITERATIONS}
 ENGINE_ALGORITHMS = {HARTIGAN: "hartigan-wong", MACQUEEN: "macqueen", FORGY_LLOYD: "forgy-lloyd"}
+INITIALIZATION = "K-means initialization"
+BEST_OF_TEN, KMEANS_PLUS_PLUS = INITIALIZATIONS = ("Best of 10 starts", "K-means++")
 INITIAL_ROWS = "Initial worksheet rows"
 DEFAULT_ITERATIONS = 10
 WSS_PLOT = "Show WSS plot"
@@ -68,6 +70,12 @@ def fit_options(method, frame, options):
     if isinstance(iterations, bool) or not isinstance(iterations, Integral) or not 1 <= iterations <= 1000:
         raise FieldError(iteration_field, "Enter a whole number from 1 to 1000.")
     values = {"algorithm": ENGINE_ALGORITHMS[algorithm], "max_iterations": iterations}
+    if algorithm == HARTIGAN:
+        initialization = options.get(INITIALIZATION, BEST_OF_TEN)
+        if not isinstance(initialization, str) or initialization not in INITIALIZATIONS:
+            raise FieldError(INITIALIZATION, "Choose a K-means initialization.")
+        if initialization == KMEANS_PLUS_PLUS:
+            values["kmeans_plus_plus"] = True
     initial = options.get(INITIAL_ROWS, "")
     if method == SELECTION or initial is None or isinstance(initial, str) and not initial.strip():
         return values
