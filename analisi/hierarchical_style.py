@@ -12,8 +12,11 @@ import math
 
 import numpy as np
 from matplotlib import colormaps
+from matplotlib.backends.backend_agg import RendererAgg
 from matplotlib.colors import Colormap, to_hex, to_rgba
-from matplotlib.ticker import AutoLocator, MultipleLocator
+from matplotlib.figure import Figure
+from matplotlib.text import Text
+from matplotlib.ticker import AutoLocator, FixedFormatter, MultipleLocator
 from matplotlib.transforms import Bbox
 
 
@@ -573,12 +576,59 @@ def _branch_colors(comp, merged, override):
     return list(comp["captured"]["colors"])
 
 
-def _set_ticks(axes, dimension, positions, texts):
-    if dimension == "x":
-        axes.set_xticks(positions, texts, parse_math=False)
-        return axes.get_xticklabels()
-    axes.set_yticks(positions, texts, parse_math=False)
-    return axes.get_yticklabels()
+class _FittingLeafLabels(FixedFormatter):
+    """Thin the text at draw time while preserving tick positions and per-leaf style."""
+
+    def __init__(self, texts):
+        super().__init__(texts)
+        self._font = None
+        self._extent = 0.
+        self._anchor = 0
+        self._stride = 1
+
+    def _label_extent(self):
+        label = self.axis.get_major_ticks(1)[0].label1
+        font = label.get_fontproperties().copy(), label.get_rotation()
+        if font != self._font:
+            # Measure literal text in points so the result is reusable across DPI and export backends.
+            renderer = RendererAgg(1, 1, 72)
+            probe = Text(fontproperties=font[0], rotation=font[1], parse_math=False,
+                         usetex=False, figure=Figure(dpi=72))
+            size = "width" if self.axis.axis_name == "x" else "height"
+            self._extent = 0.
+            for value in self.seq:
+                probe.set_text(value)
+                self._extent = max(self._extent, getattr(probe.get_window_extent(renderer), size))
+            self._font = font
+        return self._extent
+
+    def set_locs(self, locs):
+        super().set_locs(locs)
+        self._anchor, self._stride = 0, 1
+        if len(locs) < 2:
+            return
+        axes = self.axis.axes
+        lower, upper = sorted(self.axis.get_view_interval())
+        pixels = axes.bbox.width if self.axis.axis_name == "x" else axes.bbox.height
+        if pixels <= 0 or lower == upper:
+            return
+        spacing = (locs[1] - locs[0]) * pixels / (upper - lower) * 72 / axes.figure.dpi
+        if spacing > 0:
+            self._anchor = int(np.searchsorted(locs, lower))
+            self._stride = max(1, math.ceil((self._label_extent() + 4) / spacing))
+
+    def __call__(self, x, pos=None):
+        if pos is None or (pos - self._anchor) % self._stride:
+            return ""
+        return super().__call__(x, pos)
+
+
+def set_leaf_ticks(axes, dimension, positions, texts, *, automatic=False, rotation=0.):
+    axis = axes.xaxis if dimension == "x" else axes.yaxis
+    axis.set_ticks(positions, texts, parse_math=False, rotation=rotation)
+    if automatic and len(texts) > 1:
+        axis.set_major_formatter(_FittingLeafLabels(texts))
+    return axis.get_ticklabels()
 
 
 def _apply_labels(comp, merged, override):
@@ -588,7 +638,7 @@ def _apply_labels(comp, merged, override):
     labels = merged["labels"]
     dimension = comp["label_dimension"]
     if not labels["visible"]:
-        _set_ticks(host, dimension, [], [])
+        set_leaf_ticks(host, dimension, [], [])
         return
     texts = comp["leaf_labels"]
     count = len(texts)
@@ -596,13 +646,13 @@ def _apply_labels(comp, merged, override):
     chosen = list(range(int(labels["first"]) - 1, count, interval))
     positions = [index + 0.5 for index in chosen]
     shown = [texts[index] for index in chosen]
-    artists = _set_ticks(host, dimension, positions, shown)
+    artists = set_leaf_ticks(host, dimension, positions, shown,
+                            automatic=labels["interval"] == 0, rotation=labels["rotation"])
     if "color" in (override.get("labels") or {}):
         colors = [labels["color"]] * len(shown)
     else:
         colors = [comp["label_colors"][index] for index in chosen]
     for artist, color in zip(artists, colors, strict=True):
-        artist.set_rotation(labels["rotation"])
         artist.set_fontsize(labels["size"])
         artist.set_color(color)
         artist.set_parse_math(False)

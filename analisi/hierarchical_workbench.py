@@ -12,7 +12,7 @@ from scipy.spatial.distance import squareform
 from .analysis_chain import RESULT_CONTEXT
 from .data import _headers
 from .field_error import FieldError
-from .hierarchical_style import bind_matrix_labels, register_heatmap, register_tree
+from .hierarchical_style import bind_matrix_labels, register_heatmap, register_tree, set_leaf_ticks
 from .reporting import Result
 from .stats import hierarchical
 
@@ -208,15 +208,15 @@ def _draw_tree(ax, fit, names, options, cut_height, *, horizontal=False, margin=
         ax.set_axis_off()
     else:
         ticks, names, angle = _labels_in_order(names, order, options)
+        auto_labels = options.get("Label interval (0 = automatic)", 0) == 0
+        leaf_labels = set_leaf_ticks(ax, "y" if horizontal else "x", ticks, names,
+                                     automatic=auto_labels, rotation=angle)
         if horizontal:
-            ax.set_yticks(ticks, names, rotation=angle, parse_math=False)
-            ax.set(xlabel="Merge distance")
+            ax.set_xlabel("Merge distance")
         else:
-            ax.set_xticks(ticks, names, rotation=angle, parse_math=False)
-            ax.set(ylabel="Merge distance")
+            ax.set_ylabel("Merge distance")
         ax.spines[["top", "right"]].set_visible(False)
         if labels is not None:
-            leaf_labels = ax.get_yticklabels() if horizontal else ax.get_xticklabels()
             for text, tick in zip(leaf_labels, ticks, strict=True):
                 group = labels.iloc[order[int(tick)]]
                 text.set_color(PALETTE[(group - 1) % len(PALETTE)])
@@ -263,8 +263,9 @@ def _heat_map(fits, heights, options, scale, row_names, column_names):
                        cmap="viridis", aspect="auto", interpolation="nearest")
     x, x_names, angle = _labels_in_order(column_names, cols, options)
     y, y_names, _ = _labels_in_order(row_names, rows, options)
-    ax.set_xticks(x, x_names, rotation=angle, parse_math=False)
-    ax.set_yticks(y, y_names, parse_math=False)
+    auto_labels = options.get("Label interval (0 = automatic)", 0) == 0
+    set_leaf_ticks(ax, "x", x, x_names, automatic=auto_labels, rotation=angle)
+    set_leaf_ticks(ax, "y", y, y_names, automatic=auto_labels)
     colorbar = fig.colorbar(raster, cax=fig.add_subplot(grid[1, 2]), label="Value")
     register_heatmap(fig, ax, raster, colorbar)
     bind_matrix_labels(fig, ax)

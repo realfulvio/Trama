@@ -384,6 +384,42 @@ class HierarchicalStyleGeometryTests(unittest.TestCase):
         apply_hierarchical_style(figure, {"row": {"labels": {"visible": False}}})
         self.assertEqual(describe_hierarchical_artists(figure)["heatmap"]["axes"].get_yticklabels(), [])
 
+    def test_automatic_heatmap_labels_fit_the_available_space_and_return_on_resize(self):
+        columns = [f"Subject {i} score" for i in range(8)]
+        frame = pd.DataFrame(np.random.default_rng(21).normal(size=(40, 8)), columns=columns)
+        frame["Name"] = [f"Marker {i} $" for i in range(len(frame))]
+        figure = hierarchical_result(frame, _options(**{
+            "Variables": columns, "Observation labels": "Name", "Label interval (0 = automatic)": 0,
+        })).figure
+        matrix = describe_hierarchical_artists(figure)["heatmap"]["axes"]
+
+        def visible_labels():
+            renderer = _draw(figure)
+            shown = []
+            for ticklabels, low, high in ((matrix.get_xticklabels(), "x0", "x1"),
+                                          (matrix.get_yticklabels(), "y0", "y1")):
+                texts = [tick for tick in ticklabels if tick.get_text()]
+                spans = sorted((getattr(box, low), getattr(box, high))
+                               for box in (tick.get_window_extent(renderer) for tick in texts))
+                for first, second in zip(spans, spans[1:]):
+                    self.assertLessEqual(first[1], second[0])
+                self.assertTrue(all(not tick.get_parse_math() for tick in texts))
+                shown.append(len(texts))
+            return shown
+
+        figure.set_size_inches(5, 2.8)
+        compact = visible_labels()
+        self.assertGreaterEqual(min(compact), 2)
+        self.assertLess(compact[0], 8)
+        self.assertLess(compact[1], 40)
+        figure.set_size_inches(20, 14)
+        self.assertEqual(visible_labels(), [8, 40])
+
+        apply_hierarchical_style(figure, {"row": {"labels": {"interval": 1}}})
+        figure.set_size_inches(5, 2.8)
+        _draw(figure)
+        self.assertEqual(sum(bool(tick.get_text()) for tick in matrix.get_yticklabels()), 40)
+
     def test_distance_limits_change_only_the_distance_view(self):
         figure = _heat()
         described = describe_hierarchical_artists(figure)
