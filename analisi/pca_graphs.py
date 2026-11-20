@@ -188,7 +188,7 @@ def _annotate(axes, x, y, text):
     axes.annotate(_literal(text), (x, y), textcoords="offset points", xytext=(4, 4), fontsize=8, zorder=4)
 
 
-def _observation_points(axes, coordinates, group_column, values):
+def _observation_points(axes, coordinates, group_column, values, marker_colors):
     if group_column is None:
         artist = axes.scatter(coordinates[:, 0], coordinates[:, 1], zorder=3)
         return [("All", "All", slice(None), artist.get_facecolors()[0])]
@@ -206,7 +206,8 @@ def _observation_points(axes, coordinates, group_column, values):
             identity = "missing" if key.startswith("gid:") else key.split(":")[1]
             caption = f"{caption} ({identity})"
         label = _literal(caption)
-        artist = axes.scatter(coordinates[rows, 0], coordinates[rows, 1], label=label, zorder=3)
+        artist = axes.scatter(coordinates[rows, 0], coordinates[rows, 1], label=label,
+                              color=marker_colors.get(key.removeprefix("group:")), zorder=3)
         artist._tramastat_legend_key = key
         artists.append(artist)
         captions.append(label)
@@ -217,7 +218,8 @@ def _observation_points(axes, coordinates, group_column, values):
 
 
 def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, variable_xy, row_labels,
-            variable_names, show_rows, parallel=None, *, group_column=None, group_values=None, overlay=None):
+            variable_names, show_rows, parallel=None, *, group_column=None, group_values=None, overlay=None,
+            marker_colors=None):
     if view == SCREE:
         figure, axes = _plot("Scree", "Principal component", "Eigenvalue")
         # The observed series stays unlabeled so its style key remains the historical line.
@@ -247,7 +249,7 @@ def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, va
     axes.axvline(0, color="#d0d5dd", linewidth=.8, zorder=0)
     contours = None
     if view in POINT_VIEWS:
-        point_groups = _observation_points(axes, row_xy, group_column, group_values)
+        point_groups = _observation_points(axes, row_xy, group_column, group_values, marker_colors or {})
         if overlay is not None:
             contours = pca_overlays.draw(axes, row_xy, point_groups, overlay)
         if show_rows:
@@ -308,7 +310,7 @@ def pca_result(frame, options):
     mask = _complete_mask(frame, variables)
     source, labels = _labels(frame, mask, column)
     group_column, group_values = _color_data(frame, options, view, mask)
-    overlay = pca_overlays.configuration(options, view in POINT_VIEWS, group_column is not None)
+    overlay = pca_overlays.configuration(options, view in POINT_VIEWS, group_column)
     if len(source) != len(scores):
         raise ValueError("PCA row filter did not match the score rows.")
     loadings, rows, variable_coordinates = _coordinates(scores, eigenvectors, eigenvalues)
@@ -366,7 +368,8 @@ def pca_result(frame, options):
     figure, contours = _figure(view, names, variance, eigenvalues, horizontal, vertical,
                                drawn_rows[:, [horizontal, vertical]], drawn_variables[:, [horizontal, vertical]],
                                labels, variables, drawn, parallel, group_column=group_column,
-                               group_values=group_values, overlay=overlay)
+                               group_values=group_values, overlay=overlay,
+                               marker_colors=pca_overlays.saved_point_colors(options, group_column))
     tables = {"Explained variance": parts, "Eigenvectors": eigenvectors, "Scores": scores,
               COORDINATES: table, SETTINGS: settings}
     tables.update(retention.tables)

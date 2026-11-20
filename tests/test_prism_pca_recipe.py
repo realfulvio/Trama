@@ -1,13 +1,18 @@
 """Compatibility checks for saved, recalculable PCA recipes in ZIP projects."""
 
 from copy import deepcopy
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from zipfile import ZipFile
+
+from matplotlib.colors import to_hex
 
 from analisi.analysis_chain import evaluate_graph
 from analisi.data import Dataset, load_project, load_tables, save_project, validate_analysis_links
 from analisi.kmeans_options import SELECTION
+from analisi import pca_overlays
 from analisi.prism_recipes import restore_recipe
 from analisi.prism_pca_smoke import INPUT, SOURCE_NAME, sample, write_project
 from analisi.workbench import analyse
@@ -20,7 +25,106 @@ def fixture():
     return source("PCA", "0.0.0", content, frame, INPUT)
 
 
+def add_score_graph(path, *, level=90., linked=True, fill=True):
+    frame, _ = sample()
+    frame.loc[2, "Signal (2)"] = 2.4
+    with ZipFile(path) as reader:
+        members = {name: reader.read(name) for name in reader.namelist()}
+    doc = json.loads(members["document.json"])
+    doc["sheets"]["graphs"] = ["scatter"]
+    analysis = json.loads(members["analyses/pca/sheet.json"])
+    analysis.update(uid="pca", resultSheets=[{"uid": "score-view", "title": "PC scores"}], graphs=[
+        {"id": 7, "settings": {"uid": "scatter", "graph": {"dataSheet": "score"}}},
+    ])
+
+    def legend(colors, bounds=None):
+        children = [{"title": {"text": {"string": label}}, "symbolFillColor": color}
+                    for label, color in zip(("First", "Second"), colors, strict=True)]
+        for entry, color in zip(children, bounds or ("", ""), strict=True):
+            entry["symbolBorderColor"] = color
+        return {"@class": "CategoricalSymbolsLegend", "children": children}
+
+    markers = ("#0077cc80", "#ee992280")
+    faces = ("#0077cc40", "#ee992240")
+    edges = ("#0077ccff", "#ee9922ff")
+    graph = {
+        "uid": "scatter", "settingsSource": "pca" if linked else "other", "analysisSettingsID": 7,
+        "graph": {"@class": "MVGraph", "dataSheet": "score", "xVariables": ["pc1"], "yVariables": ["pc2"],
+                  "gdoTypesExt": {"defaults": ["symbols", "confidence ellipses"]},
+                  "gdoSettings": {"symbols": {"colorVariable": "groups",
+                                              "colormap": {"colors": dict(enumerate(markers))}}},
+                  "gdoSettingsExt": {"confidence ellipses": {
+                      "@class": "ConfidenceEllipsesFigure::Settings", "groupingVariable": "groups",
+                      "confidenceLevel": level, "isFillEnabled": fill,
+                      "colormap": {"colors": dict(enumerate(faces))},
+                      "borderColormap": {"colors": dict(enumerate(edges))},
+                  }},
+                  "legends": [legend(markers), legend(faces, edges)]},
+    }
+    records = {"document.json": doc, "analyses/pca/sheet.json": analysis,
+               "analyses/pca/result_sheets/score-view.json": {"name": "PC scores", "dataSheet": "score",
+                                                              "isVisible": True},
+               "graphs/scatter/sheet.json": graph, "data/sheets/score/sheet.json": {"table": {
+                   "uid": "scores", "format": "multivariable", "dataFormat": "y_single",
+                   "dataSets": ["pc1", "pc2", "groups"],
+               }},
+               **{f"data/sets/{uid}.json": {"title": label} for uid, label in
+                  (("pc1", "PC1"), ("pc2", "PC2"), ("groups", "Cohort"))}}
+    members.update({key: json.dumps(value) for key, value in records.items()})
+    members["data/tables/values/data.csv"] = frame.to_csv(index=False, header=False)
+    members["data/tables/scores/data.csv"] = frame[["Signal", "Baseline", "Cohort"]].to_csv(
+        index=False, header=False)
+    with ZipFile(path, "w") as writer:
+        for key, value in members.items():
+            writer.writestr(key, value)
+
+
 class PrismPCARecipeTests(unittest.TestCase):
+    def test_score_graph_recovers_level_and_palette_on_the_recalculable_recipe(self):
+        with TemporaryDirectory() as directory:
+            archive = Path(directory) / "overlay.prismt"
+            write_project(archive)
+            add_score_graph(archive)
+            data = {title: Dataset(frame) for title, frame in load_tables(archive, restore_prism=True).items()}
+            native = Path(directory) / "roundtrip.alab"
+            save_project(native, data)
+            reopened = load_project(native)[SOURCE_NAME]
+            method, options = reopened.analyses[0]
+            self.assertEqual(options[pca_overlays.LEVEL], 90.)
+            self.assertEqual(options[pca_overlays.GROUPING], pca_overlays.BY_POINTS)
+            result = analyse(method, reopened.frame(), options)
+            contours = result.tables[pca_overlays.SHEET]
+            self.assertEqual(contours["Group"].tolist(), ["First", "Second"])
+            self.assertEqual(contours["Status"].tolist(), ["Drawn", "Drawn"])
+            axes = result.figure.axes[0]
+            self.assertEqual([to_hex(item.get_facecolors()[0], keep_alpha=True) for item in axes.collections],
+                             ["#0077cc80", "#ee992280"])
+            self.assertEqual([to_hex(item.get_facecolor(), keep_alpha=True) for item in axes.patches
+                              if item.get_facecolor()[3]], ["#0077cc40", "#ee992240"])
+
+    def test_unmatched_or_invalid_graph_leaves_the_pca_recipe_available(self):
+        for settings in ({"linked": False}, {"level": True}, {"level": 100}):
+            with self.subTest(settings=settings), TemporaryDirectory() as directory:
+                archive = Path(directory) / "overlay.prismt"
+                write_project(archive)
+                add_score_graph(archive, **settings)
+                dataset = Dataset(load_tables(archive, restore_prism=True)[SOURCE_NAME])
+                method, options = dataset.analyses[0]
+                self.assertEqual(method, METHOD)
+                self.assertNotIn(pca_overlays.KIND, options)
+
+    def test_score_graph_can_restore_the_border_without_the_fill(self):
+        with TemporaryDirectory() as directory:
+            archive = Path(directory) / "outline.prismt"
+            write_project(archive)
+            add_score_graph(archive, fill=False)
+            dataset = Dataset(load_tables(archive, restore_prism=True)[SOURCE_NAME])
+            method, options = dataset.analyses[0]
+            axes = analyse(method, dataset.frame(), options).figure.axes[0]
+            self.assertFalse(axes.patches)
+            self.assertEqual([to_hex(line.get_color()) for line in axes.lines if len(line.get_xdata()) > 2],
+                             ["#0077cc", "#ee9922"])
+
     def test_clustered_data_input_uses_the_live_assignment_table_and_survives_roundtrip(self):
         with TemporaryDirectory() as directory:
             archive = Path(directory) / "chain.prismt"

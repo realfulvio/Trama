@@ -7233,7 +7233,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         run = self.runs[index]
         method, options = dialog.result
         if method == run.method:
-            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION):
+            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION, pca_overlays.SAVED_APPEARANCE):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:

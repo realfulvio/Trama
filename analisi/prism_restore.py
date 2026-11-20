@@ -14,7 +14,9 @@ from .hierarchical_workbench import HIERARCHY_GRAPH, TREE_AXIS
 from .kmeans_options import SELECTION
 from .kmeans_reports import ASSIGNMENTS_TABLE, assignment_column
 from .pca_graphs import COLOR_GROUPS
+from .pca_overlays import KIND as PCA_OVERLAY, SAVED_APPEARANCE as PCA_OVERLAY_APPEARANCE
 from .prism_import import _identifier, _json_object, _store_table, _zip_table
+from .prism_pca_view import saved_score_overlay
 from .prism_recipes import restore_recipe
 from .prism_mv_scatter import APPEARANCE, saved_scatter
 
@@ -353,8 +355,16 @@ def _link_clustered_pca(producer, slot, cached, method, options):
     options = {**options, "Variables": [mapping[name] for name in options["Variables"]],
                COLOR_GROUPS: mapping[color] if color is not None else None,
                PRISM_NOTES: ("Uses the live K-means assignments as input. Trama recalculates standardized PCA "
-                             "and the saved color grouping with its own samples from the saved seed.")}
+                             "and the saved color grouping with its own samples from the saved seed."
+                             + _pca_overlay_note(options))}
+    if PCA_OVERLAY_APPEARANCE in options:
+        options[PCA_OVERLAY_APPEARANCE] = {**options[PCA_OVERLAY_APPEARANCE], "column": mapping[color]}
     return _append_linked_recipe(producer, slot, ASSIGNMENTS_TABLE, method, options)
+
+
+def _pca_overlay_note(options):
+    return (" Restores saved ellipse settings using Trama's mean confidence region."
+            if PCA_OVERLAY in options else "")
 
 
 def _append_linked_recipe(producer, slot, table, method, options):
@@ -509,12 +519,20 @@ def restore_sheets(archive, names, sheets, sources, tables, cells):
             continue
         source, method, options = recipe
         options = {**options, PRISM_TITLE: label[:160]}
+        overlay = saved_score_overlay(archive, sheet, view_sources[source], view_sources, options)
+        if overlay:
+            options.update(overlay[1])
+            options[PRISM_NOTES] += _pca_overlay_note(options)
         if source in clustered_views and _link_clustered_pca(
                 *clustered_views[source], view_sources[source], method, options):
+            if overlay:
+                restyled.add(overlay[0])
             continue
         restored = view_sources[source].attrs.setdefault("prism_recipes", [])
         if len(restored) < 256:
             restored.append((method, options))
+            if overlay:
+                restyled.add(overlay[0])
     for sheet, params, label in deferred_anova:
         try:
             if _link_grouped_anova(sheet, params, label, grouped_views, view_sources):
