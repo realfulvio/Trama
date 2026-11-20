@@ -26,7 +26,7 @@ from analisi.select_transform import SELECT_TRANSFORM
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
-from . import anova_model, global_fit, planned_contrasts
+from . import anova_model, global_fit, logistic_validation, planned_contrasts
 from . import kmeans_stability as stability_options
 from .labels import choice_label, field_label, method_label
 from .strings import qt
@@ -510,6 +510,7 @@ class AnalysisDialog(QDialog):
             if self.method in kmeans_options.METHODS:
                 kmeans_options.scale(options)
                 kmeans_options.fit_options(self.method, self.data, options)
+            logistic_validation.check(self, options)  # Validate binary logistic model: no fit before the worker
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
@@ -526,6 +527,8 @@ class AnalysisDialog(QDialog):
             return ui(str(error))
         if self.stability is not None:  # K-means stability: engine messages in the active language
             return self.stability.message(error)
+        if logistic_validation.applies(self):
+            return logistic_validation.message(error)
         return str(error)
 
     def show_error(self, error, field=None):

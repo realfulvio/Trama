@@ -66,6 +66,8 @@ from .model_selection import COMPARE_MODELS, OPTIONS as COMPARE_MODELS_OPTIONS, 
 from .nonlinear_bands import OPTIONS as BAND_OPTIONS, band_outputs, band_settings
 from .monte_carlo import MONTE_CARLO, OPTIONS as MONTE_CARLO_OPTIONS, monte_carlo
 from .independent_roc import METHOD as INDEPENDENT_ROC, independent_roc
+from .logistic_validation import METHOD as LOGISTIC_VALIDATION, OPTIONS as LOGISTIC_VALIDATION_OPTIONS
+from .logistic_validation import analysis as logistic_validation
 from .custom_fit import CUSTOM_EQUATION, custom_fit
 from .global_custom_fit import GLOBAL_CUSTOM_EQUATION, global_custom_fit
 from .plot_function import PLOT_FUNCTION
@@ -257,6 +259,7 @@ METHODS = {
                           grouped_anova.ROW_NAME: TEXT, grouped_anova.COLUMN_NAME: TEXT,
                           grouped_anova.INTERACTION: True},
     NB2: NB2_OPTIONS,
+    LOGISTIC_VALIDATION: LOGISTIC_VALIDATION_OPTIONS,
     "Multifactor ANOVA": {"Response": None, "Factors": MULTIPLE, TERM_SELECTION: TERM_CHOICES, "Interaction order": 1,
                          SUMS_OF_SQUARES: SS_CHOICES, MODEL_TERMS: TERM_LIST,
                          "Compare marginal means by": OPTIONAL, "Cell comparison factors": OPTIONAL_MULTIPLE,
@@ -344,7 +347,7 @@ GROUPS = {
                                     "Area under curve", "Principal component analysis",
                                     "Adjust a stack of p values", "Control false discoveries", META_ANALYSIS),
     "Regression and Curves": ("Linear regression", COMPARE_LINES, "Deming regression", "Multiple regression",
-                              NB2, "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
+                              NB2, LOGISTIC_VALIDATION, "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
                               "Interpolate a standard curve", SPLINE_FIT,
                               "Smooth / differentiate / integrate", PLOT_FUNCTION),
@@ -373,7 +376,8 @@ GRAPH_METHODS = frozenset({
     "Mixed-effects model (REML)", LOGNORMAL, EQUIVALENCE, "Multiple t-tests", ROW_TESTS, "Nonlinear regression", ROBUST_CURVE, CUSTOM_EQUATION,
     GLOBAL_CUSTOM_EQUATION, "Principal component analysis",
     MEAN_PERMUTATION,
-    "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC, "Smooth / differentiate / integrate", SPLINE_FIT,
+    "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC, LOGISTIC_VALIDATION,
+    "Smooth / differentiate / integrate", SPLINE_FIT,
     *NESTED_METHODS,
     REFERENCE_NORMALIZATION, SUMMARY_ANOVA, SUMMARY_TTEST,
 })
@@ -1232,6 +1236,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return _anova(frame, o)
     if method == KMEANS_STABILITY:
         return kmeans_stability(frame, o, cancel=cancel)
+    if method == LOGISTIC_VALIDATION:
+        return logistic_validation(frame, o, cancel=cancel)
     if method in kmeans_options.METHODS:
         solve = _cluster_selection if method == kmeans_options.SELECTION else _kmeans
         try:

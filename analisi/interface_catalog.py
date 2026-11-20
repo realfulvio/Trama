@@ -1263,3 +1263,10 @@ MESSAGES.update({
     "kstab.error.iteration_limit": ("Hartigan–Wong reached the maximum number of iterations.",
                                     "Hartigan–Wong ha raggiunto il limite di iterazioni."),
 })
+
+# Validate binary logistic model (0.96): captions and engine messages live in their own section.
+from .logistic_validation_catalog import CAPTIONS as _LOGISTIC_VALIDATION_CAPTIONS  # noqa: E402
+from .logistic_validation_catalog import MESSAGES as _LOGISTIC_VALIDATION_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_LOGISTIC_VALIDATION_CAPTIONS)
+MESSAGES.update(_LOGISTIC_VALIDATION_MESSAGES)

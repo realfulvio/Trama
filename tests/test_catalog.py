@@ -120,6 +120,7 @@ class CatalogTests(unittest.TestCase):
             "Principal component analysis": {"Variables": ["x", "y", "z"], "Standardize": True},
             "Multiple regression": {"Response": "y", "Predictors": ["x", "Factor"],
                                     "Categorical predictors": ["Factor"], "Family": "Linear"},
+            "Validate binary logistic model": {"Response": "Event", "Predictors": ["z"], "Folds": 2},
             "Negative binomial regression": {"Response": "Event", "Predictors": ["x", "Factor"],
                                              "Categorical predictors": ["Factor"], "Dispersion mode": "Fixed"},
             "Cox regression": {"Time": "x", "Event": "Event", "Predictors": ["z"],

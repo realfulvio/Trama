@@ -1,0 +1,30 @@
+{
+  "plain": {
+    "Response": "Outcome",
+    "Predictors": [
+      "Dose mg",
+      "Età (anni)",
+      "Group"
+    ],
+    "Categorical predictors": [
+      "Group"
+    ],
+    "Family": "Logistic"
+  },
+  "diagnostics": {
+    "Response": "Outcome",
+    "Predictors": [
+      "Dose mg",
+      "Età (anni)",
+      "Group"
+    ],
+    "Categorical predictors": [
+      "Group"
+    ],
+    "Family": "Logistic",
+    "Logistic diagnostics": true,
+    "Logistic cutoff": 0.4,
+    "Logistic profiles": [],
+    "Logistic confidence (%)": 90.0
+  }
+}
