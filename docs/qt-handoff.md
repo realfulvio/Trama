@@ -15,6 +15,20 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Ordine ottimale delle foglie nei dendrogrammi, pacchetto Dendrogrammi-Ordine-Foglie (ramo `claude/dendrogrammi-ordine-foglie`, base main `df1d591`, 2026-11-20)
+
+PR draft verso main, in tre commit: motore e regressioni, integrazione Qt, smoke e guida. Guida: `docs/leaf-ordering.md`. Provato su un PC fisico Windows 10 (Python 3.13, PySide6 6.12.0, schermo 1920×1080 a 96 DPI, 100%): suite completa 4139 test OK contro 4111 sulla base, smoke dedicato sul desktop reale in chiaro e scuro, smoke generale nella sessione interattiva con profilo isolato. 150% di scala e due monitor restano NON PROVATI.
+
+- Nuovo campo **Leaf ordering** (*Ordine delle foglie*) del raggruppamento gerarchico, `Default` (anche se la chiave manca: figure e fogli storici invariati) oppure `Optimal`. Il motore è `analisi/leaf_order.py`: programmazione dinamica esatta di Bar-Joseph, Gifford e Jaakkola sul fit già calcolato (nessun secondo clustering), prodotti min-plus a blocchi con GIL rilasciato e annullamento fra un blocco e l'altro. `scipy.cluster.hierarchy.optimal_leaf_ordering` non basta: con scipy 1.18.1 non dà sempre il minimo (caso `FOUR` in `tests/test_leaf_order.py`: 3,727 contro 3,192) e tiene il GIL.
+- Fogli con Optimal: `Row leaf order`, `Column leaf order` (Position, Label, Input index, Distance from previous) e `Leaf order costs` (Leaves, Original cost, Final cost). L'identità della foglia è l'indice in ingresso, mai l'etichetta. Le assegnazioni ai gruppi restano quelle del fit.
+- Limite 2000 foglie per asse, controllato in `check_leaf_options` prima di qualsiasi matrice e dal dialogo (`trama_qt/analysis_dialog.py`, `accept`): errore sul campo, in inglese e in italiano. Misure in guida (2000 foglie: 2,6 s e 234 MB di picco).
+- `hierarchical_result(..., cancel=)` riceve il controllo di annullamento da `workbench.analyse`; un ricalcolo annullato non sostituisce il risultato precedente.
+- Corretto un bug **già presente nella base**: un dendrogramma (non la mappa di calore) con più di 55 foglie e etichette «Values» dava `IndexError` in `_draw_tree`, perché `names` veniva sovrascritto con le sole etichette mostrate prima di registrare i metadati. Test: `test_a_long_dendrogram_keeps_every_leaf_caption_in_the_registered_metadata`.
+- Nuovo smoke dedicato: `python -m trama_qt.leaf_order_smoke CARTELLA` (con `--dark`). In inglese e in italiano: dialogo, tasto Giù sul campo, limite rifiutato su 2100 righe, esecuzione su righe e colonne, celle della mappa nell'ordine del foglio, grafico collegato girato in orizzontale senza un secondo clustering (`hierarchical` bloccato durante il calcolo), layout a due pannelli Default/Optimal, esportazioni PNG/SVG/PDF, modifica ed esclusione di una cella, salva e riapri, annullamento su 1200 foglie. Scrive screenshot, `report.txt` e `status.txt`.
+- Fixture sintetica: `tests/data/leaf_order/profili-sintetici.csv` (7 righe, 5 variabili; costi 559 → 520 righe, 519 → 492 colonne).
+- Da provare su Windows (Codex): lo smoke dedicato a 100% e 150%, chiaro e scuro; Analizza → Raggruppamento gerarchico con Ordine delle foglie *Ottimale* sulla fixture; Esporta SVG/PDF; Annulla su una tabella da 1200+ righe.
+- Conflitti attesi: coda di `analisi/interface_catalog.py` (quattro righe), `analisi/hierarchical_workbench.py` (opzioni e `hierarchical_result`), import e `accept` di `trama_qt/analysis_dialog.py`, e questa voce in cima al file.
+
 ### Bland–Altman per coppie ripetute, pacchetto 02 del 0.96 (2026-11-20)
 
 PR draft verso main (ramo `claude/project-thread-y6nc6f`, base main 4c07db6). Windows NON PROVATO. Guida: `docs/bland-altman-repeated.md`.
