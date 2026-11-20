@@ -642,6 +642,7 @@ def _cluster_selection(frame, o, *, cancel=None):
     result = _consensus_selection(scan, o) if criterion == "consensus" else _scan_result(scan, o, criterion)
     if reference == kmeans_options.GAP_PRINCIPAL_AXES and "Gap" in scan.metrics:
         result.tables["Selection"].loc[kmeans_options.GAP_REFERENCE, "Value"] = reference
+        result.tables["Selection"].loc["Gap simulations", "Value"] = o.get("Gap simulations", 20)
     if reports:
         result.tables.update(kmeans_reports.result_tables(scan.report_fits, frame, scan.fitting_data, reports,
                                                           metrics=scan.metrics, column_scale=scale))

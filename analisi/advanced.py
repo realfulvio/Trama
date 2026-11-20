@@ -172,6 +172,11 @@ def _recommend_clusters(metrics, criterion):
     return int(metrics.index[offset]) if gaps[offset] > 1e-12 else None
 
 
+def gap_replicate_limit(n, dimensions, candidates):
+    reference_cost = n * dimensions * sum(k for k in candidates if k < n)
+    return min(100, 3_000_000 // reference_cost) if reference_cost else 100
+
+
 def _check_scan_budget(n, dimensions, candidates, pairwise, *, simulate_gap, gap_replicates):
     fit_cost = n * dimensions * sum(candidates)
     if n > 3000 or fit_cost > 1_000_000 or (pairwise and n * n * dimensions > 40_000_000):
@@ -180,8 +185,7 @@ def _check_scan_budget(n, dimensions, candidates, pairwise, *, simulate_gap, gap
         if (isinstance(gap_replicates, bool) or not isinstance(gap_replicates, Integral)
                 or not 5 <= gap_replicates <= 100):
             raise ValueError("Gap reference datasets must be an integer between 5 and 100.")
-        reference_cost = n * dimensions * sum(k for k in candidates if k < n) * gap_replicates
-        if reference_cost > 3_000_000:
+        if gap_replicates > gap_replicate_limit(n, dimensions, candidates):
             raise ValueError("Gap reference fits exceed the work budget. Reduce rows, variables, k, or references.")
 
 

@@ -74,6 +74,14 @@ class ClusterScanTests(unittest.TestCase):
         self.assertNotIn("Gap", kmeans_scan(frame, ["x"], max_k=4).metrics)
 
     def test_gap_rejects_excess_reference_work_and_skips_zero_dispersion(self):
+        from analisi.advanced import _check_scan_budget, gap_replicate_limit
+
+        counts = range(1, 9)
+        limit = gap_replicate_limit(178, 13, counts)
+        self.assertEqual(limit, 36)
+        _check_scan_budget(178, 13, counts, True, simulate_gap=True, gap_replicates=limit)
+        with self.assertRaisesRegex(ValueError, "budget"):
+            _check_scan_budget(178, 13, counts, True, simulate_gap=True, gap_replicates=limit + 1)
         with self.assertRaisesRegex(ValueError, "reference"):
             kmeans_scan(self.frame, ["x"], criterion="gap", gap_replicates=101)
         with self.assertRaisesRegex(ValueError, "budget"):

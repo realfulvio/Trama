@@ -109,6 +109,7 @@ class KmeansOptionsTests(unittest.TestCase):
         self.assertEqual(options["Criterion"], "Consensus (17 indices)")
         self.assertEqual(options["Krzanowski–Lai scaling"], "Unscaled WSS")
         self.assertEqual(options[option.GAP_REFERENCE], option.GAP_PRINCIPAL_AXES)
+        self.assertEqual(options["Gap simulations"], 100)
         tables = analyse(method, self.frame, options).tables
         self.assertEqual(tables["Selection"].loc["Suggested k", "Value"], 3)
         content["calc"]["algorithm"] = "MACQUEEN"
@@ -142,6 +143,7 @@ class KmeansOptionsTests(unittest.TestCase):
                    option.GAP_REFERENCE: option.GAP_PRINCIPAL_AXES}
         result = analyse(option.SELECTION, self.frame, options)
         self.assertEqual(result.tables["Selection"].loc[option.GAP_REFERENCE, "Value"], option.GAP_PRINCIPAL_AXES)
+        self.assertEqual(result.tables["Selection"].loc["Gap simulations", "Value"], 5)
         with self.assertRaises(FieldError) as caught:
             analyse(option.SELECTION, self.frame, {**options, option.GAP_REFERENCE: "unknown"})
         self.assertEqual(caught.exception.field, option.GAP_REFERENCE)

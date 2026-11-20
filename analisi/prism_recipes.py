@@ -435,7 +435,7 @@ def _grouped_anova(frame, content, _results):
 
 def _kmeans(frame, content, _results):
     from . import kmeans_options as selection, kmeans_reports
-    from .advanced import _check_scan_budget
+    from .advanced import _check_scan_budget, gap_replicate_limit
     from .cluster_consensus import KL_SCALING, UNSCALED_WSS
 
     calc = content["calc"]
@@ -461,8 +461,11 @@ def _kmeans(frame, content, _results):
     upper = min(high, len(np.unique(values, axis=0)))
     if low > upper:
         return None
-    gap_replicates = 20
-    _check_scan_budget(count, dimensions, range(low, upper + 1), upper >= 2,
+    candidates = range(low, upper + 1)
+    gap_replicates = gap_replicate_limit(count, dimensions, candidates)
+    if gap_replicates < 20:
+        return None
+    _check_scan_budget(count, dimensions, candidates, upper >= 2,
                        simulate_gap=True, gap_replicates=gap_replicates)
     saved_reports = content.get("report", {})
     reports = {kmeans_reports.ASSIGNMENTS: True}
