@@ -108,9 +108,24 @@ editor for a new sample. Seeds are whole numbers from 0 through 2⁶⁴−1.
 The sequence follows worksheet row order, and separate random calls consume
 separate draws.
 
-Select and Transform applies the formulas to the selected rows. Imported
-random worksheet columns keep their recorded values. An imported live transform
-with random calls receives a seed for a new reproducible result.
+Imported random worksheet columns keep their recorded values. An imported
+live transform with random calls receives a seed for a new reproducible result.
+
+## Select and Transform
+
+In Analyze, choose **Select and Transform**. Arrange the output columns in
+**Variables**. In **Row filters**, set the first and last source row if you
+need a range. Both bounds are inclusive and row numbers start at 1. Within
+that range, the result keeps the rows that satisfy every condition. Conditions
+can compare a column with a number, text or another column, or check for
+missing values.
+
+In **Calculated variables**, enter an output name and expression for each
+new column. The formulas use the selected rows and may refer to source
+columns or earlier calculated variables. Use `COL("Column name")` for a
+name with spaces. To edit the range, conditions or formulas later, open the
+result and choose **Change parameters**. Saving the project keeps these
+settings with the analysis.
 
 ## Distributions
 

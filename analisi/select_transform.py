@@ -5,7 +5,7 @@ from operator import eq, ge, gt, le, lt, ne
 import numpy as np
 import pandas as pd
 
-from .data import MAX_CELLS, MAX_COLUMNS, decimal_comma, formula, seeded_formula
+from .data import MAX_CELLS, MAX_COLUMNS, decimal_comma, formula, formula_column_references, seeded_formula
 from .processing import FieldError
 from .reporting import Result
 
@@ -128,7 +128,7 @@ def _rules(options, field):
     return value
 
 
-def _derived(source, record, position):
+def _definition(columns, record, position):
     field = f"Calculated variable {position}"
     if not isinstance(record, dict):
         raise FieldError(CALCULATED, f"{field}: invalid definition.")
@@ -136,10 +136,15 @@ def _derived(source, record, position):
     if not isinstance(name, str) or not 1 <= len(name.strip()) <= 160 or "\n" in name or "\r" in name:
         raise FieldError(CALCULATED, f"{field}: enter a name of up to 160 characters.")
     name = name.strip()
-    if name in source:
+    if name in columns:
         raise FieldError(CALCULATED, f'{field}: "{name}" already exists.')
     if not isinstance(expression, str):
         raise FieldError(CALCULATED, f'{field}: enter a formula for "{name}".')
+    return name, expression
+
+
+def _derived(source, record, position):
+    name, expression = _definition(source.columns, record, position)
     try:
         source[name] = formula(source, expression)
     except ValueError as error:
@@ -147,8 +152,7 @@ def _derived(source, record, position):
     return name
 
 
-def select_transform(frame, options):
-    """Keep rows satisfying every condition and evaluate formulas on those rows."""
+def _selection_options(frame, options):
     columns = options.get("Variables", list(frame.columns))
     if (not frame.columns.is_unique or not isinstance(columns, list) or any(not isinstance(name, str) or name not in frame for name in columns)
             or len(set(columns)) != len(columns)):
@@ -163,6 +167,29 @@ def select_transform(frame, options):
     last = _row_number(options, "Last row", max(len(frame), first))
     if last < first:
         raise FieldError("Last row", "Last row must be at or after the first row.")
+    return columns, filters, calculated, first, last
+
+
+def check_options(frame, options):
+    """Check recipe fields and references before using the worker for row evaluation."""
+    _, filters, calculated, _, _ = _selection_options(frame, options)
+    for position, rule in enumerate(filters, 1):
+        _comparison(frame.iloc[:0], rule, position)
+    columns = set(frame.columns)
+    for position, record in enumerate(calculated, 1):
+        name, expression = _definition(columns, record, position)
+        try:
+            missing = formula_column_references(expression) - columns
+            if missing:
+                raise ValueError("Unknown column: " + min(missing))
+        except ValueError as error:
+            raise FieldError(CALCULATED, f'"{name}": {error}') from error
+        columns.add(name)
+
+
+def select_transform(frame, options):
+    """Keep rows satisfying every condition and evaluate formulas on those rows."""
+    columns, filters, calculated, first, last = _selection_options(frame, options)
     selected = frame.iloc[first - 1:last]
     if len(selected) * len(filters) > 4 * MAX_CELLS:
         raise FieldError(FILTERS, "The selection exceeds the work limit. Reduce the row range or conditions.")

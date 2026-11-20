@@ -172,6 +172,38 @@ Meta-analysis of effect estimates|Meta-analisi delle stime
 Identify outliers|Individua valori anomali
 Monte Carlo study|Studio Monte Carlo
 Select and Transform|Seleziona e trasforma
+Row filters|Filtri delle righe
+Calculated variables|Variabili calcolate
+Calculated variable|Variabile calcolata
+New variable|Nuova variabile
+Comparison variable|Variabile di confronto
+Variable|Variabile
+Condition|Condizione
+Compare to|Confronta con
+Number|Numero
+Text|Testo
+Value|Valore
+Formula|Formula
+Is missing|È mancante
+Is not missing|È presente
+New filter|Nuovo filtro
+Rows must satisfy all the filters. Leave the list empty to use the row range.|Le righe devono soddisfare tutti i filtri. Lascia vuoto l'elenco per usare l'intervallo di righe.
+Formulas use the selected rows and run from top to bottom.|Le formule usano le righe selezionate e vengono valutate dall'alto verso il basso.
+choose an existing variable.|scegli una variabile esistente.
+choose a numeric variable for a number comparison.|scegli una variabile numerica per il confronto.
+enter a finite number.|inserisci un numero finito.
+enter a finite number within the floating-point range.|inserisci un numero finito nell'intervallo rappresentabile.
+compare two variables of the same type.|confronta due variabili dello stesso tipo.
+text comparisons support only = and !=.|per il testo usa = o !=.
+choose an operator and enter a comparison value.|scegli un operatore e inserisci un valore di confronto.
+enter a name of up to 160 characters.|inserisci un nome di al massimo 160 caratteri.
+Choose distinct existing variables.|Scegli variabili esistenti e distinte.
+Choose at least one output column or calculated variable.|Scegli almeno una colonna in uscita o una variabile calcolata.
+First row must be a row number from 1 to 2,000,000, or blank.|La prima riga deve essere un intero da 1 a 2.000.000. Puoi anche lasciare vuoto il campo.
+Last row must be a row number from 1 to 2,000,000, or blank.|L'ultima riga deve essere un intero da 1 a 2.000.000. Puoi anche lasciare vuoto il campo.
+Last row must be at or after the first row.|L'ultima riga deve essere uguale o successiva alla prima.
+Invalid formula syntax.|Sintassi della formula non valida.
+Unknown column:|Colonna sconosciuta:
 Transpose X and Y|Trasponi X e Y
 Extract and rearrange|Estrai e riorganizza
 Mixed-effects model (REML)|Modello a effetti misti (REML)

@@ -417,9 +417,25 @@ def _formula_tree(expression):
     try:
         tokens = tokenize.generate_tokens(StringIO(source).readline)
         window = lower_window_clauses(_formula_operators(tokens))
-        return ast.parse(tokenize.untokenize(_worksheet_comparisons(window)), mode="eval"), seed
+        tree = ast.parse(tokenize.untokenize(_worksheet_comparisons(window)), mode="eval")
     except (SyntaxError, tokenize.TokenError) as error:
         raise ValueError("Invalid formula syntax.") from error
+    if sum(1 for _ in ast.walk(tree)) > 128:
+        raise ValueError("Formula is too complex.")
+    return tree, seed
+
+
+def formula_column_references(expression):
+    """Read worksheet references without evaluating a formula on the table."""
+    tree, _ = _formula_tree(expression)
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    called_names = {node.func for node in calls}
+    references = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name) and node not in called_names}
+    for call in calls:
+        if (isinstance(call.func, ast.Name) and call.func.id.upper() == "COL" and len(call.args) == 1
+                and isinstance(call.args[0], ast.Constant) and isinstance(call.args[0].value, str)):
+            references.add(call.args[0].value)
+    return references
 
 
 def seeded_formula(expression):
@@ -459,9 +475,6 @@ def formula(frame, expression, *, info=None):
     """Evaluate arithmetic, comparisons and whitelisted functions only."""
     tree, seed = _formula_tree(expression)
     rng = None
-    if sum(1 for _ in ast.walk(tree)) > 128:
-        raise ValueError("Formula is too complex.")
-
     def column(name, *, raw=False):
         if name not in frame:
             raise ValueError(f"Unknown column: {name}")

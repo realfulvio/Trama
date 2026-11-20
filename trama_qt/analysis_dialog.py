@@ -22,7 +22,7 @@ from analisi.data import decimal_comma
 from analisi.field_error import FieldError
 from analisi import kmeans_options, kmeans_reports, mean_permutation
 from analisi.i18n import tr, ui
-from analisi.select_transform import SELECT_TRANSFORM
+from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
@@ -30,6 +30,7 @@ from . import anova_model, global_fit, logistic_validation, planned_contrasts
 from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
 from . import reshape_long_wide as reshape_editor
+from . import select_transform as select_editor
 from .labels import choice_label, field_label, method_label
 from .strings import qt
 from .theme import fit_dialog
@@ -293,6 +294,7 @@ class AnalysisDialog(QDialog):
         pages, scrolls = {}, {}
         # Global fit custom equation adds Equation, Parameters, Series constraints and Response pages.
         for key, name in (("variables", qt("qt.variables")), *global_fit.pages(self.method),
+                          *select_editor.pages(self.method),
                           ("options", qt("qt.options"))):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
@@ -317,8 +319,7 @@ class AnalysisDialog(QDialog):
         numeric = [str(name) for name in self.data.select_dtypes(include="number").columns]
         categorical = [name for name in columns if name not in numeric] or columns
         numeric_position = category_position = 0
-        # Reshape long and wide has an editor of its own (trama_qt.reshape_long_wide), attached below.
-        fields = {} if self.method == reshape_editor.METHOD else METHODS[self.method]
+        fields = {} if self.method in {reshape_editor.METHOD, SELECT_TRANSFORM} else METHODS[self.method]
         for label, kind in fields.items():
             if kind == CONTRAST_FACTOR_LIST or (kind != CONTRAST_LIST and label in PLANNED_PANEL_FIELDS
                                                 and CONTRAST_LIST in METHODS[self.method].values()):
@@ -337,8 +338,6 @@ class AnalysisDialog(QDialog):
                 widget = QListWidget()
                 widget.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
                 defaults = saved.get(label, numeric if label in {"Variables", "Count columns"} else ())
-                if self.method == SELECT_TRANSFORM and label not in saved:
-                    defaults = columns
                 offered = list(dict.fromkeys([*columns, *[str(name) for name in (defaults or ())]]))
                 for name in offered:
                     item = QListWidgetItem(name)
@@ -428,6 +427,7 @@ class AnalysisDialog(QDialog):
         self.stability = stability_options.attach(self)
         self.repeated = repeated_agreement.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
+        select_editor.attach(self, pages, saved)
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
 
@@ -495,7 +495,7 @@ class AnalysisDialog(QDialog):
                 options[name] = value
             elif kind == TEXT:
                 options[name] = control.text()
-            elif kind == TERM_LIST:
+            elif kind in (TERM_LIST, select_editor.EDITOR):
                 options[name] = control.values()
             elif kind == CONTRAST_LIST:
                 options.update(control.values())  # the four planned-contrast keys, or none
@@ -529,6 +529,8 @@ class AnalysisDialog(QDialog):
                 self.repeated.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            if self.method == SELECT_TRANSFORM:
+                check_select_transform(self.data, options)
             if self.method in kmeans_options.METHODS:
                 kmeans_options.scale(options)
                 kmeans_options.fit_options(self.method, self.data, options)
@@ -557,6 +559,8 @@ class AnalysisDialog(QDialog):
             return self.repeated.message(error)
         if self.method == reshape_editor.METHOD:
             return reshape_editor.message(error)
+        if self.method == SELECT_TRANSFORM:
+            return select_editor.message(error)
         return str(error)
 
     def show_error(self, error, field=None):
