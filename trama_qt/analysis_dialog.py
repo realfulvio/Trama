@@ -372,7 +372,10 @@ class AnalysisDialog(QDialog):
                 if isinstance(kind, tuple):
                     choices = list(kind)
                     for choice in choices:
-                        widget.addItem(choice_label(str(choice)), choice)
+                        caption = str(choice)
+                        if self.method == kmeans_options.SELECTION and label == "Criterion" and choice == "Gap":
+                            caption = "Gap statistic"
+                        widget.addItem(choice_label(caption), choice)
                     default = choices[0] if choices else ""
                 elif kind == GROUP_CHOICE:
                     widget.setEditable(True)

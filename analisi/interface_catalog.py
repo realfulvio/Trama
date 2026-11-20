@@ -301,6 +301,7 @@ Maximum k|k massimo
 Standardize|Standardizza
 Criterion|Criterio
 Gap simulations|Simulazioni gap
+Gap statistic|Statistica Gap
 Gap reference geometry|Geometria del riferimento Gap
 Variable ranges|Intervalli delle variabili
 Principal component ranges|Intervalli delle componenti principali
