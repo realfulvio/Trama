@@ -21,6 +21,7 @@ from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT,
 from analisi.data import decimal_comma
 from analisi import extract_rearrange as extraction
 from analisi.field_error import FieldError
+from analisi.hierarchical_workbench import check_leaf_options
 from analisi import kmeans_options, kmeans_reports, mean_permutation
 from analisi.i18n import tr, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
@@ -557,6 +558,8 @@ class AnalysisDialog(QDialog):
                 check_select_transform(self.data, options)
             if self.method == extraction.EXTRACT_REARRANGE:
                 extraction.check_options(self.data, options)
+            if self.method == "Hierarchical clustering":
+                check_leaf_options(self.data, options)  # Leaf ordering: the choice and the size, before the worker
             if self.method in kmeans_options.METHODS:
                 kmeans_options.scale(options)
                 kmeans_options.fit_options(self.method, self.data, options)
@@ -587,6 +590,8 @@ class AnalysisDialog(QDialog):
             return reshape_editor.message(error)
         if self.method == SELECT_TRANSFORM:
             return select_editor.message(error)
+        if self.method == "Hierarchical clustering":
+            return ui(str(error))
         if self.method == extraction.EXTRACT_REARRANGE:
             if str(error) == f"Choose a column for {field}.":
                 return qt("qt.choose_column", name=field_label(field))
