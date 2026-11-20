@@ -18,6 +18,74 @@ class WindowFormulaTests(unittest.TestCase):
                                    "Category": [1, 1, "1", "1", "1", None],
                                    "Keep": [1, 0, 1, 0, 1, 1]})
 
+    def test_modified_bessel_and_hypergeometric_functions(self):
+        x = np.array([.25, .5, .75])
+        frame = pd.DataFrame({"X": [*x, np.nan]})
+        examples = {
+            "BESSELI(.5, X)": np.sqrt(2 / (np.pi * x)) * np.sinh(x),
+            "BESSELK(.5, X)": np.sqrt(np.pi / (2 * x)) * np.exp(-x),
+            "HYPGEOMETRICM(2, 2, X)": np.exp(x),
+            "HYPGEOMETRICU(1, 2, X)": 1 / x,
+            "HYPGEOMETRICF(1, 1, 2, X)": -np.log1p(-x) / x,
+        }
+        for expression, expected in examples.items():
+            with self.subTest(expression=expression):
+                np.testing.assert_allclose(formula(frame, expression), [*expected, np.nan], rtol=2e-12)
+        boundary = pd.DataFrame({"X": [-1., 0., 1., 2.]})
+        np.testing.assert_allclose(formula(boundary, "BESSELK(.5, X)"),
+                                   [np.nan, np.nan, np.sqrt(np.pi / 2) / np.e, np.sqrt(np.pi / 4) / np.e**2])
+        np.testing.assert_allclose(formula(boundary, "HYPGEOMETRICU(1, 2, X)"), [np.nan, np.nan, 1., .5])
+        np.testing.assert_allclose(formula(boundary, "HYPGEOMETRICF(1, 1, 2, X)"),
+                                   [np.log(2), 1., np.nan, np.nan])
+        np.testing.assert_allclose(formula(boundary, "HYPGEOMETRICF(-1, 1, 2, X)"), [1.5, 1., .5, 0.])
+
+    def test_concatenate_preserves_literal_whitespace_and_formats_numeric_cells(self):
+        frame = pd.DataFrame({"Cohort": ["A", "B", None], "Visit": [3., 7.5, np.nan],
+                              "Barcode": [2**53 + 1, 2**53 + 2, 0]})
+        result = formula(frame, 'CONCATENATE(Cohort, " / ", Visit, " #", Barcode)')
+        self.assertEqual(result.tolist(), ["A / 3 #9007199254740993", "B / 7.5 #9007199254740994", " /  #0"])
+        self.assertEqual(formula(frame, 'CONCATENATE("Value: ", 42)').tolist(), ["Value: 42"] * 3)
+
+    def test_imported_label_and_special_formulas_recalculate_and_roundtrip(self):
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "calculated.prismt"
+            with ZipFile(source, "w") as archive:
+                def write(member, content):
+                    archive.writestr(member, json.dumps(content))
+
+                write("document.json", {"sheets": {"data": ["source"]}})
+                write("data/sheets/source/sheet.json", {"title": "Visits", "table": {
+                    "uid": "values", "format": "multivariable", "dataFormat": "y_single",
+                    "dataSets": ["group", "visit", "x", "label", "special"],
+                }})
+                write("data/sets/group.json", {"title": "Study group", "currentType": "categorical"})
+                write("data/sets/visit.json", {"title": "Visit"})
+                write("data/sets/x.json", {"title": "Input"})
+                for ident, title, expression in (("label", "Row ID", 'CONCATENATE(A, "-", B)'),
+                                                 ("special", "Special value", "HYPGEOMETRICM(2, 2, C)")):
+                    write(f"data/sets/{ident}.json", {"title": title, "valuesStorageData": {
+                        "@class": "TransformDataSource", "transform": expression,
+                    }})
+                archive.writestr("data/tables/values/data.csv", "Placebo,3,.5,stored,999\nTreatment,1,.84,stored,999\n")
+            data = Dataset(load_tables(source)["Visits"])
+            self.assertEqual(set(data.formulas), {"Row ID", "Special value"})
+            self.assertEqual(data.frame()["Row ID"].tolist(), ["Placebo-3", "Treatment-1"])
+            data.raw.iat[0, 1] = 7
+            data.raw.iat[1, 2] = .5
+            dest = Path(directory) / "saved.alab"
+            save_project(dest, {"Visits": data})
+            reopened = load_project(dest)["Visits"]
+        self.assertEqual(reopened.formulas, data.formulas)
+        self.assertEqual(reopened.frame()["Row ID"].tolist(), ["Placebo-7", "Treatment-1"])
+        np.testing.assert_allclose(reopened.frame()["Special value"], [np.exp(.5)] * 2)
+
+    def test_variadic_logical_calls_mix_row_vectors_and_scalar_comparisons(self):
+        frame = pd.DataFrame({"X": [0, 1, 2], "Group": ["a", "b", "A"]})
+        condition = 'OR(AND(X >= 1, X <= 2, X != 1), 1 < 0, X == 0)'
+        self.assertEqual(formula(frame, f'IF({condition}, "ok", "skip")').tolist(), ["ok", "skip", "ok"])
+        expression = 'COUNTIF(X, AND(Group = "A", X >= 1, OR(X = 1, X = 2, X = 3)))'
+        np.testing.assert_array_equal(formula(frame, expression), [1, 1, 1])
+
     def test_group_statistics_distinguish_text_and_numbers_and_leave_missing_groups_blank(self):
         out = formula(self.frame, '=mean(X) over COL("Category")')
         np.testing.assert_allclose(out, [20, 20, 45, 45, 45, np.nan])

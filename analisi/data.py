@@ -5,6 +5,7 @@ from copy import copy, deepcopy
 import csv
 from dataclasses import dataclass, field
 from decimal import Context, Decimal, ROUND_HALF_UP, localcontext
+from functools import reduce
 from io import StringIO
 import json
 from math import factorial, isfinite
@@ -277,17 +278,37 @@ def _blank_cell(value):
 
 
 _check_blank = np.frompyfunc(_blank_cell, 1, 1)
-_PRESENCE_FUNCTIONS = {"ISBLANK", "IS_DEFINED"}
+_RAW_FORMULA_ARGUMENTS = {"ISBLANK", "IS_DEFINED", "CONCATENATE"}
 
 
 def _is_blank(values):
     return np.asarray(_check_blank(values), dtype=bool)
 
 
+def _concatenated_cell(value):
+    if isinstance(value, str):
+        return value
+    if _blank_cell(value):
+        return ""
+    if isinstance(value, (bool, np.bool_)):
+        return str(int(value))
+    if isinstance(value, (float, np.floating)):
+        return str(value).removesuffix(".0")
+    return str(value)
+
+
+_text_cell = np.frompyfunc(_concatenated_cell, 1, 1)
+
+
+def _concatenate(*values):
+    return reduce(np.add, (np.asarray(_text_cell(value), dtype=object) for value in values))
+
+
 ELEMENTWISE_FORMULA_FUNCTIONS = {
     **SPECIAL_FORMULA_FUNCTIONS,
     **DISTRIBUTION_FUNCTIONS,
     "ISBLANK": (1, _is_blank), "IS_DEFINED": (1, lambda values: np.logical_not(_is_blank(values))),
+    "CONCATENATE": (range(2, 129), _concatenate),
     "CEIL": (1, np.ceil), "FLOOR": (1, np.floor), "INT": (1, np.trunc), "SGN": (1, np.sign),
     "ROUND": (range(1, 3), _round), "FACT": (1, _factorial),
     "SQR": (1, np.square),
@@ -311,7 +332,9 @@ FUNCTIONS = {
     "MEDIAN": (1, lambda v: _aggregate(np.median, v)),
     "COUNT": (1, lambda v: len(_numeric_present(v))),
     "AVERAGEIF": (3, _average_if), "IF": (3, _conditional),
-    "AND": (2, np.logical_and), "OR": (2, np.logical_or), "NOT": (1, np.logical_not),
+    "AND": (range(2, 129), lambda *conditions: reduce(np.logical_and, conditions)),
+    "OR": (range(2, 129), lambda *conditions: reduce(np.logical_or, conditions)),
+    "NOT": (1, np.logical_not),
 }
 
 
@@ -435,7 +458,7 @@ def formula(frame, expression, *, info=None):
                 arity, function = FUNCTIONS[name]
                 supported = len(node.args) == arity if isinstance(arity, int) else len(node.args) in arity
                 if supported:
-                    return function(*(evaluate(arg, raw=name in _PRESENCE_FUNCTIONS, filter_text=filter_text)
+                    return function(*(evaluate(arg, raw=name in _RAW_FORMULA_ARGUMENTS, filter_text=filter_text)
                                       for arg in node.args))
                 if isinstance(arity, range):
                     raise ValueError(argument_count_message(name, arity))

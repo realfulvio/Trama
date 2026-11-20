@@ -66,9 +66,22 @@ accepts x from 0 to 1.
 
 `ERF(x)` and `ERFC(x)` give the error function and its complement.
 `BESSELJ(order, x)` and `BESSELY(order, x)` give real Bessel values where
-defined. `PERC(x)` divides a percentage by 100. For example,
+defined. `BESSELI(order, x)` and `BESSELK(order, x)` give the modified Bessel
+functions, with positive `x` for `BESSELK`. `HYPGEOMETRICM(a, b, x)` and
+`HYPGEOMETRICU(a, b, x)` give the two confluent hypergeometric functions.
+`HYPGEOMETRICF(a, b, c, x)` gives the Gauss hypergeometric function. The
+worksheet keeps finite real results, including well-defined terminating series.
+
+`PERC(x)` divides a percentage by 100. For example,
 `=Dose * PERC(12.5)` gives one eighth of each dose. Undefined values and
 nonfinite special-function results leave the cell blank.
+
+## Text and conditions
+
+Use `=CONCATENATE(COL("Study group"), " / ", Visit)` to build a label on
+each row. Numbers are converted to text, blanks contribute an empty string,
+and spaces and punctuation in text arguments are preserved. `AND` and `OR`
+take two or more conditions, for example `=AND(Dose > 0, Visit <= 3, IS_DEFINED(Dose))`.
 
 ## Distributions
 

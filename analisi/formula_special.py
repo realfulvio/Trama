@@ -43,5 +43,10 @@ SPECIAL_FORMULA_FUNCTIONS = {
     "IBETA": (3, _special("betainc", lambda a, b, x: (a > 0) & (b > 0) & (x >= 0) & (x <= 1))),
     "BESSELJ": (2, _special("jv")),
     "BESSELY": (2, _special("yv", lambda order, x: x > 0)),
+    "BESSELI": (2, _special("iv")),
+    "BESSELK": (2, _special("kv", lambda order, x: x > 0)),
+    "HYPGEOMETRICM": (3, _special("hyp1f1")),
+    "HYPGEOMETRICU": (3, _special("hyperu", lambda a, b, x: x >= 0)),
+    "HYPGEOMETRICF": (4, _special("hyp2f1")),
     "PERC": (1, lambda x: np.divide(x, 100)),
 }
