@@ -155,7 +155,8 @@ def _lower(nodes, *, in_arguments=False):
         name = _word(result[-1]) if result else ""
         conditional = name in CONDITIONAL_CALLS
         if clause not in WINDOW_CLAUSES and not conditional:
-            result.extend([_OPEN, *_lower(node, in_arguments=bool(name)), _CLOSE])
+            in_call = bool(name) and result[-1][1] not in {"and", "or", "not"}
+            result.extend([_OPEN, *_lower(node, in_arguments=in_call), _CLOSE])
             continue
         statistic = CONDITIONAL_CALLS.get(name, name)
         if statistic not in WINDOW_CALLS:

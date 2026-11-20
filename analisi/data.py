@@ -154,7 +154,7 @@ def _remainder(left, right):
 
 BINARY = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
           ast.Div: operator.truediv, ast.Pow: operator.pow, ast.Mod: _remainder}
-COMPARE = {ast.Eq: operator.eq, ast.NotEq: operator.ne, ast.Gt: operator.gt,
+COMPARE = {ast.Eq: operator.eq, ast.NotEq: operator.ne, ast.Is: operator.eq, ast.IsNot: operator.ne, ast.Gt: operator.gt,
            ast.Lt: operator.lt, ast.GtE: operator.ge, ast.LtE: operator.le}
 def _conditional(condition, yes, no):
     # Object arrays avoid an allocation proportional to text width times row count.
@@ -338,20 +338,63 @@ FUNCTIONS = {
 }
 
 
+SHEET_LOGIC = {"and", "or", "not"}
+
+
+def _after_operand(token):
+    kind, value = token
+    return (kind in {tokenize.NUMBER, tokenize.STRING} or (kind, value) == (tokenize.OP, ")")
+            or kind == tokenize.NAME and value not in SHEET_LOGIC and value.upper() not in WINDOW_CLAUSES | {"BY"})
+
+
+def worksheet_logic_tokens(tokens):
+    """Lower logical keywords in operator positions, preserving columns and string literals."""
+    insignificant = {tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.ENDMARKER}
+    significant = [(token.type, token.string) for token in tokens if token.type not in insignificant]
+    result = []
+    previous = (None, "")
+    for index, (kind, value) in enumerate(significant):
+        following = significant[index + 1] if index + 1 < len(significant) else (None, "")
+        if kind == tokenize.NAME and value.lower() in SHEET_LOGIC:
+            name = value.lower()
+            after_operand = _after_operand(previous)
+            if name in {"and", "or"} and after_operand:
+                value = name
+            elif following == (tokenize.OP, "("):
+                value = name.upper()
+            elif name == "not" and not after_operand and following[0] in {
+                    tokenize.NAME, tokenize.NUMBER, tokenize.STRING}:
+                value = name
+        previous = (kind, value)
+        result.append(previous)
+    return result
+
+
 def _formula_operators(tokens):
     result = []
     previous = (None, "")
-    for token in tokens:
-        kind, value = token.type, token.string
+    for kind, value in worksheet_logic_tokens(tokens):
         if kind == tokenize.OP and value == "^":
             value = "**"
-        elif kind == tokenize.NAME and value.upper() == "MOD":
-            operand = (previous[0] in {tokenize.NUMBER, tokenize.STRING} or previous == (tokenize.OP, ")")
-                       or previous[0] == tokenize.NAME and previous[1].upper() not in WINDOW_CLAUSES | {"BY"})
-            if operand:
-                kind, value = tokenize.OP, "%"
+        elif kind == tokenize.NAME and value.upper() == "MOD" and _after_operand(previous):
+            kind, value = tokenize.OP, "%"
+        elif kind == tokenize.NAME and value == "is":
+            raise ValueError("Use = or <> for a worksheet comparison.")
         previous = (kind, value)
         result.append(previous)
+    return result
+
+
+def _worksheet_comparisons(tokens):
+    """Reserve the otherwise unsupported AST identity slots for caseless = and <>."""
+    result = []
+    for token in tokens:
+        if token == (tokenize.OP, "="):
+            result.append((tokenize.NAME, "is"))
+        elif token == (tokenize.OP, ">") and result and result[-1] == (tokenize.OP, "<"):
+            result[-1:] = [(tokenize.NAME, "is"), (tokenize.NAME, "not")]
+        else:
+            result.append(token)
     return result
 
 
@@ -361,8 +404,8 @@ def _formula_tree(expression):
         raise ValueError("Enter a formula of up to 2048 characters.")
     try:
         tokens = tokenize.generate_tokens(StringIO(source).readline)
-        operators = _formula_operators(tokens)
-        return ast.parse(tokenize.untokenize(lower_window_clauses(operators)), mode="eval")
+        window = lower_window_clauses(_formula_operators(tokens))
+        return ast.parse(tokenize.untokenize(_worksheet_comparisons(window)), mode="eval")
     except (SyntaxError, tokenize.TokenError) as error:
         raise ValueError("Invalid formula syntax.") from error
 
@@ -410,8 +453,13 @@ def formula(frame, expression, *, info=None):
             return float(node.value) if type(node.value) in {int, float} else node.value
         if isinstance(node, ast.Name):
             return column(node.id, raw=raw)
-        if isinstance(node, ast.UnaryOp) and type(node.op) in {ast.UAdd, ast.USub}:
+        if isinstance(node, ast.BoolOp) and type(node.op) in {ast.And, ast.Or}:
+            operation = np.logical_and if isinstance(node.op, ast.And) else np.logical_or
+            return reduce(operation, (evaluate(value, filter_text=filter_text) for value in node.values))
+        if isinstance(node, ast.UnaryOp) and type(node.op) in {ast.UAdd, ast.USub, ast.Not}:
             result = evaluate(node.operand, filter_text=filter_text)
+            if isinstance(node.op, ast.Not):
+                return np.logical_not(result)
             return -result if isinstance(node.op, ast.USub) else +result
         if isinstance(node, ast.BinOp) and type(node.op) in BINARY:
             lhs = evaluate(node.left, filter_text=filter_text)
@@ -420,12 +468,16 @@ def formula(frame, expression, *, info=None):
                 raise ValueError("Arithmetic requires numeric operands.")
             return BINARY[type(node.op)](lhs, rhs)
         if isinstance(node, ast.Compare) and len(node.ops) == 1 and type(node.ops[0]) in COMPARE:
-            lhs, rhs = evaluate(node.left, filter_text=filter_text), evaluate(node.comparators[0], filter_text=filter_text)
-            if filter_text:
+            operation = type(node.ops[0])
+            lhs = evaluate(node.left, filter_text=filter_text)
+            rhs = evaluate(node.comparators[0], filter_text=filter_text)
+            if filter_text or operation in {ast.Is, ast.IsNot}:
                 lhs, rhs = _casefold_text(lhs), _casefold_text(rhs)
-            return COMPARE[type(node.ops[0])](lhs, rhs)
+            return COMPARE[operation](lhs, rhs)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.keywords:
             name = node.func.id.upper()
+            if name == "CASE_INSENSITIVE" and len(node.args) == 1:
+                return evaluate(node.args[0], raw=raw, filter_text=True)
             if name in {"COL", "INFO"} and len(node.args) == 1 and isinstance(node.args[0], ast.Constant):
                 value = node.args[0].value
                 if isinstance(value, str):
@@ -448,11 +500,12 @@ def formula(frame, expression, *, info=None):
                             for node in rows.elts):
                         raise ValueError("Invalid worksheet row bounds.")
                     bounds = tuple(node.value for node in rows.elts)
-                group = None if absent(partition) else evaluate(partition, raw=True)
+                group = None if absent(partition) else evaluate(partition, raw=True, filter_text=filter_text)
                 mask = None if absent(condition) else evaluate(condition, filter_text=True)
-                sort_keys = [(evaluate(key, raw=True), direction.value)
+                sort_keys = [(evaluate(key, raw=True, filter_text=filter_text), direction.value)
                              for key, direction in zip(keys, directions, strict=True) if not absent(key)]
-                return worksheet_statistic(statistic.value, evaluate(values, raw=True), group, mask, len(frame),
+                return worksheet_statistic(statistic.value, evaluate(values, raw=True, filter_text=filter_text),
+                                           group, mask, len(frame),
                                            sort_keys=sort_keys, bounds=bounds)
             if name in FUNCTIONS:
                 arity, function = FUNCTIONS[name]

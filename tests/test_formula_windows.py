@@ -56,27 +56,33 @@ class WindowFormulaTests(unittest.TestCase):
                 write("document.json", {"sheets": {"data": ["source"]}})
                 write("data/sheets/source/sheet.json", {"title": "Visits", "table": {
                     "uid": "values", "format": "multivariable", "dataFormat": "y_single",
-                    "dataSets": ["group", "visit", "x", "label", "special"],
+                    "dataSets": ["group", "visit", "x", "label", "special", "logic"],
                 }})
                 write("data/sets/group.json", {"title": "Study group", "currentType": "categorical"})
                 write("data/sets/visit.json", {"title": "Visit"})
                 write("data/sets/x.json", {"title": "Input"})
                 for ident, title, expression in (("label", "Row ID", 'CONCATENATE(A, "-", B)'),
-                                                 ("special", "Special value", "HYPGEOMETRICM(2, 2, C)")):
+                                                 ("special", "Special value", "HYPGEOMETRICM(2, 2, C)"),
+                                                 ("logic", "Decision",
+                                                  'IF(A >= "treatment" AND NOT B = 0, "Drug", "Other")')):
                     write(f"data/sets/{ident}.json", {"title": title, "valuesStorageData": {
                         "@class": "TransformDataSource", "transform": expression,
                     }})
-                archive.writestr("data/tables/values/data.csv", "Placebo,3,.5,stored,999\nTreatment,1,.84,stored,999\n")
+                archive.writestr("data/tables/values/data.csv",
+                                 "Placebo,3,.5,stored,999,stored\nTreatment,1,.84,stored,999,stored\n")
             data = Dataset(load_tables(source)["Visits"])
-            self.assertEqual(set(data.formulas), {"Row ID", "Special value"})
+            self.assertEqual(set(data.formulas), {"Row ID", "Special value", "Decision"})
             self.assertEqual(data.frame()["Row ID"].tolist(), ["Placebo-3", "Treatment-1"])
+            self.assertEqual(data.frame()["Decision"].tolist(), ["Other", "Drug"])
             data.raw.iat[0, 1] = 7
+            data.raw.iat[1, 1] = 0
             data.raw.iat[1, 2] = .5
             dest = Path(directory) / "saved.alab"
             save_project(dest, {"Visits": data})
             reopened = load_project(dest)["Visits"]
         self.assertEqual(reopened.formulas, data.formulas)
-        self.assertEqual(reopened.frame()["Row ID"].tolist(), ["Placebo-7", "Treatment-1"])
+        self.assertEqual(reopened.frame()["Row ID"].tolist(), ["Placebo-7", "Treatment-0"])
+        self.assertEqual(reopened.frame()["Decision"].tolist(), ["Other", "Other"])
         np.testing.assert_allclose(reopened.frame()["Special value"], [np.exp(.5)] * 2)
 
     def test_variadic_logical_calls_mix_row_vectors_and_scalar_comparisons(self):
@@ -85,6 +91,29 @@ class WindowFormulaTests(unittest.TestCase):
         self.assertEqual(formula(frame, f'IF({condition}, "ok", "skip")').tolist(), ["ok", "skip", "ok"])
         expression = 'COUNTIF(X, AND(Group = "A", X >= 1, OR(X = 1, X = 2, X = 3)))'
         np.testing.assert_array_equal(formula(frame, expression), [1, 1, 1])
+
+    def test_infix_logic_uses_rowwise_comparisons_and_documented_precedence(self):
+        frame = pd.DataFrame({"Dose": [1., 2., 2., 3.], "Tag": ["SKIP", "ok", "skip", "OK"],
+                              "OR": [2] * 4, "AND": [3] * 4, "NOT": [5] * 4})
+        expression = 'IF(Dose = 1 or Dose = 2 AnD nOt Tag = "skip", Tag, "no")'
+        self.assertEqual(formula(frame, expression).tolist(), ["SKIP", "ok", "no", "no"])
+        expression = 'IF((Dose = 1 OR Dose = 2) AND Tag <> "sKiP", Tag, "no")'
+        self.assertEqual(formula(frame, expression).tolist(), ["no", "ok", "no", "no"])
+        self.assertEqual(formula(frame, 'IF(Tag == "skip", 1, 0)').tolist(), [0, 0, 1, 0])
+        self.assertEqual(formula(frame, "OR + AND + NOT").tolist(), [10] * 4)
+        self.assertEqual(formula(frame, 'IF(Dose > 1 AND (Tag = "OK" OR Tag = "m"), 1, 0)').tolist(),
+                         [0, 1, 0, 1])
+        self.assertEqual(formula(frame, 'count(Dose) WHERE Dose < 3 AND noT Tag = "SKIP"').tolist(), [1] * 4)
+        self.assertEqual(formula(frame, 'IF(Dose > 0 and (SUM(Dose) ORDER BY Tag, Dose ROWS UNBOUNDED PRECEDING) > 0, 1, 0)').tolist(),
+                         [1] * 4)
+
+    def test_comparison_syntax_keeps_literal_strings_and_rejects_assignment_and_identity(self):
+        frame = pd.DataFrame({"Group": ["A and B", "a AND b"]})
+        self.assertEqual(formula(frame, 'IF(Group = "A AND B", "AND <> literal", "-")').tolist(),
+                         ["AND <> literal"] * 2)
+        for expression in ("Group := 3", "Group is Group", "Group <>", "IF(Group = 2, 1, __import__('os'))"):
+            with self.subTest(expression=expression), self.assertRaises(ValueError):
+                formula(frame, expression)
 
     def test_group_statistics_distinguish_text_and_numbers_and_leave_missing_groups_blank(self):
         out = formula(self.frame, '=mean(X) over COL("Category")')

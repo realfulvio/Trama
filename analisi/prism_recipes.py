@@ -349,7 +349,7 @@ def _nonlinear(frame, content, _results):
 
 
 def _select_transform(frame, content, _results):
-    from .prism_import import _FORMULA_CALLS, _formula_recipe, _letters
+    from .prism_import import _formula_recipe, _letters
     from .select_transform import CALCULATED, COMPARISONS, FILTERS, MAX_RULES, SELECT_TRANSFORM
 
     filters = content["rowFilters"]
@@ -390,7 +390,7 @@ def _select_transform(frame, content, _results):
         if title in names or title.strip() != title or len(calculated) >= MAX_RULES:
             return None
         try:
-            expression, _ = _formula_recipe(definition, letters, _FORMULA_CALLS | {"IF"})
+            expression, _ = _formula_recipe(definition, letters)
         except (ValueError, tokenize.TokenError):
             return None
         calculated.append({"name": title, "expression": expression})

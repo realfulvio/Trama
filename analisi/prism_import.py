@@ -12,7 +12,7 @@ from zipfile import BadZipFile, ZipFile, is_zipfile
 import numpy as np
 
 from .data import (COLUMN_FORMULA_FUNCTIONS, ELEMENTWISE_FORMULA_FUNCTIONS, MAX_CELLS, MAX_COLUMNS, MAX_ENTRY,
-                   _member, _table, formula)
+                   SHEET_LOGIC, _member, _table, formula, worksheet_logic_tokens)
 from .formula_windows import CONDITIONAL_CALLS, WINDOW_CALLS, WINDOW_CLAUSES, WINDOW_KEYWORDS
 from .info import InfoSheet, MAX_INFO_FIELDS, MAX_INFO_SHEETS
 
@@ -29,7 +29,8 @@ _ZIP_SUMMARY = {key: _Y_SUMMARY[value] for key, value in {
     "y_plus_minus": "low-high", "y_high_low": "upper-lower-limits",
 }.items()}
 # These calls have matching semantics in the Prism and TramaStat evaluators.
-_FORMULA_CALLS = ELEMENTWISE_FORMULA_FUNCTIONS.keys() | COLUMN_FORMULA_FUNCTIONS.keys() | {"MIN", "MAX", "SUM"}
+_FORMULA_CALLS = (ELEMENTWISE_FORMULA_FUNCTIONS.keys() | COLUMN_FORMULA_FUNCTIONS.keys()
+                  | {"MIN", "MAX", "SUM", "IF", "AND", "OR", "NOT"})
 
 
 def _store_table(tables, title, frame):
@@ -66,25 +67,26 @@ def _identifier(value):
     return value
 
 
-def _formula_recipe(expression, columns, allowed_calls=_FORMULA_CALLS):
+def _formula_recipe(expression, columns):
     if not isinstance(expression, str) or len(expression) > 2048:
         raise ValueError("Unsupported Prism formula.")
     expression = expression.strip().removeprefix("=").strip()
-    tokens = list(tokenize.generate_tokens(StringIO(expression).readline))
-    window_form = any(token.type == tokenize.NAME and token.string.upper() in (WINDOW_CLAUSES | CONDITIONAL_CALLS.keys())
-                      for token in tokens)
-    if window_form:
-        allowed_calls = allowed_calls | WINDOW_CALLS | CONDITIONAL_CALLS.keys() | {"AND", "OR", "NOT"}
+    tokens = worksheet_logic_tokens(tokenize.generate_tokens(StringIO(expression).readline))
+    window_form = any(kind == tokenize.NAME and value.upper() in WINDOW_CLAUSES | CONDITIONAL_CALLS.keys()
+                      for kind, value in tokens)
+    allowed_calls = _FORMULA_CALLS | WINDOW_CALLS | CONDITIONAL_CALLS.keys() if window_form else _FORMULA_CALLS
     result, dependencies = [], set()
-    for i, token in enumerate(tokens):
-        kind, value = token.type, token.string
+    compare_text = False
+    for i, (kind, value) in enumerate(tokens):
         if kind == tokenize.NAME:
-            called = i + 1 < len(tokens) and tokens[i + 1].string == "("
-            if called and value.upper() in allowed_calls:
+            called = i + 1 < len(tokens) and tokens[i + 1] == (tokenize.OP, "(")
+            if value in SHEET_LOGIC:
+                pass
+            elif called and value.upper() in allowed_calls:
                 value = value.upper()
             elif not called and window_form and (
                     value.upper() in WINDOW_KEYWORDS or (value.upper() == "BY" and i > 0
-                                                         and tokens[i - 1].string.upper() == "ORDER")):
+                                                         and tokens[i - 1][1].upper() == "ORDER")):
                 value = value.upper()
             elif not called and value.upper() == "MOD" and value not in columns:
                 value = "MOD"
@@ -96,8 +98,13 @@ def _formula_recipe(expression, columns, allowed_calls=_FORMULA_CALLS):
                 continue
             else:
                 raise ValueError("Unsupported Prism formula reference or function.")
+        elif kind == tokenize.OP and value in {"=", "==", "!=", ">", "<", ">=", "<="}:
+            compare_text = True
         result.append((kind, value))
-    return "=" + tokenize.untokenize(result).strip(), dependencies
+    recipe = tokenize.untokenize(result).strip()
+    if compare_text:
+        recipe = f"CASE_INSENSITIVE(({recipe}))"
+    return "=" + recipe, dependencies
 
 
 def _letters(index):

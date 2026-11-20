@@ -83,6 +83,16 @@ each row. Numbers are converted to text, blanks contribute an empty string,
 and spaces and punctuation in text arguments are preserved. `AND` and `OR`
 take two or more conditions, for example `=AND(Dose > 0, Visit <= 3, IS_DEFINED(Dose))`.
 
+You can also put `AND` and `OR` between conditions and `NOT` before a condition.
+For example, `=IF(Dose > 0 AND Visit <= 3, "Include", "Review")` evaluates each row
+separately. Comparisons are evaluated before `NOT`, then `AND`, then `OR`.
+Use parentheses to group conditions.
+
+`=` and `<>` compare text without regard to case. Existing `==` and `!=`
+comparisons outside filters are case-sensitive. Use `CASE_INSENSITIVE(expression)`
+to apply case-insensitive comparisons throughout an expression, including ordering
+comparisons. Imported formulas use it where needed to preserve their comparison rules.
+
 ## Distributions
 
 Use [probability, density and quantile formulas](distribution-formulas.md)
