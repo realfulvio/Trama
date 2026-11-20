@@ -527,29 +527,29 @@ def staircase(curve):
 
 def _figure(plan, curves, intervals):
     settings = plan.settings
-    figure, axes = _plot(f"Precision–recall curve · {plan.n:,} samples, prevalence {plan.prevalence:.3g}",
-                         "Recall", "Precision")
+    figure, axes = _plot(f"Precision–recall curve · {plan.n:,} samples", "Recall", "Precision")
     axes._tramastat_numeric_axes = ("x", "y")
     for number, (curve, color) in enumerate(zip(curves, COLORS, strict=False)):
         text = f"{curve.name}: AP {curve.ap:.4g}"
         if intervals is not None:
             low, high = intervals["scores"][number]
-            text += f" ({settings.level:g}% CI {low:.3g} to {high:.3g})"
+            text += f"\n{settings.level:g}% CI {low:.3g} to {high:.3g}"
         line, = axes.plot(*staircase(curve), color=color, linewidth=2, zorder=3, label=text)
         line.set_gid(f"{GID}curve-{'ab'[number]}")
     reference = axes.axhline(plan.prevalence, color=REFERENCE_COLOR, linestyle="--", linewidth=1.3, zorder=1,
-                             label=f"Prevalence {plan.prevalence:.3g}")
+                             label=f"Prevalence {plan.prevalence:.3g} ({plan.positives:,} positives)")
     reference.set_gid(f"{GID}prevalence")
     if len(curves) == 2:
-        text = f"AP difference ({curves[1].name} − {curves[0].name}): {curves[1].ap - curves[0].ap:.3g}"
+        text = f"AP difference (second − first score): {curves[1].ap - curves[0].ap:.3g}"
         if intervals is not None:
             low, high = intervals["difference"]
-            text += f" ({settings.level:g}% CI {low:.3g} to {high:.3g})"
+            text += f"\n{settings.level:g}% CI {low:.3g} to {high:.3g}"
         axes.plot([], [], " ", label=text)
     axes.set_xlim(0, 1)
     axes.set_ylim(0, 1.02)
-    legend = axes.legend(loc="lower left", fontsize=8.5)
-    _plain(axes.title, *legend.get_texts())
+    # Under the axes, one entry per line: the instrument names are the user's own and can be long.
+    legend = figure.legend(loc="outside lower center", ncols=1, fontsize=8.5, frameon=False)
+    _plain(axes.title, axes.xaxis.label, axes.yaxis.label, *legend.get_texts())
     return figure
 
 

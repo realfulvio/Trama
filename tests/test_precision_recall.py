@@ -492,21 +492,22 @@ class FigureAndRegistrationTests(unittest.TestCase):
         gids = [line.get_gid() for line in axes.lines]
         self.assertEqual(gids[:3], ["precision-recall:curve-a", "precision-recall:curve-b",
                                     "precision-recall:prevalence"])
-        labels = [text.get_text() for text in axes.get_legend().get_texts()]
+        labels = [text.get_text() for text in figure.legends[0].get_texts()]
         self.assertTrue(labels[0].startswith("Signal A: AP 0.7222"), labels)
-        self.assertIn("Prevalence 0.375", labels)
-        self.assertTrue(any(text.startswith("AP difference (Signal B − Signal A)") for text in labels))
+        self.assertIn("Prevalence 0.375 (3 positives)", labels)
+        self.assertTrue(any(text.startswith("AP difference (second − first score)") for text in labels))
         self.assertEqual(axes.get_xlabel(), "Recall")
         self.assertEqual(axes.get_ylabel(), "Precision")
         self.assertEqual(len(axes.patches) + len(axes.collections), 0)  # no bands
         self.assertEqual(axes.get_ylim(), (0, 1.02))
+        self.assertEqual(axes.get_title(), "Precision–recall curve · 8 samples")
 
     def test_bootstrap_interval_is_text_in_the_legend_not_a_band(self):
         frame = simulated_scores()
         figure = analyse(pr.METHOD, frame, {**SIM, "Bootstrap CI": True, "Bootstrap replicates": 199}).figure
         axes = figure.axes[0]
         self.assertEqual(len(axes.patches) + len(axes.collections), 0)
-        self.assertIn("95% CI", axes.get_legend().get_texts()[0].get_text())
+        self.assertIn("95% CI", figure.legends[0].get_texts()[0].get_text())
 
     def test_figure_is_vector_exportable_and_pickles(self):
         import io

@@ -97,7 +97,7 @@ class PrecisionRecallBinding:
         text = _text("samples", n=f"{plan.n:,}", positives=f"{plan.positives:,}", negatives=f"{plan.negatives:,}",
                      prevalence=_number(plan.prevalence))
         if plan.excluded:
-            text += " " + _text("left_out", count=len(plan.excluded))
+            text += "\n" + _text("left_out", count=len(plan.excluded))
         self.info.setText(text)
 
     def check(self, options):
