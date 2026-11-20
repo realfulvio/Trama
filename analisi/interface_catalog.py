@@ -154,6 +154,10 @@ Hierarchy graph|Grafico del raggruppamento gerarchico
 Choose a linked Merges result from hierarchical clustering.|Scegli un risultato Merges collegato a un raggruppamento gerarchico.
 Choose a hierarchy graph type.|Scegli un tipo di grafico per il raggruppamento gerarchico.
 Choose an axis fitted by the source hierarchy.|Scegli un asse calcolato dal raggruppamento sorgente.
+Leaf ordering|Ordine delle foglie
+Optimal|Ottimale
+Choose Default or Optimal leaf ordering.|Scegli l’ordine delle foglie Predefinito oppure Ottimale.
+Optimal leaf ordering is limited to 2000 leaves per axis. Use fewer observations or variables, or choose Default.|L’ordine ottimale delle foglie è limitato a 2000 foglie per asse. Usa meno osservazioni o variabili, oppure scegli Predefinito.
 Scatter / confidence ellipse|Dispersione / ellisse di confidenza
 Column graph|Grafico a colonne
 Heat map|Mappa di calore

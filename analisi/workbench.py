@@ -1265,7 +1265,7 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
     if method == "Kaplan–Meier survival":
         return _classic_analysis(method, frame, o, "Time", _survival)
     if method == "Hierarchical clustering":
-        return hierarchical_result(frame, o)
+        return hierarchical_result(frame, o, cancel=cancel)
     if method == HIERARCHY_GRAPH:
         return hierarchy_graph(frame, o)
     if method == SELECT_TRANSFORM:
