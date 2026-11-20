@@ -1,11 +1,13 @@
 """Regression tests for Hartigan–Wong on full worksheet and Gap fitting paths."""
 import unittest
+from threading import Event
 from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 
 from analisi import advanced, kmeans_options as option, kmeans_reports
+from analisi.analysis_chain import ChainCancelled
 from analisi.field_error import FieldError
 from analisi.workbench import analyse
 from analisi.prism_recipes import restore_recipe
@@ -106,6 +108,7 @@ class KmeansOptionsTests(unittest.TestCase):
         self.assertEqual(options[option.SCALE], option.STANDARDIZED)
         self.assertEqual(options["Criterion"], "Consensus (17 indices)")
         self.assertEqual(options["Krzanowski–Lai scaling"], "Unscaled WSS")
+        self.assertEqual(options[option.GAP_REFERENCE], option.GAP_PRINCIPAL_AXES)
         tables = analyse(method, self.frame, options).tables
         self.assertEqual(tables["Selection"].loc["Suggested k", "Value"], 3)
         content["calc"]["algorithm"] = "MACQUEEN"
@@ -133,3 +136,30 @@ class KmeansOptionsTests(unittest.TestCase):
                     self.assertNotIn("Centered observations", tables)
         content["calc"]["distance"]["type"] = "MANHATTAN"
         self.assertIsNone(restore_recipe(sheet, parameters, frames))
+
+    def test_selected_gap_geometry_is_recorded_and_validated(self):
+        options = {**self.options, "Criterion": "Gap", "Maximum k": 4, "Gap simulations": 5,
+                   option.GAP_REFERENCE: option.GAP_PRINCIPAL_AXES}
+        result = analyse(option.SELECTION, self.frame, options)
+        self.assertEqual(result.tables["Selection"].loc[option.GAP_REFERENCE, "Value"], option.GAP_PRINCIPAL_AXES)
+        with self.assertRaises(FieldError) as caught:
+            analyse(option.SELECTION, self.frame, {**options, option.GAP_REFERENCE: "unknown"})
+        self.assertEqual(caught.exception.field, option.GAP_REFERENCE)
+
+    @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
+    def test_cancelling_gap_stops_before_the_next_fit(self):
+        cancel = Event()
+        fits = []
+        original = advanced.kmeans
+
+        def fit(*args, **kwargs):
+            fits.append(args[2])
+            result = original(*args, **kwargs)
+            if len(fits) == 3:  # two observed fits and one reference fit
+                cancel.set()
+            return result
+
+        options = {**self.options, "Criterion": "Gap", "Maximum k": 2, "Gap simulations": 5}
+        with patch.object(advanced, "kmeans", side_effect=fit), self.assertRaises(ChainCancelled):
+            analyse(option.SELECTION, self.frame, options, cancel=cancel)
+        self.assertEqual(fits, [1, 2, 1])

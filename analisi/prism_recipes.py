@@ -487,9 +487,11 @@ def _kmeans(frame, content, _results):
     return selection.SELECTION, {
         "Variables": variables, "Minimum k": low, "Maximum k": high, selection.SCALE: scale, "Seed": seed,
         "Criterion": "Consensus (17 indices)", "Gap simulations": gap_replicates, KL_SCALING: UNSCALED_WSS,
+        selection.GAP_REFERENCE: selection.GAP_PRINCIPAL_AXES,
         selection.ALGORITHM: algorithm, selection.ITERATION_FIELDS[algorithm]: iterations, **reports,
         "Prism import notes": (
-            f"Recalculates the saved {algorithm} settings with Trama initial centers and 20 Gap simulations. "
+            f"Recalculates the saved {algorithm} settings with Trama initial centers and "
+            f"{gap_replicates} Gap simulations along principal components. "
             "Recreates enabled WSS, silhouette and Gap plots with native formatting. "
             "Saved partitions, tables and plots remain in archived views where available."
         ),

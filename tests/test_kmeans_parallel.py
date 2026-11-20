@@ -8,6 +8,7 @@ import pandas as pd
 
 from analisi import advanced, parallel
 from analisi.advanced import kmeans_scan
+from analisi.kmeans_options import GAP_PRINCIPAL_AXES
 
 
 RNG = np.random.default_rng(11)
@@ -114,6 +115,10 @@ class ParallelScanTests(unittest.TestCase):
                 self.assertEqual(outcome["legacy"] is None, allow)
                 if allow:
                     pd.testing.assert_frame_equal(found, expected, check_exact=True)
+
+    def test_principal_axes_use_the_same_stream_across_workers(self):
+        options = dict(max_k=4, criterion="gap", gap_replicates=6, gap_reference=GAP_PRINCIPAL_AXES)
+        self.assertSameScan(scan(1, **options), scan(3, **options))
 
 
 if __name__ == "__main__":

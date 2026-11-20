@@ -85,6 +85,26 @@ class ClusterScanTests(unittest.TestCase):
         self.assertIsNone(constant.recommended_k)
         self.assertTrue(constant.metrics["Gap"].isna().all())
 
+    def test_gap_reference_along_principal_axes(self):
+        from analisi.kmeans_options import GAP_PRINCIPAL_AXES, GAP_VARIABLE_RANGES
+
+        # A translated, rotated rectangle with distinct principal axes and
+        # exact known side lengths in the input scale.
+        rectangle = np.array([[-5., -1.], [-5., 1.], [5., -1.], [5., 1.]])
+        rotation = np.array([[.6, -.8], [.8, .6]])
+        frame = pd.DataFrame(rectangle @ rotation + [12., -7.], columns=["x", "y"])
+        options = dict(max_k=1, criterion="gap", gap_replicates=8, seed=17)
+        canonical = kmeans_scan(frame, list(frame), **options)
+        variables = kmeans_scan(frame, list(frame), gap_reference=GAP_VARIABLE_RANGES, **options)
+        pd.testing.assert_frame_equal(canonical.metrics, variables.metrics, check_exact=True)
+        principal = kmeans_scan(frame, list(frame), gap_reference=GAP_PRINCIPAL_AXES, **options)
+        references = np.random.default_rng(17).uniform([-5., -1.], [5., 1.], (8, 4, 2))
+        log_wss = np.log(((references - references.mean(axis=1, keepdims=True)) ** 2).sum(axis=(1, 2)))
+        self.assertAlmostEqual(principal.metrics.loc[1, "WSS"], 104.)
+        self.assertAlmostEqual(principal.metrics.loc[1, "Gap"], log_wss.mean() - np.log(104.))
+        self.assertAlmostEqual(principal.metrics.loc[1, "Gap SE"], log_wss.std() * np.sqrt(1 + 1 / 8))
+        self.assertNotAlmostEqual(principal.metrics.loc[1, "Gap"], variables.metrics.loc[1, "Gap"])
+
     def test_criteria_and_scan_limits(self):
         frame = self.frame
         for criterion in ["calinski-harabasz", "davies-bouldin"]:

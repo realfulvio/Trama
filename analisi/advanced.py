@@ -11,8 +11,10 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from statsmodels.stats.multitest import multipletests
 
 from . import cluster_consensus as consensus
+from .analysis_chain import ChainCancelled
 from .anova_terms import CONTROL_FIELD
 from .field_error import FieldError
+from .kmeans_options import GAP_GEOMETRIES, GAP_PRINCIPAL_AXES, GAP_REFERENCE, GAP_VARIABLE_RANGES
 from .parallel import run_tasks
 from .stats import Clusters, _anova_model, _cluster_data, _design_grid, kmeans
 
@@ -68,7 +70,12 @@ def _cluster_scores(values, distances, fit):
     return silhouettes.mean(), calinski, davies
 
 
-def _reference_inertias(job):
+def _check_scan_cancel(cancel):
+    if cancel is not None and cancel.is_set():
+        raise ChainCancelled("K-means model selection cancelled.")
+
+
+def _reference_inertias(job, cancel=None):
     """WSS of one Gap reference set for every eligible k, or the error of that fit (worker task).
 
     Errors are returned, not raised: whether one matters depends on the earlier replicates, which the
@@ -77,6 +84,7 @@ def _reference_inertias(job):
     reference = pd.DataFrame(values, columns=columns)
     found = []
     for count in counts:
+        _check_scan_cancel(cancel)
         try:
             found.append(kmeans(reference, columns, count, seed=seed, **fit_options).inertia)
         except Exception as error:
@@ -84,18 +92,29 @@ def _reference_inertias(job):
     return found
 
 
-def _scan_fit(job):
+def _scan_fit(job, cancel=None):
     """One observed k-means fit of the scan (worker task)."""
+    _check_scan_cancel(cancel)
     data, columns, count, standardize, seed, retain_initial, fit_options = job
     return kmeans(data, columns, count, standardize, seed, retain_initial=retain_initial, **fit_options)
 
 
-def _gap_scores(metrics, values, columns, seed, replicates, *, allow_failed_references=False, fit_options):
+def _gap_scores(metrics, values, columns, seed, replicates, *, allow_failed_references=False,
+                fit_options, reference_geometry=GAP_VARIABLE_RANGES, cancel=None):
     metrics["Gap"] = np.nan
     metrics["Gap SE"] = np.nan
     eligible = metrics.index[(metrics.index < len(values)) & (metrics["WSS"] > 0)]
     if eligible.empty:
         return
+    if reference_geometry == GAP_PRINCIPAL_AXES:
+        # Distances are Euclidean. Fit the simulated points directly in the
+        # orthogonal coordinates where they were drawn.
+        centered = values - values.mean(axis=0)
+        left, singular, right = np.linalg.svd(centered, full_matrices=False)
+        pivots = np.argmax(np.abs(right), axis=1)
+        signs = np.where(right[np.arange(len(right)), pivots] < 0, -1, 1)
+        values = left * (singular * signs)
+        columns = list(columns)[:values.shape[1]]
     low, high = values.min(axis=0), values.max(axis=0)
     rng = np.random.default_rng(seed)
     reference_wss = np.full((replicates, len(eligible)), np.nan)
@@ -106,7 +125,7 @@ def _gap_scores(metrics, values, columns, seed, replicates, *, allow_failed_refe
     counts = tuple(eligible)
     jobs = [(rng.uniform(low, high, size=values.shape), columns, counts, seed, fit_options)
             for _ in range(replicates)]
-    for replica, found in enumerate(run_tasks(_reference_inertias, jobs)):
+    for replica, found in enumerate(run_tasks(_reference_inertias, jobs, cancel=cancel, with_cancel=True)):
         for index, inertia in enumerate(found):
             if index in failed:
                 continue
@@ -169,7 +188,7 @@ def _check_scan_budget(n, dimensions, candidates, pairwise, *, simulate_gap, gap
 def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="silhouette",
                 *, min_k=1, gap_replicates=20, kl_scaling=consensus.DIMENSION_ADJUSTED,
                 algorithm="lloyd", max_iterations=10, retain_fits=False, retain_initial=False,
-                include_gap=False, column_scale=None):
+                include_gap=False, column_scale=None, gap_reference=GAP_VARIABLE_RANGES, cancel=None):
     """Compare fits from min_k through max_k, capped at the distinct row count.
 
     The silhouette, Calinski–Harabasz and Davies–Bouldin scores require
@@ -177,8 +196,10 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
 
     The optional Gap criterion fits the same k-means procedure to B reference
     datasets with the observed row count and independent uniform variables
-    over their observed ranges in the analysis scale. Gap is mean log reference
-    WSS minus log observed WSS. Gap SE is sqrt(1 + 1/B) times the population
+    over their observed ranges in the analysis scale. Alternatively, the
+    ranges can be taken along the principal components of the scaled data.
+    Gap is mean log reference WSS minus log observed WSS. Gap SE is
+    sqrt(1 + 1/B) times the population
     SD of log reference WSS. Select the first k with Gap(k) >= Gap(k+1) minus
     Gap SE(k+1), falling back to the largest k with a finite Gap.
     include_gap also computes these columns for display with another criterion.
@@ -188,10 +209,13 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     k >= 2, and recommends the k with most votes (the smallest on a tie).
     Its metrics hold WSS, the 17 indices and Gap SE.
     """
+    _check_scan_cancel(cancel)
     if criterion not in {*_CLUSTER_METRICS, "elbow", "gap", "consensus"}:
         raise ValueError("Unknown cluster recommendation criterion.")
     if criterion == "consensus" and kl_scaling not in consensus.KL_CHOICES:
         raise FieldError(consensus.KL_SCALING, "Choose a supported Krzanowski–Lai scaling.")
+    if not isinstance(gap_reference, str) or gap_reference not in GAP_GEOMETRIES:
+        raise FieldError(GAP_REFERENCE, "Choose a supported Gap reference geometry.")
     if (any(isinstance(k, bool) or not isinstance(k, Integral) for k in (min_k, max_k))
             or not 1 <= min_k <= max_k <= 30):
         raise ValueError("Cluster limits must be integers with 1 ≤ minimum k ≤ maximum k ≤ 30.")
@@ -218,7 +242,9 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     # The fits are independent (each one seeds its own generator); scores follow in k order, as before.
     observed_options = {**fit_options, "column_scale": scale}
     jobs = [(data, columns, count, standardize, seed, retain_initial, observed_options) for count in candidates]
-    for count, outcome in zip(candidates, run_tasks(_scan_fit, jobs, outcomes=True), strict=True):
+    outcomes = run_tasks(_scan_fit, jobs, cancel=cancel, with_cancel=True, outcomes=True)
+    for count, outcome in zip(candidates, outcomes, strict=True):
+        _check_scan_cancel(cancel)
         if outcome.error is not None:
             raise outcome.error
         fit = outcome.value
@@ -231,7 +257,9 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     metrics = pd.DataFrame(rows, columns=["k", "WSS", *_CLUSTER_METRICS.values()]).set_index("k")
     if simulate_gap:
         _gap_scores(metrics, values, columns, seed, gap_replicates,
-                    allow_failed_references=criterion != "gap", fit_options=fit_options)
+                    allow_failed_references=criterion != "gap", fit_options=fit_options,
+                    reference_geometry=gap_reference, cancel=cancel)
+    _check_scan_cancel(cancel)
     if criterion == "consensus":
         outcome = _consensus_scan(metrics, partitions, fits, n, dimensions, kl_scaling=kl_scaling)
     else:

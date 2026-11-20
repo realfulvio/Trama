@@ -115,6 +115,7 @@ Column scaling|Scala delle colonne
 Standardized|Standardizzate
 Unscaled|Originali
 Choose a supported K-means column scaling.|Scegli come scalare le colonne per il k-means.
+Choose a supported Gap reference geometry.|Scegli la geometria del riferimento Gap.
 K-means algorithm|Algoritmo k-means
 Lloyd|Lloyd
 Hartigan–Wong|Hartigan–Wong
@@ -300,6 +301,9 @@ Maximum k|k massimo
 Standardize|Standardizza
 Criterion|Criterio
 Gap simulations|Simulazioni gap
+Gap reference geometry|Geometria del riferimento Gap
+Variable ranges|Intervalli delle variabili
+Principal component ranges|Intervalli delle componenti principali
 Krzanowski–Lai scaling|Scala di Krzanowski–Lai
 Clusters|Gruppi
 Observation labels|Etichette delle osservazioni

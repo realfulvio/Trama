@@ -286,7 +286,8 @@ METHODS = {
                                 kmeans_options.SCALE: tuple(kmeans_options.SCALES), "Seed": 42,
                                 "Criterion": ("Silhouette", "Elbow", "Calinski–Harabasz", "Davies–Bouldin", "Gap",
                                               "Consensus (17 indices)"),
-                                "Gap simulations": 20, KL_SCALING: KL_CHOICES,
+                                "Gap simulations": 20, kmeans_options.GAP_REFERENCE: kmeans_options.GAP_GEOMETRIES,
+                                KL_SCALING: KL_CHOICES,
                                 kmeans_options.ALGORITHM: kmeans_options.ALGORITHMS,
                                 kmeans_options.MAX_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                                 kmeans_options.MACQUEEN_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
@@ -624,10 +625,11 @@ def _consensus_selection(scan, o):
     return Result(tables, figure)
 
 
-def _cluster_selection(frame, o):
+def _cluster_selection(frame, o, *, cancel=None):
     plots = kmeans_options.plot_metrics(o)
     reports = kmeans_reports.requested(o, scan=True)
     scale = kmeans_options.scale(o)
+    reference = o.get(kmeans_options.GAP_REFERENCE, kmeans_options.GAP_VARIABLE_RANGES)
     criterion = {"Silhouette": "silhouette", "Elbow": "elbow", "Calinski–Harabasz": "calinski-harabasz",
                  "Davies–Bouldin": "davies-bouldin", "Gap": "gap",
                  "Consensus (17 indices)": "consensus"}[o["Criterion"]]
@@ -635,9 +637,11 @@ def _cluster_selection(frame, o):
                        column_scale=scale, min_k=o.get("Minimum k", 1), gap_replicates=o.get("Gap simulations", 20),
                        kl_scaling=o.get(KL_SCALING, DIMENSION_ADJUSTED), retain_fits=bool(reports),
                        retain_initial=kmeans_reports.CENTROIDS in reports,
-                       include_gap="Gap" in plots,
+                       include_gap="Gap" in plots, gap_reference=reference, cancel=cancel,
                        **kmeans_options.fit_options(kmeans_options.SELECTION, frame, o))
     result = _consensus_selection(scan, o) if criterion == "consensus" else _scan_result(scan, o, criterion)
+    if reference == kmeans_options.GAP_PRINCIPAL_AXES and "Gap" in scan.metrics:
+        result.tables["Selection"].loc[kmeans_options.GAP_REFERENCE, "Value"] = reference
     if reports:
         result.tables.update(kmeans_reports.result_tables(scan.report_fits, frame, scan.fitting_data, reports,
                                                           metrics=scan.metrics, column_scale=scale))
@@ -1243,9 +1247,10 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
     if method == LOGISTIC_VALIDATION:
         return logistic_validation(frame, o, cancel=cancel)
     if method in kmeans_options.METHODS:
-        solve = _cluster_selection if method == kmeans_options.SELECTION else _kmeans
         try:
-            return solve(frame, o)
+            if method == kmeans_options.SELECTION:
+                return _cluster_selection(frame, o, cancel=cancel)
+            return _kmeans(frame, o)
         except IterationLimitError as error:
             field = kmeans_options.ITERATION_FIELDS[o[kmeans_options.ALGORITHM]]
             raise FieldError(field, str(error)) from error

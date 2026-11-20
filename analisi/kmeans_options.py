@@ -21,6 +21,8 @@ WSS_PLOT = "Show WSS plot"
 SILHOUETTE_PLOT = "Show silhouette plot"
 GAP_PLOT = "Show Gap plot"
 PLOTS = {WSS_PLOT: "WSS", SILHOUETTE_PLOT: "Silhouette", GAP_PLOT: "Gap"}
+GAP_REFERENCE = "Gap reference geometry"
+GAP_VARIABLE_RANGES, GAP_PRINCIPAL_AXES = GAP_GEOMETRIES = ("Variable ranges", "Principal component ranges")
 
 
 def scale(options):
