@@ -1,8 +1,14 @@
 """Kaplan–Meier presentation options. Inference stays on the survival scale."""
-import numpy as np
-from matplotlib.ticker import PercentFormatter
+from dataclasses import dataclass
 
+from matplotlib.figure import Figure
+from matplotlib.ticker import PercentFormatter
+import numpy as np
+import pandas as pd
+
+from .analysis_chain import RESULT_CONTEXT
 from .processing import FieldError
+from .reporting import Result, _plot
 from .stats import _critical_value, ci_columns
 
 CURVE = "Curve"
@@ -11,14 +17,18 @@ MARKERS = "Observation markers"
 UNCERTAINTY = "Uncertainty"
 INTERVAL = "Interval method"
 RISK_TABLE = "Show risk table below graph"
+SURVIVAL_GRAPH = "Imported survival graph"
+SURVIVAL_SERIES = "Imported survival series order"
+SURVIVAL_SUMMARY = "Survival summary"
 SURVIVAL, CUMULATIVE = "Survival", "Cumulative events"
 FRACTION, PERCENT = "Fraction", "Percent"
 CENSORED, ALL, FINAL = "Censored observations", "All observations", "Final censor only"
 NO_UNCERTAINTY, ERROR_BARS, BAND = "None", "Standard error bars", "Pointwise confidence band"
+CI_BARS = "Pointwise confidence bars"
 LOG_LOG, GREENWOOD = "Log-log", "Symmetric Greenwood"
 GRAPH_OPTIONS = {
     CURVE: (SURVIVAL, CUMULATIVE), UNITS: (FRACTION, PERCENT),
-    MARKERS: (CENSORED, ALL, FINAL), UNCERTAINTY: (NO_UNCERTAINTY, ERROR_BARS, BAND),
+    MARKERS: (CENSORED, ALL, FINAL), UNCERTAINTY: (NO_UNCERTAINTY, ERROR_BARS, BAND, CI_BARS),
     INTERVAL: (LOG_LOG, GREENWOOD), RISK_TABLE: False,
 }
 
@@ -75,6 +85,15 @@ def display_curve(axes, label, curve, settings, level):
         initial = int(not cumulative)
         axes.fill_between(x, factor * np.r_[initial, lower], factor * np.r_[initial, upper],
                           step="post", color=color, alpha=.17, linewidth=0)
+    elif settings[UNCERTAINTY] == CI_BARS:
+        # A censor-only time does not change the estimate. Collapsed intervals
+        # at a terminal step have no visible extent.
+        positions = (curve["Events"].to_numpy() > 0) & (upper > lower)
+        if positions.any():
+            lengths = np.stack((probabilities[positions] - lower[positions],
+                                upper[positions] - probabilities[positions]))
+            axes.errorbar(times[positions], y[1:][positions], yerr=factor * np.maximum(lengths, 0),
+                          fmt="none", capsize=2, ecolor=color, alpha=.65)
     elif settings[UNCERTAINTY] == ERROR_BARS:
         error = curve["Standard error"].to_numpy()
         axes.errorbar(times, y[1:], yerr=factor * np.stack((np.minimum(probabilities, error),
@@ -89,6 +108,81 @@ def format_ordinate(axes, settings):
     axes.set_ylim(-.02 * factor, 1.03 * factor)
     if factor == 100:
         axes.yaxis.set_major_formatter(PercentFormatter(xmax=100, decimals=0))
+
+
+@dataclass(frozen=True, eq=False)
+class SurvivalGraphData:
+    curves: dict
+    settings: dict
+    time: str
+    level: float
+    show_risk: bool
+    short_labels: bool
+
+
+def draw_survival_graph(data, title, axes=None, risk_axes=None, *, order=()):
+    ylabel = ordinate_label(data.settings)
+    if axes is None and data.show_risk:
+        figure = Figure(figsize=(8, 5.5), dpi=100, layout="constrained")
+        panels = figure.add_gridspec(2, 1, height_ratios=[3, 1.2])
+        axes = figure.add_subplot(panels[0])
+        axes.spines[["right", "top"]].set_visible(False)
+        risk_axes = figure.add_subplot(panels[1])
+        axes.set(title=title, xlabel=data.time, ylabel=ylabel)
+    elif axes is None:
+        figure, axes = _plot(title, data.time, ylabel)
+    else:
+        figure = axes.figure
+        axes.set(title=title, xlabel=data.time, ylabel=ylabel)
+    format_ordinate(axes, data.settings)
+    maximum = max(curve["Time"].max() for curve in data.curves.values())
+    ticks = np.unique(np.linspace(0, maximum, 6).round(8))
+    tables, risk_rows = {}, {}
+    rank = {label: index for index, label in enumerate(order)}
+    labels = sorted(data.curves, key=lambda label: rank.get(str(label), len(rank))) if rank else data.curves
+    for label in labels:
+        curve = data.curves[label]
+        indices = curve["Time"].to_numpy().searchsorted(ticks)
+        risk_rows[str(label)] = np.r_[curve["At risk"].to_numpy(), 0][indices]
+        tables[label] = display_curve(axes, label, curve, data.settings, data.level)
+    if len(data.curves) > 1:
+        axes.legend()
+    risks = pd.DataFrame.from_dict(risk_rows, orient="index", columns=ticks).rename_axis("Group")
+    if data.show_risk:
+        if len(data.curves) > 8:
+            raise ValueError("The plot can show a risk table for up to eight groups.")
+        draw_risk_table(risk_axes, risks, data.short_labels)
+    return figure, tables, risks
+
+
+def draw_risk_table(axes, risks, short_labels):
+    axes.set_axis_off()
+    labels = [label.partition(" · ")[0] if short_labels else label for label in risks.index]
+    values = np.column_stack([labels, risks.to_numpy()])
+    table = axes.table(cellText=values, colLabels=["Group", *(f"{tick:g}" for tick in risks.columns)],
+                       cellLoc="center", bbox=[0, 0, 1, 1])
+    table.auto_set_font_size(False)
+    table.set_fontsize(8)
+    for (row, column), cell in table.get_celld().items():
+        cell.set_edgecolor("#d3dde7")
+        cell.set_linewidth(.6)
+        if row == 0 or column == 0:
+            cell.set_facecolor("#eaf2fa")
+            cell.get_text().set_color("#203b53")
+            cell.get_text().set_weight("bold")
+        elif row % 2 == 0:
+            cell.set_facecolor("#f6f9fc")
+
+
+def linked_survival_graph(frame, title, order):
+    data = frame.attrs.get(RESULT_CONTEXT)
+    if not isinstance(data, SurvivalGraphData):
+        raise ValueError("The input no longer provides a linked Kaplan–Meier graph.")
+    if not isinstance(order, list) or any(not isinstance(label, str) for label in order):
+        raise ValueError("Invalid linked Kaplan–Meier series order.")
+    figure, _, _ = draw_survival_graph(data, title, order=order)
+    figure.axes[0].title.set_parse_math(False)
+    return Result({}, figure)
 
 
 def style_after_parameter_change(style, before, after):

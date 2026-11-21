@@ -15,8 +15,9 @@ from matplotlib import colormaps
 from matplotlib.backends.backend_agg import RendererAgg
 from matplotlib.colors import Colormap, to_hex, to_rgba
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 from matplotlib.text import Text
-from matplotlib.ticker import AutoLocator, FixedFormatter, MultipleLocator
+from matplotlib.ticker import AutoLocator, FixedFormatter, MultipleLocator, ScalarFormatter
 from matplotlib.transforms import Bbox
 
 
@@ -45,11 +46,13 @@ ASPECTS = ("auto", "equal")
 TREE_KEYS = ("row", "column")
 ROOT_KEYS = ("row", "column", "heatmap", "layout")
 TREE_FIELDS = ("visible", "color_mode", "color", "mixed_color", "palette", "width", "line_style", "alpha",
-               "labels", "distance")
-LABEL_FIELDS = ("visible", "rotation", "size", "color", "first", "interval")
-DISTANCE_FIELDS = ("visible", "minimum", "maximum", "step", "reversed")
+               "labels", "distance", "legend_visible", "legend_title", "legend_entries")
+LABEL_FIELDS = ("visible", "rotation", "size", "family", "bold", "color", "first", "interval")
+DISTANCE_FIELDS = ("visible", "title_visible", "minimum", "maximum", "step", "reversed")
 MAX_DISTANCE_TICKS = 200
-HEAT_FIELDS = ("cmap", "reverse", "minimum", "maximum", "colorbar", "title", "orientation", "cell_aspect")
+COLORBAR_TITLE_POSITIONS = ("side", "above", "hidden")
+HEAT_FIELDS = ("cmap", "reverse", "minimum", "maximum", "colorbar", "title", "orientation", "cell_aspect",
+               "title_position", "scale_labels", "scale_size", "scale_font", "scale_color", "scale_reverse")
 LAYOUT_FIELDS = ("row_tree_ratio", "column_tree_ratio")
 # Collapsed colorbar column. The axis stays in the figure; it just stops taking space.
 _COLLAPSED = 0.02
@@ -120,6 +123,13 @@ def _text(value, field):
     return value
 
 
+def _font_family(value, field):
+    family = _text(value, field).strip()
+    if not family:
+        _fail(field, "Enter a font family.")
+    return family
+
+
 def _palette(value, field):
     if not isinstance(value, list) or not 1 <= len(value) <= 24:
         _fail(field, "Enter between 1 and 24 opaque colors.")
@@ -153,6 +163,10 @@ def _labels(value, prefix):
         out["size"] = size
     if "color" in value:
         out["color"] = _color(value["color"], _path(prefix, "color"))
+    if "family" in value:
+        out["family"] = _font_family(value["family"], _path(prefix, "family"))
+    if "bold" in value:
+        out["bold"] = _bool(value["bold"], _path(prefix, "bold"))
     if "first" in value:
         first = value["first"]
         if type(first) is not int or first < 1:
@@ -172,6 +186,8 @@ def _distance(value, prefix):
     out = {}
     if "visible" in value:
         out["visible"] = _bool(value["visible"], _path(prefix, "visible"))
+    if "title_visible" in value:
+        out["title_visible"] = _bool(value["title_visible"], _path(prefix, "title_visible"))
     minimum = value["minimum"] if "minimum" in value else None
     maximum = value["maximum"] if "maximum" in value else None
     if "minimum" in value:
@@ -222,6 +238,25 @@ def _tree(value, prefix):
         out["labels"] = _labels(value["labels"], _path(prefix, "labels"))
     if "distance" in value:
         out["distance"] = _distance(value["distance"], _path(prefix, "distance"))
+    if "legend_visible" in value:
+        out["legend_visible"] = _bool(value["legend_visible"], _path(prefix, "legend_visible"))
+    if "legend_title" in value:
+        out["legend_title"] = _text(value["legend_title"], _path(prefix, "legend_title"))
+    if "legend_entries" in value:
+        field = _path(prefix, "legend_entries")
+        entries = value["legend_entries"]
+        if not isinstance(entries, list) or len(entries) > 24:
+            _fail(field, "Invalid cluster legend entries.")
+        seen = set()
+        out["legend_entries"] = []
+        for entry in entries:
+            if not isinstance(entry, dict) or set(entry) != {"group", "label"}:
+                _fail(field, "Invalid cluster legend entries.")
+            group = entry["group"]
+            if type(group) is not int or not 1 <= group <= 24 or group in seen:
+                _fail(field, "Invalid cluster legend entries.")
+            seen.add(group)
+            out["legend_entries"].append({"group": group, "label": _text(entry["label"], field)})
     return out
 
 
@@ -252,6 +287,20 @@ def _heatmap(value):
         out["colorbar"] = _bool(value["colorbar"], "heatmap.colorbar")
     if "title" in value:
         out["title"] = _text(value["title"], "heatmap.title")
+    if "title_position" in value:
+        out["title_position"] = _choice(value["title_position"], COLORBAR_TITLE_POSITIONS, "heatmap.title_position")
+    for name in ("scale_labels", "scale_reverse"):
+        if name in value:
+            out[name] = _bool(value[name], _path(prefix, name))
+    if "scale_size" in value:
+        size = _number(value["scale_size"], "heatmap.scale_size")
+        if not 4 <= size <= 40:
+            _fail("heatmap.scale_size", "Enter a label size from 4 to 40 points.")
+        out["scale_size"] = size
+    if "scale_font" in value:
+        out["scale_font"] = _font_family(value["scale_font"], "heatmap.scale_font")
+    if "scale_color" in value:
+        out["scale_color"] = _color(value["scale_color"], "heatmap.scale_color")
     if "orientation" in value:
         out["orientation"] = _choice(value["orientation"], ORIENTATIONS, "heatmap.orientation")
     if "cell_aspect" in value:
@@ -357,7 +406,7 @@ def snapshot_hierarchical_style(figure):
 def baseline_hierarchical_style(figure):
     """Renderer defaults as a full canonical section. Used by the editor, not saved on its own."""
     meta = _require(figure)
-    section = {}
+    section = {key: deepcopy(record["baseline"]) for key, record in meta.get("matrix_labels", {}).items()}
     for key in TREE_KEYS:
         comp = meta["components"].get(key)
         if comp is not None:
@@ -417,6 +466,7 @@ def register_tree(figure, key, axes, branches, *, horizontal, margin, order, clu
     low, high, reversed_view = _float_pair(axes.get_xlim() if horizontal else axes.get_ylim())
     dimension = "y" if horizontal else "x"
     rotation, size, sample = _label_sample(axes, dimension) if not margin else (0.0, 10.0, "#000000")
+    tick_font = (axes.yaxis if horizontal else axes.xaxis).get_major_ticks(1)[0].label1
     colors = _hexes(branches.get_colors())
     alpha = branches.get_alpha()
     linewidths = branches.get_linewidths()
@@ -435,6 +485,7 @@ def register_tree(figure, key, axes, branches, *, horizontal, margin, order, clu
         "label_host": None if margin else axes,
         "label_dimension": dimension,
         "margin": bool(margin),
+        "analysis_colored": label_colors is not None,
         "decorations": list(axes.lines),
         "decoration_visible": [bool(line.get_visible()) for line in axes.lines],
         "captured": {
@@ -456,6 +507,8 @@ def register_tree(figure, key, axes, branches, *, horizontal, margin, order, clu
             "labels": {
                 "visible": True,
                 "rotation": rotation,
+                "family": tick_font.get_fontfamily()[0],
+                "bold": tick_font.get_fontweight() == "bold",
                 "size": size,
                 "color": sample,
                 "first": int(options.get("First label", 1)),
@@ -463,6 +516,7 @@ def register_tree(figure, key, axes, branches, *, horizontal, margin, order, clu
             },
             "distance": {
                 "visible": bool(axes.axison),
+                "title_visible": (axes.xaxis if horizontal else axes.yaxis).label.get_visible(),
                 "minimum": None,
                 "maximum": None,
                 "step": None,
@@ -470,25 +524,29 @@ def register_tree(figure, key, axes, branches, *, horizontal, margin, order, clu
             },
         },
     }
+    if not margin and len(figure.axes) == 1 and cluster_ids is not None and len(set(cluster_ids)) <= 24:
+        comp["baseline"].update(legend_visible=False, legend_title="Clusters", legend_entries=[])
     _ensure(figure)["components"][key] = comp
 
 
-def bind_matrix_labels(figure, matrix):
-    """Point heatmap trees at the matrix tick labels. The matrix owns those texts."""
+def bind_matrix_labels(figure, matrix, captions, options):
+    """Both matrix axes own captions, including an axis without a dendrogram."""
     meta = _ensure(figure)
     for key, dimension in (("row", "y"), ("column", "x")):
         comp = meta["components"].get(key)
-        if comp is None or not comp["margin"]:
-            continue
+        if comp is None:
+            comp = {"leaf_labels": captions[key], "baseline": {"labels": {
+                "first": int(options.get("First label", 1)),
+                "interval": int(options.get("Label interval (0 = automatic)", 0)),
+            }}}
+            meta.setdefault("matrix_labels", {})[key] = comp
         rotation, size, sample = _label_sample(matrix, dimension)
+        tick = (matrix.xaxis if dimension == "x" else matrix.yaxis).get_major_ticks(1)[0].label1
         comp["label_host"] = matrix
         comp["label_dimension"] = dimension
-        comp["label_colors"] = tuple([sample] * len(comp["leaf_labels"]))
-        labels = comp["baseline"]["labels"]
-        labels["rotation"] = rotation
-        labels["size"] = size
-        labels["color"] = sample
-        labels["visible"] = True
+        comp["label_colors"] = (sample,) * len(comp["leaf_labels"])
+        comp["baseline"]["labels"].update(visible=True, rotation=rotation, size=size, color=sample,
+                                          family=tick.get_fontfamily()[0], bold=tick.get_fontweight() == "bold")
 
 
 def register_heatmap(figure, axes, image, colorbar):
@@ -499,6 +557,8 @@ def register_heatmap(figure, axes, image, colorbar):
     widths = tuple(float(value) for value in gridspec.get_width_ratios())
     heights = tuple(float(value) for value in gridspec.get_height_ratios())
     title = colorbar.ax.get_ylabel() or "Value"
+    _, scale_size, scale_color = _label_sample(colorbar.ax, "y")
+    scale_font = colorbar.ax.yaxis.get_major_ticks(1)[0].label2.get_fontfamily()[0]
     meta = _ensure(figure)
     meta["components"]["heatmap"] = {
         "axes": axes,
@@ -515,6 +575,12 @@ def register_heatmap(figure, axes, image, colorbar):
             "maximum": None,
             "colorbar": True,
             "title": title,
+            "title_position": "side",
+            "scale_labels": True,
+            "scale_size": scale_size,
+            "scale_font": scale_font,
+            "scale_color": scale_color,
+            "scale_reverse": False,
             "orientation": "vertical",
             "cell_aspect": "equal" if axes.get_aspect() == "equal" else "auto",
         },
@@ -579,8 +645,9 @@ def _branch_colors(comp, merged, override):
 class _FittingLeafLabels(FixedFormatter):
     """Thin the text at draw time while preserving tick positions and per-leaf style."""
 
-    def __init__(self, texts):
+    def __init__(self, texts, *, preview_only=False):
         super().__init__(texts)
+        self._preview_only = preview_only
         self._font = None
         self._extent = 0.
         self._anchor = 0
@@ -608,6 +675,9 @@ class _FittingLeafLabels(FixedFormatter):
         if len(locs) < 2:
             return
         axes = self.axis.axes
+        canvas = axes.figure.canvas
+        if self._preview_only and (not canvas.required_interactive_framework or canvas.is_saving()):
+            return
         lower, upper = sorted(self.axis.get_view_interval())
         pixels = axes.bbox.width if self.axis.axis_name == "x" else axes.bbox.height
         if pixels <= 0 or lower == upper:
@@ -623,11 +693,11 @@ class _FittingLeafLabels(FixedFormatter):
         return super().__call__(x, pos)
 
 
-def set_leaf_ticks(axes, dimension, positions, texts, *, automatic=False, rotation=0.):
+def set_leaf_ticks(axes, dimension, positions, texts, *, automatic=False, fit_preview=False, rotation=0.):
     axis = axes.xaxis if dimension == "x" else axes.yaxis
     axis.set_ticks(positions, texts, parse_math=False, rotation=rotation)
-    if automatic and len(texts) > 1:
-        axis.set_major_formatter(_FittingLeafLabels(texts))
+    if (automatic or fit_preview) and len(texts) > 1:
+        axis.set_major_formatter(_FittingLeafLabels(texts, preview_only=not automatic))
     return axis.get_ticklabels()
 
 
@@ -647,15 +717,68 @@ def _apply_labels(comp, merged, override):
     positions = [index + 0.5 for index in chosen]
     shown = [texts[index] for index in chosen]
     artists = set_leaf_ticks(host, dimension, positions, shown,
-                            automatic=labels["interval"] == 0, rotation=labels["rotation"])
+                            automatic=labels["interval"] == 0, fit_preview=True,
+                            rotation=labels["rotation"])
     if "color" in (override.get("labels") or {}):
         colors = [labels["color"]] * len(shown)
     else:
         colors = [comp["label_colors"][index] for index in chosen]
     for artist, color in zip(artists, colors, strict=True):
         artist.set_fontsize(labels["size"])
+        artist.set_fontfamily(labels["family"])
+        artist.set_fontweight("bold" if labels["bold"] else "normal")
         artist.set_color(color)
         artist.set_parse_math(False)
+
+
+class _MarginDistanceFormatter(ScalarFormatter):
+    """Keep distance ticks and fit their labels into the row and column tree margins."""
+
+    def format_ticks(self, values):
+        labels = super().format_ticks(values)
+        lo, hi = sorted(self.axis.get_view_interval())
+        locations = np.asarray(values)
+        visible = np.flatnonzero((locations >= lo) & (locations <= hi))
+        if len(visible) < 2 or lo == hi:
+            return labels
+        axes = self.axis.axes
+        vertical = self.axis.axis_name == "y"
+        canvas = axes.figure.canvas
+        if vertical and (not canvas.required_interactive_framework or canvas.is_saving()):
+            return labels
+        extent = axes.bbox.height if vertical else axes.bbox.width
+        spacing = np.min(np.diff(locations[visible])) * extent / (hi - lo)
+        if spacing <= 0:
+            return labels
+        spacing *= 72 / axes.figure.dpi
+        first = self.axis.get_major_ticks(1)[0].label1
+        font = first.get_fontproperties()
+        text = tuple(labels[i] for i in visible)
+        key = (text, font)
+        if getattr(self, "_measure_key", None) != key:
+            renderer = RendererAgg(1, 1, 72)
+            probe = Text(fontproperties=font, figure=Figure(dpi=72))
+            width = height = 0.
+            for string in text:
+                probe.set_text(string)
+                box = probe.get_window_extent(renderer)
+                width, height = max(width, box.width), max(height, box.height)
+            self._measure_key = (text, font.copy())
+            self._width, self._height = width, height
+        rotation = 90 if not vertical and self._width + 2 > spacing else 0
+        if first.get_rotation() != rotation:
+            self.axis.set_tick_params(which="major", labelrotation=rotation)
+        if rotation or vertical:
+            # At high tick density keep both endpoints when there is room for them.
+            padding = 2 if vertical else 0.5
+            stride = max(1, math.ceil((self._height + padding) / spacing))
+            if stride > 1:
+                last = len(visible) - 1
+                for j, index in enumerate(visible):
+                    keep = j == 0 or (j == last and last >= stride) or (j % stride == 0 and last - j >= stride)
+                    if not keep:
+                        labels[index] = ""
+        return labels
 
 
 def _show_distance_only(axes, dimension):
@@ -696,23 +819,66 @@ def _apply_distance(comp, merged):
         axes.set_ylim(*limits)
         axis = axes.yaxis
     axis.set_major_locator(AutoLocator() if distance["step"] is None else MultipleLocator(distance["step"]))
+    axis.label.set_text(captured["distance_label"] if distance["visible"] else "")
+    axis.label.set_visible(distance["visible"] and distance["title_visible"])
+    axis.label.set_parse_math(False)
     if comp["margin"]:
         if distance["visible"]:
             _show_distance_only(axes, dimension)
-            axis.label.set_text(captured["distance_label"])
-            axis.label.set_parse_math(False)
+            if type(axis.get_major_formatter()) is ScalarFormatter:
+                axis.set_major_formatter(_MarginDistanceFormatter())
         else:
             axes.set_axis_off()
         return
-    axis.label.set_text(captured["distance_label"] if distance["visible"] else "")
-    axis.label.set_visible(bool(distance["visible"]))
-    axis.label.set_parse_math(False)
     if dimension == "x":
         axes.tick_params(axis="x", which="major", bottom=bool(distance["visible"]),
                          labelbottom=bool(distance["visible"]))
     else:
         axes.tick_params(axis="y", which="major", left=bool(distance["visible"]),
                          labelleft=bool(distance["visible"]))
+
+
+def _apply_cluster_legend(comp, merged):
+    if "legend_visible" not in comp["baseline"]:
+        return
+    axes = comp["axes"]
+    figure = axes.figure
+    existing = comp.pop("cluster_legend", None)
+    if existing is not None and existing in figure.legends:
+        # Layout previews deepcopy the artist, but Matplotlib can retain its original remover.
+        existing._remove_method = figure.legends.remove
+        existing.remove()
+    if not merged["legend_visible"] or not merged["visible"] or merged["color_mode"] == "single":
+        return
+    if merged["color_mode"] == "analysis" and not comp["analysis_colored"]:
+        return
+    style = getattr(axes, "_tramastat_style", {})
+    location = style.get("legend")
+    if location == "hidden":
+        return
+    if location in (None, "best"):
+        location = "outside center right"
+    palette = merged["palette"] if merged["color_mode"] == "cluster" else comp["baseline"]["palette"]
+    groups = sorted(set(comp["cluster_ids"]))
+    entries = merged["legend_entries"]
+    if {entry["group"] for entry in entries} != set(groups):
+        entries = [{"group": group, "label": f"Cluster {group}"} for group in groups]
+    lines = [Line2D([], [], color=palette[(entry["group"] - 1) % len(palette)], linewidth=merged["width"],
+                    linestyle=merged["line_style"], alpha=merged["alpha"]) for entry in entries]
+    legend = figure.legend(lines, [entry["label"] for entry in entries], title=merged["legend_title"],
+                           loc=location, frameon=False)
+    legend._tramastat_legend_keys = tuple(f"gid:cluster-{entry['group']}" for entry in entries)
+    for text in (legend.get_title(), *legend.get_texts()):
+        text.set_parse_math(False)
+        if "font_family" in style:
+            text.set_fontfamily(style["font_family"])
+        if "legend_size" in style:
+            text.set_fontsize(style["legend_size"])
+    comp["cluster_legend"] = legend
+    if style.get("legend_options"):
+        from .graph_legend import apply_legend_options
+
+        apply_legend_options(figure, style["legend_options"])
 
 
 def _apply_tree(comp, merged, override):
@@ -727,6 +893,7 @@ def _apply_tree(comp, merged, override):
         line.set_visible(visible and was_visible)
     _apply_labels(comp, merged, override)
     _apply_distance(comp, merged)
+    _apply_cluster_legend(comp, merged)
 
 
 def _retarget_child_removes(axes):
@@ -768,8 +935,22 @@ def _detach_colorbar(colorbar):
     return axes
 
 
-def _label_colorbar(colorbar, title, orientation):
-    colorbar.set_label(title)
+def _label_colorbar(colorbar, style):
+    orientation = colorbar.orientation
+    position = style["title_position"]
+    title = style["title"]
+    colorbar.set_label(title if position == "side" else "")
+    # The slim vertical bar sits at the edge of the figure. Anchor the caption at its right
+    # spine so a long heading stays on the canvas when the window gets narrower.
+    align_right = orientation == "vertical"
+    colorbar.ax.set_title(title if position == "above" else "", parse_math=False,
+                         x=1.0 if align_right else .5, ha="right" if align_right else "center")
+    axis = colorbar.long_axis
+    axis.set_inverted(style["scale_reverse"])
+    direction = "x" if orientation == "horizontal" else "y"
+    visibility = {"labelbottom" if direction == "x" else "labelright": style["scale_labels"]}
+    colorbar.ax.tick_params(axis=direction, labelsize=style["scale_size"], labelcolor=style["scale_color"],
+                            labelfontfamily=style["scale_font"], **visibility)
     if orientation == "horizontal":
         colorbar.ax.set_ylabel("")
         colorbar.ax.xaxis.label.set_parse_math(False)
@@ -799,7 +980,7 @@ def _apply_heatmap(figure, meta, merged):
         heat["colorbar"] = colorbar
     else:
         colorbar.update_normal(image)
-    _label_colorbar(colorbar, merged["title"], orientation)
+    _label_colorbar(colorbar, merged)
     colorbar.ax.set_visible(bool(merged["colorbar"]))
 
 
@@ -869,6 +1050,10 @@ def apply_hierarchical_style(figure, options):
             continue
         override = canonical.get(key, {})
         _apply_tree(comp, _merge(comp["baseline"], override), override)
+    for key, record in meta.get("matrix_labels", {}).items():
+        override = canonical.get(key, {})
+        if "labels" in override or "labels" in (meta.get("applied") or {}).get(key, {}):
+            _apply_labels(record, _merge(record["baseline"], override), override)
     heat = meta["components"].get("heatmap")
     heat_merged = None
     if heat is not None:

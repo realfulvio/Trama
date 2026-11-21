@@ -1485,6 +1485,104 @@ class QtShellTests(unittest.TestCase):
             window.remove_info()
         self.assertFalse(window.project.info_sheets)
 
+    def test_info_multiline_styles_survive_navigation_and_can_be_toggled(self):
+        from PySide6.QtGui import QTextCursor
+        from analisi.info import InfoSheet, NOTE_BOLD, NOTE_ITALIC, NOTE_UNDERLINE
+
+        self.open_example()
+        window = self.window
+        text = "\nA🧪\n\nB\n"
+        styles = ((0, 1, NOTE_ITALIC), (3, 5, NOTE_UNDERLINE), (6, 7, NOTE_ITALIC))
+        sheet = InfoSheet("Multiline notes", notes=text, note_styles=styles)
+        window.project.update_info_sheets({sheet.uid: sheet})
+        saved = self.folder / "multiline-notes.alab"
+        window.project.save(saved)
+        self.reopen(saved)
+        window.open_sheet(("info", sheet.uid))
+        reopened_notes = window.info_editor.read_notes()
+        window.open_sheet(("data", "groups"))
+        self.assertEqual(reopened_notes, (text, styles))
+        self.assertFalse(window.project.dirty)
+
+        window.open_sheet(("info", sheet.uid))
+        editor = window.info_editor
+        cursor = editor.notes.textCursor()
+        cursor.select(QTextCursor.SelectionType.Document)
+        editor.notes.setTextCursor(cursor)
+        editor.toggle_style(NOTE_BOLD)
+        expected = ((0, 1, NOTE_BOLD | NOTE_ITALIC), (1, 3, NOTE_BOLD),
+                    (3, 5, NOTE_BOLD | NOTE_UNDERLINE), (5, 6, NOTE_BOLD),
+                    (6, 7, NOTE_BOLD | NOTE_ITALIC))
+        self.assertEqual(editor.read_notes(), (text, expected))
+        editor.toggle_style(NOTE_BOLD)
+        window.open_sheet(("data", "groups"))
+        window.project.save(saved)
+        self.reopen(saved)
+        self.assertEqual(window.project.info_sheets[sheet.uid], sheet)
+
+    def test_info_import_keeps_pending_typing_and_undo_after_rejection(self):
+        from unittest.mock import patch
+        from analisi.info import InfoSheet, NOTE_BOLD
+
+        self.open_example()
+        sheet = InfoSheet("Study", notes="AB", note_styles=((0, 1, NOTE_BOLD),))
+        self.window.project.update_info_sheets({sheet.uid: sheet})
+        self.window.open_sheet(("info", sheet.uid))
+        editor = self.window.info_editor
+        errors = []
+        editor.error = errors.append
+        cursor = editor.notes.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        cursor.insertText("🧪")
+        path = self.folder / "append.txt"
+        with patch("analisi.info.MAX_INFO_NOTES", 8), patch(
+                "trama_qt.info_editor.QFileDialog.getOpenFileName", return_value=(str(path), "")):
+            for invalid in (b"1234", b"a\x00b"):
+                path.write_bytes(invalid)
+                editor.import_notes()
+                self.assertEqual(editor.read_notes(), ("AB🧪", sheet.note_styles))
+                self.assertTrue(editor.notes.document().isUndoAvailable())
+            self.assertEqual(len(errors), 2)
+            path.write_bytes(b"\xef\xbb\xbfX\r\nY")
+            editor.import_notes()
+        self.assertEqual(editor.sheet.notes, "AB🧪\n\nX\nY")
+        self.assertEqual(editor.sheet.note_styles, sheet.note_styles)
+        self.window.actions["undo"].trigger()
+        self.assertEqual(editor.sheet.notes, "AB🧪")
+        self.assertEqual(editor.read_notes(), ("AB🧪", sheet.note_styles))
+
+    def test_info_undo_keeps_note_edits_separate_from_worksheet_history(self):
+        from PySide6.QtGui import QTextCursor
+        from analisi.info import InfoSheet, NOTE_UNDERLINE
+
+        self.open_example()
+        window = self.window
+        window.edit_cell("groups", 0, 0, "8")
+        sheet = InfoSheet("Study", notes="Dose 🧪\nReadout")
+        window.project.update_info_sheets({sheet.uid: sheet})
+        window.open_sheet(("info", sheet.uid))
+        editor = window.info_editor
+        self.assertFalse(window.actions["undo"].isEnabled())
+        cursor = editor.notes.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        cursor.insertText("!")
+        cursor.select(QTextCursor.SelectionType.Document)
+        editor.notes.setTextCursor(cursor)
+        editor.toggle_style(NOTE_UNDERLINE)
+        styled = (sheet.notes + "!", ((0, len(sheet.notes) + 1, NOTE_UNDERLINE),))
+        self.assertEqual(editor.read_notes(), styled)
+        for action, expected in (("undo", (sheet.notes + "!", ())), ("undo", (sheet.notes, ())),
+                                 ("redo", (sheet.notes + "!", ())), ("redo", styled)):
+            self.assertTrue(window.actions[action].isEnabled())
+            window.actions[action].trigger()
+            self.assertEqual(editor.read_notes(), expected)
+            self.assertEqual(window.selected, ("info", sheet.uid))
+            self.assertEqual(window.project.tables["groups"].raw.iat[0, 0], 8)
+        window.open_sheet(("data", "groups"))
+        window.undo()
+        self.assertEqual(window.project.tables["groups"].raw.iat[0, 0], 4.1)
+        self.assertEqual(window.project.info_sheets[sheet.uid].note_styles, styled[1])
+
     def test_format_xy_graph_recipe(self):
         window = self.window
         self.open_example()

@@ -204,16 +204,20 @@ class OneFactorAndLegacy(unittest.TestCase):
         self.assertEqual(error.exception.field, "Sphericity correction")
 
     def test_the_dialog_offers_the_historical_choice_only_for_a_recipe_that_has_it(self):
-        self.assertEqual(rm_sphericity.choices_for({}), ("None", "Geisser–Greenhouse"))
-        self.assertEqual(rm_sphericity.choices_for({"Sphericity correction": "None"}), ("None", "Geisser–Greenhouse"))
+        offered = ("None", "Geisser–Greenhouse", "Huynh-Feldt", "Lower bound")
+        self.assertEqual(rm_sphericity.choices_for({}), offered)
+        self.assertEqual(rm_sphericity.choices_for({"Sphericity correction": "None"}), offered)
+        self.assertEqual(rm_sphericity.choices_for({"Sphericity correction": "Huynh-Feldt"}), offered)
         self.assertEqual(rm_sphericity.choices_for({"Sphericity correction": "Geisser–Greenhouse (one-way)"}),
-                         ("None", "Geisser–Greenhouse", "Geisser–Greenhouse (one-way)"))
-        self.assertEqual(METHODS[METHOD]["Sphericity correction"], ("None", "Geisser–Greenhouse"))
+                         (*offered, "Geisser–Greenhouse (one-way)"))
+        self.assertEqual(METHODS[METHOD]["Sphericity correction"], offered)
 
     def test_an_unknown_choice_is_a_field_error(self):
-        with self.assertRaises(FieldError) as error:
-            tables(long(), correction="Huynh–Feldt")
-        self.assertEqual(error.exception.field, "Sphericity correction")
+        for unknown in ("Mauchly", "Huynh–Feldt"):
+            with self.subTest(unknown=unknown), self.assertRaises(FieldError) as error:
+                tables(long(), correction=unknown)
+            self.assertEqual(error.exception.field, "Sphericity correction")
+            self.assertEqual(str(error.exception), "Choose None, Geisser–Greenhouse, Huynh-Feldt or Lower bound.")
 
     def test_three_factors_are_outside_the_new_choice(self):
         with self.assertRaises(FieldError) as error:

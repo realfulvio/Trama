@@ -5,7 +5,8 @@ from copy import copy, deepcopy
 import csv
 from dataclasses import dataclass, field
 from decimal import Context, Decimal, ROUND_HALF_UP, localcontext
-from functools import reduce
+from functools import lru_cache, reduce
+from graphlib import CycleError, TopologicalSorter
 from io import StringIO
 import json
 from math import factorial, isfinite
@@ -438,6 +439,28 @@ def formula_column_references(expression):
     return references
 
 
+@lru_cache(maxsize=32)
+def formula_calculation_order(items):
+    """Plan once per set of expressions, independent of rows and display order."""
+    names = dict(items).keys()
+    dependencies = {name: formula_column_references(expression) & names for name, expression in items}
+    seen = set()
+    for name, inputs in dependencies.items():
+        if not inputs <= seen:
+            break
+        seen.add(name)
+    else:
+        return tuple(names)
+    try:
+        # Register the display order first so ties have a reproducible order on disk.
+        graph = TopologicalSorter(dict.fromkeys(names, ()))
+        for name, inputs in dependencies.items():
+            graph.add(name, *inputs)
+        return tuple(graph.static_order())
+    except CycleError as error:
+        raise ValueError("A calculated column cannot depend on itself, directly or indirectly.") from error
+
+
 def seeded_formula(expression):
     """Give a stored formula an independent seed once, leaving existing seeds intact."""
     if not _RANDOM_CALL_TEXT.search(expression):
@@ -660,8 +683,11 @@ class Dataset:
         if masked_columns:
             for row, column in self.excluded:
                 computed.iat[row, column] = pd.NA
-        for name, expression in self.formulas.items():
-            computed[name] = formula(computed, expression, info=self.info)
+        order = formula_calculation_order(tuple(self.formulas.items()))
+        for name in order:
+            computed[name] = formula(computed, self.formulas[name], info=self.info)
+        if order != tuple(self.formulas):
+            computed = computed.loc[:, [*self.raw.columns, *self.formulas]]
         if not mask_excluded:
             for column in masked_columns:
                 computed.isetitem(column, self.raw.iloc[:, column])
@@ -810,17 +836,20 @@ def project_document(tables, *, layouts=(), info_sheets=None):
         for expression in dataset.formulas.values():
             if missing := sorted(name for name in info_references(expression) if constants.get(name) is None):
                 raise ValueError(f"Missing or ambiguous Info constant for {title}: {', '.join(missing)}.")
+        order = formula_calculation_order(tuple(dataset.formulas.items()))
         record = {
             "title": title,
             "columns": list(raw.columns),
             "kinds": [_project_column_kind(raw[name]) for name in raw],
             "rows": [[_encode_cell(value) for value in row] for row in raw.itertuples(index=False, name=None)],
-            "formulas": list(dataset.formulas.items()),
+            "formulas": [(name, dataset.formulas[name]) for name in order],
             "analyses": dataset.analyses,
             "excluded": sorted(dataset.excluded),
             "table_format": dataset.table_format,
             "graph_styles": dataset.graph_styles,
         }
+        if order != tuple(dataset.formulas):
+            record["formula_order"] = list(dataset.formulas)
         if dataset.analysis_ids:
             record["analysis_ids"] = dataset.analysis_ids
         if dataset.analysis_sources:
@@ -895,6 +924,12 @@ def load_workspace(path, *, include_info=False):
             data.raw.attrs["worksheet_roles"] = _validated_worksheet_roles(table["worksheet_roles"], data.raw.columns)
         for name, expression in table["formulas"]:
             data.set_formula(name, expression)
+        if "formula_order" in table:
+            order = table["formula_order"]
+            if (not isinstance(order, list) or len(order) != len(data.formulas)
+                    or not all(isinstance(name, str) for name in order) or set(order) != data.formulas.keys()):
+                raise ValueError("Invalid saved formula column order.")
+            data.formulas = {name: data.formulas[name] for name in order}
         entries = table.get("analyses", [])
         limit = MAX_ANALYSIS_NODES if obj["version"] == 3 else 256
         if len(entries) > limit or any(not isinstance(method, str) or not isinstance(options, dict)

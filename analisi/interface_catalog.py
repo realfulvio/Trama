@@ -143,6 +143,11 @@ Choose whether to include this report.|Scegli se includere questo report.
 Show WSS plot|Mostra il grafico WSS
 Show silhouette plot|Mostra il grafico della silhouette
 Show Gap plot|Mostra il grafico Gap
+K-means metric plot|Grafico delle metriche k-means
+Cluster metric|Metrica del raggruppamento
+Choose a linked result from K-means model selection.|Scegli un risultato collegato della selezione del modello k-means.
+Choose a K-means metric.|Scegli una metrica k-means.
+The source analysis does not provide this metric.|L’analisi di origine non fornisce questa metrica.
 Choose whether to show this plot.|Scegli se mostrare questo grafico.
 Enter a whole number from 1 to 1000.|Inserisci un intero da 1 a 1000.
 Enter one distinct worksheet row per cluster, separated by commas.|Inserisci una riga distinta del foglio per ogni gruppo, separando i numeri con virgole.
@@ -156,6 +161,10 @@ Hierarchy graph|Grafico del raggruppamento gerarchico
 Choose a linked Merges result from hierarchical clustering.|Scegli un risultato Merges collegato a un raggruppamento gerarchico.
 Choose a hierarchy graph type.|Scegli un tipo di grafico per il raggruppamento gerarchico.
 Choose an axis fitted by the source hierarchy.|Scegli un asse calcolato dal raggruppamento sorgente.
+Leaf ordering|Ordine delle foglie
+Optimal|Ottimale
+Choose Default or Optimal leaf ordering.|Scegli l’ordine delle foglie Predefinito oppure Ottimale.
+Optimal leaf ordering is limited to 2000 leaves per axis. Use fewer observations or variables, or choose Default.|L’ordine ottimale delle foglie è limitato a 2000 foglie per asse. Usa meno osservazioni o variabili, oppure scegli Predefinito.
 Scatter / confidence ellipse|Dispersione / ellisse di confidenza
 Column graph|Grafico a colonne
 Heat map|Mappa di calore
@@ -540,6 +549,8 @@ Show as|Mostra come
 Confidence interval|Intervallo di confidenza
 Comparison family|Famiglia di confronti
 Sphericity correction|Correzione della sfericità
+Huynh-Feldt|Huynh–Feldt
+Lower bound|Limite inferiore
 Control|Controllo
 Patient|Paziente
 Control A|Controllo A
@@ -674,6 +685,7 @@ All observations|Tutte le osservazioni
 Final censor only|Solo censura finale
 Standard error bars|Barre dell’errore standard
 Pointwise confidence band|Banda di confidenza puntuale
+Pointwise confidence bars|Barre di confidenza puntuali
 Symmetric Greenwood|Greenwood simmetrico
 Rows and columns|Righe e colonne
 Count|Conteggio
@@ -1380,3 +1392,64 @@ from .cluster_silhouette_text import CAPTIONS as _SILHOUETTE_CAPTIONS, MESSAGES 
 
 CAPTIONS.update(_SILHOUETTE_CAPTIONS)
 MESSAGES.update(_SILHOUETTE_MESSAGES)
+
+# Intraclass correlation (0.97). Canonical recipes stay English; these captions are display text.
+CAPTIONS.update({
+    "Intraclass correlation": "Correlazione intraclasse",
+    "Raters": "Valutatori",
+    "Definition": "Definizione",
+    "Unit": "Unità",
+    "Bootstrap CI": "IC bootstrap",
+    "Profile graph": "Grafico dei profili",
+    "Absolute agreement": "Accordo assoluto",
+    "Consistency": "Coerenza",
+    "Single measure": "Misura singola",
+    "Mean of raters": "Media dei valutatori",
+})
+
+MESSAGES.update({
+    "icc.classic": ("Edit intraclass correlation in Trama's Vetro interface.",
+                    "Modifica la correlazione intraclasse nell'interfaccia Vetro di Trama."),
+    "icc.error.raters_columns": ("Choose columns for {field}.", "Scegli le colonne per {field}."),
+    "icc.error.raters_min": ("Choose at least two columns for {field}.", "Scegli almeno due colonne per {field}."),
+    "icc.error.raters_once": ("Choose each column of {field} only once.",
+                              "Scegli ogni colonna di {field} una sola volta."),
+    "icc.error.raters_max": ("Use at most {limit} raters (this selection has {count}).",
+                             "Usa al massimo {limit} valutatori (questa selezione ne ha {count})."),
+    "icc.error.subject_column": ("Choose a column for {field}.", "Scegli una colonna per {field}."),
+    "icc.error.subject_overlap": ("{field} must be a column other than the {raters}.",
+                                  "{field} deve essere una colonna diversa dai {raters}."),
+    "icc.error.choice": ("Choose a valid value for {field}.", "Scegli un valore valido per {field}."),
+    "icc.error.percent": ("{field} must be a number greater than 0 and less than 100.",
+                          "{field} deve essere un numero maggiore di 0 e minore di 100."),
+    "icc.error.whole": ("{field} must be a whole number from {low} to {high}.",
+                        "{field} deve essere un numero intero da {low} a {high}."),
+    "icc.error.missing": ('Column "{name}" is not in the table.', 'La colonna "{name}" non è nella tabella.'),
+    "icc.error.duplicate": ('More than one column is called "{name}".', 'Più di una colonna si chiama "{name}".'),
+    "icc.error.numbers": ('Column "{name}" must contain numbers.', 'La colonna "{name}" deve contenere numeri.'),
+    "icc.error.finite": ('Column "{name}" has a value that is not a finite number in row {row}.',
+                         'La colonna "{name}" ha un valore che non è un numero finito alla riga {row}.'),
+    "icc.error.magnitude": ('Column "{name}" has a value outside −1e100 to 1e100 in row {row}.',
+                            'La colonna "{name}" ha un valore fuori da −1e100 … 1e100 alla riga {row}.'),
+    "icc.error.rows": ("Use at most {limit} rows (this selection has {count}).",
+                       "Usa al massimo {limit} righe (questa selezione ne ha {count})."),
+    "icc.error.few": ("At least {low} complete rows are needed; {count} found.",
+                      "Servono almeno {low} righe complete; trovate {count}."),
+    "icc.error.work": ("Bootstrap would resample {cells} cells (replicates × rows × raters); the limit is {limit}.",
+                       "Il bootstrap ricampionerebbe {cells} celle (repliche × righe × valutatori); il limite è "
+                       "{limit}."),
+    "icc.summary.counts": ("{complete} complete subjects · {raters} raters · incomplete rows left out: {excluded}",
+                           "{complete} soggetti completi · {raters} valutatori · righe incomplete escluse: "
+                           "{excluded}"),
+    "icc.summary.order": ("Order of the raters: {names}", "Ordine dei valutatori: {names}"),
+    "icc.summary.unit": ("{definition}, {unit}", "{definition}, {unit}"),
+    "icc.summary.none": ("Choose at least two rater columns.", "Scegli almeno due colonne di valutatori."),
+    "icc.summary.caption": ("Summary", "Riepilogo"),
+})
+
+# Precision–recall curve (0.97): captions and engine messages live in their own section.
+from .precision_recall_catalog import CAPTIONS as _PRECISION_RECALL_CAPTIONS  # noqa: E402
+from .precision_recall_catalog import MESSAGES as _PRECISION_RECALL_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_PRECISION_RECALL_CAPTIONS)
+MESSAGES.update(_PRECISION_RECALL_MESSAGES)

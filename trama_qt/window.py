@@ -26,14 +26,18 @@ from analisi.plot_function import PLOT_FUNCTION
 from analisi.transpose_xy import TRANSPOSE_XY
 from analisi.presentation import apply_style, validate_graph_style
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS
+from analisi.prism_fit_graph import FIT_GRAPH
+from analisi.prism_mv_scatter import CLUSTERED_SCATTER
 from analisi.prism_restore import (PRISM_GRAPH_LINK, PRISM_PREVIEW, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
                                    SAVED_EDITABLE_GRAPH, SAVED_XY)
 from analisi.prism_zip_layout import ZIP_LAYOUT
 from analisi.prism_zip_column import ZIP_COLUMN
 from analisi.prism_xml_xy import XML_ERROR_BARS
 from analisi.prism_xml_generated import XML_GENERATED_XY
+from analisi.prism_xml_qc import XML_QC
 from analisi.prism_xml_binding_layout import XML_BINDING_XY
 from analisi.prism_zip_xy import ZIP_SPARSE_XY
+from analisi.survival_plot import SURVIVAL_GRAPH
 from analisi.text_import import TEXT_SUFFIXES
 from analisi.ordinal_logit import GRAPH as ORDINAL_GRAPH, ORDINAL_LOGIT
 from analisi.tolerance_intervals import SHOW_GRAPH as TOLERANCE_GRAPH, TOLERANCE
@@ -54,6 +58,7 @@ from .sessions import MAX_PROJECT_TABS, Sessions
 from .templates import sync_actions as sync_template_actions, t as template_text
 from .shape_canvas import GraphDrawing
 from .sheet import FrameView, WorksheetView
+from .batch_export import safe_stem
 from .batch_export_dialog import text as batch_text
 from .status_label import StatusLabel
 from .strings import qt
@@ -72,7 +77,8 @@ ANALYSIS_GRAPH_OPTIONS = {
     mean_permutation.METHOD: (mean_permutation.SHOW_GRAPH, mean_permutation.OPTIONS[mean_permutation.SHOW_GRAPH]),
 }
 GRAPHING = tuple(GROUPS.get("Graphing", ())) + (PLOT_FUNCTION,)
-SOURCE_XY = {XML_ERROR_BARS, XML_BINDING_XY, XML_GENERATED_XY, ZIP_SPARSE_XY, ZIP_COLUMN}
+SOURCE_XY = {XML_ERROR_BARS, XML_BINDING_XY, XML_GENERATED_XY, XML_QC, ZIP_SPARSE_XY, ZIP_COLUMN,
+             CLUSTERED_SCATTER, FIT_GRAPH, SURVIVAL_GRAPH}
 
 
 def _saved_recipe(run):
@@ -868,7 +874,7 @@ class MainWindow(QMainWindow):
         chained = kind in {"result", "graph"} and self.project.runs[self.selected[1]].source is not None
         self.actions["analyze_result"].setEnabled(kind == "result" and idle)
         self.actions["source_analysis"].setEnabled(chained)
-        self.actions["change_input"].setEnabled(idle and (kind == "result" or chained))
+        self.actions["change_input"].setEnabled(changeable and idle and (kind == "result" or chained))
         has_data = bool(self.project.tables)
         for key in ("analyze", "new_graph", "descriptive", "ttest", "anova", "correlation", "linear", "nonlinear",
                     "survival", "contingency", "correlation_matrix", "monte_carlo", "transpose_xy"):
@@ -877,8 +883,13 @@ class MainWindow(QMainWindow):
             self.actions[key].setEnabled(idle)
         shape_run = self.drawing.history_run()  # On a graph with drawing steps, Undo/Redo belong to that graph.
         history = shape_run.shape_history if shape_run is not None else self.project.history
-        self.actions["undo"].setEnabled(idle and self.gallery is None and history.can_apply())
-        self.actions["redo"].setEnabled(idle and self.gallery is None and history.can_apply(redo=True))
+        if kind == "info" and self.info_editor is not None:
+            doc = self.info_editor.notes.document()
+            self.actions["undo"].setEnabled(idle and doc.isUndoAvailable())
+            self.actions["redo"].setEnabled(idle and doc.isRedoAvailable())
+        else:
+            self.actions["undo"].setEnabled(idle and self.gallery is None and history.can_apply())
+            self.actions["redo"].setEnabled(idle and self.gallery is None and history.can_apply(redo=True))
         for key in ("open", "import", "new_project", "save", "save_as", "classic", "close_project", "import_excel"):
             self.actions[key].setEnabled(idle)
         self.actions["export_excel"].setEnabled(idle and bool(self.project.tables or self.project.runs))
@@ -1261,6 +1272,8 @@ class MainWindow(QMainWindow):
         project = self.project
         self.info_editor = page.add(InfoEditor(
             sheet, lambda revised: self.change_info(revised) if project is self.project else False, self.error))
+        self.info_editor.notes.undoAvailable.connect(self.update_actions)
+        self.info_editor.notes.redoAvailable.connect(self.update_actions)
         return page
 
     def flush_info(self):
@@ -1712,6 +1725,13 @@ class MainWindow(QMainWindow):
     def undo(self, *, redo=False):
         if self.gallery is not None or self.busy():
             return
+        if self.selected and self.selected[0] == "info" and self.info_editor is not None:
+            if redo:
+                self.info_editor.notes.redo()
+            else:
+                self.info_editor.notes.undo()
+            self.info_editor.flush()
+            return
         shape_run = self.drawing.history_run()
         if shape_run is not None:
             self.drawing.apply_history(shape_run, redo=redo)
@@ -1925,6 +1945,8 @@ class MainWindow(QMainWindow):
         from .analysis_source import AnalysisSourceDialog
         index = self.selected[1]
         run = self.project.runs[index]
+        if _saved_recipe(run):
+            return
 
         def candidate_with(source):
             candidate = copy(run)
@@ -2969,7 +2991,7 @@ class MainWindow(QMainWindow):
                     position = self.result_tabs.currentIndex() if self.result_tabs is not None else 0
                     name, frame = tables[max(0, position)]
                     index = True
-                path, _ = QFileDialog.getSaveFileName(self, qt("qt.export_table"), f"{name}.csv", "CSV (*.csv)")
+                path, _ = QFileDialog.getSaveFileName(self, qt("qt.export_table"), f"{safe_stem(name)}.csv", "CSV (*.csv)")
                 if path:
                     if not Path(path).suffix:
                         path += ".csv"

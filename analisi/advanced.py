@@ -6,11 +6,11 @@ from numbers import Integral
 
 import numpy as np
 import pandas as pd
-from scipy import linalg, optimize, stats
+from scipy import integrate, linalg, optimize, stats
 from scipy.spatial.distance import cdist, pdist, squareform
 from statsmodels.stats.multitest import multipletests
 
-from . import cluster_consensus as consensus
+from . import cluster_consensus as consensus, kmeans_archive
 from .analysis_chain import ChainCancelled
 from .anova_terms import CONTROL_FIELD
 from .field_error import FieldError
@@ -37,6 +37,7 @@ class ClusterScan:
     selection: dict | None = None
     report_fits: dict[int, Clusters] | None = None
     fitting_data: pd.DataFrame | None = None
+    restored: bool = False
 
 
 def _cluster_scores(values, distances, fit):
@@ -193,7 +194,7 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
                 *, min_k=1, gap_replicates=20, kl_scaling=consensus.DIMENSION_ADJUSTED,
                 algorithm="lloyd", max_iterations=10, retain_fits=False, retain_initial=False,
                 include_gap=False, column_scale=None, gap_reference=GAP_VARIABLE_RANGES, cancel=None,
-                kmeans_plus_plus=False):
+                kmeans_plus_plus=False, archive_options=None):
     """Compare fits from min_k through max_k, capped at the distinct row count.
 
     The silhouette, Calinski–Harabasz and Davies–Bouldin scores require
@@ -243,35 +244,46 @@ def kmeans_scan(frame, columns, max_k=8, standardize=False, seed=42, criterion="
     pairs = consensus.PairDistances(values) if score_consensus else None
     distances = squareform(pairs.distances if pairs is not None else pdist(values)) if score_distances else None
     rows, fits, partitions = [], {}, {}
+    archive = kmeans_archive.matching(frame, archive_options, data, values, candidates, retain_initial) if archive_options else None
     fit_options = {"algorithm": algorithm, "max_iterations": max_iterations}
     if kmeans_plus_plus:
         fit_options["kmeans_plus_plus"] = True
     # The fits are independent (each one seeds its own generator); scores follow in k order, as before.
     observed_options = {**fit_options, "column_scale": scale}
     jobs = [(data, columns, count, standardize, seed, retain_initial, observed_options) for count in candidates]
-    outcomes = run_tasks(_scan_fit, jobs, cancel=cancel, with_cancel=True, outcomes=True)
-    for count, outcome in zip(candidates, outcomes, strict=True):
+    if archive is None:
+        computed = run_tasks(_scan_fit, jobs, cancel=cancel, with_cancel=True, outcomes=True)
+        outcomes = ((outcome.value, outcome.error) for outcome in computed)
+    else:
+        outcomes = ((fit, None) for fit in archive[0].values())
+    for count, (fit, error) in zip(candidates, outcomes, strict=True):
         _check_scan_cancel(cancel)
-        if outcome.error is not None:
-            raise outcome.error
-        fit = outcome.value
+        if error is not None:
+            raise error
         fits[count] = fit
         scores = _cluster_scores(values, distances, fit) if 1 < count < n else (np.nan,) * 3
+        # The archived one-cluster report uses zero; this convention cannot vote for k=1.
+        if archive is not None and count == 1:
+            scores = (0.0, np.nan, np.nan)
         rows.append((count, fit.inertia, *scores))
         if pairs is not None and count >= 2:
             partitions[count] = consensus.partition_indices(values, fit.labels.to_numpy(), pairs,
                                                             silhouette_value=scores[0])
     metrics = pd.DataFrame(rows, columns=["k", "WSS", *_CLUSTER_METRICS.values()]).set_index("k")
     if simulate_gap:
-        _gap_scores(metrics, values, columns, seed, gap_replicates,
-                    allow_failed_references=criterion != "gap", fit_options=fit_options,
-                    reference_geometry=gap_reference, cancel=cancel)
+        if archive is not None:
+            metrics[["Gap", "Gap SE"]] = pd.DataFrame.from_dict(archive[1], orient="index")
+        else:
+            _gap_scores(metrics, values, columns, seed, gap_replicates,
+                        allow_failed_references=criterion != "gap", fit_options=fit_options,
+                        reference_geometry=gap_reference, cancel=cancel)
     _check_scan_cancel(cancel)
     if criterion == "consensus":
         outcome = _consensus_scan(metrics, partitions, fits, n, dimensions, kl_scaling=kl_scaling)
     else:
         recommended = _recommend_clusters(metrics, criterion)
         outcome = ClusterScan(metrics, recommended, fits.get(recommended))
+    outcome.restored = archive is not None
     if retain_fits:
         outcome.report_fits = fits
         outcome.fitting_data = pd.DataFrame(values, index=data.index, columns=columns)
@@ -319,6 +331,25 @@ def _tukey_scores(t, p, coordinates, df, confidence):
     return _bounded_family_p(adjusted, p, len(p)), critical
 
 
+def _two_contrast_tail(threshold, angle, df):
+    # In the plane of two standardized contrasts the underlying spherical t
+    # has uniform angle and P(R > r) = (1 + r²/df)^(-df/2). In each sector
+    # the nearer contrast axis gives max(|T1|, |T2|) = R cos(theta).
+    if threshold == 0:
+        return 1.
+    if not np.isfinite(threshold):
+        return 0. if np.isinf(threshold) else np.nan
+    log_ratio = 2 * np.log(threshold) - np.log(df)
+
+    def radial_tail(theta):
+        log_r2_over_df = log_ratio - 2 * np.log(np.cos(theta))
+        return np.exp(-.5 * df * np.logaddexp(0., log_r2_over_df))
+
+    sectors = (angle / 2, (np.pi - angle) / 2)
+    return (2 / np.pi) * sum(integrate.quad(radial_tail, 0., end, epsabs=1e-300, epsrel=1e-12)[0]
+                             for end in sectors)
+
+
 def dunnett_scores(t, p, standardized, df, alpha):
     """Return adjusted p values and the common critical value for standardized control contrasts."""
     count = len(t)
@@ -327,21 +358,35 @@ def dunnett_scores(t, p, standardized, df, alpha):
     correlation = np.clip(standardized @ standardized.T, -1, 1)
     np.fill_diagonal(correlation, 1)
 
-    def tail(x):
-        bound = np.full(count, x, dtype=float)
-        # Keep the quasi-random integration reproducible across analyses.
-        inside = stats.multivariate_t.cdf(bound, shape=correlation, df=df, allow_singular=True,
-                                          lower_limit=-bound, random_state=42, maxpts=40_000)
-        return 1 - inside
+    if count == 2:
+        rho = abs(correlation[0, 1])
+        if rho == 1.:
+            return p, stats.t.isf(alpha / 2, df)
+        angle = np.arccos(rho)
 
-    adjusted = _bounded_family_p(np.array([tail(x) for x in np.abs(t)]), p, count)
+        def tail(x):
+            return _two_contrast_tail(x, angle, df)
+
+        adjusted = np.clip([tail(x) for x in np.abs(t)], p, np.minimum(count * p, 1.))
+        tolerance = 1e-12
+    else:
+        def tail(x):
+            bound = np.full(count, x, dtype=float)
+            # Keep the quasi-random integration reproducible across analyses.
+            inside = stats.multivariate_t.cdf(bound, shape=correlation, df=df, allow_singular=True,
+                                              lower_limit=-bound, random_state=42, maxpts=40_000)
+            return 1 - inside
+
+        adjusted = _bounded_family_p(np.array([tail(x) for x in np.abs(t)]), p, count)
+        tolerance = 1e-5
+
     lower, upper = stats.t.isf(alpha / 2, df), stats.t.isf(alpha / (2 * count), df)
     if tail(lower) <= alpha:
         critical = lower
     elif tail(upper) >= alpha:
         critical = upper
     else:
-        critical = optimize.brentq(lambda x: tail(x) - alpha, lower, upper, xtol=1e-5)
+        critical = optimize.brentq(lambda x: tail(x) - alpha, lower, upper, xtol=tolerance)
     return adjusted, critical
 
 

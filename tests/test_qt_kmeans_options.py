@@ -1,9 +1,12 @@
 """The Qt dialog saves only the options of the selected clustering algorithm."""
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pandas as pd
 
 from analisi import kmeans_options as km, kmeans_reports
+from analisi.analysis_chain import result_frame
 from analisi.i18n import active_language, set_language
 from analisi.workbench import analyse
 
@@ -66,6 +69,26 @@ class QtKmeansOptionsTests(unittest.TestCase):
         algorithm.setCurrentIndex(algorithm.findData(km.HARTIGAN))
         self.assertEqual(dialog.options()[km.INITIALIZATION], km.KMEANS_PLUS_PLUS)
 
+    def test_metric_plot_requires_a_linked_scan_and_reports_missing_gap_on_its_field(self):
+        from trama_qt.analysis_dialog import AnalysisDialog
+
+        ordinary = AnalysisDialog(None, self.frame)
+        self.addCleanup(ordinary.deleteLater)
+        self.assertFalse(ordinary._offered(kmeans_reports.MODEL_GRAPH))
+        scan = analyse(km.SELECTION, self.frame, {"Variables": ["Signal"], "Seed": 42, "Maximum k": 3,
+                                                 "Criterion": "Silhouette"})
+        self.frame = result_frame(scan, "Selection")
+        dialog = self.dialog(kmeans_reports.MODEL_GRAPH, {kmeans_reports.METRIC: "Gap"})
+        self.assertTrue(dialog._offered(kmeans_reports.MODEL_GRAPH))
+        metric = dialog.controls[kmeans_reports.METRIC][1]
+        dialog.accept()
+        self.assertIsNone(dialog.result)
+        self.assertIs(dialog.focusWidget(), metric)
+        self.assertIn("non fornisce questa metrica", dialog.banner.text())
+        metric.setCurrentIndex(metric.findData("Silhouette"))
+        dialog.accept()
+        self.assertEqual(dialog.result, (kmeans_reports.MODEL_GRAPH, {kmeans_reports.METRIC: "Silhouette"}))
+
     def test_forgy_lloyd_preserves_its_iteration_limit_in_the_italian_dialog(self):
         dialog = self.dialog(km.SELECTION, {km.ALGORITHM: km.FORGY_LLOYD, km.LLOYD_ITERATIONS: 12})
         iterations = dialog.controls[km.LLOYD_ITERATIONS][1]
@@ -107,6 +130,37 @@ class QtKmeansOptionsTests(unittest.TestCase):
         self.assertEqual(request[km.SCALE], km.UNSCALED)
         self.assertEqual(analyse(method, self.frame, request).tables["Assignments"]["Cluster"].tolist(),
                          [1, 1, 1, 2, 2, 2])
+
+    def test_confirming_legacy_project_preserves_fit_and_scan_without_scale_fields(self):
+        from analisi.data import Dataset, load_project, save_project
+
+        self.frame = self.frame.assign(Other=[20., 0., 22., 1., 24., 2.])
+        recipes = [
+            (km.CLUSTERING, {"Variables": ["Other", "Signal"], "Seed": 42, "Clusters": 2}),
+            (km.SELECTION, {"Variables": ["Other", "Signal"], "Seed": 42, "Minimum k": 1,
+                            "Maximum k": 3, "Criterion": "Silhouette", "Gap simulations": 20}),
+        ]
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "legacy.alab"
+            save_project(path, {"Data": Dataset(self.frame, analyses=recipes)})
+            sheet = load_project(path)["Data"]
+            for method, saved in sheet.analyses:
+                with self.subTest(method=method):
+                    reference = analyse(method, sheet.raw, saved).tables
+                    dialog = self.dialog(method, saved)
+                    dialog.accept()
+                    self.assertIsNotNone(dialog.result)
+                    confirmed = dialog.result[1]
+                    actual = analyse(method, sheet.raw, confirmed).tables
+                    table = "Centers (fitting scale)" if method == km.CLUSTERING else "Model metrics"
+                    pd.testing.assert_frame_equal(actual[table], reference[table], check_exact=True)
+                    self.assertEqual(confirmed[km.SCALE], km.UNSCALED)
+                    self.assertEqual(confirmed["Variables"], saved["Variables"])
+
+    def test_new_kmeans_analyses_open_with_standardization(self):
+        for method in km.METHODS:
+            with self.subTest(method=method):
+                self.assertEqual(self.dialog(method, {}).controls[km.SCALE][1].currentData(), km.STANDARDIZED)
 
     def test_centering_control_restores_old_recipes_and_exposes_scaled_report(self):
         dialog = self.dialog(km.CLUSTERING, {"Standardize": False, kmeans_reports.SCALED: True})

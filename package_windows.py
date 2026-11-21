@@ -12,6 +12,9 @@ def main():
     bundle = root / "dist" / "Trama"
     if not (bundle / "Trama.exe").is_file():
         raise SystemExit("Build Trama.exe first.")
+    for label, flag in (("Tk", "--tk"), ("Qt", "--qt")):
+        launcher = bundle / f"Trama - {label}.cmd"
+        launcher.write_bytes(f'@echo off\r\nstart "" /D "%~dp0." "%~dp0Trama.exe" {flag}\r\n'.encode("ascii"))
     shutil.copy2(root / "README.md", bundle / "README.md")
     shutil.copy2(root / "LICENSE", bundle / "LICENSE.txt")
     shutil.copy2(root / "LICENSE", bundle / "LICENSE")
@@ -23,7 +26,7 @@ def main():
                  "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "qt-report.md", "worksheet-join.md", "qt-recovery.md", "qt-analysis-templates.md",
                  "qt-excel-workbook.md", "cluster-silhouette-092.md", "paired-proportions.md", "power-from-summary.md",
                  "tolerance-intervals-093.md", "weibull-aft.md", "ordinal-logit.md", "restricted-mean-survival.md", "cohen-kappa.md", "mean-permutation-test.md", "xy-mixed-series.md",
-                 "release-097.md", "release-094.md",
+                 "release-098.md", "release-097.md", "release-094.md",
                  "release-093.md", "validation-093.md",
                  "release-092.md", "validation-092.md", "release-091.md", "validation-091.md",
                  "pca-regression-087.md", "release-090.md", "validation-090.md",
@@ -35,11 +38,11 @@ def main():
                  "anova-terms-083.md", "anova-ss-types.md", "anova-planned-contrasts.md", "rm-anova-sphericity.md", "kmeans-stability.md",
                  "curve-pipeline.md", "deming-multiseries-093.md", "exact-binomial.md", "repeated-measures-correlation.md",
                  "meta-analysis.md", "cox-exact-ties.md", "cox-fit-diagnostics.md", "nb2-regression.md",
-                 "logistic-validation.md", "bland-altman-repeated.md", "reshape-long-wide.md",
+                 "logistic-validation.md", "bland-altman-repeated.md", "icc.md", "precision-recall.md", "reshape-long-wide.md",
                  "release-084.md", "validation-084.md", "hierarchical-style-081.md", "release-083.md", "validation-083.md",
                  "conditional-equations-081.md", "graph-legends.md", "release-082.md", "validation-082.md",
                  "release-081.md", "validation-081.md", "experiment-families.md", "variance-ratio-079.md",
-                 "release-080.md", "validation-080.md", "hierarchical-import.md",
+                 "release-080.md", "validation-080.md", "hierarchical-import.md", "leaf-ordering.md",
                  "release-079.md", "validation-079.md", "analysis-chains.md",
                  "release-078.md", "validation-078.md", "fdr-control.md", "axis-guides.md", "axis-breaks.md",
                  "release-077.md", "validation-077.md", "release-076.md", "validation-076.md", "startup-screen.md", "release-075.md", "validation-075.md", "release-074.md", "validation-074.md", "release-history.md", "release-071.md", "release-072.md", "release-073.md", "validation-073.md", "interface-themes.md", "summary-unequal-anova.md", "validation-tost-086.md", "linear-point-estimates.md",
@@ -75,7 +78,7 @@ def main():
     # Remove research material that could remain in a reused build directory.
     for name in ("Laboratorio.alab", "rm-two-way-sphericity.alab", "Curve-pipeline.alab", "Assi-interrotti.alab",
                  "Stabilita-KMeans.alab", "Validazione-Logistica.alab", "Bland-Altman-ripetute.alab",
-                 "rimodella-visite.alab"):
+                 "rimodella-visite.alab", "ICC-valutatori.alab", "Precisione-Richiamo.alab"):
         example = root / "docs" / "examples" / name
         if example.is_file():
             (bundle / "docs" / "examples").mkdir(exist_ok=True)

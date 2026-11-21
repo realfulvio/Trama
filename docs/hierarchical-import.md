@@ -34,3 +34,21 @@ These additions concern supported hierarchical analysis metadata in ZIP project 
 ![Editable imported heat map and both clustering trees in Trama, using a synthetic project.](media/hierarchical-import/modern-windows.png)
 
 Unedited capture of the Windows 0.80 beta portable, optional Modern theme, 96 DPI. Source data are synthetic. The native graph uses Trama styling; the saved result snapshot is retained separately. Accepted application source: `74a5d75dff56bde4f2088afa6064033678db8e9e`.
+
+### Verifica su Windows delle scale dei dendrogrammi
+
+Nel progetto GeneExpression la scala delle righe ha sei tacche, da 0 a 10 a passi di 2. Quella delle colonne ne ha cinque, da 0 a 20 a passi di 5. Nel progetto Cities le sei tacche delle righe vanno da 0 a 2,5 a passi di 0,5. Le posizioni e i numeri esportati in SVG sono stati confrontati con i valori salvati in entrambi i progetti, sia all'importazione sia dopo la riapertura del file Trama.
+
+Nel dendrogramma autonomo di Cities il titolo della distanza è nascosto. L'editor permette di mostrarlo in anteprima, annullare o applicare la modifica conservando tutte e sei le tacche. Nella mappa dello stesso progetto i numeri della scala laterale ruotano quando lo spazio si riduce. Su Windows lo spazio minimo misurato tra due numeri vicini è di 1,06 pixel nella finestra da 1000 × 700 e di 14,42 pixel in quella da 1500 × 900.
+
+Le etichette delle categorie mantengono il carattere, la dimensione, il colore, il grassetto, la rotazione e la cadenza riconosciuti nel progetto. GeneExpression mantiene le otto intestazioni verticali a 11 punti; Cities mantiene le due intestazioni di colonna in grassetto anche se il clustering riguarda solo le righe. Nella finestra compatta l’anteprima di Cities mostra nove nomi distanziati, con tutte le 43 posizioni di riga. Allargando la finestra a 1500 × 900 compaiono quindici nomi. Lo zoom permette di leggere un tratto più piccolo. Con un intervallo fisso, l’esportazione conserva le etichette selezionate: scegliere un’altezza sufficiente per leggerle tutte.
+
+[Vista Qt a 1000 × 700](media/hierarchical-distance/windows-1000.png) · [Vista Qt a 1500 × 900](media/hierarchical-distance/windows-1500.png)
+
+Le barre dei colori riportano «Table values» e «Log₂(Fold Change)» sopra la scala, con i valori in Arial 12. I titoli, il pedice e i valori si conservano dopo la riapertura in Trama e nell’SVG. I limiti automatici seguono i dati ricalcolati. Nel dendrogramma delle colonne di GeneExpression, le cinque tacche rimangono alle distanze 0, 5, 10, 15 e 20. La finestra da 1000 × 700 mostra i due estremi per lasciare spazio alle scritte. A 1500 × 900 si leggono tutti e cinque i numeri. [GeneExpression in Vetro su Windows a 1000 × 700](media/hierarchical-distance/windows-gene-1000.png)
+
+Nel dendrogramma autonomo di Cities ogni nome rimane associato alla propria foglia. Tutti e 43 i nomi si esportano in Arial 11, neri e ruotati di 90°. La legenda riprende i cinque gruppi nell’ordine salvato. Ogni simbolo usa il colore dei rami assegnati al suo gruppo. Modificando la palette dall’editor gerarchico, la legenda si aggiorna con i rami. **Formato legenda** permette di cambiare titolo, voci e ordine.
+
+Su Windows a 1000 × 700 l’anteprima mostra 22 nomi distanziati. A 1500 × 900 mostra tutti e 43. Il collaudo ha confrontato i 42 rami, le cinque voci della legenda e i 43 nomi nell’originale e dopo salvataggio e riapertura in Trama.
+
+[Albero di Cities a 1000 × 700](media/hierarchical-distance/windows-cities-tree-1000.png) · [Albero di Cities a 1500 × 900](media/hierarchical-distance/windows-cities-tree-1500.png)

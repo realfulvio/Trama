@@ -53,13 +53,15 @@ class PrismImportTests(unittest.TestCase):
         self.assertEqual(frame["Squared dose"].tolist(), [16, 49])
         data = Dataset(frame)
         self.assertEqual(list(data.raw), ["Source dose"])
-        self.assertEqual(list(data.formulas), ["Offset dose", "Squared dose"])
+        self.assertEqual(list(data.formulas), ["Squared dose", "Offset dose"])
+        self.assertEqual(list(data.frame()), list(frame))
         self.assertEqual(data.frame()["Squared dose"].tolist(), [16, 49])
         data.raw.iat[0, 0] = 8
         native = self.path / "saved.alab"
         save_project(native, {"Experiment": data})
         reopened = load_project(native)["Experiment"]
         self.assertEqual(reopened.frame()["Squared dose"].tolist(), [100, 49])
+        self.assertEqual(list(reopened.frame()), list(frame))
 
     def test_unsupported_or_cyclic_formulas_preserve_cached_cells(self):
         source = self.path / "formulas.prism"

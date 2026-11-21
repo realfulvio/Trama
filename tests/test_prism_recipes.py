@@ -306,13 +306,16 @@ class PrismRecipeTests(unittest.TestCase):
         content = {
             "variableDesign": {"x": var("t"), "responseList": [var("e", 1)], "factorList": [var("g", 2)]},
             "data": {"eventCode": 1, "censorCode": 0, "treatUndefinedValuesAs": "MISSING"},
-            "calc": {"tabulate": "EVENT", "logrankTestMethod": "RECOMMENDED", "logrankTest": True},
-            "graph": {"showNumberAtRiskTable": True},
+            "calc": {"tabulate": "EVENT", "logrankTestMethod": "RECOMMENDED", "logrankTest": True,
+                     "ciMethod": "ASYMMETRICAL", "ciLevel": 90.0},
+            "graph": {"showNumberAtRiskTable": True, "errorBars": "CI"},
         }
         frame = pd.DataFrame({"Time": [1, 4, 2, 3], "Event": [1, 0, 1, 1], "Group": list("AABB")})
         args = source("SURVIVAL", "0.0.2", content, frame, {"t": ["Time"], "e": ["Event"], "g": ["Group"]})
         _, method, options = restore_recipe(*args)
         self.assertIn("Prism post-tests", options["Prism import notes"])
+        self.assertEqual(options["Uncertainty"], "Pointwise confidence bars")
+        self.assertEqual(options["Confidence level (%)"], 90.0)
         result = analyse(method, frame, options)
         self.assertEqual(len(result.figure.axes), 2)
         self.assertEqual(result.tables["Curve: A"]["Survival"].tolist(), [.5, .5])

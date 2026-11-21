@@ -28,6 +28,7 @@ from analisi.repeated_input import SAVED_REPLICATE_DISPLAY
 from analisi.pca_graphs import SAVED_DIRECTIONS as PCA_SAVED_DIRECTIONS
 from analisi.pca_overlays import SAVED_APPEARANCE as PCA_OVERLAY_APPEARANCE
 from analisi.monte_carlo import MONTE_CARLO as MONTE_CARLO_METHOD, MonteCarloCancelled, monte_carlo
+from analisi.kmeans_archive import ARCHIVE as KMEANS_ARCHIVE
 from analisi.kmeans_stability import METHOD as KMEANS_STABILITY, analysis as kmeans_stability
 from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attach_pairwise,
                                     comparison_rows as pairwise_rows, endpoint_resolver as pairwise_endpoint,
@@ -36,6 +37,8 @@ from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attac
 from analisi.parallel_analyses import precompute as precompute_analyses
 from analisi.presentation import apply_style, compose_layout
 from analisi.prism_emf_edit import LIMIT_SOURCE
+from analisi.prism_fit_graph import FIT_GRAPH_SPEC, FIT_INTERVAL_BAND
+from analisi.prism_xml_qc import QC_REFERENCE
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS
 from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK,
                                    PRISM_GRAPH_STYLE, PRISM_NOTES, PRISM_PREVIEW, PRISM_TITLE,
@@ -45,6 +48,7 @@ from analisi.prism_xml_binding import SCATCHARD
 from analisi.shape_interaction import ShapeHistory
 from analisi.select_transform import SELECT_TRANSFORM, seeded_transform_options
 from analisi.survival_plot import style_after_parameter_change as survival_style
+from analisi.survival_plot import SURVIVAL_GRAPH
 from analisi.workbench import analyse
 from analisi import worksheet_join
 from analisi.worksheet_history import WorksheetHistory, WorksheetState
@@ -680,7 +684,8 @@ class Project:
         options = dict(options)
         if method == run.method:
             for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
-                        PCA_OVERLAY_APPEARANCE, PCA_SAVED_DIRECTIONS):
+                        PCA_OVERLAY_APPEARANCE, PCA_SAVED_DIRECTIONS, KMEANS_ARCHIVE, FIT_GRAPH_SPEC,
+                        FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:

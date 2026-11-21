@@ -262,6 +262,21 @@ class DispatcherTests(unittest.TestCase):
         self.assertEqual(axes.lines[0].get_drawstyle(), "steps-post")
         self.assertEqual(len(axes.collections), 3)
 
+    def test_confidence_bars_use_asymmetric_limits_at_events_only(self):
+        data = pd.DataFrame({"Time": [1, 1, 2, 3, 5], "Event": [1, 0, 0, 1, 1]})
+        for ordinate in ("Survival", "Cumulative events"):
+            with self.subTest(ordinate=ordinate):
+                result = analyse(KM, data, {"Time": "Time", "Event": "Event", "Curve": ordinate,
+                                           "Display units": "Percent", "Uncertainty": "Pointwise confidence bars"})
+                curve = result.tables["Curve: All"].set_index("Time")
+                axes, = result.figure.axes
+                bars, = axes.containers
+                segments = np.asarray(bars.lines[2][0].get_segments())
+                np.testing.assert_array_equal(segments[:, :, 0], [[1, 1], [3, 3]])
+                np.testing.assert_allclose(segments[:, :, 1], curve.loc[[1, 3], ["CI 95% low", "CI 95% high"]])
+                self.assertNotIn("Standard error", curve)
+                self.assertEqual(axes.lines[0].get_drawstyle(), "steps-post")
+
     def test_symmetric_interval_and_standard_error_at_a_tied_censor(self):
         data = pd.DataFrame({"Time": [1, 1, 3, 4], "Event": [1, 0, 1, 0]})
         options = {"Time": "Time", "Event": "Event", "Uncertainty": "Standard error bars",

@@ -1,12 +1,17 @@
 """Restore compatible categorical scatter graphs from ZIP project metadata."""
 import math
+from numbers import Real
 import re
 
 import numpy as np
 import pandas as pd
 from matplotlib.ticker import FixedLocator
 
+from .analysis_chain import RESULT_CONTEXT
+from .hierarchical_workbench import PALETTE as HIERARCHY_PALETTE, AssignmentCoordinates
+
 APPEARANCE = "Imported scatter appearance"
+CLUSTERED_SCATTER = "Imported cluster scatter columns"
 _MAX_GROUPS = 40
 _MAX_TICKS = 200
 
@@ -100,7 +105,7 @@ def appearance_record(raw):
 
 
 def saved_scatter(sheet, frames, remaining_cells):
-    """Return data and styling for supported, unambiguous multivariable scatter graphs."""
+    """Return data, styling and column identities for a saved multivariable scatter."""
     try:
         graph = sheet["graph"]
         if (graph["@class"] != "MVGraph" or sheet.get("drawings") or graph.get("gdoSettingsExt")
@@ -134,12 +139,66 @@ def saved_scatter(sheet, frames, remaining_cells):
         labels = groups.astype(str)
         if set(labels) != set(palette):
             return None
-        ids = {label: index for index, label in enumerate(palette, 1)}
-        points = pd.DataFrame({"X": values[keep, 0], "Y": values[keep, 1], "Series": labels.to_numpy(),
-                               "Dataset": labels.map(ids).to_numpy(), "Geometry": "points"})
-        return points, style
+        return _points(values[keep], labels, palette), style, (x, y, category)
     except (AttributeError, KeyError, TypeError, ValueError):
         return None
+
+
+def _points(values, labels, palette):
+    ids = {label: index for index, label in enumerate(palette, 1)}
+    return pd.DataFrame({"X": values[:, 0], "Y": values[:, 1], "Series": labels.to_numpy(),
+                         "Dataset": labels.map(ids).to_numpy(), "Geometry": "points"})
+
+
+def clustered_points(frame, binding, palette):
+    """Project the current result table using its saved observation axes and cluster labels."""
+    if not isinstance(binding, dict):
+        raise ValueError("Invalid linked cluster scatter.")
+    x, y, group = (binding.get(key) for key in ("x", "y", "group"))
+    labels = binding.get("labels")
+    observations = None
+    if binding.get("hierarchy") is True:
+        coordinates = frame.attrs.get(RESULT_CONTEXT)
+        if not isinstance(coordinates, AssignmentCoordinates) or len(coordinates.observations) != len(frame):
+            raise ValueError("The result no longer provides linked hierarchical assignments.")
+        resolved = ([column for label, column in coordinates.features if label == name] for name in (x, y))
+        x_columns, y_columns = resolved
+        if len(x_columns) != 1 or len(y_columns) != 1:
+            raise ValueError("The linked hierarchical scatter needs unique plotted variables.")
+        x, y, group = x_columns[0], y_columns[0], coordinates.group
+        observations = np.asarray(coordinates.observations)
+    if (any(not isinstance(name, str) or name not in frame for name in (x, y, group))
+            or len({x, y, group}) != 3):
+        raise ValueError("The linked cluster result no longer provides the plotted columns.")
+    if (not isinstance(labels, list) or not all(isinstance(label, str) for label in labels)
+            or len(labels) != len(palette) or set(labels) != palette.keys()):
+        raise ValueError("Invalid linked cluster labels.")
+    values = frame[[x, y]].to_numpy(dtype=float, na_value=np.nan)
+    groups = frame[group]
+    keep = np.isfinite(values).all(axis=1) & groups.notna().to_numpy()
+    if not keep.any():
+        raise ValueError("The linked cluster result has no complete plotted observations.")
+    groups = groups.loc[keep]
+    names = dict(enumerate(labels, 1))
+    if observations is not None:
+        # A new cut can add groups. Keep the saved colors and use native colors
+        # for the extra groups in this rendered view.
+        extra_groups = set(groups) - names.keys()
+        if any(isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(value)
+               or int(value) != value for value in extra_groups):
+            raise ValueError("The linked result has an unknown cluster label.")
+        for group_id in sorted(map(int, extra_groups)):
+            if not len(labels) < group_id <= _MAX_GROUPS:
+                raise ValueError("The linked scatter can show up to forty clusters.")
+            label = names[group_id] = f"Cluster {group_id}"
+            palette[label] = HIERARCHY_PALETTE[(group_id - 1) % len(HIERARCHY_PALETTE)] + "80"
+    mapped = groups.map(names)
+    if mapped.isna().any():
+        raise ValueError("The linked result has an unknown cluster label.")
+    points = _points(values[keep], mapped, palette)
+    if observations is not None:
+        points["Observation"] = observations[keep]
+    return points
 
 
 def apply_axes(axes, style):

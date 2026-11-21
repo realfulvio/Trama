@@ -16,6 +16,7 @@ from .graph_dialog import ChoiceBinding, pick_color
 from .hierarchical_style import (
     ASPECTS,
     CMAPS,
+    COLORBAR_TITLE_POSITIONS,
     COLOR_MODES,
     LINE_STYLES,
     ORIENTATIONS,
@@ -181,26 +182,17 @@ class HierarchicalStyleDialog(simpledialog.Dialog):
         self._choice(branches, f"{key}.line_style", "hierarchy.style.field.line_style",
                      self._get(key, "line_style"), LINE_STYLES, LINE_LABELS)
         self._entry(branches, f"{key}.alpha", "hierarchy.style.field.alpha", _format_number(self._get(key, "alpha")))
-        labels = self._group(tab, 2, "hierarchy.style.group.labels")
-        ttk.Label(labels, text=tr("hierarchy.style.hint.labels"), wraplength=420, justify="left").grid(
-            row=0, column=0, columnspan=3, sticky="ew", pady=(0, 4))
-        self._check(labels, f"{key}.labels.visible", "hierarchy.style.field.labels.visible",
-                    self._get(key, "labels", "visible"))
-        self._entry(labels, f"{key}.labels.rotation", "hierarchy.style.field.labels.rotation",
-                    _format_number(self._get(key, "labels", "rotation")))
-        self._entry(labels, f"{key}.labels.size", "hierarchy.style.field.labels.size",
-                    _format_number(self._get(key, "labels", "size")))
-        self._color(labels, f"{key}.labels.color", "hierarchy.style.field.labels.color",
-                    self._get(key, "labels", "color"))
-        self._entry(labels, f"{key}.labels.first", "hierarchy.style.field.labels.first",
-                    "" if self._get(key, "labels", "first") is None else str(int(self._get(key, "labels", "first"))))
-        self._entry(labels, f"{key}.labels.interval", "hierarchy.style.field.labels.interval",
-                    "" if self._get(key, "labels", "interval") is None else str(int(self._get(key, "labels", "interval"))))
+        if "legend_visible" in self.baseline[key]:
+            self._check(branches, f"{key}.legend_visible", "hierarchy.style.field.legend_visible",
+                        self._get(key, "legend_visible"))
+        self._label_group(tab, 2, key, "hierarchy.style.group.labels")
         distance = self._group(tab, 3, "hierarchy.style.group.distance")
         ttk.Label(distance, text=tr("hierarchy.style.hint.distance"), wraplength=420, justify="left").grid(
             row=0, column=0, columnspan=3, sticky="ew", pady=(0, 4))
         self._check(distance, f"{key}.distance.visible", "hierarchy.style.field.distance.visible",
                     self._get(key, "distance", "visible"))
+        self._check(distance, f"{key}.distance.title_visible", "hierarchy.style.field.distance.title_visible",
+                    self._get(key, "distance", "title_visible"))
         self._entry(distance, f"{key}.distance.minimum", "hierarchy.style.field.distance.minimum",
                     _format_number(self._get(key, "distance", "minimum")))
         self._entry(distance, f"{key}.distance.maximum", "hierarchy.style.field.distance.maximum",
@@ -209,6 +201,25 @@ class HierarchicalStyleDialog(simpledialog.Dialog):
                     _format_number(self._get(key, "distance", "step")))
         self._check(distance, f"{key}.distance.reversed", "hierarchy.style.field.distance.reversed",
                     self._get(key, "distance", "reversed"))
+
+    def _label_group(self, tab, row, key, caption):
+        labels = self._group(tab, row, caption)
+        ttk.Label(labels, text=tr("hierarchy.style.hint.labels"), wraplength=420, justify="left").grid(
+            row=0, column=0, columnspan=3, sticky="ew", pady=(0, 4))
+        self._check(labels, f"{key}.labels.visible", "hierarchy.style.field.labels.visible",
+                    self._get(key, "labels", "visible"))
+        self._entry(labels, f"{key}.labels.rotation", "hierarchy.style.field.labels.rotation",
+                    _format_number(self._get(key, "labels", "rotation")))
+        self._entry(labels, f"{key}.labels.size", "hierarchy.style.field.labels.size",
+                    _format_number(self._get(key, "labels", "size")))
+        self._entry(labels, f"{key}.labels.family", "hierarchy.style.field.labels.family", self._get(key, "labels", "family"))
+        self._check(labels, f"{key}.labels.bold", "hierarchy.style.field.labels.bold", self._get(key, "labels", "bold"))
+        self._color(labels, f"{key}.labels.color", "hierarchy.style.field.labels.color",
+                    self._get(key, "labels", "color"))
+        self._entry(labels, f"{key}.labels.first", "hierarchy.style.field.labels.first",
+                    "" if self._get(key, "labels", "first") is None else str(int(self._get(key, "labels", "first"))))
+        self._entry(labels, f"{key}.labels.interval", "hierarchy.style.field.labels.interval",
+                    "" if self._get(key, "labels", "interval") is None else str(int(self._get(key, "labels", "interval"))))
 
     def _heatmap_page(self):
         tab = self._add_tab("heatmap", tr("hierarchy.style.tab.heatmap"))
@@ -226,10 +237,23 @@ class HierarchicalStyleDialog(simpledialog.Dialog):
                     _format_number(self._get("heatmap", "maximum")))
         self._check(tab, "heatmap.colorbar", "hierarchy.style.field.colorbar", self._get("heatmap", "colorbar"))
         self._entry(tab, "heatmap.title", "hierarchy.style.field.title", self._get("heatmap", "title") or "")
+        title_positions = {key: f"hierarchy.style.choice.{key}" for key in COLORBAR_TITLE_POSITIONS}
+        self._choice(tab, "heatmap.title_position", "hierarchy.style.field.title_position",
+                     self._get("heatmap", "title_position"), COLORBAR_TITLE_POSITIONS, title_positions)
+        for name in ("scale_labels", "scale_reverse"):
+            self._check(tab, f"heatmap.{name}", f"hierarchy.style.field.{name}", self._get("heatmap", name))
+        self._entry(tab, "heatmap.scale_size", "hierarchy.style.field.scale_size",
+                    _format_number(self._get("heatmap", "scale_size")))
+        self._entry(tab, "heatmap.scale_font", "hierarchy.style.field.scale_font", self._get("heatmap", "scale_font"))
+        self._color(tab, "heatmap.scale_color", "hierarchy.style.field.scale_color", self._get("heatmap", "scale_color"))
         self._choice(tab, "heatmap.orientation", "hierarchy.style.field.orientation",
                      self._get("heatmap", "orientation"), ORIENTATIONS, ORIENTATION_LABELS)
         self._choice(tab, "heatmap.cell_aspect", "hierarchy.style.field.cell_aspect",
                      self._get("heatmap", "cell_aspect"), ASPECTS, ASPECT_LABELS)
+
+        for key in ("row", "column"):
+            if key in self.baseline and key not in self.described:
+                self._label_group(tab, self._row(tab), key, f"hierarchy.style.group.{key}_labels")
 
     def _layout_page(self):
         tab = self._add_tab("layout", tr("hierarchy.style.tab.layout"))
@@ -319,7 +343,8 @@ class HierarchicalStyleDialog(simpledialog.Dialog):
         return None
 
     def _section_of(self, field):
-        return field.split(".", 1)[0]
+        page = field.split(".", 1)[0]
+        return "heatmap" if page in ("row", "column") and not self.pages.get(page) else page
 
     def read_override(self):
         """Canonical fields that differ from the renderer. Disabled pages are left out."""
@@ -329,6 +354,9 @@ class HierarchicalStyleDialog(simpledialog.Dialog):
         if self.pages.get("column"):
             collected["column"] = self._read_tree("column")
         if self.pages.get("heatmap"):
+            for key in ("row", "column"):
+                if key in self.baseline and key not in self.described:
+                    collected[key] = {"labels": self._read_labels(key)}
             collected["heatmap"] = self._read_heatmap()
         if self.pages.get("layout"):
             layout = self._read_layout()
@@ -388,6 +416,24 @@ class HierarchicalStyleDialog(simpledialog.Dialog):
         alpha = self._read_float(f"{key}.alpha")
         if alpha is not None:
             tree["alpha"] = alpha
+        if f"{key}.legend_visible" in self.vars:
+            tree["legend_visible"] = bool(self.vars[f"{key}.legend_visible"].get())
+            tree["legend_title"] = self._get(key, "legend_title")
+            tree["legend_entries"] = self._get(key, "legend_entries")
+        tree["labels"] = self._read_labels(key)
+        distance = {}
+        self._put(distance, f"{key}.distance.visible", bool(self.vars[f"{key}.distance.visible"].get()))
+        for name in ("minimum", "maximum", "step"):
+            number = self._read_float(f"{key}.distance.{name}")
+            if number is not None:
+                distance[name] = number
+        self._put(distance, f"{key}.distance.title_visible", bool(self.vars[f"{key}.distance.title_visible"].get()))
+        self._put(distance, f"{key}.distance.reversed", bool(self.vars[f"{key}.distance.reversed"].get()))
+        if distance:
+            tree["distance"] = distance
+        return tree
+
+    def _read_labels(self, key):
         labels = {}
         self._put(labels, f"{key}.labels.visible", bool(self.vars[f"{key}.labels.visible"].get()))
         rotation = self._read_float(f"{key}.labels.rotation")
@@ -405,18 +451,11 @@ class HierarchicalStyleDialog(simpledialog.Dialog):
         interval = self._read_int(f"{key}.labels.interval")
         if interval is not None:
             labels["interval"] = interval
-        if labels:
-            tree["labels"] = labels
-        distance = {}
-        self._put(distance, f"{key}.distance.visible", bool(self.vars[f"{key}.distance.visible"].get()))
-        for name in ("minimum", "maximum", "step"):
-            number = self._read_float(f"{key}.distance.{name}")
-            if number is not None:
-                distance[name] = number
-        self._put(distance, f"{key}.distance.reversed", bool(self.vars[f"{key}.distance.reversed"].get()))
-        if distance:
-            tree["distance"] = distance
-        return tree
+        family = self._optional_text(f"{key}.labels.family")
+        if family:
+            labels["family"] = family
+        labels["bold"] = bool(self.vars[f"{key}.labels.bold"].get())
+        return labels
 
     def _read_heatmap(self):
         heat = {}
@@ -431,7 +470,13 @@ class HierarchicalStyleDialog(simpledialog.Dialog):
         title = self._optional_text("heatmap.title")
         if title:
             heat["title"] = title
-        self._put(heat, "heatmap.orientation", self.vars["heatmap.orientation"].get())
+        for name in ("title_position", "scale_labels", "scale_reverse", "orientation"):
+            self._put(heat, f"heatmap.{name}", self.vars[f"heatmap.{name}"].get())
+        self._put(heat, "heatmap.scale_size", self._read_float("heatmap.scale_size"))
+        for name in ("scale_font", "scale_color"):
+            text = self._optional_text(f"heatmap.{name}")
+            if text:
+                heat[name] = text
         self._put(heat, "heatmap.cell_aspect", self.vars["heatmap.cell_aspect"].get())
         return heat
 

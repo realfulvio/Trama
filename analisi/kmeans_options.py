@@ -37,9 +37,9 @@ def scale(options):
 
 
 def saved_scaling(options):
-    if SCALE in options or "Standardize" not in options:
+    if not options or SCALE in options:
         return options
-    return {**options, SCALE: STANDARDIZED if options["Standardize"] else UNSCALED}
+    return {**options, SCALE: STANDARDIZED if options.get("Standardize", False) else UNSCALED}
 
 
 def plot_metrics(options):

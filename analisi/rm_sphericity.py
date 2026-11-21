@@ -1,12 +1,15 @@
-"""Greenhouse–Geisser correction for the omnibus tests of Repeated measures ANOVA (0.93).
+"""Sphericity corrections for the omnibus tests of Repeated measures ANOVA (0.93, Huynh–Feldt in 0.97).
 
-The choice ``Geisser–Greenhouse`` of ``Sphericity correction`` accepts one or two within-subject factors in a
-complete, balanced design. For one factor it is the historical one-way table. For two factors every effect
-(A, B and A:B) gets its own epsilon from the covariance, between subjects, of that effect's contrast scores.
+The choices ``Geisser–Greenhouse``, ``Huynh-Feldt`` and ``Lower bound`` of ``Sphericity correction`` accept one or
+two within-subject factors in a complete, balanced design. For one factor ``Geisser–Greenhouse`` is the historical
+one-way table. For two factors every effect (A, B and A:B) gets its own epsilon from the covariance, between
+subjects, of that effect's contrast scores. Huynh–Feldt and the lower bound start from the same contrast scores:
+the lower bound is 1/d for an effect of contrast dimension d, and Huynh–Feldt is the estimate that corrects the
+bias of the Greenhouse–Geisser epsilon.
 
 The sums of squares, mean squares, F ratios and error strata are those of the uncorrected analysis
 (``inference.repeated_measures_anova``). Only the degrees of freedom of the F test and its p value change.
-This module holds what is new: the design check that names a dialog field, the contrast scores, epsilon,
+This module holds what is new: the design check that names a dialog field, the contrast scores, the epsilons,
 the ``Sphericity`` sheet and the wording of the errors. It does not import ``inference``.
 """
 import re
@@ -23,19 +26,30 @@ from .i18n import translate_message, ui
 METHOD = "Repeated measures ANOVA"
 FIELD = "Sphericity correction"
 NONE, CANONICAL, LEGACY = "None", "Geisser–Greenhouse", "Geisser–Greenhouse (one-way)"
+HF, LOWER = "Huynh-Feldt", "Lower bound"
 # The legacy value stays readable in saved recipes. The dialog offers it only when a recipe already uses it.
-CHOICES = (NONE, CANONICAL)
+CHOICES = (NONE, CANONICAL, HF, LOWER)
 # Tokens of ``inference.repeated_measures_anova(correction=...)``.
-GG, GG_ONE_WAY = "gg", "gg-one-way"
-CORRECTIONS = {NONE: None, CANONICAL: GG, LEGACY: GG_ONE_WAY}
+GG, GG_ONE_WAY, HUYNH_FELDT, LOWER_BOUND = "gg", "gg-one-way", "hf", "lower-bound"
+CORRECTIONS = {NONE: None, CANONICAL: GG, LEGACY: GG_ONE_WAY, HF: HUYNH_FELDT, LOWER: LOWER_BOUND}
+# The two estimated choices: they report the epsilon they apply, and the ``Sphericity`` sheet also exists for one
+# factor. The name is the one shown in the ``Correction`` column.
+ESTIMATED = {HUYNH_FELDT: HF, LOWER_BOUND: LOWER}
+STRICT = (GG, HUYNH_FELDT, LOWER_BOUND)
 SHEET = "Sphericity"
 COLUMNS = ["Term", "Contrast dimension", "GG ε", "F", "F df1", "F df2", "p", "Uncorrected p"]
+ESTIMATED_COLUMNS = ["Term", "Correction", "Contrast dimension", "GG ε", "Applied epsilon", "F", "F df1", "F df2",
+                     "p", "Uncorrected p", "Note"]
+# A Huynh–Feldt denominator closer to zero than this share of n − 1 cannot be told from the singular case.
+_SINGULAR = 64 * float(np.finfo(float).eps)
+# A raw estimate this close to a limit is rounding, not a limited estimate worth a note.
+_LIMIT_TOLERANCE = 1e-12
 RESPONSE, FACTORS, SUBJECT = "Response", "Factors", "Subject"
 ERROR_FIELDS = (FIELD, RESPONSE, FACTORS, SUBJECT)
 
 # English sentences raised by this module. i18n registers translations under "rm.sphericity.error.".
 ERRORS = {
-    "choice": "Choose None or Geisser–Greenhouse.",
+    "choice": "Choose None, Geisser–Greenhouse, Huynh-Feldt or Lower bound.",
     "legacy_two": "The one-way Geisser–Greenhouse choice applies to a single Factor. "
                   "Choose Geisser–Greenhouse to correct two Factors.",
     "factors": "Choose one or two within-subject Factors.",
@@ -98,7 +112,7 @@ def correction(options, factor_count):
         raise FieldError(FIELD, ERRORS["choice"])
     if value == LEGACY and factor_count != 1:
         raise FieldError(FIELD, ERRORS["legacy_two"])
-    if value == CANONICAL and factor_count not in (1, 2):
+    if value in (CANONICAL, HF, LOWER) and factor_count not in (1, 2):
         raise FieldError(FACTORS, ERRORS["factors"])
     return CORRECTIONS[value]
 
@@ -249,6 +263,53 @@ def effect_epsilon(within, axes):
     return scores.shape[1], epsilon(scores)
 
 
-def sphericity_table(rows):
-    """The ``Sphericity`` sheet from one dict per effect, in the order A, B, A:B."""
-    return pd.DataFrame(rows, columns=COLUMNS)
+def huynh_feldt(gg, dimension, subjects):
+    """Unlimited Huynh–Feldt estimate, (n d εGG − 2) / [d (n − 1 − d εGG)]; None where the formula has no value.
+
+    It is the form used by the stats package of R (``sphericity`` in ``mlm.R``, where n is the residual
+    degrees of freedom n − 1). ``d εGG`` cannot exceed the rank of the contrast scores, which is at most n − 1,
+    so the denominator is never negative; it vanishes when n − 1 ≤ d and the scores have equal nonzero
+    eigenvalues, for example with two subjects, where the quotient is 0/0. That case, and a denominator lost in
+    rounding, have no estimate.
+    """
+    inner = subjects - 1 - dimension * gg
+    if not np.isfinite(inner) or inner <= _SINGULAR * (subjects - 1):
+        return None
+    return float((subjects * dimension * gg - 2) / (dimension * inner))
+
+
+def applied_epsilon(token, gg, dimension, subjects):
+    """Epsilon that an estimated choice applies to one effect, and the note for the ``Sphericity`` sheet.
+
+    ``token`` is ``HUYNH_FELDT`` or ``LOWER_BOUND``; ``gg`` the Greenhouse–Geisser epsilon of the effect,
+    ``dimension`` its contrast dimension d and ``subjects`` the number n of subjects. The result is
+    ``(epsilon, note)``. Epsilon is always in [1/d, 1]: the lower bound is 1/d, Huynh–Feldt is limited to that
+    interval and the note says when it was. With d = 1 epsilon is exactly 1 and the test is not corrected.
+    Where Huynh–Feldt cannot be computed the epsilon is None and the note gives the reason, so that the other
+    effects keep their results.
+    """
+    if dimension == 1:
+        return 1.0, "One contrast (d = 1): epsilon is exactly 1, so the F test is not corrected."
+    if token == LOWER_BOUND:
+        return 1 / dimension, f"Lower bound 1/d with d = {dimension}."
+    raw = huynh_feldt(gg, dimension, subjects)
+    if raw is None:
+        return None, (f"Huynh–Feldt is undefined for this effect: its denominator n − 1 − d εGG is zero "
+                      f"(n = {subjects} subjects, d = {dimension}, εGG = {gg:.6g}), so epsilon, the corrected "
+                      "degrees of freedom and p are not reported. Geisser–Greenhouse and Lower bound are not "
+                      "affected.")
+    if raw > 1 + _LIMIT_TOLERANCE:
+        return 1.0, f"Huynh–Feldt estimate {raw:.6g} is above 1 and was limited to 1: no correction of the test."
+    if raw < 1 / dimension * (1 - _LIMIT_TOLERANCE):
+        return 1 / dimension, (f"Huynh–Feldt estimate {raw:.6g} is below 1/d and was limited to 1/d = "
+                               f"{1 / dimension:.6g}.")
+    return float(np.clip(raw, 1 / dimension, 1.0)), ""
+
+
+def sphericity_table(rows, *, estimated=False):
+    """The ``Sphericity`` sheet from one dict per effect, in the order A, B, A:B.
+
+    ``estimated`` selects the columns of Huynh-Feldt and Lower bound, which also name the correction, the epsilon
+    applied and a note.
+    """
+    return pd.DataFrame(rows, columns=ESTIMATED_COLUMNS if estimated else COLUMNS)

@@ -6,6 +6,8 @@ import pandas as pd
 
 from analisi.analysis_chain import result_frame
 from analisi.hierarchical_workbench import HIERARCHY_GRAPH
+from analisi.kmeans_options import SELECTION as KMEANS_SELECTION
+from analisi.kmeans_reports import METRIC as KMEANS_METRIC, MODEL_GRAPH as KMEANS_METRIC_GRAPH
 from analisi.nested import NESTED_ANOVA, NESTED_T
 from analisi.reference_normalization import METHOD as REFERENCE_NORMALIZATION
 from analisi.tolerance_intervals import TOLERANCE
@@ -113,9 +115,12 @@ class CatalogTests(unittest.TestCase):
             "Compare independent ROC curves": {"Control A": "x", "Patient A": "z", "Control B": "y", "Patient B": "p",
                                                "Direction A": "Higher in patients", "Direction B": "Lower in patients",
                                                "Area": "Full", "Inference": "DeLong"},
+            "Precision–recall curve": {"Outcome": "Event", "Positive": "1", "Negative": "0", "Score": "x",
+                                       "Second score": "z", "Second direction": "Lower is positive"},
             "Bland–Altman": {"First": "x", "Second": "y", "Method": "Difference"},
             "Bland–Altman for repeated pairs": {"Subject": "Subject", "First": "x", "Second": "y"},
             "Cohen's kappa": {"First rating": "Group", "Second rating": "Factor"},
+            "Intraclass correlation": {"Raters": ["x", "y", "z"], "Subject": "Subject"},
             "Deming regression": {"X": "x", "Y": "y", "Y / X error variance": 1.},
             "Area under curve": {"X": "x", "Y": "y", "Baseline": 10.},
             "Interpolate a standard curve": {"X": "x", "Y": "y", "Unknown responses": "Unknown"},
@@ -199,6 +204,7 @@ class CatalogTests(unittest.TestCase):
             "Robust curve fit": {"X": "x", "Y columns": ["y"], "Model": "Straight line", "Loss": "Cauchy",
                                  "Scale method": "Pilot MAD", "Initial parameters": {}},
             "Cluster silhouette": {"Variables": ["x", "y"], "Cluster": "Group", "Graph": False},
+            KMEANS_METRIC_GRAPH: {KMEANS_METRIC: "WSS"},
             "Simulate data": {"Distribution": "XY with normal noise", "N": 30, "Seed": 42,
                               "Mean": 0., "SD": 1., "X minimum": 0., "X maximum": 1.,
                               "Intercept": 0., "Slope": 1., "Success probability A": .5, "Success probability B": .5},
@@ -234,6 +240,9 @@ class CatalogTests(unittest.TestCase):
                 if name == HIERARCHY_GRAPH:
                     tree = analyse("Hierarchical clustering", data, cases["Hierarchical clustering"])
                     selected = result_frame(tree, "Merges")
+                if name == KMEANS_METRIC_GRAPH:
+                    scan = analyse(KMEANS_SELECTION, data, cases[KMEANS_SELECTION])
+                    selected = result_frame(scan, "Selection")
                 # The application resolves the right worksheet of a join and passes it with the recipe.
                 extra = ({"join_data": pd.DataFrame({"Group": ["A", "B"], "Site": ["North", "South"]})}
                          if name == "Join worksheets by key" else {})

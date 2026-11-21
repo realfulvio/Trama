@@ -1,0 +1,11 @@
+ID,Event,Signal A,Signal B
+1,case,0.93,0.22
+2,control,0.91,0.22
+3,case,0.91,0.15
+4,control,0.70,0.38
+5,control,0.62,0.35
+6,case,0.55,0.35
+7,control,0.40,0.77
+8,control,0.20,0.81
+9,case,0.98,
+10,,0.41,0.70

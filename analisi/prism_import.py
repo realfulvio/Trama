@@ -149,7 +149,7 @@ def _restore_formulas(frame, variables, transforms):
             else:
                 restored[name] = expression
     if restored:
-        frame.attrs["prism_formulas"] = restored
+        frame.attrs["prism_formulas"] = {name: restored[name] for name in frame if name in restored}
     if failed or pending:
         frame.attrs["import_warnings"] = ["Unsupported formulas left as stored values where available: "
                                           + ", ".join(name for name in frame if name in failed or name in pending)]
@@ -445,7 +445,7 @@ def _prism_xml(path, info_sheets=None, *, restore=False):
         raise ValueError("Unrecognized Prism XML document.")
     ns = root.tag[:-len("GraphPadPrismFile")]
     tables, skipped, total_cells = {}, [], 0
-    xml_sources = {}
+    xml_sources, column_sources = {}, {}
     xml_tables = _xml_tables(root, ns)
     table_ids = Counter(table.get("ID") for table in xml_tables) if restore else {}
     for table in xml_tables:
@@ -484,6 +484,11 @@ def _prism_xml(path, info_sheets=None, *, restore=False):
         if table_format.casefold() == "nested":
             frame.attrs["worksheet_roles"] = {"x": [], "y": [frame.columns[a:b].tolist() for a, b, _ in y_spans]}
         _store_table(tables, title, frame)
+        if (restore and table_format.casefold() == "oneway" and xformat == "none"
+                and len(y_spans) == len(frame.columns) and all(stop - start == 1 for start, stop, _ in y_spans)
+                and table_ids[table.get("ID")] == 1
+                and (match := re.fullmatch(r"Table(0|[1-9][0-9]{0,4})", table.get("ID", "")))):
+            column_sources[int(match[1])] = frame
         if (restore and table_format.casefold() == "xy" and xformat == "numbers" and table.get("YFormat") == "replicates"
                 and len(x_spans) == 1 and table_ids[table.get("ID")] == 1
                 and (match := re.fullmatch(r"Table(0|[1-9][0-9]{0,4})", table.get("ID", "")))):
@@ -503,6 +508,13 @@ def _prism_xml(path, info_sheets=None, *, restore=False):
         if payload is not None:
             for title, frame in recover_generated_graphs(payload):
                 _store_table(tables, title, frame)
+    if column_sources:
+        from .prism_xml_qc import attach_qc_graphs
+        from .prism_xml_xy import template_data
+
+        payload = template_data(root, ns)
+        if payload is not None:
+            attach_qc_graphs(payload, column_sources)
     if info_sheets is not None:
         _xml_info(root, ns, info_sheets, skipped)
     return _finish(tables, skipped, info_sheets)

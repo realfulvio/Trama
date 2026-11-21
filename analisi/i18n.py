@@ -3854,12 +3854,26 @@ _RM_SPHERICITY_EN = {
     "rm.sphericity.note.gg": "Each effect gets its own Greenhouse–Geisser epsilon from the contrast scores of that effect. "
                              "Epsilon shrinks the degrees of freedom of its F test, so they can be fractional. "
                              "The corrected p values are for the omnibus tests. This choice adds no post-hoc "
-                             "correction, no Mauchly test, no Huynh–Feldt correction and no REML mixed model. "
+                             "correction, no Mauchly test and no REML mixed model. "
                              "It needs a complete design: one numeric Response from every subject in every cell of "
                              "one or two within-subject Factors.",
+    "rm.sphericity.note.hf": "Huynh–Feldt estimates the epsilon of each effect from its Greenhouse–Geisser epsilon, "
+                             "which is biased downwards in small samples. It is limited to the interval from 1/d to "
+                             "1 and shrinks the degrees of freedom of the F test, so they can be fractional. "
+                             "It estimates epsilon; it does not test sphericity, and there is no Mauchly test. "
+                             "The Sphericity sheet reports both epsilons, the corrected degrees of freedom and "
+                             "p, and says when the estimate was limited or could not be computed. It needs a "
+                             "complete design: one numeric Response from every subject in every cell of one or "
+                             "two within-subject Factors.",
+    "rm.sphericity.note.lower": "Lower bound uses the smallest possible epsilon, 1/d for an effect with d contrasts, "
+                                "for the most conservative F test. The F ratios do not change. It does not estimate "
+                                "the sphericity of the data and does not test it. The Sphericity sheet reports the "
+                                "epsilon applied, the corrected degrees of freedom and p. It needs a complete "
+                                "design: one numeric Response from every subject in every cell of one or two "
+                                "within-subject Factors.",
     "rm.sphericity.note.legacy": "Saved recipe: the one-way Geisser–Greenhouse correction for a single Factor. "
                                  "Choose Geisser–Greenhouse to correct one or two Factors.",
-    "rm.sphericity.error.choice": "Choose None or Geisser–Greenhouse.",
+    "rm.sphericity.error.choice": "Choose None, Geisser–Greenhouse, Huynh-Feldt or Lower bound.",
     "rm.sphericity.error.legacy_two": "The one-way Geisser–Greenhouse choice applies to a single Factor. "
                                       "Choose Geisser–Greenhouse to correct two Factors.",
     "rm.sphericity.error.factors": "Choose one or two within-subject Factors.",
@@ -3904,12 +3918,26 @@ _RM_SPHERICITY_IT = {
     "rm.sphericity.note.gg": "Ogni effetto ha un proprio epsilon di Greenhouse–Geisser, calcolato dai punteggi dei "
                              "suoi contrasti. L’epsilon riduce i gradi di libertà del test F, che possono quindi "
                              "essere frazionari. I valori p corretti sono quelli dei test omnibus. Questa scelta "
-                             "non aggiunge correzioni post-hoc, test di Mauchly, correzione di Huynh–Feldt né un "
-                             "modello misto REML. Richiede un disegno completo: una Risposta numerica di ogni "
+                             "non aggiunge correzioni post-hoc, test di Mauchly né un modello misto REML. "
+                             "Richiede un disegno completo: una Risposta numerica di ogni "
                              "soggetto in ogni cella di uno o due Fattori entro soggetto.",
+    "rm.sphericity.note.hf": "Huynh–Feldt stima l’epsilon di ogni effetto a partire dal suo epsilon di "
+                             "Greenhouse–Geisser, che nei campioni piccoli è distorto verso il basso. È limitato "
+                             "all’intervallo da 1/d a 1 e riduce i gradi di libertà del test F, che possono quindi "
+                             "essere frazionari. Stima epsilon, non verifica la sfericità: non c’è il test di "
+                             "Mauchly. Il foglio Sphericity riporta i due epsilon, i gradi di libertà corretti e "
+                             "p, e segnala quando la stima è stata limitata o non si è potuta calcolare. Richiede "
+                             "un disegno completo: una Risposta numerica di ogni soggetto in ogni cella di uno o "
+                             "due Fattori entro soggetto.",
+    "rm.sphericity.note.lower": "Il limite inferiore usa il minimo epsilon possibile, 1/d per un effetto con d "
+                                "contrasti, per il test F più prudente. I rapporti F non cambiano. Non stima la "
+                                "sfericità dei dati e non la verifica. Il foglio Sphericity riporta l’epsilon "
+                                "applicato, i gradi di libertà corretti e p. Richiede un disegno completo: una "
+                                "Risposta numerica di ogni soggetto in ogni cella di uno o due Fattori entro "
+                                "soggetto.",
     "rm.sphericity.note.legacy": "Ricetta salvata: correzione di Geisser–Greenhouse a una via per un solo Fattore. "
                                  "Scegli Geisser–Greenhouse per correggere uno o due Fattori.",
-    "rm.sphericity.error.choice": "Scegli Nessuno o Geisser–Greenhouse.",
+    "rm.sphericity.error.choice": "Scegli Nessuno, Geisser–Greenhouse, Huynh–Feldt o Limite inferiore.",
     "rm.sphericity.error.legacy_two": "La scelta Geisser–Greenhouse a una via vale per un solo Fattore. "
                                       "Scegli Geisser–Greenhouse per correggere due Fattori.",
     "rm.sphericity.error.factors": "Scegli uno o due Fattori entro soggetto.",
@@ -5117,6 +5145,10 @@ _EN.update({
     "hierarchy.style.tab.layout": "Layout",
     "hierarchy.style.group.branches": "Branches",
     "hierarchy.style.group.labels": "Labels",
+    "hierarchy.style.group.row_labels": "Row labels",
+    "hierarchy.style.group.column_labels": "Column labels",
+    "hierarchy.style.field.labels.family": "Font family",
+    "hierarchy.style.field.labels.bold": "Bold",
     "hierarchy.style.group.distance": "Distance axis",
     "hierarchy.style.field.visible": "Show tree",
     "hierarchy.style.field.color_mode": "Branch colors",
@@ -5133,6 +5165,7 @@ _EN.update({
     "hierarchy.style.field.labels.first": "First label",
     "hierarchy.style.field.labels.interval": "Interval",
     "hierarchy.style.field.distance.visible": "Show distance",
+    "hierarchy.style.field.distance.title_visible": "Show distance axis title",
     "hierarchy.style.field.distance.minimum": "Minimum",
     "hierarchy.style.field.distance.maximum": "Maximum",
     "hierarchy.style.field.distance.step": "Step",
@@ -5143,6 +5176,16 @@ _EN.update({
     "hierarchy.style.field.maximum": "Maximum",
     "hierarchy.style.field.colorbar": "Show color bar",
     "hierarchy.style.field.title": "Color bar title",
+    "hierarchy.style.field.title_position": "Title position",
+    "hierarchy.style.field.legend_visible": "Show cluster legend",
+    "hierarchy.style.field.scale_labels": "Show scale labels",
+    "hierarchy.style.field.scale_reverse": "Reverse scale direction",
+    "hierarchy.style.field.scale_size": "Scale label size",
+    "hierarchy.style.field.scale_font": "Scale font family",
+    "hierarchy.style.field.scale_color": "Scale label color",
+    "hierarchy.style.choice.side": "Along the bar",
+    "hierarchy.style.choice.above": "Above the bar",
+    "hierarchy.style.choice.hidden": "Hidden",
     "hierarchy.style.field.orientation": "Orientation",
     "hierarchy.style.field.cell_aspect": "Cell shape",
     "hierarchy.style.field.row_tree_ratio": "Row tree width",
@@ -5173,6 +5216,7 @@ _EN.update({
     "hierarchy.style.error.color": "Enter an opaque color such as #2866ae.",
     "hierarchy.style.error.alpha": "Colors are opaque. Use the opacity setting for transparency.",
     "hierarchy.style.error.text": "Enter one line of up to 160 characters.",
+    "hierarchy.style.error.font_family": "Enter a font family.",
     "hierarchy.style.error.palette": "Enter between 1 and 24 opaque colors.",
     "hierarchy.style.error.limit": "Enter a finite limit inside the allowed range.",
     "hierarchy.style.error.angle": "Enter a label angle from −90 to 90 degrees.",
@@ -5203,6 +5247,10 @@ _IT.update({
     "hierarchy.style.tab.layout": "Layout",
     "hierarchy.style.group.branches": "Rami",
     "hierarchy.style.group.labels": "Etichette",
+    "hierarchy.style.group.row_labels": "Etichette delle righe",
+    "hierarchy.style.group.column_labels": "Etichette delle colonne",
+    "hierarchy.style.field.labels.family": "Carattere",
+    "hierarchy.style.field.labels.bold": "Grassetto",
     "hierarchy.style.group.distance": "Asse delle distanze",
     "hierarchy.style.field.visible": "Mostra l’albero",
     "hierarchy.style.field.color_mode": "Colori dei rami",
@@ -5219,6 +5267,7 @@ _IT.update({
     "hierarchy.style.field.labels.first": "Prima etichetta",
     "hierarchy.style.field.labels.interval": "Intervallo",
     "hierarchy.style.field.distance.visible": "Mostra la distanza",
+    "hierarchy.style.field.distance.title_visible": "Mostra il titolo dell’asse delle distanze",
     "hierarchy.style.field.distance.minimum": "Minimo",
     "hierarchy.style.field.distance.maximum": "Massimo",
     "hierarchy.style.field.distance.step": "Passo",
@@ -5229,6 +5278,16 @@ _IT.update({
     "hierarchy.style.field.maximum": "Massimo",
     "hierarchy.style.field.colorbar": "Mostra la barra dei colori",
     "hierarchy.style.field.title": "Titolo della barra",
+    "hierarchy.style.field.title_position": "Posizione del titolo",
+    "hierarchy.style.field.legend_visible": "Mostra la legenda dei gruppi",
+    "hierarchy.style.field.scale_labels": "Mostra i valori della scala",
+    "hierarchy.style.field.scale_reverse": "Inverti la direzione della scala",
+    "hierarchy.style.field.scale_size": "Dimensione dei valori",
+    "hierarchy.style.field.scale_font": "Carattere dei valori",
+    "hierarchy.style.field.scale_color": "Colore dei valori",
+    "hierarchy.style.choice.side": "Lungo la barra",
+    "hierarchy.style.choice.above": "Sopra la barra",
+    "hierarchy.style.choice.hidden": "Nascosto",
     "hierarchy.style.field.orientation": "Orientamento",
     "hierarchy.style.field.cell_aspect": "Forma delle celle",
     "hierarchy.style.field.row_tree_ratio": "Larghezza dell’albero delle righe",
@@ -5259,6 +5318,7 @@ _IT.update({
     "hierarchy.style.error.color": "Inserisci un colore opaco, per esempio #2866ae.",
     "hierarchy.style.error.alpha": "I colori sono opachi. Per la trasparenza usa l’opacità.",
     "hierarchy.style.error.text": "Inserisci una sola riga di al massimo 160 caratteri.",
+    "hierarchy.style.error.font_family": "Inserisci il nome di un carattere.",
     "hierarchy.style.error.palette": "Inserisci da 1 a 24 colori opachi.",
     "hierarchy.style.error.limit": "Inserisci un limite finito nell’intervallo consentito.",
     "hierarchy.style.error.angle": "Inserisci un angolo delle etichette tra −90 e 90 gradi.",

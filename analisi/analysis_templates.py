@@ -33,7 +33,8 @@ from .analysis_labels import valid_label
 from .family_workflow import same_file  # Also through links or another spelling of the path.
 from .data import (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_STACKS, EDITABLE_PRISM_XY,
                    MAX_CELLS, MAX_COLUMNS, MAX_ENTRY, Dataset, _formula_tree, _project_column_kind,
-                   _validated_worksheet_roles, _worksheet_roles, info_references, validate_analysis_links)
+                   _validated_worksheet_roles, _worksheet_roles, formula_calculation_order, info_references,
+                   validate_analysis_links)
 from .graph_annotations import ANNOTATIONS
 from .graph_shapes import SHAPES
 from .layout_geometry import AUTO_PAPER, WHITE
@@ -787,14 +788,20 @@ def instantiate_template(template, sources, mapping, *, avoid=(), cancel=None):
             raw.attrs["worksheet_roles"] = deepcopy(table.roles)
         analyses = [(analysis.method, deepcopy(analysis.options)) for analysis in table.analyses]
         dataset = Dataset(raw, analyses=analyses, table_format=table.table_format)
-        for name, expression in table.formulas:
+        expressions = dict(table.formulas)
+        try:
+            order = formula_calculation_order(table.formulas)
+        except ValueError as error:
+            raise TemplateError("formula", str(error), field=table.name, table=table.name) from error
+        for name in order:
             _cancelled(cancel)
             try:
-                dataset.set_formula(name, expression)
+                dataset.set_formula(name, expressions[name])
             except (ValueError, TypeError, ZeroDivisionError) as error:
                 raise TemplateError("formula", f"The formula {name} of {table.name} cannot be calculated on "
                                     f"the new data: {error}", field=table.name, table=table.name,
                                     column=name) from error
+        dataset.formulas = {name: dataset.formulas[name] for name in expressions}
         dataset.analysis_ids = {slot: ids[analysis.id] for slot, analysis in enumerate(table.analyses)}
         dataset.analysis_sources = {slot: ResultSource(ids[analysis.source[0]], analysis.source[1])
                                     for slot, analysis in enumerate(table.analyses) if analysis.source is not None}

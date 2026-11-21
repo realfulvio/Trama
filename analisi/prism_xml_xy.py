@@ -23,7 +23,8 @@ from .prism_binary_results import _title
 from .prism_restore import PRISM_NOTES, PRISM_TITLE, SAVED_XY, _append_linked_recipe
 from .prism_xml_binding import indexed_analyses, restored_binding_recipes
 from .prism_xml_binding_layout import attach_binding_layout
-from .prism_xml_fit_axes import fit_curve_sheet, fit_viewport, indexed_fit_views
+from .prism_xml_fit_axes import fit_result_sheets, fit_viewport, indexed_fit_views
+from .prism_xml_fit_band import attach_fit_interval_bands
 from .reference_normalization import EACH, KEEP, MAXIMUM, METHOD, MINIMUM, NORMALIZED, PERCENTAGES, RAW
 from .repeated_input import SAVED_REPLICATE_DISPLAY, _series_name
 from .reporting import Result
@@ -82,8 +83,10 @@ def attach_xml_error_graphs(root, namespace, sources):
         originals, analyses = set(), []
     outputs = {uid: _single_result_sheet(contents) for uid, _, _, contents in analyses}
     table_ids = set(sources) | {uid for uid in outputs.values() if uid is not None}
-    curve_sheets = {uid: fit_curve_sheet(contents) for uid, _, kind, contents in analyses if kind[:2] == (0, 5)}
-    table_ids.update(sheet for sheet in curve_sheets.values() if sheet is not None)
+    fit_sheets = {uid: sheets for uid, _, kind, contents in analyses
+                  if kind[:2] == (0, 5) and (sheets := fit_result_sheets(contents)) is not None}
+    curve_sheets = {uid: curve for uid, (_, curve) in fit_sheets.items()}
+    table_ids.update(sheet for pair in fit_sheets.values() for sheet in pair)
     try:
         index, encoding, graphs, tables = _project_records(data, table_ids)
     except (ValueError, StructError):
@@ -96,8 +99,10 @@ def attach_xml_error_graphs(root, namespace, sources):
         if len(recipes) < 256:
             recipes.append((method, options))
     attach_binding_layout(data, sources, binding)
+    fit_views = indexed_fit_views(graphs)
     _restore_xy_transforms(sources, source_analyses, analyses, originals, outputs, tables,
-                           curve_sheets, indexed_fit_views(graphs), encoding)
+                           curve_sheets, fit_views, encoding)
+    attach_fit_interval_bands(sources, source_analyses, fit_sheets, tables, fit_views, encoding)
 
     for uid in index:
         graph = graphs.get(uid)

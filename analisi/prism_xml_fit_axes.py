@@ -7,14 +7,14 @@ from .prism_binary import _DATASET
 from .prism_binary_editable import _id_array, _one, _require, _subgroups, _text_object
 
 
-def fit_curve_sheet(contents):
+def fit_result_sheets(contents):
     try:
         count, unused, summary, curve, *rest = unpack("<10i", _one(contents, 0x3C))
     except (ValueError, StructError):
         return None
     if (count == 9 and unused == -1 and set(rest) == {-1} and 0 <= summary <= 65535
             and 0 <= curve <= 65535 and summary != curve):
-        return curve
+        return summary, curve
     return None
 
 

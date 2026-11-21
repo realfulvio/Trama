@@ -13,6 +13,8 @@ from .analysis_chain import RESULT_CONTEXT
 from .data import _headers
 from .field_error import FieldError
 from .hierarchical_style import bind_matrix_labels, register_heatmap, register_tree, set_leaf_ticks
+from .leaf_order import (CHOICES as LEAF_ORDER_CHOICES, FIELD as LEAF_ORDERING, OPTIMAL, check_cancel, check_mode,
+                         check_size, order_leaves)
 from .reporting import Result
 from .stats import hierarchical
 
@@ -25,6 +27,7 @@ HIERARCHICAL_OPTIONS = {
     "Scale rows": SCALES,
     "Linkage": ("average", "complete", "single", "ward", "weighted", "centroid", "median"),
     "Distance": ("euclidean", "cityblock", "chebyshev", "cosine", "correlation"),
+    LEAF_ORDERING: LEAF_ORDER_CHOICES,
     "Row cut": CUT_MODES, "Clusters": 2, "Row cut height": 1.0,
     "Column cut": CUT_MODES, "Column clusters": 2, "Column cut height": 1.0,
     "Graph output": ("Dendrogram", "Heat map", "Elbow plot"),
@@ -62,6 +65,7 @@ MAX_MATRIX_OBSERVATIONS = 512
 class _Tree:
     tree: np.ndarray
     labels: pd.Series | None
+    layout: np.ndarray | None = None  # the same tree with children swapped to draw an optimal leaf order
 
 
 @dataclass(frozen=True, eq=False)
@@ -72,6 +76,13 @@ class _HierarchyView:
     scaled: pd.DataFrame
     row_names: list[str]
     column_names: list[str]
+
+
+@dataclass(frozen=True)
+class AssignmentCoordinates:
+    features: tuple[tuple[str, str], ...]
+    observations: tuple[str, ...]
+    group: str
 
 
 def hierarchy_view_available(frame):
@@ -93,9 +104,10 @@ def check_hierarchy_view(frame, options):
 
 
 def saved_hierarchical_options(options):
-    if "Scale columns" in options or "Standardize" not in options:
+    """Older recipes used raw columns unless standardization was explicitly enabled."""
+    if not options or "Scale columns" in options:
         return options
-    return {**options, "Scale columns": "Standardize" if options["Standardize"] else "None"}
+    return {**options, "Scale columns": "Standardize" if options.get("Standardize") else "None"}
 
 
 def _cut(options, direction):
@@ -184,7 +196,8 @@ def _labels_in_order(names, order, options):
 
 def _draw_tree(ax, fit, names, options, cut_height, *, horizontal=False, margin=False, component=None):
     labels = fit.labels if options.get("Branch appearance", "By cluster") == "By cluster" else None
-    order, paths, groups = _coordinates(fit.tree, labels)
+    drawn = fit.tree if fit.layout is None else fit.layout
+    order, paths, groups = _coordinates(drawn, labels)
     colors = [PALETTE[(group - 1) % len(PALETTE)] if group else MIXED_BRANCH for group in groups]
     width, opacity = options.get("Branch width", 1.4), options.get("Branch opacity (%)", 100.) / 100
     if not 0 < width <= 12 or not 0 <= opacity <= 1:
@@ -210,7 +223,7 @@ def _draw_tree(ax, fit, names, options, cut_height, *, horizontal=False, margin=
         ticks, captions, angle = _labels_in_order(names, order, options)
         auto_labels = options.get("Label interval (0 = automatic)", 0) == 0
         leaf_labels = set_leaf_ticks(ax, "y" if horizontal else "x", ticks, captions,
-                                     automatic=auto_labels, rotation=angle)
+                                     automatic=auto_labels, fit_preview=True, rotation=angle)
         if horizontal:
             ax.set_xlabel("Merge distance")
         else:
@@ -227,7 +240,7 @@ def _draw_tree(ax, fit, names, options, cut_height, *, horizontal=False, margin=
             label_colors = tuple(PALETTE[(int(labels.iloc[leaf]) - 1) % len(PALETTE)] for leaf in order)
         register_tree(
             ax.figure, component, ax, lines, horizontal=horizontal, margin=margin, order=order,
-            cluster_ids=cluster_ids, children=fit.tree[:, :2],
+            cluster_ids=cluster_ids, children=drawn[:, :2],
             leaf_labels=_leaf_label_texts(names, order, options), label_colors=label_colors, options=options,
             palette=PALETTE, mixed_color=MIXED_BRANCH)
     return order
@@ -264,11 +277,16 @@ def _heat_map(fits, heights, options, scale, row_names, column_names):
     x, x_names, angle = _labels_in_order(column_names, cols, options)
     y, y_names, _ = _labels_in_order(row_names, rows, options)
     auto_labels = options.get("Label interval (0 = automatic)", 0) == 0
-    set_leaf_ticks(ax, "x", x, x_names, automatic=auto_labels, rotation=angle)
-    set_leaf_ticks(ax, "y", y, y_names, automatic=auto_labels)
+    set_leaf_ticks(ax, "x", x, x_names, automatic=auto_labels, fit_preview=True, rotation=angle)
+    set_leaf_ticks(ax, "y", y, y_names, automatic=auto_labels, fit_preview=True)
     colorbar = fig.colorbar(raster, cax=fig.add_subplot(grid[1, 2]), label="Value")
     register_heatmap(fig, ax, raster, colorbar)
-    bind_matrix_labels(fig, ax)
+    captions = {}
+    if "Row" not in fits:
+        captions["row"] = _leaf_label_texts(row_names, rows, options)
+    if "Column" not in fits:
+        captions["column"] = _leaf_label_texts(column_names, cols, options)
+    bind_matrix_labels(fig, ax, captions, options)
     fig.suptitle("Hierarchical clustering · Heat map", fontweight="bold")
     return fig
 
@@ -375,15 +393,40 @@ def _diagnostics(fit, names, options):
     return outputs
 
 
-def hierarchical_result(frame, options):
+def _leaf_orders(fits, names, cancel):
+    """The optimal leaf order of every fitted axis: layouts, one report each and the costs. Nothing is refitted."""
+    layouts, tables, costs = {}, {}, []
+    for axis, fit in fits.items():
+        check_cancel(cancel)
+        layouts[axis], tables[f"{axis} leaf order"], before, after = order_leaves(fit, names[axis], cancel=cancel)
+        costs.append((axis, len(names[axis]), before, after))
+    tables["Leaf order costs"] = pd.DataFrame(costs, columns=["Axis", "Leaves", "Original cost", "Final cost"])
+    return layouts, tables
+
+
+def check_leaf_options(frame, options):
+    """The cheap checks of the dialog: the choice and the size of every axis, before any worker starts."""
+    if check_mode(options) != OPTIMAL:
+        return
+    direction = options.get("Direction", "Rows")
+    variables = options.get("Variables") or []
+    if direction in ("Rows", "Rows and columns") and variables and all(name in frame.columns for name in variables):
+        check_size(int(frame[list(variables)].notna().all(axis=1).sum()))
+    if direction in ("Columns", "Rows and columns"):
+        check_size(len(variables))
+
+
+def hierarchical_result(frame, options, *, cancel=None):
     options = saved_hierarchical_options(options)
     direction = options.get("Direction", "Rows")
     axes = {"Rows": ("Row",), "Columns": ("Column",), "Rows and columns": ("Row", "Column")}.get(direction)
     if axes is None:
         raise ValueError("Select rows, columns, or both for hierarchical clustering.")
+    ordering = check_mode(options)
     variables = options["Variables"]
     fits, heights, names, tables = {}, {}, {}, {}
     for axis in axes:
+        check_cancel(cancel)
         count, height = _cut(options, axis)
         fits[axis] = hierarchical(frame, variables, count, linkage=options.get("Linkage", "average"),
                                   metric=options.get("Distance", "euclidean"),
@@ -391,21 +434,30 @@ def hierarchical_result(frame, options):
                                   row_scale=options.get("Scale rows", "None").lower(),
                                   axis=axis.lower() + "s", cut_height=height)
         heights[axis] = height
+        if ordering == OPTIMAL:
+            check_size(len(fits[axis].tree) + 1)  # before any matrix of the ordering exists
     scale = next(iter(fits.values()))
     row_names = _row_names(frame, scale, variables, options.get("Observation labels"))
     column_names = list(map(str, scale.scaled.columns))
+    names = {axis: row_names if axis == "Row" else column_names for axis in fits}
     graph_output = options.get("Graph output", "Dendrogram")
     elbow_reports = {}
+    contexts = {}
+    layouts, leaf_tables = _leaf_orders(fits, names, cancel) if ordering == OPTIMAL else ({}, {})
+    check_cancel(cancel)
     if options.get("Scaled data", False):
         tables["Scaled data"] = scale.scaled
     for axis, fit in fits.items():
-        names[axis] = row_names if axis == "Row" else column_names
         prefix = f"{axis} " if len(axes) > 1 else ""
         if fit.labels is not None:
             label = "Cluster"
             while label in fit.data:
                 label += " (assigned)"
-            tables[prefix + "Assignments"] = fit.data.assign(**{label: fit.labels})
+            name = prefix + "Assignments"
+            tables[name] = fit.data.assign(**{label: fit.labels})
+            features = column_names if axis == "Row" else row_names
+            contexts[name] = AssignmentCoordinates(tuple(zip(features, map(str, fit.data.columns), strict=True)),
+                                                   tuple(names[axis]), label)
         tables[prefix + "Merges"] = pd.DataFrame(fit.tree, columns=["Node A", "Node B", "Distance", "Count"])
         tables.update({prefix + title: table for title, table in _diagnostics(fit, names[axis], options).items()})
         if options.get("Elbow data", False) or graph_output == "Elbow plot":
@@ -413,13 +465,15 @@ def hierarchical_result(frame, options):
             observations = scaled if axis == "Row" else scaled.T
             elbow_reports[axis] = _elbow_data(fit.tree, observations)
             tables[prefix + "Elbow data"] = elbow_reports[axis]
+    tables.update(leaf_tables)
+    trees = {axis: _Tree(fit.tree, fit.labels, layouts.get(axis)) for axis, fit in fits.items()}
     if graph_output == "Heat map":
-        figure = _heat_map(fits, heights, options, scale.scaled, row_names, column_names)
+        figure = _heat_map(trees, heights, options, scale.scaled, row_names, column_names)
     elif graph_output == "Elbow plot":
         figure = _elbow_plot(elbow_reports)
     else:
-        figure = _dendrograms(fits, names, heights, options)
-    view = _HierarchyView({axis: _Tree(fit.tree, fit.labels) for axis, fit in fits.items()},
-                          names, heights, scale.scaled, row_names, column_names)
-    return Result(tables, figure, table_contexts={name: view for name in tables
-                                                 if name in ("Merges", "Row Merges", "Column Merges")})
+        figure = _dendrograms(trees, names, heights, options)
+    check_cancel(cancel)
+    view = _HierarchyView(trees, names, heights, scale.scaled, row_names, column_names)
+    contexts.update({name: view for name in ("Merges", "Row Merges", "Column Merges") if name in tables})
+    return Result(tables, figure, table_contexts=contexts)

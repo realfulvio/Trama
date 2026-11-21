@@ -1,16 +1,17 @@
 # Migrazione a PySide6/Qt
 
-Dalla 0.95 Trama si apre con un'interfaccia Qt nativa (PySide6). Il motore statistico in `analisi/` non cambia: Qt e Tk leggono e scrivono gli stessi progetti `.alab`.
+Trama include un'interfaccia Qt nativa (PySide6) e l’interfaccia Classica (Tk). Entrambe usano il motore statistico in `analisi/` e leggono e scrivono progetti `.alab`.
 
 ## Avvio
 
 | Comando | Interfaccia |
 | --- | --- |
-| `python tramastat.py [file]` | Qt (default se PySide6 è installato) |
+| `python tramastat.py [file]` | Tk classica (predefinita) |
 | `python tramastat.py --tk [file]` | Tk classica |
+| `python tramastat.py --qt [file]` | Qt |
 | `python -m trama_qt [file]` | Qt diretta |
 
-Senza PySide6 l'avvio ricade su Tk. Da Qt, **File → Open in classic interface** salva il progetto e lo riapre in Tk per le funzioni non ancora migrate.
+Il portabile include **Trama - Tk.cmd** e **Trama - Qt.cmd**. Da Qt, **File → Apri nell’interfaccia Classica** può salvare e riaprire il progetto in Tk.
 
 ## Cosa c'è (fase 1, essenziale)
 
@@ -45,8 +46,6 @@ Le funzioni della finestra classica sono tutte su Qt. Resta il collaudo su Windo
 - `status.txt` con `PASS` o `FAIL`; il codice di uscita è 0 o 1.
 
 Un dialogo fallisce se non entra nell'area disponibile dello schermo o se un pulsante, una casella o un'etichetta è più stretta del suo testo. Va lanciato a 100% e a 150%. In Linux si emula uno schermo con `QT_QPA_PLATFORM="offscreen:configfile=schermo.json"`: per esempio 1366×768 al 150% è `{"screens": [{"name": "s", "x": 0, "y": 0, "width": 1366, "height": 768, "logicalDpi": 144, "logicalBaseDpi": 96, "dpr": 1.0}]}`. Lo smoke Tk (`python tramastat.py --smoke`) resta per la versione classica.
-
-Quando tutto è migrato si toglie `--tk` e la dipendenza da Tk.
 
 ## Note per l'integrazione
 

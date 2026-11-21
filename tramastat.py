@@ -7,13 +7,20 @@ if __name__ == "__main__":
     import multiprocessing
     multiprocessing.freeze_support()
 
-if __name__ == "__main__" and "--smoke" not in sys.argv[1:]:
-    # Qt is the main interface. --tk (or a missing PySide6) opens the Standard Tk window.
-    from trama_qt import qt_available
-    if "--tk" not in sys.argv[1:] and qt_available():
+if __name__ == "__main__":
+    requested = {"--tk", "--qt"}.intersection(sys.argv[1:])
+    if len(requested) > 1:
+        raise SystemExit("Choose either --tk or --qt.")
+    sys.argv[1:] = [argument for argument in sys.argv[1:] if argument not in requested]
+    classic_smoke = "--smoke" in sys.argv[1:] and "--qt" not in requested
+
+if __name__ == "__main__" and not classic_smoke:
+    if "--qt" in requested:
+        from trama_qt import qt_available
+        if not qt_available():
+            raise SystemExit("Qt (PySide6) is not available.")
         from trama_qt.app import main as qt_main
         raise SystemExit(qt_main())
-    sys.argv = [argument for argument in sys.argv if argument != "--tk"]
     from trama_startup import launch
     raise SystemExit(launch())
 
@@ -112,7 +119,9 @@ from analisi.heatmap_number_format import (LEGEND_DECIMALS as HEAT_MAP_LEGEND_DE
                                            NUMBER_FORMATS as HEAT_MAP_NUMBER_FORMATS,
                                            parse_legend_decimals as parse_heat_map_legend_decimals)
 from analisi.hierarchical_workbench import (HIERARCHICAL_TABS, HIERARCHY_GRAPH, TREE_AXIS,
-                                           check_hierarchy_view, hierarchy_view_available, saved_hierarchical_options)
+                                           check_hierarchy_view, check_leaf_options, hierarchy_view_available,
+                                           saved_hierarchical_options)
+from analisi.leaf_order import FIELD as LEAF_ORDERING, OPTIMAL as OPTIMAL_LEAF_ORDER
 from analisi.info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
 from analisi.info_widget import InfoDetails, InfoEditor
 from analisi.inference import (AUTOMATIC_P, CHI_SQUARE_P, DUNN, DUNN_ADJUSTMENT, DUNN_ALPHA, DUNN_CONTROL,
@@ -191,6 +200,10 @@ from analisi.modern_workspace import ModernWorksheet
 from analisi.project_tabs import MAX_PROJECT_TABS, ProjectSession, ProjectTabs
 from analisi.prism_binary_graphs import render_binary_graph
 from analisi.prism_emf_edit import LIMIT_SOURCE
+from analisi.prism_fit_graph import FIT_GRAPH_SPEC, FIT_INTERVAL_BAND
+from analisi.prism_xml_qc import QC_REFERENCE
+from analisi.icc import METHOD as ICC_METHOD, cancellable as icc_cancellable
+from analisi import precision_recall
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS, edited_layout_preview
 from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK, PRISM_GRAPH_STYLE,
                                    PRISM_NOTES, PRISM_PREVIEW, PRISM_TITLE, SAVED_BINARY_GRAPH,
@@ -378,7 +391,7 @@ from analisi.cox_outputs import (METHOD as COX, GRAPH as COX_GRAPH, GRAPH_TERM a
                                  DIAGNOSTICS as COX_DIAGNOSTICS, FIT_DIAGNOSTICS as COX_FIT_DIAGNOSTICS,
                                  PROFILES as COX_PROFILES, SCHOENFELD as COX_SCHOENFELD,
                                  STATUS_DEFAULTS as COX_STATUS, cox_visibility)
-from analisi.survival_plot import CURVE as SURVIVAL_CURVE, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS
+from analisi.survival_plot import CURVE as SURVIVAL_CURVE, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS, SURVIVAL_GRAPH
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.table_setup import NewTableDialog, TEMPLATES, XY_FORMATS, TableSetup, table_frame
 from analisi.text_import import TEXT_SUFFIXES
@@ -400,7 +413,7 @@ from analisi.power_plan import (ALLOCATION as POWER_ALLOCATION, DESIGN as POWER_
                                 check_options as check_power_options, normalized_options as power_options,
                                 visibility as power_visibility)
 from analisi.power_plan_dialog import MultilineEntry
-from analisi import kmeans_options, kmeans_reports
+from analisi import kmeans_archive, kmeans_options, kmeans_reports
 from analisi import lognormal_anova
 from analisi.unequal_anova import check_one_way_options, one_way_visibility
 from analisi.variance_assumptions import (ALPHA as VARIANCE_ALPHA, BARTLETT as VARIANCE_BARTLETT,
@@ -1137,7 +1150,10 @@ class AnalysisDialog(simpledialog.Dialog):
             matches = [name for name in methods if (not self.only or name in self.only)
                        and name != RESHAPE_LONG_WIDE  # edited only in the Qt window (trama_qt.reshape_long_wide)
                        and name != WORKSHEET_JOIN  # edited only in the Qt window (trama_qt.worksheet_join)
+                       and name not in {ICC_METHOD, precision_recall.METHOD}  # edited in Vetro
                        and (name != HIERARCHY_GRAPH or name == self.method or hierarchy_view_available(self.data))
+                       and (name != kmeans_reports.MODEL_GRAPH or name == self.method
+                            or kmeans_reports.model_plot_available(self.data))
                        and any(search in caption.casefold() for caption in (name, group, ui(name), ui(group)))]
             if not matches:
                 continue
@@ -1777,6 +1793,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 defaults = saved.get(label, default_columns if label in {"Variables", "Count columns"}
                                      and self.method != TOLERANCE else ())
                 offered = list(dict.fromkeys([*columns, *defaults])) if label == "Condition on factors" else columns
+                if label in saved:
+                    available = set(offered)
+                    selected = [name for name in defaults if name in available]
+                    offered = list(dict.fromkeys(selected + list(offered)))
                 for i, name in enumerate(offered):
                     box.insert("end", name)
                     if name in defaults:
@@ -3057,7 +3077,9 @@ class AnalysisDialog(simpledialog.Dialog):
         if note is None or not note.winfo_exists() or rm_sphericity.FIELD not in self.controls:
             return
         key = {rm_sphericity.NONE: "rm.sphericity.note.none",
-               rm_sphericity.LEGACY: "rm.sphericity.note.legacy"}.get(
+               rm_sphericity.LEGACY: "rm.sphericity.note.legacy",
+               rm_sphericity.HF: "rm.sphericity.note.hf",
+               rm_sphericity.LOWER: "rm.sphericity.note.lower"}.get(
             self.controls[rm_sphericity.FIELD][1].get(), "rm.sphericity.note.gg")
         note.configure(text=tr(key))
 
@@ -4178,6 +4200,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 check_survival_options(self.data, options)
             if self.method == HIERARCHY_GRAPH:
                 check_hierarchy_view(self.data, options)
+            if self.method == "Hierarchical clustering":
+                check_leaf_options(self.data, options)
+            if self.method == kmeans_reports.MODEL_GRAPH:
+                kmeans_reports.check_model_plot(self.data, options)
             if self.method in kmeans_options.METHODS:
                 kmeans_options.scale(options)
                 for report in (*kmeans_reports.SCAN, *kmeans_options.PLOTS):
@@ -4520,7 +4546,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = ui(field) if field else ""
                 if label and label not in message:
                     message = f"{label}: {message}"
-            elif self.method in (NORMALITY, SUMMARY_ANOVA, SUMMARY_TTEST, HIERARCHY_GRAPH, *kmeans_options.METHODS):
+            elif self.method in (NORMALITY, SUMMARY_ANOVA, SUMMARY_TTEST, HIERARCHY_GRAPH,
+                                 "Hierarchical clustering", *kmeans_options.METHODS):
                 message = ui(message)
                 label = ui(field) if field else ""
                 if label and label not in message:
@@ -4878,12 +4905,17 @@ def cox_exact_run(run):
     return run.method == COX and cox_is_exact(run.options)
 
 
+def uses_optimal_leaf_order(method, options):
+    return method == "Hierarchical clustering" and options.get(LEAF_ORDERING) == OPTIMAL_LEAF_ORDER
+
+
 def cancellable_run(method, options):
     """Identify analyses that expose cancellation during calculation."""
     return (method == MONTE_CARLO_METHOD or extended_request(method, options)
-            or competing_cancellable(method, options) or kappa_cancellable(method, options)
+            or competing_cancellable(method, options) or kappa_cancellable(method, options) or icc_cancellable(method, options)
             or permutation_cancellable(method, options) or independent_roc_cancellable(method, options)
             or rmcorr_cancellable(method, options) or meta_cancellable(method, options)
+            or precision_recall.cancellable(method, options) or uses_optimal_leaf_order(method, options)
             or (method == COX and cox_is_exact(options)))
 
 
@@ -7291,7 +7323,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 except MonteCarloCancelled:
                     results.append((run, None, None))
                 except Exception as error:
-                    if run.method == REFERENCE_NORMALIZATION:
+                    if run.method == REFERENCE_NORMALIZATION or uses_optimal_leaf_order(run.method, run.options):
                         results.append((run, previous.get(id(run)), error))
                     elif self._reopens_field_error(run) and isinstance(error, FieldError):
                         results.append((run, previous.get(id(run)), error))
@@ -7312,7 +7344,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             recovered = False
             for run, result, error in future.result():
                 if cancelled and cancellable_run(run.method, run.options):
-                    if run.method == INDEPENDENT_ROC:
+                    if run.method in {INDEPENDENT_ROC, precision_recall.METHOD} or uses_optimal_leaf_order(run.method, run.options):
                         run.result = previous.get(id(run))
                         run.calculation_error = "The update was cancelled." if run.result is not None else None
                     elif cox_exact_run(run) and previous.get(id(run)) is not None:
@@ -7584,7 +7616,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
                 or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, RMST, INDEPENDENT_ROC, ANCOVA, RMCORR,
                                   META_ANALYSIS, NB2, WEIBULL_AFT, ORDINAL_LOGIT)
-                or self._pca_regression(run)
+                or self._pca_regression(run) or uses_optimal_leaf_order(run.method, run.options)
                 or cox_exact_run(run) or self._cox_fit_diagnostics(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) in kmeans_options.ITERATION_FIELDS)
@@ -7758,6 +7790,12 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if run.method == WORKSHEET_JOIN:
             self.error(tr("join.classic"))
             return
+        if run.method == ICC_METHOD:
+            self.error(tr("icc.classic"))
+            return
+        if run.method == precision_recall.METHOD:
+            self.error(tr("precision.classic"))
+            return
         try:
             frame = self.input_frame(run)
         except ValueError as error:
@@ -7774,7 +7812,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         method, options = dialog.result
         if method == run.method:
             for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
-                        pca_overlays.SAVED_APPEARANCE, PCA_SAVED_DIRECTIONS):
+                        pca_overlays.SAVED_APPEARANCE, PCA_SAVED_DIRECTIONS, kmeans_archive.ARCHIVE,
+                        FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:

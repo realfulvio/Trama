@@ -10,7 +10,9 @@ from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QL
 from analisi.i18n import active_language, tr, ui
 
 _ITALIAN = {"Edit formula": "Modifica formula", "Choose a new column name.": "Scegli un nuovo nome di colonna.",
-            "Enter a formula.": "Inserisci una formula."}
+            "Enter a formula.": "Inserisci una formula.",
+            "A calculated column cannot depend on itself, directly or indirectly.":
+                "Una colonna calcolata non può dipendere da sé stessa, direttamente o indirettamente."}
 
 
 def t(text):
@@ -76,6 +78,7 @@ class FormulaDialog(QDialog):
             candidate.set_formula(name, expression)
         except (ValueError, TypeError, OverflowError) as error:
             self.show_problem(t(str(error)))
+            self.expression.setFocus()
             return
         self.result = name, candidate.formulas[name]
         super().accept()

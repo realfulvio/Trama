@@ -16,6 +16,8 @@ Un override parziale eredita i valori catturati dal renderer prima della prima a
 
 In Qt, apri **Dendrogrammi e mappa di calore…** dall’Inspector o dalla scheda **Aspetto** di **Formato grafico**. Usa **Anteprima** per vedere la modifica. **Applica** trasferisce le scelte all’editor che hai aperto. Conferma anche lì per salvarle nel progetto. Per un dendrogramma standalone trovi solo la pagina dell’albero disponibile. Nella mappa raggruppata trovi anche la barra dei colori e, dove sono presenti gli alberi, le loro proporzioni.
 
+Per nascondere la dicitura accanto alla scala mantenendo le tacche numeriche, deseleziona **Mostra il titolo dell’asse delle distanze** nella pagina dell’albero.
+
 Nell’interfaccia classica il pulsante **Dendrograms and heat map…** è anche nella pagina del grafico. Lo stesso editor si apre dall’Inspector e da Format Graph. L’anteprima agisce sulla figura del canvas. Annulla ed Esc ripristinano la vista iniziale dell’editor.
 
 Le pagine di un componente assente sono nascoste in Qt e disabilitate nell’interfaccia classica. Le proporzioni del layout sono disponibili per le mappe con alberi. Una casella vuota ripristina il valore del renderer.

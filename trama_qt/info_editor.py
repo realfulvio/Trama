@@ -5,7 +5,6 @@ Same ``InfoSheet`` records as the classic window (``analisi.info_widget`` needs 
 are converted at the boundary.
 """
 from dataclasses import replace
-from pathlib import Path
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextCursor
@@ -14,8 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget)
 
 from analisi.i18n import active_language, tr, ui
-from analisi.info import (MAX_INFO_FIELDS, MAX_INFO_NOTES, NOTE_BOLD, NOTE_ITALIC, NOTE_STYLE_MASK, NOTE_UNDERLINE,
-                          InfoSheet)
+from analisi.info import MAX_INFO_FIELDS, MAX_INFO_NOTES, NOTE_BOLD, NOTE_ITALIC, NOTE_UNDERLINE, InfoSheet, read_note_append
 
 _ITALIAN = {"New Info sheet": "Nuovo foglio Info", "Info sheet properties": "Proprietà del foglio Info",
             "Sheet name": "Nome del foglio", "Scope": "Ambito", "Entire project": "Tutto il progetto",
@@ -24,6 +22,7 @@ _ITALIAN = {"New Info sheet": "Nuovo foglio Info", "Info sheet properties": "Pro
             "Constants": "Costanti", "Notes": "Note", "Delete row": "Elimina riga", "Bold": "Grassetto",
             "Italic": "Corsivo", "Underline": "Sottolineato",
             "An Info sheet supports up to 500 rows.": "Un foglio Info ha al massimo 500 righe.",
+            "Info notes contain invalid text.": "Le note contengono caratteri non validi.",
             "Info notes exceed the size limit.": "Le note superano la dimensione massima."}
 
 
@@ -220,8 +219,9 @@ class InfoEditor(QWidget):
         style.setFontUnderline(bool(mask & NOTE_UNDERLINE))
         return style
 
-    def _render_notes(self, selection=None):
+    def _render_notes(self):
         self._loading = True
+        self.notes.setUndoRedoEnabled(False)
         self.notes.clear()
         cursor = QTextCursor(self.notes.document())
         text, position = self.sheet.notes, 0
@@ -230,31 +230,31 @@ class InfoEditor(QWidget):
             cursor.insertText(text[start:end], self._format(mask))
             position = end
         cursor.insertText(text[position:], self._format(0))
-        if selection is not None:
-            cursor.setPosition(selection[0])
-            cursor.setPosition(selection[1], QTextCursor.MoveMode.KeepAnchor)
-            self.notes.setTextCursor(cursor)
+        self.notes.setUndoRedoEnabled(True)
         self._loading = False
+
+    @staticmethod
+    def _style_mask(style):
+        return ((NOTE_BOLD if style.fontWeight() >= QFont.Weight.Bold else 0)
+                | (NOTE_ITALIC if style.fontItalic() else 0)
+                | (NOTE_UNDERLINE if style.fontUnderline() else 0))
 
     def read_notes(self):
         """``(text, styles)`` of the editor, styles in Python characters."""
         masks, parts, block = [], [], self.notes.document().begin()
         while block.isValid():
-            if parts:
+            if block.blockNumber() > 0:
+                # Qt keeps the preceding paragraph separator's style on the following block.
                 parts.append("\n")
-                masks.append(0)
+                masks.append(self._style_mask(block.charFormat()))
             fragments = block.begin()
             while not fragments.atEnd():
                 fragment = fragments.fragment()
-                style = fragment.charFormat()
-                mask = ((NOTE_BOLD if style.fontWeight() >= QFont.Weight.Bold else 0)
-                        | (NOTE_ITALIC if style.fontItalic() else 0) | (NOTE_UNDERLINE if style.fontUnderline() else 0))
-                parts.append(fragment.text())
-                masks.extend([mask & NOTE_STYLE_MASK] * len(fragment.text()))
+                text = fragment.text()
+                parts.append(text)
+                masks.extend([self._style_mask(fragment.charFormat())] * len(text))
                 fragments += 1
             block = block.next()
-            if not parts:
-                parts.append("")
         text = "".join(parts)
         return text, _spans(masks) if len(text) <= MAX_INFO_NOTES else ()
 
@@ -276,26 +276,28 @@ class InfoEditor(QWidget):
         masks = [0] * len(self.sheet.notes)
         for start, end, style in self.sheet.note_styles:
             masks[start:end] = [style] * (end - start)
-        remove = all(masks[index] & mask for index in range(first, last))
-        for index in range(first, last):
-            masks[index] = masks[index] & ~mask if remove else masks[index] | mask
-        if self.commit(note_styles=_spans(masks)):
-            self._render_notes((cursor.selectionStart(), cursor.selectionEnd()))
+        enable = not all(masks[index] & mask for index in range(first, last))
+        delta = QTextCharFormat()
+        if mask == NOTE_BOLD:
+            delta.setFontWeight(QFont.Weight.Bold if enable else QFont.Weight.Normal)
+        elif mask == NOTE_ITALIC:
+            delta.setFontItalic(enable)
+        elif mask == NOTE_UNDERLINE:
+            delta.setFontUnderline(enable)
+        cursor.mergeCharFormat(delta)
+        self.flush()
 
     def import_notes(self):
         path, _ = QFileDialog.getOpenFileName(self, t("Import notes…"), "", "UTF-8 text (*.txt);;* (*)")
         if not path:
             return
         try:
-            with Path(path).open(encoding="utf-8-sig") as stream:
-                text = stream.read(MAX_INFO_NOTES + 1)
-            if len(text) > MAX_INFO_NOTES:
-                raise ValueError(t("Info notes exceed the size limit."))
+            text = read_note_append(path, self.notes.toPlainText())
         except (OSError, ValueError) as error:
-            self.error(error)
+            self.error(t(str(error)))
             return
         if text:
             cursor = self.notes.textCursor()
             cursor.movePosition(QTextCursor.MoveOperation.End)
-            cursor.insertText(("\n\n" if self.notes.toPlainText() else "") + text, self._format(0))
+            cursor.insertText(text, self._format(0))
             self.flush()

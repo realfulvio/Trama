@@ -366,7 +366,9 @@ def _fraction_source(records, companion, indexed):
 def restore_binary_results(data, sources, tables, cells, fonts):
     """Add verified snapshots and attach matching native recipes to the original source grids."""
     analyses, sheets, indexed, analysis_ids, companions = _read_groups(data)
-    unavailable = 0
+    unavailable = set()
+    snapshots = {}
+    may_have_dose_fits = False
     unreadable = int(analysis_ids is None)
     for analysis_id in analysis_ids or ():
         analysis = analyses.get(analysis_id)
@@ -437,6 +439,10 @@ def restore_binary_results(data, sources, tables, cells, fonts):
             _store_table(tables, f"Prism result · {title}", frame)
             cells += frame.size
             saved = True
+            if sheet_id in snapshots or len(source_ids) != 1:
+                snapshots[sheet_id] = None
+            else:
+                snapshots[sheet_id] = (analysis_id, source_ids[0], slot)
 
             if (mode == _TEXT_MODE and not restored and len(source_ids) == 1
                     and (source := sources.get(source_ids[0])) is not None):
@@ -450,13 +456,19 @@ def restore_binary_results(data, sources, tables, cells, fonts):
                     label = f"{(analysis_title or title)[:156 - len(label)]} · {label}"
                     source.attrs.setdefault("prism_recipes", []).append((method, {**options, PRISM_TITLE: label}))
                     restored = True
-        unavailable += saved and not restored
+        if saved and not restored:
+            unavailable.add(analysis_id)
+            may_have_dose_fits |= any(tag == 0x46 and len(payload) == 1348
+                                      and payload[:4] == b"\x00\x21\x80\x00" for tag, payload in records)
+    if may_have_dose_fits:
+        from .prism_binary_dose import restore_dose_recipes
+        unavailable.difference_update(restore_dose_recipes(data, sources, sheets, snapshots, unavailable))
     if tables and (unavailable or unreadable):
         warnings = []
         if unreadable:
             warnings.append(f"Some saved content could not be read ({unreadable}).")
         if unavailable:
-            label = "analysis" if unavailable == 1 else "analyses"
-            warnings.append(f"Recalculation unavailable for {unavailable} saved {label}.")
+            label = "analysis" if len(unavailable) == 1 else "analyses"
+            warnings.append(f"Recalculation unavailable for {len(unavailable)} saved {label}.")
         next(iter(tables.values())).attrs.setdefault("import_warnings", []).append("Prism import · " + " ".join(warnings))
     return cells

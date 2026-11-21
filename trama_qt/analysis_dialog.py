@@ -23,6 +23,7 @@ from analisi import cluster_silhouette, cohen_kappa as kappa, cox_exact, cox_out
 from analisi import cohen_kappa_options as kappa_text, cohen_kappa_workbench as kappa_form
 from analisi import extract_rearrange as extraction
 from analisi.field_error import FieldError
+from analisi.hierarchical_workbench import check_leaf_options, saved_hierarchical_options
 from analisi import kmeans_options, kmeans_reports, mean_permutation
 from analisi import mean_permutation_options as permutation_text
 from analisi import ordinal_logit as ordinal
@@ -38,9 +39,12 @@ from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
-from . import anova_model, global_fit, logistic_validation, planned_contrasts
+from . import anova_model, ellipse_groups, global_fit, logistic_validation, planned_contrasts
 from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
+from . import rm_sphericity_dialog as sphericity_options
+from . import icc as icc_binding
+from . import precision_recall as precision_options
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
 from . import worksheet_join as join_editor
@@ -172,6 +176,9 @@ class AnalysisDialog(QDialog):
         self.anova = None  # Multifactor ANOVA bindings (trama_qt.anova_model)
         self.stability = None  # K-means stability bindings (trama_qt.kmeans_stability)
         self.repeated = None  # Bland–Altman for repeated pairs (trama_qt.bland_altman_repeated)
+        self.sphericity = None  # Repeated measures ANOVA sphericity correction (trama_qt.rm_sphericity_dialog)
+        self.icc = None  # Intraclass correlation (trama_qt.icc)
+        self.precision = None  # Precision–recall curve (trama_qt.precision_recall)
         self.reshape = None  # Reshape long and wide editor (trama_qt.reshape_long_wide)
         method = current[0] if current and current[0] in METHODS else None
         self.method = method or self._first_method()
@@ -237,6 +244,12 @@ class AnalysisDialog(QDialog):
             self.banner.setText(self.stability.message(error))
         if error and self.repeated is not None:  # engine errors reopen here; word them in the active language
             self.banner.setText(self.repeated.message(error))
+        if error and self.sphericity is not None:  # engine errors reopen here; word them in the active language
+            self.banner.setText(self.sphericity.message(error, error_field))
+        if error and self.icc is not None:  # engine errors reopen here; word them in the active language
+            self.banner.setText(self.icc.message(error))
+        if error and self.precision is not None:
+            self.banner.setText(self.precision.message(error))
         if error_field:
             if self.anova is not None and error:  # engine errors reopen here; word them in the active language
                 self.banner.setText(self.anova.message(FieldError(error_field, str(error))))
@@ -248,6 +261,8 @@ class AnalysisDialog(QDialog):
     def _offered(self, name):
         if self.only and name not in self.only:
             return False
+        if name == kmeans_reports.MODEL_GRAPH:
+            return name == self.method or kmeans_reports.model_plot_available(self.data)
         return name != HIERARCHY_GRAPH or name == self.method or hierarchy_view_available(self.data)
 
     def _first_method(self):
@@ -301,6 +316,8 @@ class AnalysisDialog(QDialog):
         saved = dict(self.current[1])
         if self.method in kmeans_options.METHODS:
             saved = kmeans_options.saved_scaling(saved)
+        if self.method == "Hierarchical clustering":
+            saved = saved_hierarchical_options(saved)
         if self.method in CLASSIC_RESPONSES:
             saved = {**saved, **classic_roles(self.method, saved)}
         return saved
@@ -314,6 +331,9 @@ class AnalysisDialog(QDialog):
         self.anova = None
         self.stability = None
         self.repeated = None
+        self.sphericity = None
+        self.icc = None
+        self.precision = None
         self.reshape = None
         self.join = None
         pages, scrolls = {}, {}
@@ -415,6 +435,8 @@ class AnalysisDialog(QDialog):
                 "Comparison factor", "Condition on factors"}
             if self.method == extraction.EXTRACT_REARRANGE and label == extraction.OUTPUT:
                 variable = True
+            if self.method == precision_options.METHOD and label in precision_options.CODE_FIELDS:
+                variable = True  # the labels of the outcome sit beside the Outcome column
             if paired_method:
                 variable = label in paired.DATA_FIELDS
             if rmst_method:
@@ -449,11 +471,13 @@ class AnalysisDialog(QDialog):
                 widget.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
                 default_columns = numeric if label in {"Variables", "Count columns"} and not tolerance_method else ()
                 defaults = saved.get(label, default_columns)
-                offered = list(dict.fromkeys([*columns, *[str(name) for name in (defaults or ())]]))
+                selected = [str(name) for name in (defaults or ())]
+                offered = list(dict.fromkeys([*selected, *columns])) if label in saved else columns
+                checked = set(selected)
                 for name in offered:
                     item = QListWidgetItem(name)
                     item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
-                    item.setCheckState(Qt.CheckState.Checked if name in [str(d) for d in (defaults or ())]
+                    item.setCheckState(Qt.CheckState.Checked if name in checked
                                        else Qt.CheckState.Unchecked)
                     widget.addItem(item)
                 widget.setMaximumHeight(max(70, min(170, 24 * len(offered) + 8)))
@@ -579,6 +603,15 @@ class AnalysisDialog(QDialog):
             study.currentIndexChanged.connect(sync_study)
             source.currentIndexChanged.connect(sync_study)
             sync_study()
+        if self.method == ellipse_groups.METHOD:
+            self.ellipse_groups = ellipse_groups.GroupEditor(self, saved)
+            key = ellipse_groups.GROUP_STYLES
+            caption = QLabel(ui(key))
+            options.addRow(caption, self.ellipse_groups)
+            self.rows[key] = (caption, self.ellipse_groups, options)
+            for name in ellipse_groups.CHOICES:
+                self.controls[name][1].currentIndexChanged.connect(self.ellipse_groups.sync)
+            self.ellipse_groups.sync()
         self.anova = anova_model.attach(self, saved)
         global_fit.attach(self)
         if self.method in kmeans_options.METHODS:
@@ -588,6 +621,9 @@ class AnalysisDialog(QDialog):
             self._sync_kmeans_options()
         self.stability = stability_options.attach(self)
         self.repeated = repeated_agreement.attach(self)
+        self.sphericity = sphericity_options.attach(self)
+        self.icc = icc_binding.attach(self, saved)
+        self.precision = precision_options.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
         select_editor.attach(self, pages, saved)
         if self.method == extraction.EXTRACT_REARRANGE:
@@ -816,6 +852,15 @@ class AnalysisDialog(QDialog):
                 elif kind is None and not value:
                     raise FieldError(name, qt("qt.choose_column", name=field_label(name)))
                 options[name] = value
+        if self.method == ellipse_groups.METHOD:
+            saved = self._saved()
+            for name in self.hidden:
+                if name in self.controls and name in saved:
+                    options[name] = deepcopy(saved[name])
+            if self.ellipse_groups.styles:
+                options[ellipse_groups.GROUP_STYLES] = deepcopy(self.ellipse_groups.styles)
+        if self.icc is not None:
+            options = self.icc.ordered(options)  # raters in the order they were ticked
         return self.anova.canonical(options) if self.anova is not None else options
 
     def accept(self):
@@ -827,6 +872,12 @@ class AnalysisDialog(QDialog):
                 self.stability.check(options)  # the engine's checks and budgets; the fits stay on the worker
             if self.repeated is not None:
                 self.repeated.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
+            if self.sphericity is not None:
+                self.sphericity.check(options)  # the design check of the corrections; the fit stays on the worker
+            if self.icc is not None:
+                self.icc.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
+            if self.precision is not None:
+                self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
             if self.method == XY_METHOD:
@@ -835,9 +886,13 @@ class AnalysisDialog(QDialog):
                 check_select_transform(self.data, options)
             if self.method == extraction.EXTRACT_REARRANGE:
                 extraction.check_options(self.data, options)
+            if self.method == "Hierarchical clustering":
+                check_leaf_options(self.data, options)  # Leaf ordering: the choice and the size, before the worker
             if self.method in kmeans_options.METHODS:
                 kmeans_options.scale(options)
                 kmeans_options.fit_options(self.method, self.data, options)
+            if self.method == kmeans_reports.MODEL_GRAPH:
+                kmeans_reports.check_model_plot(self.data, options)
             logistic_validation.check(self, options)  # Validate binary logistic model: no fit before the worker
             if self.reshape is not None:
                 self.reshape.check(options)  # keys and levels only; the matrix is built on the worker
@@ -877,7 +932,7 @@ class AnalysisDialog(QDialog):
     def _message(self, error, field=None):
         if self.method == global_fit.GLOBAL_CUSTOM_EQUATION:
             return global_fit.describe_error(error, field)
-        if self.method in kmeans_options.METHODS:
+        if self.method in (*kmeans_options.METHODS, kmeans_reports.MODEL_GRAPH):
             return ui(str(error))
         if self.stability is not None:  # K-means stability: engine messages in the active language
             return self.stability.message(error)
@@ -885,10 +940,18 @@ class AnalysisDialog(QDialog):
             return logistic_validation.message(error)
         if self.repeated is not None:  # Bland–Altman for repeated pairs: engine messages in the active language
             return self.repeated.message(error)
+        if self.sphericity is not None:  # Repeated measures ANOVA: engine messages in the active language
+            return self.sphericity.message(error, field)
+        if self.icc is not None:  # Intraclass correlation: engine messages in the active language
+            return self.icc.message(error)
+        if self.precision is not None:  # Precision–recall curve: engine messages in the active language
+            return self.precision.message(error)
         if self.method == reshape_editor.METHOD:
             return reshape_editor.message(error)
         if self.method == SELECT_TRANSFORM:
             return select_editor.message(error)
+        if self.method == "Hierarchical clustering":
+            return ui(str(error))
         if self.method == extraction.EXTRACT_REARRANGE:
             if str(error) == f"Choose a column for {field}.":
                 return qt("qt.choose_column", name=field_label(field))

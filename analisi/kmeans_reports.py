@@ -1,10 +1,14 @@
-"""Optional diagnostics from the fitted K-means partitions."""
+"""Reports and plots from the fitted K-means partitions."""
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 from scipy.stats import f
 
+from .analysis_chain import RESULT_CONTEXT
 from .field_error import FieldError
 from .kmeans_options import GAP_PLOT, scale
+from .reporting import Result, _plot
 
 DETAILS = "Report cluster details"
 SCALED = "Report standardized observations"
@@ -17,6 +21,48 @@ GAP = "Report Gap statistics"
 COMMON = (DETAILS, SCALED, DISTANCES, CENTROIDS, ANOVA)
 SCAN = (*COMMON, ASSIGNMENTS, GAP)
 GAP_CRITERIA = ("Gap", "Consensus (17 indices)")
+MODEL_GRAPH = "K-means metric plot"
+METRIC = "Cluster metric"
+PLOT_TITLES = {"WSS": "WSS elbow", "Silhouette": "Mean silhouette", "Gap": "Gap statistic"}
+MODEL_GRAPH_OPTIONS = {METRIC: tuple(PLOT_TITLES)}
+
+
+@dataclass(frozen=True, eq=False)
+class ModelPlotData:
+    metrics: pd.DataFrame
+
+
+def model_plot_available(frame):
+    return isinstance(frame.attrs.get(RESULT_CONTEXT), ModelPlotData)
+
+
+def check_model_plot(frame, options):
+    data = frame.attrs.get(RESULT_CONTEXT)
+    if not isinstance(data, ModelPlotData):
+        raise FieldError(METRIC, "Choose a linked result from K-means model selection.")
+    metric = options.get(METRIC, "WSS")
+    if not isinstance(metric, str) or metric not in PLOT_TITLES:
+        raise FieldError(METRIC, "Choose a K-means metric.")
+    if metric not in data.metrics:
+        raise FieldError(METRIC, "The source analysis does not provide this metric.")
+    return data.metrics, metric
+
+
+def draw_metric(axes, metrics, metric):
+    axes.xaxis.get_major_locator().set_params(integer=True, min_n_ticks=1)
+    values = metrics[metric].to_numpy(dtype=float)
+    if metric == "Gap":
+        axes.errorbar(metrics.index, values, yerr=metrics["Gap SE"].to_numpy(dtype=float), fmt="o-")
+    else:
+        axes.plot(metrics.index, values, "o-")
+
+
+def model_plot(frame, options):
+    metrics, metric = check_model_plot(frame, options)
+    figure, axes = _plot(PLOT_TITLES[metric], "Number of clusters", metric)
+    draw_metric(axes, metrics, metric)
+    columns = ["Gap", "Gap SE"] if metric == "Gap" else [metric]
+    return Result({"Plot values": metrics.loc[:, columns].copy()}, figure)
 
 
 def requested(options, *, scan=False):

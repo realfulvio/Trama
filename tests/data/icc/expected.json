@@ -1,0 +1,22 @@
+{
+  "ratings": {
+    "n": 5,
+    "k": 3,
+    "estimates": {
+      "Absolute agreement|Single measure": "519/557",
+      "Absolute agreement|Mean of raters": "1557/1595",
+      "Consistency|Single measure": "1038/1091",
+      "Consistency|Mean of raters": "3114/3167"
+    }
+  },
+  "shift": {
+    "n": 4,
+    "k": 3,
+    "estimates": {
+      "Absolute agreement|Single measure": "1/16",
+      "Absolute agreement|Mean of raters": "1/6",
+      "Consistency|Single measure": "1",
+      "Consistency|Mean of raters": "1"
+    }
+  }
+}

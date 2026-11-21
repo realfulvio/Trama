@@ -7,7 +7,9 @@ from scipy import stats
 
 from . import stats as engine
 from .advanced import anova_comparisons, kmeans_scan
-from . import kmeans_options, kmeans_reports
+from . import kmeans_archive, kmeans_options, kmeans_reports
+from .prism_fit_graph import (FIT_GRAPH_POINTS, FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, LOG_DOSE_MODEL,
+                              draw_fit_interval_band, fitted_graph_points)
 from .hartigan_wong import IterationLimitError
 from .cluster_consensus import DIMENSION_ADJUSTED, KL_CHOICES, KL_SCALING, UNSCALED_WSS
 from .kmeans_stability import METHOD as KMEANS_STABILITY, OPTIONS as KMEANS_STABILITY_OPTIONS
@@ -29,6 +31,8 @@ from .ancova import ANCOVA, OPTIONS as ANCOVA_OPTIONS, ancova
 from .bubble import BUBBLE, OPTIONS as BUBBLE_OPTIONS, bubble_plot
 from . import bland_altman_repeated as ba_repeated
 from .cluster_silhouette import METHOD as CLUSTER_SILHOUETTE, OPTIONS as SILHOUETTE_OPTIONS, cluster_silhouette
+from . import icc
+from . import precision_recall
 from .compare_lines import COMPARE_LINES, OPTIONS as COMPARE_LINES_OPTIONS, compare_lines
 from .contingency import CONTINGENCY, CONTINGENCY_OPTIONS, contingency
 from .distribution_graphs import BOX_VIOLIN, OPTIONS as BOX_VIOLIN_OPTIONS, box_violin
@@ -101,8 +105,9 @@ from .rank_tests import MANN_WHITNEY, OPTIONS as RANK_OPTIONS, WILCOXON, is_lega
 from .row_tests import ROW_TESTS, OPTIONS as ROW_TEST_OPTIONS, row_tests
 from .survival_input import (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED, PAIRWISE_ALPHA,
                              PAIRWISE_METHODS, CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_POLICIES, recode_statuses)
-from .survival_plot import (ERROR_BARS, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS, GREENWOOD, INTERVAL, UNCERTAINTY,
-                            display_curve, format_ordinate, ordinate_label, survival_graph_settings)
+from .survival_plot import (ERROR_BARS, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS, GREENWOOD, INTERVAL, RISK_TABLE,
+                            SURVIVAL_GRAPH, SURVIVAL_SERIES, SURVIVAL_SUMMARY, UNCERTAINTY, SurvivalGraphData,
+                            draw_survival_graph, linked_survival_graph, survival_graph_settings)
 from .prism_restore import (MAX_LAYOUT_PANEL_DATA, PRISM_GRAPH_STYLE, PRISM_LAYOUT_PANELS, PRISM_PREVIEW,
                             PRISM_RESULT_SHEET, PRISM_TITLE, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
                             SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY)
@@ -318,6 +323,7 @@ METHODS = {
                            kmeans_options.LLOYD_ITERATIONS: kmeans_options.DEFAULT_ITERATIONS,
                            kmeans_options.INITIAL_ROWS: TEXT, **dict.fromkeys(kmeans_reports.COMMON, False)},
     KMEANS_STABILITY: {**KMEANS_STABILITY_OPTIONS, "Variables": MULTIPLE},
+    kmeans_reports.MODEL_GRAPH: kmeans_reports.MODEL_GRAPH_OPTIONS,
     "Hierarchical clustering": {"Variables": MULTIPLE, "Observation labels": OPTIONAL, **HIERARCHICAL_OPTIONS},
     HIERARCHY_GRAPH: HIERARCHY_GRAPH_OPTIONS,
     CLUSTER_SILHOUETTE: SILHOUETTE_OPTIONS,
@@ -344,6 +350,8 @@ METHODS = {
     GROUPED_DISTRIBUTIONS: GROUPED_DISTRIBUTIONS_OPTIONS,
     BUBBLE: BUBBLE_OPTIONS,
     ba_repeated.METHOD: ba_repeated.OPTIONS,
+    icc.METHOD: {icc.RATERS: MULTIPLE, **icc.OPTIONS},
+    precision_recall.METHOD: precision_recall.OPTIONS,
     BEFORE_AFTER: BEFORE_AFTER_OPTIONS,
     TRAJECTORIES: TRAJECTORY_OPTIONS,
     FOREST_PLOT: FOREST_OPTIONS,
@@ -381,9 +389,10 @@ GROUPS = {
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
                          "Multifactor ANOVA", grouped_anova.METHOD, ANCOVA, "Contingency table", PAIRED_PROPORTIONS, COHEN_KAPPA,
-                         "Bland–Altman", ba_repeated.METHOD, "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC),
+                         "Bland–Altman", ba_repeated.METHOD, icc.METHOD, "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC,
+                         precision_recall.METHOD),
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS, WEIBULL_AFT, RMST),
-    "Clustering": ("K-means clustering", "K-means model selection", KMEANS_STABILITY, "Hierarchical clustering",
+    "Clustering": ("K-means clustering", "K-means model selection", KMEANS_STABILITY, kmeans_reports.MODEL_GRAPH, "Hierarchical clustering",
                    HIERARCHY_GRAPH, CLUSTER_SILHOUETTE),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
                  PARTS_GRAPH, "Box / violin plot", GROUPED_DISTRIBUTIONS, BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
@@ -393,17 +402,18 @@ GROUPS = {
 # These analyses create a graph when calculated. Keep their Graphs entry
 # available while a reopened project's results are still unloaded.
 GRAPH_METHODS = frozenset({
-    *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", ba_repeated.METHOD, "Correlation", CORRELATE_CONTROL,
+    *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", ba_repeated.METHOD, icc.METHOD, "Correlation", CORRELATE_CONTROL,
     COMPARE_INDEPENDENT, CORRELATION_MATRIX, COHEN_KAPPA, "Deming regression",
     "Global nonlinear regression", "Hierarchical clustering", HIERARCHY_GRAPH, "Histogram", FREQUENCY,
     "Interpolate a standard curve",
-    "K-means clustering", "K-means model selection", KMEANS_STABILITY, "Kaplan–Meier survival", COMPETING_RISKS, WEIBULL_AFT,
+    "K-means clustering", "K-means model selection", KMEANS_STABILITY, kmeans_reports.MODEL_GRAPH,
+    "Kaplan–Meier survival", COMPETING_RISKS, WEIBULL_AFT,
     "Linear regression", COMPARE_LINES, ANCOVA,
     "Mixed-effects model (REML)", LOGNORMAL, EQUIVALENCE, "Multiple t-tests", ROW_TESTS, "Nonlinear regression", ROBUST_CURVE, CUSTOM_EQUATION,
     MEAN_PERMUTATION,
     GLOBAL_CUSTOM_EQUATION, "Principal component analysis",
     MEAN_PERMUTATION,
-    "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC, LOGISTIC_VALIDATION,
+    "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC, precision_recall.METHOD, LOGISTIC_VALIDATION,
     "Smooth / differentiate / integrate", SPLINE_FIT,
     *NESTED_METHODS,
     REFERENCE_NORMALIZATION, SUMMARY_ANOVA, SUMMARY_TTEST, RMST,
@@ -663,9 +673,19 @@ def _cluster_selection(frame, o, *, cancel=None):
                        kl_scaling=o.get(KL_SCALING, DIMENSION_ADJUSTED), retain_fits=bool(reports),
                        retain_initial=kmeans_reports.CENTROIDS in reports,
                        include_gap="Gap" in plots, gap_reference=reference, cancel=cancel,
+                       archive_options=o if kmeans_archive.ARCHIVE in o else None,
                        **kmeans_options.fit_options(kmeans_options.SELECTION, frame, o))
     result = _consensus_selection(scan, o) if criterion == "consensus" else _scan_result(scan, o, criterion)
-    if reference == kmeans_options.GAP_PRINCIPAL_AXES and "Gap" in scan.metrics:
+    plot_data = kmeans_reports.ModelPlotData(scan.metrics)
+    result.table_contexts.update(dict.fromkeys(
+        ("Selection", "Cluster metrics" if criterion == "consensus" else "Model metrics"), plot_data))
+    if kmeans_archive.ARCHIVE in o:
+        if scan.restored:
+            origin = "Saved partitions and Gap statistics" if "Gap" in scan.metrics else "Saved partitions"
+        else:
+            origin = "Recalculated in Trama"
+        result.tables["Selection"].loc["Result source", "Value"] = origin
+    if reference == kmeans_options.GAP_PRINCIPAL_AXES and "Gap" in scan.metrics and not scan.restored:
         result.tables["Selection"].loc[kmeans_options.GAP_REFERENCE, "Value"] = reference
         result.tables["Selection"].loc["Gap simulations", "Value"] = o.get("Gap simulations", 20)
     if reports:
@@ -685,17 +705,11 @@ def _add_kmeans_plots(figure, metrics, extra):
     figure.set_size_inches(9, 6.5 if rows == 2 else 5)
     figure.axes[0].set_subplotspec(grid[0, :] if count == 3 else grid[0, 0])
     slots = list(grid)[2 if count == 3 else 1:]
-    titles = {"WSS": "WSS elbow", "Silhouette": "Mean silhouette", "Gap": "Gap statistic"}
     for metric, slot in zip(extra, slots, strict=True):
         axes = figure.add_subplot(slot)
-        axes.set(title=titles[metric], xlabel="Number of clusters", ylabel=metric)
+        axes.set(title=kmeans_reports.PLOT_TITLES[metric], xlabel="Number of clusters", ylabel=metric)
         axes.spines[["right", "top"]].set_visible(False)
-        axes.xaxis.get_major_locator().set_params(integer=True, min_n_ticks=1)
-        values = metrics[metric].to_numpy(dtype=float)
-        if metric == "Gap":
-            axes.errorbar(metrics.index, values, yerr=metrics["Gap SE"].to_numpy(dtype=float), fmt="o-")
-        else:
-            axes.plot(metrics.index, values, "o-")
+        kmeans_reports.draw_metric(axes, metrics, metric)
 
 
 def _scan_result(scan, o, criterion):
@@ -771,60 +785,22 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
     show_error = settings[UNCERTAINTY] == ERROR_BARS or settings[INTERVAL] == GREENWOOD
     curves, comparison = engine.survival(frame, time, event, group, level=level, strict=False,
                                          standard_error=show_error)
-    ylabel = ordinate_label(settings)
+    graph_data = SurvivalGraphData(curves, settings, time, level, bool(o.get(RISK_TABLE)),
+                                   compact and not _has_survival_orientation(o))
+    figure, tables, risks = draw_survival_graph(graph_data, "Kaplan–Meier survival" if axes is None else event,
+                                               axes, risk_axes)
     plateau = o.get("Median method") == MEDIAN_METHODS[1]
-    if axes is None and o.get("Show risk table below graph"):
-        figure = Figure(figsize=(8, 5.5), dpi=100, layout="constrained")
-        panels = figure.add_gridspec(2, 1, height_ratios=[3, 1.2])
-        axes = figure.add_subplot(panels[0])
-        axes.spines[["right", "top"]].set_visible(False)
-        risk_axes = figure.add_subplot(panels[1])
-        axes.set(title="Kaplan–Meier survival", xlabel=time, ylabel=ylabel)
-    elif axes is None:
-        figure, axes = _plot("Kaplan–Meier survival", time, ylabel)
-    else:
-        figure = axes.figure
-        axes.set(title=event, xlabel=time, ylabel=ylabel)
-    format_ordinate(axes, settings)
-    tables, summaries, risk_rows = {}, [], {}
-    maximum = max(curve["Time"].max() for curve in curves.values())
-    ticks = np.unique(np.linspace(0, maximum, 6).round(8))
+    summaries = []
     for label, curve in curves.items():
         median, lower, upper = engine.survival_median(curve, level, plateau)
         summaries.append({"Group": str(label), "N": curve["At risk"].iloc[0],
                           "Events": curve["Events"].sum(), "Censored": curve["Censored"].sum(),
                           "Median survival": median, "Median CI lower": lower, "Median CI upper": upper,
                           "Median CI level (%)": level})
-        indices = curve["Time"].to_numpy().searchsorted(ticks)
-        risk_rows[str(label)] = np.r_[curve["At risk"].to_numpy(), 0][indices]
-        tables[label] = display_curve(axes, label, curve, settings, level)
-    if len(curves) > 1:
-        axes.legend()
-    risks = pd.DataFrame.from_dict(risk_rows, orient="index", columns=ticks).rename_axis("Group")
-    if o.get("Show risk table below graph"):
-        if len(curves) > 8:
-            raise ValueError("The plot can show a risk table for up to eight groups.")
-        risk_axes.set_axis_off()
-        labels = [label.partition(" · ")[0] if compact and not _has_survival_orientation(o) else label
-                  for label in risks.index]
-        values = np.column_stack([labels, risks.to_numpy()])
-        risk = risk_axes.table(cellText=values, colLabels=["Group", *(f"{tick:g}" for tick in ticks)],
-                               cellLoc="center", bbox=[0, 0, 1, 1])
-        risk.auto_set_font_size(False)
-        risk.set_fontsize(8)
-        for (row, column), cell in risk.get_celld().items():
-            cell.set_edgecolor("#d3dde7")
-            cell.set_linewidth(.6)
-            if row == 0 or column == 0:
-                cell.set_facecolor("#eaf2fa")
-                cell.get_text().set_color("#203b53")
-                cell.get_text().set_weight("bold")
-            elif row % 2 == 0:
-                cell.set_facecolor("#f6f9fc")
     risk_output = risks
     if compact:
         risk_output = risks.reset_index().melt(id_vars="Group", var_name="Time", value_name="At risk").set_index("Group")
-    outputs = {"Survival summary": pd.DataFrame(summaries).set_index("Group"), "Number at risk": risk_output}
+    outputs = {SURVIVAL_SUMMARY: pd.DataFrame(summaries).set_index("Group"), "Number at risk": risk_output}
     if comparison:
         outputs["Log-rank test"] = _report(comparison).rename_axis("Metric")
     elif len(curves) > 1 and sum(curve["Events"].sum() for curve in curves.values()):
@@ -866,7 +842,8 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
                                                 for label, table in tables.items()}, names=["Group"])
     else:
         outputs.update({f"Curve: {label}": table for label, table in tables.items()})
-    return Result(outputs, figure)
+    context = {SURVIVAL_SUMMARY: graph_data} if o.get(SURVIVAL_GRAPH) is True else {}
+    return Result(outputs, figure, table_contexts=context)
 
 
 def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None):
@@ -877,6 +854,9 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None):
     parameter_budget = parameter_budget if parameter_budget is not None else ProfileBudget()
     fits = engine.nonlinear(frame, x, y, model, o.get("Group"),
                             weighting=o.get("Weighting", "Unweighted"), sigma=o.get("SD column"))
+    interval_band = o.get(FIT_INTERVAL_BAND) if (
+        axes is None and model == LOG_DOSE_MODEL and len(fits) == 1 and not o.get("Group")
+    ) else None
     show_residuals = bool(o.get("Residuals versus X"))
     if axes is None and not show_residuals:
         figure, axes = _plot(model, x, y)
@@ -916,6 +896,8 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None):
         if residual_axes is not None:
             residual_axes.scatter(fit.residuals["X"], fit.residuals["Residual"], color=colors[label])
         parameters, parameter_status = parameter_outputs(fit, model, parameter_config, budget=parameter_budget)
+        if interval_band is not None:
+            draw_fit_interval_band(axes, interval_band, parameters, parameter_config.level)
         tables["Parameters"][label] = parameters.rename_axis("Parameter")
         if parameter_status is not None:
             tables.setdefault("Parameter CI status", {})[label] = parameter_status.rename_axis("Parameter")
@@ -944,6 +926,10 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None):
         else:
             outputs.update({f"Band: {label}": sheet for label, sheet in sheets.items()})
         outputs["Band status"] = status
+    if FIT_GRAPH_SPEC in o:
+        points = fitted_graph_points(fits, model, x, y, o[FIT_GRAPH_SPEC])
+        if points is not None:
+            outputs[FIT_GRAPH_POINTS] = points
     return Result(outputs, figure)
 
 
@@ -996,15 +982,21 @@ def _classic_analysis(method, frame, options, predict, run):
 
 
 def _imported_xy(frame, options, layout_data=None):
-    from .prism_mv_scatter import APPEARANCE, appearance_record, apply_axes
+    from .prism_mv_scatter import APPEARANCE, CLUSTERED_SCATTER, appearance_record, apply_axes, clustered_points
     from .prism_xml_binding_layout import XML_BINDING_XY, render_binding_graph
+    from .prism_xml_qc import XML_QC, render_qc_graph
     from .prism_xml_xy import XML_ERROR_BARS, render_xml_error_graph
     from .prism_xml_generated import XML_GENERATED_XY, render_generated_graph
     from .prism_zip_column import ZIP_COLUMN, render_aligned_column
     from .prism_zip_xy import ZIP_SPARSE_XY, render_sparse_xy
 
+    if options.get(SURVIVAL_GRAPH) is True:
+        return linked_survival_graph(frame, options.get(PRISM_TITLE, "Kaplan–Meier survival"),
+                                     options.get(SURVIVAL_SERIES, []))
     if XML_GENERATED_XY in options:
         return render_generated_graph(frame, options[XML_GENERATED_XY])
+    if XML_QC in options:
+        return render_qc_graph(frame, options[XML_QC])
     if XML_ERROR_BARS in options:
         return render_xml_error_graph(frame, options)
     if XML_BINDING_XY in options:
@@ -1017,10 +1009,18 @@ def _imported_xy(frame, options, layout_data=None):
         return render_aligned_column(frame, options[ZIP_COLUMN])
 
     style = appearance_record(options[APPEARANCE]) if APPEARANCE in options else None
-    data = engine.complete(frame, ["X", "Y", "Dataset"], ["Series", "Geometry"])
+    if CLUSTERED_SCATTER in options:
+        if style is None:
+            raise ValueError("Invalid linked cluster scatter appearance.")
+        frame = clustered_points(frame, options[CLUSTERED_SCATTER], style["palette"])
+    text = ["Series", "Geometry"]
+    if "Observation" in frame:
+        text.append("Observation")
+    data = engine.complete(frame, ["X", "Y", "Dataset"], text)
     if data.empty:
         raise ValueError("The saved graph has no complete XY points.")
-    figure, axes = _plot(options.get(PRISM_TITLE, "Prism XY graph"), options.get("X label", "X"), "Y")
+    figure, axes = _plot(options.get(PRISM_TITLE, "Prism XY graph"), options.get("X label", "X"),
+                         options.get("Y label", "Y"))
     colors = {}
     markers, captions = [], []
     error_columns = ["Y minus", "Y plus"]
@@ -1175,7 +1175,11 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=
         figure.axes[0]._tramastat_numeric_axes = ("x", "y")
         return Result({}, figure)
     if method == "Descriptive statistics":
-        return Result({"Summary": engine.describe(frame, o["Variables"], geometric=bool(o.get(GEOMETRIC_MEAN)))})
+        summary = engine.describe(frame, o["Variables"], geometric=bool(o.get(GEOMETRIC_MEAN)))
+        from .prism_xml_qc import QC_REFERENCE, qc_summary
+
+        tables = qc_summary(frame, summary, o[QC_REFERENCE]) if QC_REFERENCE in o else {"Summary": summary}
+        return Result(tables)
     if method == TOLERANCE:
         return tolerance_intervals(frame, o)
     if method == NORMALITY:
@@ -1301,9 +1305,11 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=
     if method == "Kaplan–Meier survival":
         return _classic_analysis(method, frame, o, "Time", _survival)
     if method == "Hierarchical clustering":
-        return hierarchical_result(frame, o)
+        return hierarchical_result(frame, o, cancel=cancel)
     if method == HIERARCHY_GRAPH:
         return hierarchy_graph(frame, o)
+    if method == kmeans_reports.MODEL_GRAPH:
+        return kmeans_reports.model_plot(frame, o)
     if method == CLUSTER_SILHOUETTE:
         return cluster_silhouette(frame, o, cancel=cancel)
     if method == SELECT_TRANSFORM:
@@ -1349,6 +1355,10 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=
         return independent_roc(frame, o, cancel=cancel)
     if method == ba_repeated.METHOD:
         return ba_repeated.analyse(frame, o, cancel=cancel)
+    if method == icc.METHOD:
+        return icc.analyse(frame, o, cancel=cancel)
+    if method == precision_recall.METHOD:
+        return precision_recall.analyse(frame, o, cancel=cancel)
     if method == "Histogram":
         return _distribution(method, frame, o)
     if method == REFERENCE_NORMALIZATION:

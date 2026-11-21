@@ -341,16 +341,21 @@ def repeated_measures_anova(frame, response, factors, subject, *, correction=Non
     ``correction="gg"`` adjusts the test degrees of freedom of every effect by its own Greenhouse–Geisser
     epsilon, for one or two factors. A two-factor fit then also returns the ``Sphericity`` sheet, and a design
     problem raises a ``FieldError`` that names the dialog field. ``correction="gg-one-way"`` is the historical
-    one-factor choice with its original errors. The df used to compute mean squares remain unadjusted.
+    one-factor choice with its original errors. ``correction="hf"`` (Huynh–Feldt) and ``"lower-bound"`` (1/d)
+    apply an epsilon of their own to the same effects, derived from the Greenhouse–Geisser one; they report both
+    epsilons in the ANOVA table, return the ``Sphericity`` sheet for one factor as well as for two, and validate
+    like ``"gg"``. An effect for which Huynh–Feldt is undefined gets no corrected df or p, and its note says why.
+    The df used to compute mean squares remain unadjusted.
     """
     factors = tuple(factors)
     if len(factors) not in {1, 2}:
         raise ValueError("Select one or two within-subject factors.")
-    if correction not in (None, rm_sphericity.GG, rm_sphericity.GG_ONE_WAY):
+    if correction not in (None, rm_sphericity.GG_ONE_WAY, *rm_sphericity.STRICT):
         raise ValueError("Unknown sphericity correction.")
     if correction == rm_sphericity.GG_ONE_WAY and len(factors) != 1:
         raise ValueError("Geisser–Greenhouse correction is available for one within-subject factor.")
-    strict = correction == rm_sphericity.GG
+    strict = correction in rm_sphericity.STRICT
+    estimated = correction in rm_sphericity.ESTIMATED
     if strict:
         rm_sphericity.check_design(frame, response, factors, subject)
     values, _ = _matched_values(frame, response, factors, subject)
@@ -382,11 +387,23 @@ def repeated_measures_anova(frame, response, factors, subject, *, correction=Non
                "F df1": df, "F df2": error_df}
         if correction is not None:
             # Two factors: one epsilon per effect from the contrast scores of that effect. One factor: the
-            # historical covariance of the centred columns, for both spellings of the choice.
+            # historical covariance of the centred columns, for every spelling of the choice.
             epsilon = _gg_epsilon(within) if len(factors) == 1 else rm_sphericity.effect_epsilon(within, axes)[1]
-            row.update({"GG ε": epsilon, "F df1": df * epsilon, "F df2": error_df * epsilon})
-        row["p"] = stats.f.sf(statistic, row["F df1"], row["F df2"])
-        if strict and len(factors) == 2:
+            applied, note = epsilon, ""
+            if estimated:
+                applied, note = rm_sphericity.applied_epsilon(correction, epsilon, df, values.shape[0])
+            # Without an applied epsilon (Huynh–Feldt undefined) the test has no corrected df and no p.
+            applied = np.nan if applied is None else applied
+            row.update({"GG ε": epsilon, "F df1": df * applied, "F df2": error_df * applied})
+            if estimated:
+                row["Applied epsilon"] = applied
+        row["p"] = stats.f.sf(statistic, row["F df1"], row["F df2"]) if np.isfinite(row["F df1"]) else np.nan
+        if estimated:
+            sphericity.append({"Term": name, "Correction": rm_sphericity.ESTIMATED[correction],
+                               "Contrast dimension": df, "GG ε": epsilon, "Applied epsilon": row["Applied epsilon"],
+                               "F": statistic, "F df1": row["F df1"], "F df2": row["F df2"], "p": row["p"],
+                               "Uncorrected p": stats.f.sf(statistic, df, error_df), "Note": note})
+        elif strict and len(factors) == 2:
             sphericity.append({"Term": name, "Contrast dimension": df, "GG ε": epsilon, "F": statistic,
                                "F df1": row["F df1"], "F df2": row["F df2"], "p": row["p"],
                                "Uncorrected p": stats.f.sf(statistic, df, error_df)})
@@ -394,7 +411,7 @@ def repeated_measures_anova(frame, response, factors, subject, *, correction=Non
                            "MS": error_ss / error_df}])
     tables = {"ANOVA": pd.DataFrame(rows).set_index("Term")}
     if sphericity:
-        tables[rm_sphericity.SHEET] = rm_sphericity.sphericity_table(sphericity)
+        tables[rm_sphericity.SHEET] = rm_sphericity.sphericity_table(sphericity, estimated=estimated)
     return tables
 
 

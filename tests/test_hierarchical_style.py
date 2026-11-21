@@ -420,6 +420,25 @@ class HierarchicalStyleGeometryTests(unittest.TestCase):
         _draw(figure)
         self.assertEqual(sum(bool(tick.get_text()) for tick in matrix.get_yticklabels()), 40)
 
+    def test_distance_labels_fit_the_margin_when_resized(self):
+        figure = _heat()
+        apply_hierarchical_style(figure, {"row": {"distance": {
+            "visible": True, "minimum": 0, "maximum": 2.5, "step": 0.5, "reversed": True}}})
+        axis = describe_hierarchical_artists(figure)["row"]["axes"].xaxis
+        # Fix the tree width in each rendering rather than relying on a particular
+        # system font or constrained-layout version to choose a narrow viewport.
+        figure.set_layout_engine(None)
+        for width, angle in ((0.09, 90), (0.45, 0)):
+            axis.axes.set_position([0.1, 0.2, width, 0.6])
+            renderer = _draw(figure)
+            labels = [tick.label1 for tick in axis.get_major_ticks()
+                      if 0 <= tick.get_loc() <= 2.5 and tick.label1.get_text()]
+            self.assertEqual([float(label.get_text()) for label in labels], [0, .5, 1, 1.5, 2, 2.5])
+            self.assertTrue(all(label.get_rotation() == angle for label in labels))
+            spans = sorted((label.get_window_extent(renderer).x0,
+                            label.get_window_extent(renderer).x1) for label in labels)
+            self.assertTrue(all(a[1] <= b[0] for a, b in zip(spans, spans[1:])))
+
     def test_distance_limits_change_only_the_distance_view(self):
         figure = _heat()
         described = describe_hierarchical_artists(figure)

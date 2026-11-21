@@ -1,13 +1,20 @@
 """The K-means report sheets must agree with the fitted partitions and preserve old recipes."""
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
+from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
 
 from analisi import advanced, kmeans_options as k, kmeans_reports as reports
+from analisi.analysis_chain import result_frame
+from analisi.data import load_tables
 from analisi.field_error import FieldError
 from analisi.prism_recipes import restore_recipe
+from analisi.prism_restore import PRISM_TITLE, SAVED_XY
 from analisi.workbench import analyse
 from tests.test_prism_recipes import source, var
 
@@ -104,6 +111,30 @@ class KmeansReportTests(unittest.TestCase):
         self.assertIn("Gap", result.tables["Model metrics"])
         self.assertEqual(len(old.figure.axes), 1)
 
+    def test_linked_metric_uses_only_the_current_scan_and_keeps_gap_intervals(self):
+        options = {**self.fit, "Maximum k": 3, "Criterion": "Silhouette", "Gap simulations": 5}
+        scan = analyse(k.SELECTION, self.frame, {**options, k.GAP_PLOT: True})
+        linked = result_frame(scan, "Selection")
+        metrics = scan.tables["Model metrics"]
+        with patch("analisi.workbench.kmeans_scan", side_effect=AssertionError("Unexpected second fit")):
+            for metric in ("WSS", "Silhouette", "Gap"):
+                with self.subTest(metric=metric):
+                    view = analyse(reports.MODEL_GRAPH, linked, {reports.METRIC: metric})
+                    axes, = view.figure.axes
+                    pd.testing.assert_series_equal(view.tables["Plot values"][metric], metrics[metric])
+                    np.testing.assert_array_equal(axes.lines[0].get_xdata(), metrics.index)
+                    self.assertTrue(all(tick == int(tick) for tick in axes.get_xticks()))
+                    if metric == "Gap":
+                        segments = axes.containers[0].lines[2][0].get_segments()
+                        for k_value, segment in zip(metrics.index, segments, strict=True):
+                            value, error = metrics.loc[k_value, ["Gap", "Gap SE"]]
+                            np.testing.assert_allclose(segment, [[k_value, value - error], [k_value, value + error]])
+        no_gap = result_frame(analyse(k.SELECTION, self.frame, options), "Selection")
+        for frame in (self.frame, no_gap):
+            with self.assertRaises(FieldError) as failure:
+                analyse(reports.MODEL_GRAPH, frame, {reports.METRIC: "Gap"})
+            self.assertEqual(failure.exception.field, reports.METRIC)
+
     @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
     def test_model_selection_and_wss_use_integer_ticks_for_narrow_ranges(self):
         frame = pd.DataFrame({"x": [0., .2, .4, 2., 2.4, 3., 8., 8.5, 9.]})
@@ -117,6 +148,50 @@ class KmeansReportTests(unittest.TestCase):
                     ticks = axes.get_xticks()
                     self.assertIn(3, ticks)
                     np.testing.assert_array_equal(ticks, np.rint(ticks))
+
+    def test_import_only_links_the_graph_matching_the_result_sheet_identity(self):
+        parameters = {
+            "data": {"variables": [var("signal")]},
+            "calc": {"algorithm": "HARTIGAN_WONG", "transform": "STANDARDIZE",
+                     "distance": {"type": "EUCLIDIAN"}, "clusterMetrics": True,
+                     "clusterCount": {"min": 1, "max": 3}, "maxIterCount": 10, "randomSeed": {"value": 42}},
+            "graph": {"elbowPlot": True},
+        }
+        sheet, recipe, _ = source("K_MEANS_CLUSTERING", "0.0.0", parameters, self.frame, {"signal": ["x"]})
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "metrics.prismt"
+            with ZipFile(path, "w") as archive:
+                def write(name, value):
+                    archive.writestr(name, json.dumps(value))
+
+                write("document.json", {"sheets": {"data": ["source"], "analyses": ["fit"],
+                                                 "graphs": ["elbow", "unrelated"]}})
+                write("data/sheets/source/sheet.json", {"title": "Signal", "table": {
+                    "uid": "input", "format": "multivariable", "dataFormat": "y_single", "dataSets": ["signal"]}})
+                write("analyses/fit/sheet.json", {**sheet, "title": "Clustering", "resultSheets": [{"uid": "view"}]})
+                write("analyses/fit/parameters.json", recipe)
+                write("analyses/fit/result_sheets/view.json", {"name": "Elbow plot", "dataSheet": "scores", "graphId": 2})
+                write("data/sheets/scores/sheet.json", {"table": {
+                    "uid": "scores", "format": "view", "dataFormat": "y_single", "xDataSet": "count",
+                    "dataSets": ["wss"]}})
+                for uid, title in (("signal", "x"), ("count", "Number of clusters"), ("wss", "WCSS")):
+                    write(f"data/sets/{uid}.json", {"title": title})
+                archive.writestr("data/tables/input/data.csv", "0\n2\n10\n12\n")
+                archive.writestr("data/tables/scores/data.csv", "1,104\n2,4\n3,2\n")
+                for uid, graph_id, title in (("elbow", 2, "Linked"), ("unrelated", 3, "Snapshot")):
+                    write(f"graphs/{uid}/sheet.json", {"uid": uid, "fenID": graph_id, "title": title,
+                                                      "inputDataSets": ["wss"]})
+            tables = load_tables(path, restore_prism=True)
+        fitted = tables["Signal"]
+        (method, options), (view_method, view_options) = fitted.attrs["prism_recipes"]
+        self.assertEqual((method, view_method), (k.SELECTION, reports.MODEL_GRAPH))
+        self.assertEqual((view_options[reports.METRIC], view_options[PRISM_TITLE]), ("WSS", "Linked"))
+        link = fitted.attrs["prism_analysis_sources"][1]
+        self.assertEqual((link.analysis_id, link.table), (fitted.attrs["prism_analysis_ids"][0], "Selection"))
+        archived = tables["Prism result · Clustering · Elbow plot"]
+        self.assertEqual(archived["WCSS"].tolist(), [104, 4, 2])
+        self.assertNotIn("Prism graph · Linked", tables)
+        self.assertEqual(tables["Prism graph · Snapshot"].attrs["prism_recipes"][0][0], SAVED_XY)
 
     def test_archive_restores_flags_for_reports_on_editable_recipe(self):
         content = {"data": {"variables": [var("signal")]},

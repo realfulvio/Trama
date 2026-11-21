@@ -3,6 +3,7 @@
 from collections import ChainMap
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 import re
 from uuid import uuid4
 
@@ -21,6 +22,21 @@ _INVALID_TEXT = re.compile(r"[\x00\ud800-\udfff]")
 
 def _text(value, limit):
     return isinstance(value, str) and len(value) <= limit and not _INVALID_TEXT.search(value)
+
+
+def read_note_append(path, current):
+    """Read a UTF-8 note that fits after the editor's current, possibly unsaved text."""
+    separator = "\n\n" if current else ""
+    available = MAX_INFO_NOTES - len(current) - len(separator)
+    with Path(path).open(encoding="utf-8-sig") as stream:
+        text = stream.read(max(0, available) + 1)
+    if not text:
+        return ""
+    if len(text) > available:
+        raise ValueError("Info notes exceed the size limit.")
+    if _INVALID_TEXT.search(text):
+        raise ValueError("Info notes contain invalid text.")
+    return separator + text
 
 
 def _note_styles(styles, text_length):

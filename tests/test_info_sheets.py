@@ -103,6 +103,28 @@ class InfoSheetTests(unittest.TestCase):
         self.assertEqual(revised[-1], editor.sheet)
         self.assertEqual(errors, [])
 
+    def test_classic_note_import_validates_before_inserting(self):
+        from unittest.mock import patch
+        try:
+            root = tk.Tk()
+        except tk.TclError as error:
+            self.skipTest(str(error))
+        self.addCleanup(root.destroy)
+        errors = []
+        noop = lambda *_: None
+        editor = InfoEditor(root, InfoSheet("Study", notes="AB"), noop, errors.append, noop, noop, noop, None)
+        editor.notes.insert("end-1c", "🧪")
+        with TemporaryDirectory() as folder, patch("analisi.info.MAX_INFO_NOTES", 8):
+            path = Path(folder) / "append.txt"
+            with patch("analisi.info_widget.filedialog.askopenfilename", return_value=str(path)):
+                path.write_text("1234", encoding="utf-8")
+                editor.import_notes()
+                self.assertEqual(editor.notes.get("1.0", "end-1c"), "AB🧪")
+                self.assertEqual(len(errors), 1)
+                path.write_bytes(b"\xef\xbb\xbfX\r\nY")
+                editor.import_notes()
+                self.assertEqual(editor.sheet.notes, "AB🧪\n\nX\nY")
+
     def test_global_numeric_constants_and_ambiguous_names(self):
         sheets = [InfoSheet("Study", (("Scale", "2,5"), ("Code", "007")))]
         dataset = Dataset(pd.DataFrame({"X": [2, 4]}), info=info_contexts(sheets)[None])

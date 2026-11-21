@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFormLayout
                                QHBoxLayout, QLabel, QLineEdit, QScrollArea, QTabWidget, QVBoxLayout, QWidget)
 
 from analisi.data import decimal_comma
-from analisi.hierarchical_style import (ASPECTS, CMAPS, COLOR_MODES, LINE_STYLES, ORIENTATIONS,
+from analisi.hierarchical_style import (ASPECTS, CMAPS, COLORBAR_TITLE_POSITIONS, COLOR_MODES, LINE_STYLES, ORIENTATIONS,
                                        HierarchicalStyleError, apply_hierarchical_style, baseline_hierarchical_style,
                                        snapshot_hierarchical_style, validate_hierarchical_style)
 from analisi.i18n import tr, translate_message
@@ -18,14 +18,16 @@ BRANCH_FIELDS = (
     ("palette", list), ("width", float), ("line_style", LINE_STYLES), ("alpha", float),
 )
 LABEL_FIELDS = (
-    ("visible", bool), ("rotation", float), ("size", float), ("color", "color"), ("first", int), ("interval", int),
+    ("visible", bool), ("rotation", float), ("size", float), ("family", str), ("bold", bool), ("color", "color"), ("first", int), ("interval", int),
 )
 DISTANCE_FIELDS = (
-    ("visible", bool), ("minimum", float), ("maximum", float), ("step", float), ("reversed", bool),
+    ("visible", bool), ("title_visible", bool), ("minimum", float), ("maximum", float), ("step", float), ("reversed", bool),
 )
 HEAT_FIELDS = (
     ("cmap", CMAPS), ("reverse", bool), ("minimum", float), ("maximum", float),
-    ("colorbar", bool), ("title", str), ("orientation", ORIENTATIONS), ("cell_aspect", ASPECTS),
+    ("colorbar", bool), ("title", str), ("title_position", COLORBAR_TITLE_POSITIONS),
+    ("orientation", ORIENTATIONS), ("scale_labels", bool), ("scale_reverse", bool),
+    ("scale_size", float), ("scale_font", str), ("scale_color", "color"), ("cell_aspect", ASPECTS),
 )
 
 
@@ -73,11 +75,16 @@ class HierarchicalStyleDialog(QDialog):
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs, 1)
         for dimension in ("row", "column"):
-            if dimension in self.baseline:
+            if "distance" in self.baseline.get(dimension, {}):
                 self._tree_page(dimension)
         if "heatmap" in self.baseline:
             form, scroll = self._page("heatmap", "colorbar")
             self._fields(form, scroll, ("heatmap",), HEAT_FIELDS)
+            for dimension in ("row", "column"):
+                if dimension in self.baseline and "distance" not in self.baseline[dimension]:
+                    box = QGroupBox(tr(f"hierarchy.style.group.{dimension}_labels"))
+                    self._fields(self._form(box), scroll, (dimension, "labels"), LABEL_FIELDS)
+                    form.addRow(box)
         if "layout" in self.baseline:
             form, scroll = self._page("layout", "layout")
             self._fields(form, scroll, ("layout",), tuple((name, float) for name in self.baseline["layout"]))
@@ -128,6 +135,8 @@ class HierarchicalStyleDialog(QDialog):
                 ("distance", ("distance",), DISTANCE_FIELDS, "distance")):
             box = QGroupBox(tr(f"hierarchy.style.group.{group}"))
             grid = self._form(box)
+            if group == "branches" and "legend_visible" in self.baseline[dimension]:
+                fields += (("legend_visible", bool),)
             self._fields(grid, scroll, (dimension, *subgroup), fields)
             grid.addRow(self._note(hint))
             form.addRow(box)

@@ -2,12 +2,14 @@
 import importlib
 import importlib.util
 import json
+from pathlib import Path
+import runpy
 import subprocess
 import sys
 import threading
 import time
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from types import SimpleNamespace
 
 from tests.test_graph_i18n import TkCase
@@ -20,6 +22,31 @@ class StartupImportTests(TestCase):
         run = subprocess.run([sys.executable, '-c', command], capture_output=True, text=True, check=True)
         state = json.loads(run.stdout)
         self.assertEqual(state, {'heavy': [], 'root': False})
+
+    def test_explicit_frontend_flags_keep_the_document_path(self):
+        executable = Path(__file__).resolve().parents[1] / "tramastat.py"
+        document = "folder with spaces/example.alab"
+        for flag, available, selected in ((None, True, "tk"), ("--tk", True, "tk"),
+                                          ("--qt", True, "qt"), ("--qt", False, None)):
+            with self.subTest(flag=flag, available=available):
+                def launch():
+                    self.assertEqual(sys.argv[1:], [document])
+                    return 0
+
+                tk = Mock(side_effect=launch)
+                qt = Mock(side_effect=launch)
+                modules = {
+                    "trama_startup": SimpleNamespace(launch=tk),
+                    "trama_qt": SimpleNamespace(qt_available=lambda: available),
+                    "trama_qt.app": SimpleNamespace(main=qt),
+                }
+                args = [str(executable), *([flag] if flag else []), document]
+                with patch.dict(sys.modules, modules), patch.object(sys, "argv", args):
+                    with self.assertRaises(SystemExit) as stopped:
+                        runpy.run_path(str(executable), run_name="__main__")
+                self.assertEqual(tk.call_count, int(selected == "tk"))
+                self.assertEqual(qt.call_count, int(selected == "qt"))
+                self.assertEqual(stopped.exception.code, 0 if selected else "Qt (PySide6) is not available.")
 
 
 class StartupWindowTests(TkCase):

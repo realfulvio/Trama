@@ -19,7 +19,7 @@ ZIP_COLUMN = "Prism ZIP aligned column"
 _POINT_SIZE = 249
 
 
-def _point_colors(records, key, dataset, rows):
+def _point_colors(records, key, dataset, rows, *, painted=4, empty_default=False):
     points = _one(records, 0xAE)
     index, count, stride = unpack_from("<3I", points)
     _require(index == key and stride == _POINT_SIZE and count == rows + 1
@@ -29,14 +29,16 @@ def _point_colors(records, key, dataset, rows):
         point = points[start:start + stride]
         owner, row, replicate = unpack_from("<3I", point, 4)
         _require(owner == dataset and row < rows and row not in seen and replicate == 0xFFFFFFFF)
-        _require(point[0] in (0, 4))
+        _require(point[0] in (0, painted))
         seen.add(row)
-        if point[0] == 4:
+        if point[0] == painted:
             rgba = bytes(point[165:169])
             _require(rgba[3] == 255)
             colors.append([row, "#" + rgba[:3].hex()])
     default = points[-stride:]
-    _require(default[0] == 0 and unpack_from("<3I", default, 4) == (dataset, 0, 0))
+    owner, row, replicate = unpack_from("<3I", default, 4)
+    _require(default[0] == 0 and owner == dataset
+             and ((row, replicate) == (0, 0) or empty_default and row == replicate == 0xFFFFFFFF))
     return colors
 
 

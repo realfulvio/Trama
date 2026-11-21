@@ -14,6 +14,10 @@ The filter affects the calculation. Each row with a group receives that group's 
 
 Use `MEANIF(values, condition)`, `SUMIF`, `MINIF`, `MAXIF`, `STDEVIF`, `STDERRIF`, `COUNTIF` or `COUNTAIF` to write the condition inside the function. These forms also accept `OVER`. If you add a `WHERE` clause, a row must satisfy both conditions to contribute.
 
+## Calculated columns that use other formulas
+
+A formula can refer to another calculated column on either side of it. For example, an earlier column named `Output` can use `=2 * COL("Adjusted dose")`. Trama calculates the inputs first and keeps the columns in their worksheet order. Editing or excluding a source value updates the dependent results. A direct or indirect circular reference is reported before the edit is applied.
+
 ## Ordered and moving statistics
 
 ```text

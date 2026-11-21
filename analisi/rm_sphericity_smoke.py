@@ -21,7 +21,7 @@ from scipy.linalg import helmert
 
 from .data import Dataset, load_project, save_project
 from .i18n import active_language, set_language, ui
-from .rm_sphericity import CANONICAL, FIELD, LEGACY, METHOD, NONE, SHEET
+from .rm_sphericity import CANONICAL, FIELD, HF, LEGACY, LOWER, METHOD, NONE, SHEET
 
 TITLE, ONE_WAY = "Visits", "Visits one-way"
 VISIT, CONDITION = "Visit", "Condition"
@@ -344,11 +344,16 @@ def check_rm_two_way_sphericity(root, app, directory, kit):
         def compact(dialog):
             pick(dialog, METHOD)
             assert dialog.controls[FIELD][1].get() == NONE
-            assert dialog.choice_bindings[FIELD].values == (NONE, CANONICAL)
+            assert dialog.choice_bindings[FIELD].values == (NONE, CANONICAL, HF, LOWER)
             assert dialog.sphericity_note.cget("text") and "omnibus" not in dialog.sphericity_note.cget("text")
             dialog.controls[FIELD][1].set(CANONICAL)
             dialog.update()
             assert "omnibus" in dialog.sphericity_note.cget("text"), dialog.sphericity_note.cget("text")
+            for choice, phrase in ((HF, "Huynh–Feldt estimates"), (LOWER, "most conservative")):
+                dialog.controls[FIELD][1].set(choice)
+                dialog.update()
+                assert phrase in dialog.sphericity_note.cget("text"), (choice, dialog.sphericity_note.cget("text"))
+                reachable(dialog)
             reachable(dialog)
             buttons(dialog)
             capture(dialog, f"window-rm-sphericity-compact-{start}.png")
@@ -493,9 +498,9 @@ def check_rm_two_way_sphericity(root, app, directory, kit):
         # --- The saved one-way recipe is offered with its own label, runs unchanged, and keeps the old tables.
         def one_way_recipe(dialog):
             binding = dialog.choice_bindings[FIELD]
-            assert binding.values == (NONE, CANONICAL, LEGACY), binding.values
+            assert binding.values == (NONE, CANONICAL, HF, LOWER, LEGACY), binding.values
             assert dialog.controls[FIELD][1].get() == LEGACY
-            assert "one-way" in binding.labels[2] or "una via" in binding.labels[2], binding.labels
+            assert "one-way" in binding.labels[4] or "una via" in binding.labels[4], binding.labels
             assert dialog.validate() is True and dialog.result[1][FIELD] == LEGACY
 
         one_way_index = next(i for i, item in enumerate(app.runs) if item.title == ONE_WAY)
@@ -557,14 +562,21 @@ def check_rm_two_way_sphericity(root, app, directory, kit):
         def italian(dialog):
             choose(dialog, "Subject")
             assert dialog.field_rows[FIELD][0].cget("text") == "Correzione della sfericità"
-            assert dialog.choice_bindings[FIELD].labels == ("Nessuno", CANONICAL), dialog.choice_bindings[FIELD].labels
+            assert dialog.choice_bindings[FIELD].labels == ("Nessuno", CANONICAL, "Huynh–Feldt", "Limite inferiore"), \
+                dialog.choice_bindings[FIELD].labels
             assert dialog.controls[FIELD][1].get() == NONE
             dialog.controls[FIELD][1].set(CANONICAL)
             dialog.update()
             assert dialog.choice_bindings[FIELD].combobox.get() == CANONICAL
             note = dialog.sphericity_note.cget("text")
-            for phrase in ("Ogni effetto", "omnibus", "post-hoc", "Mauchly", "Huynh–Feldt", "REML"):
+            for phrase in ("Ogni effetto", "omnibus", "post-hoc", "Mauchly", "REML"):
                 assert phrase in note, (phrase, note)
+            dialog.controls[FIELD][1].set(HF)
+            dialog.update()
+            for phrase in ("Huynh–Feldt stima", "Mauchly", "disegno completo"):
+                assert phrase in dialog.sphericity_note.cget("text"), (phrase, dialog.sphericity_note.cget("text"))
+            dialog.controls[FIELD][1].set(CANONICAL)
+            dialog.update()
             reachable(dialog)
             dialog.fields.select(0)
             dialog.update()

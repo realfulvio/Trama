@@ -7,7 +7,7 @@ from pandas.api.types import is_numeric_dtype
 from .anova_terms import MODEL_TERMS, SELECTED, TERM_SELECTION, active_factors, canonical_terms, full_terms
 from .survival_input import (CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_POLICIES, recode_statuses,
                              PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED, PAIRWISE_ALPHA)
-from .survival_plot import BAND, FINAL, PERCENT, MARKERS, UNCERTAINTY, UNITS
+from .survival_plot import CI_BARS, FINAL, PERCENT, MARKERS, UNCERTAINTY, UNITS
 
 
 def _column(frame, ref, *, wrapped=True):
@@ -277,7 +277,7 @@ def _survival(frame, content, _results):
     level = calc.get("ciLevel")
     if graph.get("errorBars") == "CI" and calc.get("ciMethod") == "ASYMMETRICAL" and (
             type(level) in (int, float) and 0 < level < 100):
-        display.update({UNCERTAINTY: BAND, "Confidence level (%)": level})
+        display.update({UNCERTAINTY: CI_BARS, "Confidence level (%)": level})
     if calc.get("gehanBreslowWilcoxonTest") is True:
         display["Gehan–Breslow–Wilcoxon"] = True
     if len(events) == len(groups) == 1:
@@ -519,8 +519,8 @@ def _grouped_anova(frame, content, _results):
     return METHOD, {ROWS: "Row title", ROW_NAME: row, COLUMN_NAME: column, INTERACTION: interaction}
 
 
-def _kmeans(frame, content, _results):
-    from . import kmeans_options as selection, kmeans_reports
+def _kmeans(frame, content, results):
+    from . import kmeans_archive, kmeans_options as selection, kmeans_reports
     from .advanced import _check_scan_budget, gap_replicate_limit
     from .cluster_consensus import KL_SCALING, UNSCALED_WSS
 
@@ -574,7 +574,7 @@ def _kmeans(frame, content, _results):
             reports[native] = True
     if reports.get(selection.GAP_PLOT):
         reports[kmeans_reports.GAP] = True
-    return selection.SELECTION, {
+    options = {
         "Variables": variables, "Minimum k": low, "Maximum k": high, selection.SCALE: scale, "Seed": seed,
         "Criterion": "Consensus (17 indices)", "Gap simulations": gap_replicates, KL_SCALING: UNSCALED_WSS,
         selection.GAP_REFERENCE: selection.GAP_PRINCIPAL_AXES,
@@ -586,6 +586,14 @@ def _kmeans(frame, content, _results):
             "Saved partitions, tables and plots remain in archived views where available."
         ),
     }
+    archive = kmeans_archive.restore(frame, options, results)
+    if archive is not None:
+        options[kmeans_archive.ARCHIVE] = archive
+        options["Prism import notes"] = (
+            "Uses the saved K-means partitions and Gap statistics while worksheet values and fitting settings match. "
+            "Recalculates with Trama after a change. See the Selection sheet for the source of the result."
+        )
+    return selection.SELECTION, options
 
 
 def _pca(frame, content, _results):

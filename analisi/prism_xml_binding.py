@@ -39,8 +39,14 @@ def indexed_analyses(data):
         if not contents:
             continue
         try:
-            sheet, = _id_array(_one(contents, 0x3B))
             kind = unpack("<8H", _one(contents, 0x3A))
+            source = _one(contents, 0x3B)
+            if len(source) == 4:
+                sheet, = unpack("<I", source)
+                if sheet not in sheets:
+                    continue
+            else:
+                sheet, = _id_array(source)
         except (ValueError, StructError):
             continue
         selected.append((uid, sheet, kind, contents))

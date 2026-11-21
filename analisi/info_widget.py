@@ -2,7 +2,6 @@
 
 from collections import deque
 from dataclasses import replace
-from pathlib import Path
 import sys
 import tkinter as tk
 from tkinter import font as tkfont
@@ -14,7 +13,7 @@ from . import ui_theme
 from .grid_data import clipboard_rows, copy_block
 from .grid_widget import DataGrid
 from .info import (InfoSheet, MAX_INFO_FIELDS, MAX_INFO_NOTES, NOTE_BOLD, NOTE_ITALIC,
-                   NOTE_STYLE_MASK, NOTE_UNDERLINE)
+                   NOTE_STYLE_MASK, NOTE_UNDERLINE, read_note_append)
 
 
 _NOTE_TAGS = {mask: f"note-style-{mask}" for mask in range(1, NOTE_STYLE_MASK + 1)}
@@ -300,13 +299,9 @@ class InfoEditor(ttk.Frame):
         if not path:
             return
         try:
-            with Path(path).open(encoding="utf-8-sig") as stream:
-                text = stream.read(MAX_INFO_NOTES + 1)
-            if len(text) > MAX_INFO_NOTES:
-                raise ValueError("Info notes exceed the size limit.")
+            text = read_note_append(path, self.notes.get("1.0", "end-1c"))
             if text:
-                if self.notes.get("1.0", "end-1c"):
-                    text = "\n\n" + text
+                self.notes_changed()
                 self.notes.insert("end-1c", text)
                 self.notes_changed()
         except (OSError, ValueError) as error:

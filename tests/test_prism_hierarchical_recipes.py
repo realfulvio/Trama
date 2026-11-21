@@ -9,6 +9,7 @@ from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.colors import to_hex
 
 from analisi.analysis_chain import result_frame
@@ -101,15 +102,54 @@ def write_project(path, *, heatmap_sheet=None, graphs=(), row_only=False, elbow=
 
 
 class HierarchicalRecipeTests(unittest.TestCase):
+    def test_standalone_tree_imports_the_style_of_the_axis_orthogonal_to_distance(self):
+        distance = {"orientation": "horizontal", "segments": [{
+            "@class": "LinearAxisSegment", "lowerLimit": 0, "upperLimit": 10,
+            "interval": 2, "startTicksValue": 0, "ticksVisibility": "all",
+            "labelsSettings": {"isVisible": True}}]}
+        leaves = {"orientation": "vertical", "segments_ext": [{
+            "@class": "CategoricalAxisSegment", "labelsFormat": "values", "startLevelIndex": 1,
+            "levelsIntervalFixed": True, "levelsInterval": 2, "labelsSettings": {
+                "isVisible": True, "rotationAngle": 90, "textColor": "#121212ff",
+                "font": {"family": "DejaVu Sans", "size": 11}}}]}
+        sheet = {"uid": "tree-view", "graph": {"dataSheet": "tree-data", "axisX": distance, "axisY": leaves,
+                 "gdoSettingsExt": {"dendrogram": {
+                     "@class": "DendrogramFigure::Settings", "branchesLink": "/rows/dendrogram"}}}}
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "tree.prismt"
+            write_project(source, row_only=True, graphs=(("tree-view", "tree-data", sheet),))
+            dataset = Dataset(load_tables(source, restore_prism=True)["Expression"])
+            method, options = dataset.analyses[0]
+            self.assertEqual(options["Dendrogram orientation"], "Horizontal")
+            result = analyse(method, dataset.frame(), options)
+            apply_style(result.figure, dataset.graph_styles[0])
+            tree = describe_hierarchical_artists(result.figure)["row"]
+            axis = tree["axes"]
+            self.assertEqual(axis.get_xlim(), (0, 10))
+            np.testing.assert_allclose(axis.get_yticks(), [1.5, 3.5])
+            self.assertEqual([tick.get_text() for tick in axis.get_yticklabels()],
+                             [dataset.frame()["Label"].iloc[tree["leaf_order"][i]] for i in (1, 3)])
+            for tick in axis.get_yticklabels():
+                self.assertEqual((tick.get_color(), tick.get_rotation(), tick.get_fontsize()), ("#121212", 90, 11))
+
     def test_saved_category_colors_follow_cluster_membership_in_native_order(self):
         tree = {"uid": "tree-view", "title": "Branches", "graph": {
             "dataSheet": "tree-data", "gdoSettingsExt": {"dendrogram": {
-                "@class": "DendrogramFigure::Settings", "branchesLink": "/rows/dendrogram",
+                "@class": "DendrogramFigure::Settings", "uid": "clusters",
+                "branchesLink": "/rows/dendrogram", "isColorLegendEnabled": True,
                 "clustersLink": "/rows/clusters",
                 "colormap": {"@class": "CategoricalColormap", "colorArrayType": "dataLines",
                              "colorsTransparencyPercent": 0, "outlierColor": "#202030ff",
                              "colors": {"0": "#a02010ff", "1": "#208040ff"}},
                 "linesStrokeSettings": {"strokeThickness": 2.0}}}}}
+        tree["graph"]["legends"] = [{
+            "@class": "CategoricalSymbolsLegend", "colorSettings": ["clusters"],
+            "title": {"text": {"string": "Study groups"}},
+            "children": [
+                {"@class": "SymbolLegend", "symbolFillColor": "#a02010ff", "title": {"text": {"string": "Saved A"}}},
+                {"@class": "SymbolLegend", "symbolFillColor": "#208040ff", "title": {"text": {"string": "Saved B"}}},
+            ],
+        }]
         with TemporaryDirectory() as directory:
             source = Path(directory) / "tree.prismt"
             graphs = (("tree-view", "tree-data", tree),)
@@ -123,6 +163,12 @@ class HierarchicalRecipeTests(unittest.TestCase):
             apply_style(fitted.figure, data.graph_styles[0])
             colors = describe_hierarchical_artists(fitted.figure)["row"]["branches"].get_colors()
             self.assertEqual([to_hex(color) for color in colors], ["#208040", "#208040", "#202030"])
+            bar, = fitted.figure.legends
+            self.assertEqual(bar.get_title().get_text(), "Study groups")
+            self.assertEqual([item.get_text() for item in bar.get_texts()], ["Saved A", "Saved B"])
+            self.assertEqual([to_hex(line.get_color()) for line in bar.legend_handles], ["#a02010", "#208040"])
+            self.assertEqual(style["legend_entries"], [{"group": 2, "label": "Saved A"},
+                                                       {"group": 1, "label": "Saved B"}])
 
             write_project(source, row_only=True, graphs=graphs, saved_groups=[[2, 1], [0, 1, 3]])
             invalid = Dataset(load_tables(source, restore_prism=True)["Expression"])
@@ -151,7 +197,8 @@ class HierarchicalRecipeTests(unittest.TestCase):
     def test_saved_heatmap_is_an_independent_view_of_the_live_tree(self):
         tree = {"uid": "tree-view", "title": "Branches", "graph": {
             "dataSheet": "tree-data",
-            "axisY": {"orientation": "vertical", "segments": [{"@class": "LinearAxisSegment",
+            "axisY": {"orientation": "vertical", "title": {"isVisible": False},
+                      "segments": [{"@class": "LinearAxisSegment",
                 "lowerLimit": 0, "upperLimit": 12, "interval": 2, "startTicksValue": 0}]},
             "gdoSettingsExt": {"dendrogram": {
                 "@class": "DendrogramFigure::Settings", "branchesLink": "/rows/dendrogram",
@@ -189,6 +236,8 @@ class HierarchicalRecipeTests(unittest.TestCase):
             apply_style(primary.figure, loaded.graph_styles[0])
             branch = describe_hierarchical_artists(primary.figure)["row"]
             self.assertEqual(branch["axes"].get_ylim(), (0., 12.))
+            self.assertFalse(branch["axes"].yaxis.label.get_visible())
+            self.assertTrue(any(label.get_visible() for label in branch["axes"].get_yticklabels()))
             self.assertEqual(to_hex(branch["branches"].get_colors()[0]), "#315c80")
 
             def raster(result):
@@ -217,7 +266,8 @@ class HierarchicalRecipeTests(unittest.TestCase):
                             "linesStrokeSettings": {"strokeThickness": 1.5, "strokeStyle": "solid"},
                             "axis": {"orientation": "horizontal", "segments": [{
                                 "@class": "LinearAxisSegment", "lowerLimit": 0, "upperLimit": 10,
-                                "interval": 2, "startTicksValue": 0, "isReversed": True}]}}],
+                                "interval": 2, "startTicksValue": 0, "isReversed": True,
+                                "ticksVisibility": "all", "labelsSettings": {"isVisible": True}}]}}],
             "gdoSettingsExt": {"heatmap": {
                 "@class": "HeatmapFigure::Settings", "isColorLegendEnabled": False,
                 "colormap": {"@class": "GradientColormap", "colorScheme": "Viridis",
@@ -238,11 +288,18 @@ class HierarchicalRecipeTests(unittest.TestCase):
             for color in artists["row"]["branches"].get_colors():
                 self.assertEqual(to_hex(color), "#2a7744")
             np.testing.assert_allclose(artists["row"]["branches"].get_linewidths(), [1.5])
-            self.assertEqual(artists["row"]["axes"].get_xlim(), (10., 0.))
+            axis = artists["row"]["axes"]
+            self.assertEqual(axis.get_xlim(), (10., 0.))
+            self.assertTrue(axis.axison)
+            FigureCanvasAgg(axis.figure).draw()
+            in_range = [t.label1.get_text() for t in axis.xaxis.get_major_ticks()
+                        if 0 <= t.get_loc() <= 10 and t.label1.get_visible()]
+            self.assertEqual(in_range, ["0", "2", "4", "6", "8", "10"])
             self.assertFalse(artists["heatmap"]["colorbar"].ax.get_visible())
             pd.testing.assert_frame_equal(before.tables["Row Merges"], result.tables["Row Merges"])
 
             segment = sheet["graph"]["components"][0]["axis"]["segments"][0]
+            segment.pop("labelsSettings")  # Available limits alone cannot establish label visibility.
             segment.update(lowerLimit=1, startTicksValue=1)
             write_project(source, heatmap_sheet=sheet)
             offset = Dataset(load_tables(source, restore_prism=True)["Expression"])
@@ -254,6 +311,69 @@ class HierarchicalRecipeTests(unittest.TestCase):
             unlinked = Dataset(load_tables(source, restore_prism=True)["Expression"])
             self.assertEqual(unlinked.graph_styles, {})
             self.assertEqual(unlinked.analyses[0][0], "Hierarchical clustering")
+
+    def test_imported_colorbar_matches_only_its_own_heatmap_and_range_remains_automatic(self):
+        legend = {"@class": "GradientColorLegend", "colorSettings": ["matrix-color"],
+                  "orientation": "horizontal", "isReversedDirection": True,
+                  "title": {"dockPosition": "above", "isVisible": True,
+                            "text": {"string": "Log2($)", "formatting": [
+                                {"range": "3", "attributes": {"baseline": "subscript"}}]}},
+                  "labelsSettings": {"isVisible": True, "textColor": "#25533fff",
+                                     "font": {"family": "DejaVu Sans", "size": 12}},
+                  "scaleRange": {"from": 0, "to": 7}}
+        unrelated = {**legend, "colorSettings": ["different-color"], "title": {"isVisible": False}}
+        heatmap = {"@class": "HeatmapFigure::Settings", "uid": "matrix-color", "isColorLegendEnabled": True}
+        sheet = {"uid": "heatmap", "graph": {"dataSheet": "heatmap-data", "legends": [unrelated, legend],
+                 "gdoSettingsExt": {"heatmap": heatmap}}}
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "matrix.prism"
+            write_project(source, heatmap_sheet=sheet)
+            dataset = Dataset(load_tables(source, restore_prism=True)["Expression"])
+            method, options = dataset.analyses[0]
+            style = dataset.graph_styles[0]
+            frame = dataset.frame()
+            frame.loc[0, "A"] += 140
+            figure = analyse(method, frame, options).figure
+            matrix = describe_hierarchical_artists(figure)["heatmap"]
+            automatic_range = matrix["image"].get_clim()
+            apply_style(figure, style)
+            bar = describe_hierarchical_artists(figure)["heatmap"]["colorbar"]
+            self.assertEqual(bar.ax.get_title(), "Log₂($)")
+            self.assertFalse(bar.ax.title.get_parse_math())
+            self.assertEqual(bar.orientation, "horizontal")
+            self.assertTrue(bar.ax.xaxis.get_inverted())
+            self.assertEqual(matrix["image"].get_clim(), automatic_range)
+            tick = bar.ax.get_xticklabels()[0]
+            self.assertEqual(tick.get_fontsize(), 12)
+            self.assertEqual(tick.get_fontfamily(), ["DejaVu Sans"])
+            self.assertEqual(tick.get_color(), "#25533f")
+
+    def test_matrix_labels_survive_a_single_tree_import_and_reopen(self):
+        column = {"@class": "CategoricalAxisSegment", "labelsFormat": "values",
+                  "labelsSettings": {"rotationAngle": 90, "textColor": "#893023ff",
+                                     "font": {"family": "DejaVu Sans", "size": 11, "weight": "bold"}},
+                  "startLevelIndex": 1, "levelsIntervalFixed": True, "levelsInterval": 2}
+        sheet = {"uid": "heatmap", "graph": {"dataSheet": "heatmap-data",
+                 "axisX": {"orientation": "horizontal", "segments_ext": [column]},
+                 "gdoSettingsExt": {"heatmap": {"@class": "HeatmapFigure::Settings"}}}}
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "matrix.prism"
+            saved = Path(directory) / "matrix.alab"
+            write_project(source, heatmap_sheet=sheet, row_only=True)
+            dataset = Dataset(load_tables(source, restore_prism=True)["Expression"])
+            save_project(saved, {"Expression": dataset})
+            for current in (dataset, load_project(saved)["Expression"]):
+                (fit_method, fit_options), (view_method, view_options) = current.analyses
+                fit = analyse(fit_method, current.frame(), fit_options)
+                figure = analyse(view_method, result_frame(fit, "Merges"), view_options).figure
+                apply_style(figure, current.graph_styles[1])
+                artists = describe_hierarchical_artists(figure)
+                self.assertNotIn("column", artists)
+                label, = artists["heatmap"]["axes"].get_xticklabels()
+                self.assertEqual((label.get_text(), label.get_rotation(), label.get_fontsize()), ("B", 90, 11))
+                self.assertEqual(label.get_fontfamily(), ["DejaVu Sans"])
+                self.assertEqual(label.get_fontweight(), "bold")
+                self.assertEqual(label.get_color(), "#893023")
 
     def converted(self, args=None):
         args = fixture() if args is None else args
