@@ -4,7 +4,7 @@ La Galleria mostra tutti i grafici e i layout del progetto come schede con antep
 
 ## Dove si trova
 
-**Visualizza → Galleria** (inglese: View → Gallery), oppure **Ctrl+Maiusc+G**. Prende il posto del foglio aperto; **Esc**, **Alt+Sinistra** o il pulsante **Torna al foglio** riportano al foglio da cui si era partiti, con il focus dove era.
+**Galleria nella barra inferiore** (Gallery in inglese), oppure **Ctrl+Maiusc+G**. Prende il posto del foglio aperto; **Esc**, **Alt+Sinistra** o il pulsante **Torna al foglio** riportano al foglio da cui si era partiti, con il focus dove era.
 
 ## Cosa si vede
 

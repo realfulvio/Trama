@@ -4,26 +4,17 @@ Both editors keep what the user typed. Codes stay literal text (spaces included,
 numbers when they parse and the raw text otherwise, so the analysis reports the value that needs fixing on the
 right field instead of the dialog rewriting it.
 """
-import re
 import tkinter as tk
 from tkinter import ttk
 
 from .competing_risks_workbench import ERROR_PREFIX, LABEL_KEYS
-from .i18n import DEFAULT_LANGUAGE, active_language, tr, translate_message, ui
+from .i18n import localized_count as number, tr, translate_message, ui
 
 HINT = "#486075"
-GROUPED = re.compile(r"\d{1,3}(?:,\d{3})+")
 
 
 def caption(field):
     return tr(LABEL_KEYS[field]) if field in LABEL_KEYS else field
-
-
-def number(text):
-    """A count written with English thousands separators (100,000), in the separators of the active language."""
-    if active_language() != DEFAULT_LANGUAGE and GROUPED.fullmatch(text):
-        return text.replace(",", ".")
-    return text
 
 
 def translate_error(error):

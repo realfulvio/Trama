@@ -38,6 +38,7 @@ import pandas as pd
 from scipy import stats as scipy_stats
 
 from . import models
+from .cox_fit_diagnostics import COX_SNELL, SCALED
 from .cox_outputs import AUTOMATIC, DIAGNOSTICS, GRAPH, PREDICT, SCHOENFELD, code_statuses
 from .i18n import translate_message, ui
 from .monte_carlo import MonteCarloCancelled
@@ -51,8 +52,8 @@ EXACT = "Exact (conditional)"
 PREDICTORS = "Predictors"
 MAX_ROWS, MAX_COLUMNS, MAX_UNITS, MAX_ITERATIONS = 2000, 8, 5_000_000, 100
 ERROR_PREFIX = "cox.exact.error."
-# Outputs built on the Breslow baseline hazard, in the order they are refused.
-UNSUPPORTED = (PREDICT, DIAGNOSTICS, SCHOENFELD)
+# Optional outputs that require the Efron or Breslow fit, in the order they are refused.
+UNSUPPORTED = (PREDICT, DIAGNOSTICS, SCHOENFELD, SCALED, COX_SNELL)
 CHECK_EVERY = 64  # rows between two looks at the cancellation event
 DECREMENT_TOLERANCE = 1e-10  # Newton decrement, in the scaled coordinates, below which one last step is taken
 FINAL_TOLERANCE = 1e-8  # the score after that step, measured the same way

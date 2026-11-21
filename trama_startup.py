@@ -137,7 +137,7 @@ def launch():
         ok, app = result[0]
         if not ok:
             raise app
-        app.main(root=root, on_ready=screen.close)
+        app.main(root=root, on_ready=screen.close, standard_only=True)
         return 0
     except BaseException as error:
         screen.close()

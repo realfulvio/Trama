@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QGraphi
                                QGraphicsPixmapItem, QGraphicsScene, QMainWindow, QMenu, QScrollArea, QTabBar,
                                QVBoxLayout, QWidget)
 
+from .strings import qt
+
 
 def asset_root():
     """assets/ next to the sources, or inside the PyInstaller bundle."""
@@ -51,7 +53,8 @@ VEIL = {False: (16, 34, 42, 46), True: (0, 0, 0, 96)}
 T = dict(LIGHT)
 FAMILY = ["Segoe UI"]
 MODES = ("system", "light", "dark")
-STATE = {"mode": "system", "dark": False, "connected": False}
+DEFAULT_MODE = "light"
+STATE = {"mode": DEFAULT_MODE, "dark": False, "connected": False}
 CARD_RADIUS = 12
 MENU_RADIUS = 8
 
@@ -249,14 +252,15 @@ def stylesheet():
     QLabel#errorBanner {{ background: {t['error_bg']}; color: {t['error']}; border-radius: 8px; padding: 8px 12px; }}
 
     QTabBar#ribbonTabs::tab {{ background: transparent; border: none; border-radius: 6px; margin: 2px 2px 4px 0;
-        padding: 6px 13px; color: {t['text2']}; }}
+        padding: 6px 10px; color: {t['text2']}; }}
     QTabBar#ribbonTabs::tab:hover:!selected {{ color: {t['text']}; background: {t['hover']}; }}
     QTabBar#ribbonTabs::tab:selected {{ color: {t['text']}; font-weight: 600; }}
-    QToolBar#commandTools, QToolBar#plotTools {{ border: none; background: transparent; spacing: 2px; }}
+    QToolBar#commandTools, QToolBar#graphTools, QToolBar#plotTools {{ border: none; background: transparent; spacing: 2px; }}
     QToolBar::separator {{ background: {t['border']}; width: 1px; margin: 6px 6px; }}
     QToolBar#plotTools QLabel {{ color: {t['text2']}; }}
 
     QToolButton {{ border: 1px solid transparent; border-radius: 7px; padding: 5px 9px; background: transparent; }}
+    QToolBar#graphTools QToolButton {{ padding: 5px 6px; }}
     QToolButton:hover {{ background: {t['hover']}; }}
     QToolButton:pressed {{ background: {t['tint']}; }}
     QToolButton:checked {{ background: {t['tint']}; color: {t['accent_dark']}; }}
@@ -377,6 +381,7 @@ def stylesheet():
     QSplitter::handle {{ background: transparent; }}
     QStatusBar {{ background: {t['bg']}; color: {t['text2']}; padding-left: 10px; }}
     QStatusBar::item {{ border: none; }}
+    QStatusBar QToolButton[statusTool="true"] {{ padding: 2px; }}
     QStatusBar QLabel {{ padding: 0 6px; }}
     QProgressBar {{ background: {t['border']}; border: none; border-radius: 3px; max-height: 6px; }}
     QProgressBar::chunk {{ background: {primary}; border-radius: 3px; }}
@@ -849,12 +854,12 @@ _POLISH = _WindowPolish()
 
 # == light and dark ==============================================================================
 def saved_mode():
-    """The theme chosen in View → Theme: "system" (default), "light" or "dark"; TRAMA_THEME overrides it."""
+    """Restore the theme chosen in View. A new installation starts in light mode."""
     forced = os.environ.get("TRAMA_THEME", "").strip().lower()
     if forced in MODES:
         return forced
-    value = QSettings("TramaStat", "Trama").value("qt/theme", "system")
-    return value if value in MODES else "system"
+    value = QSettings("TramaStat", "Trama").value("qt/theme", DEFAULT_MODE)
+    return value if value in MODES else DEFAULT_MODE
 
 
 def system_dark(app=None):
@@ -908,8 +913,7 @@ def apply(app, *, dark=None):
     SIGNALS.changed.emit()
 
 
-PLOT_ICONS = {"home": "house", "back": "arrow-left", "forward": "arrow-right", "pan": "move", "zoom": "zoom-in",
-              "configure_subplots": "sliders-horizontal", "edit_parameters": "chart-spline", "save_figure": "save"}
+PLOT_ICONS = {"home": "house", "back": "arrow-left", "forward": "arrow-right", "pan": "move", "zoom": "zoom-in"}
 
 
 def plot_toolbar(toolbar):
@@ -918,3 +922,4 @@ def plot_toolbar(toolbar):
     for key, action in getattr(toolbar, "_actions", {}).items():
         if key in PLOT_ICONS:
             action.setIcon(icon(PLOT_ICONS[key], "text2"))
+            action.setToolTip(qt(f"qt.plot_{key}"))

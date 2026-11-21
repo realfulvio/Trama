@@ -391,7 +391,7 @@ def _run(kit):
     assert AXIS_BREAKS not in (old.style or {}) and not _panels(old.result.figure)
     assert old.result.style_warning is None and axis_breaks_reason(old.result.figure) is None
     declared = {
-        FLAT: "right Y axis", LOGGED: "linear Y axis", COLUMNS: "XY series and XY error bars graphs only"}
+        FLAT: "right Y axis", LOGGED: "linear Y axis", COLUMNS: "XY series, XY error bars and global nonlinear fits"}
     for title, fragment in declared.items():
         item = graph_of(title)
         figure = item.result.figure

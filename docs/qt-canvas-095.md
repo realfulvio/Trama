@@ -28,7 +28,7 @@ grafici la cronologia resta la loro. Le maniglie sono solo a schermo: non finisc
 file `.alab`. Salvare, esportare, ricalcolare o cambiare foglio durante un trascinamento chiude l'anteprima.
 
 **Quando non è disponibile** (il motivo compare nella nota della pagina e nel suggerimento dello strumento): grafici
-importati da Prism, layout, grafici con assi interrotti, grafici a più pannelli o con un secondo asse. L'editor
+importati da formati esterni, layout, grafici con assi interrotti, grafici a più pannelli o con un secondo asse. L'editor
 numerico *Forme del grafico…* resta disponibile dove prima. Le forme in unità dati seguono gli assi, compresi
 logaritmici e invertiti; un trascinamento fuori dal dominio viene rifiutato e lascia intatto il modello.
 

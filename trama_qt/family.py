@@ -5,7 +5,9 @@ for the name and shows the preview, as the classic dialog does (``analisi.family
 """
 from html import escape
 
-from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QLabel, QLineEdit, QTextBrowser, QVBoxLayout)
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QLabel, QLineEdit, QListWidget,
+                               QListWidgetItem, QTextBrowser, QVBoxLayout)
 
 from analisi.family_workflow import FamilyError, display_name, export_plan, family_graph, plan_family, preview_family
 from analisi.i18n import tr
@@ -199,3 +201,39 @@ class FamilyDialog(QDialog):
             return
         self.result = self.text(), self.include.isChecked()
         super().accept()
+
+
+class FamilySheetsDialog(QDialog):
+    """Navigate the sheets selected by the same dependency plan as Duplicate and Save family."""
+
+    def __init__(self, parent, captions, refs, *, current):
+        super().__init__(parent)
+        self.setWindowTitle(tr("command.family_gallery"))
+        self.resize(470, 330)
+        self.selected = None
+        layout = QVBoxLayout(self)
+        self.entries = QListWidget(self)
+        self.entries.setAccessibleName(tr("bar.linked_sheets"))
+        for caption, ref in zip(captions, refs, strict=True):
+            item = QListWidgetItem(caption, self.entries)
+            item.setData(Qt.ItemDataRole.UserRole, ref)
+            item.setToolTip(caption)
+            if ref == current:
+                self.entries.setCurrentItem(item)
+        if self.entries.currentRow() < 0:
+            self.entries.setCurrentRow(0)
+        self.entries.itemActivated.connect(lambda item: self.accept())
+        layout.addWidget(self.entries)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Open | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
+        buttons.button(QDialogButtonBox.StandardButton.Open).setText(tr("ribbon.open"))
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.entries.setFocus()
+
+    def accept(self):
+        item = self.entries.currentItem()
+        if item is not None:
+            self.selected = tuple(item.data(Qt.ItemDataRole.UserRole))
+            super().accept()

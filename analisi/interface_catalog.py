@@ -73,6 +73,7 @@ Clustering|Raggruppamento
 Graphing|Grafici
 Study Design and Simulation|Disegno degli studi e simulazione
 Descriptive statistics|Statistica descrittiva
+Tolerance intervals|Intervalli di tolleranza
 Normality tests|Test di normalità
 t-test|Test t
 Paired t-test (columns)|Test t appaiato (colonne)
@@ -92,6 +93,7 @@ Multiple tests (one per row)|Test multipli (uno per riga)
 Nested t test|Test t annidato
 Nested one-way ANOVA|ANOVA a una via annidata
 Contingency table|Tabella di contingenza
+Paired proportions|Proporzioni appaiate
 Parts of whole graph|Grafico delle parti di un intero
 Compare observed distribution with expected|Confronta distribuzione osservata e attesa
 Linear regression|Regressione lineare
@@ -582,6 +584,11 @@ Profiles|Profili
 Cox diagnostics|Diagnostica di Cox
 Schoenfeld residuals|Residui di Schoenfeld
 Schoenfeld term|Termine di Schoenfeld
+Scaled Schoenfeld residuals|Residui di Schoenfeld scalati
+Cox-Snell diagnostics|Diagnostica Cox–Snell
+Schoenfeld x axis|Asse X di Schoenfeld
+Event time|Tempo dell’evento
+Source row|Riga di origine
 Goal|Obiettivo
 Standardized effect|Effetto standardizzato
 Target power|Potenza desiderata
@@ -855,6 +862,8 @@ Observed vs fitted|Osservati rispetto ai valori stimati
 Predicted survival|Sopravvivenza stimata
 Deviance vs linear predictor|Devianza rispetto al predittore lineare
 Schoenfeld vs time|Schoenfeld rispetto al tempo
+Scaled Schoenfeld|Schoenfeld scalati
+Cox-Snell plot|Grafico Cox–Snell
 Percent of range|Percentuale dell’intervallo
 Z score|Punteggio Z
 Percent of first value|Percentuale del primo valore
@@ -1367,3 +1376,7 @@ MESSAGES.update({
     "barep.error.work": ("Bootstrap replicates × subjects = {a} × {b} exceeds the limit of {limit}.",
                          "Repliche bootstrap × soggetti = {a} × {b} supera il limite di {limit}."),
 })
+from .cluster_silhouette_text import CAPTIONS as _SILHOUETTE_CAPTIONS, MESSAGES as _SILHOUETTE_MESSAGES
+
+CAPTIONS.update(_SILHOUETTE_CAPTIONS)
+MESSAGES.update(_SILHOUETTE_MESSAGES)

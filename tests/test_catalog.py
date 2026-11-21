@@ -8,6 +8,7 @@ from analisi.analysis_chain import result_frame
 from analisi.hierarchical_workbench import HIERARCHY_GRAPH
 from analisi.nested import NESTED_ANOVA, NESTED_T
 from analisi.reference_normalization import METHOD as REFERENCE_NORMALIZATION
+from analisi.tolerance_intervals import TOLERANCE
 from analisi.workbench import GRAPH_METHODS, GROUPS, METHODS, analyse
 
 
@@ -36,6 +37,8 @@ class CatalogTests(unittest.TestCase):
             "Mixed-effects model (REML)": {"Y": "y", "Subject": "Subject", "Within factors": ["Group"], "Post-hoc": "Holm"},
             "Descriptive statistics": {"Variables": ["x", "y"]},
             "Normality tests": {"Variables": ["x"]},
+            TOLERANCE: {"Variables": ["x", "y"], "Group": "Group", "Distribution": "Normal", "Sides": "Two-sided",
+                        "Population coverage (%)": 90., "Confidence level (%)": 95., "Show graph": False},
             "t-test": {"Design": "Paired", "Response": "y", "Group": "Group", "Subject": "Subject"},
             "Paired t-test (columns)": {"First": "x", "Second": "y"},
             "Permutation test for mean difference": {"First": "x", "Second": "z", "Resamples": 199},
@@ -57,6 +60,8 @@ class CatalogTests(unittest.TestCase):
             "Repeated-measures correlation": {"Subject": "Subject", "X": "x", "Y": "y", "Show graph": False},
             "Correlation matrix": {"Variables": ["x", "y", "z"]},
             "Contingency table": {"Rows": "Group", "Columns": "Factor"},
+            "Paired proportions": {"Input format": "Observations", "Before": "Before", "After": "After",
+                                   "Negative value": "off", "Positive value": "on", "Graph": False},
             "Linear regression": {"X": "x", "Y": "y"},
             "Compare regression lines": {"X": "x", "Y": "y", "Group": "Group"},
             "Nonlinear regression": {"X": "x", "Y": "fit", "Model": "One-phase decay"},
@@ -110,6 +115,7 @@ class CatalogTests(unittest.TestCase):
                                                "Area": "Full", "Inference": "DeLong"},
             "Bland–Altman": {"First": "x", "Second": "y", "Method": "Difference"},
             "Bland–Altman for repeated pairs": {"Subject": "Subject", "First": "x", "Second": "y"},
+            "Cohen's kappa": {"First rating": "Group", "Second rating": "Factor"},
             "Deming regression": {"X": "x", "Y": "y", "Y / X error variance": 1.},
             "Area under curve": {"X": "x", "Y": "y", "Baseline": 10.},
             "Interpolate a standard curve": {"X": "x", "Y": "y", "Unknown responses": "Unknown"},
@@ -124,11 +130,21 @@ class CatalogTests(unittest.TestCase):
             "Validate binary logistic model": {"Response": "Event", "Predictors": ["z"], "Folds": 2},
             "Negative binomial regression": {"Response": "Event", "Predictors": ["x", "Factor"],
                                              "Categorical predictors": ["Factor"], "Dispersion mode": "Fixed"},
+            "Ordinal logistic regression": {"Response": "Stage", "Predictors": ["z"], "Categorical predictors": [],
+                                            "Category order": ["Low", "Medium", "High"],
+                                            "Confidence level (%)": 95., "Profiles": [], "Show graph": False},
             "Cox regression": {"Time": "x", "Event": "Event", "Predictors": ["z"],
                                "Categorical predictors": [], "Ties": "Efron"},
             "Competing risks": {"Time": "x", "Status": "Event", "Group": "Group", "Censor code": "0",
                                 "Event codes": ["1", "2"], "Gray tests": "Omnibus and pairwise",
                                 "Times": [2., 6., 40.]},
+            "Weibull AFT regression": {"Time": "x", "Event": "Event", "Predictors": ["z"],
+                                        "Categorical predictors": [], "Event value": "1", "Censor value": "0",
+                                        "Shape mode": "Estimated ML", "Confidence level (%)": 95.,
+                                        "Profiles": [{"Name": "Mid", "Values": {"z": 3.}}], "Times": [2., 6., 40.],
+                                        "Show graph": True},
+            "Restricted mean survival time": {"Time": "x", "Status": "Event", "Group": "Group",
+                                              "Reference group": "A", "Horizon": 6.},
             "Kolmogorov–Smirnov": {"First": "x", "Second": "y"},
             "Multiple t-tests": {"Variables": ["y", "z"], "Group": "Group", "Design": "Welch", "Correction": "Holm"},
             "Multiple tests (one per row)": {"First replicates": ["x", "y"], "Second replicates": ["z", "p"]},
@@ -160,6 +176,9 @@ class CatalogTests(unittest.TestCase):
             "Outlier test (Grubbs)": {"Response": "z", "Alpha": .05},
             "Transpose X and Y": {"X": "x", "Y sets": [{"name": "Y", "mode": "Single", "columns": ["y"]}]},
             "Reshape long and wide": {"Direction": "Wide to long", "ID columns": ["x"], "Measure columns": ["y", "z"]},
+            "Join worksheets by key": {"Join right sheet": "Sites", "Join left keys": ["Group"],
+                                       "Join right keys": ["Group"], "Join type": "Left",
+                                       "Join cardinality": "Many-to-one"},
             "Identify outliers": {"Variables": ["x", "y", "z"], "Method": "ROUT", "Q (%)": 1.},
             "Power and sample size": {"Goal": "Sample size", "Design": "Independent t", "Standardized effect": .5,
                                       "Alpha": .05, "Target power": .8, "ANOVA groups": 3},
@@ -179,6 +198,7 @@ class CatalogTests(unittest.TestCase):
                                            "Confidence level (%)": 95., "Curve points": 40},
             "Robust curve fit": {"X": "x", "Y columns": ["y"], "Model": "Straight line", "Loss": "Cauchy",
                                  "Scale method": "Pilot MAD", "Initial parameters": {}},
+            "Cluster silhouette": {"Variables": ["x", "y"], "Cluster": "Group", "Graph": False},
             "Simulate data": {"Distribution": "XY with normal noise", "N": 30, "Seed": 42,
                               "Mean": 0., "SD": 1., "X minimum": 0., "X maximum": 1.,
                               "Intercept": 0., "Slope": 1., "Success probability A": .5, "Success probability B": .5},
@@ -203,13 +223,21 @@ class CatalogTests(unittest.TestCase):
                 if name == "Grouped two-way ANOVA":
                     selected = pd.DataFrame({"Row": ["First", "Second"], "a [1]": [1., 3.],
                                              "a [2]": [2., 4.], "b [1]": [3., 9.], "b [2]": [4., 7.]})
+                if name == "Paired proportions":
+                    selected = pd.DataFrame({"Before": ["off", "off", "on", "on", "off"],
+                                             "After": ["on", "off", "off", "on", "on"]})
+                if name == "Ordinal logistic regression":
+                    selected = data.assign(Stage=np.tile(["Low", "Medium", "High", "Medium"], 4))
                 if name == "Friedman":
                     selected = pd.DataFrame({"y": [1, 2, 4, 2, 1, 4, 2, 3, 5, 4, 3, 8],
                                              "Group": list("abc") * 4, "Subject": np.repeat(np.arange(4), 3)})
                 if name == HIERARCHY_GRAPH:
                     tree = analyse("Hierarchical clustering", data, cases["Hierarchical clustering"])
                     selected = result_frame(tree, "Merges")
-                results = analyse(name, selected, options)
+                # The application resolves the right worksheet of a join and passes it with the recipe.
+                extra = ({"join_data": pd.DataFrame({"Group": ["A", "B"], "Site": ["North", "South"]})}
+                         if name == "Join worksheets by key" else {})
+                results = analyse(name, selected, options, **extra)
                 self.assertTrue(results.figure if name == HIERARCHY_GRAPH else results.tables)
                 self.assertTrue(all(isinstance(table, pd.DataFrame) for table in results.tables.values()))
                 self.assertEqual(results.figure is not None, name in GRAPH_METHODS)

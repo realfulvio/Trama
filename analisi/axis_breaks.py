@@ -13,17 +13,17 @@ and a constrained-layout engine re-slices the band reserved for the panels after
 so the shares and gaps follow the window, the export size and the layout composer.
 """
 from copy import copy, deepcopy
-from math import ceil, floor, fsum, isfinite, log10
+from math import ceil, floor, fsum, isfinite, log10, ulp
 from sys import float_info
 
 import numpy as np
-from matplotlib.collections import LineCollection
+from matplotlib.collections import FillBetweenPolyCollection, LineCollection, PathCollection, PolyCollection
 from matplotlib.gridspec import GridSpec
 from matplotlib.layout_engine import ConstrainedLayoutEngine
 from matplotlib.lines import Line2D
 from matplotlib.path import Path
-from matplotlib.ticker import AutoMinorLocator, FixedLocator, MaxNLocator, NullLocator, ScalarFormatter
-from matplotlib.transforms import Bbox
+from matplotlib.ticker import AutoMinorLocator, FixedLocator, Formatter, MaxNLocator, NullLocator, ScalarFormatter
+from matplotlib.transforms import Bbox, IdentityTransform
 
 from .field_error import FieldError
 
@@ -46,7 +46,8 @@ DEFAULT_GAP = 0.04
 MIN_SUGGESTED_SHARE = 15.0
 
 _RECORD_KEYS = {"axis", "gap", "segments"}
-_SEGMENT_KEYS = {"low", "high", "share", "major_step"}
+_SEGMENT_KEYS = {"low", "high", "share", "major_step", "major_origin", "minor_ticks", "tick_labels",
+                 "tick_format"}
 _SEGMENT_REQUIRED = {"low", "high", "share"}
 _SLASH = Path([(-1.0, -1.0), (1.0, 1.0)], [Path.MOVETO, Path.LINETO])
 _NO_LINE = ("None", "none", None, "", " ")
@@ -59,13 +60,17 @@ M_COUNT = "Use two or three segments."
 M_SEGMENT = "Segment {row} needs a low limit, a high limit, a share and a major interval."
 M_FINITE = "Segment {row}: enter finite numbers for the low and high limits."
 M_ORDER = "Segment {row}: the low limit must be smaller than the high limit."
-M_SEPARATE = "Segment {row}: the low limit must be larger than the high limit of segment {previous}."
+M_SEPARATE = "Segment {row}: the low limit must be at least the high limit of segment {previous}."
 M_SHARE = "Segment {row}: enter a share greater than 0."
 M_TOTAL = "The shares must add up to 100. They add up to {total}."
 M_STEP = "Segment {row}: enter a major interval greater than 0, or leave it blank for automatic ticks."
 M_TICKS = "Segment {row}: the major interval would place more than 200 ticks."
+M_ORIGIN = "Segment {row}: enter a finite tick origin and a major interval, or leave the origin blank."
+M_LABELS = "Segment {row}: tick labels need distinct numeric positions and short printable text."
+M_MINOR = "Segment {row}: enter 0 to 10 minor ticks per interval, or leave it blank to inherit the axis setting."
+M_TICK_BUDGET = "Segment {row}: the intervals would place more than 200 major and minor ticks."
 
-P_SUPPORT = "Axis breaks are available for XY series and XY error bars graphs only."
+P_SUPPORT = "Axis breaks are available for XY series, XY error bars and global nonlinear fits."
 P_NATIVE = "Axis breaks need a native graph, not an imported picture."
 P_RIGHT = "Axis breaks cannot be combined with a right Y axis. Move every series to the left axis first."
 P_LAYOUT = "Axis breaks need the standard graph layout."
@@ -88,7 +93,7 @@ class AxisBreakError(FieldError):
 
 
 def _number(value):
-    return type(value) in (int, float) and isfinite(value) and abs(value) <= float_info.max
+    return type(value) in (int, float) and abs(value) <= float_info.max and isfinite(value)
 
 
 # ----- the record ----------------------------------------------------------------------------------------
@@ -100,11 +105,20 @@ def segment_lengths(record):
     return [use * segment["share"] / 100 for segment in record["segments"]]
 
 
-def explicit_ticks(low, high, step):
-    """Ticks every ``step`` from ``low``; ``high`` is included when it falls on the grid."""
-    count = floor((high - low) / step + EDGE_TOLERANCE)
-    ticks = [low + index * step for index in range(count + 1)]
-    if abs(ticks[-1] - high) <= EDGE_TOLERANCE * max(abs(step), abs(high), 1e-300):
+def explicit_ticks(low, high, step, origin=None):
+    """Ticks inside the segment, on a grid measured from the origin or from its lower limit."""
+    if origin is None:
+        offset = 0
+        tolerance = EDGE_TOLERANCE * max(step, abs(high), 1e-300)
+    else:
+        # Reduce the two values separately to avoid overflowing or losing the spacing far from the origin.
+        offset = (origin % step - low % step) % step
+        tolerance = EDGE_TOLERANCE * step
+        if min(offset, step - offset) <= tolerance:
+            offset = 0
+    count = floor(((high - low) - offset) / step + EDGE_TOLERANCE)
+    ticks = [low + offset + index * step for index in range(count + 1)]
+    if ticks and abs(ticks[-1] - high) <= tolerance:
         ticks[-1] = high
     return ticks
 
@@ -113,7 +127,7 @@ def segment_ticks(segment):
     """The major ticks drawn for ``segment``: its explicit grid, or round numbers inside it."""
     low, high, step = segment["low"], segment["high"], segment.get("major_step")
     if step is not None:
-        return explicit_ticks(low, high, step)
+        return explicit_ticks(low, high, step, segment.get("major_origin"))
     bins = max(2, min(6, round(segment["share"] / 100 * 8)))
     values = MaxNLocator(nbins=bins, steps=[1, 2, 2.5, 5, 10]).tick_values(low, high)
     margin = EDGE_TOLERANCE * (high - low)
@@ -142,11 +156,12 @@ def normalise_axis_breaks(record):
             raise AxisBreakError(row, "low", M_SEGMENT.format(row=shown))
         low, high, share = segment["low"], segment["high"], segment["share"]
         step = segment.get("major_step")
+        origin, minor = segment.get("major_origin"), segment.get("minor_ticks")
         if not (_number(low) and _number(high)):
             raise AxisBreakError(row, "low" if not _number(low) else "high", M_FINITE.format(row=shown))
         if not low < high or not _number(high - low):
             raise AxisBreakError(row, "high", M_ORDER.format(row=shown))
-        if canonical and not low > canonical[-1]["high"]:
+        if canonical and low < canonical[-1]["high"]:
             raise AxisBreakError(row, "low", M_SEPARATE.format(row=shown, previous=row))
         if not _number(share) or not share > 0:
             raise AxisBreakError(row, "share", M_SHARE.format(row=shown))
@@ -155,7 +170,36 @@ def normalise_axis_breaks(record):
                 raise AxisBreakError(row, "major_step", M_STEP.format(row=shown))
             if not (high - low) / step <= MAX_TICKS - 1 + EDGE_TOLERANCE:
                 raise AxisBreakError(row, "major_step", M_TICKS.format(row=shown))
-        canonical.append({"low": low, "high": high, "share": share, "major_step": step})
+        entry = {"low": low, "high": high, "share": share, "major_step": step}
+        if origin is not None:
+            if not _number(origin) or step is None:
+                raise AxisBreakError(row, "major_origin", M_ORIGIN.format(row=shown))
+            entry["major_origin"] = origin
+        if minor is not None:
+            if not _number(minor) or not 0 <= minor <= 10 or minor != int(minor):
+                raise AxisBreakError(row, "minor_ticks", M_MINOR.format(row=shown))
+            if minor and step is not None:
+                spacing = step / (1 + minor)
+                if spacing == 0 or (high - low) / spacing > MAX_TICKS - 1 + EDGE_TOLERANCE:
+                    raise AxisBreakError(row, "minor_ticks", M_TICK_BUDGET.format(row=shown))
+            entry["minor_ticks"] = int(minor)
+        if "tick_format" in segment:
+            if segment["tick_format"] != "power10":
+                raise AxisBreakError(row, "tick_format", M_SEGMENT.format(row=shown))
+            entry["tick_format"] = "power10"
+        if "tick_labels" in segment:
+            labels = segment["tick_labels"]
+            if not isinstance(labels, list) or len(labels) > MAX_TICKS:
+                raise AxisBreakError(row, "tick_labels", M_LABELS.format(row=shown))
+            names = {}
+            for pair in labels:
+                if (not isinstance(pair, list) or len(pair) != 2 or not _number(pair[0]) or pair[0] in names
+                        or not isinstance(pair[1], str) or not 0 < len(pair[1]) <= 160 or not pair[1].isprintable()):
+                    raise AxisBreakError(row, "tick_labels", M_LABELS.format(row=shown))
+                names[pair[0]] = pair[1]
+            if names:
+                entry["tick_labels"] = [[value, text] for value, text in names.items()]
+        canonical.append(entry)
     total = fsum(segment["share"] for segment in canonical)
     if not abs(total - 100) <= SHARE_TOLERANCE:
         raise AxisBreakError(len(canonical) - 1, "share", M_TOTAL.format(total=f"{total:g}"))
@@ -186,10 +230,22 @@ def panel_scope(axes):
     return getattr(axes, SCOPE_ATTR, None)
 
 
+def _plain_scatter(artist):
+    return (isinstance(artist, PathCollection) and isinstance(artist.get_transform(), IdentityTransform)
+            and artist.get_offset_transform() is artist.axes.transData and artist.get_array() is None)
+
+
+def _data_band(artist):
+    return (isinstance(artist, FillBetweenPolyCollection) and artist.get_transform() is artist.axes.transData
+            and isinstance(artist.get_offset_transform(), IdentityTransform)
+            and np.array_equal(artist.get_offsets(), [[0, 0]]) and artist.get_array() is None)
+
+
 def _foreign_artists(axes):
-    """Artists that the panels cannot repeat. Only lines and line collections are cloned."""
+    """Artists that the panels cannot repeat."""
     return (list(axes.patches) + list(axes.images) + list(axes.tables)
-            + [artist for artist in axes.collections if not isinstance(artist, LineCollection)]
+            + [artist for artist in axes.collections
+               if not isinstance(artist, LineCollection) and not _plain_scatter(artist) and not _data_band(artist)]
             + list(axes.texts))
 
 
@@ -464,9 +520,23 @@ def _copy_edge_markers(source, panel, dimension, gid):
     return clone
 
 
-def _copy_collection(source, panel, gid):
-    clone = LineCollection(source.get_segments())
-    _clone_artist(clone, source, panel, gid)
+def _copy_collection(source, panel, position, index):
+    scatter = isinstance(source, PathCollection)
+    if scatter:
+        kind = "points"
+        clone = PathCollection(source.get_paths(), sizes=source.get_sizes(), offsets=source.get_offsets())
+    elif isinstance(source, FillBetweenPolyCollection):
+        kind = "band"
+        paths = source.get_paths()
+        clone = PolyCollection([])
+        clone.set_verts_and_codes([path.vertices for path in paths], [path.codes for path in paths])
+    else:
+        kind = "bars"
+        clone = LineCollection(source.get_segments())
+    _clone_artist(clone, source, panel, f"{kind}:{position}:{index}")
+    if scatter:
+        clone.set_transform(IdentityTransform())
+        clone.set_offset_transform(panel.transData)
     clone.set_clip_path(panel.patch)
     clone.set_clip_on(True)
     panel.add_collection(clone, autolim=False)
@@ -492,12 +562,12 @@ def _repeat_data(primary, panel, dimension, position):
             made.append(_copy_edge_markers(source, panel, dimension, f"edge:{tag}"))
     if position:
         for index, source in enumerate(list(primary.collections)):
-            made.append(_copy_collection(source, panel, f"bars:{position}:{index}"))
+            made.append(_copy_collection(source, panel, position, index))
     return made
 
 
 def _data_points(primary, *, between=False):
-    """Finite ``(x, y)`` arrays of every data line; with ``between`` a line also contributes its midpoints."""
+    """Finite coordinates from lines and scatter points, with optional line midpoints."""
     points = []
     for source in primary.lines:
         if not _is_data_line(source):
@@ -507,6 +577,10 @@ def _data_points(primary, *, between=False):
         x, y = x[finite], y[finite]
         if between and source.get_linestyle() not in _NO_LINE and len(x) > 1:  # a line occupies the space between points
             x, y = np.concatenate([x, (x[1:] + x[:-1]) / 2]), np.concatenate([y, (y[1:] + y[:-1]) / 2])
+        points.append((x, y))
+    for scatter in filter(_plain_scatter, primary.collections):
+        offsets = np.ma.asarray(scatter.get_offsets(), dtype=float).filled(np.nan)
+        x, y = offsets[np.isfinite(offsets).all(axis=1)].T
         points.append((x, y))
     return points
 
@@ -537,12 +611,65 @@ def _formatter(source):
     return copy(source)
 
 
+class _PowerOfTen(Formatter):
+    """Concentration labels for values already expressed as log10 concentrations."""
+
+    def __call__(self, value, pos=None):
+        exponent = 0 if value == 0 else value
+        return f"$10^{{{exponent:g}}}$"
+
+
+class _NamedTicks(Formatter):
+    """Replace selected numeric ticks with literal text, delegating numeric precision and offsets."""
+
+    def __init__(self, numeric, labels):
+        self.numeric = numeric
+        self.labels = labels
+
+    def set_axis(self, axis):
+        super().set_axis(axis)
+        self.numeric.set_axis(axis)
+
+    def set_locs(self, locs):
+        super().set_locs(locs)
+        self.numeric.set_locs(locs)
+
+    def get_offset(self):
+        return self.numeric.get_offset()
+
+    def __call__(self, value, pos=None):
+        for coordinate, label in self.labels:
+            if abs(value - coordinate) <= 2 * max(ulp(value), ulp(coordinate)):
+                return label.replace("$", r"\$")
+        return self.numeric(value, pos)
+
+
 def _set_segment(panel, dimension, segment, formatter, minor):
     axis = _axis_of(panel, dimension)
     getattr(panel, f"set_{dimension}lim")(segment["low"], segment["high"])
     axis.set_major_locator(FixedLocator(segment_ticks(segment)))
-    axis.set_major_formatter(_formatter(formatter))
-    axis.set_minor_locator(AutoMinorLocator(minor.ndivs) if isinstance(minor, AutoMinorLocator) else NullLocator())
+    powers = segment.get("tick_format") == "power10"
+    numeric = _PowerOfTen() if powers else _formatter(formatter)
+    labels = segment.get("tick_labels")
+    axis.set_major_formatter(_NamedTicks(numeric, labels) if labels else numeric)
+    count = segment.get("minor_ticks")
+    step = segment.get("major_step")
+    if count is None:
+        locator = AutoMinorLocator(minor.ndivs) if isinstance(minor, AutoMinorLocator) else NullLocator()
+    elif count == 0:
+        locator = NullLocator()
+    elif powers and count == 8 and step == 1 and float(segment.get("major_origin", segment["low"])).is_integer():
+        low, high = segment["low"], segment["high"]
+        positions = (decade + log10(factor) for decade in range(floor(low), ceil(high)) for factor in range(2, 10))
+        locator = FixedLocator([position for position in positions if low <= position <= high])
+    elif step is None:
+        locator = AutoMinorLocator(count + 1)
+    else:
+        low, high = segment["low"], segment["high"]
+        origin = segment.get("major_origin", low)
+        # Matplotlib suppresses any members of this finer grid that coincide with major ticks.
+        locator = FixedLocator(explicit_ticks(low, high, step / (count + 1), origin))
+    axis.set_minor_locator(locator)
 
 
 def _copy_decoration(primary, panel):

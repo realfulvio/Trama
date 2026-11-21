@@ -9,6 +9,9 @@ from .curve_models import MODELS
 from .stats import FIT_WEIGHTINGS, complete
 
 
+SAVED_REPLICATE_DISPLAY = "Saved replicate display"
+
+
 def _selected(frame, names, message):
     if not names or any(not name or name not in frame for name in names) or len(set(names)) != len(names):
         raise ValueError(message)

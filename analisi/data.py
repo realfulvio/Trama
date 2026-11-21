@@ -776,12 +776,11 @@ def _analysis_slots(value, count):
     return result
 
 
-def save_project(path, tables, *, layouts=(), info_sheets=None):
-    import os
+def project_document(tables, *, layouts=(), info_sheets=None):
+    """The JSON document of a .alab project, validated as ``save_project`` writes it. Pure: reads its arguments only,
+    so a detached copy of a project can be serialised away from the GUI thread (Qt recovery copies)."""
     from dataclasses import asdict
-    from tempfile import NamedTemporaryFile
 
-    path = Path(path)
     if len(tables) > 256:
         raise ValueError("A project supports up to 256 data tables.")
     if len(layouts) > 128:
@@ -832,6 +831,24 @@ def save_project(path, tables, *, layouts=(), info_sheets=None):
         if roles is not None:
             record["worksheet_roles"] = _validated_worksheet_roles(roles, raw.columns)
         data["tables"].append(record)
+    return data
+
+
+def project_bytes(tables, *, layouts=(), info_sheets=None):
+    """The bytes ``save_project`` writes for these tables, without touching the disk."""
+    data = json.dumps(project_document(tables, layouts=layouts, info_sheets=info_sheets), ensure_ascii=False,
+                      allow_nan=False, separators=(",", ":")).encode("utf-8")
+    if len(data) > MAX_ENTRY:
+        raise ValueError("The project exceeds the 32 MiB limit.")
+    return data
+
+
+def save_project(path, tables, *, layouts=(), info_sheets=None):
+    import os
+    from tempfile import NamedTemporaryFile
+
+    path = Path(path)
+    data = project_document(tables, layouts=layouts, info_sheets=info_sheets)
     tmp = None
     try:
         with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as handle:

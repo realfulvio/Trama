@@ -19,11 +19,22 @@ from analisi.anova_planned_contrasts import FACTOR_LIST as CONTRAST_FACTOR_LIST
 from analisi.anova_terms import TERM_LIST
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
+from analisi import cluster_silhouette, cohen_kappa as kappa, cox_exact, cox_outputs
+from analisi import cohen_kappa_options as kappa_text, cohen_kappa_workbench as kappa_form
 from analisi import extract_rearrange as extraction
 from analisi.field_error import FieldError
 from analisi import kmeans_options, kmeans_reports, mean_permutation
-from analisi.i18n import tr, ui
+from analisi import mean_permutation_options as permutation_text
+from analisi import ordinal_logit as ordinal
+from analisi import paired_proportions as paired
+from analisi import monte_carlo, plot_function, power_plan, rmst, transpose_xy
+from analisi import rmst_dialog, rmst_workbench as rmst_form
+from analisi import tolerance_intervals as tolerance
+from analisi import weibull_aft as weibull
+from analisi import weibull_aft_workbench as weibull_form
+from analisi.i18n import tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
+from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
                                OPTIONAL_MULTIPLE, TEXT, classic_roles)
 
@@ -32,7 +43,12 @@ from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
+from . import worksheet_join as join_editor
+from . import kappa_options, ordinal_options, permutation_options, rmst_options, weibull_options
+from .function_curves import FunctionCurves
+from .transpose_sets import TransposeSets
 from .labels import choice_label, field_label, method_label
+from .predictor_profiles import Profiles
 from .strings import qt
 from .theme import fit_dialog
 
@@ -138,10 +154,15 @@ class ParameterTable(QTableWidget):
 
 
 class AnalysisDialog(QDialog):
-    def __init__(self, parent, frame, *, current=None, only=None, error=None, error_field=None):
+    def __init__(self, parent, frame, *, current=None, only=None, error=None, error_field=None,
+                 join_sources=None, join_left=None, xy_left_scale="linear"):
         super().__init__(parent)
+        # Join worksheets by key: the other data sheets with their columns, and the title of the left one.
+        self.join_sources, self.join_left = join_sources, join_left
+        self.join = None
         self.setWindowTitle(qt("qt.analysis_title"))
         self.data = frame
+        self.xy_left_scale = xy_left_scale
         self.current = current
         self.only = {only} if isinstance(only, str) else set(only) if only else None
         self.result = None
@@ -294,11 +315,37 @@ class AnalysisDialog(QDialog):
         self.stability = None
         self.repeated = None
         self.reshape = None
+        self.join = None
         pages, scrolls = {}, {}
-        # Global fit custom equation adds Equation, Parameters, Series constraints and Response pages.
-        for key, name in (("variables", qt("qt.variables")), *global_fit.pages(self.method),
-                          *select_editor.pages(self.method),
-                          ("options", qt("qt.options"))):
+        power_method = self.method == power_plan.METHOD
+        cox_method = self.method == cox_outputs.METHOD
+        weibull_method = self.method == weibull.METHOD
+        ordinal_method = self.method == ordinal.ORDINAL_LOGIT
+        rmst_method = self.method == rmst.METHOD
+        kappa_method = self.method == kappa.METHOD
+        permutation_method = self.method == mean_permutation.METHOD
+        page_specs = (("variables", ui("Design")), ("options", ui("Effect")), ("curve", ui("Curve"))) if power_method else (
+            ("variables", qt("qt.variables")), *global_fit.pages(self.method), *select_editor.pages(self.method),
+            ("options", qt("qt.options")))
+        cox_fields = (cox_outputs.DIAGNOSTICS, cox_outputs.SCHOENFELD, *cox_outputs.FIT_DIAGNOSTICS,
+                      cox_outputs.GRAPH, cox_outputs.GRAPH_TERM, cox_outputs.X_AXIS)
+        if cox_method:
+            page_specs += (("diagnostics", ui("Diagnostics")),)
+        if weibull_method:
+            page_specs = tuple((key, tr(weibull_form.TAB_KEYS[name])) for key, name in (
+                ("variables", "Data"), ("options", "Model"), ("predicted", "Predicted survival")))
+        if ordinal_method:
+            page_specs += (("profiles", tr("ord.tab.profiles")),)
+        if rmst_method:
+            page_specs = (("variables", tr(rmst_form.TAB_KEYS["Data"])),
+                          ("options", tr(rmst_form.TAB_KEYS["Options"])))
+        if kappa_method:
+            page_specs = (("variables", tr(kappa_form.TAB_KEYS["Ratings"])),
+                          ("options", tr(kappa_form.TAB_KEYS["Interval and graph"])))
+        if permutation_method:
+            page_specs = (("variables", tr(mean_permutation.TAB_KEYS["Data"])),
+                          ("options", tr(mean_permutation.TAB_KEYS["Test"])))
+        for key, name in page_specs:
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -313,16 +360,53 @@ class AnalysisDialog(QDialog):
             self.tabs.addTab(scroll, name)
         variables, options = pages["variables"], pages["options"]
         saved = self._saved()
+        if kappa_method:
+            saved = {**kappa_text.defaults(self.data), **saved}
+        paired_method = self.method == paired.PAIRED_PROPORTIONS
+        tolerance_method = self.method == tolerance.TOLERANCE
+        if paired_method:
+            saved = {**paired.DEFAULT_CODES, **paired.defaults(self.data), **saved}
+            self.tabs.setTabText(self.tabs.indexOf(scrolls["variables"]), tr("paired.tab.data"))
+            self.tabs.setTabText(self.tabs.indexOf(scrolls["options"]), tr("paired.tab.test"))
+        if tolerance_method:
+            self.tabs.setTabText(self.tabs.indexOf(scrolls["variables"]), tr(tolerance.TAB_KEYS["Data"]))
+            self.tabs.setTabText(self.tabs.indexOf(scrolls["options"]), tr(tolerance.TAB_KEYS["Interval"]))
+        labels = paired.LABEL_KEYS if paired_method else tolerance.LABEL_KEYS if tolerance_method else {}
+        captions = paired.CHOICE_KEYS if paired_method else tolerance.CHOICE_KEYS if tolerance_method else {}
+        if weibull_method:
+            labels, captions = weibull_form.LABEL_KEYS, weibull_form.CHOICE_KEYS
+        if rmst_method:
+            labels = rmst_form.LABEL_KEYS
+        if kappa_method:
+            labels, captions = kappa_form.LABEL_KEYS, kappa_form.CHOICE_KEYS
+        if permutation_method:
+            labels, captions = mean_permutation.LABEL_KEYS, mean_permutation.CHOICE_KEYS
         if self.method == CUSTOM_EQUATION and not saved:
             saved = {"Equation": DEFAULT_EQUATION, "Parameters": [dict(record) for record in EXAMPLE_PARAMETERS]}
         elif self.method == global_fit.GLOBAL_CUSTOM_EQUATION and not saved:
             saved = global_fit.default_recipe()
+        elif self.method == cluster_silhouette.METHOD and not saved:
+            saved = cluster_silhouette.default_options(self.data)
+        elif self.method == plot_function.PLOT_FUNCTION and not saved:
+            saved = {plot_function.CURVES: plot_function.EXAMPLE_CURVES[:1]}
+        elif self.method == transpose_xy.TRANSPOSE_XY and not saved:
+            x = transpose_xy.proposed_x(self.data) or next(iter(self.data.select_dtypes(include="number").columns), None)
+            saved = {transpose_xy.X: x, transpose_xy.Y_SETS: transpose_xy.propose_sets(self.data, x)}
         text_defaults = _text_defaults(self.method)
+        if weibull_method:
+            text_defaults = weibull_form.DEFAULTS
+        if rmst_method:
+            text_defaults = rmst_form.DEFAULTS
+        power_forms = {}
+        if power_method:
+            text_defaults = power_plan.TEXT_DEFAULTS
+            for name, form in (("Design", variables), ("Effect", options), ("Curve", pages["curve"])):
+                power_forms.update(dict.fromkeys(power_plan.TABS[name], form))
         columns = [str(name) for name in self.data.columns]
         numeric = [str(name) for name in self.data.select_dtypes(include="number").columns]
         categorical = [name for name in columns if name not in numeric] or columns
         numeric_position = category_position = 0
-        fields = {} if self.method in {reshape_editor.METHOD, SELECT_TRANSFORM} else METHODS[self.method]
+        fields = {} if self.method in {reshape_editor.METHOD, SELECT_TRANSFORM, join_editor.wj.METHOD} else METHODS[self.method]
         for label, kind in fields.items():
             if kind == CONTRAST_FACTOR_LIST or (kind != CONTRAST_LIST and label in PLANNED_PANEL_FIELDS
                                                 and CONTRAST_LIST in METHODS[self.method].values()):
@@ -331,10 +415,31 @@ class AnalysisDialog(QDialog):
                 "Comparison factor", "Condition on factors"}
             if self.method == extraction.EXTRACT_REARRANGE and label == extraction.OUTPUT:
                 variable = True
-            form = pages.get(global_fit.page_of(self.method, label)) or (variables if variable else options)
+            if paired_method:
+                variable = label in paired.DATA_FIELDS
+            if rmst_method:
+                variable = label in rmst_form.DATA_FIELDS
+            if kappa_method:
+                variable = label in kappa_form.RATING_FIELDS
+            if permutation_method:
+                variable = label in mean_permutation.DATA_FIELDS
+            form = (power_forms.get(label) or pages.get(global_fit.page_of(self.method, label))
+                    or (variables if variable else options))
+            if self.method == transpose_xy.TRANSPOSE_XY and label == transpose_xy.Y_SETS:
+                form = variables
+            if cox_method and label in cox_fields:
+                form = pages["diagnostics"]
+            if weibull_method:
+                form = (variables if label in weibull_form.DATA_FIELDS else pages["predicted"]
+                        if label in weibull_form.PREDICT_FIELDS else options)
+            if ordinal_method:
+                if label == ordinal.ORDER:
+                    form = variables
+                elif label in ordinal.PROFILE_FIELDS:
+                    form = pages["profiles"]
             caption_label = ("Report scaled observations"
                              if self.method in kmeans_options.METHODS and label == kmeans_reports.SCALED else label)
-            caption = QLabel(field_label(caption_label))
+            caption = QLabel(tr(labels[label]) if label in labels else field_label(caption_label))
             caption.setWordWrap(True)
             caption.setMinimumWidth(150)
             caption.setMaximumWidth(230)
@@ -342,7 +447,8 @@ class AnalysisDialog(QDialog):
             if kind in (MULTIPLE, OPTIONAL_MULTIPLE):
                 widget = QListWidget()
                 widget.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-                defaults = saved.get(label, numeric if label in {"Variables", "Count columns"} else ())
+                default_columns = numeric if label in {"Variables", "Count columns"} and not tolerance_method else ()
+                defaults = saved.get(label, default_columns)
                 offered = list(dict.fromkeys([*columns, *[str(name) for name in (defaults or ())]]))
                 for name in offered:
                     item = QListWidgetItem(name)
@@ -354,10 +460,41 @@ class AnalysisDialog(QDialog):
             elif type(kind) is bool:
                 widget = QCheckBox()
                 widget.setChecked(bool(saved.get(label, kind)))
+            elif power_method and label == power_plan.GROUP_MEANS:
+                widget = QPlainTextEdit(str(saved.get(label, text_defaults[label])))
+                widget.setTabChangesFocus(True)
+                widget.setFixedHeight(7 * widget.fontMetrics().lineSpacing())
+            elif cox_method and label == cox_outputs.GRAPH_TERM:
+                widget = QComboBox()
+            elif ((weibull_method and label == weibull.PROFILES)
+                  or (ordinal_method and label == ordinal.PROFILES)):
+                limit = ordinal.MAX_PROFILES if ordinal_method else weibull.MAX_PROFILES
+                widget = Profiles(self.data, saved.get(label), limit=limit)
+            elif ordinal_method and label == ordinal.ORDER:
+                widget = ordinal_options.OrderEditor(saved.get(label))
+            elif weibull_method and label == weibull.TIMES:
+                widget = weibull_options.Times(saved.get(label))
+            elif kappa_method and label == kappa.ORDER:
+                widget = kappa_options.CategoryOrder(saved.get(label))
+            elif rmst_method and label == rmst.REFERENCE:
+                widget = QComboBox()
+                reference = saved.get(label)
+                if reference is not None and reference != "":
+                    text = rmst.group_text(reference)
+                    widget.addItem(text, text)
             elif type(kind) in (int, float) or kind == TEXT:
                 default = text_defaults.get(label, "") if kind == TEXT else kind
                 value = saved.get(label, default)
-                widget = QLineEdit("" if value is None else str(value))
+                text = "" if value is None else str(value)
+                if rmst_method and label in rmst_form.NUMBER_FIELDS and type(value) in (int, float):
+                    text = rmst_dialog.shown_number(value)
+                widget = QLineEdit(text)
+            elif kind == plot_function.CURVE_LIST:
+                model = self.controls[plot_function.MODEL][1]
+                widget = FunctionCurves(model.currentData(), saved.get(label, ()))
+                model.currentIndexChanged.connect(lambda _index, editor=widget: editor.set_model(model.currentData()))
+            elif kind == transpose_xy.SETS_LIST:
+                widget = TransposeSets(self.data, self.controls[transpose_xy.X][1], saved.get(label, ()))
             elif kind == TERM_LIST:  # Multifactor ANOVA model terms; bound below by anova_model.attach
                 widget = anova_model.TermEditor(saved.get(label))
             elif kind == CONTRAST_LIST:  # Multifactor ANOVA planned contrasts; bound by anova_model.attach
@@ -379,7 +516,8 @@ class AnalysisDialog(QDialog):
                         choice_caption = str(choice)
                         if self.method == kmeans_options.SELECTION and label == "Criterion" and choice == "Gap":
                             choice_caption = "Gap statistic"
-                        widget.addItem(choice_label(choice_caption), choice)
+                        text = tr(captions[choice]) if choice in captions else choice_label(choice_caption)
+                        widget.addItem(text, choice)
                     default = choices[0] if choices else ""
                 elif kind == GROUP_CHOICE:
                     widget.setEditable(True)
@@ -390,7 +528,8 @@ class AnalysisDialog(QDialog):
                         widget.addItem(qt("qt.none"), "")
                     for name in columns:
                         widget.addItem(name, name)
-                    if kind is None and label in CATEGORY_ROLES and categorical:
+                    if kind is None and (label in CATEGORY_ROLES or
+                                         (ordinal_method and label == ordinal.RESPONSE)) and categorical:
                         default = categorical[category_position % len(categorical)]
                         category_position += 1
                     elif kind is None and numeric:
@@ -415,13 +554,31 @@ class AnalysisDialog(QDialog):
                 if label in saved:
                     self.controls[label] = ("kept", deepcopy(saved[label]))
                 continue
-            if kind in (TERM_LIST, CONTRAST_LIST, global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
+            full_width = (kind in (TERM_LIST, CONTRAST_LIST, global_fit.PARAMETER_LIST, global_fit.SERIES_LIST)
+                          or isinstance(widget, (Profiles, ordinal_options.OrderEditor, kappa_options.CategoryOrder,
+                                                 FunctionCurves, TransposeSets)))
+            if full_width:
                 form.addRow(caption)
                 form.addRow(widget)
             else:
                 form.addRow(caption, widget)
             self.controls[label] = (kind, widget)
             self.rows[label] = (caption, widget, form)
+        if self.method == plot_function.PLOT_FUNCTION:
+            source = self.controls[plot_function.X_SOURCE][1]
+            source.currentIndexChanged.connect(lambda _: self._set_field_visibility(
+                plot_function.visibility(source.currentData())))
+            self._set_field_visibility(plot_function.visibility(source.currentData()))
+        if self.method == monte_carlo.MONTE_CARLO:
+            study = self.controls[monte_carlo.STUDY][1]
+            source = self.controls[monte_carlo.X_SOURCE][1]
+
+            def sync_study():
+                self._set_field_visibility(monte_carlo.visibility(study.currentData(), source.currentData()))
+
+            study.currentIndexChanged.connect(sync_study)
+            source.currentIndexChanged.connect(sync_study)
+            sync_study()
         self.anova = anova_model.attach(self, saved)
         global_fit.attach(self)
         if self.method in kmeans_options.METHODS:
@@ -440,6 +597,45 @@ class AnalysisDialog(QDialog):
                 changed = widget.toggled if type(kind) is bool else widget.currentIndexChanged
                 changed.connect(lambda _value, field=name: self.clear_field_error(field))
             self._sync_extraction_fields()
+        self.join = join_editor.attach(self, pages, saved)
+        if power_method:
+            self._configure_power_fields(pages)
+        if cox_method:
+            self._configure_cox_fields(pages["diagnostics"], saved.get(cox_outputs.GRAPH_TERM))
+        if weibull_method:
+            weibull_options.attach(self, pages)
+        if ordinal_method:
+            ordinal_options.attach(self, pages["profiles"])
+        if rmst_method:
+            rmst_options.attach(self, pages)
+        if kappa_method:
+            kappa_options.attach(self, pages)
+        if permutation_method:
+            permutation_options.attach(self, pages)
+        if paired_method:
+            note = QLabel()
+            note.setWordWrap(True)
+            variables.addRow(note)
+
+            def sync_format():
+                input_format = self.controls[paired.FORMAT][1].currentData()
+                self._set_field_visibility(paired.visibility(input_format))
+                note.setText(tr("paired.note.matrix" if input_format == paired.COUNT_MATRIX
+                                else "paired.note.observations"))
+                if self.error_field in self.hidden:
+                    self.clear_field_error(self.error_field)
+
+            self.controls[paired.FORMAT][1].currentIndexChanged.connect(sync_format)
+            sync_format()
+        if self.method == cluster_silhouette.METHOD:
+            note = QLabel(tr("silhouette.note"))
+            note.setWordWrap(True)
+            options.addRow(note)
+        if tolerance_method:
+            note = QLabel(tr(tolerance.HINT_KEY))
+            note.setWordWrap(True)
+            note.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            options.addRow(note)
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
 
@@ -452,6 +648,69 @@ class AnalysisDialog(QDialog):
         if self.method == kmeans_options.CLUSTERING:
             fields[kmeans_options.INITIAL_ROWS] = algorithm in kmeans_options.ITERATION_FIELDS
         self._set_field_visibility(fields)
+
+    def _configure_power_fields(self, pages):
+        notes = {}
+        for page, key in (("variables", "design"), ("options", "effect"), ("curve", "curve")):
+            note = QLabel(tr(f"power.note.{key}"))
+            note.setWordWrap(True)
+            pages[page].addRow(note)
+            notes[key] = note
+
+        choices = (power_plan.GOAL, power_plan.DESIGN, power_plan.EFFECT_INPUT, power_plan.PAIRED_SD_INPUT)
+
+        def sync():
+            current = {name: self.controls[name][1].currentData() for name in choices}
+            self._set_field_visibility(power_plan.visibility(current))
+            pages["variables"].setRowVisible(notes["design"], current[power_plan.DESIGN] == "Independent t")
+            pages["options"].setRowVisible(notes["effect"], current[power_plan.EFFECT_INPUT] == power_plan.MEANS)
+            if self.error_field in self.hidden:
+                self.clear_field_error(self.error_field)
+
+        for name in choices:
+            self.controls[name][1].currentIndexChanged.connect(sync)
+        sync()
+
+    def _configure_cox_fields(self, form, saved_term):
+        cox = cox_outputs
+        graph = self.controls[cox.GRAPH][1]
+        term = self.controls[cox.GRAPH_TERM][1]
+        predictors = self.controls["Predictors"][1]
+        categories = self.controls["Categorical predictors"][1]
+        ties = self.controls[cox_exact.TIES][1]
+        note = QLabel(tr("cox.exact.unavailable"))
+        note.setWordWrap(True)
+        form.addRow(note)
+
+        def picked(box):
+            return [box.item(i).text() for i in range(box.count())
+                    if box.item(i).checkState() == Qt.CheckState.Checked]
+
+        def update_terms(selected):
+            terms = cox.model_terms(self.data, picked(predictors), picked(categories))
+            if selected and selected not in terms:
+                terms.append(selected)
+            term.clear()
+            for name in terms:
+                term.addItem(name, name)
+            term.setCurrentIndex(max(0, term.findData(selected)))
+
+        def sync():
+            checks = [self.controls[name][1].isChecked() for name in cox.OUTPUT_FIELDS]
+            fields = cox.cox_visibility(checks[0], graph.currentData(), *checks[1:])
+            self._set_field_visibility({name: fields[name] for name in (cox.GRAPH_TERM, cox.X_AXIS)})
+            form.setRowVisible(note, ties.currentData() == cox_exact.EXACT)
+            if self.error_field in self.hidden:
+                self.clear_field_error(self.error_field)
+
+        for box in (predictors, categories):
+            box.itemChanged.connect(lambda _item: update_terms(term.currentData()))
+        for name in cox.OUTPUT_FIELDS:
+            self.controls[name][1].toggled.connect(sync)
+        graph.currentIndexChanged.connect(sync)
+        ties.currentIndexChanged.connect(sync)
+        update_terms(saved_term)
+        sync()
 
     def _sync_extraction_fields(self):
         output = self.controls[extraction.OUTPUT][1].currentData()
@@ -474,6 +733,8 @@ class AnalysisDialog(QDialog):
     def focus_field(self, name, error=None):
         if self.reshape is not None:
             return self.reshape.focus(name, error)
+        if self.join is not None:
+            return self.join.focus(name, error)
         row = self.rows.get(name)
         if row is None:
             return False
@@ -493,8 +754,13 @@ class AnalysisDialog(QDialog):
     def options(self):
         if self.reshape is not None:
             return self.reshape.options()
+        if self.join is not None:
+            return self.join.options()
         options = {}
         for name, (kind, control) in self.controls.items():
+            if self.method == kappa.METHOD and name in kappa_form.TYPED_FIELDS:
+                options[name] = kappa_text.read_typed(control.text())
+                continue
             if name in self.hidden:
                 continue
             if kind == "kept":
@@ -507,6 +773,16 @@ class AnalysisDialog(QDialog):
                 options[name] = value
             elif type(kind) is bool:
                 options[name] = control.isChecked()
+            elif self.method == power_plan.METHOD and name in power_plan.NUMBER_FIELDS:
+                options[name] = control.toPlainText() if name == power_plan.GROUP_MEANS else control.text()
+            elif self.method == rmst.METHOD and name in rmst_form.NUMBER_FIELDS:
+                options[name] = rmst_dialog.read_number(control.text())
+            elif self.method == rmst.METHOD and name == rmst.REFERENCE:
+                options[name] = control.currentData()
+            elif self.method == cox_outputs.METHOD and name == cox_outputs.GRAPH_TERM:
+                options[name] = control.currentData() or ""
+            elif isinstance(control, (Profiles, ordinal_options.OrderEditor, weibull_options.Times, kappa_options.CategoryOrder)):
+                options[name] = control.values()
             elif type(kind) in (int, float):
                 text = control.text().strip()
                 try:
@@ -519,7 +795,7 @@ class AnalysisDialog(QDialog):
                 options[name] = value
             elif kind == TEXT:
                 options[name] = control.text()
-            elif kind in (TERM_LIST, select_editor.EDITOR):
+            elif kind in (TERM_LIST, select_editor.EDITOR, plot_function.CURVE_LIST, transpose_xy.SETS_LIST):
                 options[name] = control.values()
             elif kind == CONTRAST_LIST:
                 options.update(control.values())  # the four planned-contrast keys, or none
@@ -553,6 +829,8 @@ class AnalysisDialog(QDialog):
                 self.repeated.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            if self.method == XY_METHOD:
+                check_xy_options(self.data, retain_recipe_options(options, self._saved()), self.xy_left_scale)
             if self.method == SELECT_TRANSFORM:
                 check_select_transform(self.data, options)
             if self.method == extraction.EXTRACT_REARRANGE:
@@ -563,6 +841,30 @@ class AnalysisDialog(QDialog):
             logistic_validation.check(self, options)  # Validate binary logistic model: no fit before the worker
             if self.reshape is not None:
                 self.reshape.check(options)  # keys and levels only; the matrix is built on the worker
+            if self.join is not None:
+                self.join.check(options)
+            if self.method == cluster_silhouette.METHOD:
+                cluster_silhouette.check_options(self.data, options)
+            if self.method == plot_function.PLOT_FUNCTION:
+                model = plot_function.check_model(options)
+                plot_function.check_curves(model, options.get(plot_function.CURVES))
+            if self.method == power_plan.METHOD:
+                options = power_plan.normalized_options(options, power_plan.check_options(options))
+            if self.method == cox_outputs.METHOD:
+                if cox_exact.is_exact(options):
+                    cox_exact.check_outputs(options)
+                else:
+                    cox_outputs.graph_view(options)
+            if self.method == tolerance.TOLERANCE:
+                tolerance.check_options(self.data, options)
+            if self.method == weibull.METHOD:
+                weibull.Settings(options)  # Worksheet validation and the fit run on the worker.
+            if self.method == ordinal.ORDINAL_LOGIT:
+                ordinal.check_dialog_options(self.data, options, self.controls[ordinal.ORDER][1].state.observed)
+            if self.method == rmst.METHOD:
+                rmst.check_options(self.data, options)
+            if self.method == kappa.METHOD:
+                kappa.check_options(self.data, options)
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
@@ -591,6 +893,34 @@ class AnalysisDialog(QDialog):
             if str(error) == f"Choose a column for {field}.":
                 return qt("qt.choose_column", name=field_label(field))
             return ui(str(error))
+        if self.method == join_editor.wj.METHOD:
+            return join_editor.message(error)
+        if self.method == cluster_silhouette.METHOD:
+            return translate_message(str(error), "silhouette.error.", convert={"field": field_label})
+        if self.method == paired.PAIRED_PROPORTIONS:
+            return translate_message(error, paired.ERROR_PREFIX,
+                                     convert={"field": lambda name: tr(paired.LABEL_KEYS.get(name, name))})
+        if self.method == power_plan.METHOD:
+            thousands = lambda value: value.replace(",", ".")
+            return translate_message(error, "power.error.", convert={
+                "field": field_label, "low": thousands, "high": thousands, "limit": thousands, "count": thousands})
+        if self.method == cox_outputs.METHOD:
+            return cox_outputs.cox_message(cox_exact.translate_error(error))
+        if self.method == tolerance.TOLERANCE:
+            return translate_message(error, tolerance.ERROR_PREFIX,
+                                     convert={"field": lambda name: tr(tolerance.LABEL_KEYS.get(name, name))})
+        if self.method == weibull.METHOD:
+            return weibull_options.message(error)
+        if self.method == ordinal.ORDINAL_LOGIT:
+            return ordinal_options.describe_error(error, field)
+        if self.method == rmst.METHOD:
+            return rmst_dialog.describe_error(error, field)
+        if self.method == kappa.METHOD:
+            return kappa_text.describe_error(error, field)
+        if self.method == mean_permutation.METHOD:
+            return permutation_text.describe_error(error, field)
+        if self.method == XY_METHOD:
+            return translate_message(error, "xy.error.")
         return str(error)
 
     def show_error(self, error, field=None):

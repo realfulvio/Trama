@@ -80,6 +80,7 @@ _EN = {
     # Family.
     "command.source_table": "Source data table", "command.family_gallery": "Family gallery",
     "command.linked_info": "Linked Info sheet", "command.analysis_results": "Analysis results",
+    "command.family_results": "Family results",
     "command.graphs": "Graphs", "command.duplicate_family": "Duplicate family…",
     "command.save_family": "Save family as…",
     # Tools.
@@ -369,6 +370,7 @@ _IT = {
     "command.edit_layout": "Modifica layout…", "command.info_properties": "Proprietà foglio Info…",
     "command.source_table": "Tabella dati di origine", "command.family_gallery": "Galleria famiglia",
     "command.linked_info": "Foglio Info collegato", "command.analysis_results": "Risultati analisi",
+    "command.family_results": "Risultati della famiglia",
     "command.graphs": "Grafici", "command.duplicate_family": "Duplica famiglia…",
     "command.save_family": "Salva famiglia come…",
     "command.power": "Potenza e numerosità…", "command.simulate": "Simula dati…",
@@ -660,6 +662,9 @@ _GRAPH_EN = {
     "graph.series.marker": "Symbol", "graph.series.marker_size": "Symbol size (pt)",
     "graph.series.marker_color": "Symbol color", "graph.series.draw_style": "Draw style",
     "graph.series.side": "Axis",
+    # Mixed XY series: Step and Bars (analisi/xy_series.py). Recipes keep the English values.
+    "graph.series.visible": "Show series", "graph.series.bar_width": "Bar cluster width",
+    "graph.series.bar_width_hint": "X units; blank is Auto",
     "graph.series.hint": "Choose a plot element. Blank fields keep their original settings.",
     "graph.series.inactive_hint": ("Choose a plot element. Blank fields keep their original settings. "
                                    "Disabled fields stay saved for the other draw styles."),
@@ -909,6 +914,7 @@ _GRAPH_EN = {
     "graph.marker.plus": "Plus", "graph.marker.cross": "Cross", "graph.marker.star": "Star",
     "graph.marker.none": "No symbol",
     "graph.draw.points": "Points", "graph.draw.line": "Line", "graph.draw.line_points": "Line and points",
+    "graph.draw.step": "Step", "graph.draw.bars": "Bars",
     "graph.side.left": "Left", "graph.side.right": "Right",
     # Validation messages of presentation.py, matched by their English text (see translate_message).
     "graph.error.float": "could not convert string to float: {value}",
@@ -936,6 +942,9 @@ _GRAPH_EN = {
     "graph.error.marker": "Choose a valid symbol.",
     "graph.error.series_label": ("Enter a series legend label of up to 160 characters that does not start "
                                  "with an underscore."),
+    "graph.error.series_visible": "Invalid series visibility.",
+    "graph.error.xy_bars_x_scale": "{column} is drawn as bars, which need a linear X axis.",
+    "graph.error.xy_bars_left_scale": "{column} is drawn as bars, which need a linear left Y axis.",
     "graph.error.group_count": "Format up to {count} box or violin groups.",
     "graph.error.group_reference": "Invalid graph group reference.",
     "graph.error.group_setting": "This setting is not available for box and violin groups.",
@@ -1041,6 +1050,8 @@ _GRAPH_IT = {
     "graph.series.width": "Spessore linea (pt)", "graph.series.marker": "Simbolo",
     "graph.series.marker_size": "Dimensione simbolo (pt)", "graph.series.marker_color": "Colore simbolo",
     "graph.series.draw_style": "Stile di disegno", "graph.series.side": "Asse",
+    "graph.series.visible": "Mostra la serie", "graph.series.bar_width": "Larghezza del gruppo di barre",
+    "graph.series.bar_width_hint": "unità di X; vuoto è Automatica",
     "graph.series.hint": "Scegli un elemento del grafico. I campi vuoti mantengono le impostazioni originali.",
     "graph.series.inactive_hint": ("Scegli un elemento del grafico. I campi vuoti mantengono le impostazioni "
                                    "originali; i campi disabilitati restano salvati per gli altri stili di disegno."),
@@ -1290,6 +1301,7 @@ _GRAPH_IT = {
     "graph.marker.plus": "Più", "graph.marker.cross": "Croce", "graph.marker.star": "Stella",
     "graph.marker.none": "Nessun simbolo",
     "graph.draw.points": "Punti", "graph.draw.line": "Linea", "graph.draw.line_points": "Linea e punti",
+    "graph.draw.step": "Gradini", "graph.draw.bars": "Barre",
     "graph.side.left": "Sinistra", "graph.side.right": "Destra",
     "graph.error.float": "Inserisci un numero: {value} non è valido.",
     "graph.error.int": "Inserisci un numero intero: {value} non è valido.",
@@ -1320,6 +1332,9 @@ _GRAPH_IT = {
     "graph.error.marker": "Scegli un simbolo valido.",
     "graph.error.series_label": ("Inserisci un'etichetta di legenda di al massimo 160 caratteri che non "
                                  "inizi con un trattino basso."),
+    "graph.error.series_visible": "Visibilità della serie non valida.",
+    "graph.error.xy_bars_x_scale": "{column} è disegnata a barre, che richiedono un asse X lineare.",
+    "graph.error.xy_bars_left_scale": "{column} è disegnata a barre, che richiedono un asse Y sinistro lineare.",
     "graph.error.group_count": "Formatta al massimo {count} gruppi box o violino.",
     "graph.error.group_reference": "Riferimento al gruppo non valido.",
     "graph.error.group_setting": "Questa impostazione non è disponibile per i gruppi box e violino.",
@@ -1373,6 +1388,12 @@ from .parallel_text import EN as _PROCESSES_EN, IT as _PROCESSES_IT  # noqa: E40
 
 _EN.update(_PROCESSES_EN)
 _IT.update(_PROCESSES_IT)
+
+# Analyze → Data Processing → Join worksheets by key (analisi.worksheet_join).
+from .worksheet_join_text import EN as _JOIN_EN, IT as _JOIN_IT  # noqa: E402
+
+_EN.update(_JOIN_EN)
+_IT.update(_JOIN_IT)
 
 # Nonlinear and global nonlinear regression: one line under the Weighting field explains its denominator.
 _WEIGHTING_EN = {
@@ -2213,6 +2234,177 @@ _IT.update({
     "iroc.kept_none": "Apri l'analisi per calcolare di nuovo.",
 })
 
+# Paired proportions (McNemar): captions, choices, the orientation notes and the validation messages. Recipes keep the
+# English names and values; the "paired.error." entries match the English text raised by the engine (translate_message).
+_EN.update({
+    "paired.tab.data": "Data", "paired.tab.test": "Test and graph",
+    "paired.field.format": "Input format", "paired.field.before": "Before", "paired.field.after": "After",
+    "paired.field.negative": "Negative value", "paired.field.positive": "Positive value",
+    "paired.field.after_negative": "After negative counts", "paired.field.after_positive": "After positive counts",
+    "paired.field.test": "Test", "paired.field.level": "Confidence level (%)", "paired.field.graph": "Graph",
+    "paired.choice.observations": "Observations", "paired.choice.count_matrix": "Count matrix",
+    "paired.choice.exact": "Exact", "paired.choice.mid_p": "Mid-p",
+    "paired.choice.chi_square": "Chi-square with continuity correction",
+    "paired.note.observations": "One pair per row. A pair with an empty or excluded cell is discarded as a whole. "
+                                "Codes are compared as written: numbers by value (1, 1.0 and 1,0 are the same), "
+                                "text exactly, with capitals. Booleans are not converted to 0 and 1.",
+    "paired.note.matrix": "Row 1 is Before negative and row 2 is Before positive; the two columns are After negative "
+                          "and After positive. Gain (negative to positive) is row 1, column 2; Loss (positive to "
+                          "negative) is row 2, column 1. Swapping Before and After swaps those two counts. Only "
+                          "the first two rows are read.",
+    "paired.hint": "Orientation: Before → After. Gain = negative before and positive after (b); Loss = positive "
+                   "before and negative after (c). Difference = positive fraction after − positive fraction "
+                   "before = (b − c) / N, with no interval. McNemar's test uses only the discordant pairs b + c "
+                   "(two-sided p). The matched odds ratio is b / c, with the exact Clopper–Pearson interval of b "
+                   "out of b + c; it is the same for all three tests and is infinite without losses, 0 without gains.",
+    "paired.error.format": "Input format: choose Observations or Count matrix.",
+    "paired.error.test": "Test: choose Exact, Mid-p or Chi-square with continuity correction.",
+    "paired.error.level": "Confidence level (%) must be a number greater than 0 and less than 100.",
+    "paired.error.graph": "Graph must be on or off.",
+    "paired.error.choose": "Choose a column for {field}.",
+    "paired.error.exists": 'Choose an existing column for {field}: "{column}" is not in the worksheet.',
+    "paired.error.unique": "Worksheet column names must be unique.",
+    "paired.error.different": "Choose different columns for Before and After.",
+    "paired.error.different_counts": "Choose different columns for After negative counts and After positive counts.",
+    "paired.error.code_type": "Enter {field} as text or as a number.",
+    "paired.error.code_empty": "Enter a code for {field}.",
+    "paired.error.same_code": 'Negative value and Positive value must be different: "{negative}" and "{positive}" '
+                              "are the same code.",
+    "paired.error.boolean": 'Column "{column}" holds a Boolean value in source row {row}; use text or numeric codes.',
+    "paired.error.unknown": 'Column "{column}" holds "{value}" in source row {row}, which is neither the negative '
+                            'code "{negative}" nor the positive code "{positive}".',
+    "paired.error.no_pairs": "No complete pair of Before and After values was found.",
+    "paired.error.two_rows": "The count matrix needs two rows: Before negative and Before positive.",
+    "paired.error.extra_row": "Only the first two rows (Before negative and Before positive) hold counts, but row "
+                              '{row} of "{column}" is not empty.',
+    "paired.error.blank": 'Enter a count for {row} in column "{column}".',
+    "paired.error.counts": '"{column}" must contain whole, nonnegative counts.',
+    "paired.error.range": "A count exceeds the supported exact integer range.",
+    "paired.error.zero": "The total count is zero: enter at least one pair.",
+    "paired.error.limit": "The total number of pairs cannot exceed 10,000,000.",
+})
+_IT.update({
+    "paired.tab.data": "Dati", "paired.tab.test": "Test e grafico",
+    "paired.field.format": "Formato dei dati", "paired.field.before": "Prima", "paired.field.after": "Dopo",
+    "paired.field.negative": "Valore negativo", "paired.field.positive": "Valore positivo",
+    "paired.field.after_negative": "Conteggi dopo negativi", "paired.field.after_positive": "Conteggi dopo positivi",
+    "paired.field.test": "Test", "paired.field.level": "Livello di confidenza (%)", "paired.field.graph": "Grafico",
+    "paired.choice.observations": "Osservazioni", "paired.choice.count_matrix": "Matrice dei conteggi",
+    "paired.choice.exact": "Esatto", "paired.choice.mid_p": "Mid-p",
+    "paired.choice.chi_square": "Chi-quadro con correzione di continuità",
+    "paired.note.observations": "Una coppia per riga. Una coppia con una cella vuota o esclusa viene scartata per "
+                                "intero. I codici si confrontano come scritti: i numeri per valore (1, 1.0 e 1,0 "
+                                "sono lo stesso), il testo esattamente, maiuscole comprese. I valori booleani non "
+                                "vengono convertiti in 0 e 1.",
+    "paired.note.matrix": "La riga 1 è Prima negativo e la riga 2 è Prima positivo; le due colonne sono Dopo "
+                          "negativo e Dopo positivo. Il passaggio a positivo (negativo → positivo) è riga 1, "
+                          "colonna 2; il passaggio a negativo (positivo → negativo) è riga 2, colonna 1. "
+                          "Scambiare Prima e Dopo scambia questi due conteggi. Si leggono solo le prime due righe.",
+    "paired.hint": "Orientamento: Prima → Dopo. Passaggio a positivo = negativo prima e positivo dopo (b); passaggio "
+                   "a negativo = positivo prima e negativo dopo (c). Differenza = frazione positiva dopo − frazione "
+                   "positiva prima = (b − c) / N, senza intervallo. Il test di McNemar usa solo le coppie "
+                   "discordanti b + c (p bilaterale). L’odds ratio appaiato è b / c, con l’intervallo esatto di "
+                   "Clopper–Pearson di b su b + c; è lo stesso per tutti e tre i test, infinito senza passaggi a "
+                   "negativo e 0 senza passaggi a positivo.",
+    "paired.error.format": "Formato dei dati: scegli Osservazioni o Matrice dei conteggi.",
+    "paired.error.test": "Test: scegli Esatto, Mid-p o Chi-quadro con correzione di continuità.",
+    "paired.error.level": "Il livello di confidenza (%) deve essere un numero maggiore di 0 e minore di 100.",
+    "paired.error.graph": "Grafico: scegli se mostrarlo o no.",
+    "paired.error.choose": "Scegli una colonna nel campo {field}.",
+    "paired.error.exists": 'Scegli una colonna esistente nel campo {field}: "{column}" non è nel foglio.',
+    "paired.error.unique": "I nomi delle colonne del foglio devono essere univoci.",
+    "paired.error.different": "Scegli colonne diverse per Prima e Dopo.",
+    "paired.error.different_counts": "Scegli colonne diverse per i conteggi dopo negativi e dopo positivi.",
+    "paired.error.code_type": "Inserisci {field} come testo o come numero.",
+    "paired.error.code_empty": "Inserisci un codice per {field}.",
+    "paired.error.same_code": 'Valore negativo e Valore positivo devono essere diversi: "{negative}" e "{positive}" '
+                              "sono lo stesso codice.",
+    "paired.error.boolean": 'La colonna "{column}" contiene un valore booleano nella riga origine {row}; usa codici '
+                           "di testo o numerici.",
+    "paired.error.unknown": 'La colonna "{column}" contiene "{value}" nella riga origine {row}, che non è né il '
+                            'codice negativo "{negative}" né il codice positivo "{positive}".',
+    "paired.error.no_pairs": "Non c’è nessuna coppia completa di valori Prima e Dopo.",
+    "paired.error.two_rows": "La matrice dei conteggi richiede due righe: Before negative e Before positive.",
+    "paired.error.extra_row": "Solo le prime due righe (Before negative e Before positive) contengono conteggi, ma "
+                              'la riga {row} di "{column}" non è vuota.',
+    "paired.error.blank": 'Inserisci un conteggio per {row} nella colonna "{column}".',
+    "paired.error.counts": '"{column}" deve contenere conteggi interi non negativi.',
+    "paired.error.range": "Un conteggio supera l’intervallo di interi esatti supportato.",
+    "paired.error.zero": "Il conteggio totale è zero: inserisci almeno una coppia.",
+    "paired.error.limit": "Il numero totale di coppie non può superare 10.000.000.",
+})
+
+# Tolerance intervals (0.93): captions, choices, the explanation under the fields and the validation messages.
+# The "tolerance.error." entries are the exact English messages of the engine and the dialog with placeholders (see
+# translate_message). Recipes keep the English field names and values; group and column names stay literal.
+_EN.update({
+    "tolerance.tab.data": "Data", "tolerance.tab.interval": "Interval",
+    "tolerance.field.variables": "Variables", "tolerance.field.group": "Group",
+    "tolerance.field.distribution": "Distribution", "tolerance.field.sides": "Sides",
+    "tolerance.field.coverage": "Population coverage (%)", "tolerance.field.confidence": "Confidence level (%)",
+    "tolerance.field.graph": "Show graph",
+    "tolerance.choice.normal": "Normal", "tolerance.choice.free": "Distribution-free",
+    "tolerance.choice.two_sided": "Two-sided", "tolerance.choice.lower": "Lower", "tolerance.choice.upper": "Upper",
+    "tolerance.hint": "Two percentages describe the result. Population coverage is the share of all values the "
+                      "interval should contain; the confidence level is how sure you want to be that it does. "
+                      "Repeating the sampling, about 95% of the intervals built at 95% confidence would hold at "
+                      "least the stated coverage. A confidence interval of the mean only locates the average and "
+                      "narrows as the sample grows; a tolerance interval describes individual values, so it stays wide.",
+    "tolerance.error.distribution": "Distribution: choose Normal or Distribution-free.",
+    "tolerance.error.sides": "Sides: choose Two-sided, Lower or Upper.",
+    "tolerance.error.percentage": "{field} must be a finite number greater than 0 and less than 100.",
+    "tolerance.error.graph": "Show graph: choose on or off.",
+    "tolerance.error.select": "Select at least one column for {field}.",
+    "tolerance.error.too_many": "Choose up to {limit} columns for {field}; {count} selected.",
+    "tolerance.error.once": "Choose each variable once.",
+    "tolerance.error.choose": "Choose a column for {field}.",
+    "tolerance.error.exists": 'Choose an existing column for {field}: "{column}" is not in the worksheet.',
+    "tolerance.error.unique": "Worksheet column names must be unique.",
+    "tolerance.error.group_variable": "Choose a Group column that is not one of the variables.",
+    "tolerance.error.groups": "{field} has more than {limit} groups; choose a column with fewer groups.",
+    "tolerance.error.labels": "Group labels must stay distinct when written as text.",
+    "tolerance.error.cell": 'Column "{column}" must hold finite numbers. Source row {row} is not a finite number.',
+    "tolerance.error.pairs": "The analysis needs {count} variable-group pairs; the limit is {limit}.",
+    "tolerance.error.observations": 'Column "{column}" has {count} observations; the limit is {limit} per variable.',
+    "tolerance.error.number": "{field} must be a number.",
+    "tolerance.error.finite": "{field} must be finite.",
+})
+_IT.update({
+    "tolerance.tab.data": "Dati", "tolerance.tab.interval": "Intervallo",
+    "tolerance.field.variables": "Variabili", "tolerance.field.group": "Gruppo",
+    "tolerance.field.distribution": "Distribuzione", "tolerance.field.sides": "Lati",
+    "tolerance.field.coverage": "Copertura della popolazione (%)", "tolerance.field.confidence": "Livello di confidenza (%)",
+    "tolerance.field.graph": "Mostra grafico",
+    "tolerance.choice.normal": "Normale", "tolerance.choice.free": "Senza distribuzione",
+    "tolerance.choice.two_sided": "Bilaterale", "tolerance.choice.lower": "Inferiore",
+    "tolerance.choice.upper": "Superiore",
+    "tolerance.hint": "Il risultato è descritto da due percentuali. La copertura della popolazione è la quota di tutti "
+                      "i valori che l’intervallo deve contenere; il livello di confidenza è quanto vuoi essere "
+                      "sicuro che la contenga. Ripetendo il campionamento, circa il 95% degli intervalli costruiti "
+                      "con confidenza 95% conterrebbe almeno la copertura indicata. L’intervallo di confidenza della "
+                      "media individua solo la media e si restringe al crescere del campione; l’intervallo di "
+                      "tolleranza descrive i singoli valori, quindi resta largo.",
+    "tolerance.error.distribution": "Distribuzione: scegli Normale o Senza distribuzione.",
+    "tolerance.error.sides": "Lati: scegli Bilaterale, Inferiore o Superiore.",
+    "tolerance.error.percentage": "Il campo {field} deve essere un numero finito maggiore di 0 e minore di 100.",
+    "tolerance.error.graph": "Mostra grafico: scegli sì o no.",
+    "tolerance.error.select": "Seleziona almeno una colonna nel campo {field}.",
+    "tolerance.error.too_many": "Scegli al massimo {limit} colonne nel campo {field}; ne hai selezionate {count}.",
+    "tolerance.error.once": "Scegli ogni variabile una sola volta.",
+    "tolerance.error.choose": "Scegli una colonna nel campo {field}.",
+    "tolerance.error.exists": 'Scegli una colonna esistente nel campo {field}: "{column}" non è nel foglio.',
+    "tolerance.error.unique": "I nomi delle colonne del foglio devono essere univoci.",
+    "tolerance.error.group_variable": "Scegli per il gruppo una colonna diversa dalle variabili.",
+    "tolerance.error.groups": "Il campo {field} ha più di {limit} gruppi; scegli una colonna con meno gruppi.",
+    "tolerance.error.labels": "Le etichette dei gruppi devono restare distinte quando scritte come testo.",
+    "tolerance.error.cell": 'La colonna "{column}" deve contenere numeri finiti. '
+                            "La riga origine {row} non è un numero finito.",
+    "tolerance.error.pairs": "L’analisi richiede {count} coppie variabile-gruppo; il limite è {limit}.",
+    "tolerance.error.observations": 'La colonna "{column}" ha {count} osservazioni; il limite è {limit} per variabile.',
+    "tolerance.error.number": "Il campo {field} deve essere un numero.",
+    "tolerance.error.finite": "Il campo {field} deve essere finito.",
+})
+
 # Robust curve fit (0.73): captions, choices, editor and validation messages. The "analysis.robust_curve.error."
 # entries are the exact English messages of the engine with placeholders (see translate_message). Recipes keep the
 # English field names and values.
@@ -2990,6 +3182,11 @@ _AXIS_BREAKS_EN = {
     "axis_breaks.col.high": "High",
     "axis_breaks.col.share": "Share (%)",
     "axis_breaks.col.major_step": "Major interval",
+    "axis_breaks.col.major_step_short": "Major step",
+    "axis_breaks.col.major_origin": "Tick origin",
+    "axis_breaks.col.minor_ticks": "Minor ticks",
+    "axis_breaks.hint.major_origin": "Origin of the major tick grid. Leave blank to start at the lower limit.",
+    "axis_breaks.hint.minor_ticks": "Minor ticks between major ticks. Use 0 for none or leave blank to inherit.",
     "axis_breaks.row": "Segment {row}",
     "axis_breaks.total": "The shares add up to {total}.",
     "axis_breaks.btn.suggest": "Suggest from the data",
@@ -3000,7 +3197,8 @@ _AXIS_BREAKS_EN = {
         "Panels can have a different physical scale even when they show the same unit: the share of a segment is "
         "the space you give it, not its length in data units."),
     "axis_breaks.note.limits": (
-        "Available for XY series and XY error bars with a linear X or left Y axis. Not available with a right Y "
+        "Available for XY series, XY error bars and global nonlinear fits with a linear X or left Y axis. "
+        "Not available with a right Y "
         "axis, a logarithmic or inverted broken axis, or drawings placed in plot fractions. A saved setting that a "
         "later change makes impossible is kept and ignored, and the reason appears in the status bar."),
     "axis_breaks.note.numbers": (
@@ -3023,13 +3221,19 @@ _AXIS_BREAKS_EN = {
     "axis_breaks.error.m_finite": "Segment {row}: enter finite numbers for the low and high limits.",
     "axis_breaks.error.m_order": "Segment {row}: the low limit must be smaller than the high limit.",
     "axis_breaks.error.m_separate": (
-        "Segment {row}: the low limit must be larger than the high limit of segment {previous}."),
+        "Segment {row}: the low limit must be at least the high limit of segment {previous}."),
     "axis_breaks.error.m_share": "Segment {row}: enter a share greater than 0.",
     "axis_breaks.error.m_total": "The shares must add up to 100. They add up to {total}.",
     "axis_breaks.error.m_step": (
         "Segment {row}: enter a major interval greater than 0, or leave it blank for automatic ticks."),
     "axis_breaks.error.m_ticks": "Segment {row}: the major interval would place more than 200 ticks.",
-    "axis_breaks.error.p_support": "Axis breaks are available for XY series and XY error bars graphs only.",
+    "axis_breaks.error.m_origin": (
+        "Segment {row}: enter a finite tick origin and a major interval, or leave the origin blank."),
+    "axis_breaks.error.m_labels": "Segment {row}: tick labels need distinct numeric positions and short printable text.",
+    "axis_breaks.error.m_minor": (
+        "Segment {row}: enter 0 to 10 minor ticks per interval, or leave it blank to inherit the axis setting."),
+    "axis_breaks.error.m_tick_budget": "Segment {row}: the intervals would place more than 200 major and minor ticks.",
+    "axis_breaks.error.p_support": "Axis breaks are available for XY series, XY error bars and global nonlinear fits.",
     "axis_breaks.error.p_native": "Axis breaks need a native graph, not an imported picture.",
     "axis_breaks.error.p_right": (
         "Axis breaks cannot be combined with a right Y axis. Move every series to the left axis first."),
@@ -3062,6 +3266,13 @@ _AXIS_BREAKS_IT = {
     "axis_breaks.col.high": "A",
     "axis_breaks.col.share": "Quota (%)",
     "axis_breaks.col.major_step": "Intervallo principale",
+    "axis_breaks.col.major_step_short": "Passo",
+    "axis_breaks.col.major_origin": "Origine",
+    "axis_breaks.col.minor_ticks": "Secondarie",
+    "axis_breaks.hint.major_origin": (
+        "Origine della griglia delle tacche principali. Lascia vuoto per usare il limite inferiore."),
+    "axis_breaks.hint.minor_ticks": (
+        "Tacche secondarie tra due tacche principali. Usa 0 per nasconderle o lascia vuoto per ereditare l’impostazione."),
     "axis_breaks.row": "Segmento {row}",
     "axis_breaks.total": "Le quote sommano {total}.",
     "axis_breaks.btn.suggest": "Proponi dai dati",
@@ -3072,7 +3283,8 @@ _AXIS_BREAKS_IT = {
         "I pannelli possono avere una scala fisica diversa anche quando mostrano la stessa unità: la quota di un "
         "segmento è lo spazio che gli assegni, non la sua lunghezza in unità dei dati."),
     "axis_breaks.note.limits": (
-        "Disponibile per Serie XY e Barre di errore XY con asse X lineare o Y sinistro lineare. Non è disponibile con un "
+        "Disponibile per Serie XY, Barre di errore XY e fit non lineari globali con asse X o Y sinistro lineare. "
+        "Non è disponibile con un "
         "asse Y destro, con l'asse interrotto logaritmico o invertito, né con disegni posti in frazioni del grafico. "
         "Un'impostazione salvata che una modifica successiva rende impossibile viene conservata e ignorata, e il "
         "motivo compare nella barra di stato."),
@@ -3099,14 +3311,20 @@ _AXIS_BREAKS_IT = {
     "axis_breaks.error.m_finite": "Segmento {row}: inserisci numeri finiti per i limiti inferiore e superiore.",
     "axis_breaks.error.m_order": "Segmento {row}: il limite inferiore deve essere minore del limite superiore.",
     "axis_breaks.error.m_separate": (
-        "Segmento {row}: il limite inferiore deve essere maggiore del limite superiore del segmento {previous}."),
+        "Segmento {row}: il limite inferiore deve essere almeno pari al limite superiore del segmento {previous}."),
     "axis_breaks.error.m_share": "Segmento {row}: inserisci una quota maggiore di 0.",
     "axis_breaks.error.m_total": "Le quote devono sommare 100. La somma è {total}.",
     "axis_breaks.error.m_step": (
         "Segmento {row}: inserisci un intervallo principale maggiore di 0, oppure lascia vuoto per tacche automatiche."),
     "axis_breaks.error.m_ticks": "Segmento {row}: l'intervallo principale metterebbe più di 200 tacche.",
+    "axis_breaks.error.m_origin": (
+        "Segmento {row}: inserisci un’origine finita e un intervallo principale, oppure lascia vuota l’origine."),
+    "axis_breaks.error.m_labels": "Segmento {row}: ogni etichetta richiede una posizione numerica distinta e un testo breve e leggibile.",
+    "axis_breaks.error.m_minor": (
+        "Segmento {row}: inserisci da 0 a 10 tacche secondarie per intervallo o lascia vuoto per ereditare l’impostazione."),
+    "axis_breaks.error.m_tick_budget": "Segmento {row}: gli intervalli genererebbero più di 200 tacche.",
     "axis_breaks.error.p_support": (
-        "Le interruzioni sono disponibili solo per i grafici Serie XY e Barre di errore XY."),
+        "Le interruzioni sono disponibili per Serie XY, Barre di errore XY e fit non lineari globali."),
     "axis_breaks.error.p_native": "Le interruzioni richiedono un grafico nativo, non un'immagine importata.",
     "axis_breaks.error.p_right": (
         "Le interruzioni non si combinano con un asse Y destro. Sposta prima tutte le serie sull'asse sinistro."),
@@ -3161,6 +3379,13 @@ def set_language(code):
 
 def active_language():
     return _active
+
+
+def localized_count(text):
+    """Localize a count with English group separators in a translated message."""
+    if active_language() != DEFAULT_LANGUAGE and re.fullmatch(r"\d{1,3}(?:,\d{3})+", text):
+        return text.replace(",", ".")
+    return text
 
 
 def tr(key, **values):
@@ -3275,6 +3500,38 @@ def save_language(path, locale):
         raise
     return path
 
+
+# Cox regression: messages of the scaled Schoenfeld and Cox–Snell diagnostics. The engine raises the English text.
+_EN.update({
+    "cox.error.scaled_covariance": "The covariance matrix of the coefficients is not finite or has a "
+                                   "non-positive variance, so the scaled Schoenfeld residuals cannot be "
+                                   "calculated. Check the predictors for collinearity, complete separation or "
+                                   "extreme scales.",
+    "cox.error.scaled_values": "The scaled Schoenfeld residuals are not finite for these data. Center or rescale "
+                               "the continuous predictors.",
+    "cox.error.scaled_shape": "The Schoenfeld residuals do not match the coefficient covariance of the fit.",
+    "cox.error.snell_values": "A Cox–Snell residual is not finite, or is too small to be represented, for these "
+                              "data. Center or rescale the continuous predictors.",
+    "cox.error.x_axis": "Choose Event time or Source row for the Schoenfeld x axis.",
+    "cox.error.graph_choose": "Choose a graph to display.",
+    "cox.error.graph_requires": "Turn on {output} to display {view}.",
+    "cox.error.term_choose": "Choose one of the model terms: {terms}.",
+})
+_IT.update({
+    "cox.error.scaled_covariance": "La matrice di covarianza dei coefficienti non è finita o ha una varianza "
+                                   "non positiva: i residui di Schoenfeld scalati non si possono calcolare. "
+                                   "Controlla collinearità, separazione completa e scale estreme dei predittori.",
+    "cox.error.scaled_values": "I residui di Schoenfeld scalati non sono finiti per questi dati. Centra o riscala "
+                               "i predittori continui.",
+    "cox.error.scaled_shape": "I residui di Schoenfeld non corrispondono alla covarianza dei coefficienti del "
+                              "modello.",
+    "cox.error.snell_values": "Un residuo di Cox–Snell non è finito, oppure è troppo piccolo per essere "
+                              "rappresentato, per questi dati. Centra o riscala i predittori continui.",
+    "cox.error.x_axis": "Scegli Tempo dell’evento o Riga di origine per l’asse X di Schoenfeld.",
+    "cox.error.graph_choose": "Scegli il grafico da mostrare.",
+    "cox.error.graph_requires": "Attiva {output} per mostrare {view}.",
+    "cox.error.term_choose": "Scegli uno dei termini del modello: {terms}.",
+})
 
 # Multifactor ANOVA residual diagnostics. Canonical recipe values stay English.
 _ANOVA_DIAG_EN = {
@@ -4338,9 +4595,32 @@ _IT.update({
                               "{shown}.",
 })
 
+# Weibull AFT regression (0.93): captions, choices, hints and the engine messages, kept in a leaf module.
+from .weibull_aft_text import EN as _WEIBULL_AFT_EN, IT as _WEIBULL_AFT_IT
+
+_EN.update(_WEIBULL_AFT_EN)
+_IT.update(_WEIBULL_AFT_IT)
+
+# Ordinal logistic regression keeps its captions and messages in a module of its own.
+from .ordinal_logit_catalog import EN as _ORD_EN, IT as _ORD_IT
+_EN.update(_ORD_EN)
+_IT.update(_ORD_IT)
+# Restricted mean survival time (0.93): captions, hints and the engine messages, kept in a leaf module.
+from .rmst_text import EN as _RMST_EN, IT as _RMST_IT
+
+_EN.update(_RMST_EN)
+_IT.update(_RMST_IT)
+
 # Common dialog captions and analysis selectors are translated only at explicit
 # rendering boundaries. No widget hooks touch user titles, columns or data.
 from .interface_catalog import CAPTIONS as _INTERFACE_CAPTIONS, MESSAGES as _INTERFACE_MESSAGES
+from .power_plan_text import CAPTIONS as _POWER_CAPTIONS, EN as _POWER_EN, IT as _POWER_IT
+
+# Power and sample size planning (0.93): dialog captions that no other control already translates, notes, messages.
+for _english, _italian in _POWER_CAPTIONS.items():
+    _INTERFACE_CAPTIONS.setdefault(_english, _italian)
+_EN.update(_POWER_EN)
+_IT.update(_POWER_IT)
 
 for _key, (_english, _italian) in _INTERFACE_MESSAGES.items():
     _EN[_key], _IT[_key] = _english, _italian
@@ -4357,6 +4637,18 @@ for _key, _english in _EN.items():
         KEY_BY_LABEL.setdefault(_english, _key)
 # The one-way field is new. English on screen must stay exactly this string.
 KEY_BY_LABEL.setdefault("Ratio direction", "anova.lognormal.field.direction")
+
+# Cohen's kappa (0.93): captions, choices, hints and the engine messages, kept in a leaf module. Merged after the
+# label map above, so its generic captions (Linear, None, Up) do not change how other dialogs translate them; only
+# the method name and the four field captions no other method uses join the map.
+from .cohen_kappa_text import EN as _KAPPA_EN, IT as _KAPPA_IT
+
+_EN.update(_KAPPA_EN)
+_IT.update(_KAPPA_IT)
+KEY_BY_LABEL.setdefault("Cohen's kappa", "interface.Cohen's kappa")
+for _english, _key in (("First rating", "kappa.field.first"), ("Second rating", "kappa.field.second"),
+                       ("Category order", "kappa.field.order"), ("Resamples", "kappa.field.resamples")):
+    KEY_BY_LABEL.setdefault(_english, _key)
 
 
 def fixed_choice_keys(values):
@@ -4783,6 +5075,32 @@ CATALOGS['it'].update({
     'family.default_name': '{title} copia',
     'family.default_prefix': 'Copia di ',
     'family.default_file': 'famiglia.alab',
+})
+
+# Mixed XY series (Step and Bars): messages of analisi/xy_series.py, matched by their English text.
+# Format Graph and Change parameters translate them with the "xy.error." prefix.
+_EN.update({
+    "xy.error.draw_style": "Choose a draw style of Points, Line, Line and points, Step, Bars.",
+    "xy.error.bars_left_scale": "{column} is drawn as bars, which need a linear left Y axis.",
+    "xy.error.bars_right_scale": "{column} is drawn as bars, which need a linear right Y axis.",
+    "xy.error.bars_repeated_x": ("{column} is drawn as bars and repeats X = {x} among its valid points. Bars are "
+                                 "not summed or stacked: keep one Y per X, or choose another draw style."),
+    "xy.error.bar_width": "Enter a finite positive bar cluster width in X units, or leave it blank for Auto.",
+    "xy.error.bar_geometry": ("The bars cannot be drawn at these X values with this cluster width: the rectangles "
+                              "would collapse or overflow. Enter another bar cluster width in X units."),
+})
+_IT.update({
+    "xy.error.draw_style": "Scegli uno stile di disegno tra Punti, Linea, Linea e punti, Gradini, Barre.",
+    "xy.error.bars_left_scale": "{column} è disegnata a barre, che richiedono un asse Y sinistro lineare.",
+    "xy.error.bars_right_scale": "{column} è disegnata a barre, che richiedono un asse Y destro lineare.",
+    "xy.error.bars_repeated_x": ("{column} è disegnata a barre e ripete X = {x} fra i suoi punti validi. Le barre "
+                                 "non vengono sommate né impilate: tieni una sola Y per ogni X, oppure scegli un "
+                                 "altro stile di disegno."),
+    "xy.error.bar_width": ("Inserisci una larghezza del gruppo di barre finita e positiva, in unità di X, oppure "
+                           "lasciala vuota per Automatica."),
+    "xy.error.bar_geometry": ("Con questa larghezza del gruppo le barre non si possono disegnare a questi valori "
+                              "di X: i rettangoli collasserebbero o andrebbero in overflow. Inserisci un'altra "
+                              "larghezza del gruppo di barre in unità di X."),
 })
 
 # Hierarchical clustering presentation. Keys stay hierarchy.style.*; recipes keep canonical values.

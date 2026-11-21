@@ -30,11 +30,25 @@ class Session:
     inspector_wanted: bool = False
     inspector_element: object = None
     key: str = field(default_factory=lambda: uuid4().hex)
+    combined_navigator: bool = False
+    sheet_filter: str = ""
+    sheet_history: list = field(default_factory=list)
+    sheet_position: int = -1
 
     def reset(self, project):
         """A fresh project in this tab (the last tab closed)."""
         self.project, self.selected, self.view, self.status = project, None, {}, ""
         self.inspector_wanted, self.inspector_element = False, None
+        self.combined_navigator = False
+        self.sheet_filter = ""
+        self.sheet_history.clear()
+        self.sheet_position = -1
+
+    def visit(self, ref):
+        if self.sheet_position >= 0 and self.sheet_history[self.sheet_position] == ref:
+            return
+        self.sheet_history = [*self.sheet_history[:self.sheet_position + 1], ref][-100:]
+        self.sheet_position = len(self.sheet_history) - 1
 
     def paths(self):
         """The files this tab stands for: the saved project and, for an imported project, its source."""

@@ -354,9 +354,6 @@ class GalleryPage(QWidget):
             shortcut = QShortcut(QKeySequence(sequence), self)
             shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
             shortcut.activated.connect(self.closed.emit)
-        find = QShortcut(QKeySequence(QKeySequence.StandardKey.Find), self)
-        find.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        find.activated.connect(self.focus_search)
         self.sync(select=origin)
 
     # -- the cards -------------------------------------------------------------------------------------

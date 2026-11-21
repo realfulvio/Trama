@@ -8,11 +8,10 @@ The menu also duplicates an object with a fresh UUID, removes it, or changes nat
 
 Changes validate the entire candidate before replacing drawing artists and committing. Choosing a current canonical value, cancelling the color picker or cancelling a numerical preview does not add shape history or dirty the project. Successful actions participate in graph-scoped Undo/Redo and preserve source data, calculations, axes and the canvas. The menu is disposed on a sheet/project change; stale callbacks and unavailable drawing contexts cannot edit a different graph. Pan/zoom, pending calculations and Inspector drafts retain their existing guards. Empty-space clicks do not create a drawing.
 
-The existing shape schema is unchanged. The supported preset widths are 0.25, 0.5, 1, 1.5, 2, 3, 4, 6, 8 and 12 points; ending sizes are 6, 10, 14, 18, 24, 32 and 40 points. These are independent shortcuts, not inferred Prism preset values. Use Format object for other supported numeric values. Line-ending controls are inactive when the line has no endings. Pattern color remains tied to the border color in the current schema. Native drawing clipboard transfer, separate pattern color, attached object text and proprietary object round trips remain further work. Imported drawings retain their existing workflow.
+The existing shape schema is unchanged. The supported preset widths are 0.25, 0.5, 1, 1.5, 2, 3, 4, 6, 8 and 12 points; ending sizes are 6, 10, 14, 18, 24, 32 and 40 points. These are Trama presets. Use Format object for other supported numeric values. Line-ending controls are inactive when the line has no endings. Pattern color remains tied to the border color in the current schema. Native drawing clipboard transfer, separate pattern color, attached object text and proprietary object round trips remain further work. Imported drawings retain their existing workflow.
 
 ## Reference evidence
 
-The [official GraphPad drawing guide](https://www.graphpad.com/guides/prism/latest/user-guide/drawing_lines_arrows_and_shapes.htm) separately documents right-click changes to drawing color and thickness. Our menu uses the existing independent canonical drawing properties and does not claim complete original context-menu parity.
 
 ## Verification
 

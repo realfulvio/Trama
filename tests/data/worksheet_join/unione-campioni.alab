@@ -1,0 +1,110 @@
+{
+  "version": 2,
+  "tables": [
+    {
+      "title": "Misure $",
+      "columns": [
+        "Sample",
+        "Visit",
+        "Signal",
+        "Signal [right]"
+      ],
+      "kinds": [
+        "mixed",
+        "text",
+        "numeric",
+        "text"
+      ],
+      "rows": [
+        [
+          1,
+          "A",
+          10,
+          "L1"
+        ],
+        [
+          1,
+          "B",
+          20,
+          "L2"
+        ],
+        [
+          "1",
+          "A",
+          30,
+          "L3"
+        ],
+        [
+          null,
+          "A",
+          40,
+          "L4"
+        ],
+        [
+          2,
+          "C",
+          50,
+          "L5"
+        ]
+      ],
+      "analyses": [],
+      "formulas": [],
+      "excluded": [],
+      "table_format": "multivariable",
+      "graph_styles": {}
+    },
+    {
+      "title": "Anagrafica | visite",
+      "columns": [
+        "ID",
+        "Time",
+        "Signal",
+        "Batch $"
+      ],
+      "kinds": [
+        "mixed",
+        "text",
+        "numeric",
+        "text"
+      ],
+      "rows": [
+        [
+          1,
+          "A",
+          100,
+          "A1"
+        ],
+        [
+          1.0,
+          "A",
+          101,
+          "A2"
+        ],
+        [
+          "1",
+          "A",
+          102,
+          "A3"
+        ],
+        [
+          null,
+          "A",
+          200,
+          "A4"
+        ],
+        [
+          3,
+          "D",
+          300,
+          "A5"
+        ]
+      ],
+      "analyses": [],
+      "formulas": [],
+      "excluded": [],
+      "table_format": "multivariable",
+      "graph_styles": {}
+    }
+  ],
+  "layouts": []
+}

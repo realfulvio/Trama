@@ -14,18 +14,19 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDia
 
 from analisi.axis_breaks import AXIS_BREAKS, SUPPORT_ATTR, axis_breaks_reason
 from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
+from analisi.field_error import FieldError
 from analisi.graph_annotations import ANNOTATIONS
 from analisi.graph_legend import LEGEND_OPTIONS_KEY
 from analisi.graph_shapes import SHAPES
 from analisi.hierarchical_style import describe_hierarchical_artists
-from analisi.i18n import tr, translate_message
+from analisi.i18n import active_language, tr, translate_message
 from analisi.presentation import (FONT_FAMILIES, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
                                   active_series_fields, apply_style, axis_has_numeric_ticks, graph_series,
                                   validate_graph_style, zero_baseline_axes)
 from analisi.probability_scale import FRACTION_SCALE, PERCENT_SCALE, PROBABILITY_SCALES
 from analisi.qq_panels import PANEL_KEY
-from analisi.xy_series import (DRAW_STYLES, RECIPE_KEYS, SCALES as XY_SCALES, SIDES, assign_colors,
-                               prune_options, xy_series)
+from analisi.xy_series import (BAR_WIDTH, BARS, DRAW_STYLES, RECIPE_KEYS, SCALES as XY_SCALES, SIDES, STEP,
+                               assign_colors, parse_bar_width, prune_options, xy_series)
 
 from .theme import fit_dialog
 
@@ -47,7 +48,8 @@ MARKER_LABELS = {"Circle": "graph.marker.circle", "Square": "graph.marker.square
                  "Diamond": "graph.marker.diamond", "Triangle up": "graph.marker.triangle_up",
                  "Triangle down": "graph.marker.triangle_down", "Plus": "graph.marker.plus",
                  "Cross": "graph.marker.cross", "Star": "graph.marker.star", "No symbol": "graph.marker.none"}
-DRAW_LABELS = {"Points": "graph.draw.points", "Line": "graph.draw.line", "Line and points": "graph.draw.line_points"}
+DRAW_LABELS = {"Points": "graph.draw.points", "Line": "graph.draw.line", "Line and points": "graph.draw.line_points",
+               STEP: "graph.draw.step", BARS: "graph.draw.bars"}
 SIDE_LABELS = {"Left": "graph.side.left", "Right": "graph.side.right"}
 DEFAULT_LABELS = {DEFAULT: "graph.choice.analysis_default"}
 SERIES_KINDS = {"line": ("Line", "graph.kind.line"), "errorbar": ("Error bars", "graph.kind.errorbar"),
@@ -125,8 +127,7 @@ class GraphFormatDialog(QDialog):
         self.axes, self.style, self.xy = axes, deepcopy(style), xy
         self.result = self.xy_update = self.xy_result = None
         self.series = graph_series(axes)
-        self.series_values = {key: {name: str(value) for name, value in options.items()}
-                              for key, options in style.get("series", {}).items()}
+        self.series_values = deepcopy(style.get("series", {}))
         options = (xy or {}).get("options") or {}
         self.xy_style = dict(options.get("Series style") or {})
         self.xy_side = dict(options.get("Series side") or {})
@@ -376,13 +377,23 @@ class GraphFormatDialog(QDialog):
                 form.addRow(tr(caption), row)
             else:
                 form.addRow(tr(caption), field)
-        self.draw = self.side = None
+        self.draw = self.side = self.bar_width = None
         if self.xy is not None:
+            self.series_fields["visible"] = QCheckBox(tr("graph.series.visible"))
+            form.addRow(self.series_fields["visible"])
             self.draw = Choice(DRAW_STYLES, DRAW_LABELS)
             self.side = Choice(SIDES, SIDE_LABELS)
             self.draw.currentIndexChanged.connect(self._series_states)
             form.addRow(tr("graph.series.draw_style"), self.draw)
             form.addRow(tr("graph.series.side"), self.side)
+            saved_width = self.xy["options"].get(BAR_WIDTH)
+            text = "" if saved_width in (None, "") else str(saved_width)
+            if active_language() == "it":
+                text = text.replace(".", ",")
+            self.bar_width = QLineEdit(text)
+            self.bar_width.setPlaceholderText(tr("graph.series.bar_width_hint"))
+            form.addRow(tr("graph.series.bar_width"), self.bar_width)
+            self.series_form = form
         self.series_hint = QLabel(tr("graph.series.hint" if self.series else "graph.series.none"))
         self.series_hint.setObjectName("muted")
         self.series_hint.setWordWrap(True)
@@ -390,14 +401,28 @@ class GraphFormatDialog(QDialog):
         self.selector.currentIndexChanged.connect(self._select_series)
         self._select_series()
 
+    def _has_bars(self):
+        styles = dict(self.xy_style)
+        if self.draw is not None and 0 <= self.series_index < len(self.series):
+            series = self.series[self.series_index]
+            if series.kind == "xy":
+                styles[series.name] = self.draw.value()
+        return any(styles.get(name) == BARS for name in self.xy["options"].get("Y columns", ()))
+
     def _store_series(self):
         if not 0 <= self.series_index < len(self.series):
             return
         series = self.series[self.series_index]
-        options = {}
+        options = dict(self.series_values.get(series.key, {}))
         for key in series.fields:
-            field = self.series_fields[key]
-            if isinstance(field, Choice):
+            field = self.series_fields.get(key)
+            if field is None:
+                continue
+            options.pop(key, None)
+            if key == "visible":
+                if not field.isChecked():
+                    options[key] = False
+            elif isinstance(field, Choice):
                 value = field.value()
                 if value != DEFAULT:
                     options[key] = MARKERS[value] if key == "marker" else value
@@ -420,7 +445,9 @@ class GraphFormatDialog(QDialog):
         options = self.series_values.get(series.key, {}) if series else {}
         for key, field in self.series_fields.items():
             value = options.get(key, "")
-            if key == "marker":
+            if key == "visible":
+                field.setChecked(options.get(key, True))
+            elif key == "marker":
                 markers = [label for label, code in MARKERS.items()
                            if code != "none" or (series and series.kind in {"line", "errorbar", "xy"})]
                 field.set_values((DEFAULT, *markers), {**DEFAULT_LABELS, **MARKER_LABELS})
@@ -428,7 +455,7 @@ class GraphFormatDialog(QDialog):
             elif key == "line_style":
                 field.set(value or DEFAULT)
             else:
-                field.setText(value)
+                field.setText(str(value))
         if self.draw is not None:
             active = series is not None and series.kind == "xy"
             self.draw.setEnabled(active)
@@ -442,6 +469,8 @@ class GraphFormatDialog(QDialog):
         series = self.series[self.series_index] if 0 <= self.series_index < len(self.series) else None
         draw = self.draw.value() if (self.draw is not None and series and series.kind == "xy") else None
         active = active_series_fields(self.axes, series, draw) if series else set()
+        if self.bar_width is not None:
+            self.series_form.setRowVisible(self.bar_width, self._has_bars())
         for key, field in self.series_fields.items():
             field.setEnabled(bool(series and key in active))
             if hasattr(field, "button"):
@@ -590,6 +619,12 @@ class GraphFormatDialog(QDialog):
         columns = list(options.get("Y columns") or [])
         options["Series style"] = {column: self.xy_style.get(column, "Points") for column in columns}
         options["Series side"] = {column: self.xy_side.get(column, "Left") for column in columns}
+        if self._has_bars():
+            width = parse_bar_width(self.bar_width.text())
+            if width is None:
+                options.pop(BAR_WIDTH, None)
+            else:
+                options[BAR_WIDTH] = width
         title = self.right["title"].text().strip()
         if title:
             options["Right title"] = title
@@ -598,8 +633,13 @@ class GraphFormatDialog(QDialog):
         options["Right scale"] = self.right["scale"].value() or "Linear"
         low, high = self.right["min"].text().strip(), self.right["max"].text().strip()
         if low or high:
-            options["Right minimum"] = float(low) if low else ""
-            options["Right maximum"] = float(high) if high else ""
+            for key, text in (("min", low), ("max", high)):
+                try:
+                    options["Right minimum" if key == "min" else "Right maximum"] = (
+                        float(text.replace(",", ".")) if text else "")
+                except ValueError:
+                    self._focus(1, self.right[key])
+                    raise ValueError(f'{tr(AXIS_FIELDS[key])}: {text}') from None
         else:
             options.pop("Right minimum", None)
             options.pop("Right maximum", None)
@@ -618,15 +658,34 @@ class GraphFormatDialog(QDialog):
         apply_style(result.figure, style)
         self.xy_update, self.xy_result = options, result
 
+    def _focus_xy_error(self, error):
+        field = getattr(error, "field", None)
+        if field == BAR_WIDTH:
+            self._focus(2, self.bar_width)
+        elif field in ("X scale", "Y scale"):
+            self._focus(1, self.scales[field[0].lower()])
+        elif field == "Y minimum":
+            self._focus(1, self.axis_fields["y"]["min"])
+        elif field in ("Right scale", "Right minimum", "Right maximum"):
+            self._focus(1, self.right[{"Right scale": "scale", "Right minimum": "min", "Right maximum": "max"}[field]])
+        elif field == "Y columns" and getattr(error, "column", None):
+            for index, series in enumerate(self.series):
+                if series.kind == "xy" and series.name == error.column:
+                    self.selector.setCurrentIndex(index)
+                    break
+            self._focus(2, self.draw)
+
     def show_error(self, error):
+        if isinstance(error, FieldError) and self.xy is not None:
+            self._focus_xy_error(error)
         if not isinstance(error, str):
             from .axis_breaks import translate_breaks_error
             from .axis_guides import translate_guide_error
 
             from .legend import translate_legend_error
 
-            for translate in (translate_message, translate_legend_error, translate_guide_error,
-                              translate_breaks_error):
+            for translate in (translate_message, lambda value: translate_message(value, "xy.error."),
+                              translate_legend_error, translate_guide_error, translate_breaks_error):
                 text = translate(error)
                 if text != str(error):
                     break

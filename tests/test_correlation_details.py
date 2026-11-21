@@ -117,7 +117,9 @@ class DetailedCorrelationResult(unittest.TestCase):
     def test_catalog_keeps_correlation_and_adds_nothing_to_the_matrix(self):
         self.assertIn("Detailed results", METHODS["Correlation"])
         self.assertEqual(METHODS["Correlation"]["Detailed results"], False)
-        self.assertEqual(GROUPS["Data Exploration and Summary"][3:7], (
+        group = GROUPS["Data Exploration and Summary"]
+        start = group.index("Correlation")       # relative, so an analysis added earlier in the menu does not matter
+        self.assertEqual(group[start:start + 4], (
             "Correlation", "Correlate against control", "Compare independent correlations", "Correlation matrix"))
         self.assertIn("Correlation", GRAPH_METHODS)
 

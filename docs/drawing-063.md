@@ -12,7 +12,7 @@ Arrowheads have a point-based physical size, including after zoom and DPI change
 
 ## Reference evidence and limits
 
-The current [GraphPad drawing guide](https://www.graphpad.com/guides/prism/latest/user-guide/drawing_lines_arrows_and_shapes.htm) independently documents one/both/no arrowheads and drawing appearance controls. Our point sizes, two head designs and three hatch patterns are independent, named controls. Exact Prism numeric defaults, proprietary object serialization and pixel-identical arrow geometry are not claimed. End caps, additional arrow styles, rounded rectangles, arcs, rotation and direct mouse drawing remain further work. No new object import/export round trip to a Prism file format is implemented here.
+The drawing editor supports named point sizes, two arrowhead designs and three hatch patterns. End caps, additional arrow styles, rounded rectangles, arcs, rotation and direct mouse drawing remain further work.
 
 ## Verification
 

@@ -3,6 +3,9 @@ import unittest
 import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from scipy.cluster.hierarchy import leaves_list
+
+from analisi.hierarchical_style import apply_hierarchical_style
 
 from analisi.hierarchical_workbench import _coordinates, hierarchical_result
 from analisi.stats import hierarchical
@@ -28,6 +31,23 @@ class HierarchicalWorkbenchTests(unittest.TestCase):
         self.assertEqual(len(set(map(tuple, ax.collections[0].get_colors()))), 3)
         np.testing.assert_equal(ax.lines[0].get_xdata(), [2, 2])
         self.assertEqual(len(ax.collections[0].get_segments()), 3)
+
+    def test_styled_tree_labels_follow_the_merge_table_even_after_subsampling(self):
+        frame = pd.DataFrame({"Label": ["near A", "far A", "near B", "far B", "isolated"],
+                              "X": [0., 9., .1, 9.15, 25.]})
+        for interval in (1, 2):
+            for orientation in ("Horizontal", "Vertical"):
+                with self.subTest(interval=interval, orientation=orientation):
+                    result = hierarchical_result(frame, {
+                        "Variables": ["X"], "Observation labels": "Label",
+                        "Label interval (0 = automatic)": interval, "Dendrogram orientation": orientation})
+                    order = leaves_list(result.tables["Merges"].to_numpy())
+                    expected = frame["Label"].iloc[order].tolist()
+                    axis = result.figure.axes[0]
+                    ticks = axis.get_yticklabels if orientation == "Horizontal" else axis.get_xticklabels
+                    self.assertEqual([tick.get_text() for tick in ticks()], expected[::interval])
+                    apply_hierarchical_style(result.figure, {"row": {"labels": {"interval": 1}}})
+                    self.assertEqual([tick.get_text() for tick in ticks()], expected)
 
     def test_elbow_uses_within_cluster_sums_on_the_fitted_tree(self):
         data = pd.DataFrame({"X": [0., 1., 3.]})

@@ -21,8 +21,11 @@ def _graph(uid, title, preview=None, *, pdfs=()):
     return records + pack("<H", 0x4012)
 
 
-def _project(ids, *groups):
+def _project(ids, *groups, source_ids=(), analysis_ids=()):
     header = bytearray(10064)
+    pack_into("<2I", header, 40, len(source_ids), len(analysis_ids))
+    pack_into(f"<{len(source_ids)}i", header, 60, *source_ids)
+    pack_into(f"<{len(analysis_ids)}i", header, 2060, *analysis_ids)
     pack_into("<I", header, 48, len(ids))
     pack_into(f"<{len(ids)}i", header, 4060, *ids)
     return (b"PCFFGRA4" + _record(0x8001, bytes(12)) + _record(0x8002, header)

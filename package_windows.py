@@ -20,7 +20,10 @@ def main():
     for name in ("features.md", "getting-started.md", "compatibility.md", "development.md", "legal.md",
                  "competing-risks.md", "kmeans-algorithms.md", "independent-roc-curves.md", "ancova-090.md",
                  "grouped-distributions.md", "qt-migration.md", "qt-canvas-095.md", "qt-gallery.md",
-                 "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "release-094.md",
+                 "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "qt-report.md", "worksheet-join.md", "qt-recovery.md", "qt-analysis-templates.md",
+                 "qt-excel-workbook.md", "cluster-silhouette-092.md", "paired-proportions.md", "power-from-summary.md",
+                 "tolerance-intervals-093.md", "weibull-aft.md", "ordinal-logit.md", "restricted-mean-survival.md", "cohen-kappa.md", "mean-permutation-test.md", "xy-mixed-series.md",
+                 "release-097.md", "release-094.md",
                  "release-093.md", "validation-093.md",
                  "release-092.md", "validation-092.md", "release-091.md", "validation-091.md",
                  "pca-regression-087.md", "release-090.md", "validation-090.md",
@@ -31,7 +34,7 @@ def main():
                  "formula-windows.md", "distribution-formulas.md", "confidence-ellipses.md",
                  "anova-terms-083.md", "anova-ss-types.md", "anova-planned-contrasts.md", "rm-anova-sphericity.md", "kmeans-stability.md",
                  "curve-pipeline.md", "deming-multiseries-093.md", "exact-binomial.md", "repeated-measures-correlation.md",
-                 "meta-analysis.md", "cox-exact-ties.md", "nb2-regression.md",
+                 "meta-analysis.md", "cox-exact-ties.md", "cox-fit-diagnostics.md", "nb2-regression.md",
                  "logistic-validation.md", "bland-altman-repeated.md", "reshape-long-wide.md",
                  "release-084.md", "validation-084.md", "hierarchical-style-081.md", "release-083.md", "validation-083.md",
                  "conditional-equations-081.md", "graph-legends.md", "release-082.md", "validation-082.md",
@@ -60,7 +63,7 @@ def main():
     # drawings are research evidence, not approved redistribution assets.
     for folder in ("workflows-093", "kmeans-stability-096", "hartigan-wong-092", "pca-import-091", "pca-regression-090", "pca-regression-087", "pca-overlays-089", "categorical-scatter-088", "pca-reports-087", "anova-ellipses-085", "anova-terms-083", "anova-ss-types", "rm-sphericity", "hierarchical-style-084", "conditional-hierarchical", "graph-legends", "experiment-families", "variance-ratio-079", "hierarchical-import", "analysis-chains", "fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
                    "anova-diagnostics-070", "variance-assumptions-070", "reference-normalization",
-                   "logistic-validation-096"):
+                   "logistic-validation-096", "cox-fit-diagnostics"):
         source = root / "docs" / "media" / folder
         if source.is_dir():
             shutil.copytree(source, bundle / "docs" / "media" / folder, dirs_exist_ok=True,
@@ -77,6 +80,16 @@ def main():
         if example.is_file():
             (bundle / "docs" / "examples").mkdir(exist_ok=True)
             shutil.copy2(example, bundle / "docs" / "examples" / example.name)
+    examples = bundle / "docs" / "examples"
+    examples.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(root / "tests" / "data" / "tolerance_093" / "measurements.csv", examples / "tolerance-intervals.csv")
+    shutil.copy2(root / "tests" / "data" / "weibull_aft" / "follow-up.csv", examples / "weibull-follow-up.csv")
+    shutil.copy2(root / "tests" / "data" / "ordinal_logit" / "stages.csv", examples / "ordinal-stages.csv")
+    shutil.copy2(root / "tests" / "data" / "rmst" / "fixtures" / "cohorts.csv", examples / "rmst-cohorts.csv")
+    shutil.copy2(root / "tests" / "data" / "cohen_kappa" / "ratings.csv", examples / "cohen-kappa-ratings.csv")
+    for design in ("independent", "paired"):
+        shutil.copy2(root / "tests" / "data" / "mean_permutation" / f"{design}.csv",
+                     examples / f"permutation-{design}.csv")
     notices = bundle / "Third-party licenses"
     for dist in distributions():
         for item in dist.files or ():

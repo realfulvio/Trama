@@ -9,7 +9,7 @@ Appearance now groups line/border, interior, line endings and opacity/order. Pos
 - Linux: 1,475 unit tests, no skips, and complete real-app smoke PASS. Cross-page field errors, old shape editors, arrows/patterns, caps and canvas workflows pass.
 - Windows source GUI: 25 targeted real-Tk tests and dedicated real-app smoke PASS. The bounded runner uses independent standard-output/error redirection: the earlier PowerShell pipeline did not produce a completion marker. No product code change was needed between those runner attempts. EN/IT field errors select the correct page and focus, preview/cancel keeps recipes and dirty state unchanged, and native window geometry stays within 1024×768. This is source GUI acceptance, not a portable-EXE test.
 - Each published portable release requires the full Windows suite, original-reference and handoff-verifier checks, build/package and complete smoke of the extracted EXE, including the page/focus check. The release notes and SHA256SUMS identify the accepted archive.
-- Broader Prism compatibility remains partial; the editor preserves the existing primary-axis and imported-drawing restrictions.
+- Import support covers specific PZF/PZT features. The editor preserves the existing primary-axis and imported-drawing restrictions.
 
 ## Windows source GUI captures
 

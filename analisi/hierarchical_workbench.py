@@ -207,9 +207,9 @@ def _draw_tree(ax, fit, names, options, cut_height, *, horizontal=False, margin=
     if margin:
         ax.set_axis_off()
     else:
-        ticks, names, angle = _labels_in_order(names, order, options)
+        ticks, captions, angle = _labels_in_order(names, order, options)
         auto_labels = options.get("Label interval (0 = automatic)", 0) == 0
-        leaf_labels = set_leaf_ticks(ax, "y" if horizontal else "x", ticks, names,
+        leaf_labels = set_leaf_ticks(ax, "y" if horizontal else "x", ticks, captions,
                                      automatic=auto_labels, rotation=angle)
         if horizontal:
             ax.set_xlabel("Merge distance")

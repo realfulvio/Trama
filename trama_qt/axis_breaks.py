@@ -5,7 +5,7 @@ from math import isfinite
 from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QVBoxLayout)
 
-from analisi.axis_breaks import DEFAULT_GAP, normalise_axis_breaks, suggest_axis_breaks
+from analisi.axis_breaks import AxisBreakError, DEFAULT_GAP, normalise_axis_breaks, suggest_axis_breaks
 from analisi.data import decimal_comma
 from analisi.i18n import tr, translate_message
 
@@ -14,7 +14,7 @@ from .graph_format import Choice
 AXIS_CHOICES = ("", "x", "y")
 AXIS_LABELS = {"": "axis_breaks.axis.none", "x": "axis_breaks.axis.x", "y": "axis_breaks.axis.y"}
 COUNT_LABELS = {"2": "axis_breaks.count.2", "3": "axis_breaks.count.3"}
-COLUMNS = ("low", "high", "share", "major_step")
+COLUMNS = ("low", "high", "share", "major_step", "major_origin", "minor_ticks")
 ROWS = 3
 
 
@@ -29,7 +29,7 @@ def breaks_summary(record):
 
 
 def _text(value):
-    return "" if value is None else f"{value:g}"
+    return "" if value is None else str(value)
 
 
 def _typed(text, blank=""):
@@ -53,7 +53,7 @@ class AxisBreaksDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(tr("axis_breaks.title"))
         self.axes, self.result = axes, None
-        record = deepcopy(record) or {}
+        self.record = record = deepcopy(record) or {}
         segments = record.get("segments") or []
         outer = QVBoxLayout(self)
         grid = QGridLayout()
@@ -71,14 +71,19 @@ class AxisBreaksDialog(QDialog):
         hint.setObjectName("muted")
         grid.addWidget(hint, 2, 2, 1, 3)
         for column, name in enumerate(COLUMNS, start=1):
-            grid.addWidget(QLabel(tr(f"axis_breaks.col.{name}")), 3, column)
+            caption = "major_step_short" if name == "major_step" else name
+            grid.addWidget(QLabel(tr(f"axis_breaks.col.{caption}")), 3, column)
         self.cells = {}
         for row in range(ROWS):
             grid.addWidget(QLabel(tr("axis_breaks.row", row=row + 1)), 4 + row, 0)
             segment = segments[row] if row < len(segments) else {}
             for column, name in enumerate(COLUMNS, start=1):
                 cell = self.cells[(row, name)] = QLineEdit(_text(segment.get(name)))
-                cell.textChanged.connect(self._total)
+                cell.setAccessibleName(f"{tr('axis_breaks.row', row=row + 1)} · {tr(f'axis_breaks.col.{name}')}")
+                if name == "share":
+                    cell.textChanged.connect(self._total)
+                if name in ("major_origin", "minor_ticks"):
+                    cell.setToolTip(tr(f"axis_breaks.hint.{name}"))
                 grid.addWidget(cell, 4 + row, column)
         self.total = QLabel()
         outer.addWidget(self.total)
@@ -162,10 +167,16 @@ class AxisBreaksDialog(QDialog):
         axis = self.axis.value()
         if not axis:
             return {}
+        saved = self.record.get("segments", ()) if axis == self.record.get("axis") else ()
         segments = []
         for row in range(self.rows()):
             segment = {name: _typed(self.cells[(row, name)].text()) for name in ("low", "high", "share")}
-            segment["major_step"] = _typed(self.cells[(row, "major_step")].text(), blank=None)
+            for name in ("major_step", "major_origin", "minor_ticks"):
+                segment[name] = _typed(self.cells[(row, name)].text(), blank=None)
+            if row < len(saved):
+                for key in ("tick_labels", "tick_format"):
+                    if key in saved[row]:
+                        segment[key] = saved[row][key]
             segments.append(segment)
         return normalise_axis_breaks({"axis": axis, "gap": _typed(self.gap.text()), "segments": segments})
 
@@ -176,8 +187,12 @@ class AxisBreaksDialog(QDialog):
     def accept(self):
         try:
             self.result = self.read_record()
-        except ValueError as error:
+        except AxisBreakError as error:
             self.result = None
             self._show(translate_breaks_error(error))
+            field = self.cells.get((error.row, error.name))
+            if field is not None:
+                field.setFocus()
+                field.selectAll()
             return
         super().accept()

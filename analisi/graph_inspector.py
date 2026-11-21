@@ -396,7 +396,7 @@ class GraphInspector(ttk.Frame):
                 if key in series.fields:
                     enabled = key in active_fields
                     for control in field["shown"]:
-                        if isinstance(control, (ttk.Entry, ttk.Combobox, ttk.Button)):
+                        if isinstance(control, (ttk.Entry, ttk.Combobox, ttk.Button, ttk.Checkbutton)):
                             control.state(["!disabled" if enabled else "disabled"])
             if self._xy and hasattr(self, "xy_hint_label"):
                 key_name = "graph.inspector.xy_inactive" if active_fields != series.fields else "graph.inspector.xy_hint"

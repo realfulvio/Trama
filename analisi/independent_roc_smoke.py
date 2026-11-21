@@ -8,6 +8,8 @@ Synthetic data only: the packaged fixtures (tests/data/independent_roc). The fro
 """
 import json
 import time
+from contextlib import contextmanager
+from threading import Event
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
@@ -468,17 +470,33 @@ def _check_independent_roc(root, app, directory, tools):
     assert app.runs[full_index].options["Direction A"] == HIGHER and app.runs[full_index].result is not None
     assert not errors, errors
 
-    # 8. Cancel calculation: the bootstrap is slowed so the button can be pressed while the worker runs.
-    original = engine._Cohort.resample_area
+    # Hold the first actual resample until the GUI has exercised Cancel. With a warm
+    # process pool, delaying a cohort method in the parent does not delay the children.
+    @contextmanager
+    def hold_first_draw():
+        sampled, resume = Event(), Event()
+        draw = engine._draws
 
-    def slow(self, *args):
-        time.sleep(.002)
-        return original(self, *args)
+        def held_draw(rng, sizes):
+            values = draw(rng, sizes)
+            if not sampled.is_set():
+                sampled.set()
+                if not resume.wait(30):
+                    raise AssertionError("The GUI did not release the first bootstrap draw")
+            return values
 
-    def wait_for_worker():
+        with patch.object(engine, "_draws", held_draw):
+            try:
+                yield sampled, resume
+            finally:
+                resume.set()
+
+    def wait_for_worker(sampled):
         deadline = time.monotonic() + 20
-        while not (app.calculation and app.cancel_button.winfo_manager()):
-            assert time.monotonic() < deadline, "the Cancel calculation button never appeared"
+        while not (sampled.is_set() and app.calculation and app.cancel_button.winfo_viewable()):
+            assert time.monotonic() < deadline, (
+                "Cancel calculation did not become visible during bootstrap",
+                sampled.is_set(), app.cancel_button.winfo_manager(), root.state(), root.geometry())
             root.update()
             time.sleep(.02)
         root.update()
@@ -491,11 +509,11 @@ def _check_independent_roc(root, app, directory, tools):
         dialog.controls["Bootstrap replicates"][1].set("2500")
 
     count = len(app.runs)
-    with patch.object(engine._Cohort, "resample_area", slow):
+    with hold_first_draw() as (sampled, resume):
         app.show("data", LARGE)
         tools.drive_dialog(tools.AnalysisDialog, large)
         app.choose_analysis()
-        wait_for_worker()
+        wait_for_worker(sampled)
         root.update()
         button = app.cancel_button
         placement = {"viewable": bool(button.winfo_viewable()), "top": button.winfo_rooty(),
@@ -506,6 +524,7 @@ def _check_independent_roc(root, app, directory, tools):
         assert button.winfo_rootx() + button.winfo_width() <= screen[0]
         shot(root, "window-independent-roc-progress" + suffix + ".png")
         button.invoke()
+        resume.set()
         wait()
         assert not app.cancel_button.winfo_manager()
         assert len(app.runs) == count and len(app.tables[LARGE].analyses) == 0, "a cancelled new analysis adds nothing"
@@ -523,12 +542,13 @@ def _check_independent_roc(root, app, directory, tools):
     def longer(dialog):
         dialog.controls["Bootstrap replicates"][1].set("2500")
 
-    with patch.object(engine._Cohort, "resample_area", slow):
+    with hold_first_draw() as (sampled, resume):
         app.show("result", large_index)
         tools.drive_dialog(tools.AnalysisDialog, longer)
         app.edit_analysis()
-        wait_for_worker()
+        wait_for_worker(sampled)
         app.cancel_calculation()
+        resume.set()
         wait()
         assert app.runs[large_index].result is first and app.runs[large_index].options[
             "Bootstrap replicates"] == 200, "the recipe and its tables stay when the update is cancelled"

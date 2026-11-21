@@ -143,7 +143,7 @@ def main(argv=None):
         session.write_bytes((DATA / "sessione.alab").read_bytes())
         open_session(session)
         first, second = commit(0, PUBLICATION), commit(1, SECOND)
-        window.ribbon_tabs.setCurrentIndex(3)
+        window.ribbon_tabs.setCurrentIndex(window.ribbon_pages["graph"])
         window.open_sheet(("graph", 0))
         shot(window, "ribbon-graph")
         check(window.actions["graph_style_presets"].isEnabled(), "Figure styles… disabled on a graph")

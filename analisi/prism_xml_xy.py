@@ -1,24 +1,33 @@
-"""Restore replica-based XY error bars from the graph block of a legacy XML project."""
+"""Restore XY graphs and analyses from the template of a legacy XML project."""
 
 from base64 import b64decode
+from collections import Counter
+from copy import deepcopy
+from hashlib import sha256
 from math import ceil, floor, isfinite
-from struct import Struct, error as StructError, unpack_from
+from struct import Struct, error as StructError, unpack, unpack_from
 from zlib import decompressobj, error as ZlibError
 
 from matplotlib.colors import is_color_like
 from matplotlib.figure import Figure
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 
 from .data import MAX_ENTRY
 from .prism_binary import _DATASET
 from .prism_binary_editable import (_axis_config, _id_array, _one, _project_records, _require, _subgroups,
                                     _text_object)
 from .prism_binary_graphs import _read_title
-from .prism_restore import PRISM_TITLE, SAVED_XY
-from .prism_xml_binding import restored_binding_recipes
+from .prism_binary_results import _title
+from .prism_restore import PRISM_NOTES, PRISM_TITLE, SAVED_XY, _append_linked_recipe
+from .prism_xml_binding import indexed_analyses, restored_binding_recipes
 from .prism_xml_binding_layout import attach_binding_layout
+from .prism_xml_fit_axes import fit_curve_sheet, fit_viewport, indexed_fit_views
+from .reference_normalization import EACH, KEEP, MAXIMUM, METHOD, MINIMUM, NORMALIZED, PERCENTAGES, RAW
+from .repeated_input import SAVED_REPLICATE_DISPLAY, _series_name
 from .reporting import Result
+from .worksheet_series import series_columns
 
 XML_ERROR_BARS = "Prism XML XY errors"
 _TEMPLATE_TYPE = "{urn:schemas-microsoft-com:datatypes}dt"
@@ -27,6 +36,20 @@ _LINKS = Struct("<3i")
 _POINT_STRIDE = 249
 _MAX_GRAPH_POINTS = 50_000
 _MAX_TICKS = 200
+# The observed profile uses the minimum and maximum row means separately for each series.
+_REPLICATE_NORMALIZE_PROFILE = "ba9596bc8702eee7a46c1bb40bef4a00eb77b5f1bf5f92791f61ced5a4744c1b"
+_NORMALIZED_FIT_PROFILE = "74166d76a178569bd1e3545fab4dbdc1fef47be6d6d98e9f90e97d7d62005ffc"
+_NORMALIZED_FIT_OPTIONS = (1, 0, 2, 1, 34, 16, 0, 9, 1, 8, 4, 7, -1, -1)
+_NORMALIZED_FIT_HEADERS = (
+    "8d12f7b9ec3bd215b857af858468a61622d3b37a8baa41daf8a18b3517806388",
+    "d1a4ab967545b84d9e1926517d5d091dc93aa667cd16c22ac298ef881fc86402",
+)
+_NORMALIZED_CONSTRAINTS = {
+    0xC4: "2998012907ffc53c7f28e83d28a05e1ddd9781639ee18b45bf4f34f66a8dd1fd",
+    0xC9: "8ffeda13d6d229318db0347ac069827af256069db8fa29eaa68d07bfa131a4d0",
+}
+_DOSE_EQUATION = b"Y=Bottom+(Top-Bottom)/(1+10^((LogEC50-X)*HillSlope))"
+_DOSE_MODEL = "Normalized stimulation (variable slope, log10 X)"
 
 
 def template_data(root, namespace):
@@ -54,19 +77,27 @@ def attach_xml_error_graphs(root, namespace, sources):
     if data is None:
         return
     try:
-        index, encoding, graphs, tables = _project_records(data, sources)
+        originals, analyses = indexed_analyses(data)
+    except (ValueError, StructError):
+        originals, analyses = set(), []
+    outputs = {uid: _single_result_sheet(contents) for uid, _, _, contents in analyses}
+    table_ids = set(sources) | {uid for uid in outputs.values() if uid is not None}
+    curve_sheets = {uid: fit_curve_sheet(contents) for uid, _, kind, contents in analyses if kind[:2] == (0, 5)}
+    table_ids.update(sheet for sheet in curve_sheets.values() if sheet is not None)
+    try:
+        index, encoding, graphs, tables = _project_records(data, table_ids)
     except (ValueError, StructError):
         return
 
-    try:
-        binding = list(restored_binding_recipes(data, sources))
-    except (ValueError, StructError):
-        binding = []
+    source_analyses = [item for item in analyses if item[1] in originals and item[1] in sources]
+    binding = list(restored_binding_recipes(source_analyses, sources))
     for _, _, frame, method, options in binding:
         recipes = frame.attrs.setdefault("prism_recipes", [])
         if len(recipes) < 256:
             recipes.append((method, options))
     attach_binding_layout(data, sources, binding)
+    _restore_xy_transforms(sources, source_analyses, analyses, originals, outputs, tables,
+                           curve_sheets, indexed_fit_views(graphs), encoding)
 
     for uid in index:
         graph = graphs.get(uid)
@@ -85,9 +116,150 @@ def attach_xml_error_graphs(root, namespace, sources):
         frame.attrs.setdefault("prism_recipes", []).append((SAVED_XY, options))
 
 
-def _replicate_columns(records, table, groups):
+def _single_result_sheet(contents):
+    try:
+        count, output, *unused = unpack("<11i", _one(contents, 0x3C))
+    except (ValueError, StructError):
+        return None
+    if count == 10 and 0 <= output <= 65535 and set(unused) == {-1}:
+        return output
+    return None
+
+
+def _restore_xy_transforms(sources, source_analyses, analyses, originals, outputs, tables, curve_sheets, views, encoding):
+    writers = Counter(outputs.values())
+    original_sheets = originals | sources.keys()
+    log_results = {}
+    for uid, sheet, kind, contents in source_analyses:
+        frame, x, groups = sources[sheet]
+        output = outputs[uid]
+        try:
+            options = _xml_log_transform(sheet, kind, contents, tables.get(sheet), frame, x, groups, output)
+        except (ValueError, StructError, KeyError, TypeError):
+            continue
+        if options is not None:
+            recipes = frame.attrs.setdefault("prism_recipes", [])
+            if len(recipes) < 256:
+                if output not in original_sheets and writers[output] == 1:
+                    log_results[output] = uid, len(recipes), frame, x, groups
+                recipes.append(("Transform concentrations (X)", options))
+
+    normalized_results = {}
+    for uid, sheet, kind, contents in analyses:
+        if sheet not in log_results or kind[:2] != (4, 255):
+            continue
+        producer, slot, frame, x, groups = log_results[sheet]
+        output = outputs[uid]
+        if output is None or output == sheet or output in original_sheets or writers[output] != 1:
+            continue
+        try:
+            source_columns = _replicate_columns(tables[sheet], sheet, groups, analysis=producer)
+            output_columns = _replicate_columns(tables[output], output, groups, analysis=uid)
+            options = _xml_replicate_normalization(uid, kind, contents, frame, x, groups, source_columns)
+        except (ValueError, StructError, KeyError, TypeError):
+            continue
+        normalized_slot = len(frame.attrs["prism_recipes"])
+        if _append_linked_recipe(frame, slot, "Transformed data", METHOD, options):
+            normalized_results[output] = normalized_slot, frame, x, output_columns
+
+    for uid, sheet, kind, contents in analyses:
+        if sheet not in normalized_results or kind[:2] != (0, 5):
+            continue
+        slot, frame, x, columns = normalized_results[sheet]
+        if len(frame.attrs["prism_recipes"]) > 254:
+            continue
+        try:
+            options = _xml_normalized_fit(uid, kind, contents, x, columns)
+        except (ValueError, StructError, TypeError):
+            continue
+        title = options[PRISM_TITLE]
+        method = "Global nonlinear regression"
+        first_slot = len(frame.attrs["prism_recipes"])
+        _append_linked_recipe(frame, slot, NORMALIZED, method, {
+            **options, PRISM_TITLE: title + " · Separate fits",
+        })
+        _append_linked_recipe(frame, slot, NORMALIZED, method, {
+            **options, PRISM_TITLE: title + " · Shared Log EC50", "Shared parameters": ["Log EC50"],
+            "Compare with independent fits": True,
+        })
+        curve = curve_sheets.get(uid)
+        viewport = fit_viewport(views.get((sheet, curve)), tables.get(curve), uid, curve, columns, encoding)
+        if viewport is not None:
+            axes_style, display = viewport
+            styles = frame.attrs.setdefault("prism_graph_styles", {})
+            for fit_slot in (first_slot, first_slot + 1):
+                styles[fit_slot] = deepcopy(axes_style)
+                if display:
+                    frame.attrs["prism_recipes"][fit_slot][1][SAVED_REPLICATE_DISPLAY] = deepcopy(display)
+
+
+def _xml_log_transform(sheet, kind, contents, records, frame, x, groups, output):
+    if kind[:2] != (3, 255) or kind[3:] != (1, 191, 0, len(groups), 0):
+        return None
+    summary = _one(contents, 0xA)
+    # The saved standard transform identifies its X operation twice, in the header and the result summary.
+    _require(len(summary) == 300 and bytes(summary[24:]).partition(b"\0")[0] == b"Transform: X=Log(X)")
+    _require(output is not None and output != sheet)
+    columns = _replicate_columns(records, sheet, groups)
+    selection = _one(contents, 0x3D)
+    _require(len(selection) == 2 + len(columns) * _LINKS.size and unpack_from("<H", selection)[0] == len(columns))
+    _require(list(_LINKS.iter_unpack(selection[2:])) == [(uid, -1, -1) for uid in columns])
+    _require(is_numeric_dtype(frame[x]))
+    return {PRISM_TITLE: _title(_one(contents, 9))[:160], "X": x, "Logarithm": "Log10"}
+
+
+def _xml_replicate_normalization(uid, kind, contents, frame, x, groups, source_columns):
+    _require(kind == (4, 255, uid, 1, 251, 0, 10, 65535))
+    settings = _one(contents, 0x46)
+    _require(len(settings) == 1352 and sha256(settings).hexdigest() == _REPLICATE_NORMALIZE_PROFILE)
+    _require(len(groups) == 2 and all(len(columns) == 3 for _, columns in groups))
+    _verify_pair_selection(contents, source_columns)
+    columns = [list(names) for _, names in groups]
+    variables = [name for names in columns for name in names]
+    _require(series_columns(frame, variables, recognize_replicates=True) == columns)
+    return {
+        PRISM_TITLE: _title(_one(contents, 9))[:160], "Input": RAW, "X": x, "Variables": variables,
+        "Replicates": EACH, "Zero reference": MINIMUM, "One reference": MAXIMUM,
+        "Units": PERCENTAGES, "Reference values in output": KEEP, "Graph results": False,
+    }
+
+
+def _verify_pair_selection(contents, columns):
+    first, second = columns
+    _require(unpack("<H6i", _one(contents, 0x3D)) == (2, first, 4, 4, second, 4, -1))
+
+
+def _xml_normalized_fit(uid, kind, contents, x, columns):
+    _require(kind == (0, 5, uid, 1, 255, 1, 65535, 0))
+    settings = _one(contents, 0x46)
+    _require(len(settings) == 1352 and sha256(settings).hexdigest() == _NORMALIZED_FIT_PROFILE)
+    _verify_pair_selection(contents, columns)
+    model_settings, = _subgroups(contents, 0x8047)
+    _require(unpack("<4i4B6i", model_settings[0]) == _NORMALIZED_FIT_OPTIONS)
+    fits = list(_subgroups(model_settings[1], 0x8048))
+    _require(tuple(sha256(header).hexdigest() for header, _ in fits) == _NORMALIZED_FIT_HEADERS)
+    for _, records in fits:
+        equation = b"".join(bytes(_one(records, 0x49)).rstrip(b"\0").split())
+        _require(equation == _DOSE_EQUATION)
+        _require(all(sha256(_one(records, tag)).hexdigest() == digest
+                     for tag, digest in _NORMALIZED_CONSTRAINTS.items()))
+    series = list(columns.values())
+    _require(len({label for label, _ in series}) == 2)
+    _require(all(_series_name(name, True) == label for label, names in series for name in names))
+    return {
+        PRISM_TITLE: _title(_one(contents, 9))[:140], "Input format": "Wide XY",
+        PRISM_NOTES: "Refits the two series from the normalized replicates. Confidence intervals and curves "
+                     "are calculated by Trama.",
+        "X": x, "Y columns": [name for _, names in series for name in names], "X values": "As entered",
+        "Model": _DOSE_MODEL, "Replicates": "Individual observations", "Merge numbered replicates": True,
+        "Weighting": "Unweighted",
+    }
+
+
+def _replicate_columns(records, table, groups, *, analysis=-1):
     fields = {}
     links = {}
+    empty_titles = set()
     for tag, _, data in records:
         if tag == 0x0D:
             # The template reserves one ID field per replica in each link.
@@ -98,15 +270,23 @@ def _replicate_columns(records, table, groups):
             _require(len(data) == 24 + 8 * repeat and 2 <= repeat == len(columns))
             links[index] = uid, label, columns
         elif tag == 0x800F:
-            uid, _, _, analysis, owner, storage, _, kind, role, form, repeat, linked_x, _, _, _ = _DATASET.unpack(data)
-            _require(uid not in fields and (analysis, owner, storage, kind) == (-1, table, 101, 1))
+            uid, _, _, result, owner, storage, _, kind, role, form, repeat, linked_x, _, rows, cells = (
+                _DATASET.unpack(data)
+            )
+            _require(uid not in fields and uid not in empty_titles and (result, owner, storage) ==
+                     (analysis, table, 101 if analysis == -1 else 102))
+            if analysis != -1 and (kind, role, form, repeat, rows, cells) == (2, 256, 12, 1, 0, 0):
+                _require(not empty_titles)
+                empty_titles.add(uid)
+                continue
+            _require(kind == 1)
             fields[uid] = (role, form, repeat, linked_x)
     _require(len(links) == len(groups))
     xs = [uid for uid, values in fields.items() if values[:3] == (4, 10, 1)]
     _require(len(xs) == 1 and len(fields) == 1 + len(links))
     x, = xs
     result = {}
-    for uid, label, columns in links.values():
+    for _, (uid, label, columns) in sorted(links.items()):
         _require(uid not in result and fields[uid] == (8, 61, len(columns), x))
         result[uid] = label, columns
     return result

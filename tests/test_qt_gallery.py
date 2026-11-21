@@ -455,13 +455,24 @@ class GalleryWindowTests(unittest.TestCase):
         self.assertIsNotNone(gallery)
         return gallery
 
-    def test_action_is_in_the_view_tab_and_lists_the_cards(self):
+    def test_gallery_opens_from_the_status_bar_and_lists_the_cards(self):
+        from PySide6.QtWidgets import QToolButton
+        from analisi.i18n import tr
+
         self.open_fixture()
-        view_tab = self.window.ribbon.widget(4)
-        self.assertIn(self.window.actions["gallery"], view_tab.actions())
-        self.assertTrue(self.window.actions["gallery"].isEnabled())
+        action = self.window.actions["gallery"]
+        view_tab = self.window.ribbon.widget(self.window.ribbon_pages["view"])
+        commands = self.window.findChild(QToolButton, "allCommands").menu()
+        view_menu = next(item.menu() for item in commands.actions() if item.text() == tr("ribbon.modern.view"))
+        self.assertIn(action, view_menu.actions())
+        self.assertNotIn(action, view_tab.actions())
+        self.assertTrue(self.window.gallery_button.isVisible())
+        self.assertIs(self.window.gallery_button.defaultAction(), action)
+        self.assertTrue(action.isEnabled())
         before = [run.result for run in self.window.project.runs]
-        gallery = self.open_gallery()
+        self.window.gallery_button.click()
+        self.pump(0.3)
+        gallery = self.window.gallery
         view = self.window.findChild(QListView, "sheetGallery")
         self.assertIs(view, gallery.view)
         self.assertTrue(view.isVisible())
@@ -583,8 +594,10 @@ class GalleryWindowTests(unittest.TestCase):
         gallery = self.open_gallery()
         self.assertEqual(tuple(gallery.current_entry().ref), ("graph", 1))  # The sheet it came from is current.
         self.assertFalse(self.window.actions["recalculate"].isEnabled())  # The gallery shows no sheet.
+        self.assertFalse(self.window.gallery_button.isVisible())
         gallery.back.click()
         self.assertIsNone(self.window.gallery)
+        self.assertTrue(self.window.gallery_button.isVisible())
         self.assertEqual(self.window.selected, ("graph", 1))
         self.assertEqual(len(self.window.page.canvases), 1)
         self.assertIs(self.window.focusWidget(), self.window.page.canvases[0])

@@ -2,9 +2,12 @@
 import numpy as np
 import pandas as pd
 
+from .axis_breaks import mark_supported
+from matplotlib.colors import is_color_like
+
 from .curve_models import MODELS
 from .fit_weights import GLOBAL_WEIGHTINGS, observed_scales, uses_observed_y
-from .repeated_input import curve_input, decode_series_constraints, mixed_input
+from .repeated_input import SAVED_REPLICATE_DISPLAY, _series_name, curve_input, decode_series_constraints, mixed_input
 from .reporting import Result, _plot, _report
 from .stats import complete
 
@@ -99,6 +102,39 @@ def _labels(index):
     return labels
 
 
+def _plot_saved_replicates(axes, frame, options, label):
+    display = options.get(SAVED_REPLICATE_DISPLAY)
+    if (not isinstance(display, dict) or options.get("Input format") != "Wide XY"
+            or not options.get("Merge numbered replicates", True)
+            or options.get("Replicates", "Individual observations") != "Individual observations"
+            or options.get("X values", "As entered") != "As entered"):
+        return None
+    style = display.get(label)
+    if not isinstance(style, dict):
+        return None
+    marker, side, color = style.get("marker"), style.get("side"), style.get("color")
+    line_color = style.get("line_color")
+    if (marker not in ("s", "^") or side not in ("upper", "lower")
+            or not all(isinstance(c, str) and len(c) == 7 and c.startswith("#") and is_color_like(c)
+                       for c in (color, line_color))):
+        return None
+    # Summarise replicate subcolumns within the source row. Distinct rows can have the same X.
+    columns = [c for c in options["Y columns"] if _series_name(c, True) == label]
+    if not columns:
+        return None
+    values = frame[columns].apply(pd.to_numeric, errors="coerce")
+    x = pd.to_numeric(frame[options["X"]], errors="coerce").to_numpy(dtype=float, na_value=np.nan)
+    center = values.mean(axis=1).to_numpy(dtype=float, na_value=np.nan)
+    deviation = values.std(axis=1, ddof=1).to_numpy(dtype=float, na_value=np.nan)
+    valid = np.isfinite(x) & np.isfinite(center)
+    axes.scatter(x[valid], center[valid], color=color, marker=marker, s=18)
+    whiskers = valid & np.isfinite(deviation) & (deviation > 0)
+    end = center[whiskers] + (1 if side == "upper" else -1) * deviation[whiskers]
+    axes.vlines(x[whiskers], center[whiskers], end, color=color, linewidth=0.9)
+    axes.plot(x[whiskers], end, linestyle="none", marker="_", markersize=4, color=color)
+    return line_color
+
+
 def global_analysis(frame, options):
     from .global_fit import global_nonlinear
 
@@ -136,14 +172,19 @@ def global_analysis(frame, options):
         outputs["Parameter covariance"] = fits.covariance.set_axis(labels).set_axis(labels, axis=1)
 
     figure, axes = _plot(f"Global fit · {model}", xlabel, ylabel)
+    mark_supported(axes)
     positive = True
     residuals, predictions, by_series = [], [], []
     for label, fit in fits.groups.items():
         name = str(label)
-        dots = axes.scatter(fit.data["X"], fit.data["Response"], label=name, s=18)
-        color = dots.get_facecolor()[0]
+        color = _plot_saved_replicates(axes, frame, options, label)
+        curve_label = name
+        if color is None:
+            dots = axes.scatter(fit.data["X"], fit.data["Response"], label=name, s=18)
+            color = dots.get_facecolor()[0]
+            curve_label = None
         x, predicted = fit.curve.T
-        axes.plot(x, predicted, color=color)
+        axes.plot(x, predicted, color=color, label=curve_label)
         positive = positive and bool(np.all(x > 0))
         values = pd.DataFrame({"Series": label, "X": x, "Predicted": predicted})
         if fit.band is not None:

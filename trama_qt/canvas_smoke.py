@@ -144,7 +144,7 @@ class CanvasSmoke:
         stored = self.shapes
         self.expect(stored == [STORED], f"the stored recipe was changed on opening: {stored}")
         self.expect(self.drawn() == [STORED["id"]], "the stored rectangle is not drawn")
-        self.window.ribbon_tabs.setCurrentIndex(3)  # Graph tab: the tools sit beside the other graph commands.
+        self.window.ribbon_tabs.setCurrentIndex(self.window.ribbon_pages["graph"])  # Graph tab: the tools sit beside the other graph commands.
         for name in ("select", "line", "arrow", "rectangle", "ellipse"):
             self.expect(self.window.actions[f"draw_{name}"].isEnabled(), f"draw_{name} is disabled on a native graph")
         self.shot("1-open", dark=True)

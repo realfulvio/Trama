@@ -18,7 +18,7 @@ Only committed canonical records are saved. Selection handles are screen overlay
 
 ## Reference basis and limits
 
-This release edits the primary axes of calculated native graphs. Imported PZF/PZT drawings retain their existing import-specific editing workflow. Rounded rectangles, arcs, object rotation, additional end caps and editing drawings in a Prism file are still outside this implementation.
+This release edits the primary axes of calculated native graphs. Imported PZF/PZT drawings retain their existing import-specific editing workflow. Rounded rectangles, arcs, object rotation, additional end caps and editing drawings directly in imported PZF/PZT files are still outside this implementation.
 
 ## Acceptance
 

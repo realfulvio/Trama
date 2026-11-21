@@ -10,6 +10,7 @@ from scipy import optimize, stats
 from scipy.special import logsumexp
 
 from analisi import cox_exact, cox_outputs, models
+from analisi.cox_fit_diagnostics import COX_SNELL, SCALED, SCALED_GRAPH, SNELL_GRAPH
 from analisi.processing import FieldError
 from analisi.workbench import analyse
 
@@ -265,8 +266,12 @@ class RefusalTests(unittest.TestCase):
         for field, extra in (("Predict survival", {"Predict survival": True}),
                              ("Cox diagnostics", {"Cox diagnostics": True}),
                              ("Schoenfeld residuals", {"Schoenfeld residuals": True}),
+                             (SCALED, {SCALED: True}),
+                             (COX_SNELL, {COX_SNELL: True}),
                              ("Graph display", {"Graph display": "Predicted survival"}),
-                             ("Graph display", {"Graph display": "Schoenfeld vs time"})):
+                             ("Graph display", {"Graph display": "Schoenfeld vs time"}),
+                             ("Graph display", {"Graph display": SCALED_GRAPH}),
+                             ("Graph display", {"Graph display": SNELL_GRAPH})):
             self.assertEqual(field_of(lambda: run(TIED, **extra))[0], field, extra)
         # The first of several is named; profiles that are only stored are not an error.
         self.assertEqual(field_of(lambda: run(TIED, **{"Predict survival": True, "Cox diagnostics": True}))[0],

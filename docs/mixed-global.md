@@ -4,7 +4,7 @@
 
 Choose **Mixed-effects model (REML)** under **Group Comparison**. For long data, select the response, subject ID, and one to three within/between factors. At least one factor must repeat within subject. If each experimental arm starts numbering subjects again, select **Restart within between groups**.
 
-For one within-subject factor, **Wide repeated measures** accepts one measurement column per condition and uses row positions as subjects if you omit the ID column. For a Prism-style grouped sheet, select **Grouped replicate table**, the row labels and measurement columns, and whether subjects repeat across rows, columns or both. A header such as `Treatment A [2]` identifies replicate 2 of the series `Treatment A`.
+For one within-subject factor, **Wide repeated measures** accepts one measurement column per condition and uses row positions as subjects if you omit the ID column. For a grouped worksheet, select **Grouped replicate table**, the row labels and measurement columns, and whether subjects repeat across rows, columns or both. A header such as `Treatment A [2]` identifies replicate 2 of the series `Treatment A`.
 
 Leave unobserved responses blank. The **Model** and **Subjects** tabs report retained observations and partial or excluded subjects. The fit uses restricted maximum likelihood and Type III tests. It estimates a subject intercept and, when multiple factors repeat, the applicable independent subject-by-factor variance components.
 

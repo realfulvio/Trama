@@ -8,19 +8,22 @@ import sys
 from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from PySide6 import __version__ as PYSIDE_VERSION
-from PySide6.QtCore import QStringListModel, Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
+from PySide6.QtCore import QSignalBlocker, QStringListModel, Qt, QTimer
+from PySide6.QtGui import QAction, QActionGroup, QGuiApplication, QIcon, QKeySequence
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboBox, QCompleter, QFileDialog, QFrame,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QSplitter, QStackedWidget, QTabBar, QTabWidget, QToolBar,
-                               QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+                               QToolButton, QTreeWidget, QTreeWidgetItem, QTreeWidgetItemIterator, QVBoxLayout, QWidget)
 
-from analisi import parallel
+from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mean_permutation, parallel, power_plan, rmst
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
 from analisi.field_error import FieldError
-from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, ui
-from analisi.monte_carlo import MonteCarloCancelled
+from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, translate_message, ui
+from analisi.correlation_matrix import CORRELATION_MATRIX
+from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
+from analisi.plot_function import PLOT_FUNCTION
+from analisi.transpose_xy import TRANSPOSE_XY
 from analisi.presentation import apply_style, validate_graph_style
 from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS
 from analisi.prism_restore import (PRISM_GRAPH_LINK, PRISM_PREVIEW, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
@@ -32,28 +35,43 @@ from analisi.prism_xml_generated import XML_GENERATED_XY
 from analisi.prism_xml_binding_layout import XML_BINDING_XY
 from analisi.prism_zip_xy import ZIP_SPARSE_XY
 from analisi.text_import import TEXT_SUFFIXES
+from analisi.ordinal_logit import GRAPH as ORDINAL_GRAPH, ORDINAL_LOGIT
+from analisi.tolerance_intervals import SHOW_GRAPH as TOLERANCE_GRAPH, TOLERANCE
+from analisi.weibull_aft import METHOD as WEIBULL_AFT, SHOW_GRAPH as WEIBULL_GRAPH
 from analisi.workbench import GRAPH_METHODS, GROUPS
 
-from . import theme
+from . import gui_gc, theme
 from .analysis_dialog import AnalysisDialog
 from .flow import FlowLayout
 from .gallery import GalleryPage, g as gallery_text
 from .labels import method_label
+from .report_dialog import text as report_text
 from .models import WorksheetModel, column_label
+from .recovery import RecoveryDialog, RecoverySettingsDialog, r as recovery_text
 from .project import (DATA_SUFFIXES, OPEN_FILTER, PRISM_GRAPH_METHODS, PROJECT_SUFFIXES, SAVED_VIEWS,
-                      CalculationControl, Project, Run, compute, run_view, stored_prism_view)
+                      CalculationControl, Project, Run, compute, result_as_table, run_view, stored_prism_view)
 from .sessions import MAX_PROJECT_TABS, Sessions
+from .templates import sync_actions as sync_template_actions, t as template_text
 from .shape_canvas import GraphDrawing
 from .sheet import FrameView, WorksheetView
 from .batch_export_dialog import text as batch_text
+from .status_label import StatusLabel
 from .strings import qt
+from .excel_workbook import t as excel_text
 
 try:
     from analisi.roc import threshold_text
 except Exception:  # pragma: no cover
     threshold_text = None
 
-GRAPHING = tuple(GROUPS.get("Graphing", ())) + ("Plot a function",)
+ANALYSIS_GRAPH_OPTIONS = {
+    WEIBULL_AFT: (WEIBULL_GRAPH, False),
+    ORDINAL_LOGIT: (ORDINAL_GRAPH, False),
+    rmst.METHOD: (rmst.SHOW_GRAPH, rmst.DEFAULTS[rmst.SHOW_GRAPH]),
+    kappa.METHOD: (kappa.SHOW_GRAPH, kappa.DEFAULTS[kappa.SHOW_GRAPH]),
+    mean_permutation.METHOD: (mean_permutation.SHOW_GRAPH, mean_permutation.OPTIONS[mean_permutation.SHOW_GRAPH]),
+}
+GRAPHING = tuple(GROUPS.get("Graphing", ())) + (PLOT_FUNCTION,)
 SOURCE_XY = {XML_ERROR_BARS, XML_BINDING_XY, XML_GENERATED_XY, ZIP_SPARSE_XY, ZIP_COLUMN}
 
 
@@ -66,6 +84,8 @@ def preferred_view(run, result):
     view = run_view(run.method)
     if view == "saved-layout":
         return view
+    if run.method in ANALYSIS_GRAPH_OPTIONS:
+        return "result"
     if run.method in GRAPH_METHODS or run.method in GRAPHING:
         return "graph"
     if result is not None and result.figure is not None and not result.tables:
@@ -157,6 +177,13 @@ class Job:
         self.session = session  # The project tab that started it: its results never reach another tab.
 
 
+class PlotNavigation(NavigationToolbar2QT):
+    """Tools for the visible area of the plot. Trama handles styles and exports."""
+
+    toolitems = tuple(item for item in NavigationToolbar2QT.toolitems
+                      if item[3] in {"home", "back", "forward", "pan", "zoom"})
+
+
 class Page(QWidget):
     """A sheet: title, subtitle, a row of actions and the content."""
 
@@ -201,7 +228,7 @@ class Page(QWidget):
         return widget
 
     def finish_actions(self):
-        """The row wraps its buttons; nothing to close."""
+        self.actions_row.parentWidget().setVisible(self.actions_row.count() > 0)
 
     def release(self):
         """Detach matplotlib figures from the canvases that are about to be deleted."""
@@ -213,14 +240,18 @@ class Page(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, *, recovery=None):
         super().__init__()
+        self._release_gc = gui_gc.attach(self)
+        self.recovery = recovery  # Recovery copies (trama_qt/recovery.py); None in tests and smoke runs.
         self.sessions = Sessions(Project())  # One per project tab; ``project`` and ``selected`` are the active one's.
         self.project_number = 1
         self._queued = []  # Files that arrived (drop, command line) while a calculation ran.
         self._deferred = []  # Tab changes that wait for the recalculation a just-typed edit started.
         self._close_pending = False
         self.page = None
+        self.page_kind = None
+        self.plot_tools = None
         self.sheet = None
         self.result_tabs = None
         self.job = None
@@ -240,7 +271,6 @@ class MainWindow(QMainWindow):
         self.setAcceptDrops(True)
         self.setWindowIcon(QIcon(str(theme.ASSETS / "trama.png")))
         self._build()
-        self.refresh()
         self.show_home()
         theme.SIGNALS.changed.connect(self._theme_changed)
         screen = self.screen().availableGeometry() if self.screen() else None
@@ -248,6 +278,8 @@ class MainWindow(QMainWindow):
             self.resize(min(1280, screen.width() - 40), min(820, screen.height() - 60))
         else:
             self.resize(1180, 760)
+        if self.recovery is not None:
+            self.recovery.attach(self)
 
     # == the active project tab ===================================================================
     # The window works on the active session; switching tabs swaps these without copying any data.
@@ -315,22 +347,52 @@ class MainWindow(QMainWindow):
           shortcut="Ctrl+I")
         a("save", tr("command.save_project"), self.save, icon="save", shortcut="Ctrl+S")
         a("save_as", tr("command.save_project_as"), lambda: self.save(as_new=True), shortcut="Ctrl+Shift+S")
+        a("recover", recovery_text("recover"), self.recover_projects, icon="history", tip=recovery_text("recover_tip"))
+        a("recovery_settings", recovery_text("settings"), self.recovery_settings, icon="save",
+          tip=recovery_text("settings_tip"))
+        a("save_template", template_text("save_action"), self.save_template, icon="file-down",
+          tip=template_text("save_tip"))
+        a("new_from_template", template_text("new_action"), self.new_from_template, icon="sparkles",
+          tip=template_text("new_tip"))
+        for key in ("save_template", "new_from_template"):  # Short ribbon captions; menus and search keep the full text.
+            self.actions[key].setIconText(template_text(f"{key}_short"))
         a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+E")
         a("export_options", tr("command.export_with_options"), self.export_with_options, icon="download")
         a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")
         a("export_batch", batch_text("command"), self.export_batch, icon="copy")
+        a("export_report", report_text("command"), self.export_report, icon="book-open")
+        a("import_excel", excel_text("Import Excel workbook…"), self.import_excel_workbook, icon="table-2")
+        a("export_excel", excel_text("Export Excel workbook…"), self.export_excel_workbook, icon="sheet")
         a("classic", qt("qt.classic"), self.open_classic, icon="history", tip=qt("qt.classic_hint"))
         a("language", tr("command.language"), self.choose_language, icon="type")
         a("processes", tr("processes.command"), self.choose_processes, icon="sliders-horizontal")
         a("about", qt("qt.about"), self.about, icon="info")
-        a("exit", tr("command.exit"), self.close, shortcut="Ctrl+Q")
+        a("exit", tr("command.exit"), self.close, icon="x", shortcut="Ctrl+Q")
         a("undo", tr("command.undo"), self.undo, icon="undo-2", shortcut="Ctrl+Z")
         a("redo", tr("command.redo"), lambda: self.undo(redo=True), icon="redo-2", shortcut="Ctrl+Y")
         a("cut", tr("command.cut_cells"), lambda: self._sheet_call("cut"), icon="scissors")
         a("copy", tr("command.copy_cells"), lambda: self._sheet_call("copy"), icon="copy")
         a("paste", tr("ribbon.paste"), lambda: self._sheet_call("paste"), icon="clipboard-paste")
-        a("new_table", tr("command.new_table"), self.new_table, icon="table", shortcut="Ctrl+T")
+        a("paste_special", tr("command.paste_special"), lambda: self._sheet_call("paste", special=True),
+          icon="clipboard-paste", shortcut="Ctrl+Shift+V")
+        a("paste_transpose", tr("command.paste_transpose"), lambda: self._sheet_call("paste", transpose=True),
+          icon="arrow-up-down", shortcut="Ctrl+Shift+T")
+        a("paste_table", tr("command.paste_as_new_table"), self.paste_table, icon="table-2")
+        a("clear_cells", tr("command.clear_selected_cells"), lambda: self._sheet_call("clear"), icon="trash-2")
+        a("new_table", tr("command.new_table"), self.choose_table, icon="table", shortcut="Ctrl+T")
         a("new_info", tr("command.new_info"), self.new_info, icon="info")
+        a("info_properties", tr("command.info_properties"), self.info_properties, icon="sliders-horizontal")
+        from .info_editor import t as info_text
+
+        a("info_up", info_text("Move sheet up"), lambda: self.move_info(-1), icon="chevron-up")
+        a("info_down", info_text("Move sheet down"), lambda: self.move_info(1), icon="chevron-down")
+        a("remove_info", info_text("Delete Info sheet…"), self.remove_info, icon="trash-2")
+        for key, label, kind, icon in (("family_data", "source_table", "data", "table"),
+                                        ("family_info", "linked_info", "info", "info"),
+                                        ("family_results", "family_results", "result", "sigma"),
+                                        ("family_graphs", "graphs", "graph", "chart-line"),
+                                        ("family_gallery", "family_gallery", None, "gallery-thumbnails")):
+            a(key, tr(f"command.{label}"), lambda kind=kind: self.browse_family(kind), icon=icon)
         a("duplicate_family", ui("Duplicate family…"), self.duplicate_family, icon="copy")
         a("save_family", ui("Save family as…"), self.save_family_as, icon="save")
         a("insert_row", qt("qt.insert_row"), self.insert_row, icon="rows-3")
@@ -339,6 +401,16 @@ class MainWindow(QMainWindow):
         a("delete_rows", qt("qt.delete_rows"), self.delete_rows, icon="trash-2")
         a("exclude", tr("ribbon.exclude"), self.toggle_exclusion, icon="filter")
         a("analyze", tr("ribbon.analyze"), self.analyze, icon="sigma", shortcut="Ctrl+Shift+A")
+        a("power", tr("command.power"), lambda: self.analyze(method=power_plan.METHOD, only=power_plan.METHOD),
+          icon="chart-line")
+        a("simulate", tr("command.simulate"), self.simulate_data, icon="table-2")
+        a("monte_carlo", tr("command.monte_carlo"), lambda: self.analyze(method=MONTE_CARLO, only=MONTE_CARLO),
+          icon="sigma")
+        a("transpose_xy", tr("command.transpose_xy"), lambda: self.analyze(method=TRANSPOSE_XY, only=TRANSPOSE_XY),
+          icon="arrow-up-down")
+        a("plot_function", tr("command.plot_function"), lambda: self.analyze(method=PLOT_FUNCTION, only=PLOT_FUNCTION),
+          icon="chart-line")
+        a("load_example", tr("command.load_example"), self.load_example, icon="sparkles")
         a("new_graph", tr("command.new_graph"), self.new_graph, icon="chart-line", shortcut="Ctrl+G")
         a("change", tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal",
           shortcut="Ctrl+P")
@@ -348,6 +420,7 @@ class MainWindow(QMainWindow):
         a("inspector", tr("graph.inspector.title"), self.toggle_inspector, icon="paintbrush", shortcut="Ctrl+Shift+I")
         a("annotations", tr("command.graph_annotations"), self.edit_annotations, icon="type")
         a("shapes", tr("shape.button"), self.edit_shapes, icon="shapes")
+        a("arrange_shapes", tr("command.arrange_shapes"), self.arrange_shapes, icon="shapes")
         a("pairwise", tr("command.pairwise"), self.pairwise_comparisons, icon="git-compare")
         a("compact_letters", tr("command.compact_letters"), lambda: self.pairwise_comparisons(letters=True),
           icon="type")
@@ -355,10 +428,19 @@ class MainWindow(QMainWindow):
         a("edit_layout", tr("command.edit_layout"), lambda: self.new_layout(edit=True), icon="layout-grid")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
         a("use_result", qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
+        a("analysis_graph", qt("qt.show_analysis_graph"), lambda: self.switch_run_view("graph"), icon="chart-line")
+        a("analysis_tables", tr("command.analysis_results"), lambda: self.switch_run_view("result"), icon="sigma")
+        a("plot_margins", qt("qt.plot_margins"), self.adjust_plot_margins, icon="sliders-horizontal")
         a("analyze_result", tr("chain.analyze_result"), self.analyze_result_table, icon="git-compare")
         a("source_analysis", tr("chain.source_analysis"), self.source_analysis, icon="chevron-up")
         a("change_input", tr("chain.change_input"), self.change_input_result, icon="arrow-up-down")
         a("navigator", tr("command.toggle_navigator"), self.toggle_navigator, icon="panel-bottom", shortcut="Ctrl+F1")
+        a("find_sheet", tr("nav.search"), self.focus_sheet_search, icon="search", shortcut="Ctrl+F")
+        a("combined_navigator", tr("command.toggle_data_results"), self.toggle_combined_navigator,
+          icon="panel-bottom").setCheckable(True)
+        a("previous_sheet", tr("command.previous_sheet"), lambda: self.step_sheet(-1), icon="arrow-left",
+          shortcut="Alt+Left")
+        a("next_sheet", tr("command.next_sheet"), lambda: self.step_sheet(1), icon="arrow-right", shortcut="Alt+Right")
         themes = QActionGroup(self)
         for mode, icon in (("system", "monitor"), ("light", "sun"), ("dark", "moon")):
             action = a(f"theme_{mode}", qt(f"qt.theme_{mode}"), lambda mode=mode: theme.set_mode(mode), icon=icon,
@@ -371,11 +453,17 @@ class MainWindow(QMainWindow):
         a("search", qt("qt.search"), self.focus_search, shortcut="Ctrl+K")
         for name, method in (("descriptive", "Descriptive statistics"), ("ttest", "t-test"),
                              ("anova", "One-way ANOVA"), ("correlation", "Correlation"),
+                             ("correlation_matrix", CORRELATION_MATRIX),
                              ("linear", "Linear regression"), ("nonlinear", "Nonlinear regression"),
                              ("survival", "Kaplan–Meier survival"), ("contingency", "Contingency table")):
             a(name, method_label(method), lambda method=method: self.analyze(method=method))
         self.drawing = GraphDrawing(self)  # Pointer tools of the graph canvas: actions before the ribbon.
         self.drawing.create_actions()
+        for key, caption in (("new_graph", "new"), ("format_graph", "format"),
+                             ("new_layout", "layout"), ("pairwise", "pairs"),
+                             ("annotations", "annotations"), ("shapes", "shapes"),
+                             ("analysis_tables", "results"), ("export_options", "export_options")):
+            self.actions[key].setIconText(qt(f"qt.graph_{caption}_short"))
 
         central = theme.ShadowCanvas()  # Paints the soft shadows under the two panels.
         root = QVBoxLayout(central)
@@ -392,6 +480,12 @@ class MainWindow(QMainWindow):
         nav_card.setObjectName("card")
         nav_layout = QVBoxLayout(nav_card)
         nav_layout.setContentsMargins(8, 10, 8, 10)
+        self.sheet_search = QLineEdit(nav_card)
+        self.sheet_search.setPlaceholderText(tr("nav.search"))
+        self.sheet_search.setAccessibleName(tr("nav.search"))
+        self.sheet_search.setClearButtonEnabled(True)
+        self.sheet_search.textChanged.connect(self.filter_sheets)
+        nav_layout.addWidget(self.sheet_search)
         self.navigator = QTreeWidget()
         self.navigator.setObjectName("navigator")
         self.navigator.setHeaderHidden(True)
@@ -420,12 +514,41 @@ class MainWindow(QMainWindow):
 
         status = self.statusBar()
         status.setSizeGripEnabled(True)
-        self.message = QLabel(qt("qt.ready"))
+        self.sheet_previous = QToolButton()
+        self.sheet_next = QToolButton()
+        self.sheet_picker = QComboBox()
+        self.sheet_picker.setAccessibleName(qt("qt.sheet_picker"))
+        self.sheet_picker.setMinimumContentsLength(9)
+        self.sheet_picker.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.sheet_picker.setMaximumWidth(210)
+        self.sheet_picker.activated.connect(self._pick_sheet)
+        self.gallery_button = QToolButton()
+        for button, key in ((QToolButton(), "navigator"), (self.gallery_button, "gallery"),
+                            (self.sheet_previous, "previous_sheet"), (self.sheet_next, "next_sheet"),
+                            (QToolButton(), "family_gallery")):
+            button.setProperty("statusTool", True)
+            button.setDefaultAction(self.actions[key])
+            button.setAccessibleName(self.actions[key].text())
+            status.addWidget(button)
+        self.section_buttons = {}
+        for kind, key, icon in (("data", "data_tables", "table"), ("info", "info_sheets", "info"),
+                                ("result", "results", "sheet"), ("graph", "graphs", "chart-line"),
+                                ("layout", "layouts", "layout-grid")):
+            button = self.section_buttons[kind] = QToolButton()
+            button.setProperty("statusTool", True)
+            button.setIcon(theme.icon(icon, size=16))
+            label = tr("nav.graphs") if kind == "graph" else tr(f"bar.{key}")
+            button.setToolTip(label)
+            button.setAccessibleName(label)
+            button.clicked.connect(lambda _checked=False, kind=kind: self.open_section(kind))
+            status.addWidget(button)
+        status.addWidget(self.sheet_picker)
+        self.message = StatusLabel(qt("qt.ready"))
         status.addWidget(self.message, 1)
         self.cell_label = QLabel("")
         status.addPermanentWidget(self.cell_label)
         self.progress = QProgressBar()
-        self.progress.setFixedWidth(140)
+        self.progress.setFixedWidth(100)
         self.progress.setTextVisible(False)
         self.progress.setVisible(False)
         status.addPermanentWidget(self.progress)
@@ -433,10 +556,9 @@ class MainWindow(QMainWindow):
         self.cancel_button.setText(tr("bar.cancel_calculation"))
         self.cancel_button.clicked.connect(self.cancel_calculation)
         self.cancel_button.setVisible(False)
+        self.cancel_button.ensurePolished()
+        self.cancel_button.setMinimumWidth(self.cancel_button.minimumSizeHint().width())
         status.addPermanentWidget(self.cancel_button)
-        engine = QLabel(f"PySide6 {PYSIDE_VERSION} · Trama {VERSION}")
-        engine.setObjectName("muted")
-        status.addPermanentWidget(engine)
 
     def _project_strip(self):
         """One tab per open project, with New beside the last tab; each tab closes its own project."""
@@ -479,12 +601,13 @@ class MainWindow(QMainWindow):
         self.ribbon_tabs.setObjectName("ribbonTabs")
         self.ribbon_tabs.setDrawBase(False)
         self.ribbon_tabs.setExpanding(False)
-        top.addWidget(self.ribbon_tabs)
-        top.addStretch(1)
+        self.ribbon_tabs.setUsesScrollButtons(True)
+        top.addWidget(self.ribbon_tabs, 1)
         self.search = QLineEdit()
         self.search.setPlaceholderText(qt("qt.search"))
         self.search.setClearButtonEnabled(True)
-        self.search.setMaximumWidth(320)
+        self.search.setMinimumWidth(105)
+        self.search.setMaximumWidth(195)
         self.search.addAction(theme.icon("search", "text3", 16), QLineEdit.ActionPosition.LeadingPosition)
         self.completer = QCompleter(self)
         self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
@@ -493,40 +616,70 @@ class MainWindow(QMainWindow):
         self.search.setCompleter(self.completer)
         self.search.returnPressed.connect(lambda: self._run_search(self.search.text()))
         top.addWidget(self.search)
+        all_commands = QToolButton(bar)
+        all_commands.setObjectName("allCommands")
+        all_commands.setAccessibleName(qt("qt.all_commands"))
+        all_commands.setToolTip(qt("qt.all_commands"))
+        all_commands.setIcon(theme.icon("ellipsis", size=18))
+        all_commands.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        command_menu = QMenu(all_commands)
+        all_commands.setMenu(command_menu)
+        top.addWidget(all_commands)
         layout.addLayout(top)
         self.ribbon = QStackedWidget()
         groups = [
-            (tr("ribbon.modern.file"), ["new_project", "open", "import", "save", "save_as", "close_project", "|",
+            ("file", ["new_project", "open", "import", "new_info", "import_excel", "save", "save_as", "close_project", "recover",
+                                         "|", "save_template", "new_from_template", "|",
                                          "export", "export_options",
-                                         "export_pdf", "export_batch", "|",
-                                         "classic", "language", "about"]),
-            (tr("ribbon.modern.home"), ["paste", "cut", "copy", "|", "undo", "redo", "|", "new_table", "insert_row",
-                                         "insert_column", "formula", "exclude", "|", "*analyze", "new_graph", "|", "recalculate",
-                                         "export", "|", "new_info", "duplicate_family", "save_family"]),
-            (tr("ribbon.modern.analyze"), ["*analyze", "|", "descriptive", "ttest", "anova", "correlation", "linear",
-                                            "nonlinear", "survival", "contingency", "|", "change", "recalculate",
-                                            "use_result", "|", "analyze_result", "source_analysis",
-                                            "change_input"]),
-            (tr("ribbon.modern.graph"), ["*new_graph", "|", "inspector", "format_graph", "graph_style_presets",
-                                          "annotations", "shapes",
-                                          "draw", "pairwise", "compact_letters", "change", "recalculate", "|", "new_layout",
-                                          "edit_layout", "|", "export", "export_options"]),
-            (tr("ribbon.modern.view"), ["gallery", "navigator", "|", "theme_system", "theme_light", "theme_dark", "|",
-                                         "language", "classic"]),
-            (tr("processes.settings"), ["language", "processes"]),
+                                         "export_pdf", "export_batch", "export_report", "export_excel", "|",
+                                         "classic", "language", "about", "exit"]),
+            ("home", ["paste", "cut", "copy", "|", "undo", "redo", "|", "new_table",
+                                         "*analyze", "new_graph", "exclude", "|", "paste_special", "paste_transpose",
+                                         "paste_table", "clear_cells", "delete_rows", "export"]),
+            ("insert", ["new_table", "new_info", "info_properties", "info_up", "info_down", "remove_info", "|",
+                        "insert_row", "insert_column", "formula", "new_graph", "new_layout", "pairwise",
+                        "compact_letters", "annotations", "shapes"]),
+            ("analyze", ["*analyze", "change", "recalculate", "analysis_graph", "use_result", "export", "|",
+                          "analyze_result", "source_analysis", "change_input", "|", "power", "descriptive",
+                          "ttest", "anova", "correlation", "linear", "nonlinear", "survival", "contingency",
+                          "correlation_matrix", "load_example"]),
+            ("graph", ["*new_graph", "format_graph", "new_layout", "pairwise",
+                                         "annotations", "shapes", "export", "export_options", "|",
+                         "inspector", "analysis_tables", "graph_style_presets", "change", "recalculate",
+                         "compact_letters", "source_analysis", "change_input"]),
+            ("arrange", ["arrange_shapes", "new_layout", "edit_layout", "export", "export_options",
+                         "recalculate"]),
+            ("family", ["family_data", "family_info", "family_results", "family_graphs",
+                                           "family_gallery", "|", "duplicate_family", "save_family"]),
+            ("tools", ["power", "simulate", "monte_carlo", "transpose_xy", "plot_function"]),
+            ("view", ["gallery", "navigator", "find_sheet", "combined_navigator", "previous_sheet", "next_sheet",
+                      "plot_margins", "|", "theme_system", "theme_light", "theme_dark", "|", "language", "classic"]),
+            ("settings", ["language", "processes", "recovery_settings"]),
         ]
-        for title, keys in groups:
-            self.ribbon_tabs.addTab(title)
+        self.ribbon_pages = {}
+        # These navigation controls already have a visible place on the status bar or in the navigator.
+        menu_only = {"navigator", "gallery", "family_gallery", "find_sheet", "previous_sheet", "next_sheet"}
+        for section, keys in groups:
+            title = tr("processes.settings") if section == "settings" else tr(f"ribbon.modern.{section}")
+            menu = command_menu.addMenu(title)
+            tab = self.ribbon_tabs.addTab(title)
+            self.ribbon_pages[section] = tab
+            self.ribbon_tabs.setTabToolTip(tab, title)
             row = QToolBar(title, self.ribbon)
-            row.setObjectName("commandTools")
+            row.setObjectName("graphTools" if section == "graph" else "commandTools")
             row.setMovable(False)
             row.setIconSize(theme.icon_size(18))
-            row.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            row.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon if section == "graph"
+                                   else Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             for key in keys:
                 if key == "|":
                     row.addSeparator()
+                    menu.addSeparator()
                 else:
                     action = self.actions[key.lstrip("*")]
+                    menu.addAction(action)
+                    if key in menu_only:
+                        continue
                     row.addAction(action)
                     if action.menu() is not None:
                         row.widgetForAction(action).setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
@@ -536,7 +689,7 @@ class MainWindow(QMainWindow):
                         button.setIcon(theme.icon(self.icons.get(key[1:], "sigma"), "on_accent"))
             self.ribbon.addWidget(row)
         self.ribbon_tabs.currentChanged.connect(self._ribbon_page)
-        self.ribbon_tabs.setCurrentIndex(1)
+        self.ribbon_tabs.setCurrentIndex(self.ribbon_pages["home"])
         layout.addWidget(self.ribbon)
         names = [action.text().replace("&", "") for action in self.actions.values() if action.text()]
         self.completer.setModel(QStringListModel(sorted(set(names)), self))
@@ -564,6 +717,31 @@ class MainWindow(QMainWindow):
             self.status(qt("qt.wait"))
         return self.job is not None
 
+    def focus_sheet_search(self):
+        if self.gallery is not None:
+            self.gallery.focus_search()
+            return
+        if not self.navigator_open:
+            self.toggle_navigator()
+        self.sheet_search.setFocus()
+        self.sheet_search.selectAll()
+
+    def filter_sheets(self, text):
+        self.sessions.active.sheet_filter = text
+        needle = text.strip().casefold()
+
+        def show(item):
+            matches = [show(item.child(i)) for i in range(item.childCount())]
+            ref = item.data(0, Qt.ItemDataRole.UserRole)
+            visible = not needle or any(matches) or (ref is not None and needle in item.text(0).casefold())
+            item.setHidden(not visible)
+            if needle and any(matches):
+                item.setExpanded(True)
+            return visible
+
+        for index in range(self.navigator.topLevelItemCount()):
+            show(self.navigator.topLevelItem(index))
+
     def focus_search(self):
         self.search.setFocus()
         self.search.selectAll()
@@ -576,9 +754,13 @@ class MainWindow(QMainWindow):
                 action.trigger()
                 return
 
-    def _sheet_call(self, name):
+    def _sheet_call(self, name, **options):
         if self.sheet is not None:
-            getattr(self.sheet, name)()
+            getattr(self.sheet, name)(**options)
+
+    def toggle_combined_navigator(self):
+        self.sessions.active.combined_navigator = self.actions["combined_navigator"].isChecked()
+        self.refresh()
 
     def toggle_navigator(self):
         """Slide the navigator closed or open (at once when animations are off)."""
@@ -634,11 +816,30 @@ class MainWindow(QMainWindow):
         data = kind == "data"
         editable = data and not stored_prism_view(self.project.tables[self.selected[1]])
         idle = self.job is None
-        for key in ("cut", "paste", "insert_row", "insert_column", "delete_rows", "exclude", "formula"):
+        self.gallery_button.setVisible(self.gallery is None)
+        self.sheet_picker.setEnabled(idle and self.sheet_picker.count() > 0)
+        sections = {kind for kind, _ in self.sheet_refs.values()}
+        if "saved-layout" in sections:
+            sections.add("layout")
+        for section_kind, button in self.section_buttons.items():
+            button.setEnabled(idle and section_kind in sections)
+        self.actions["previous_sheet"].setEnabled(idle and self._sheet_history_target(-1) is not None)
+        self.actions["next_sheet"].setEnabled(idle and self._sheet_history_target(1) is not None)
+        self.actions["combined_navigator"].setChecked(self.sessions.active.combined_navigator)
+        for key in ("cut", "paste", "paste_special", "paste_transpose", "clear_cells", "insert_row",
+                    "insert_column", "delete_rows", "exclude", "formula"):
             self.actions[key].setEnabled(editable and idle)
         self.actions["copy"].setEnabled(data)
-        for key in ("duplicate_family", "save_family"):
+        for key in ("duplicate_family", "save_family", "family_data", "family_info", "family_results",
+                    "family_graphs", "family_gallery"):
             self.actions[key].setEnabled(kind is not None and idle)
+        info = kind == "info" and idle
+        info_keys = list(self.project.info_sheets) if info else []
+        info_index = info_keys.index(self.selected[1]) if info else -1
+        self.actions["info_properties"].setEnabled(info)
+        self.actions["remove_info"].setEnabled(info)
+        self.actions["info_up"].setEnabled(info and info_index > 0)
+        self.actions["info_down"].setEnabled(info and info_index + 1 < len(info_keys))
         changeable = kind in {"result", "graph"} and not _saved_recipe(self.project.runs[self.selected[1]])
         self.actions["change"].setEnabled(changeable and idle)
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
@@ -648,6 +849,7 @@ class MainWindow(QMainWindow):
         self.actions["annotations"].setEnabled(graph and idle and self.project.runs[self.selected[1]].method
                                                not in PRISM_GRAPH_METHODS)
         self.actions["shapes"].setEnabled(self.actions["annotations"].isEnabled())
+        self.actions["arrange_shapes"].setEnabled(idle and self.drawing.can_arrange())
         for key in ("pairwise", "compact_letters"):
             self.actions[key].setEnabled(graph and idle)
         if self.inspector is not None:
@@ -656,23 +858,36 @@ class MainWindow(QMainWindow):
         self.actions["edit_layout"].setEnabled(idle and kind == "layout")
         self.actions["recalculate"].setEnabled((on_run or kind == "layout") and idle)
         self.actions["use_result"].setEnabled(kind == "result" and idle)
+        run = self.project.runs[self.selected[1]] if kind in {"result", "graph"} else None
+        result = run.result if run is not None else None
+        self.actions["analysis_graph"].setEnabled(idle and kind == "result" and result is not None
+                                                   and result.figure is not None)
+        self.actions["analysis_tables"].setEnabled(idle and kind == "graph" and (
+            run_view(run.method) == "result" or XML_GENERATED_XY in run.options))
+        self.actions["plot_margins"].setEnabled(idle and self.gallery is None and self.plot_tools is not None)
         chained = kind in {"result", "graph"} and self.project.runs[self.selected[1]].source is not None
         self.actions["analyze_result"].setEnabled(kind == "result" and idle)
         self.actions["source_analysis"].setEnabled(chained)
         self.actions["change_input"].setEnabled(idle and (kind == "result" or chained))
         has_data = bool(self.project.tables)
         for key in ("analyze", "new_graph", "descriptive", "ttest", "anova", "correlation", "linear", "nonlinear",
-                    "survival", "contingency"):
+                    "survival", "contingency", "correlation_matrix", "monte_carlo", "transpose_xy"):
             self.actions[key].setEnabled(has_data and idle)
+        for key in ("power", "simulate", "plot_function", "paste_table", "load_example", "new_table", "new_info"):
+            self.actions[key].setEnabled(idle)
         shape_run = self.drawing.history_run()  # On a graph with drawing steps, Undo/Redo belong to that graph.
         history = shape_run.shape_history if shape_run is not None else self.project.history
         self.actions["undo"].setEnabled(idle and self.gallery is None and history.can_apply())
         self.actions["redo"].setEnabled(idle and self.gallery is None and history.can_apply(redo=True))
-        for key in ("open", "import", "new_project", "save", "save_as", "classic", "close_project"):
+        for key in ("open", "import", "new_project", "save", "save_as", "classic", "close_project", "import_excel"):
             self.actions[key].setEnabled(idle)
+        self.actions["export_excel"].setEnabled(idle and bool(self.project.tables or self.project.runs))
         for key in ("next_project", "previous_project"):  # Switching waits for the calculation (Cancel stays on).
             self.actions[key].setEnabled(idle and len(self.sessions) > 1)
         self.actions["new_project"].setEnabled(idle and not self.sessions.full())
+        self.actions["recover"].setEnabled(idle and self.recovery is not None)
+        self.actions["recovery_settings"].setEnabled(self.recovery is not None)
+        sync_template_actions(self)
         self.project_tabs.setEnabled(idle)
         self.new_tab_button.setEnabled(idle and not self.sessions.full())
         self.actions["export"].setEnabled(kind is not None)
@@ -680,6 +895,7 @@ class MainWindow(QMainWindow):
         self.actions["export_pdf"].setEnabled(idle and (bool(self.project.layouts) or any(
             run.result is not None and run.result.figure is not None for run in self.project.runs)))
         self.actions["export_batch"].setEnabled(self.actions["export_pdf"].isEnabled())
+        self.actions["export_report"].setEnabled(idle and bool(self.project.runs or self.project.layouts))
         self.drawing.sync()
 
     # == navigator ================================================================================
@@ -708,9 +924,9 @@ class MainWindow(QMainWindow):
         project = self.project
         self.navigator.blockSignals(True)
         self.navigator.clear()
-        tables = self._section(tr("nav.data_tables"))
-        for title in project.tables:
-            self._entry(tables, title, ("data", title), "table")
+        combined = self.sessions.active.combined_navigator
+        tables = self._section(qt("qt.data_and_results") if combined else tr("nav.data_tables"))
+        table_items = {title: self._entry(tables, title, ("data", title), "table") for title in project.tables}
         if project.info_sheets:
             info = self._section(tr("nav.info"))
             for uid, sheet in project.info_sheets.items():
@@ -718,16 +934,24 @@ class MainWindow(QMainWindow):
         results = [(index, run) for index, run in enumerate(project.runs)
                    if run_view(run.method) == "result" and preferred_view(run, run.result) == "result"]
         graphs = [(index, run) for index, run in enumerate(project.runs)
-                  if run_view(run.method) == "graph" or run.method in GRAPH_METHODS
+                  if run_view(run.method) == "graph" or (run.method not in ANALYSIS_GRAPH_OPTIONS and run.method in GRAPH_METHODS)
+                  or (run.result is None and run.method == power_plan.METHOD and run.options.get(power_plan.SHOW_CURVE))
+                  or (run.result is None and run.method == TOLERANCE and run.options.get(TOLERANCE_GRAPH))
+                  or (run.result is None and run.method in ANALYSIS_GRAPH_OPTIONS
+                      and run.options.get(*ANALYSIS_GRAPH_OPTIONS[run.method]))
+                  or (run.result is None and run.method == cox_outputs.METHOD and not cox_exact.is_exact(run.options)
+                      and any(run.options.get(name) for name in cox_outputs.OUTPUT_FIELDS))
                   or (run.result is not None and run.result.figure is not None
                       and run_view(run.method) == "result")]
         layouts = [(index, run) for index, run in enumerate(project.runs) if run_view(run.method) == "saved-layout"]
         if results:
-            section = self._section(tr("nav.results"))
+            section = tables if combined else self._section(tr("nav.results"))
             items = {}
             for index, run in self._chain_order(results):  # Linked analyses nest under their source.
                 marker = " ⚠" if run.calculation_error else ""
-                owner = items.get(run.source.analysis_id, section) if run.source is not None else section
+                owner = table_items.get(run.title, section) if combined else section
+                if run.source is not None:
+                    owner = items.get(run.source.analysis_id, owner)
                 items[run.uid] = self._entry(owner, run.name + marker, ("result", index), "sigma")
         if graphs:
             section = self._section(tr("nav.graphs"))
@@ -742,10 +966,75 @@ class MainWindow(QMainWindow):
                 self._entry(section, run.name, ("saved-layout", index), "layout-grid")
         self.navigator.expandAll()
         self.navigator.blockSignals(False)
+        with QSignalBlocker(self.sheet_search):
+            self.sheet_search.setText(self.sessions.active.sheet_filter)
+        self.filter_sheets(self.sheet_search.text())
+        self._refresh_sheet_picker()
         self.update_title()
         self.update_actions()
         if self.gallery is not None:
             self.gallery.sync()
+
+    def _refresh_sheet_picker(self):
+        self.sheet_refs = {}
+        selected = -1
+        with QSignalBlocker(self.sheet_picker):
+            self.sheet_picker.clear()
+            item = QTreeWidgetItemIterator(self.navigator)
+            while item.value():
+                entry = item.value()
+                ref = entry.data(0, Qt.ItemDataRole.UserRole)
+                if ref is not None:
+                    ref = tuple(ref)
+                    if ref == self.selected:
+                        selected = self.sheet_picker.count()
+                    self.sheet_refs[self._sheet_identity(ref)] = ref
+                    self.sheet_picker.addItem(entry.icon(0), entry.text(0), ref)
+                item += 1
+            self.sheet_picker.setCurrentIndex(selected)
+
+    def _pick_sheet(self, index):
+        if not 0 <= index < self.sheet_picker.count() or self.busy():
+            return
+        ref = tuple(self.sheet_picker.itemData(index))
+        if ref != self.selected or self.gallery is not None:
+            self.open_sheet(ref)
+
+    def open_section(self, kind):
+        if self.busy() or not self.settle_graph_draft():
+            return
+        kinds = {"layout", "saved-layout"} if kind == "layout" else {kind}
+        first = next((ref for ref in self.sheet_refs.values() if ref[0] in kinds), None)
+        if first is not None:
+            ref = self.selected
+            if kind == "data" and ref and ref[0] in {"result", "graph", "saved-layout"}:
+                first = ("data", self.project.runs[ref[1]].title)
+            if ref != first or self.gallery is not None:
+                self.open_sheet(first)
+
+    def _sheet_identity(self, ref):
+        kind, key = ref
+        if kind in {"result", "graph", "saved-layout"}:
+            return kind, self.project.runs[key].uid
+        return ref
+
+    def _sheet_history_target(self, step):
+        session = self.sessions.active
+        position = session.sheet_position + step
+        while 0 <= position < len(session.sheet_history):
+            ref = self.sheet_refs.get(session.sheet_history[position])
+            if ref is not None and (ref != self.selected or self.gallery is not None):
+                return position, ref
+            position += step
+        return None
+
+    def step_sheet(self, step):
+        if self.busy() or not self.settle_graph_draft():
+            return
+        target = self._sheet_history_target(step)
+        if target is not None:
+            self.sessions.active.sheet_position, ref = target
+            self.open_sheet(ref)
 
     def _chain_order(self, entries):
         """``entries`` with every source analysis before the analyses that read its results."""
@@ -871,6 +1160,10 @@ class MainWindow(QMainWindow):
         theme.fade_in(page)
 
     def show_home(self):
+        from .table_setup import TableSetup
+
+        self._select_sheet_ribbon(None)
+        self.plot_tools = None
         self.drawing.detach()
         self.dispose_inspector()
         self.flush_info()
@@ -879,18 +1172,15 @@ class MainWindow(QMainWindow):
         self.sheet = None
         self.result_tabs = None
         page = Page("Trama", tr("status.welcome"))
-        page.button(tr("command.open"), self.open_dialog, primary=True, icon="folder-open")
-        page.button(tr("command.new_table"), self.new_table, icon="table")
-        page.button(tr("command.import_into_project"), lambda: self.open_dialog(import_data=True), icon="file-up")
         page.finish_actions()
-        hint = QLabel(qt("qt.classic_hint"))
-        hint.setObjectName("muted")
-        hint.setWordWrap(True)
-        page.add(hint, 0)
-        page.layout_.addStretch(1)
+        chooser = page.add(TableSetup(page))
+        page.canvases.append(chooser.chart)
+        create = QPushButton(tr("setup.create"))
+        create.setObjectName("primary")
+        create.clicked.connect(lambda: self.create_worksheet(*chooser.selection()))
+        page.layout_.addWidget(create, 0, Qt.AlignmentFlag.AlignRight)
         self._replace_page(page)
-        self.update_title()
-        self.update_actions()
+        self.refresh()
 
     def open_sheet(self, ref):
         kind, key = ref
@@ -902,12 +1192,23 @@ class MainWindow(QMainWindow):
             if runs:
                 self.refresh_runs(runs)
 
+    def _select_sheet_ribbon(self, kind):
+        if self.page is None or kind != self.page_kind:
+            tab = {None: "file", "graph": "graph", "result": "analyze", "layout": "arrange",
+                   "saved-layout": "arrange", "info": "insert"}.get(kind, "home")
+            self.ribbon_tabs.setCurrentIndex(self.ribbon_pages[tab])
+        self.page_kind = kind
+
     def show_sheet(self, kind, key):
+        self._select_sheet_ribbon(kind)
+        self.plot_tools = None
         self.drawing.detach()  # Closes a pointer preview; the new graph page attaches its own canvas.
         self.dispose_inspector()  # Before the new page builds its own panel.
         self.flush_info()
         self.info_editor = None
         self.selected = (kind, key)
+        self.sessions.active.visit(self._sheet_identity(self.selected))
+        self.cell_label.clear()
         self.sheet = None
         self.result_tabs = None
         if kind == "data":
@@ -941,16 +1242,6 @@ class MainWindow(QMainWindow):
         subtitle = qt("qt.rows_columns", rows=len(frame), columns=len(frame.columns) + len(dataset.formulas))
         page = Page(title, f"{dataset.table_format} · {subtitle}")
         read_only = stored_prism_view(dataset)
-        page.button(tr("ribbon.analyze"), self.analyze, primary=True, icon="sigma")
-        page.button(tr("command.new_graph"), self.new_graph, icon="chart-line")
-        linked = [(index, run) for index, run in enumerate(self.project.runs) if run.title == title]
-        if linked:
-            menu = QMenu(page)
-            for index, run in linked:
-                menu.addAction(run.name, lambda index=index, run=run: self.open_sheet((preferred_view(run, run.result), index)))
-            more = QPushButton(f"{tr('bar.linked_sheets')} ({len(linked)})")
-            more.setMenu(menu)
-            page.actions_row.addWidget(more)
         page.finish_actions()
         if read_only:
             page.notice(qt("qt.read_only"))
@@ -963,13 +1254,9 @@ class MainWindow(QMainWindow):
         return page
 
     def _info_page(self, uid):
-        from .info_editor import InfoEditor, t
+        from .info_editor import InfoEditor
         sheet = self.project.info_sheets[uid]
         page = Page(sheet.title, tr("interface.linked_to", table=sheet.table) if sheet.table else tr("nav.info"))
-        page.button(t("Properties…"), self.info_properties, icon="pencil")
-        page.button(t("Move sheet up"), lambda: self.move_info(-1), icon="chevron-up")
-        page.button(t("Move sheet down"), lambda: self.move_info(1), icon="chevron-down")
-        page.button(t("Delete Info sheet…"), self.remove_info, icon="trash-2")
         page.finish_actions()
         project = self.project
         self.info_editor = page.add(InfoEditor(
@@ -1071,7 +1358,7 @@ class MainWindow(QMainWindow):
         canvas.setMinimumSize(200, 160)
         page.canvases.append(canvas)
         if toolbar:
-            tools = NavigationToolbar2QT(canvas, page)
+            tools = self.plot_tools = PlotNavigation(canvas, page)
             tools.setIconSize(theme.icon_size(18))
             theme.plot_toolbar(tools)
             page.add(tools, 0)
@@ -1086,6 +1373,14 @@ class MainWindow(QMainWindow):
             self._open_inspector(run, canvas, line)
         canvas.draw_idle()
         return canvas
+
+    def adjust_plot_margins(self):
+        if self.plot_tools is not None and self.gallery is None and not self.busy():
+            self.plot_tools.configure_subplots()
+
+    def switch_run_view(self, kind):
+        if self.selected and self.selected[0] in {"result", "graph"} and not self.busy() and self.settle_graph_draft():
+            self.open_sheet((kind, self.selected[1]))
 
     # == inspector =================================================================================
     def _open_inspector(self, run, canvas, line):
@@ -1137,6 +1432,10 @@ class MainWindow(QMainWindow):
         else:
             self._sync_tabs()
 
+    def arrange_shapes(self):
+        if self.drawing.can_arrange() and self.settle_graph_draft():
+            self.drawing.arrange()
+
     def settle_graph_draft(self):
         """Before leaving the drawn style behind: apply or discard an Inspector draft, or stay."""
         self.drawing.cancel()  # A pointer preview is never saved, exported or recalculated.
@@ -1156,9 +1455,6 @@ class MainWindow(QMainWindow):
     def _layout_page(self, index):
         layout = self.project.layouts[index]
         page = Page(layout.name, tr("interface.layout_panels", count=len(layout.panels)))
-        page.button(tr("command.edit_layout"), lambda: self.new_layout(edit=True), primary=True, icon="layout-grid")
-        page.button(tr("command.export"), self.export, icon="upload")
-        page.button(qt("qt.recalculate"), self.recalculate, icon="history")
         page.finish_actions()
         self._stale(page, self.project.layout_runs(layout))
         figure = self.project.layout_figure(layout)
@@ -1238,26 +1534,6 @@ class MainWindow(QMainWindow):
             button.setObjectName("importedGraphSource")
         elif kind == "saved-layout":
             self._imported_layout_actions(page, run, index)
-        if not _saved_recipe(run) and kind != "saved-layout":
-            page.button(tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal")
-        page.button(qt("qt.recalculate"), self.recalculate, icon="history")
-        if kind == "result" and result is not None:
-            page.button(qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
-            page.button(tr("chain.analyze_result"), self.analyze_result_table, icon="git-compare")
-            page.button(qt("qt.export_table"), self.export, icon="upload")
-        elif result is not None or self.project.imported_vector_format(run):
-            if kind == "graph" and self.project.graph_format_problem(run) is None:
-                page.button(tr("graph.inspector.title"), self.toggle_inspector, primary=True, icon="paintbrush")
-                page.button(tr("graph.format.title"), self.format_graph, icon="palette")
-            page.button(qt("qt.export_graph"), self.export, icon="upload")
-        if kind == "result" and result is not None and result.figure is not None:
-            page.button(tr("ribbon.graph"), lambda: self.open_sheet(("graph", index)), icon="chart-line")
-        if kind == "graph" and (run_view(run.method) == "result" or XML_GENERATED_XY in run.options):
-            page.button(tr("command.analysis_results"), lambda: self.open_sheet(("result", index)), icon="sigma")
-        if run.source is not None:
-            page.button(tr("chain.source_analysis"), self.source_analysis, icon="chevron-up")
-        if kind == "result" or run.source is not None:
-            page.button(tr("chain.change_input"), self.change_input_result, icon="arrow-up-down")
         page.finish_actions()
         if run.source is not None:
             source = next((other for other in self.project.runs if other.uid == run.source.analysis_id), None)
@@ -1323,7 +1599,7 @@ class MainWindow(QMainWindow):
             return
         self.reshow()
         if affected:
-            self.refresh_runs(affected)
+            self.refresh_runs(affected, reopen_analysis_field_error=True)
         else:
             self.status(qt("qt.edited"))
 
@@ -1336,10 +1612,10 @@ class MainWindow(QMainWindow):
         self._apply_edit(title, lambda: self.project.paste(title, row, column, [[text]], "Edit cell"))
         return True
 
-    def paste_cells(self, row, column, rows):
+    def paste_cells(self, row, column, rows, *, label="Paste"):
         title = self._active_table()
         if title is not None:
-            self._apply_edit(title, lambda: self.project.paste(title, row, column, rows))
+            self._apply_edit(title, lambda: self.project.paste(title, row, column, rows, label))
 
     def clear_cells(self, box):
         title = self._active_table()
@@ -1451,6 +1727,40 @@ class MainWindow(QMainWindow):
         if affected:
             self.refresh_runs(affected)
 
+    def choose_table(self, *, sample=False):
+        from PySide6.QtWidgets import QDialog
+        from .table_setup import TableSetup, TableSetupDialog
+
+        if self.busy():
+            return
+        setup = self.page.findChild(TableSetup) if self.selected is None and self.gallery is None else None
+        if setup is not None:
+            if sample:
+                setup.mode.setCurrentIndex(setup.mode.findData(True))
+            setup.types.setFocus()
+            return
+        chooser = TableSetupDialog(self, sample=sample)
+        try:
+            if chooser.exec() == QDialog.DialogCode.Accepted:
+                self.create_worksheet(*chooser.setup.selection())
+        finally:
+            chooser.deleteLater()
+
+    def create_worksheet(self, template, sample):
+        from analisi.table_templates import table_frame
+
+        if self.busy():
+            return
+        title = f"{template.name} example" if sample else template.name
+        try:
+            title, = self.project.add_tables({title: table_frame(template, sample)})
+        except ValueError as error:
+            self.error(error)
+            return
+        self.show_sheet("data", title)
+        if template.kind.casefold().startswith("xy") and template.columns[0] == "Row title":
+            self.sheet.setCurrentIndex(self.sheet.model().index(0, 1))
+
     def new_table(self):
         if self.busy():
             return
@@ -1458,9 +1768,32 @@ class MainWindow(QMainWindow):
         title = self.project.new_table(self.project.unique_title(name))
         self.show_sheet("data", title)
 
+    def paste_table(self):
+        from analisi.data import _table
+        from analisi.grid_data import clipboard_decimal_mark, clipboard_rows
+
+        if self.busy():
+            return
+        try:
+            headers, *rows = clipboard_rows(QGuiApplication.clipboard().text())
+            if not rows:
+                raise ValueError(qt("qt.paste_table_header"))
+            table = _table(headers, rows, decimal_mark=clipboard_decimal_mark())
+            title, = self.project.add_tables({qt("qt.pasted_data"): table})
+        except ValueError as error:
+            self.error(error)
+            return
+        self.show_sheet("data", title)
+
+    def load_example(self):
+        self.choose_table(sample=True)
+
     # == analyses ================================================================================
-    def _analysis_input(self):
+    def _analysis_input(self, *, allow_empty=False):
         if not self.project.tables:
+            if allow_empty:
+                import pandas as pd
+                return None, pd.DataFrame({"A": pd.Series(dtype=float)})
             self.error(qt("qt.no_table"))
             return None, None
         if self.selected and self.selected[0] in {"result", "graph"}:
@@ -1472,7 +1805,7 @@ class MainWindow(QMainWindow):
             title = next(iter(self.project.tables))
         dataset = self.project.tables[title]
         frame = dataset.frame(mask_excluded=True)
-        if frame.empty:
+        if frame.empty and not allow_empty:
             self.error(qt("qt.empty"))
             return None, None
         return title, frame
@@ -1480,32 +1813,49 @@ class MainWindow(QMainWindow):
     def analyze(self, method=None, only=None):
         if self.busy():
             return
-        title, frame = self._analysis_input()
-        if title is None:
+        title, frame = self._analysis_input(allow_empty=method in {power_plan.METHOD, PLOT_FUNCTION})
+        if frame is None:
             return
         current = (method, {}) if method else None
         self._ask(title, frame, current=current, only=only)
 
+    def simulate_data(self):
+        import pandas as pd
+
+        if not self.busy():
+            self._ask(None, pd.DataFrame(), current=("Simulate data", {}), only="Simulate data")
+
     def new_graph(self):
         self.analyze(only=[name for name in GRAPHING])
 
-    def _ask(self, title, frame, *, current=None, only=None, index=None, error=None, error_field=None, source=_KEEP):
+    def _ask(self, title, frame, *, current=None, only=None, index=None, error=None, error_field=None, source=_KEEP,
+             initial_field=None):
         """Ask for the parameters, then calculate. ``source`` sets the result an analysis reads (a new link, or
         Change input result…); by default a new analysis reads its data table and an edit keeps its input."""
-        dialog = AnalysisDialog(self, frame, current=current, only=only, error=error, error_field=error_field)
+        reads = (self.project.runs[index].source if index is not None else None) if source is _KEEP else source
+        style = self.project.runs[index].style if index is not None else None
+        dialog = AnalysisDialog(self, frame, current=current, only=only, error=error, error_field=error_field,
+                                join_sources=self.project.join_sources(title, reads), join_left=title,
+                                xy_left_scale=(style or {}).get("yscale", "linear"))
+        if initial_field and error_field is None:
+            dialog.focus_field(initial_field)
         if dialog.exec() != AnalysisDialog.DialogCode.Accepted or dialog.result is None:
             return
         method, options = dialog.result
         try:
-            candidate = self.project.candidate(title, method, options, index=index,
-                                               source=None if source is _KEEP else source)
+            if title is None:
+                name = tr("power.sheet") if method == power_plan.METHOD else method_label(method)
+                candidate = Run(method, self.project.unique_title(name), options)
+            else:
+                candidate = self.project.candidate(title, method, options, index=index,
+                                                   source=None if source is _KEEP else source)
             if index is not None and source is not _KEEP and candidate.source != source:
                 candidate.source = source
                 self.project.analysis_graph(replacement=(index, candidate))
         except ValueError as error_:
             self.error(error_)
             return
-        self.calculate_candidate(candidate, frame, index, only=only)
+        self.calculate_candidate(candidate, frame, index, only=only, create_table=title is None)
 
     def change_parameters(self):
         if self.busy() or not self.selected or self.selected[0] not in {"result", "graph"}:
@@ -1521,7 +1871,8 @@ class MainWindow(QMainWindow):
         except ValueError as error:
             self.error(error)
             return
-        self._ask(run.title, frame, current=(run.method, run.options), index=index)
+        initial_field = ANALYSIS_GRAPH_OPTIONS.get(run.method, (None,))[0] if self.selected[0] == "graph" else None
+        self._ask(run.title, frame, current=(run.method, run.options), index=index, initial_field=initial_field)
 
     # -- analysis chains ----------------------------------------------------------------------------------
     def analyze_result_table(self):
@@ -1817,9 +2168,10 @@ class MainWindow(QMainWindow):
         self.show_sheet(*self.selected)
         self.status(tr(applied))
 
-    def calculate_candidate(self, candidate, frame, index, *, only=None):
+    def calculate_candidate(self, candidate, frame, index, *, only=None, create_table=False):
         pairwise = self.project.pairwise_snapshot(candidate)
         layout_data = self.project.layout_panel_data(candidate)
+        join_data = self.project.join_data(candidate)  # read here: the worker never looks a sheet up
         control = CalculationControl()
 
         def done(future, cancelled):
@@ -1837,23 +2189,39 @@ class MainWindow(QMainWindow):
                     self.error(ui(str(error)))
                     return
                 field = error.field if isinstance(error, FieldError) else None
-                self._ask(candidate.title, frame, current=(candidate.method, candidate.options), only=only,
+                self._ask(None if create_table else candidate.title, frame,
+                          current=(candidate.method, candidate.options), only=only,
                           index=index, error=str(error), error_field=field, source=candidate.source)
                 return
+            if create_table:
+                tables = ({name: result_as_table(table) for name, table in result.tables.items()}
+                          if candidate.method == "Simulate data" else {candidate.title: frame})
+                try:
+                    titles = self.project.add_tables(tables)
+                except ValueError as error:
+                    self.error(error)
+                    return
+                if candidate.method == "Simulate data":
+                    self.show_sheet("data", titles[0])
+                    self.status(qt("qt.complete", method=method_label(candidate.method)))
+                    return
             new_index, dependents = self.project.add_result(candidate, result, index)
             message = qt("qt.complete", method=method_label(candidate.method))
             if result.style_warning:
                 message += f" {result.style_warning}"
             keep = index is not None and self.selected is not None and self.selected[0] in {"result", "graph"}
+            if keep and self.selected[0] == "graph" and result.figure is None:
+                keep = False
             self.show_sheet(self.selected[0] if keep else preferred_view(candidate, result), new_index)
             self.status(message)
             if dependents:
                 self.refresh_runs(dependents)
 
-        future = self.worker.submit(compute, candidate, frame, control, layout_data, pairwise)
+        extra = {} if join_data is None else {"join_data": join_data}
+        future = self.worker.submit(compute, candidate, frame, control, layout_data, pairwise, **extra)
         self._start(future, control, done, qt("qt.running", method=method_label(candidate.method)))
 
-    def refresh_runs(self, runs):
+    def refresh_runs(self, runs, *, reopen_analysis_field_error=False):
         """Recalculate runs and everything linked to them in the background."""
         if not runs:
             return
@@ -1867,6 +2235,7 @@ class MainWindow(QMainWindow):
         self.project.mark_pending(job, qt("qt.updating", count=len(job.selected)))
 
         def done(future, cancelled):
+            recovery = None
             try:
                 outcomes = future.result()
             except ChainCancelled:
@@ -1881,12 +2250,27 @@ class MainWindow(QMainWindow):
                     self.status(qt("qt.cancelled"))
                 else:
                     errors = self.project.apply_refresh(job, outcomes)
-                    self.status(qt("qt.update_failed", count=len(errors), first=errors[0]) if errors
+                    self.status(qt("qt.update_failed", count=len(errors), first=translate_message(errors[0], "xy.error.")) if errors
                                 else qt("qt.updated", count=len(outcomes)))
+                    if reopen_analysis_field_error and errors:
+                        for index, run in enumerate(self.project.runs):
+                            outcome = outcomes.get(run.uid)
+                            if (run.method in ANALYSIS_GRAPH_OPTIONS and run.result is not None and outcome is not None
+                                    and isinstance(outcome.error, FieldError)):
+                                recovery = index, run, outcome.error
+                                break
             if self.selected and self.selected[0] != "data" and self.gallery is None:
                 self.show_sheet(*self.selected)
             else:
                 self.refresh()
+            if recovery is not None:
+                index, run, error = recovery
+                try:
+                    frame = self.project.input_frame(run)
+                except ValueError:
+                    return  # A linked input that also failed already has its warning.
+                self._ask(run.title, frame, current=(run.method, run.options), index=index,
+                          error=str(error), error_field=error.field)
 
         future = self.worker.submit(Project.run_refresh, job)
         self._start(future, job.control, done, qt("qt.updating", count=len(job.selected)))
@@ -1894,6 +2278,59 @@ class MainWindow(QMainWindow):
             self.show_sheet(*self.selected)
 
     # == families ================================================================================
+    def browse_family(self, kind=None):
+        from analisi.family_workflow import FamilyError, plan_family
+        from .family import family_error_text
+
+        selected = self._family_start()
+        if selected is None:
+            return
+        project = self.project
+        try:
+            plan = plan_family(project.tables, project.layouts, tuple(project.info_sheets.values()), selected)
+        except FamilyError as error:
+            self.error(family_error_text(error))
+            return
+
+        if kind == "data" and plan.start_table is not None:
+            self.open_sheet(("data", plan.start_table))
+            return
+        kinds = {"data": tr("nav.data_tables"), "info": tr("nav.info"), "result": tr("nav.results"),
+                 "graph": tr("nav.graphs"), "saved-layout": tr("nav.layouts"), "layout": tr("nav.layouts")}
+        captions, refs = [], []
+        for index in range(self.sheet_picker.count()):
+            ref = tuple(self.sheet_picker.itemData(index))
+            section, key = ref
+            if kind is not None and section != kind:
+                continue
+            if section == "data":
+                belongs = key in plan.tables
+            elif section == "info":
+                belongs = key in plan.infos or key in plan.global_infos
+            elif section == "layout":
+                belongs = key in plan.layouts
+            else:
+                run = project.runs[key]
+                belongs = run.slot in plan.slots.get(run.title, ())
+            if belongs:
+                caption = self.sheet_picker.itemText(index)
+                captions.append(f"{kinds[section]} · {caption}" if kind is None else caption)
+                refs.append(ref)
+        if not refs:
+            self.status(qt("qt.family_empty"))
+            return
+        if len(refs) == 1 and kind is not None:
+            self.open_sheet(refs[0])
+            return
+        from .family import FamilySheetsDialog
+
+        dialog = FamilySheetsDialog(self, captions, refs, current=self.selected)
+        try:
+            if dialog.exec() and dialog.selected is not None:
+                self.open_sheet(dialog.selected)
+        finally:
+            dialog.deleteLater()
+
     def _family_start(self):
         """The selected sheet as the engine names it, after bringing the stored project up to date."""
         from .family import family_ref
@@ -2015,6 +2452,15 @@ class MainWindow(QMainWindow):
                                              source_path=source, cancel=control.cancel),
                          control, running=tr("family.saving"), cancelled=tr("family.save_cancelled"),
                          failed="family.save_failed", finish=finish, discard_when_cancelled=False)
+
+    # == analysis templates (trama_qt/templates.py) =============================================
+    def save_template(self):
+        from .templates import save_template
+        save_template(self)
+
+    def new_from_template(self, path=None):
+        from .templates import new_from_template
+        new_from_template(self, path)
 
     def recalculate(self):
         if self.busy() or not self.selected or not self.settle_graph_draft():
@@ -2281,6 +2727,8 @@ class MainWindow(QMainWindow):
         if not self.prepare_project_change(lambda: self.close_project(session)) or not self.confirm_saved():
             return False
         closing = self.sessions.active
+        if self.recovery is not None:  # Saved or discarded: its recovery copies go (Cancel returned above).
+            self.recovery.forget(closing.project)
         target = self.sessions.neighbour(closing)
         if target is None:
             self._drop_gallery()
@@ -2361,15 +2809,7 @@ class MainWindow(QMainWindow):
                 titles = project.load(path)  # Read first: a file that cannot be opened changes no tab.
                 if suffix != ".alab":
                     project.origin, project.dirty = path, False
-                if reuse:
-                    self._drop_gallery()
-                    self.gallery_view = {"kind": None, "text": ""}
-                    self.dispose_inspector()
-                    self.info_editor = None
-                    self.sessions.active.reset(project)
-                else:
-                    self.project_number = number
-                    self._activate(self.sessions.add(project))
+                self._put_project(project, reuse=reuse)
                 self.status(tr("status.opened", name=path.name))
             elif import_data and suffix in TEXT_SUFFIXES:  # Import text data: choose rows, columns and format.
                 from .text_import import TextImportDialog
@@ -2393,6 +2833,53 @@ class MainWindow(QMainWindow):
         else:
             self.refresh()
 
+    def _put_project(self, project, *, reuse):
+        """Show a project just read in the empty active tab (``reuse``) or in a new tab."""
+        if reuse:
+            self._drop_gallery()
+            self.gallery_view = {"kind": None, "text": ""}
+            self.dispose_inspector()
+            self.info_editor = None
+            if self.recovery is not None:
+                self.recovery.forget(self.project)
+            project.number = self.project.number
+            self.sessions.active.reset(project)
+        else:
+            self.project_number = max(self.project_number + 1, project.number)
+            project.number = self.project_number
+            self._activate(self.sessions.add(project))
+
+    # == recovery copies ==========================================================================
+    def room_for_project(self):
+        return self.project.is_empty() or not self.sessions.full()
+
+    def place_project(self, project):
+        """Open a project read elsewhere (a recovered copy) in its own tab. False when the active tab must stay."""
+        if not self.room_for_project() or not self.prepare_project_change():
+            return False
+        self._put_project(project, reuse=self.project.is_empty())
+        sheets = [title for title in project.tables if not stored_prism_view(project.tables[title])]
+        if sheets:
+            self.show_sheet("data", sheets[0])
+        elif project.info_sheets:
+            self.show_sheet("info", next(iter(project.info_sheets)))
+        else:
+            self.refresh()
+        return True
+
+    def recover_projects(self):
+        """File → Recover projects…: choose copies to reopen, leave for later or delete."""
+        if self.recovery is None or self.busy():
+            return
+        self.recovery.hide_notice()
+        dialog = RecoveryDialog(self.recovery, self)
+        if dialog.exec() == RecoveryDialog.DialogCode.Accepted and dialog.chosen:
+            self.recovery.recover(dialog.chosen)
+
+    def recovery_settings(self):
+        if self.recovery is not None:
+            RecoverySettingsDialog(self.recovery, self).exec()
+
     def save(self, *, as_new=False):
         if self.busy() or not self.settle_graph_draft():
             return False
@@ -2401,7 +2888,8 @@ class MainWindow(QMainWindow):
             return False
         path = self.project.path if not as_new else None
         if path is None:
-            suggested = (self.project.origin.with_suffix(".alab").name if self.project.origin else "")
+            suggested = (self.project.origin.with_suffix(".alab").name if self.project.origin
+                         else self.project.save_suggestion or "")
             name, _ = QFileDialog.getSaveFileName(self, tr("command.save_project_as"), suggested,
                                                   f"{tr('prompt.project_filetype')} (*.alab)")
             if not name:
@@ -2417,6 +2905,8 @@ class MainWindow(QMainWindow):
         except (ValueError, OSError, TypeError) as error:
             self.error(error)
             return False
+        if self.recovery is not None:
+            self.recovery.saved(self.project)
         self.status(tr("status.saved", name=path.name))
         self.refresh()
         return True
@@ -2609,6 +3099,18 @@ class MainWindow(QMainWindow):
         finally:
             dialog.deleteLater()
 
+    def export_report(self):
+        from .report_dialog import export_report
+        export_report(self)
+
+    def import_excel_workbook(self, path=None):
+        from .excel_workbook import import_workbook
+        import_workbook(self, path)
+
+    def export_excel_workbook(self, path=None):
+        from .excel_workbook import export_workbook
+        export_workbook(self, path)
+
     def open_classic(self):
         if self.busy():
             return
@@ -2680,4 +3182,8 @@ class MainWindow(QMainWindow):
         self.timer.stop()
         self._drop_gallery()
         self.worker.shutdown(wait=False, cancel_futures=True)
+        if self.recovery is not None:  # Every project was saved or discarded: their copies go.
+            self.recovery.shutdown([session.project for session in self.sessions])
+        if self._release_gc is not None:
+            self._release_gc()
         event.accept()

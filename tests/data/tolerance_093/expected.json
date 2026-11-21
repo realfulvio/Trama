@@ -1,0 +1,74 @@
+{
+  "Lot A": {
+    "normal": {
+      "N": 60,
+      "Mean": 30.5,
+      "SD": 17.46424919657298,
+      "two_lower": -3.6916924333721397,
+      "two_upper": 64.69169243337214,
+      "one_lower": 2.4015405526997924,
+      "one_upper": 58.59845944730021,
+      "k2": 1.957810613472098,
+      "k1": 1.6089131076309875
+    },
+    "rank": {
+      "Two-sided": {
+        "interval": {
+          "Lower rank": 1,
+          "Upper rank": 60,
+          "Achieved confidence (%)": 98.62229210339893,
+          "Lower": 1.0,
+          "Upper": 60.0
+        },
+        "max": 98.62229210339893
+      },
+      "Lower": {
+        "interval": {
+          "Lower rank": 2,
+          "Upper rank": null,
+          "Achieved confidence (%)": 98.62229210339893,
+          "Lower": 2.0,
+          "Upper": null
+        },
+        "max": 99.82029897000857
+      },
+      "Upper": {
+        "interval": {
+          "Lower rank": null,
+          "Upper rank": 59,
+          "Achieved confidence (%)": 98.62229210339893,
+          "Lower": null,
+          "Upper": 59.0
+        },
+        "max": 99.82029897000857
+      }
+    }
+  },
+  "Lot B": {
+    "normal": {
+      "N": 12,
+      "Mean": 86.5,
+      "SD": 3.605551275463989,
+      "two_lower": 76.92828736487976,
+      "two_upper": 96.07171263512024,
+      "one_lower": 78.53125716112109,
+      "one_upper": 94.46874283887891,
+      "k2": 2.654715438456349,
+      "k1": 2.210131608197259
+    },
+    "rank": {
+      "Two-sided": {
+        "interval": null,
+        "max": 34.099774821099984
+      },
+      "Lower": {
+        "interval": null,
+        "max": 71.75704635189999
+      },
+      "Upper": {
+        "interval": null,
+        "max": 71.75704635189999
+      }
+    }
+  }
+}

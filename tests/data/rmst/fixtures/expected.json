@@ -1,0 +1,200 @@
+{
+  "arms": {
+    "Reference": {
+      "N": 6,
+      "Events through horizon": 3,
+      "Max follow-up": 8.0,
+      "Horizon": 6.5,
+      "RMST": 4.277777777777778,
+      "SE": 0.9287918609611382,
+      "CI lower": 2.4573791811600136,
+      "CI upper": 6.098176374395542,
+      "Status": "OK",
+      "exact_mean": "77/18",
+      "exact_variance": "559/648",
+      "steps": [
+        [
+          0.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        [
+          1.0,
+          2.0,
+          0.8333333333333334,
+          0.8333333333333334
+        ],
+        [
+          2.0,
+          4.0,
+          0.6666666666666666,
+          1.3333333333333333
+        ],
+        [
+          4.0,
+          6.5,
+          0.4444444444444444,
+          1.1111111111111112
+        ]
+      ]
+    },
+    "Series $B": {
+      "N": 6,
+      "Events through horizon": 2,
+      "Max follow-up": 9.0,
+      "Horizon": 6.5,
+      "RMST": 5.0,
+      "SE": 0.9742043287083434,
+      "CI lower": 3.0905946021486272,
+      "CI upper": 6.909405397851373,
+      "Status": "OK",
+      "exact_mean": "5",
+      "exact_variance": "205/216",
+      "steps": [
+        [
+          0.0,
+          5.0,
+          0.8333333333333334,
+          4.166666666666667
+        ],
+        [
+          5.0,
+          6.5,
+          0.5555555555555556,
+          0.8333333333333334
+        ]
+      ]
+    }
+  },
+  "contrasts": {
+    "Difference": {
+      "Estimate": 0.7222222222222223,
+      "Inference SE": 1.346004604398413,
+      "Scale": "Identity",
+      "CI lower": -1.91589832542375,
+      "CI upper": 3.3603427698681947,
+      "p": 0.591566451600943,
+      "Status": "OK"
+    },
+    "Ratio": {
+      "Estimate": 1.1688311688311688,
+      "Inference SE": 0.2917261275250416,
+      "CI lower": 0.6598330339552875,
+      "CI upper": 2.0704727270805483,
+      "p": 0.5928139661678423,
+      "Scale": "Log",
+      "Status": "OK"
+    }
+  },
+  "terminal": {
+    "N": 3,
+    "Events through horizon": 3,
+    "Max follow-up": 3.0,
+    "Horizon": 3.0,
+    "RMST": 2.0,
+    "SE": 0.4714045207910317,
+    "CI lower": 1.076064117100215,
+    "CI upper": 2.923935882899785,
+    "Status": "OK",
+    "exact_mean": "2",
+    "exact_variance": "2/9",
+    "steps": [
+      [
+        0.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        2.0,
+        0.6666666666666666,
+        0.6666666666666666
+      ],
+      [
+        2.0,
+        3.0,
+        0.3333333333333333,
+        0.3333333333333333
+      ]
+    ]
+  },
+  "all_censored": {
+    "N": 3,
+    "Events through horizon": 0,
+    "Max follow-up": 5.0,
+    "Horizon": 5.0,
+    "RMST": 5.0,
+    "SE": 0.0,
+    "CI lower": null,
+    "CI upper": null,
+    "Status": "Zero variance",
+    "exact_mean": "5",
+    "exact_variance": "0",
+    "steps": [
+      [
+        0.0,
+        5.0,
+        1.0,
+        5.0
+      ]
+    ]
+  },
+  "text_arms": {
+    "Ref": {
+      "N": 4,
+      "Events through horizon": 2,
+      "Max follow-up": 6.0,
+      "Horizon": 4.0,
+      "RMST": 3.25,
+      "SE": 0.649519052838329,
+      "CI lower": 2.1816362301647896,
+      "CI upper": 4.31836376983521,
+      "Status": "OK",
+      "exact_mean": "13/4",
+      "exact_variance": "27/64",
+      "steps": [
+        [
+          0.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        [
+          1.0,
+          4.0,
+          0.75,
+          2.25
+        ]
+      ]
+    },
+    "Active": {
+      "N": 4,
+      "Events through horizon": 1,
+      "Max follow-up": 7.0,
+      "Horizon": 4.0,
+      "RMST": 3.3333333333333335,
+      "SE": 0.5443310539518174,
+      "CI lower": 2.4379884249783688,
+      "CI upper": 4.228678241688298,
+      "Status": "OK",
+      "exact_mean": "10/3",
+      "exact_variance": "8/27",
+      "steps": [
+        [
+          0.0,
+          2.0,
+          1.0,
+          2.0
+        ],
+        [
+          2.0,
+          4.0,
+          0.6666666666666666,
+          1.3333333333333333
+        ]
+      ]
+    }
+  }
+}

@@ -22,12 +22,8 @@ _SCATCHARD_HEADING = b"Transform: Pharmacology and biochemistry transforms: Scat
 _FIT_OPTIONS = (1, 0, 2, 0, 35, 16, 0, 9, 1, 1, 1, 1, -1, -1)
 
 
-def restored_binding_recipes(data, sources):
-    """Yield identities, worksheet and recipe only when the indexed source matches."""
-    single_series = {key: (frame, x, groups[0][1][0]) for key, (frame, x, groups) in sources.items()
-                     if len(groups) == 1 and len(groups[0][1]) == 1}
-    if not single_series:
-        return
+def indexed_analyses(data):
+    """Read the original worksheet IDs and the indexed single-input analyses."""
     records = [(tag, parents[1:], payload) for tag, parents, payload in _records(data)
                if parents == (1,) or parents[:2] == (1, 57)]
     index = _one(records, 0x8002)
@@ -37,15 +33,27 @@ def restored_binding_recipes(data, sources):
         if len(header) == 2:
             uid, = unpack("<H", header)
             analyses[uid] = None if uid in analyses else contents
+    selected = []
     for uid in _analysis_ids(index) or ():
         contents = analyses.get(uid)
         if not contents:
             continue
         try:
             sheet, = _id_array(_one(contents, 0x3B))
-            if sheet not in sheets or sheet not in single_series:
-                continue
             kind = unpack("<8H", _one(contents, 0x3A))
+        except (ValueError, StructError):
+            continue
+        selected.append((uid, sheet, kind, contents))
+    return sheets, selected
+
+
+def restored_binding_recipes(analyses, sources):
+    """Yield binding recipes and their original sheet identities."""
+    for uid, sheet, kind, contents in analyses:
+        frame, x, groups = sources[sheet]
+        if len(groups) != 1 or len(groups[0][1]) != 1:
+            continue
+        try:
             if kind[:2] == (0, 5):
                 method, options = "Nonlinear regression", _binding_options(contents, kind)
             elif kind[:2] == (3, 255):
@@ -54,7 +62,7 @@ def restored_binding_recipes(data, sources):
                 continue
         except (ValueError, StructError):
             continue
-        frame, x, y = single_series[sheet]
+        y, = groups[0][1]
         if is_numeric_dtype(frame[x]) and is_numeric_dtype(frame[y]):
             yield uid, sheet, frame, method, {"X": x, "Y": y, **options}
 

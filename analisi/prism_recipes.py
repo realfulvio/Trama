@@ -348,26 +348,71 @@ def _nonlinear(frame, content, _results):
 
 
 
+def _xy_log_transform(frame, content, _results):
+    calc = content["calc"]
+    standard = calc["standardFunction"]
+    x_transform = standard["xTransform"]
+    if (content["data"]["handleReplicatesAs"] != "INDIVIDUAL" or calc["transformType"] != "STANDARD"
+            or standard["interchangeXY"] is not False or standard["yTransform"]["enabled"] is not False
+            or x_transform["enabled"] is not True
+            or x_transform != {"enabled": True, "function": "LOG10(X)", "k": "undefined"}
+            or frame.attrs["prism_y_format"] not in {"y_replicates", "y_single"}):
+        return None
+    x = _column(frame, {"uid": frame.attrs["prism_x"]}, wrapped=False)
+    if is_numeric_dtype(frame[x]):
+        return "Transform concentrations (X)", {"X": x, "Logarithm": "Log10"}
+    return None
+
+
 def _select_transform(frame, content, _results):
+    from .data import MAX_CELLS
     from .prism_import import _formula_recipe, _letters
-    from .select_transform import CALCULATED, COMPARISONS, FILTERS, MAX_RULES, SELECT_TRANSFORM, seeded_transform_options
+    from .select_transform import (CALCULATED, COMPARISONS, FILTERS, MAX_RULES, SELECT_TRANSFORM, _numeric,
+                                   seeded_transform_options)
 
     filters = content["rowFilters"]
-    if filters["range"] != {"from": -1, "to": -1} or filters["variableVariable"] != []:
+    bounds = filters["range"]
+    if not isinstance(bounds, dict) or bounds.keys() != {"from", "to"}:
+        return None
+    first, last = bounds["from"], bounds["to"]
+    if type(first) is not int or type(last) is not int:
+        return None
+    all_rows = first == last == -1
+    if not all_rows and not 1 <= first <= last <= MAX_CELLS:
         return None
     variables = [_column(frame, {"uid": uid}, wrapped=False) for uid in frame.attrs["prism_y"]]
     letters = {_letters(index): name for index, name in enumerate(variables)}
     conditions = []
-    value_filters = filters["variableValue"]
-    if not isinstance(value_filters, list) or len(value_filters) > MAX_RULES:
+    value_filters, column_filters = filters["variableValue"], filters["variableVariable"]
+    if (not isinstance(value_filters, list) or not isinstance(column_filters, list)
+            or len(value_filters) + len(column_filters) > MAX_RULES):
         return None
     for item in value_filters:
-        index, op, value = item["variableIdx"], item["logic"], item["value"]
-        if (set(item) != {"variableIdx", "logic", "value"} or type(index) is not int
-                or not 0 <= index < len(variables) or op not in COMPARISONS
+        index, op = item["variableIdx"], item["logic"]
+        if type(index) is not int or not 0 <= index < len(variables):
+            return None
+        column = variables[index]
+        if op == "is_not_missing":
+            if set(item) - {"variableIdx", "logic", "value"}:
+                return None
+            conditions.append({"column": column, "operator": "Is not missing", "target": "Number", "value": ""})
+            continue
+        value = item["value"]
+        op = "!=" if op == "<>" else op
+        if (set(item) != {"variableIdx", "logic", "value"} or op not in COMPARISONS
                 or type(value) not in {int, float} or not np.isfinite(value)):
             return None
-        conditions.append({"column": variables[index], "operator": op, "target": "Number", "value": str(value)})
+        conditions.append({"column": column, "operator": op, "target": "Number", "value": str(value)})
+    for item in column_filters:
+        left, right, op = item["variable1Idx"], item["variable2Idx"], item["logic"]
+        op = "!=" if op == "<>" else op
+        if (set(item) != {"variable1Idx", "variable2Idx", "logic"} or op not in COMPARISONS
+                or any(type(index) is not int or not 0 <= index < len(variables) for index in (left, right))):
+            return None
+        left, right = variables[left], variables[right]
+        if not (_numeric(frame[left]) and _numeric(frame[right])):
+            return None
+        conditions.append({"column": left, "operator": op, "target": "Column", "value": right})
 
     transforms = content["transforms"]
     if not isinstance(transforms, list) or len(transforms) > len(variables) + MAX_RULES:
@@ -398,6 +443,9 @@ def _select_transform(frame, content, _results):
     if not columns and not calculated:
         return None
     options = {"Variables": columns, FILTERS: conditions, CALCULATED: calculated}
+    if not all_rows:
+        # The saved endpoints are one-based and inclusive, as in the native editor.
+        options.update({"First row": first, "Last row": last})
     seeded = seeded_transform_options(options)
     if seeded is not options:
         seeded["Prism import notes"] = ("The live transform uses a new reproducible random sample. "
@@ -598,6 +646,7 @@ _RECIPES = {
     "EXTRACT_REARRANGE": ("0.0.1", _extract_rearrange),
     "TWO_WAY_ANOVA": ("0.0.1", _grouped_anova),
     "SELECT_TRANSFORM": ("0.0.2", _select_transform),
+    "TRNSFORM": ("0.0.0", _xy_log_transform),
     "HIERARCHICAL_CLUSTERING": ("0.0.0", _hierarchical),
     "MULTI_FACTOR_ANOVA": ("0.0.0", _factorial),
     "T_TESTS_AND_NONPARAMETRIC": ("0.0.1", _paired_t),
@@ -620,7 +669,11 @@ def restore_recipe(sheet, parameters, sources, results=None):
         regular = frame.attrs.get("table_format") == "multivariable"
         cached = kind == "PCA" and frame.attrs.get("prism_snapshot_source_format") == "multivariable"
         grouped = kind == "TWO_WAY_ANOVA" and frame.attrs.get("prism_snapshot_source_format") == "grouped"
-        if not (regular or cached or grouped):
+        if kind == "TRNSFORM":
+            selected = [dataset["uid"] for dataset in sheet["inputDataSets"]]
+            if frame.attrs.get("table_format") != "xy" or selected != frame.attrs["prism_y"] or not selected:
+                return None
+        elif not (regular or cached or grouped):
             return None
         recipe = convert(frame, parameters["content"], results)
     except (KeyError, TypeError, ValueError, AttributeError):

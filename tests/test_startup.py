@@ -64,9 +64,10 @@ class StartupWindowTests(TkCase):
             entered.set()
             if not release.wait(5): raise TimeoutError('Startup animation did not run')
             return SimpleNamespace(main=main)
-        def main(*, root, on_ready):
+        def main(*, root, on_ready, standard_only):
             observations['main_thread'] = threading.current_thread()
             observations['same_root'] = created[0].master is root
+            self.assertTrue(standard_only)
             self.assertTrue(created[0].winfo_exists())
             root.deiconify(); root.update_idletasks(); on_ready()
             self.assertFalse(created[0].winfo_exists())

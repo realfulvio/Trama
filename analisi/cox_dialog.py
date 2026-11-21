@@ -2,32 +2,13 @@
 import tkinter as tk
 from tkinter import ttk
 
-import pandas as pd
-
-from .cox_outputs import LABEL, MAX_PROFILES, VALUES, _missing, _number
+from .cox_fit_diagnostics import COX_SNELL, SCALED, X_AXIS
+from .cox_outputs import LABEL, MAX_PROFILES, VALUES, _number, categories_of, cox_message, model_terms
 from .i18n import tr
 
 TABS = {"Predicted survival": ("Predict survival", "Profiles"),
-        "Diagnostics": ("Cox diagnostics", "Schoenfeld residuals", "Graph display", "Schoenfeld term")}
-
-
-def categories_of(data, name):
-    """The category labels a fit would code for this column, before complete-case selection."""
-    if name not in data:
-        return []
-    values = data[name][[not _missing(value) for value in data[name]]]
-    return sorted(pd.unique(values.astype(str)).tolist())
-
-
-def model_terms(data, predictors, categories):
-    """Coefficient names in the order of the fit: one per continuous predictor, one per non-reference level."""
-    terms = []
-    for name in predictors:
-        if name in categories:
-            terms.extend(f"{name} [{level}]" for level in categories_of(data, name)[1:])
-        else:
-            terms.append(name)
-    return terms
+        "Diagnostics": ("Cox diagnostics", "Schoenfeld residuals", SCALED, COX_SNELL, "Graph display",
+                        "Schoenfeld term", X_AXIS)}
 
 
 def _shown(value):

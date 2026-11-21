@@ -30,6 +30,8 @@ L’[editor delle legende](graph-legends.md) modifica titolo, colonne, cornice e
 
 ## Confronti e inferenza
 
+Il [test di permutazione per la differenza tra medie](mean-permutation-test.md) supporta campioni indipendenti e appaiati, enumerazione esatta e Monte Carlo riproducibile. Il [kappa di Cohen](cohen-kappa.md) misura la concordanza tra due valutatori con pesi lineari, quadratici o senza pesi, intervallo bootstrap e matrice di concordanza esportabile.
+
 Test t indipendenti, appaiati e di Welch; test t lognormali per dati positivi, con rapporto fra medie geometriche e intervallo di confidenza ([guida](lognormal-tests-070.md)); test di equivalenza TOST per uno o due campioni, appaiati, Student e Welch, con zona di equivalenza dichiarata dall'utente ([guida](equivalence-tost-071.md)); test di rango; ANOVA ordinaria, di Welch e Brown–Forsythe; misure ripetute, Friedman, Kruskal–Wallis e ANOVA multifattoriale. Confronti multipli e correzioni, comprese coppie selezionate e controlli del tasso di false scoperte nei flussi supportati.
 
 I test esatti hanno limiti di calcolo dichiarati; quando è prevista una scelta automatica il risultato indica il metodo usato e l'eventuale motivo dell'approssimazione. I modelli misti REML gestiscono dati mancanti e offrono correzioni Satterthwaite e Kenward–Roger nei disegni supportati.
@@ -38,9 +40,14 @@ Sono disponibili normalità e Q–Q, screening di outlier ROUT su modello costan
 
 Il [test binomiale esatto](exact-binomial.md) confronta due conteggi osservati con una proporzione attesa e riporta i valori p e l’intervallo di Clopper–Pearson.
 
+### Potenza e numerosità da medie e SD
+
+**Analizza → Potenza e numerosità…** pianifica uno studio con t a un campione, t appaiato, t indipendente (con allocazione esatta A:B) o ANOVA a una via bilanciata, partendo dalle medie e dalle SD attese oppure da un effetto standardizzato. Cerca la numerosità minima o calcola la potenza e può disegnare la curva di potenza come grafico nativo. [Conversione, allocazione e assunzioni](power-from-summary.md).
+
 ## Regressioni, curve e calibrazione
 
 - Regressione lineare, confronto fra rette, Deming, regressioni multiple OLS (anche pesate con pesi fissi gaussiani: 1/|Y|, 1/Y², 1/|Y|^K, 1/SD² o colonna di pesi), logistiche e Poisson con esposizione e diagnostica. [Validazione fuori campione del modello logistico binario](logistic-validation.md): validazione incrociata a K fold stratificata o con colonna di fold, Brier, log loss, AUC ROC, precisione media, matrice di confusione e calibrazione per classi. [Regressione binomiale negativa (NB2)](nb2-regression.md) per conteggi sovradispersi: esposizione, predittori categorici, α stimata per massima verosimiglianza o fissa, IRR con intervalli di Wald e residui di Pearson.
+- [Regressione logistica ordinale](ordinal-logit.md) a odds proporzionali con ordine esplicito, soglie e probabilità stimate per profilo.
 - 118 equazioni a catalogo in 14 famiglie; pesi osservati e IRLS dove supportati, vincoli, diagnostica e bande puntuali.
 - [Intervalli dei parametri nei fit non lineari](nonlinear-parameter-intervals.md): Wald a livello configurabile e profili extra-SS asimmetrici nei fit indipendenti, inclusi i pesi osservati e quelli finali congelati IRLS, con stati per ciascun estremo e annullamento.
 - [Profili dei parametri per equazioni personalizzate](custom-parameter-profiles.md), con coefficienti fissi, vincoli, SD relative, stati per ogni estremo e annullamento.
@@ -55,13 +62,15 @@ L'identificabilità, il dominio del modello, i vincoli attivi e il metodo di pes
 
 ## Sopravvivenza ed esplorazione multivariata
 
-Kaplan–Meier, tabelle a rischio, confronti log-rank e Gehan–Breslow–Wilcoxon, Cox con profili e residui. Il [Cox condizionale esatto](cox-exact-ties.md) gestisce i pari tempo e riporta coefficienti e modello, fino a 2.000 righe e 8 colonne del modello. L’[analisi dei rischi competitivi](competing-risks.md) include incidenza cumulativa di Aalen–Johansen, intervalli puntuali, stime a tempi scelti, test di Gray omnibus e a coppie con Holm e grafici per una o tutte le cause. Sono disponibili curve ROC, DeLong appaiato e [confronti ROC indipendenti](independent-roc-curves.md) con area completa, parziale e parziale standardizzata. Bland–Altman include i rapporti geometrici e la variante [per coppie ripetute](bland-altman-repeated.md), con varianza entro e tra soggetti e bootstrap per soggetti.
+Kaplan–Meier, tabelle a rischio, confronti log-rank e Gehan–Breslow–Wilcoxon, Cox con profili e residui, compresi [Schoenfeld scalati e Cox–Snell](cox-fit-diagnostics.md). Il [Cox condizionale esatto](cox-exact-ties.md) gestisce i pari tempo e riporta coefficienti e modello, fino a 2.000 righe e 8 colonne del modello. L’[analisi dei rischi competitivi](competing-risks.md) include incidenza cumulativa di Aalen–Johansen, intervalli puntuali, stime a tempi scelti, test di Gray omnibus e a coppie con Holm e grafici per una o tutte le cause. [Regressione Weibull AFT](weibull-aft.md) con censura a destra, forma stimata o fissa, rapporti dei tempi, mediane e curve di sopravvivenza per profilo. [Sopravvivenza media ristretta (RMST)](restricted-mean-survival.md) con confronto di due gruppi a un orizzonte comune, differenza e rapporto tra le aree sotto le curve Kaplan–Meier. Sono disponibili curve ROC, DeLong appaiato e [confronti ROC indipendenti](independent-roc-curves.md) con area completa, parziale e parziale standardizzata. Bland–Altman include i rapporti geometrici e la variante [per coppie ripetute](bland-altman-repeated.md), con varianza entro e tra soggetti e bootstrap per soggetti.
 
 PCA con scree, scores, loadings e biplot, [colori per gruppo, contorni e report facoltativi](pca-reports.md); [regressione sulle componenti principali](pca-regression-087.md) e ripristino di [ricette PCA compatibili](compatibility.md); [K-means con Lloyd, Hartigan–Wong e MacQueen](kmeans-algorithms.md), con selezione del numero di gruppi e consenso a 17 indici; [stabilità K-means per ricampionamento e semi](kmeans-stability.md), con ARI, Jaccard per gruppo, accordo per osservazione e matrice di co-assegnazione; clustering gerarchico, dendrogrammi, heat map, matrici di correlazione ed [ellissi di confidenza con stili per gruppo](confidence-ellipses.md). Correlazione di Pearson, Spearman o Kendall con risultati dettagliati opzionali; correlazione di più risposte contro un controllo; confronto di due correlazioni di Pearson indipendenti sulla scala z di Fisher ([guida](correlation-details.md)). [Correlazione a misure ripetute](repeated-measures-correlation.md) entro soggetto, con intercette per soggetto, pendenza comune e bootstrap facoltativo per soggetti interi.
 
 Per ogni k calcolato consulta assegnazioni, centri e metriche e affianca WSS, Silhouette e Gap nel grafico. Una PCA collegata alla tabella delle assegnazioni si aggiorna dopo una modifica della sorgente.
 
 La [meta-analisi](meta-analysis.md) combina differenze o rapporti degli studi con i loro errori standard. Riporta un forest plot modificabile, l’eterogeneità e, su richiesta, l’analisi escludendo uno studio alla volta.
+La [silhouette dei cluster](cluster-silhouette-092.md) valuta una partizione già assegnata e riporta risultati per osservazione e per gruppo.
+
 
 Nel consenso K-means, **Scala di Krzanowski–Lai** usa di default la correzione per il numero di variabili. **WSS senza riscalatura** usa il rapporto assoluto fra due cali consecutivi della somma dei quadrati entro i gruppi. Il foglio dei risultati lo identifica come **WSS-drop ratio** e il rapporto occupa un solo voto nel consenso.
 
@@ -74,6 +83,8 @@ Nel consenso K-means, **Scala di Krzanowski–Lai** usa di default la correzione
 Trasformazioni, normalizzazione, baseline anche con repliche, frazioni del totale, potatura di righe, scambio XY, frequenze, area sotto la curva e picchi. Studi Monte Carlo con seed riproducibile, avanzamento e annullamento.
 
 ## Grafici e figure
+
+Le [serie XY miste](xy-mixed-series.md) combinano punti, linee, gradini e barre raggruppate sui due assi Y. Formato grafico controlla la larghezza in unità X e l’Ispettore permette di cambiare colore, etichetta e visibilità delle serie supportate. Barre e gradini restano vettoriali nelle esportazioni.
 
 Grafici XY con più serie e due assi Y, barre d'errore anche asimmetriche, Column e Grouped, pile e pile al 100%, punti individuali, box e violini (anche raggruppati per categoria e serie), prima/dopo e traiettorie, forest plot, bubble plot e grafici di composizione.
 

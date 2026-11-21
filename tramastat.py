@@ -8,7 +8,7 @@ if __name__ == "__main__":
     multiprocessing.freeze_support()
 
 if __name__ == "__main__" and "--smoke" not in sys.argv[1:]:
-    # Qt is the interface from 0.95; --tk (or a missing PySide6) opens the classic Tk window.
+    # Qt is the main interface. --tk (or a missing PySide6) opens the Standard Tk window.
     from trama_qt import qt_available
     if "--tk" not in sys.argv[1:] and qt_available():
         from trama_qt.app import main as qt_main
@@ -127,6 +127,15 @@ from analisi.meta_analysis import (CHOICE_KEYS as META_CHOICE_KEYS, DATA_FIELDS 
                                    check_options as check_meta_options)
 from analisi import meta_analysis_dialog
 from analisi.meta_analysis_dialog import describe_error as describe_meta_error, translate_error as translate_meta_error
+from analisi.paired_proportions import (CHOICE_KEYS as PAIRED_CHOICE_KEYS, DATA_FIELDS as PAIRED_DATA_FIELDS,
+                                        DEFAULT_CODES as PAIRED_DEFAULT_CODES, ERROR_PREFIX as PAIRED_ERROR_PREFIX,
+                                        FORMAT as PAIRED_FORMAT, GRAPH as PAIRED_GRAPH,
+                                        LABEL_KEYS as PAIRED_LABEL_KEYS, PAIRED_PROPORTIONS,
+                                        TAB_KEYS as PAIRED_TAB_KEYS, defaults as paired_defaults,
+                                        visibility as paired_visibility)
+from analisi.tolerance_intervals import (CHOICE_KEYS as TOLERANCE_CHOICE_KEYS, ERROR_PREFIX as TOLERANCE_ERROR_PREFIX,
+                                         HINT_KEY as TOLERANCE_HINT, LABEL_KEYS as TOLERANCE_LABEL_KEYS,
+                                         SHOW_GRAPH as TOLERANCE_SHOW_GRAPH, TAB_KEYS as TOLERANCE_TAB_KEYS, TOLERANCE)
 from analisi.reference_normalization import (INPUT_FIELDS as REFERENCE_INPUT_FIELDS, METHOD as REFERENCE_NORMALIZATION,
                                              OUTPUT_FIELDS as REFERENCE_OUTPUT_FIELDS,
                                              REFERENCE_FIELDS as REFERENCE_REFERENCE_FIELDS,
@@ -153,8 +162,8 @@ from analisi.linear_estimates import (FORWARD as LINEAR_Y_CI, INVERSE as LINEAR_
 from analisi.xy_errors import (ERROR_COLOR as XY_ERROR_COLOR, XY_ERRORS, XY_ERROR_CHOICE_KEYS,
                                XY_ERROR_LABEL_KEYS, XY_ERROR_TABS, XY_ERROR_TAB_KEYS,
                                prune_xy_error_options, xy_error_visibility)
-from analisi.xy_series import (XY_METHOD, assign_colors, check_xy_options, prune_options,
-                               style_after_parameter_change as xy_style, xy_series)
+from analisi.xy_series import (RECIPE_KEYS as XY_RECIPE_KEYS, XY_METHOD, assign_colors, check_xy_options,
+                               prune_options, style_after_parameter_change as xy_style, xy_series)
 from analisi.parameter_dialog import GlobalParameters, SeriesConstraints
 from analisi.exact_binomial import EXACT as EXACT_BINOMIAL, LEVEL_FIELD as BINOMIAL_LEVEL
 from analisi.parts_of_whole import (APPLY_SEGMENT_STYLES, BORDER_COLOR, BORDER_WIDTH, CLOCKWISE, DONUT, DOTS,
@@ -188,7 +197,7 @@ from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLEC
                                    SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY,
                                    panel_source_style, resolve_layout_panel_graphs)
 from analisi.prism_zip_layout import ZIP_LAYOUT
-from analisi.repeated_input import curve_series_labels
+from analisi.repeated_input import SAVED_REPLICATE_DISPLAY, curve_series_labels
 from analisi.repeated_workbench import INPUT_FIELDS, check_global_weighting
 from analisi.roc import threshold_text
 from analisi.rank_tests import (CHOICE_KEYS as RANK_CHOICE_KEYS, CONTINUITY as RANK_CONTINUITY, EXACT as RANK_EXACT,
@@ -204,6 +213,13 @@ from analisi.nonlinear_calibration import (DIRECTION as CALIBRATION_DIRECTION, D
 from analisi.normality import (NORMALITY, QQ_PLOT, QQ_VARIABLE, check_options as check_normality_options,
                                visibility as normality_visibility)
 from analisi.summary_ttest import METHOD as SUMMARY_TTEST, check_options as check_summary_ttest
+from analisi import mean_permutation_dialog
+from analisi.mean_permutation import (DATA_FIELDS as PERMUTATION_DATA_FIELDS, METHOD as MEAN_PERMUTATION,
+                                      SEED as PERMUTATION_SEED, TAB_KEYS as PERMUTATION_TAB_KEYS,
+                                      cancellable as permutation_cancellable,
+                                      check_options as check_permutation_options)
+from analisi.mean_permutation_dialog import (describe_error as describe_permutation_error,
+                                             translate_error as translate_permutation_error)
 from analisi.summary_anova import (JOINT as SUMMARY_JOINT, METHOD as SUMMARY_ANOVA,
                                    NOTE as SUMMARY_ANOVA_NOTE, ORDINARY as SUMMARY_ORDINARY,
                                    ORDINARY_POSTHOC as SUMMARY_ORDINARY_POSTHOC,
@@ -212,6 +228,10 @@ from analisi.summary_anova import (JOINT as SUMMARY_JOINT, METHOD as SUMMARY_ANO
                                    visibility as summary_anova_visibility)
 from analisi.outlier_screening import (METHOD as OUTLIER_METHOD, OUTLIERS,
                                        visibility as outlier_visibility)
+from analisi.cluster_silhouette import (METHOD as CLUSTER_SILHOUETTE,
+                                        check_options as check_silhouette_options,
+                                        default_options as silhouette_defaults,
+                                        requested_graph as silhouette_graph)
 from analisi.spline_fit import (DIRECTION as SPLINE_DIRECTION, METHOD as SPLINE_METHOD, METHOD_NOTE as SPLINE_NOTE,
                                 SPLINE_FIT, TABS as SPLINE_TABS, visibility as spline_visibility)
 from analisi.independent_roc import (AREA as IROC_AREA, DIRECTION_A as IROC_DIRECTION_A,
@@ -267,6 +287,33 @@ from analisi.rmcorr import (GRAPH as RMCORR_GRAPH, INTERVAL as RMCORR_INTERVAL, 
                             prepare as check_rmcorr_options, visibility as rmcorr_visibility)
 from analisi.rmcorr_dialog import NOTE_BOOTSTRAP as RMCORR_NOTE_BOOTSTRAP, NOTE_MODEL as RMCORR_NOTE_MODEL
 from analisi.rmcorr_dialog import describe_error as describe_rmcorr_error
+from analisi.weibull_aft import (CATEGORICAL as WEIBULL_CATEGORICAL, NAME as WEIBULL_NAME, PREDICTORS as WEIBULL_PREDICTORS,
+                                 PROFILES as WEIBULL_PROFILES, SHAPE_MODE as WEIBULL_SHAPE_MODE,
+                                 SHOW_GRAPH as WEIBULL_SHOW_GRAPH)
+from analisi.weibull_aft_workbench import (
+    CHOICE_KEYS as WEIBULL_CHOICE_KEYS, DATA_FIELDS as WEIBULL_DATA, DEFAULTS as WEIBULL_DEFAULTS,
+    HINT_KEYS as WEIBULL_HINTS, LABEL_KEYS as WEIBULL_LABEL_KEYS, MODEL_FIELDS as WEIBULL_MODEL,
+    PREDICT_FIELDS as WEIBULL_PREDICT, TAB_KEYS as WEIBULL_TAB_KEYS, TIME_LIST as WEIBULL_TIME_LIST, WEIBULL_AFT,
+    check_options as check_weibull_options, visibility as weibull_visibility)
+from analisi.weibull_aft_dialog import (TimesEditor as WeibullTimesEditor, describe_error as describe_weibull_error,
+                                        translate_error as translate_weibull_error)
+from analisi.ordinal_logit import (
+    CATEGORY_ORDER as ORDINAL_ORDER_KIND, GRAPH as ORDINAL_GRAPH, NAME as ORDINAL_NAME, ORDER as ORDINAL_ORDER,
+    ORDINAL_LOGIT, PROFILE_FIELDS as ORDINAL_PROFILE_FIELDS, PROFILE_TAB as ORDINAL_PROFILE_TAB,
+    PROFILES as ORDINAL_PROFILES, VALUES as ORDINAL_VALUES, check_options as check_ordinal_options)
+from analisi.ordinal_logit_dialog import (OrderEditor, describe_error as describe_ordinal_error, read_observed,
+                                          translate_error as translate_ordinal_error)
+from analisi.rmst import (CENSOR_CODE as RMST_CENSOR, EVENT_CODE as RMST_EVENT, GROUP as RMST_GROUP,
+                          HORIZON as RMST_HORIZON, REFERENCE as RMST_REFERENCE, SHOW_GRAPH as RMST_SHOW_GRAPH,
+                          STATUS as RMST_STATUS, TIME as RMST_TIME, group_levels as rmst_group_levels,
+                          horizon_limit as rmst_horizon_limit)
+from analisi.rmst_workbench import (
+    DATA_FIELDS as RMST_DATA, DEFAULTS as RMST_DEFAULTS, ESTIMATE_FIELDS as RMST_ESTIMATES, HINT_KEYS as RMST_HINTS,
+    LABEL_KEYS as RMST_LABEL_KEYS, NUMBER_FIELDS as RMST_NUMBER_FIELDS, RMST, TAB_KEYS as RMST_TAB_KEYS,
+    check_options as check_rmst_options, visibility as rmst_visibility)
+from analisi.rmst_dialog import (describe_error as describe_rmst_error, limit_hint as rmst_limit_hint,
+                                 read_number as read_rmst_number, shown_number as rmst_shown_number,
+                                 translate_error as translate_rmst_error)
 from analisi.global_custom_dialog import (GlobalCoefficientTable, SeriesConstraintEditor,
                                           translate_error as translate_global_error)
 from analisi.global_custom_fit import (EXAMPLE_PARAMETERS as GLOBAL_EXAMPLE, GLOBAL_CUSTOM_EQUATION,
@@ -278,15 +325,25 @@ from analisi.global_uncertainty import (BAND_DRAWING as GLOBAL_DRAWING, CURVE_BA
                                         QUERY_GROUP as GLOBAL_QUERY_GROUP, QUERY_INTERVAL as GLOBAL_QUERY_INTERVAL,
                                         QUERY_K as GLOBAL_QUERY_K, QUERY_X as GLOBAL_QUERY_X,
                                         RESPONSE_LEVEL as GLOBAL_RESPONSE_LEVEL)
+from analisi.cohen_kappa import ORDER as KAPPA_ORDER, SHOW_GRAPH as KAPPA_SHOW_GRAPH, WEIGHTING as KAPPA_WEIGHTING
+from analisi.cohen_kappa_workbench import (
+    CHOICE_KEYS as KAPPA_CHOICE_KEYS, COHEN_KAPPA, HINT_KEYS as KAPPA_HINTS, INTERVAL_FIELDS as KAPPA_INTERVAL_FIELDS,
+    LABEL_KEYS as KAPPA_LABEL_KEYS, ORDER_LIST as KAPPA_ORDER_LIST, RATING_FIELDS as KAPPA_RATING_FIELDS,
+    TAB_KEYS as KAPPA_TAB_KEYS, TYPED_FIELDS as KAPPA_TYPED_FIELDS, cancellable as kappa_cancellable,
+    check_options as check_kappa_options, visibility as kappa_visibility)
+from analisi.cohen_kappa_dialog import (CategoryOrderEditor, defaults as kappa_defaults,
+                                        describe_error as describe_kappa_error, preview as kappa_preview,
+                                        read_typed as read_kappa_typed, translate_error as translate_kappa_error)
 from analisi.select_transform import CALCULATED, FILTERS, SELECT_TRANSFORM
 from analisi.select_transform_dialog import CalculatedVariables, RowFilters
 from analisi.transpose_dialog import TransposeSets
 from analisi.reshape_long_wide import METHOD as RESHAPE_LONG_WIDE
+from analisi.worksheet_join import METHOD as WORKSHEET_JOIN
 from analisi.transpose_xy import (ROW_TITLE as TRANSPOSE_TITLE, SETS_LIST, TRANSPOSE_XY, X as TRANSPOSE_X,
                                   Y_SETS as SETS_LIST_LABEL,
                                   propose_sets, proposed_x)
 from analisi.survival_input import CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_DEFAULTS
-from analisi.cox_dialog import TABS as COX_TABS, ProfileEditor, model_terms
+from analisi.cox_dialog import TABS as COX_TABS, ProfileEditor, cox_message, model_terms
 from analisi import deming_dialog
 from analisi.ols_diagnostics import (LINEAR_CI, LINEAR_DIAGNOSTICS, LINEAR_PROFILES, LINEAR_RESIDUAL_PLOT,
                                      TABS as OLS_TABS, check_weighted_profiles)
@@ -316,8 +373,11 @@ from analisi.pca_retention import (CHOICE_KEYS as PCA_CHOICE_KEYS, LABEL_KEYS as
                                   visible_fields as pca_visible_fields)
 from analisi.cox_exact import (EXACT as COX_EXACT, TIES as COX_TIES, check_outputs as check_cox_exact_outputs,
                                is_exact as cox_is_exact, translate_error as translate_cox_exact_error)
+from analisi.cox_fit_diagnostics import COX_SNELL, SCALED as COX_SCALED
 from analisi.cox_outputs import (METHOD as COX, GRAPH as COX_GRAPH, GRAPH_TERM as COX_TERM, PREDICT as COX_PREDICT, PROFILE_LIST,
-                                 PROFILES as COX_PROFILES, STATUS_DEFAULTS as COX_STATUS, cox_visibility)
+                                 DIAGNOSTICS as COX_DIAGNOSTICS, FIT_DIAGNOSTICS as COX_FIT_DIAGNOSTICS,
+                                 PROFILES as COX_PROFILES, SCHOENFELD as COX_SCHOENFELD,
+                                 STATUS_DEFAULTS as COX_STATUS, cox_visibility)
 from analisi.survival_plot import CURVE as SURVIVAL_CURVE, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.table_setup import NewTableDialog, TEMPLATES, XY_FORMATS, TableSetup, table_frame
@@ -333,6 +393,13 @@ from analisi.trend_anova import ORDER as TREND_ORDER, ORDER_KIND as TREND_ORDER_
 from analisi.fit_quality import (REPLICATES as FIT_REPLICATES, RESIDUAL_VIEW as FIT_RESIDUALS,
                                  RUNS as FIT_RUNS, check_options as check_fit_quality_options)
 from analisi.field_error import FieldError
+from analisi.power_plan import (ALLOCATION as POWER_ALLOCATION, DESIGN as POWER_DESIGN, EFFECT_INPUT as POWER_EFFECT_INPUT,
+                                GOAL as POWER_GOAL, GROUP_MEANS as POWER_GROUP_MEANS, METHOD as POWER_METHOD,
+                                NUMBER_FIELDS as POWER_NUMBER_FIELDS, PAIRED_SD_INPUT as POWER_PAIRED_SD_INPUT,
+                                SHOW_CURVE as POWER_SHOW_CURVE, TABS as POWER_TABS, TEXT_DEFAULTS as POWER_TEXT_DEFAULTS,
+                                check_options as check_power_options, normalized_options as power_options,
+                                visibility as power_visibility)
+from analisi.power_plan_dialog import MultilineEntry
 from analisi import kmeans_options, kmeans_reports
 from analisi import lognormal_anova
 from analisi.unequal_anova import check_one_way_options, one_way_visibility
@@ -355,7 +422,8 @@ FIT_HEADINGS = {
     FIT_REPLICATES: "analysis.fit.heading.replicates",
     FIT_RESIDUALS: "analysis.fit.heading.residuals",
 }
-from analisi.spearman_exact_budget import FIELD as SPEARMAN_BUDGET, STANDARD as SPEARMAN_STANDARD, extended_request
+from analisi.spearman_exact_budget import (FIELD as SPEARMAN_BUDGET, STANDARD as SPEARMAN_STANDARD,
+                                           extended_request as spearman_extended_request)
 from analisi.correlation_details import (COMPARE_INDEPENDENT, CORRELATE_CONTROL, CORRELATION_METHODS,
                                          validate_request as validate_correlation_request)
 from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED,
@@ -387,6 +455,13 @@ from analisi.processing import (BASELINES, COMBINED_TOTALS, DENOMINATORS, FieldE
 
 ASSETS = Path(__file__).resolve().parent / "assets"
 PRISM_GRAPH_METHODS = {SAVED_XY, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}
+
+
+def extended_request(method, options):
+    """Calculations that run on the worker with a cancel control: extended Spearman and the silhouettes."""
+    return method == CLUSTER_SILHOUETTE or spearman_extended_request(method, options)
+
+
 RUN_VIEWS = {"result", "graph", "saved-layout"}
 CATEGORY_GRAPHS = {COLUMN_GRAPH, GROUPED_GRAPH}
 # Dialogs that explain the chosen Weighting denominator under the field.
@@ -411,6 +486,13 @@ def translate_mlr_error(text):
     return text
 
 
+def translate_power_error(error):
+    """A Power and sample size message in the active language; field names become captions, numbers Italian."""
+    thousands = lambda value: value.replace(",", ".")
+    return translate_message(str(error), "power.error.", {"field": ui, "low": thousands, "high": thousands,
+                                                          "limit": thousands, "count": thousands})
+
+
 def translate_equivalence_error(error):
     """An Equivalence test message in the active language; its field names become the dialog captions."""
     return translate_message(str(error), TOST_ERROR_PREFIX, {"field": lambda name: tr(TOST_LABEL_KEYS.get(name, name))})
@@ -425,6 +507,17 @@ def translate_grouped_error(error):
     """A Grouped distribution plot message in the active language; field names become the dialog captions."""
     known = {name.casefold(): name for name in METHODS[GROUPED_DISTRIBUTIONS]}
     return translate_message(str(error), "grouped.error.", {"field": lambda name: ui(known.get(name.casefold(), name))})
+
+
+def translate_paired_error(error):
+    """A Paired proportions message in the active language; its field names become the dialog captions."""
+    return translate_message(str(error), PAIRED_ERROR_PREFIX, {"field": lambda name: tr(PAIRED_LABEL_KEYS.get(name, name))})
+
+def translate_tolerance_error(error):
+    """A Tolerance intervals message in the active language; field names become the dialog captions and worksheet
+    names stay literal."""
+    return translate_message(str(error), TOLERANCE_ERROR_PREFIX,
+                             {"field": lambda name: tr(TOLERANCE_LABEL_KEYS.get(name, name))})
 
 
 def translate_correlation_error(error):
@@ -1043,6 +1136,7 @@ class AnalysisDialog(simpledialog.Dialog):
         for group, methods in GROUPS.items():
             matches = [name for name in methods if (not self.only or name in self.only)
                        and name != RESHAPE_LONG_WIDE  # edited only in the Qt window (trama_qt.reshape_long_wide)
+                       and name != WORKSHEET_JOIN  # edited only in the Qt window (trama_qt.worksheet_join)
                        and (name != HIERARCHY_GRAPH or name == self.method or hierarchy_view_available(self.data))
                        and any(search in caption.casefold() for caption in (name, group, ui(name), ui(group)))]
             if not matches:
@@ -1106,10 +1200,14 @@ class AnalysisDialog(simpledialog.Dialog):
         wanted = (430 if self.method == GLOBAL_CUSTOM_EQUATION
                   else 470 if self.method == "Multiple regression"
                   else 500 if self.method == "One-way ANOVA"
+                  else 500 if self.method == COHEN_KAPPA
                   else 470 if self.method == HEAT_MAP
                   else 470 if self.method == NORMALITY
                   else 470 if self.method == REFERENCE_NORMALIZATION
                   else 400 if self.method in {COMPETING_RISKS, curve_pipeline.CURVE_METHOD}
+                  else 420 if self.method == WEIBULL_AFT
+                  else 470 if self.method == ORDINAL_LOGIT
+                  else 390 if self.method == RMST
                   else 440 if self.method in {"Nonlinear regression", ROBUST_CURVE} else 352)
         # Keep the title bar, the heading, an error banner and the buttons on the screen of a 1024x768 monitor.
         room = max(240, self.winfo_screenheight() - ui_theme.px(230))
@@ -1196,6 +1294,9 @@ class AnalysisDialog(simpledialog.Dialog):
             tabs = {"Multiplicity": ("Correction", "Family alpha", "False discovery rate (%)")}
             if not saved:
                 saved = row_test_defaults(self.data)
+        elif self.method == CLUSTER_SILHOUETTE:
+            if not saved:
+                saved = silhouette_defaults(self.data)
         elif self.method in NESTED_METHODS:
             self.fields.tab(variables, text=ui("Subcolumns"))
             self.fields.tab(options, text=ui("Model and inference"))
@@ -1218,6 +1319,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 forest_rows, forest_labels = guess_role_rows(self.data, saved), forest_row_choices(self.data, saved)
             except ValueError:
                 forest_rows, forest_labels = guess_role_rows(self.data, {}), forest_row_choices(self.data, {})
+        elif self.method == MEAN_PERMUTATION:
+            self.fields.tab(variables, text=tr(PERMUTATION_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(PERMUTATION_TAB_KEYS["Test"]))
+            fields_by_tab.update(dict.fromkeys(PERMUTATION_DATA_FIELDS, variables))
         elif self.method == CONTINGENCY:
             self.fields.tab(variables, text=ui("Table"))
             self.fields.tab(options, text=ui("Test and effects"))
@@ -1239,6 +1344,12 @@ class AnalysisDialog(simpledialog.Dialog):
             # The four samples and their directions on the first page; the area and the inference on the second.
             self.fields.tab(options, text=ui("Area and inference"))
             fields_by_tab.update(dict.fromkeys((IROC_DIRECTION_A, IROC_DIRECTION_B), variables))
+        elif self.method == POWER_METHOD:
+            # Design and goal on the first page, the expected effect on the second, the curve on a third.
+            self.fields.tab(variables, text=ui("Design"))
+            self.fields.tab(options, text=ui("Effect"))
+            fields_by_tab.update(dict.fromkeys(POWER_TABS["Design"], variables))
+            tabs = {"Curve": POWER_TABS["Curve"]}
         elif self.method == EQUIVALENCE:
             self.fields.tab(variables, text=tr(TOST_TAB_KEYS["Data"]))
             self.fields.tab(options, text=tr(TOST_TAB_KEYS["Equivalence zone"]))
@@ -1247,6 +1358,15 @@ class AnalysisDialog(simpledialog.Dialog):
             self.fields.tab(variables, text=tr(META_TAB_KEYS["Studies"]))
             self.fields.tab(options, text=tr(META_TAB_KEYS["Model and output"]))
             fields_by_tab.update(dict.fromkeys(META_DATA_FIELDS, variables))
+        elif self.method == PAIRED_PROPORTIONS:
+            self.fields.tab(variables, text=tr(PAIRED_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(PAIRED_TAB_KEYS["Test and graph"]))
+            fields_by_tab.update(dict.fromkeys(PAIRED_DATA_FIELDS, variables))
+            if not saved:
+                saved = paired_defaults(self.data)
+        elif self.method == TOLERANCE:
+            self.fields.tab(variables, text=tr(TOLERANCE_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(TOLERANCE_TAB_KEYS["Interval"]))
         elif self.method == COMPARE_MODELS:
             self.fields.tab(variables, text=ui("Data"))
             self.fields.tab(options, text=ui("Output"))
@@ -1294,6 +1414,20 @@ class AnalysisDialog(simpledialog.Dialog):
             fields_by_tab.update(dict.fromkeys(XY_ERROR_TABS["X errors"], variables))
             fields_by_tab.update(dict.fromkeys(XY_ERROR_TABS["Y errors"], options))
             tabs = {tr(XY_ERROR_TAB_KEYS["Error appearance"]): XY_ERROR_TABS["Error appearance"]}
+        elif self.method == COHEN_KAPPA:
+            # Ratings (columns, weights, category order) / Interval and graph (bootstrap and figure). The Ratings
+            # page scrolls, so the order editor and its notes never push Run Analysis off a 1024×768 screen.
+            self.fields.forget(variables)
+            variables.destroy()
+            ratings_outer = ttk.Frame(self.fields)
+            self.fields.insert(0, ratings_outer, text=tr(KAPPA_TAB_KEYS["Ratings"]))
+            self.fields.select(ratings_outer)
+            variables = self._make_scrollable_tab(ratings_outer)
+            positions = {variables: 0, options: 0}
+            self.fields.tab(options, text=tr(KAPPA_TAB_KEYS["Interval and graph"]))
+            fields_by_tab.update(dict.fromkeys(KAPPA_RATING_FIELDS, variables))
+            fields_by_tab.update(dict.fromkeys(KAPPA_INTERVAL_FIELDS, options))
+            saved = {**kappa_defaults(self.data), **saved}
         elif self.method == ROBUST_CURVE:
             # Variables (data, model, starting values) / Loss and scale / Output.
             self.fields.tab(variables, text=tr(ROBUST_TAB_KEYS["variables"]))
@@ -1313,6 +1447,23 @@ class AnalysisDialog(simpledialog.Dialog):
             # Variables / Uncertainty / Output: the input choice, the ratio and the SDs stay together.
             self.fields.tab(options, text=ui(deming_dialog.UNCERTAINTY_TAB))
             tabs = deming_dialog.TABS
+        elif self.method == WEIBULL_AFT:
+            # Data (columns, codes, predictors) / Model (shape, level) / Predicted survival (profiles, times, graph).
+            self.fields.tab(variables, text=tr(WEIBULL_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(WEIBULL_TAB_KEYS["Model"]))
+            fields_by_tab.update(dict.fromkeys(WEIBULL_DATA, variables))
+            fields_by_tab.update(dict.fromkeys(WEIBULL_MODEL, options))
+            tabs = {tr(WEIBULL_TAB_KEYS["Predicted survival"]): WEIBULL_PREDICT}
+        elif self.method == ORDINAL_LOGIT:
+            # Variables (columns and the order of the categories) / Options (level) / Profiles (profiles and graph).
+            fields_by_tab[ORDINAL_ORDER] = variables
+            tabs = {ORDINAL_PROFILE_TAB: ORDINAL_PROFILE_FIELDS}
+        elif self.method == RMST:
+            # Data (columns, reference group, horizon) / Codes and estimate (status codes, level, graph).
+            self.fields.tab(variables, text=tr(RMST_TAB_KEYS["Data"]))
+            self.fields.tab(options, text=tr(RMST_TAB_KEYS["Options"]))
+            fields_by_tab.update(dict.fromkeys(RMST_DATA, variables))
+            fields_by_tab.update(dict.fromkeys(RMST_ESTIMATES, options))
         elif self.method == "Nonlinear regression":
             tabs = {tr("parameter_ci.tab"): (*PARAM_CI_OPTIONS, NL_BAND, NL_BAND_LEVEL, NL_BAND_DRAWING)}
         elif self.method == CUSTOM_EQUATION:
@@ -1410,19 +1561,29 @@ class AnalysisDialog(simpledialog.Dialog):
             variance_ratio_control = self.method == VARIANCE_RATIO and label in VARIANCE_RATIO_LABELS
             tost_control = self.method == EQUIVALENCE and label in TOST_LABEL_KEYS
             meta_control = self.method == META_ANALYSIS and label in META_LABEL_KEYS
+            paired_control = self.method == PAIRED_PROPORTIONS and label in PAIRED_LABEL_KEYS
+            tolerance_control = self.method == TOLERANCE and label in TOLERANCE_LABEL_KEYS
             anova_diag_control = self.method == "Multifactor ANOVA" and label in ANOVA_DIAG_LABEL_KEYS
             robust_control = self.method == ROBUST_CURVE and label in ROBUST_LABEL_KEYS
+            kappa_control = self.method == COHEN_KAPPA and label in KAPPA_LABEL_KEYS
             competing_control = self.method == COMPETING_RISKS and label in COMPETING_LABEL_KEYS
             nb2_control = self.method == NB2 and label in NB2_LABEL_KEYS
+            weibull_control = self.method == WEIBULL_AFT and label in WEIBULL_LABEL_KEYS
+            rmst_control = self.method == RMST and label in RMST_LABEL_KEYS
             reference_control = self.method == REFERENCE_NORMALIZATION and label in REFERENCE_LABEL_KEYS
             label_text = (tr(RANK_LABEL_KEYS[label]) if rank_control
                           else tr(ROBUST_LABEL_KEYS[label]) if robust_control
+                          else tr(KAPPA_LABEL_KEYS[label]) if kappa_control
                           else tr(COMPETING_LABEL_KEYS[label]) if competing_control
                           else tr(NB2_LABEL_KEYS[label]) if nb2_control
+                          else tr(WEIBULL_LABEL_KEYS[label]) if weibull_control
+                          else tr(RMST_LABEL_KEYS[label]) if rmst_control
                           else tr(RATIO_LABEL_KEYS[label]) if ratio_control
                           else tr(VARIANCE_RATIO_LABELS[label]) if variance_ratio_control
                           else tr(TOST_LABEL_KEYS[label]) if tost_control
                           else tr(META_LABEL_KEYS[label]) if meta_control
+                          else tr(PAIRED_LABEL_KEYS[label]) if paired_control
+                          else tr(TOLERANCE_LABEL_KEYS[label]) if tolerance_control
                           else tr(PARAM_CI_LABELS[label]) if parameter_ci_control
                           else tr(NL_BAND_LABELS[label]) if band_control
                           else tr(XY_ERROR_LABEL_KEYS[label]) if xy_error_control
@@ -1458,8 +1619,24 @@ class AnalysisDialog(simpledialog.Dialog):
                     field = ProfileEditor(parent, self.data, saved.get(label, ()), label_key="name",
                                           values_key="values", hint=tr("analysis.logistic.hint"),
                                           on_change=self.show_regression_fields)
+                elif self.method == WEIBULL_AFT:
+                    field = ProfileEditor(parent, self.data, saved.get(label, ()), label_key=WEIBULL_NAME,
+                                          hint=tr(WEIBULL_HINTS["profile"]))
+                elif self.method == ORDINAL_LOGIT and label == ORDINAL_PROFILES:
+                    field = ProfileEditor(parent, self.data, saved.get(label, ()), label_key=ORDINAL_NAME,
+                                          values_key=ORDINAL_VALUES, hint=tr("ord.hint.profiles"))
                 else:
                     field = ProfileEditor(parent, self.data, saved.get(label, ()))
+                field.grid(row=row, column=1, sticky="ew", pady=3)
+                self.controls[label] = (kind, field)
+                self.field_rows[label] = heading, field
+                continue
+            if kind in (WEIBULL_TIME_LIST, ORDINAL_ORDER_KIND):
+                # One time per line, kept as typed; the analysis names the line that cannot be used.
+                if kind == WEIBULL_TIME_LIST:
+                    field = WeibullTimesEditor(parent, saved.get(label))
+                else:
+                    field = OrderEditor(parent, saved.get(label) or ())
                 field.grid(row=row, column=1, sticky="ew", pady=3)
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
@@ -1486,6 +1663,13 @@ class AnalysisDialog(simpledialog.Dialog):
                     field = CodeListEditor(parent, saved.get(label), on_change=self.refresh_competing_causes)
                 else:
                     field = TimeListEditor(parent, saved.get(label))
+                field.grid(row=row, column=1, sticky="ew", pady=3)
+                self.controls[label] = (kind, field)
+                self.field_rows[label] = heading, field
+                continue
+            if kind == KAPPA_ORDER_LIST:
+                # The saved order is shown as it is; the categories of the data are compared with it, not merged.
+                field = CategoryOrderEditor(parent, saved.get(label) or [])
                 field.grid(row=row, column=1, sticky="ew", pady=3)
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
@@ -1589,7 +1773,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 scroll.pack(side="right", fill="y")
                 box.pack(side="left", fill="both", expand=True)
                 default_columns = columns if self.method == SELECT_TRANSFORM else numeric
-                defaults = saved.get(label, default_columns if label in {"Variables", "Count columns"} else ())
+                # Tolerance intervals starts without a selection: the columns are a required choice.
+                defaults = saved.get(label, default_columns if label in {"Variables", "Count columns"}
+                                     and self.method != TOLERANCE else ())
                 offered = list(dict.fromkeys([*columns, *defaults])) if label == "Condition on factors" else columns
                 for i, name in enumerate(offered):
                     box.insert("end", name)
@@ -1609,13 +1795,23 @@ class AnalysisDialog(simpledialog.Dialog):
                     default = COX_STATUS.get(label, default)
                 if self.method == COMPETING_RISKS:
                     default = COMPETING_DEFAULTS.get(label, default)
+                if self.method == PAIRED_PROPORTIONS:
+                    default = PAIRED_DEFAULT_CODES.get(label, default)
+                if self.method == WEIBULL_AFT:
+                    default = WEIBULL_DEFAULTS.get(label, default)
+                if self.method == RMST:
+                    default = RMST_DEFAULTS.get(label, default)
                 if self.method == HEAT_MAP:
                     default = HEAT_MAP_GRADIENT_COLORS.get(label, default)
                     if label == CELL_LABEL_COLOR:
                         default = DEFAULT_LABEL_COLOR
+                if self.method == POWER_METHOD:
+                    default = POWER_TEXT_DEFAULTS.get(label, default)
                 raw_saved = saved.get(label, default)
                 variable = tk.StringVar(value=str(default if raw_saved is None else raw_saved))
-                if self.method == HEAT_MAP and label == CELL_LABEL_COLOR:
+                if self.method == POWER_METHOD and label == POWER_GROUP_MEANS:
+                    field = MultilineEntry(parent, variable)
+                elif self.method == HEAT_MAP and label == CELL_LABEL_COLOR:
                     field = ttk.Frame(parent)
                     swatch = tk.Label(field, width=3, relief="solid", borderwidth=1)
                     swatch.pack(side="left", padx=(0, 6))
@@ -1694,12 +1890,20 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOST_CHOICE_KEYS)
                     elif meta_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, META_CHOICE_KEYS)
+                    elif paired_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, PAIRED_CHOICE_KEYS)
+                    elif tolerance_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, TOLERANCE_CHOICE_KEYS)
                     elif robust_control and isinstance(kind, tuple) and label != ROBUST_MODEL:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ROBUST_CHOICE_KEYS)
+                    elif kappa_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, KAPPA_CHOICE_KEYS)
                     elif competing_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, COMPETING_CHOICE_KEYS)
                     elif nb2_control and isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, NB2_CHOICE_KEYS)
+                    elif weibull_control and isinstance(kind, tuple):
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, WEIBULL_CHOICE_KEYS)
                     elif self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION) and label == CUSTOM_SYNTAX:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, SYNTAX_CHOICE_KEYS)
                     elif self.method == CUSTOM_EQUATION and label == "Weighting":
@@ -1990,6 +2194,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 hint = ttk.Label(tab, text=tr(key), wraplength=ui_theme.px(400), foreground="#486075", justify="left")
                 hint.grid(row=positions[tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.show_fields(self.robust_fields())
+        if self.method == COHEN_KAPPA:
+            self.configure_kappa_fields(variables, options, positions)
         if self.method == COMPETING_RISKS:
             self.controls[COMPETING_GRAPH][1].trace_add("write", lambda *_: self.show_fields(self.competing_fields()))
             self.show_fields(self.competing_fields())
@@ -2000,6 +2206,17 @@ class AnalysisDialog(simpledialog.Dialog):
             ttk.Label(options, text=tr(NB2_HINT), wraplength=ui_theme.px(400), foreground="#486075",
                       justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.show_fields(self.nb2_fields())
+        if self.method == WEIBULL_AFT:
+            self.configure_weibull_fields(variables, options, positions)
+        if self.method == ORDINAL_LOGIT:
+            # The order follows the response and the predictors; the profiles follow the predictors and the coding.
+            self.controls["Response"][1].trace_add("write", lambda *_: self.update_ordinal_order())
+            self.controls["Predictors"][1].bind("<<ListboxSelect>>", lambda _: self.update_ordinal_order(), add="+")
+            self.controls["Categorical predictors"][1].bind(
+                "<<ListboxSelect>>", lambda _: self.update_ordinal_profiles(), add="+")
+            self.update_ordinal_order()
+        if self.method == RMST:
+            self.configure_rmst_fields(variables, options, positions)
         if self.method in (CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION):
             self.bind_equation_syntax()
             self._bind_scrollable_children(fields_by_tab["Equation"])
@@ -2097,9 +2314,15 @@ class AnalysisDialog(simpledialog.Dialog):
             self.variance_ratio_note = ttk.Label(options, text=tr(VARIANCE_RATIO_NOTE), wraplength=360,
                                                  foreground="#486075", justify="left")
             self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+        if self.method == CLUSTER_SILHOUETTE:
+            ttk.Label(options, text=tr("silhouette.note"), wraplength=ui_theme.px(400), foreground="#486075",
+                      justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
         if self.method in (SUMMARY_ANOVA, SUMMARY_TTEST):
             self.controls["Input"][1].trace_add("write", lambda *_: self.show_fields(self.summary_anova_fields()))
             self.show_fields(self.summary_anova_fields())
+        if self.method == MEAN_PERMUTATION:
+            # Captions, choices, the exchangeability and method notes; Exact hides Resamples and Seed.
+            mean_permutation_dialog.attach(self, variables, options, positions)
         if self.method == SUMMARY_TTEST:
             ttk.Label(options, text=ui("Two-sided test; first complete group minus second. Groups must be independent. Summary data cannot assess pairing, normality or outliers."),
                       wraplength=350, foreground="#486075").grid(
@@ -2117,6 +2340,20 @@ class AnalysisDialog(simpledialog.Dialog):
             ttk.Label(options, text=tr("iroc.hint"), wraplength=ui_theme.px(400), foreground="#486075",
                       justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.show_fields(self.independent_roc_fields())
+        if self.method == POWER_METHOD:
+            self.power_allocation_note = None
+            for label, note in ((POWER_ALLOCATION, "power.note.design"), (POWER_GROUP_MEANS, "power.note.effect"),
+                                (POWER_SHOW_CURVE, "power.note.curve")):
+                tab = fields_by_tab.get(label) or options
+                caption = ttk.Label(tab, text=tr(note), wraplength=ui_theme.px(400), foreground="#486075",
+                                    justify="left")
+                caption.grid(row=positions[tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
+                positions[tab] += 1
+                if label == POWER_ALLOCATION:
+                    self.power_allocation_note = caption
+            for label in (POWER_GOAL, POWER_DESIGN, POWER_EFFECT_INPUT, POWER_PAIRED_SD_INPUT):
+                self.controls[label][1].trace_add("write", lambda *_: self.show_power_fields())
+            self.show_power_fields()
         if self.method == EQUIVALENCE:
             self.controls[TOST_DESIGN][1].trace_add("write", lambda *_: self.show_fields(self.equivalence_fields()))
             self.show_fields(self.equivalence_fields())
@@ -2124,6 +2361,22 @@ class AnalysisDialog(simpledialog.Dialog):
                 row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
         if self.method == META_ANALYSIS:
             meta_analysis_dialog.attach(self, variables, options, positions)
+        if self.method == PAIRED_PROPORTIONS:
+            self.controls[PAIRED_FORMAT][1].trace_add("write", lambda *_: self.show_paired_fields())
+            data_tab = fields_by_tab[PAIRED_FORMAT]
+            self.paired_notes = {}
+            for name in ("observations", "matrix"):
+                note = ttk.Label(data_tab, text=tr(f"paired.note.{name}"), wraplength=ui_theme.px(400),
+                                 foreground="#486075", justify="left")
+                note.grid(row=positions[data_tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
+                self.paired_notes[name] = note
+            self.show_paired_fields()
+            ttk.Label(options, text=tr("paired.hint"), wraplength=ui_theme.px(400), foreground="#486075",
+                      justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
+        if self.method == TOLERANCE:
+            # The two percentages and the difference from a confidence interval of the mean, under the fields.
+            ttk.Label(options, text=tr(TOLERANCE_HINT), wraplength=ui_theme.px(400), foreground="#486075",
+                      justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
         if self.method == FDR_METHOD:
             ttk.Label(options, text=tr("fdr.note"), wraplength=430, foreground="#486075", justify="left").grid(
                 row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
@@ -2864,7 +3117,7 @@ class AnalysisDialog(simpledialog.Dialog):
         self.field_rows[COX_TERM] = heading, terms
         for label in ("Predictors", "Categorical predictors"):
             self.controls[label][1].bind("<<ListboxSelect>>", lambda _: self.update_cox_terms(), add="+")
-        for label in (COX_PREDICT, COX_GRAPH):
+        for label in (COX_PREDICT, COX_GRAPH, COX_DIAGNOSTICS, COX_SCHOENFELD, COX_SCALED, COX_SNELL):
             self.controls[label][1].trace_add("write", lambda *_: self.update_cox_terms())
         self.update_cox_terms()
         # Exact (conditional) ties fit the coefficient and model sheets only. The notes name that on the tabs of the
@@ -2904,7 +3157,8 @@ class AnalysisDialog(simpledialog.Dialog):
     def cox_fields(self):
         if self.method != COX:
             return {}
-        return cox_visibility(*(self.controls[name][1].get() for name in (COX_PREDICT, COX_GRAPH)))
+        return cox_visibility(*(self.controls[name][1].get() for name in (
+            COX_PREDICT, COX_GRAPH, COX_DIAGNOSTICS, COX_SCHOENFELD, COX_SCALED, COX_SNELL)))
 
     def regression_visibility(self):
         if self.method != "Multiple regression":
@@ -2996,6 +3250,9 @@ class AnalysisDialog(simpledialog.Dialog):
         Selection fields that do not belong to the chosen criterion stay in the recipe when they
         still parse, and an invalid hidden value is omitted instead of blocking the analysis.
         """
+        if self.method == MEAN_PERMUTATION:
+            # Exact ignores Resamples and Seed: values that parse stay in the recipe, others are omitted.
+            return {name for name, shown in mean_permutation_dialog.fields(self).items() if not shown}
         if self.method == ROBUST_CURVE:
             # A usable hidden residual scale stays in the recipe; an invalid one is omitted instead of blocking.
             return {name for name, shown in self.robust_fields().items() if not shown}
@@ -3152,6 +3409,33 @@ class AnalysisDialog(simpledialog.Dialog):
         self.clipboard_clear()
         self.clipboard_append(self.controls[MONTE_CARLO_SEED][1].get().strip())
 
+    def configure_kappa_fields(self, variables, options, positions):
+        """The order editor follows the two columns and the weighting; the bootstrap fields follow the interval."""
+        for label in ("First rating", "Second rating"):
+            self.controls[label][1].trace_add("write", lambda *_: self.refresh_kappa_order())
+        self.controls[KAPPA_WEIGHTING][1].trace_add(
+            "write", lambda *_: self.controls[KAPPA_ORDER][1].set_weighting(self.controls[KAPPA_WEIGHTING][1].get()))
+        self.controls["Confidence interval"][1].trace_add("write", lambda *_: self.show_fields(self.kappa_fields()))
+        for page, key in ((variables, "ratings"), (options, "interval")):
+            ttk.Label(page, text=tr(KAPPA_HINTS[key]), wraplength=ui_theme.px(410), foreground="#486075",
+                      justify="left").grid(row=positions[page], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            positions[page] += 1
+        self.controls[KAPPA_ORDER][1].set_weighting(self.controls[KAPPA_WEIGHTING][1].get())
+        self.refresh_kappa_order()
+        self.show_fields(self.kappa_fields())
+        self._bind_scrollable_children(variables)
+
+    def refresh_kappa_order(self):
+        if self.method != COHEN_KAPPA or KAPPA_ORDER not in self.controls:
+            return
+        first, second = (self.controls[name][1].get() for name in ("First rating", "Second rating"))
+        self.controls[KAPPA_ORDER][1].set_observed(*kappa_preview(self.data, first, second))
+
+    def kappa_fields(self):
+        if self.method != COHEN_KAPPA or "Confidence interval" not in self.controls:
+            return {}
+        return kappa_visibility(self.controls["Confidence interval"][1].get())
+
     def robust_fields(self):
         if self.method != ROBUST_CURVE or ROBUST_SCALE_METHOD not in self.controls:
             return {}
@@ -3166,6 +3450,79 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method != COMPETING_RISKS or COMPETING_GRAPH not in self.controls:
             return {}
         return competing_visibility(self.controls[COMPETING_GRAPH][1].get())
+
+    def configure_weibull_fields(self, variables, options, positions):
+        """Profiles follow the chosen predictors, Shape follows the shape mode, and two notes explain the model."""
+        for label in (WEIBULL_PREDICTORS, WEIBULL_CATEGORICAL):
+            self.controls[label][1].bind("<<ListboxSelect>>", lambda _: self.update_weibull_profiles(), add="+")
+        self.controls[WEIBULL_SHAPE_MODE][1].trace_add("write", lambda *_: self.show_fields(self.weibull_fields()))
+        for page, key in ((variables, "status"), (options, "model")):
+            ttk.Label(page, text=tr(WEIBULL_HINTS[key]), wraplength=ui_theme.px(400), foreground="#486075",
+                      justify="left").grid(row=positions[page], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            positions[page] += 1
+        self.update_weibull_profiles()
+        self.show_fields(self.weibull_fields())
+
+    def update_weibull_profiles(self):
+        def picked(label):
+            box = self.controls[label][1]
+            return [box.get(i) for i in box.curselection()]
+
+        self.controls[WEIBULL_PROFILES][1].set_predictors(picked(WEIBULL_PREDICTORS), picked(WEIBULL_CATEGORICAL))
+
+    def weibull_fields(self):
+        if self.method != WEIBULL_AFT or WEIBULL_SHAPE_MODE not in self.controls:
+            return {}
+        return weibull_visibility(self.controls[WEIBULL_SHAPE_MODE][1].get())
+
+    def update_ordinal_order(self):
+        """Read the categories of the chosen response again and let the order editor follow them."""
+        if self.method != ORDINAL_LOGIT or ORDINAL_ORDER not in self.controls:
+            return
+        response = self.controls["Response"][1].get()
+        self.controls[ORDINAL_ORDER][1].sync(read_observed(self.data, response, self._picked("Predictors")), response)
+        self.update_ordinal_profiles()
+
+    def update_ordinal_profiles(self):
+        if self.method == ORDINAL_LOGIT and ORDINAL_PROFILES in self.controls:
+            self.controls[ORDINAL_PROFILES][1].set_predictors(self._picked("Predictors"),
+                                                              self._picked("Categorical predictors"))
+    def configure_rmst_fields(self, variables, options, positions):
+        """Reference group follows Group, Horizon shows its usable limit, and two notes explain the estimate."""
+        horizon = self.controls[RMST_HORIZON][1]
+        typed = read_rmst_number(horizon.get())
+        if isinstance(typed, float) and np.isfinite(typed):
+            horizon.set(rmst_shown_number(typed))  # a saved 6.5 reads 6,5 in Italian
+        self.rmst_limit = ttk.Label(variables, text="", foreground="#486075", justify="left")
+        self.rmst_limit.grid(row=positions[variables], column=1, sticky="w")
+        positions[variables] += 1
+        for page, keys in ((variables, ("horizon",)), (options, ("codes", "estimate"))):
+            for key in keys:
+                ttk.Label(page, text=tr(RMST_HINTS[key]), wraplength=ui_theme.px(400), foreground="#486075",
+                          justify="left").grid(row=positions[page], column=0, columnspan=2, sticky="w", pady=(8, 0))
+                positions[page] += 1
+        for name in (RMST_TIME, RMST_STATUS, RMST_GROUP, RMST_EVENT, RMST_CENSOR):
+            self.controls[name][1].trace_add("write", lambda *_: self.refresh_rmst())
+        self.refresh_rmst()
+
+    def refresh_rmst(self):
+        """Offer the groups of the complete rows; a saved reference that is no longer a group stays shown."""
+        if self.method != RMST or RMST_REFERENCE not in self.controls:
+            return
+        options = {name: self.controls[name][1].get()
+                   for name in (RMST_TIME, RMST_STATUS, RMST_GROUP, RMST_EVENT, RMST_CENSOR)}
+        levels = rmst_group_levels(self.data, options)
+        self.field_rows[RMST_REFERENCE][1].configure(values=levels)
+        reference = self.controls[RMST_REFERENCE][1]
+        if not reference.get() and levels:
+            reference.set(levels[0])
+        self.show_fields(self.rmst_fields())
+        self.rmst_limit.configure(text=rmst_limit_hint(rmst_horizon_limit(self.data, options)))
+
+    def rmst_fields(self):
+        if self.method != RMST or RMST_GROUP not in self.controls:
+            return {}
+        return rmst_visibility(self.controls[RMST_GROUP][1].get())
 
     def refresh_competing_causes(self):
         """Offer the typed event codes for the drawn cause; a value that is no longer a code stays shown, never rewritten."""
@@ -3510,11 +3867,44 @@ class AnalysisDialog(simpledialog.Dialog):
         else:
             note.grid_remove()
 
+    def power_fields(self):
+        """Only the inputs of the chosen goal, design and effect input; hidden ones never block the calculation."""
+        if self.method != POWER_METHOD or POWER_GOAL not in self.controls:
+            return {}
+        return power_visibility({label: self.controls[label][1].get()
+                                 for label in (POWER_GOAL, POWER_DESIGN, POWER_EFFECT_INPUT, POWER_PAIRED_SD_INPUT)})
+
+    def show_power_fields(self):
+        visibility = self.power_fields()
+        self.show_fields(visibility)
+        # The allocation note belongs to the allocation field: it follows it.
+        if self.power_allocation_note is not None:
+            if visibility.get(POWER_ALLOCATION):
+                self.power_allocation_note.grid()
+            else:
+                self.power_allocation_note.grid_remove()
+
     def equivalence_fields(self):
         """Response and Reference belong to One-sample, First and Second to the other designs."""
         if self.method != EQUIVALENCE or TOST_DESIGN not in self.controls:
             return {}
         return equivalence_visibility(self.controls[TOST_DESIGN][1].get())
+
+    def paired_fields(self):
+        """Before, After and the two codes belong to Observations; the two count columns to Count matrix."""
+        if self.method != PAIRED_PROPORTIONS or PAIRED_FORMAT not in self.controls:
+            return {}
+        return paired_visibility(self.controls[PAIRED_FORMAT][1].get())
+
+    def show_paired_fields(self):
+        visible = self.paired_fields()
+        self.show_fields(visible)
+        matrix = not visible.get("Before", True)
+        for name, note in self.paired_notes.items():
+            if (name == "matrix") == matrix:
+                note.grid()
+            else:
+                note.grid_remove()
 
     def summary_anova_fields(self):
         if self.method not in (SUMMARY_ANOVA, SUMMARY_TTEST):
@@ -3669,15 +4059,15 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.anova_fields(), **self.anova_term_fields(), **self.anova_diagnostic_fields(),
                       **self.regression_visibility(), **self.forest_fields(),
                       **self.compare_lines_fields(), **self.ancova_fields(), **self.lognormal_fields(), **self.ttest_variance_fields(),
-                      **self.equivalence_fields(), **self.cox_fields(),
+                      **self.equivalence_fields(), **self.paired_fields(), **self.cox_fields(),
                       **(meta_analysis_dialog.fields(self) if self.method == META_ANALYSIS else {}),
                       **self.summary_anova_fields(),
                       **self.one_way_fields(),
-                      **self.monte_carlo_fields(), **self.independent_roc_fields(), **self.function_fields(),
+                      **self.monte_carlo_fields(), **self.independent_roc_fields(), **self.power_fields(), **self.function_fields(),
                       **self.weighting_visibility(),
                       **self.band_fields(), **self.xy_error_fields(), **self.custom_fields(),
                       **self.global_custom_fields(), **self.robust_fields(), **self.competing_fields(),
-                      **self.reference_visibility()}
+                      **self.weibull_fields(), **self.rmst_fields(), **self.reference_visibility()}
         try:
             for name, (kind, control) in self.controls.items():
                 if name in inactive:
@@ -3687,6 +4077,10 @@ class AnalysisDialog(simpledialog.Dialog):
                     continue
                 if not visibility.get(name, True):
                     continue
+                if self.method == COHEN_KAPPA and (kind == KAPPA_ORDER_LIST or name in KAPPA_TYPED_FIELDS):
+                    # Hidden bootstrap fields stay in the recipe as typed; the analysis reads them only when used.
+                    options[name] = control.values() if kind == KAPPA_ORDER_LIST else read_kappa_typed(control.get())
+                    continue
                 if self.method == "One-way ANOVA" and name == VARIANCE_ALPHA and type(kind) is float:
                     raw = control.get()
                     try:
@@ -3695,9 +4089,14 @@ class AnalysisDialog(simpledialog.Dialog):
                         value = raw
                     options[name] = value
                     continue
-                if self.method == INDEPENDENT_ROC and name in IROC_NUMBER_FIELDS:
-                    # The text goes to the checks, which name the field and type the number (decimal comma included).
+                if ((self.method == INDEPENDENT_ROC and name in IROC_NUMBER_FIELDS)
+                        or (self.method == POWER_METHOD and name in POWER_NUMBER_FIELDS)):
+                    # Keep text until the engine validates and normalizes the named field.
                     options[name] = control.get()
+                    continue
+                if self.method == RMST and name in RMST_NUMBER_FIELDS:
+                    # Decimal comma accepted; text that is not a number reaches the analysis, which names the field.
+                    options[name] = read_rmst_number(control.get())
                     continue
                 if self.method == FOREST_PLOT and name == "Study columns":
                     value = self.forest_columns()
@@ -3709,7 +4108,7 @@ class AnalysisDialog(simpledialog.Dialog):
                 elif kind in (GROUP_ORDER, TREND_ORDER_KIND, DUNN_PAIR_LIST, PAIR_LIST, PROFILE_LIST, CURVE_LIST,
                               SETS_LIST, MODEL_LIST, EQUATION_TEXT, PARAMETER_LIST, INITIAL_LIST,
                               GLOBAL_PARAMETER_LIST, GLOBAL_SERIES_LIST, CATEGORY_COLOR_LIST, TERM_LIST,
-                              COMPETING_CODE_LIST, COMPETING_TIME_LIST):
+                              COMPETING_CODE_LIST, COMPETING_TIME_LIST, WEIBULL_TIME_LIST, ORDINAL_ORDER_KIND):
                     value = control.values()
                 else:
                     value = control.get()
@@ -3750,6 +4149,10 @@ class AnalysisDialog(simpledialog.Dialog):
                         continue
                     if self.method in kmeans_options.METHODS and name in kmeans_options.ITERATION_FIELDS.values():
                         options[name] = value
+                        continue
+                    if self.method == MEAN_PERMUTATION and name == PERMUTATION_SEED:
+                        # Unsigned 64-bit; the test checks the range and names Seed.
+                        options[name] = mean_permutation_dialog.parse_seed(value)
                         continue
                     numeric_kind = type(kind)
                     if numeric_kind in (int, float):
@@ -3829,6 +4232,9 @@ class AnalysisDialog(simpledialog.Dialog):
                     lognormal_anova.check_used(self.data, options)
             if self.method == CONTINGENCY:
                 check_contingency_options(self.data, options)
+            if self.method == MEAN_PERMUTATION:
+                # Fields, values and the exact or Monte Carlo budget; nothing is enumerated or drawn here.
+                check_permutation_options(self.data, options)
             if self.method == MONTE_CARLO_METHOD:
                 # Numbers, fields and the value budget only: the simulation runs once, on the worker.
                 check_monte_carlo_options(self.data, options)
@@ -3836,6 +4242,12 @@ class AnalysisDialog(simpledialog.Dialog):
                 # Columns, numbers and the bootstrap budget stay in the dialog; the calculation runs on the worker.
                 settings, _ = check_independent_roc(self.data, options)
                 options = independent_roc_options(options, settings)
+            if self.method == CLUSTER_SILHOUETTE:
+                # Roles, partition and budgets only: the distances run on the worker.
+                check_silhouette_options(self.data, options)
+            if self.method == POWER_METHOD:
+                # Every active field is checked here and the recipe keeps canonical numbers whatever the language.
+                options = power_options(options, check_power_options(options))
             if self.method == deming_dialog.METHOD:
                 self._check_deming(options)
                 saved = self.current[1] if self.current and self.current[0] == self.method else {}
@@ -3873,7 +4285,10 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == "Interpolate a standard curve" and options.get("Curve") == "Nonlinear":
                 calibration_choice_error(self.data, options.get("X"), options.get("Y"), "Nonlinear", options.get("Model"))
             if self.method == XY_METHOD:
-                check_xy_options(self.data, options)
+                # Draw styles and the bar width stay on the saved recipe: check the graph they will draw.
+                saved = self.current[1] if self.current and self.current[0] == self.method else {}
+                check_xy_options(self.data, prune_options(
+                    {**{key: saved[key] for key in XY_RECIPE_KEYS if key in saved}, **options}))
             if self.method == XY_ERRORS:
                 saved = self.current[1] if self.current and self.current[0] == self.method else {}
                 options = prune_xy_error_options(options, saved)
@@ -3886,6 +4301,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 # Like the interval method: an Arithmetic recipe stays exactly the recipe of earlier versions.
                 if CUSTOM_SYNTAX not in saved and options.get(CUSTOM_SYNTAX) == "Arithmetic":
                     options.pop(CUSTOM_SYNTAX, None)
+            if self.method == COHEN_KAPPA:
+                # Columns, categories, order, bootstrap fields and the size budgets; the bootstrap runs on the worker.
+                check_kappa_options(self.data, options)
             if self.method == ROBUST_CURVE:
                 # Columns, limits, the domain and the starting values; the fits run on the worker.
                 check_robust_options(self.data, options)
@@ -3901,6 +4319,15 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == NB2:
                 # Recipe, cells, budgets and the rank of the design; the fit itself runs on the worker.
                 check_nb2_options(self.data, options)
+            if self.method == WEIBULL_AFT:
+                # Columns, codes, profiles, times, level and the size budgets; the fit itself runs on the worker.
+                check_weibull_options(self.data, options)
+            if self.method == ORDINAL_LOGIT:
+                # Roles, order, profiles, rank and budgets; the model itself is fitted on the worker.
+                check_ordinal_options(self.data, options)
+            if self.method == RMST:
+                # Columns, codes, groups, reference, horizon against the follow-up and the row budget.
+                check_rmst_options(self.data, options)
             if self.method == GLOBAL_CUSTOM_EQUATION:
                 if options.get("Weighting") != INVERSE_VARIANCE:
                     options[CUSTOM_SD] = None
@@ -3965,13 +4392,13 @@ class AnalysisDialog(simpledialog.Dialog):
                     or logistic_validation or pca_validation or self.method in RANK_METHODS
                     or forward_calibration or (inverse_intervals and not nonlinear_inverse)
                     or self.method in PROCESSING_METHODS
-                    or self.method in {PLOT_FUNCTION, TRANSPOSE_XY}
+                    or self.method in {PLOT_FUNCTION, TRANSPOSE_XY, POWER_METHOD}
                     or (self.method == curve_pipeline.CURVE_METHOD and options.get("Method") == curve_pipeline.PIPELINE)
                     or (self.method == deming_dialog.METHOD and deming_dialog.extended(options))
                     or self.method == PARTS_GRAPH or (self.method == COX and not cox_exact_request)
                     or (self.method == GOODNESS_OF_FIT and options.get(TEST_METHOD) == EXACT_BINOMIAL)
                     or self.method in {SELECT_TRANSFORM, EXTRACT_REARRANGE, GROUPED_ANOVA, GROUPED_DISTRIBUTIONS, BOX_VIOLIN, BUBBLE, "Bland–Altman", HEAT_MAP,
-                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, ANCOVA, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, OUTLIERS,
+                                       BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT, COMPARE_LINES, ANCOVA, LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, PAIRED_PROPORTIONS, TOLERANCE, OUTLIERS,
                                        "One-way ANOVA", REFERENCE_NORMALIZATION, rm_sphericity.METHOD,
                                        SPLINE_FIT, COMPARE_MODELS, XY_ERRORS}):
                 # Keep field errors in the dialog and reuse the successful result.
@@ -4015,11 +4442,15 @@ class AnalysisDialog(simpledialog.Dialog):
             elif self.method == "Principal component analysis" and (
                     field == PCA_COLOR_GROUPS or field in PCA_REGRESSION_LABELS or field == PCA_SELECTION):
                 message = format_pca_error(error, field)
+            elif self.method == MEAN_PERMUTATION:
+                message = describe_permutation_error(error, field)
             elif self.method == HEAT_MAP:
                 message = translate_heat_map_error(error)
                 label = ui(field) if field else ""
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
+            elif self.method == COHEN_KAPPA:
+                message = describe_kappa_error(error, field)
             elif self.method == ROBUST_CURVE:
                 message = describe_robust_error(error, field)
             elif self.method == COMPETING_RISKS:
@@ -4037,6 +4468,12 @@ class AnalysisDialog(simpledialog.Dialog):
                     message = f"{label}: {message}"
             elif self.method == NB2:
                 message = describe_nb2_error(error, field)
+            elif self.method == WEIBULL_AFT:
+                message = describe_weibull_error(error, field)
+            elif self.method == ORDINAL_LOGIT:
+                message = describe_ordinal_error(error, field)
+            elif self.method == RMST:
+                message = describe_rmst_error(error, field)
             elif self.method == EQUIVALENCE:
                 message = translate_equivalence_error(error)
                 label = tr(TOST_LABEL_KEYS[field]) if field in TOST_LABEL_KEYS else field
@@ -4045,6 +4482,21 @@ class AnalysisDialog(simpledialog.Dialog):
             elif self.method == INDEPENDENT_ROC:
                 message = translate_independent_roc_error(error)
                 label = ui(field) if field else ""
+                if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == PAIRED_PROPORTIONS:
+                message = translate_paired_error(error)
+                label = tr(PAIRED_LABEL_KEYS[field]) if field in PAIRED_LABEL_KEYS else field
+                if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == POWER_METHOD:
+                message = translate_power_error(error)
+                label = ui(field) if field else ""
+                if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == TOLERANCE:
+                message = translate_tolerance_error(error)
+                label = tr(TOLERANCE_LABEL_KEYS[field]) if field in TOLERANCE_LABEL_KEYS else field
                 if field and field not in message and label not in message:
                     message = f"{label}: {message}"
             elif self.method == REFERENCE_NORMALIZATION:
@@ -4062,6 +4514,11 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = ui(translate_message(message, "goodness.error."))
                 label = ui(field) if field else ""
                 if label and label.casefold() not in message.casefold():
+                    message = f"{label}: {message}"
+            elif self.method == CLUSTER_SILHOUETTE:
+                message = translate_message(message, "silhouette.error.", convert={"field": ui})
+                label = ui(field) if field else ""
+                if label and label not in message:
                     message = f"{label}: {message}"
             elif self.method in (NORMALITY, SUMMARY_ANOVA, SUMMARY_TTEST, HIERARCHY_GRAPH, *kmeans_options.METHODS):
                 message = ui(message)
@@ -4085,6 +4542,8 @@ class AnalysisDialog(simpledialog.Dialog):
             elif self.method == ANCOVA:
                 # Sentences of the engine have catalog entries; a text typed in a number field is translated whole.
                 message = format_ancova_error(error) or ui(message)
+            elif self.method == XY_METHOD:
+                message = translate_message(message, "xy.error.")
                 label = ui(field) if field else ""
                 if label and label not in message:
                     message = f"{label}: {message}"
@@ -4099,6 +4558,11 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = formatted
             elif self.method == VARIANCE_RATIO and (formatted := format_variance_ratio_error(error)):
                 message = formatted
+            elif self.method == COX:
+                message = cox_message(error)
+                label = ui(field) if field else ""
+                if label and field not in message and label not in message:
+                    message = f"{label}: {message}"
             elif field and field not in message:
                 message = f"{field}: {message}"
             messagebox.showerror(ui("Check parameters"), message, parent=self)
@@ -4417,7 +4881,8 @@ def cox_exact_run(run):
 def cancellable_run(method, options):
     """Identify analyses that expose cancellation during calculation."""
     return (method == MONTE_CARLO_METHOD or extended_request(method, options)
-            or competing_cancellable(method, options) or independent_roc_cancellable(method, options)
+            or competing_cancellable(method, options) or kappa_cancellable(method, options)
+            or permutation_cancellable(method, options) or independent_roc_cancellable(method, options)
             or rmcorr_cancellable(method, options) or meta_cancellable(method, options)
             or (method == COX and cox_is_exact(options)))
 
@@ -4443,8 +4908,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def chain_analysis_dialog(self, frame, **options):
         return AnalysisDialog(self.root, frame, **options)
 
-    def __init__(self, root):
+    def __init__(self, root, *, standard_only=False):
         self.root = root
+        self.standard_only = standard_only
         self.root.title("Trama beta")
         width = max(820, min(1130, self.root.winfo_screenwidth() - 32))
         height = max(570, min(725, self.root.winfo_screenheight() - 125))
@@ -4501,7 +4967,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.refresh_project_tabs()
 
     def _build(self):
-        ui_theme.configure(self.root, load_theme(config_path()))
+        ui_theme.configure(self.root, "standard" if self.standard_only else load_theme(config_path()))
         if ui_theme.is_modern():
             self.combined_navigator = False
 
@@ -4546,7 +5012,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                        ("Analysis results", lambda: self.show_section("result")),
                        ("Graphs", lambda: self.show_section("graph")),
                        ("Duplicate family…", self.duplicate_family), ("Save family as…", self.save_family_as)],
-            "Tools": [("Power and sample size…", lambda: self.standalone("Power and sample size")),
+            "Tools": [("Power and sample size…", self.power_planning),
                       ("Simulate data…", lambda: self.standalone("Simulate data")),
                       ("Monte Carlo study…", lambda: self.choose_analysis(only=(MONTE_CARLO_METHOD,))),
                       ("Transpose X and Y…", lambda: self.choose_analysis(only=(TRANSPOSE_XY,))),
@@ -4572,12 +5038,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 self.edit_menu = popup
             menu.add_cascade(label=ui(title), menu=popup)
         settings = tk.Menu(menu, tearoff=False)
-        settings.add_command(label=tr("theme.command"), command=self.choose_theme)
+        if not self.standard_only:
+            settings.add_command(label=tr("theme.command"), command=self.choose_theme)
+            self.menu_entries["Settings", "Theme…"] = settings, settings.index("end")
         settings.add_command(label=ui("Language…"), command=self.choose_language)
         settings.add_command(label=tr("processes.command"), command=self.choose_processes)
         menu.add_cascade(label=tr("theme.settings"), menu=settings)
         menus["Settings"] = settings
-        self.menu_entries["Settings", "Theme…"] = settings, 0
         self.root.config(menu=menu)
         self.root.bind("<Control-n>", lambda _: self.new_table())
         self.root.bind("<Control-Shift-N>", lambda _: self.new_project())
@@ -4848,8 +5315,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         setup = TableSetup(self.page, create=self.create_worksheet, open_project=self.open_dialog,
                            create_info=self.new_info, brand=self.icon, version=f"{VERSION} {RELEASE_CHANNEL}")
         setup.pack(fill="both", expand=True)
-        ttk.Button(self.page, text=tr("theme.settings") + " · " + tr("theme.title"),
-                   command=self.choose_theme).pack(anchor="e", padx=12, pady=6)
+        if not self.standard_only:
+            ttk.Button(self.page, text=tr("theme.settings") + " · " + tr("theme.title"),
+                       command=self.choose_theme).pack(anchor="e", padx=12, pady=6)
         self.refresh_project_tabs()
 
     def sheet_sections(self):
@@ -4868,12 +5336,17 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                              or (run.method == COMPARE_MODELS and run.options.get(MODELS_SHOW_GRAPH, True))
                              or (run.method == RMCORR and run.options.get(RMCORR_GRAPH, True))
                              or (run.method == META_ANALYSIS and run.options.get(META_SHOW_GRAPH, True))
+                             or (run.method == POWER_METHOD and run.options.get(POWER_SHOW_CURVE))
+                             or (run.method == TOLERANCE and run.options.get(TOLERANCE_SHOW_GRAPH))
                              or (run.method == MONTE_CARLO_METHOD
                                  and run.options.get(MONTE_CARLO_GRAPH, GRAPH_NONE) != GRAPH_NONE)
                              or (run.method == "Multifactor ANOVA"
                                  and run.options.get(ANOVA_DIAG_GRAPH) not in (None, "", "None"))
+                             or (run.method == ORDINAL_LOGIT and run.options.get(ORDINAL_GRAPH))
                              or (run.method == FDR_METHOD and run.options.get(FDR_PLOT))
-                             or (run.method == VARIANCE_RATIO and variance_ratio_shows_graph(run.options))))],
+                             or (run.method == VARIANCE_RATIO and variance_ratio_shows_graph(run.options))
+                             or (run.method == CLUSTER_SILHOUETTE and silhouette_graph(run.options))
+                             or (run.method == PAIRED_PROPORTIONS and run.options.get(PAIRED_GRAPH) is True)))],
              "New Graph…", self.new_graph),
             ("Layouts", [(layout.name, ("layout", i)) for i, layout in enumerate(self.layouts)]
                         + [(run.name, ("saved-layout", i)) for i, run in enumerate(self.runs)
@@ -5417,8 +5890,11 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     shortcut = {"Kaplan–Meier survival": ("Graph settings…", SURVIVAL_CURVE),
                                 "Scatter / confidence ellipse": ("Confidence overlays…", "Ellipse"),
                                 HEAT_MAP: ("Graph settings…", self.heat_map_settings_field(run)),
+                                COHEN_KAPPA: ("Graph settings…", KAPPA_SHOW_GRAPH),
                                 ROBUST_CURVE: ("Graph settings…", ROBUST_DISPLAY),
-                                COMPETING_RISKS: ("Graph settings…", COMPETING_GRAPH)}.get(run.method)
+                                COMPETING_RISKS: ("Graph settings…", COMPETING_GRAPH),
+                                WEIBULL_AFT: ("Graph settings…", WEIBULL_SHOW_GRAPH),
+                                RMST: ("Graph settings…", RMST_SHOW_GRAPH)}.get(run.method)
                     if shortcut is None and (run.method in CATEGORY_GRAPHS or run.method == PARTS_GRAPH):
                         shortcut = "Graph settings…", "Graph style"
                     if shortcut:
@@ -6882,7 +7358,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     self.status.set(tr("iroc.cancelled", kept=tr("iroc.kept_result" if kept else "iroc.kept_none")))
                 elif methods == {COX}:
                     self.status.set(tr("cox.exact.cancelled.recalculation"))
-                elif methods and methods <= {COMPETING_RISKS, RMCORR, META_ANALYSIS}:
+                elif methods and methods <= {COMPETING_RISKS, RMCORR, META_ANALYSIS, COHEN_KAPPA, MEAN_PERMUTATION}:
                     names = " and ".join(sorted(methods))
                     self.status.set(f"{names} recalculation cancelled. Open the analysis to calculate again.")
                 else:
@@ -7013,6 +7489,36 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         self.start_analysis(Run(PLOT_FUNCTION, self.active_data, dialog.result[1]), frame,
                             result=dialog.processing_result)
 
+    def power_planning(self):
+        """Tools → Power and sample size…: a native result, attached to the active table or to an empty table.
+
+        It works in a project without a data table, like Plot a function. The sheet, the optional power curve and
+        its graph are an ordinary analysis, so they are saved with the project, reopened with their recipe and
+        usable in layouts and with Use Result as Data.
+        """
+        if self.pending is not None:
+            self.error("Wait for the current calculation to finish.")
+            return
+        dataset = None
+        if self.active_data is not None:
+            dataset = self.get_dataset()
+            if dataset is None:
+                return
+        frame = dataset.frame(mask_excluded=True) if dataset is not None else pd.DataFrame()
+        dialog = AnalysisDialog(self.root, frame, current=(POWER_METHOD, {}), only=POWER_METHOD)
+        if not dialog.result:
+            return
+        if dataset is None:
+            title = self._unique_title("Power analysis")
+            self._add_tables({title: pd.DataFrame({"A": pd.Series(dtype=float)})})
+            dataset = self.tables[title]
+            self.active_data = title
+        if len(dataset.analyses) >= 256:
+            self.error("A table supports up to 256 analyses.")
+            return
+        self.start_analysis(Run(POWER_METHOD, self.active_data, dialog.result[1]), frame,
+                            result=dialog.processing_result)
+
     def choose_analysis(self, only=None, *, prefer_worksheet_graph=False):
         current = (self.runs[self.selected[1]] if self.selected and self.selected[0] in {'result', 'graph'} else None)
         source = current.source if current is not None else None
@@ -7068,27 +7574,36 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         """True when a confirmed PCA recipe explicitly asked for the principal component regression."""
         return run.method == "Principal component analysis" and run.options.get(PCR_ENABLE) is True
 
+    @staticmethod
+    def _cox_fit_diagnostics(run):
+        """True when a confirmed Cox recipe asked for the scaled Schoenfeld residuals or the Cox–Snell diagnostics."""
+        return run.method == COX and any(run.options.get(name) is True for name in COX_FIT_DIAGNOSTICS)
+
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
         return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
-                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, INDEPENDENT_ROC, ANCOVA, RMCORR,
-                                  META_ANALYSIS, NB2)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, RMST, INDEPENDENT_ROC, ANCOVA, RMCORR,
+                                  META_ANALYSIS, NB2, WEIBULL_AFT, ORDINAL_LOGIT)
                 or self._pca_regression(run)
-                or cox_exact_run(run)
+                or cox_exact_run(run) or self._cox_fit_diagnostics(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) in kmeans_options.ITERATION_FIELDS)
+                or run.method == COHEN_KAPPA
                 or getattr(run, 'source', None) is not None
+                or run.method == MEAN_PERMUTATION
                 or getattr(run, 'uid', None) in getattr(self, '_chain_node_ids', ()))
 
     def _reopens_field_error(self, run):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
         return (self._lognormal_one_way(run)
-                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, INDEPENDENT_ROC, ANCOVA, RMCORR,
-                                  META_ANALYSIS, NB2)
+                or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, RMST, INDEPENDENT_ROC, ANCOVA, RMCORR,
+                                  META_ANALYSIS, NB2, WEIBULL_AFT, ORDINAL_LOGIT)
                 or self._pca_regression(run)
-                or cox_exact_run(run)
+                or cox_exact_run(run) or self._cox_fit_diagnostics(run)
+                or run.method == COHEN_KAPPA
                 or (run.method in kmeans_options.METHODS
-                    and run.options.get(kmeans_options.ALGORITHM) in kmeans_options.ITERATION_FIELDS))
+                    and run.options.get(kmeans_options.ALGORITHM) in kmeans_options.ITERATION_FIELDS)
+                or run.method == MEAN_PERMUTATION)
 
     def weighting_recovery(self, method, options, index, only=None):
         """Reopen the dialog when a field error is first known on the worker."""
@@ -7098,15 +7613,21 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             # Row, column and work limits, separation and refused outputs are known only on the worker.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method in CORRELATION_METHODS or method in (
-                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, RMCORR, META_ANALYSIS, NB2,
+                CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, RMST, RMCORR, META_ANALYSIS, NB2, WEIBULL_AFT, ORDINAL_LOGIT,
                 "Multifactor ANOVA", ANCOVA,
                 REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, rm_sphericity.METHOD):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
+            return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
+        if method == MEAN_PERMUTATION:
+            # Too few values after an edit, or a budget the new data exceed, reopen on the field.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if (method == "Multiple regression" and options.get("Family") == "Linear"
                 and options.get(mlr_weighting.GAUSSIAN_WEIGHTING, mlr_weighting.UNWEIGHTED)
                 != mlr_weighting.UNWEIGHTED):
             # A fixed Gaussian weight can become invalid after a data edit; the dialog reopens on its field.
+            return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
+        if method == COHEN_KAPPA:
+            # An edited or excluded cell can change the categories, so the order is fixed in the reopened dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "One-way ANOVA":
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
@@ -7115,6 +7636,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "Principal component analysis" and options.get(PCR_ENABLE) is True:
             # Rank and degrees of freedom of the regression are known only after the fit, on the worker.
+            return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
+        if method == COX and any(options.get(name) is True for name in COX_FIT_DIAGNOSTICS):
+            # A covariance or residual that stops being finite after a worksheet edit names its control.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if (method == "Interpolate a standard curve" and options.get("Curve") == "Nonlinear"
                 and options.get(CALIBRATION_UNCERTAINTY, "None") not in (None, "None")):
@@ -7153,17 +7677,23 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                    else translate_heat_map_error(error) if run.method == HEAT_MAP
                    else translate_independent_roc_error(error) if run.method == INDEPENDENT_ROC
                    else ui(str(error)) if run.method in kmeans_options.METHODS
-                   else translate_cox_exact_error(error) if cox_exact_run(run) else str(error))
+                   else translate_cox_exact_error(error) if cox_exact_run(run)
+                   else cox_message(error) if run.method == COX else str(error))
         formatted = (format_anova_error(error) if run.method == "Multifactor ANOVA"
                      else format_rm_error(error) if run.method == rm_sphericity.METHOD
                      else (lognormal_anova.format_error(error) or format_variance_error(error))
                      if run.method == "One-way ANOVA"
+                     else describe_kappa_error(error) if run.method == COHEN_KAPPA
                      else describe_robust_error(error, error.field) if run.method == ROBUST_CURVE
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
                      else describe_rmcorr_error(error) if run.method == RMCORR
                      else describe_meta_error(error) if run.method == META_ANALYSIS
                      else describe_nb2_error(error) if run.method == NB2
+                     else describe_weibull_error(error) if run.method == WEIBULL_AFT
+                     else describe_ordinal_error(error) if run.method == ORDINAL_LOGIT
+                     else describe_rmst_error(error) if run.method == RMST
                      else format_fdr_error(error) if run.method == FDR_METHOD
+                     else describe_permutation_error(error) if run.method == MEAN_PERMUTATION
                      else format_variance_ratio_error(error) if run.method == VARIANCE_RATIO
                      else format_ancova_error(error) if run.method == ANCOVA
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
@@ -7204,7 +7734,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         recovery = (self.weighting_recovery(run.method, run.options, index)
                     if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO,
                                       INDEPENDENT_ROC, ANCOVA, rm_sphericity.METHOD}
-                    or self._pca_regression(run) or cox_exact_run(run) else None)
+                    or self._pca_regression(run) or cox_exact_run(run) or self._cox_fit_diagnostics(run) else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
@@ -7225,6 +7755,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if run.method == RESHAPE_LONG_WIDE:
             self.error(tr("reshape.classic"))
             return
+        if run.method == WORKSHEET_JOIN:
+            self.error(tr("join.classic"))
+            return
         try:
             frame = self.input_frame(run)
         except ValueError as error:
@@ -7240,15 +7773,14 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         run = self.runs[index]
         method, options = dialog.result
         if method == run.method:
-            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION,
+            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
                         pca_overlays.SAVED_APPEARANCE, PCA_SAVED_DIRECTIONS):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:
                 options["Group order"] = run.options["Group order"]
             if method == XY_METHOD:
-                for key in ("Series style", "Series side", "Series color", "Right title", "Right scale",
-                            "Right minimum", "Right maximum", "Y minimum", "Y maximum"):
+                for key in XY_RECIPE_KEYS:
                     if key in run.options and key not in options:
                         options[key] = run.options[key]
                 options = prune_options(options)
@@ -7421,6 +7953,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     @staticmethod
     def compute(run, frame, result=None, control=None, layout_data=None, pairwise=None):
+        if run.method == WORKSHEET_JOIN:
+            # The join reads a second worksheet; the classic window keeps the recipe and leaves it to Qt.
+            raise ValueError(tr("join.classic"))
         if result is None:
             if run.method == MONTE_CARLO_METHOD and control is not None:
                 result = monte_carlo(frame, run.options, progress=control.report, cancel=control.cancel)
@@ -7526,7 +8061,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.add_result(run, future.result(), index, reveal=reveal)
         except MonteCarloCancelled:
             # Nothing is recorded: a new study adds no recipe and an existing one keeps its last results.
-            noun = "analysis" if run.method in (COMPETING_RISKS, RMCORR, META_ANALYSIS, COX) else "study"
+            noun = "analysis" if run.method in (COMPETING_RISKS, RMCORR, META_ANALYSIS, COX, COHEN_KAPPA, MEAN_PERMUTATION) else "study"
             if index is None:
                 detail = f"No {noun} was added."
             elif self.runs[index].result is not None:
@@ -7544,7 +8079,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 self.status.set(f"{run.method} cancelled. {detail}")
         except Exception as error:
             shown = (translate_correlation_error(error) if run.method in CORRELATION_METHODS
+                     else describe_kappa_error(error) if run.method == COHEN_KAPPA
                      else format_fdr_error(error) or error if run.method == FDR_METHOD
+                     else describe_permutation_error(error) if run.method == MEAN_PERMUTATION
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
                      else translate_independent_roc_error(error) if run.method == INDEPENDENT_ROC
@@ -7552,7 +8089,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else describe_rmcorr_error(error) if run.method == RMCORR
                      else describe_meta_error(error) if run.method == META_ANALYSIS
                      else translate_cox_exact_error(error) if cox_exact_run(run)
-                     else describe_nb2_error(error) if run.method == NB2 else error)
+                     else describe_nb2_error(error) if run.method == NB2
+                     else describe_weibull_error(error) if run.method == WEIBULL_AFT
+                     else describe_ordinal_error(error) if run.method == ORDINAL_LOGIT
+                     else describe_rmst_error(error) if run.method == RMST else error)
             # Manual recalculation uses the confirmed Run itself. A failed
             # candidate with edited options is a different object and must not
             # invalidate the still-current confirmed analysis.
@@ -7663,15 +8203,21 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         failures = [(translate_message(run.calculation_error, 'fdr.error.') if run.method == FDR_METHOD
                      else translate_message(run.calculation_error, 'variance.ratio.error.')
                      if run.method == VARIANCE_RATIO
+                     else translate_permutation_error(run.calculation_error) if run.method == MEAN_PERMUTATION
                      else translate_message(run.calculation_error, 'anova.lognormal.error.')
                      if run.method == "One-way ANOVA"
+                     else translate_kappa_error(run.calculation_error) if run.method == COHEN_KAPPA
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
                      else translate_independent_roc_error(run.calculation_error) if run.method == INDEPENDENT_ROC
                      else translate_message(run.calculation_error, 'ancova.error.', {"field": ui})
                      if run.method == ANCOVA
                      else translate_meta_error(run.calculation_error) if run.method == META_ANALYSIS
                      else translate_cox_exact_error(run.calculation_error) if cox_exact_run(run)
+                     else cox_message(run.calculation_error) if run.method == COX
                      else translate_nb2_error(run.calculation_error) if run.method == NB2
+                     else translate_weibull_error(run.calculation_error) if run.method == WEIBULL_AFT
+                     else translate_ordinal_error(run.calculation_error) if run.method == ORDINAL_LOGIT
+                     else translate_rmst_error(run.calculation_error) if run.method == RMST
                      else translate_reference_error(run.calculation_error))
                     for run in runs if run.calculation_error]
         return tr("reference.stale_result", error="; ".join(failures)) if failures else None
@@ -10796,6 +11342,16 @@ def smoke(root, app, directory, legacy_reference=None):
             pick_method=pick_method, select_columns=select_columns, save_project=save_project,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_cox_fit_diagnostics():
+        from types import SimpleNamespace
+
+        from analisi.cox_fit_diagnostics_smoke import check_cox_fit_diagnostics as run
+
+        run(root, app, directory, SimpleNamespace(
+            capture=capture, pick_method=pick_method, select_columns=select_columns,
+            wait_for_calculation=wait_for_calculation, AnalysisDialog=AnalysisDialog,
+            drive_dialog=drive_dialog, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_bubble_plot():
         path = directory / "bubble.alab"
         title = "Bubbles"
@@ -13376,12 +13932,32 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_paired_proportions_smoke():
+        from analisi.paired_proportions_smoke import check_paired_proportions
+        check_paired_proportions(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, LayoutDialog=LayoutDialog, GraphFormatDialog=GraphFormatDialog,
+            capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
+    def check_tolerance_smoke():
+        from analisi.tolerance_smoke import check_tolerance
+        check_tolerance(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
+            filedialog=filedialog, errors=errors))
+
     def check_summary_ttest_smoke():
         from analisi.summary_ttest_smoke import check_summary_ttest
         check_summary_ttest(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
             filedialog=filedialog, errors=errors))
+
+    def check_mean_permutation_smoke():
+        from analisi.mean_permutation_smoke import check_mean_permutation
+        check_mean_permutation(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
     def check_summary_anova_smoke():
         from analisi.summary_anova_smoke import check_summary_anova
@@ -13425,6 +14001,12 @@ def smoke(root, app, directory, legacy_reference=None):
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, errors=errors))
 
+    def check_cohen_kappa_smoke():
+        from analisi.cohen_kappa_smoke import check_cohen_kappa
+        check_cohen_kappa(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
     def check_correlation_details_smoke():
         from analisi.correlation_details_smoke import check_correlation_details
         check_correlation_details(root, app, directory, SimpleNamespace(
@@ -13461,6 +14043,26 @@ def smoke(root, app, directory, legacy_reference=None):
     def check_meta_analysis_smoke():
         from analisi.meta_analysis_smoke import check_meta_analysis
         check_meta_analysis(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
+
+    def check_weibull_aft_smoke():
+        from analisi.weibull_aft_smoke import check_weibull_aft
+        check_weibull_aft(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
+            filedialog=filedialog, errors=errors))
+
+    def check_ordinal_logit_smoke():
+        from analisi.ordinal_logit_smoke import check_ordinal_logit
+        check_ordinal_logit(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
+            filedialog=filedialog, errors=errors))
+
+    def check_rmst_smoke():
+        from analisi.rmst_smoke import check_rmst
+        check_rmst(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, Run=Run, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
@@ -13592,6 +14194,14 @@ def smoke(root, app, directory, legacy_reference=None):
         check_family_workflow(root, app, directory, SimpleNamespace(
             App=App, capture=capture, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_cluster_silhouette_smoke():
+        from analisi.cluster_silhouette_smoke import check_cluster_silhouette
+        check_cluster_silhouette(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, LayoutDialog=LayoutDialog, capture=capture,
+            drive_dialog=drive_dialog, pick_method=pick_method,
+            select_columns=select_columns, wait_for_calculation=wait_for_calculation, messagebox=messagebox,
+            filedialog=filedialog, errors=errors, Dataset=Dataset, save_project=save_project))
+
     try:
         screen = (root.winfo_screenwidth(), root.winfo_screenheight())
         (directory / "display.json").write_text(json.dumps({"width": screen[0], "height": screen[1],
@@ -13618,6 +14228,14 @@ def smoke(root, app, directory, legacy_reference=None):
             return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "analysis-chains":
             check_analysis_chains_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cluster-silhouette":
+            # The Cluster silhouette check alone: TRAMASTAT_SMOKE_ONLY=cluster-silhouette python tramastat.py --smoke DIR
+            check_cluster_silhouette_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -13718,10 +14336,30 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cox-fit-diagnostics":
+            # The scaled Schoenfeld and Cox-Snell check alone:
+            # TRAMASTAT_SMOKE_ONLY=cox-fit-diagnostics python tramastat.py --smoke DIR
+            check_cox_fit_diagnostics()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "plot-function":
             # The Plot a function check alone: TRAMASTAT_SMOKE_ONLY=plot-function python tramastat.py --smoke DIR
             from analisi.plot_function_smoke import check_plot_function
             check_plot_function(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+                wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "power-from-summary":
+            # The Tools → Power and sample size check alone: TRAMASTAT_SMOKE_ONLY=power-from-summary python tramastat.py --smoke DIR
+            from analisi.power_plan_smoke import check_power_plan
+            check_power_plan(root, app, directory, SimpleNamespace(
                 AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
                 wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
             assert not errors, errors
@@ -14153,8 +14791,24 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "mean-permutation":
+            # The permutation test alone: TRAMASTAT_SMOKE_ONLY=mean-permutation python tramastat.py --smoke DIR
+            check_mean_permutation_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "spearman-extended":
             check_spearman_extended_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cohen-kappa":
+            # The Cohen's kappa check alone: TRAMASTAT_SMOKE_ONLY=cohen-kappa python tramastat.py --smoke DIR
+            check_cohen_kappa_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14195,6 +14849,14 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "tolerance-intervals":
+            # The 0.93 Tolerance intervals check alone: TRAMASTAT_SMOKE_ONLY=tolerance-intervals python tramastat.py --smoke DIR
+            check_tolerance_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "nb2-regression":
             # The 0.93 Negative binomial regression check alone:
             # TRAMASTAT_SMOKE_ONLY=nb2-regression python tramastat.py --smoke DIR
@@ -14215,6 +14877,38 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "meta-analysis":
             # The Meta-analysis check alone: TRAMASTAT_SMOKE_ONLY=meta-analysis python tramastat.py --smoke DIR
             check_meta_analysis_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "paired-proportions":
+            # The Paired proportions (McNemar) check alone: TRAMASTAT_SMOKE_ONLY=paired-proportions python tramastat.py --smoke DIR
+            check_paired_proportions_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "weibull-aft":
+            # The Weibull AFT regression check alone: TRAMASTAT_SMOKE_ONLY=weibull-aft python tramastat.py --smoke DIR
+            check_weibull_aft_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "ordinal-logit":
+            # The Ordinal logistic regression check alone: TRAMASTAT_SMOKE_ONLY=ordinal-logit python tramastat.py --smoke DIR
+            check_ordinal_logit_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "rmst":
+            # The Restricted mean survival time check alone: TRAMASTAT_SMOKE_ONLY=rmst python tramastat.py --smoke DIR
+            check_rmst_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14254,7 +14948,7 @@ def smoke(root, app, directory, legacy_reference=None):
             # The Monte Carlo check alone: TRAMASTAT_SMOKE_ONLY=monte-carlo python tramastat.py --smoke DIR
             from analisi.monte_carlo_smoke import check_monte_carlo_study
             check_monte_carlo_study(root, app, directory, SimpleNamespace(
-                AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+                CalculationControl=CalculationControl, AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
                 wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
@@ -14538,6 +15232,20 @@ def smoke(root, app, directory, legacy_reference=None):
             from analisi.xy_error_smoke import check_xy_errors
             check_xy_errors(root, app, directory, SimpleNamespace(
                 AnalysisDialog=AnalysisDialog, Dataset=Dataset, capture=capture,
+                drive_dialog=drive_dialog, filedialog=filedialog, messagebox=messagebox,
+                pick_method=pick_method, save_project=save_project, select_columns=select_columns,
+                wait_for_calculation=wait_for_calculation, errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "xy-mixed":
+            # Bars, steps, lines and points on one XY graph alone:
+            # TRAMASTAT_SMOKE_ONLY=xy-mixed python tramastat.py --smoke DIR
+            from analisi.xy_mixed_smoke import check_xy_mixed
+            check_xy_mixed(root, app, directory, SimpleNamespace(
+                AnalysisDialog=AnalysisDialog, LayoutDialog=LayoutDialog, Dataset=Dataset, capture=capture,
                 drive_dialog=drive_dialog, filedialog=filedialog, messagebox=messagebox,
                 pick_method=pick_method, save_project=save_project, select_columns=select_columns,
                 wait_for_calculation=wait_for_calculation, errors=errors))
@@ -14991,6 +15699,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_compare_lines()
         check_cox_outputs()
         check_cox_exact_ties_smoke()
+        check_cox_fit_diagnostics()
         check_bubble_plot()
         check_paired_graphs()
         check_forest_plot()
@@ -15019,10 +15728,14 @@ def smoke(root, app, directory, legacy_reference=None):
             filedialog=filedialog))
         from analisi.monte_carlo_smoke import check_monte_carlo_study
         check_monte_carlo_study(root, app, directory, SimpleNamespace(
-            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            CalculationControl=CalculationControl, AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
         from analisi.plot_function_smoke import check_plot_function
         check_plot_function(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
+            wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
+        from analisi.power_plan_smoke import check_power_plan
+        check_power_plan(root, app, directory, SimpleNamespace(
             AnalysisDialog=AnalysisDialog, capture=capture, drive_dialog=drive_dialog, pick_method=pick_method,
             wait_for_calculation=wait_for_calculation, messagebox=messagebox, filedialog=filedialog))
         from analisi.model_selection_smoke import check_model_selection
@@ -15063,19 +15776,26 @@ def smoke(root, app, directory, legacy_reference=None):
         check_lognormal_tests_smoke()
         check_equivalence_smoke()
         check_independent_roc_smoke()
+        check_paired_proportions_smoke()
+        check_tolerance_smoke()
         check_lognormality_smoke()
         check_lognormal_anova_smoke()
         check_summary_anova_smoke()
         check_summary_ttest_smoke()
+        check_mean_permutation_smoke()
         check_qq_panels_smoke()
         check_qq_artist_styles_smoke()
         check_correlation_details_smoke()
         check_spearman_extended_smoke()
         check_robust_curve_smoke()
+        check_cohen_kappa_smoke()
         check_competing_risks_smoke()
         check_rmcorr_smoke()
         check_meta_analysis_smoke()
         check_nb2_smoke()
+        check_weibull_aft_smoke()
+        check_ordinal_logit_smoke()
+        check_rmst_smoke()
         check_nonlinear_weighting_smoke()
         check_global_irls_smoke()
         check_nonlinear_bands_smoke()
@@ -15263,6 +15983,12 @@ def smoke(root, app, directory, legacy_reference=None):
             drive_dialog=drive_dialog, filedialog=filedialog, messagebox=messagebox,
             pick_method=pick_method, save_project=save_project, select_columns=select_columns,
             wait_for_calculation=wait_for_calculation, errors=errors))
+        from analisi.xy_mixed_smoke import check_xy_mixed
+        check_xy_mixed(root, app, directory, SimpleNamespace(
+            AnalysisDialog=AnalysisDialog, LayoutDialog=LayoutDialog, Dataset=Dataset, capture=capture,
+            drive_dialog=drive_dialog, filedialog=filedialog, messagebox=messagebox,
+            pick_method=pick_method, save_project=save_project, select_columns=select_columns,
+            wait_for_calculation=wait_for_calculation, errors=errors))
         from analisi.axis_guides_smoke import check_axis_guides
         check_axis_guides(SimpleNamespace(
             app=app, root=root, directory=directory, capture=capture, drive_dialog=drive_dialog,
@@ -15283,6 +16009,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_hierarchical_import_smoke()
         check_hierarchical_style_smoke()
         check_family_workflow_smoke()
+        check_cluster_silhouette_smoke()
         check_piecewise_equations_smoke()
         from analisi.prism_mv_scatter_smoke import check_saved_scatter
         check_saved_scatter(root, app, directory, capture, wait_for_calculation)
@@ -15304,13 +16031,13 @@ def smoke(root, app, directory, legacy_reference=None):
             windows_clipboard.close()
 
 
-def main(*, root=None, on_ready=None):
+def main(*, root=None, on_ready=None, standard_only=False):
     # Read once at startup: Edit → Language… changes the file, the running window keeps its language.
     set_language(load_language(config_path()))
     parallel.configure(parallel.load_setting(config_path()))
     configure_native_dpi()
     root = tk.Tk() if root is None else root
-    app = App(root)
+    app = App(root, standard_only=standard_only)
     root.report_callback_exception = lambda kind, error, trace: app.error(error)
     smoke_path = None
     if len(sys.argv) in (3, 4) and sys.argv[1] == "--smoke":

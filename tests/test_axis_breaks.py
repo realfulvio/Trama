@@ -22,6 +22,7 @@ from analisi.figure_export import export_figure
 from analisi.field_error import FieldError
 from analisi.layout_svg import export_layout_svg
 from analisi.presentation import apply_style, compose_layout, validate_graph_style, validated_style
+from analisi.repeated_workbench import global_analysis
 from analisi.xy_errors import xy_errors
 from analisi.xy_series import xy_series
 
@@ -87,7 +88,6 @@ class RecordTests(unittest.TestCase):
             self.assertIsInstance(caught.exception, FieldError)
 
         bad(lambda r: r["segments"][1].update(low=3), "segments.1.low", 1)
-        bad(lambda r: r["segments"][1].update(low=4), "segments.1.low", 1)
         bad(lambda r: r["segments"][2].update(low=12, high=12), "segments.2.high", 2)
         bad(lambda r: r["segments"][0].update(high=-1), "segments.0.high", 0)
         bad(lambda r: r["segments"][0].update(low=float("nan")), "segments.0.low", 0)
@@ -101,6 +101,13 @@ class RecordTests(unittest.TestCase):
         bad(lambda r: r["segments"][1].update(major_step=-1), "segments.1.major_step", 1)
         bad(lambda r: r["segments"][1].update(major_step=float("nan")), "segments.1.major_step", 1)
         bad(lambda r: r["segments"][1].update(major_step=2 / 250), "segments.1.major_step", 1)
+        bad(lambda r: r["segments"][1].update(major_origin=float("nan")), "segments.1.major_origin", 1)
+        bad(lambda r: r["segments"][1].update(major_origin=10**500), "segments.1.major_origin", 1)
+        bad(lambda r: r["segments"][1].update(major_origin=0, major_step=None), "segments.1.major_origin", 1)
+        bad(lambda r: r["segments"][1].update(minor_ticks=1.5), "segments.1.minor_ticks", 1)
+        bad(lambda r: r["segments"][1].update(minor_ticks=True), "segments.1.minor_ticks", 1)
+        bad(lambda r: r["segments"][1].update(minor_ticks=11), "segments.1.minor_ticks", 1)
+        bad(lambda r: r["segments"][1].update(major_step=.02, minor_ticks=3), "segments.1.minor_ticks", 1)
         bad(lambda r: r["segments"][1].update(extra=1), "segments.1.low", 1)
         bad(lambda r: r["segments"][1].pop("share"), "segments.1.low", 1)
         bad(lambda r: r.update(gap=0.2), "gap")
@@ -136,6 +143,14 @@ class RecordTests(unittest.TestCase):
             self.assertGreaterEqual(len(ticks), 2)
             self.assertTrue(all(low <= tick <= high for tick in ticks), ticks)
 
+    def test_explicit_tick_origin_works_outside_the_segment(self):
+        self.assertEqual(explicit_ticks(-15, 115, 25, origin=0), [0, 25, 50, 75, 100])
+        self.assertEqual(explicit_ticks(-10.5, -9.6, 1, origin=-9), [-10])
+        self.assertEqual(explicit_ticks(-9.5, -2.5, 1, origin=-9), list(range(-9, -2)))
+        self.assertEqual(explicit_ticks(0, .2, 1, origin=.5), [])
+        self.assertEqual(explicit_ticks(.3, .5, .1, origin=0)[0], .3)
+        self.assertEqual(explicit_ticks(0, 4, 2, origin=-1e300), [0, 2, 4])
+
     def test_validated_style_accepts_the_section_without_rewriting_it(self):
         style = {"axis_breaks": deepcopy(X_BREAKS)}
         self.assertIs(validated_style(style), style)
@@ -156,6 +171,23 @@ class RecordTests(unittest.TestCase):
 
 
 class GeometryTests(unittest.TestCase):
+    def test_tick_origin_and_minor_ticks_are_independent_per_segment(self):
+        record = deepcopy(X_BREAKS)
+        first, middle, last = record["segments"]
+        first.update(major_origin=1, minor_ticks=1)
+        middle.update(major_origin=10.25, minor_ticks=2)
+        last.update(minor_ticks=0)
+        figure = _series()
+        apply_style(figure, {ab.AXIS_BREAKS: record})
+        _draw(figure)
+        first, middle, last = segment_axes(figure)
+        np.testing.assert_array_equal(first.get_xticks(), [1, 3])
+        np.testing.assert_array_equal(first.xaxis.get_minorticklocs(), [0, 2, 4])
+        np.testing.assert_allclose(middle.get_xticks(), [10.25, 11.25])
+        np.testing.assert_allclose(middle.xaxis.get_minorticklocs(),
+                                   [base + offset for base in (10.25, 11.25) for offset in (1/3, 2/3)])
+        self.assertEqual(len(last.xaxis.get_minorticklocs()), 0)
+
     def test_three_x_panels_have_exact_limits_ticks_shares_and_gaps(self):
         figure = _series()
         apply_style(figure, {"axis_breaks": deepcopy(X_BREAKS)})
@@ -184,6 +216,117 @@ class GeometryTests(unittest.TestCase):
         shares, gaps = _geometry(figure, "y")
         np.testing.assert_allclose(shares, [.399, .551], rtol=0, atol=1e-6)
         np.testing.assert_allclose(gaps, [.05], rtol=0, atol=1e-6)
+
+    def test_log_concentration_labels_and_subdivisions_keep_linear_data_coordinates(self):
+        record = deepcopy(X_BREAKS)
+        record["segments"][0].update(low=-1.5, high=1.5, major_origin=0, major_step=1,
+                                     tick_format="power10", minor_ticks=8, tick_labels=[[0, "Control"]])
+        figure = _series()
+        apply_style(figure, {"axis_breaks": record})
+        _draw(figure)
+        first, second, _ = segment_axes(figure)
+        self.assertEqual(first.get_xscale(), "linear")
+        np.testing.assert_array_equal(first.get_xticks(), [-1, 0, 1])
+        self.assertEqual([t.get_text() for t in first.get_xticklabels()], ["$10^{-1}$", "Control", "$10^{1}$"])
+        expected = np.log10([.04, .05, .06, .07, .08, .09, .2, .3, .4, .5, .6, .7, .8, .9,
+                             2, 3, 4, 5, 6, 7, 8, 9, 20, 30])
+        np.testing.assert_allclose(first.xaxis.get_minorticklocs(), expected)
+        self.assertEqual(second.get_xticklabels()[0].get_text(), "10")
+        self.assertEqual(first.xaxis.get_major_formatter().numeric(0), "$10^{0}$")
+
+    def test_named_ticks_render_literal_text_and_retain_numeric_ticks(self):
+        rec = deepcopy(X_BREAKS)
+        rec["segments"][0]["tick_labels"] = [[2, "A $x$"]]
+        figure = _series()
+        apply_style(figure, {"axis_breaks": rec})
+        _draw(figure)
+        first, *_ = segment_axes(figure)
+        self.assertEqual([t.get_text() for t in first.get_xticklabels()], ["0", r"A \$x\$", "4"])
+        apply_style(figure, {})
+        self.assertNotIn(r"A \$x\$", [t.get_text() for t in figure.axes[0].get_xticklabels()])
+        for invalid in ([[0, "duplicate"], [0, "again"]], [[float("inf"), "x"]], [[0, []]], [[0, "line\nbreak"]]):
+            rec["segments"][0]["tick_labels"] = invalid
+            with self.assertRaises(AxisBreakError) as caught:
+                normalise_axis_breaks(rec)
+            self.assertEqual(caught.exception.field, "segments.0.tick_labels")
+
+    def test_adjacent_segments_change_scale_without_omitting_a_numeric_interval(self):
+        record = {
+            "axis": "x", "gap": .04,
+            "segments": [
+                {"low": -10.5, "high": -9.5, "share": 23, "major_step": 1, "major_origin": -10, "minor_ticks": 0},
+                {"low": -9.5, "high": -2.5, "share": 77, "major_step": 1, "major_origin": -9, "minor_ticks": 0},
+            ],
+        }
+        figure = _series()
+        apply_style(figure, {ab.AXIS_BREAKS: record})
+        _draw(figure)
+        first, second = segment_axes(figure)
+        self.assertEqual([first.get_xlim(), second.get_xlim()], [(-10.5, -9.5), (-9.5, -2.5)])
+        self.assertEqual(first.get_xticks().tolist(), [-10])
+        self.assertEqual(second.get_xticks().tolist(), [-9, -8, -7, -6, -5, -4, -3])
+        shares, gaps = _geometry(figure, "x")
+        np.testing.assert_allclose(shares, [.96 * .23, .96 * .77], atol=1e-6)
+        np.testing.assert_allclose(gaps, [.04], atol=1e-6)
+
+    def test_global_fit_repeats_observed_markers_with_panel_data_transforms(self):
+        options = {"Input format": "Wide XY", "X": "t", "Y columns": ["a", "b"], "Model": "Straight line"}
+        fit = global_analysis(FRAME, options)
+        figure = fit.figure
+        primary, = figure.axes
+        original = [collection.get_offsets().copy() for collection in primary.collections]
+        style = {"axis_breaks": deepcopy(X_BREAKS)}
+        apply_style(figure, style)
+        _draw(figure)
+        self.assertIsNone(axis_breaks_reason(figure))
+        for panel in segment_axes(figure):
+            self.assertEqual(len(panel.collections), 2)
+            for a, b, offsets in zip(primary.collections, panel.collections, original, strict=True):
+                np.testing.assert_array_equal(b.get_offsets(), offsets)
+                np.testing.assert_array_equal(a.get_facecolors(), b.get_facecolors())
+                np.testing.assert_array_equal(a.get_sizes(), b.get_sizes())
+                self.assertIs(b.get_offset_transform(), panel.transData)
+        self.assertEqual(fit.tables["Per-series fit"]["N"].to_dict(), {"a": 13, "b": 12})
+        export = BytesIO()
+        figure.savefig(export, format="svg")
+        ids = [item.get("id") for item in ET.fromstring(export.getvalue()).iter() if item.get("id")]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(sum(uid.startswith("trama-axis-break:points:") for uid in ids), 4)
+        apply_style(figure, {"axis_breaks": {}})
+        self.assertEqual(figure.axes, [primary])
+        self.assertEqual(len(primary.collections), 2)
+        for source, offsets in zip(primary.collections, original, strict=True):
+            np.testing.assert_array_equal(source.get_offsets(), offsets)
+
+    def test_global_fit_bands_keep_geometry_and_opacity_on_each_segment(self):
+        options = {"Input format": "Wide XY", "X": "t", "Y columns": ["a", "b"],
+                   "Model": "Straight line", "Show confidence bands": True}
+        figure = global_analysis(FRAME, options).figure
+        axes, = figure.axes
+        bands = tuple(axes.collections[1::2])
+        self.assertEqual(len(bands), 2)
+        for breaks in (X_BREAKS, Y_BREAKS):
+            apply_style(figure, {"axis_breaks": deepcopy(breaks)})
+            _draw(figure)
+            self.assertIsNone(axis_breaks_reason(figure))
+            for panel in segment_axes(figure)[1:]:
+                for source, clone in zip(bands, panel.collections[1::2], strict=True):
+                    self.assertEqual(source.get_alpha(), clone.get_alpha())
+                    np.testing.assert_equal(source.get_facecolors(), clone.get_facecolors())
+                    self.assertIs(clone.get_transform(), panel.transData)
+                    self.assertTrue(clone.get_clip_on())
+                    for first, second in zip(source.get_paths(), clone.get_paths(), strict=True):
+                        np.testing.assert_equal(first.vertices, second.vertices)
+                        np.testing.assert_equal(first.codes, second.codes)
+            svg = BytesIO()
+            figure.savefig(svg, format="svg")
+            groups = [element for element in ET.fromstring(svg.getvalue()).iter()
+                      if (element.get("id") or "").startswith("trama-axis-break:band:")]
+            self.assertEqual(len(groups), 2 * (len(breaks["segments"]) - 1))
+            self.assertTrue(all(any(child.get("clip-path") for child in group.iter()) for group in groups))
+        apply_style(figure, {"axis_breaks": {}})
+        self.assertEqual(figure.axes, [axes])
+        self.assertEqual(tuple(axes.collections[1::2]), bands)
 
     def test_shares_and_gaps_hold_at_every_figure_size(self):
         figure = _series()
@@ -660,10 +803,10 @@ class CompatibilityTests(unittest.TestCase):
         ab.mark_supported(picture)
         self.assertIn("native graph", ab.axis_breaks_problem(picture, record))
         other = Figure(layout="constrained").add_subplot()
-        self.assertIn("XY series and XY error bars", ab.axis_breaks_problem(other, record))
+        self.assertIn("XY series, XY error bars", ab.axis_breaks_problem(other, record))
         figure = Figure(layout="constrained")
         figure.add_subplot().plot([1, 2], [1, 2])
-        self.assertIn("XY series and XY error bars", ab.axis_breaks_problem(figure.axes[0], record))
+        self.assertIn("XY series, XY error bars", ab.axis_breaks_problem(figure.axes[0], record))
 
     def test_a_categorical_axis_is_refused(self):
         figure = Figure(layout="constrained")

@@ -15,6 +15,106 @@ Regole fisse: niente merge e niente cambio di versione da parte di Claude; la gr
 
 ## Avanzamenti
 
+### Cartelle Excel: Importa cartella Excel… / Esporta cartella Excel…, pacchetto Excel-Completo-Qt (2026-11-19)
+
+PR draft verso main (ramo `claude/project-thread-mq7akh`, base main `4c07db6`). Windows NON PROVATO. Guida:
+`docs/qt-excel-workbook.md`.
+
+- Motore `analisi/xlsx_exchange.py` (senza Qt): `inspect_workbook`, `read_workbook(path, {foglio: riga o None})`,
+  `write_workbook(path, [(nome, frame)], overwrite=False)`, più `WorkbookReader` (anteprime e lettura con un solo
+  handle) e `prepare_workbook` → `publish`/`discard`. Il lettore storico `analisi.data.load_tables` non cambia.
+- Qt `trama_qt/excel_workbook.py`: due azioni nel gruppo File (`import_excel`, `export_excel`), dialoghi
+  `ExcelImportDialog` ed `ExcelExportDialog`, lavoro sul worker della finestra con avanzamento e Annulla. Testi
+  EN/IT nel modulo (nessuna voce in `strings.py`).
+- Smoke dedicato: `python -m trama_qt --smoke CARTELLA --scenario qt-excel-workbook` (preferenze nella cartella,
+  tema da `TRAMA_THEME`, predefinito chiaro). Il giro completo `--smoke` lo esegue anche, prima del canvas; le misure
+  50.000×20 solo nella prima lingua.
+- Da provare su Windows, a 100% e 150%:
+  - Smoke dedicato in chiaro e scuro; guardare `en-/it-excel-*.png` e `excel-timings.txt` (tempi e memoria di picco
+    reali).
+  - A mano: Importa cartella Excel… su `quaderno-multifoglio.xlsx` (nello smoke, cartella `excel-en`): Appunti non
+    spuntato, Vuoto non selezionabile, riga 2 per Controlli, riga 9 → errore e Importa spento. Mouse e tastiera
+    (spazio sulle caselle, frecce, Tab fino a Importa).
+  - Esporta cartella Excel… con due fogli dati e due tabelle risultato, Su/Giù e Alt+↑/↓, Invio = Esporta;
+    aprire il file in Excel (nessuna formula, `0007` e `=letterale` come testo); riesportare sullo stesso file con
+    Excel aperto su quel file: errore, file intatto, nessun `.~trama-*.xlsx` rimasto.
+  - Apri, salva .alab, riapri: i fogli importati tengono tipi (testo, numeri, booleani).
+- Conflitti attesi: `trama_qt/window.py` (2 azioni in `_build`, gruppo File del ribbon, 2 righe in
+  `update_actions`, 2 metodi prima di `open_classic`, 1 import), `trama_qt/smoke.py` (attributo `scenario`, 4 righe
+  in `run_language`, `SCENARIOS` e `run`), `trama_qt/app.py` (`--scenario`), cima di questo file. Vicine: #57-#69
+  sul gruppo File di `window.py`, `smoke.py` e questo file.
+
+### Modelli di analisi riutilizzabili su Qt, pacchetto Modelli-Analisi-Qt (2026-11-19)
+
+PR draft verso main (ramo `claude/project-thread-dvb3yf`, base main 4c07db6). Windows NON PROVATO. Guida per chi usa il programma: `docs/qt-analysis-templates.md`.
+
+- Nuovo: **File → Salva come modello…** e **File → Nuovo progetto da modello…** (anche nel gruppo File della barra). Formato `.tramatpl`, JSON schema 1, solo procedura: fogli e colonne, formule, analisi collegate con opzioni, etichette e stili, layout. Nessuna osservazione, niente Info, forme o annotazioni (contate nell'anteprima). Scrittura atomica; rifiuta il progetto aperto e quelli delle altre schede anche via link.
+- Motore senza Qt: `analisi/analysis_templates.py` (`write_template`, `read_template`, `instantiate_template`, più `plan_template`, `mapping_problems`, `default_mapping`). Lettura rigorosa: schema, chiavi doppie, NaN, campi ignoti, formule, cicli. Ogni applicazione dà UUID nuovi alle analisi.
+- Interfaccia: `trama_qt/templates.py` (dialogo con anteprima, assistente con sorgenti per tabella, griglia di colonne, CSV/TSV letti su un worker, errori sopra la griglia con focus sul campo). La costruzione gira sul worker del job con Annulla; la scheda vuota iniziale si riusa, altrimenti scheda nuova (max 6). Testi EN/IT nel dizionario locale `_TEXT` di quel modulo, non in `strings.py`.
+- Scelte fuori specifica, da rivedere: una sorgente presa da un foglio del progetto copia i valori visibili (le formule della sorgente diventano valori, le esclusioni non passano); una formula che legge Info blocca il salvataggio invece di toglierla.
+- Da provare su Windows, a 100% e 150%:
+  - Aprire `tests/data/qt_templates/progetto-originale.alab`, aprire il layout, File → Salva come modello…: anteprima leggibile, salvare; il `.tramatpl` non contiene `SOLO_ORIGINALE_Ω`.
+  - File → Nuovo progetto da modello…, Aggiungi CSV/TSV… con `nuova-calibrazione.csv` e `nuovo-controllo.csv`, mappatura di `mappatura.json`; prima provare Dose due volte (errore sopra la griglia, focus sul campo). Pendenze 6 e 5 nel layout.
+  - Salva con nome `.alab`, chiudere, riaprire dal layout, cambiare una misura del Controllo: il grafico si aggiorna.
+  - Tastiera: Tab tra sorgenti e griglia, Invio crea, Esc annulla. Tema scuro.
+  - `python -m trama_qt --smoke CARTELLA --only qt-analysis-templates` e lo smoke completo.
+- Test attesi: `tests.test_analysis_templates` 19/19, `tests.test_qt_templates` 10/10, contratto esterno del pacchetto OK, verificatore 7/7.
+- Conflitti attesi con #57–#69: `trama_qt/window.py` (import in testa, due azioni in `_build` dopo `save_as`, gruppo File della barra, una riga in `update_actions`, due metodi prima di `recalculate`), `trama_qt/smoke.py` (due righe dopo `project_tabs`), `trama_qt/app.py` (ramo `--only` di `--smoke`), cima di questo file.
+
+### Recupero progetti dopo una chiusura anomala, pacchetto Recupero-Progetti-Qt (2026-11-19)
+
+PR draft verso `main` dal ramo `claude/project-thread-urwia4`, base `main` `4c07db6` (0.95.0 beta, la base del pacchetto). Commit: `c0cadac` motore, `8aca18d` interfaccia, poi collaudo e guida. **Windows NON PROVATO.** Guida per chi usa il programma e note per sviluppatori: `docs/qt-recovery.md` (va collegata al menu Aiuto e al portabile: decide il coordinatore).
+
+- Nuovo: copie di recupero dei progetti con modifiche confermate e non salvate. **Impostazioni → Copie di recupero…** (attive, ogni 30 s; 15/30/60/120), **File → Recupera progetti…** (`window.actions["recover"]`), avviso sotto la barra comandi all'avvio se ci sono copie, stato «Ultima copia di recupero hh:mm:ss» nella barra di stato. Testi EN/IT in `trama_qt/recovery.py` (`r()`), non in `strings.py`.
+- Motore senza Qt: `trama_qt/recovery_store.py` (verificatore del pacchetto 6/6). Copie in `%APPDATA%\TramaStat\recovery` (Linux `$XDG_CONFIG_HOME/tramastat/recovery`), lease per finestra in `recovery/leases`.
+- `MainWindow(recovery=None)` è il default: test e smoke esistenti non scrivono nel profilo. Solo `app.main` crea `RecoveryController.for_profile()`.
+- Da provare su Windows (portabile, a 100% e 150% di scala reale):
+  - `python -m trama_qt.recovery_drill CARTELLA` (o lo stesso col Python del portabile): avvia un Trama separato con APPDATA temporanea, aspetta le due copie, termina solo quel PID (TerminateProcess), riapre, recupera una copia, rinvia l'altra e la riapre da File, Salva con nome Annulla/OK, originale con byte identici; poi originale cambiato fuori e indice rovinato. Esito in `CARTELLA/status.txt` e `report.json`, schermate EN/IT anche in tema scuro.
+  - A mano: aprire `tests/data/qt_recovery/misure-salvate.alab`, cambiare una cella, aprire un secondo progetto nuovo e scriverci un valore, aspettare «Ultima copia di recupero» (30 s), chiudere Trama da Gestione attività. Riaprire `tramastat.exe`: avviso con 2 copie, Recupera, salvataggio con nuovo nome nelle due schede. Controllare `%APPDATA%\TramaStat\recovery` vuota dopo i salvataggi/scarti.
+  - Due istanze aperte insieme: la seconda non offre le copie della prima (il dialogo dice «Altre N copie appartengono a un'altra finestra»).
+  - Cartella `recovery` in sola lettura (Proprietà → Sicurezza): la barra di stato dice «Copia di recupero non riuscita · ultima …», una sola riga di messaggio, nessuna finestra.
+  - Dialogo e avviso leggibili a 150% e nel tema scuro; colonne del dialogo con percorsi lunghi (elisi al centro).
+- Test attesi: `tests.test_recovery_store` 21/21, `tests.test_qt_recovery` 24/24, `tests.test_qt_projects` e `tests.test_qt_shell` invariati. Misure (container Linux, due schede 10.000×30): cattura sul thread GUI ~2 ms per scheda, pausa massima della GUI durante la scrittura ~22 ms, scrittura in sottofondo ~0,4 s e 5,8 MB per copia, nessuna riscrittura con dati fermi per due intervalli (`python tests/perf_qt_recovery.py`).
+- Conflitti attesi: `window.py` (import, costruttore, azioni `recover`/`recovery_settings` e gruppi File/Impostazioni della barra, `update_actions`, `close_project`, `open_path` → `_put_project`, `save`, `closeEvent`) con le PR Qt aperte #63 (Esporta più figure), #64 (Stili di figura), #65 (Report riproducibili, anche gruppo File) e #66 (Unisci fogli); `app.py` (creazione della finestra); `project.py` (`Project.__init__`, `dirty` diventa proprietà, `save`, `sync_links` → `_persist_links`); `analisi/data.py` (`save_project` diviso in `project_document`/`project_bytes`, stesso output); cima di questo file.
+
+### Unisci fogli per chiave, pacchetto Unione-Fogli-Chiavi 0.96 (2026-11-19)
+
+PR draft verso main (ramo `claude/worksheet-key-join`, base main 4c07db6). Windows NON PROVATO. Guida per chi usa il programma: `docs/worksheet-join.md`.
+
+- Nuovo metodo **Analyze → Data Processing → Join worksheets by key** (IT **Unisci fogli per chiave**). Il motore è in `analisi/worksheet_join.py`, i testi EN/IT in `analisi/worksheet_join_text.py`. Chiavi tipizzate (testo letterale, 1 = 1.0 senza perdita sugli interi grandi, `"1"` ≠ 1, bool solo con bool, vuoto/escluso/non finito = nessuna corrispondenza), da 1 a 4 coppie, Inner/Left/Full, quattro cardinalità, budget di 100.000 righe e 2.000.000 di celle controllato prima di espandere. I risultati sono Joined data, Join provenance e Join diagnostics.
+- Qt: editor dedicato `trama_qt/worksheet_join.py` (foglio di destra, coppie affiancate, tipo e cardinalità), agganciato in `analysis_dialog.py`. Gli errori riaprono il dialogo con il cursore sul campo giusto, anche sulla singola coppia.
+- Progetto: `Project.join_sources`, `join_problem`, `join_data` e `readers`. Il foglio di destra si legge sul thread della finestra (`frame(mask_excluded=True)`) e viaggia nel `RefreshJob`, quindi una modifica di uno dei due fogli ricalcola l'unione e le analisi collegate. Le unioni restano fuori dal precompute parallelo (`LOCAL_METHODS`).
+- Famiglie: Duplica famiglia continua a leggere lo stesso foglio di destra, a meno che non sia copiato anche lui. Salva famiglia come porta con sé il foglio di destra.
+- Tk classica: il metodo non compare nel menu; una ricetta esistente resta intatta e mostra `join.classic`.
+- Barra di stato: `trama_qt/status_label.py` taglia con i puntini un messaggio lungo invece di allargare la finestra (tooltip con il testo intero, `text()` invariato).
+- Da provare su Windows, a 100% e 150%, chiaro e scuro:
+  - Aprire `tests/data/worksheet_join/unione-campioni.alab`, foglio `Misure $`, Unisci fogli per chiave: foglio `Anagrafica | visite`, coppie Sample↔ID e Visit↔Time, Completa, Uno a molti → 8 righe come nella guida.
+  - Rifare con Uno a uno: errore, il dialogo si riapre su Cardinalità e si corregge lì.
+  - Modificare una cella del foglio di destra, poi Annulla: il risultato segue entrambe le volte.
+  - Salvare, chiudere, riaprire: il risultato si ricalcola uguale. Export CSV dei tre fogli di risultato.
+  - Dialogo in italiano a 150%: coppie, didascalie e note leggibili, senza tagli.
+  - `python -m trama_qt --smoke CARTELLA` alle due scale: i passi `join-*` non devono dare problemi.
+- Test attesi: `tests.test_worksheet_join` 24/24, `tests.test_qt_worksheet_join` 14/14, `tests.test_catalog`, `tests.test_qt_shell`, `tests.test_family_workflow`. Misure in `tests/perf_worksheet_join.py`.
+- Conflitti attesi con #57-#64: `window.py` (`_ask`, `calculate_candidate`, import e costruttore della barra di stato), `analysis_dialog.py` (`__init__`, `configure_fields`, `focus_field`, `options`, `accept`, `_message`), `project.py` (`compute`, `RefreshJob`, `plan_refresh`, `run_refresh`, `table_runs`), `smoke.py` (due righe dopo global_fit), `analisi/i18n.py` (registro dei testi), `analisi/workbench.py` (METHODS e GROUPS), cima di questo file.
+
+### Report di analisi riproducibili su Qt (2026-11-19)
+
+PR draft verso `main` dal ramo `claude/project-thread-svcb2z`, base `4c07db6` (0.95.0 beta). Windows NON PROVATO. Guida per chi usa il programma: `docs/qt-report.md`.
+
+- Nuovo: **File → Esporta report di analisi…** (`window.actions["export_report"]`, gruppo File dopo "Esporta più fogli in PDF"). Crea uno ZIP leggibile offline: `index.html` (senza JS, URL esterni o font remoti), `manifest.json` (`trama-analysis-report`, schema 1), `tables/NNN.csv`, `figures/NNN.svg`, `project.alab` facoltativo (spento di default, con avviso che contiene i dati originali).
+- Motore senza Qt: `analisi/report_bundle.py` (`export_bundle`, `verify_bundle`, `ReportCancelled`, `LAYOUT_METHOD = "Layout"`). Scrive in un temporaneo nella stessa cartella, verifica lo ZIP e poi `os.replace`; errori e annullamento lasciano intatto il file precedente e nessun temporaneo. ZIP deterministico (data fissa 1980-01-01, ordine per percorso).
+- Qt: `trama_qt/report_catalog.py` (candidati senza Qt: tabelle di risultato, grafici, layout, con il motivo per quelli non esportabili; ricetta pulita da percorsi, cache e metadati specifici di importazione; congelamento con il CSV di File → Esporta e l'SVG di `analisi.figure_export`/`layout_svg`), `trama_qt/report_dialog.py` (dialogo, conferma sostituzione, congelamento sul thread GUI con Annulla, scrittura come job annullabile con "Annulla calcolo"). Testi EN/IT locali nel modulo, non in `strings.py`.
+- Agganci piccoli: `window.py` (import di `report_text`, azione, voce nel gruppo File, una riga in `update_actions`, metodo `export_report`), `smoke.py` (2 righe dopo `project_tabs`), `package_windows.py` (guida `qt-report.md`).
+- Da provare su Windows a 100% e 150% reali:
+  - Aprire `tests/data/qt_report/calibrazione-report.alab`, calcolare la regressione, crearne una seconda e un layout. File → Esporta report di analisi…: cambiare ordine e nomi, titolo `Control $ <A> & β`, nota con `<script>`; Esporta, scegliere un file esistente e rispondere No (non cambia nulla), poi Sì.
+  - Estrarre lo ZIP e aprire `index.html` con la rete staccata: immagini SVG visibili, CSV completo apribile in Excel (BOM UTF-8), testo con markup letterale.
+  - Il dialogo con molte sezioni (60) a 1024×768 e 150%: Esporta e Annulla sempre visibili, motivi delle righe non disponibili leggibili per intero; tema scuro.
+  - Con la copia progetto attiva: aprire `project.alab` estratto in Trama, ricalcolare e salvare; il progetto originale resta senza • e il file originale identico.
+  - Annulla durante "Preparazione del report…" e durante la scrittura (barra in basso): nessun file nuovo, il report precedente intatto.
+  - `python -m trama_qt --smoke CARTELLA` a 100% e 150%: passi `report-*`.
+- Test attesi: `tests.test_report_bundle` 14/14, `tests.test_qt_report` 19/19, `tests.test_qt_shell` e `tests.test_qt_projects` invariati. Verificatore del pacchetto: base 2/3 (modulo mancante), testa 7/7.
+- Conflitti attesi: cima di questo file con tutte le PR Qt aperte; `smoke.py` (riga dopo `project_tabs`); `window.py` gruppo File e `update_actions` con #63 Esportazione figure (anche lei aggiunge un'azione dopo `export_pdf`); `package_windows.py` (lista guide). Tutti banali: tenere entrambe le righe.
+
 ### Bland–Altman per coppie ripetute, pacchetto 02 del 0.96 (2026-11-20)
 
 PR draft verso main (ramo `claude/project-thread-y6nc6f`, base main 4c07db6). Windows NON PROVATO. Guida: `docs/bland-altman-repeated.md`.
@@ -147,7 +247,8 @@ Ramo `claude/project-thread-9kot5b`, base `main` `7a7340c`. Windows NON PROVATO.
 
 Ramo nuovo da main `7a7340c`, solo interfaccia: `analisi/` non è toccato. Anteprima con schermate prima/dopo e video in `/mnt/project-files/qt-rifinitura-1119/` (fuori dal repo).
 
-- Tema chiaro, scuro o "Come il sistema" (predefinito): Visualizza → Come il sistema / Chiaro / Scuro. La scelta resta salvata (`QSettings` TramaStat/Trama, chiave `qt/theme`), `TRAMA_THEME=light|dark|system` la forza. In "Come il sistema" il tema cambia da solo quando Windows passa da chiaro a scuro (`styleHints().colorSchemeChanged`). I grafici restano su carta bianca.
+- Tema chiaro (predefinito), scuro o "Come il sistema": Visualizza → Come il sistema / Chiaro / Scuro. La scelta resta salvata (`QSettings` TramaStat/Trama, chiave `qt/theme`), `TRAMA_THEME=light|dark|system` la forza. In "Come il sistema" il tema cambia da solo quando Windows passa da chiaro a scuro (`styleHints().colorSchemeChanged`). I grafici restano su carta bianca.
+- File → Apri nell’interfaccia Classica e l’opzione `--tk` aprono la finestra Tk con la grafica originale di Trama.
 - Icone: ogni icona Lucide è un `QIconEngine` (`theme.SvgIcon`) che disegna l'SVG alla dimensione e alla scala del monitor in cui compare, quindi resta nitida anche spostando la finestra tra schermi con scala diversa, e prende il colore del tema al momento del disegno. La barra di matplotlib usa le stesse icone (`theme.plot_toolbar`). Nuove icone Lucide: house, arrow-left, arrow-right, move, check, monitor, chart-spline.
 - Ombre morbide sotto i due pannelli, disegnate a nove fette dallo sfondo della finestra (`theme.ShadowCanvas`): nessun `QGraphicsEffect` su tabelle e grafici, quindi lo scorrimento della griglia non rallenta.
 - Vetro: quando si apre un dialogo modale, la finestra principale dietro viene sfocata e velata (`theme.GlassVeil`), con dissolvenza in 200 ms. Il dialogo resta una finestra nativa.

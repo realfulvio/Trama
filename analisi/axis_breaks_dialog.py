@@ -172,6 +172,7 @@ class AxisBreaksDialog(simpledialog.Dialog):
                              foreground=HINT_COLOR if abs(total - 100) <= 1e-8 else ERROR_COLOR)
 
     def _fill(self, record):
+        self.record = record
         for row in range(ROWS):
             segment = record["segments"][row] if row < len(record["segments"]) else {}
             for name in COLUMNS:
@@ -206,16 +207,23 @@ class AxisBreaksDialog(simpledialog.Dialog):
         axis = self.axis.get()
         if not axis:
             return {}
+        saved = self.record.get("segments", ()) if axis == self.record.get("axis") else ()
         segments = []
         for row in range(self._rows()):
             segment = {name: _typed(self.vars[(row, name)].get()) for name in ("low", "high", "share")}
             segment["major_step"] = _typed(self.vars[(row, "major_step")].get(), blank=None)
+            if row < len(saved):
+                for key in ("minor_ticks", "major_origin", "tick_labels", "tick_format"):
+                    if key in saved[row] and (key != "major_origin" or segment["major_step"] is not None):
+                        segment[key] = saved[row][key]
             segments.append(segment)
         return normalise_axis_breaks({"axis": axis, "gap": _typed(self.gap.get()), "segments": segments})
 
     def show_error(self, error):
         self.problem.configure(text=translate_breaks_error(error))
         field = getattr(error, "field", None)
+        if isinstance(error, AxisBreakError) and error.name in ("minor_ticks", "major_origin"):
+            field = f"segments.{error.row}.major_step"
         widget = self.widgets.get("count" if field == "segments" else field)
         self.error_widget = widget
         if widget is not None:

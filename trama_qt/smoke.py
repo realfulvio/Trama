@@ -33,6 +33,7 @@ class Smoke:
         self.problems, self.shots, self.language = [], 0, "en"
         self.notes = []
         self.window = None
+        self.scenario = None
 
     # -- checks ---------------------------------------------------------------------------------------
     def problem(self, text):
@@ -177,6 +178,9 @@ class Smoke:
         self.app.processEvents()
         try:
             self.shot(window, "home")
+            if self.scenario is not None:  # --scenario NAME: only that part of the acceptance.
+                SCENARIOS[self.scenario](self, window)
+                return
             refs = self.build()
             window.project.dirty = False
             pages = [("data", ("data", "groups")), ("result", ("result", refs["result"])),
@@ -225,8 +229,16 @@ class Smoke:
             global_fit(self, window)
             from .reshape_smoke import exercise as reshape_long_wide  # Reshape long and wide (0.96)
             reshape_long_wide(self, window)
+            from .join_smoke import exercise as worksheet_join
+            worksheet_join(self, window)
             from .projects_smoke import run as project_tabs
             project_tabs(self, window)
+            from .report_smoke import run as analysis_report
+            analysis_report(self, window)
+            from .templates_smoke import run as analysis_templates
+            analysis_templates(self, window)
+            from .excel_smoke import run as excel_workbook
+            excel_workbook(self, window, timings=language == LANGUAGES[0])
             from .canvas_smoke import check_canvas
             self.notes += check_canvas(self)  # Last: it replaces the project with its own.
         except Exception:  # noqa: BLE001 - the report must say what broke, then the next language runs.
@@ -555,10 +567,22 @@ class Smoke:
         return status
 
 
-def run(folder, languages=LANGUAGES):
-    """Run the acceptance in each language; returns "PASS" or "FAIL" (also written to ``status.txt``)."""
+def _excel_scenario(smoke, window):
+    from .excel_smoke import run as excel_workbook
+    excel_workbook(smoke, window, timings=smoke.language == LANGUAGES[0])
+
+
+SCENARIOS = {"qt-excel-workbook": _excel_scenario}
+
+
+def run(folder, languages=LANGUAGES, scenario=None):
+    """Run the acceptance in each language; returns "PASS" or "FAIL" (also written to ``status.txt``).
+    ``scenario`` (a key of ``SCENARIOS``) runs only that part."""
     from analisi.i18n import active_language, set_language
+    if scenario is not None and scenario not in SCENARIOS:
+        raise ValueError(f"Unknown smoke scenario: {scenario}. Choose {', '.join(SCENARIOS)}.")
     smoke = Smoke(folder)
+    smoke.scenario = scenario
     previous = active_language()
     try:
         for language in languages:

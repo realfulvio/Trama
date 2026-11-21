@@ -302,7 +302,9 @@ class GraphInspector(QFrame):
                     label.setVisible(shown)
                 if key == "visible":
                     field.setChecked(options.get("visible", True))
-                    if item and not series:
+                    if series:
+                        field.setText(tr("graph.series.visible"))
+                    elif item:
                         field.setText(tr("graph.inspector.show_kind." + item["item"].kind))
                 elif key == "marker":
                     markers = [label for label, code in MARKERS.items()

@@ -1,6 +1,6 @@
 # Axis Breaks for XY Graphs
 
-An axis break cuts a numeric axis into two or three segments with exact limits and exact shares of the plot, so a graph can show clusters of data without drawing the empty stretch between them. It is available for **XY series** and **XY error bars**, on the X axis or the left Y axis.
+An axis break cuts a numeric axis into two or three segments with exact limits and exact shares of the plot, so a graph can show clusters of data without drawing the empty stretch between them. It is available for **XY series**, **XY error bars** and **Global nonlinear regression**, on the X axis or the left Y axis.
 
 The graph is drawn as real Matplotlib panels. Each panel shows one segment, the other axis stays in sync, and the legend appears once. Break marks sit on the cut edges of the axis. Edge tick labels point into their panels so the labels across a gap remain distinct. SVG and PDF exports stay vector, and the worksheets are never touched: a point between two segments is not drawn, but it stays in the data and in every calculation.
 
@@ -10,6 +10,10 @@ The graph is drawn as real Matplotlib panels. Each panel shows one segment, the 
 - **Graph Inspector → Axes → Axis breaks…**, inside the current Inspector draft. Cancel in the editor returns to the draft, Cancel in the Inspector returns to the confirmed graph. **Reset section** of the Axes section removes the breaks.
 
 In the editor choose the axis, the number of segments, the gap and, for each segment, the low and high limit, the share of the plot in percent and an optional major interval. **Suggest from the data** cuts the axis at the widest empty stretches. Both limits belong to their segment. Typing a decimal comma works in both languages.
+
+In Qt, **Tick origin** positions the major ticks of a segment with an explicit interval. An origin of 0 with limits −15 and 115 and an interval of 25 places major ticks at 0, 25, 50, 75 and 100. Use **Minor ticks** to set how many ticks appear between major ticks in that segment. Enter 0 to hide them or leave the field blank to inherit the axis setting.
+
+When you open a compatible legacy XY project, the two fitted curves can inherit the saved axis limits, segment proportions and named ticks. For example, a control concentration can retain its text label while the concentrations on the next segment keep their numeric labels. Each model still draws its own recalculated curve.
 
 **Preview** draws the candidate on the graph without confirming it. An invalid draft keeps the last valid preview, names the problem and puts the focus on the field. **Cancel** or **Esc** undoes any preview.
 
@@ -34,14 +38,15 @@ The breaks are one section of the graph style, stored in the project like the ot
 ```
 
 - `axis` is `"x"` or `"y"` (the left Y axis). `gap` is the fraction of the band between two panels, from `0.01` to `0.10`.
-- Two or three segments in increasing order. `low < high`, and each `low` is larger than the previous `high`. The shares are positive and add up to `100`.
+- Two or three segments in increasing order. Each segment has `low < high`. The lower limit of a segment can match the preceding upper limit to change the scale without omitting a range of values. The shares are positive and add up to `100`.
 - `major_step` is a positive number, or `null` for automatic ticks. A step that would place more than 200 ticks is refused.
+- `major_origin` is optional and requires an explicit `major_step`. Without an origin, the major grid starts at the lower limit. Optional `minor_ticks` is a whole number from 0 to 10. With both explicit spacing and minor ticks, the whole grid is limited to 200 marks per segment.
 - The panel lengths follow `(1 - (N - 1) * gap) * share / 100` of the band reserved for the plot, so shares and gaps stay exact at any window, export or layout size.
 - An invalid record is refused before anything on the graph changes, and the message names the segment and the field.
 
 ## What is drawn
 
-- Lines, points, error bars (including asymmetric ones) and the legend are repeated per panel and clipped to it. A point exactly on a limit is drawn.
+- Lines, points, error bars (including asymmetric ones) and the legend are repeated per panel and clipped to it. Each panel includes its endpoints, including points at a boundary shared with an adjacent panel.
 - Reference lines, shapes, annotations, additional ticks and shaded ranges are drawn on the panels where they have content. A guide on the other axis crosses every panel, with its tick or label on one edge only.
 - Drawings and annotations placed in plot fractions cannot be combined with axis breaks; the editor says so.
 - The limits and the scale of the broken axis come from the segments. Their fields rest in Format Graph and in the Inspector while the breaks are on, and the previous limits return when the breaks are removed.
@@ -49,7 +54,7 @@ The breaks are one section of the graph style, stored in the project like the ot
 
 ## When breaks cannot be shown
 
-Axis breaks need a native XY series or XY error bars graph with a linear numeric broken axis that increases, the standard graph layout, and no right Y axis. A saved setting that a later change makes impossible, for example moving a series to the right axis, is **kept and ignored**: the graph is drawn whole, the status bar and the Inspector say why, and the setting comes back as soon as the graph allows it. Breaks chosen in Format Graph that cannot be drawn stop **Apply** and name the reason instead.
+Axis breaks work on native XY series, XY error bars and global nonlinear fit graphs with a linear numeric broken axis that increases, the standard graph layout, and a single Y axis. Each panel clips the fitted curve, observations and optional confidence band to its own limits. A saved setting that a later change makes impossible, for example moving a series to the right axis, is **kept and ignored**: the graph is drawn whole, the status bar and the Inspector say why, and the setting comes back as soon as the graph allows it. Breaks chosen in Format Graph that cannot be drawn stop **Apply** and name the reason instead.
 
 An old project without the section opens as before. On a graph that cannot show the breaks (a log or categorical broken axis, extra drawing elements, an imported picture) the figure stays as it was.
 

@@ -22,6 +22,96 @@ def source(analysis_class, version, content, frame, columns):
 
 
 class PrismRecipeTests(unittest.TestCase):
+    def test_xy_log_x_uses_the_x_identity_and_keeps_individual_replicates(self):
+        frame = pd.DataFrame({"Concentration": [1e-10, .001, 1.0], "A [1]": [3, None, 9], "A [2]": [4, 5, 8]})
+        settings = {"interchangeXY": False,
+                    "xTransform": {"enabled": True, "function": "LOG10(X)", "k": "undefined"},
+                    "yTransform": {"enabled": False}}
+        content = {"data": {"handleReplicatesAs": "INDIVIDUAL"},
+                   "calc": {"transformType": "STANDARD", "standardFunction": settings}}
+        columns = {"x": ["Concentration"], "a": ["A [1]", "A [2]"]}
+        sheet, params, sources = source("TRNSFORM", "0.0.0", content, frame, columns)
+        frame.attrs.update(table_format="xy", prism_x="x", prism_y=["a"], prism_y_format="y_replicates")
+        sheet["inputDataSets"] = [{"uid": "a", "title": "Old title"}]
+        _, method, options = restore_recipe(sheet, params, sources)
+        self.assertEqual(method, "Transform concentrations (X)")
+        result = analyse(method, frame, options).tables["Transformed data"]
+        self.assertEqual(result["Concentration"].tolist(), [-10, -3, 0])
+        pd.testing.assert_frame_equal(result.drop(columns="Concentration"), frame.drop(columns="Concentration"))
+        for changed in ({"interchangeXY": True}, {"yTransform": {"enabled": True}},
+                        {"xTransform": {"enabled": True, "function": "LN(X)", "k": "undefined"}}):
+            with self.subTest(changed=changed):
+                content["calc"]["standardFunction"] = {**settings, **changed}
+                self.assertIsNone(restore_recipe(sheet, params, sources))
+        content["calc"]["standardFunction"] = settings
+        sheet["inputDataSets"] = [{"uid": "b"}]
+        self.assertIsNone(restore_recipe(sheet, params, sources))
+
+    def test_select_transform_restores_inclusive_row_range(self):
+        frame = pd.DataFrame({"Label": list("abcdef"), "Score": [9, 3, 0, 8, 6, 4]},
+                             index=[101, 102, 103, 104, 105, 106])
+        uids = {"label": ["Label"], "score": ["Score"]}
+        frame.attrs["prism_y"] = list(uids)
+        filters = {
+            "range": {"from": 2, "to": 4},
+            "variableValue": [{"variableIdx": 1, "logic": ">", "value": 2}],
+            "variableVariable": [],
+        }
+        content = {"rowFilters": filters, "transforms": [
+            {"title": "Label", "enabled": True, "definition": "A", "parameter": "undefined"},
+        ]}
+        args = source("SELECT_TRANSFORM", "0.0.2", content, frame, uids)
+
+        for first, last, labels in [(2, 4, ["b", "d"]), (1, 1, ["a"]), (6, 6, ["f"])]:
+            with self.subTest(first=first, last=last):
+                filters["range"] = {"from": first, "to": last}
+                _, method, options = restore_recipe(*args)
+                self.assertEqual((options["First row"], options["Last row"]), (first, last))
+                self.assertEqual(analyse(method, frame, options).tables["Selected data"]["Label"].tolist(), labels)
+
+        for start, end in [(0, 4), (4, 2), (-1, 4), (1, -1), (True, 4), (1, 4.0), (1, 10**20)]:
+            with self.subTest(start=start, end=end):
+                filters["range"] = {"from": start, "to": end}
+                self.assertIsNone(restore_recipe(*args))
+        filters["range"] = {"from": 1, "to": 4, "newOption": True}
+        self.assertIsNone(restore_recipe(*args))
+
+    def test_select_transform_restores_joint_column_and_presence_filters(self):
+        frame = pd.DataFrame({"Sample": list("abcde"), "Measured": [3, 4, 5, 2, 7],
+                              "Target": [3, 6, 0, 9, 4], "Control": [10., 20., None, 10., 1.]})
+        uids = {str(index): [label] for index, label in enumerate(frame.columns)}
+        frame.attrs["prism_y"] = list(uids)
+        filters = {
+            "range": {"from": -1, "to": -1},
+            "variableValue": [{"variableIdx": 1, "logic": ">", "value": 2},
+                              {"variableIdx": 3, "logic": "is_not_missing", "value": None}],
+            "variableVariable": [{"variable1Idx": 1, "logic": "<>", "variable2Idx": 2}],
+        }
+        content = {"rowFilters": filters, "transforms": [
+            {"title": "Sample", "enabled": True, "definition": "A", "parameter": "undefined"},
+            {"title": "Total", "enabled": True, "definition": "B + C", "parameter": "undefined"},
+        ]}
+        args = source("SELECT_TRANSFORM", "0.0.2", content, frame, uids)
+        _, method, options = restore_recipe(*args)
+        self.assertEqual(options["Row filters"], [
+            {"column": "Measured", "operator": ">", "target": "Number", "value": "2"},
+            {"column": "Control", "operator": "Is not missing", "target": "Number", "value": ""},
+            {"column": "Measured", "operator": "!=", "target": "Column", "value": "Target"},
+        ])
+        expected = pd.DataFrame({"Sample": ["b", "e"], "Total": [10., 11.]})
+        actual = analyse(method, frame, options).tables["Selected data"]
+        pd.testing.assert_frame_equal(actual, expected, check_dtype=False, check_exact=True)
+
+        with self.subTest("unknown index"):
+            filters["variableVariable"][0]["variable2Idx"] = 10
+            self.assertIsNone(restore_recipe(*args))
+        with self.subTest("wrong column type"):
+            filters["variableVariable"][0]["variable2Idx"] = 0
+            self.assertIsNone(restore_recipe(*args))
+        with self.subTest("combined condition limit"):
+            filters["variableVariable"] = [{"variable1Idx": 1, "logic": "<>", "variable2Idx": 2}] * 31
+            self.assertIsNone(restore_recipe(*args))
+
     def test_extract_rearrange_restores_xy_column_and_weighted_counts(self):
         frame = pd.DataFrame({"Time": [1, 2, 1, 2], "Value": [3, 5, 7, 9],
                               "Arm 2": ["A", "A", "B", "B"], "Event": ["yes", "no", "yes", "yes"],

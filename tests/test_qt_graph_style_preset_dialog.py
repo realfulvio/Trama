@@ -164,8 +164,10 @@ class GraphStylePresetDialogTests(unittest.TestCase):
         second = self.commit(1, SECOND)
         before_second = deepcopy(second.style)
         self.assertTrue(window.actions["graph_style_presets"].isEnabled())
-        self.assertIn(window.actions["graph_style_presets"],
-                      window.ribbon.widget(3).actions())  # Graph tab, next to Format Graph.
+        window.ribbon_tabs.setCurrentIndex(window.ribbon_pages["graph"])
+        graph_actions = window.ribbon.currentWidget().actions()
+        self.assertIn(window.actions["format_graph"], graph_actions)
+        self.assertIn(window.actions["graph_style_presets"], graph_actions)
 
         # Save «Pubblicazione» from the first graph; Enter in the name field saves without closing.
         window.open_sheet(("graph", 0))

@@ -28,6 +28,7 @@ from .category_graphs import (COLUMN_GRAPH, COLUMN_STYLES, GROUPED_GRAPH, GROUPE
 from .ancova import ANCOVA, OPTIONS as ANCOVA_OPTIONS, ancova
 from .bubble import BUBBLE, OPTIONS as BUBBLE_OPTIONS, bubble_plot
 from . import bland_altman_repeated as ba_repeated
+from .cluster_silhouette import METHOD as CLUSTER_SILHOUETTE, OPTIONS as SILHOUETTE_OPTIONS, cluster_silhouette
 from .compare_lines import COMPARE_LINES, OPTIONS as COMPARE_LINES_OPTIONS, compare_lines
 from .contingency import CONTINGENCY, CONTINGENCY_OPTIONS, contingency
 from .distribution_graphs import BOX_VIOLIN, OPTIONS as BOX_VIOLIN_OPTIONS, box_violin
@@ -54,15 +55,20 @@ from .hierarchical_workbench import (HIERARCHICAL_OPTIONS, HIERARCHY_GRAPH, HIER
                                      hierarchy_graph)
 from .inference import CHI_SQUARE_P, DUNN_OPTIONS, KRUSKAL_P, KRUSKAL_P_METHODS, dunn_comparisons, kruskal_wallis
 from .linear_diagnostics import LINEAR_OPTIONS, linear_result
+from .cohen_kappa_workbench import COHEN_KAPPA, OPTIONS as COHEN_KAPPA_OPTIONS, cohen_kappa
 from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, equivalence_test
 from .mean_permutation import METHOD as MEAN_PERMUTATION, OPTIONS as MEAN_PERMUTATION_OPTIONS, permutation_test
 from .competing_risks_workbench import (COMPETING_RISKS, OPTIONS as COMPETING_RISKS_OPTIONS,
                                         competing_risks)
 from .cox_exact import METHOD as COX_REGRESSION, cox_exact_result, is_exact as is_cox_exact
+from .weibull_aft_workbench import WEIBULL_AFT, OPTIONS as WEIBULL_AFT_OPTIONS, weibull_aft
+from .rmst_workbench import OPTIONS as RMST_OPTIONS, RMST, rmst
 from .lognormal_tests import LOGNORMAL, OPTIONS as LOGNORMAL_OPTIONS, lognormal_test
+from .ordinal_logit import ORDINAL_LOGIT, OPTIONS as ORDINAL_LOGIT_OPTIONS, ordinal_logit
 from .variance_ratio import METHOD as VARIANCE_RATIO, SHOW as VARIANCE_SHOW, analysis as variance_ratio_analysis, attach_ttest
 from .summary_anova import METHOD as SUMMARY_ANOVA, OPTIONS as SUMMARY_ANOVA_OPTIONS, summary_anova
 from .summary_ttest import METHOD as SUMMARY_TTEST, OPTIONS as SUMMARY_TTEST_OPTIONS, summary_ttest
+from .tolerance_intervals import TOLERANCE, OPTIONS as TOLERANCE_OPTIONS, tolerance_intervals
 from .model_selection import COMPARE_MODELS, OPTIONS as COMPARE_MODELS_OPTIONS, model_selection
 from .nonlinear_bands import OPTIONS as BAND_OPTIONS, band_outputs, band_settings
 from .monte_carlo import MONTE_CARLO, OPTIONS as MONTE_CARLO_OPTIONS, monte_carlo
@@ -76,6 +82,7 @@ from .robust_curve import OPTIONS as ROBUST_CURVE_OPTIONS, ROBUST_CURVE, robust_
 from .nb2_regression import NB2, OPTIONS as NB2_OPTIONS, analysis as nb2_analysis
 from .transpose_xy import OPTIONS as TRANSPOSE_OPTIONS, TRANSPOSE_XY, transpose_xy
 from .reshape_long_wide import METHOD as RESHAPE_LONG_WIDE, OPTIONS as RESHAPE_OPTIONS, reshape_long_wide
+from .worksheet_join import METHOD as WORKSHEET_JOIN, OPTIONS as WORKSHEET_JOIN_OPTIONS, join_worksheets
 from .paired_graphs import (BEFORE_AFTER, BEFORE_AFTER_OPTIONS, TRAJECTORIES, TRAJECTORY_OPTIONS, before_after,
                             subject_trajectories)
 from .spline_fit import SPLINE_FIT
@@ -83,6 +90,7 @@ from .outlier_screening import OPTIONS as OUTLIER_OPTIONS, OUTLIERS, identify_ou
 from .parameter_intervals import (OPTIONS as PARAMETER_CI_OPTIONS, settings as parameter_ci_settings,
                                   parameter_outputs, ProfileBudget)
 from .normality import NORMALITY, OPTIONS as NORMALITY_OPTIONS, is_legacy as legacy_normality, normality
+from .paired_proportions import OPTIONS as PAIRED_PROPORTIONS_OPTIONS, PAIRED_PROPORTIONS, paired_proportions
 from .nested import METHODS as NESTED_METHODS, NESTED_ANOVA, NESTED_T, nested_analysis
 from .select_transform import SELECT_OPTIONS, SELECT_TRANSFORM, select_transform
 from .parts_of_whole import GOODNESS_OF_FIT, GOODNESS_OPTIONS, PARTS_GRAPH, PARTS_OPTIONS, goodness_of_fit, parts_graph
@@ -217,6 +225,7 @@ def check_survival_options(frame, options):
 # Fields are column roles, options, or typed defaults.
 METHODS = {
     "Descriptive statistics": {"Variables": MULTIPLE, GEOMETRIC_MEAN: False},
+    TOLERANCE: TOLERANCE_OPTIONS,
     NORMALITY: NORMALITY_OPTIONS,
     "t-test": {"Design": ("Welch", "Student", "Paired", "One-sample"),
                "Response": None, "Group": OPTIONAL, "Subject": OPTIONAL, "Null mean": 0.0,
@@ -228,9 +237,14 @@ METHODS = {
                      "Graph": ("None", "Variance ratio", "SD ratio")},
     EQUIVALENCE: EQUIVALENCE_OPTIONS,
     MEAN_PERMUTATION: MEAN_PERMUTATION_OPTIONS,
+    COHEN_KAPPA: COHEN_KAPPA_OPTIONS,
     COMPETING_RISKS: COMPETING_RISKS_OPTIONS,
+    WEIBULL_AFT: WEIBULL_AFT_OPTIONS,
+    ORDINAL_LOGIT: ORDINAL_LOGIT_OPTIONS,
+    RMST: RMST_OPTIONS,
     SUMMARY_ANOVA: SUMMARY_ANOVA_OPTIONS,
     SUMMARY_TTEST: SUMMARY_TTEST_OPTIONS,
+    MEAN_PERMUTATION: MEAN_PERMUTATION_OPTIONS,
     MANN_WHITNEY: RANK_OPTIONS[MANN_WHITNEY],
     WILCOXON: RANK_OPTIONS[WILCOXON],
     "Kruskal–Wallis": {"Response": None, "Group": None, KRUSKAL_P: KRUSKAL_P_METHODS, **DUNN_OPTIONS},
@@ -242,6 +256,7 @@ METHODS = {
     ROW_TESTS: ROW_TEST_OPTIONS,
     **NESTED_METHODS,
     CONTINGENCY: CONTINGENCY_OPTIONS,
+    PAIRED_PROPORTIONS: PAIRED_PROPORTIONS_OPTIONS,
     PARTS_GRAPH: PARTS_OPTIONS,
     GOODNESS_OF_FIT: GOODNESS_OPTIONS,
     "Linear regression": {"X": None, "Y": None, **LINEAR_OPTIONS},
@@ -305,6 +320,7 @@ METHODS = {
     KMEANS_STABILITY: {**KMEANS_STABILITY_OPTIONS, "Variables": MULTIPLE},
     "Hierarchical clustering": {"Variables": MULTIPLE, "Observation labels": OPTIONAL, **HIERARCHICAL_OPTIONS},
     HIERARCHY_GRAPH: HIERARCHY_GRAPH_OPTIONS,
+    CLUSTER_SILHOUETTE: SILHOUETTE_OPTIONS,
     "Scatter / confidence ellipse": {"X": None, "Y": None, "Group": OPTIONAL, **ELLIPSE_OPTIONS},
     COLUMN_GRAPH: {"Variables": MULTIPLE, "Graph style": COLUMN_STYLES, **CATEGORY_OPTIONS},
     HEAT_MAP: HEAT_MAP_OPTIONS,
@@ -342,15 +358,16 @@ METHODS = {
         for field in dict.fromkeys(field for fields in EXTRACT_FIELDS.values() for field in fields)
     }},
     REFERENCE_NORMALIZATION: REFERENCE_NORMALIZATION_OPTIONS,
+    WORKSHEET_JOIN: WORKSHEET_JOIN_OPTIONS,
     **EXTRA_METHODS,
 }
 
 GROUPS = {
     "Data Processing": ("Transform", "Transform concentrations (X)", "Normalize", REFERENCE_NORMALIZATION, "Prune rows",
                         "Remove baseline and column math", "Fraction of total", EXTRACT_REARRANGE, SELECT_TRANSFORM,
-                        "Reshape replicates", RESHAPE_LONG_WIDE, TRANSPOSE_XY,
+                        "Reshape replicates", RESHAPE_LONG_WIDE, TRANSPOSE_XY, WORKSHEET_JOIN,
                         "Outlier test (Grubbs)", OUTLIERS),
-    "Data Exploration and Summary": ("Descriptive statistics", "Row statistics", NORMALITY,
+    "Data Exploration and Summary": ("Descriptive statistics", TOLERANCE, "Row statistics", NORMALITY,
                                     "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX, RMCORR,
                                     "Histogram", FREQUENCY, GOODNESS_OF_FIT,
                                     "Area under curve", "Principal component analysis",
@@ -359,15 +376,15 @@ GROUPS = {
                               NB2, LOGISTIC_VALIDATION, "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
                               "Interpolate a standard curve", SPLINE_FIT,
-                              "Smooth / differentiate / integrate", PLOT_FUNCTION),
+                              "Smooth / differentiate / integrate", PLOT_FUNCTION, ORDINAL_LOGIT),
     "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, MEAN_PERMUTATION, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
-                         "Multifactor ANOVA", grouped_anova.METHOD, ANCOVA, "Contingency table",
+                         "Multifactor ANOVA", grouped_anova.METHOD, ANCOVA, "Contingency table", PAIRED_PROPORTIONS, COHEN_KAPPA,
                          "Bland–Altman", ba_repeated.METHOD, "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC),
-    "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS),
+    "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS, WEIBULL_AFT, RMST),
     "Clustering": ("K-means clustering", "K-means model selection", KMEANS_STABILITY, "Hierarchical clustering",
-                   HIERARCHY_GRAPH),
+                   HIERARCHY_GRAPH, CLUSTER_SILHOUETTE),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
                  PARTS_GRAPH, "Box / violin plot", GROUPED_DISTRIBUTIONS, BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
     "Study Design and Simulation": ("Power and sample size", "Simulate data", MONTE_CARLO),
@@ -377,18 +394,19 @@ GROUPS = {
 # available while a reopened project's results are still unloaded.
 GRAPH_METHODS = frozenset({
     *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", ba_repeated.METHOD, "Correlation", CORRELATE_CONTROL,
-    COMPARE_INDEPENDENT, CORRELATION_MATRIX, "Deming regression",
+    COMPARE_INDEPENDENT, CORRELATION_MATRIX, COHEN_KAPPA, "Deming regression",
     "Global nonlinear regression", "Hierarchical clustering", HIERARCHY_GRAPH, "Histogram", FREQUENCY,
     "Interpolate a standard curve",
-    "K-means clustering", "K-means model selection", KMEANS_STABILITY, "Kaplan–Meier survival", COMPETING_RISKS,
+    "K-means clustering", "K-means model selection", KMEANS_STABILITY, "Kaplan–Meier survival", COMPETING_RISKS, WEIBULL_AFT,
     "Linear regression", COMPARE_LINES, ANCOVA,
     "Mixed-effects model (REML)", LOGNORMAL, EQUIVALENCE, "Multiple t-tests", ROW_TESTS, "Nonlinear regression", ROBUST_CURVE, CUSTOM_EQUATION,
+    MEAN_PERMUTATION,
     GLOBAL_CUSTOM_EQUATION, "Principal component analysis",
     MEAN_PERMUTATION,
     "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC, LOGISTIC_VALIDATION,
     "Smooth / differentiate / integrate", SPLINE_FIT,
     *NESTED_METHODS,
-    REFERENCE_NORMALIZATION, SUMMARY_ANOVA, SUMMARY_TTEST,
+    REFERENCE_NORMALIZATION, SUMMARY_ANOVA, SUMMARY_TTEST, RMST,
 })
 
 
@@ -1104,10 +1122,14 @@ def _imported_layout(options, layout_data=None):
     return figure
 
 
-def analyse(method, frame, options, *, layout_data=None, cancel=None):
+def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=None):
+    """Calculate ``method`` on ``frame``. ``join_data`` is the evaluated right worksheet of
+    Join worksheets by key, already resolved by the application (the engine never looks sheets up)."""
     from .prism_xml_binding import SCATCHARD, scatchard
 
     o = options
+    if method == WORKSHEET_JOIN:
+        return join_worksheets(frame, join_data, o, cancel=cancel)
     if o.get("Linear trend") and method != "One-way ANOVA":
         from .trend_anova import reject_unless_one_way
         reject_unless_one_way(method)
@@ -1154,6 +1176,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return Result({}, figure)
     if method == "Descriptive statistics":
         return Result({"Summary": engine.describe(frame, o["Variables"], geometric=bool(o.get(GEOMETRIC_MEAN)))})
+    if method == TOLERANCE:
+        return tolerance_intervals(frame, o)
     if method == NORMALITY:
         # Recipes saved before the test choices existed keep the Shapiro–Wilk "Normality" sheet.
         return _normality(frame, o) if legacy_normality(o) else normality(frame, o)
@@ -1173,14 +1197,24 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return equivalence_test(frame, o)
     if method == MEAN_PERMUTATION:
         return permutation_test(frame, o, cancel=cancel)
+    if method == COHEN_KAPPA:
+        return cohen_kappa(frame, o, cancel=cancel)
     if method == COMPETING_RISKS:
         return competing_risks(frame, o, cancel=cancel)
     if method == COX_REGRESSION and is_cox_exact(o):
         return cox_exact_result(frame, o, cancel=cancel)
+    if method == WEIBULL_AFT:
+        return weibull_aft(frame, o)
+    if method == ORDINAL_LOGIT:
+        return ordinal_logit(frame, o)
+    if method == RMST:
+        return rmst(frame, o)
     if method == SUMMARY_ANOVA:
         return summary_anova(frame, o)
     if method == SUMMARY_TTEST:
         return summary_ttest(frame, o)
+    if method == MEAN_PERMUTATION:
+        return permutation_test(frame, o, cancel=cancel)
     if method in {MANN_WHITNEY, WILCOXON} and not legacy_rank_test(o):
         return rank_test(method, frame, o)
     if method in {MANN_WHITNEY, WILCOXON, "Kruskal–Wallis"}:
@@ -1215,6 +1249,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return heat_map(frame, o)
     if method == CONTINGENCY:
         return contingency(frame, o)
+    if method == PAIRED_PROPORTIONS:
+        return paired_proportions(frame, o)
     if method == PARTS_GRAPH:
         return parts_graph(frame, o)
     if method == GOODNESS_OF_FIT:
@@ -1268,6 +1304,8 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None):
         return hierarchical_result(frame, o)
     if method == HIERARCHY_GRAPH:
         return hierarchy_graph(frame, o)
+    if method == CLUSTER_SILHOUETTE:
+        return cluster_silhouette(frame, o, cancel=cancel)
     if method == SELECT_TRANSFORM:
         return select_transform(frame, o)
     if method == EXTRACT_REARRANGE:

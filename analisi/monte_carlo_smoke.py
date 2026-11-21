@@ -147,12 +147,14 @@ def check_monte_carlo_study(root, app, directory, tools):
     assert len(longer) == 2500
     pd.testing.assert_frame_equal(longer.iloc[:2000], first)
 
-    # Cancel calculation: blocks are slowed down so the button can be pressed while the worker runs.
-    original = mc.simulate_block
+    # Rendezvous after actual worker progress. Spawned workers do not inherit a
+    # monkeypatch of simulate_block and can otherwise finish before the first Tk poll.
+    report_progress = tools.CalculationControl.report
 
-    def slow(plan, start, stop):
-        time.sleep(.03)
-        return original(plan, start, stop)
+    def pause_after_progress(control, done, total):
+        report_progress(control, done, total)
+        if 0 < done < total and not control.cancel.wait(timeout=30):
+            raise AssertionError("The GUI did not cancel after the worker reported progress.")
 
     def wait_for_progress():
         deadline = time.monotonic() + 20
@@ -168,7 +170,7 @@ def check_monte_carlo_study(root, app, directory, tools):
         dialog.controls[mc.N_B][1].set("100")
 
     count = len(app.runs)
-    with patch.object(mc, "simulate_block", slow):
+    with patch.object(tools.CalculationControl, "report", pause_after_progress):
         # Recalculating an existing study: the last completed tables, graph and parameters stay.
         app.show("result", index)
         tools.drive_dialog(tools.AnalysisDialog, large)

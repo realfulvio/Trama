@@ -305,6 +305,31 @@ class GraphDrawing:
         w.commit_style(run, style)
         w.update_actions()
 
+    def can_arrange(self):
+        run = self.selected_run()
+        return run is not None and len((run.style or {}).get(SHAPES, ())) >= 2 and self.problem() is None
+
+    def arrange(self):
+        from .shape_arrange import ArrangeShapesDialog
+
+        run = self.selected_run()
+        records = shapes_of(run)
+        axes = run.result.figure.axes[0]
+
+        def preview(candidate):
+            render_shapes(axes, candidate)
+            self.canvas.draw_idle()
+
+        dialog = ArrangeShapesDialog(self.window, axes, records, preview=preview)
+        try:
+            accepted = dialog.exec()
+            candidate = dialog.result_records if accepted else records
+            preview(candidate)
+            if candidate != records:
+                self.commit(run, candidate)
+        finally:
+            dialog.deleteLater()
+
     def history_run(self):
         """The graph whose drawings Undo/Redo affect now, or None for the worksheet history."""
         run = self.selected_run()

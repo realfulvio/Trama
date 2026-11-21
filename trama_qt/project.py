@@ -6,6 +6,8 @@ that the Qt interface never imports Tk.
 """
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
+import json
+import os
 from pathlib import Path
 import threading
 from uuid import uuid4
@@ -15,13 +17,14 @@ import pandas as pd
 from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCancelled, ResultSource,
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
-from analisi.data import (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, Dataset,
-                          info_references, load_tables, load_workspace, save_project)
+from analisi.data import (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, MAX_ENTRY, Dataset,
+                          info_references, load_tables, load_workspace, project_document, save_project)
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, grow_rows, paste_block
 from analisi.i18n import tr, ui
 from analisi.info import info_contexts, validate_info_sheets
+from analisi.repeated_input import SAVED_REPLICATE_DISPLAY
 from analisi.pca_graphs import SAVED_DIRECTIONS as PCA_SAVED_DIRECTIONS
 from analisi.pca_overlays import SAVED_APPEARANCE as PCA_OVERLAY_APPEARANCE
 from analisi.monte_carlo import MONTE_CARLO as MONTE_CARLO_METHOD, MonteCarloCancelled, monte_carlo
@@ -43,9 +46,10 @@ from analisi.shape_interaction import ShapeHistory
 from analisi.select_transform import SELECT_TRANSFORM, seeded_transform_options
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.workbench import analyse
+from analisi import worksheet_join
 from analisi.worksheet_history import WorksheetHistory, WorksheetState
-from analisi.xy_series import (XY_METHOD, assign_colors, prune_options, style_after_parameter_change as xy_style,
-                               xy_series)
+from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
+                               style_after_parameter_change as xy_style, xy_series)
 
 PROJECT_SUFFIXES = {".alab", ".prism", ".prismt", ".pzf", ".pzt", ".pzfx", ".xml"}
 DATA_SUFFIXES = {".csv", ".tsv", ".txt", ".xlsx"}
@@ -137,8 +141,13 @@ def _attach_pairwise(result, frame, pairwise, method):
     attach_pairwise(result.figure, rows, pairwise["settings"], message=message)
 
 
-def compute(run, frame, control=None, layout_data=None, pairwise=None, *, result=None):
-    """Calculate a run and apply its style and comparisons on the window's worker thread."""
+def compute(run, frame, control=None, layout_data=None, pairwise=None, *, result=None, join_data=None):
+    """Calculate a run and apply its style and comparisons on the window's worker thread.
+
+    ``join_data`` is the right worksheet of a join, read on the window thread by ``Project.join_data``: a frame,
+    or the FieldError that explains why it cannot be read (the run then fails with that message)."""
+    if isinstance(join_data, Exception):
+        raise join_data
     if result is None:
         if run.method == MONTE_CARLO_METHOD and control is not None:
             result = monte_carlo(frame, run.options, progress=control.report, cancel=control.cancel)
@@ -148,7 +157,7 @@ def compute(run, frame, control=None, layout_data=None, pairwise=None, *, result
             result = xy_series(frame, run.options, left_scale=(run.style or {}).get("yscale", "linear"))
         else:
             result = analyse(run.method, frame, run.options, layout_data=layout_data,
-                             cancel=control.cancel if control is not None else None)
+                             cancel=control.cancel if control is not None else None, join_data=join_data)
     if result.figure is not None and run.style:
         try:
             apply_style(result.figure, run.style)
@@ -197,6 +206,44 @@ class RefreshJob:
     pairwise: dict
     layout_data: dict
     control: CalculationControl
+    join_data: dict = field(default_factory=dict)  # uid -> right worksheet frame (or its FieldError) of a join
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    """A detached copy of what a project has confirmed, taken on the GUI thread and serialised elsewhere."""
+    tables: dict
+    layouts: list
+    info_sheets: tuple
+
+    def to_bytes(self, batch=256):
+        """The .alab bytes, identical to what Save writes. Safe on any thread: nothing here is shared with the
+        project. The rows are encoded ``batch`` rows at a time: ``json.dumps`` holds the interpreter lock for the
+        whole call, so one call on a 10,000 × 30 table would freeze the window for about a tenth of a second."""
+        document = project_document(self.tables, layouts=self.layouts, info_sheets=self.info_sheets)
+        marker = uuid4().hex
+        rows = {}
+        for index, record in enumerate(document["tables"]):
+            placeholder = f"\x00{marker}:{index}\x00"
+            rows[json.dumps(placeholder, ensure_ascii=False)] = record["rows"]
+            record["rows"] = placeholder
+        text = json.dumps(document, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+        for placeholder, table in rows.items():
+            pieces = [json.dumps(table[start:start + batch], ensure_ascii=False, allow_nan=False,
+                                 separators=(",", ":"))[1:-1] for start in range(0, len(table), batch)]
+            text = text.replace(placeholder, "[" + ",".join(pieces) + "]", 1)
+        data = text.encode("utf-8")
+        if len(data) > MAX_ENTRY:
+            raise ValueError("The project exceeds the 32 MiB limit.")
+        return data
+
+
+def _file_stamp(path):
+    try:
+        status = os.stat(path)
+    except (OSError, TypeError):
+        return None
+    return [status.st_size, status.st_mtime_ns]
 
 
 class Project:
@@ -208,14 +255,43 @@ class Project:
         self.info_sheets = {}
         self.path = None
         self.origin = None
+        self.revision = 0  # Grows at every change (each ``dirty = True``): recovery copies follow it.
         self.dirty = False
         self.history = WorksheetHistory()
+        # Recovery copies (trama_qt/recovery.py): one key for the life of this project, a sequence of generations,
+        # the original the copy refers to and the state that original had when it was opened or saved.
+        self.recovery_key = uuid4().hex
+        self.recovery_generation = 0
+        self.recovered_from = None  # The original of a recovered copy (str), which stays on disk untouched.
+        self.recovered_title = None
+        self.recovery_base_title = None  # The title the copy was taken under (without "recovered").
+        self.save_suggestion = None  # Where Save as proposes to put a recovered copy.
+        self.source_stamp = None
+
+    @property
+    def dirty(self):
+        return self._dirty
+
+    @dirty.setter
+    def dirty(self, value):
+        self._dirty = bool(value)
+        if value:
+            self.revision += 1
 
     # -- identity -------------------------------------------------------------------------------
     @property
     def title(self):
         path = self.path or self.origin
-        return path.name if path else tr("project.untitled", number=self.number)
+        if path:
+            return path.name
+        return self.recovered_title or tr("project.untitled", number=self.number)
+
+    @property
+    def recovery_source(self):
+        """The original this project stands for, as a string: the saved file, the imported file, or for a
+        recovered copy the original it came from."""
+        path = self.path or self.origin
+        return str(path) if path is not None else self.recovered_from
 
     def is_empty(self):
         return not self.tables and not self.info_sheets and not self.dirty and self.path is None
@@ -247,11 +323,13 @@ class Project:
             self.path = path
             self.history.clear()
             self.dirty = False
+            self.source_stamp = _file_stamp(path)
             return list(loaded)
         info_sheets = []
         tables = load_tables(path, restore_prism=True, info_sheets=info_sheets)
         if path.suffix.lower() in PROJECT_SUFFIXES and not self.tables:
             self.origin = path
+            self.source_stamp = _file_stamp(path)
         return self.add_tables(tables, info_sheets)
 
     def add_tables(self, tables, info_sheets=()):
@@ -293,7 +371,7 @@ class Project:
         for title, context in contexts.items():
             self.tables[title].info = context
         self.dirty = True
-        return [run for run in self.runs if run.title in stale]
+        return self.readers(stale)
 
     def change_info(self, sheet):
         """Store an edited Info sheet. Returns the runs to recalculate."""
@@ -358,6 +436,29 @@ class Project:
         save_project(path, self.tables, layouts=self.layouts, info_sheets=tuple(self.info_sheets.values()))
         self.path = path
         self.dirty = False
+        self.recovered_from = self.recovered_title = self.recovery_base_title = self.save_suggestion = None
+        self.source_stamp = _file_stamp(path)
+
+    def snapshot(self):
+        """What a recovery copy holds, detached from the live project: data, formulas, exclusions, Info, recipes,
+        confirmed styles, layouts and analysis links. Results are left out (they are recalculated as after an
+        ordinary open), and so are drafts still open in the Inspector or in a dialog, which the project does not
+        hold yet. Neither ``path`` nor ``dirty`` change. Cheap: frames are copied, nothing is serialised here."""
+        tables = {}
+        for title, dataset in self.tables.items():
+            twin = copy(dataset)
+            twin.raw = dataset.raw.copy(deep=True)
+            twin.formulas = dict(dataset.formulas)
+            twin.analyses = deepcopy(dataset.analyses)
+            twin.excluded = set(dataset.excluded)
+            twin.graph_styles = deepcopy(dataset.graph_styles)
+            twin.info = dict(dataset.info)
+            twin.analysis_ids = dict(dataset.analysis_ids)
+            twin.analysis_sources = dict(dataset.analysis_sources)
+            twin.analysis_labels = dict(dataset.analysis_labels)
+            tables[title] = twin
+        _persist_links(self.runs, tables)
+        return Snapshot(tables, deepcopy(self.layouts), deepcopy(tuple(self.info_sheets.values())))
 
     # -- analysis links -------------------------------------------------------------------------
     def chain_ids(self):
@@ -366,23 +467,8 @@ class Project:
         return linked | parents
 
     def sync_links(self, *, persist=False):
-        linked = {run.uid for run in self.runs if run.source is not None}
-        if not persist:
-            return
-        for run in self.runs:
-            if run.slot < 0:
-                continue
-            dataset = self.tables[run.title]
-            if linked or run.slot in dataset.analysis_ids:
-                dataset.analysis_ids[run.slot] = run.uid
-            if run.source is not None:
-                dataset.analysis_sources[run.slot] = run.source
-            else:
-                dataset.analysis_sources.pop(run.slot, None)
-            if run.label is not None:
-                dataset.analysis_labels[run.slot] = run.label
-            else:
-                dataset.analysis_labels.pop(run.slot, None)
+        if persist:
+            _persist_links(self.runs, self.tables)
 
     def analysis_graph(self, *, replacement=None, additional=None):
         runs = list(self.runs)
@@ -459,6 +545,41 @@ class Project:
         by_reference = {run.reference: run for run in self.runs}
         return [by_reference[reference] for reference in layout.panels if reference in by_reference]
 
+    # -- joins ----------------------------------------------------------------------------------------
+    def join_sources(self, title, source=None):
+        """The worksheets a join of ``title`` can read on the right, with their columns: the native data
+        sheets of this project except the left one (a join of a result table may read its own data sheet)."""
+        return {name: [*dataset.raw.columns, *dataset.formulas] for name, dataset in self.tables.items()
+                if not stored_prism_view(dataset) and (source is not None or name != title)}
+
+    def join_problem(self, run):
+        """Why the right worksheet of a join cannot be read, as a FieldError on Join right sheet, or None.
+        The exact title is the identity of the sheet: a missing one is never replaced by another."""
+        title = worksheet_join.right_title(run.options)
+        if title is None or title not in self.tables:
+            return worksheet_join.missing_source(title)
+        if stored_prism_view(self.tables[title]):
+            return worksheet_join.view_source(title)
+        if run.source is None and title == run.title:
+            return worksheet_join.same_source(title)
+        return None
+
+    def join_data(self, run):
+        """The evaluated right worksheet of a join (excluded cells blank), read on the window thread so the
+        worker gets a consistent copy; the FieldError of a source that cannot be read; None for other runs."""
+        if run.method != worksheet_join.METHOD:
+            return None
+        problem = self.join_problem(run)
+        if problem is not None:
+            return problem
+        return self.tables[worksheet_join.right_title(run.options)].frame(mask_excluded=True)
+
+    def readers(self, titles):
+        """The runs that read the worksheets ``titles``: their analyses and the joins that read them on the right."""
+        titles = set(titles)
+        return [run for run in self.runs if run.title in titles and run.source is None
+                or run.method == worksheet_join.METHOD and worksheet_join.right_title(run.options) in titles]
+
     # -- recalculation --------------------------------------------------------------------------
     def plan_refresh(self, seeds):
         """Everything a worker needs to recalculate ``seeds`` and every analysis that reads them."""
@@ -468,18 +589,20 @@ class Project:
         selected = graph.affected([run.uid for run in seeds], unavailable=unavailable)
         cached = {run.uid: run.result for run in self.runs
                   if run.result is not None and not run.calculation_error and run.uid not in selected}
-        frames, roots, clones, pairwise, layout_data = {}, {}, {}, {}, {}
+        frames, roots, clones, pairwise, layout_data, joins = {}, {}, {}, {}, {}, {}
         for identifier in selected:
             run = live[identifier]
             clone = clones[identifier] = copy(run)
             clone.options, clone.style = deepcopy(run.options), deepcopy(run.style)
             pairwise[identifier] = self.pairwise_snapshot(run)
             layout_data[identifier] = self.layout_panel_data(run)
+            if run.method == worksheet_join.METHOD:
+                joins[identifier] = self.join_data(run)
             if run.source is None:
                 if run.title not in frames:
                     frames[run.title] = self.tables[run.title].frame(mask_excluded=True)
                 roots[identifier] = frames[run.title]
-        return RefreshJob(graph, selected, roots, cached, clones, pairwise, layout_data, CalculationControl())
+        return RefreshJob(graph, selected, roots, cached, clones, pairwise, layout_data, CalculationControl(), joins)
 
     @staticmethod
     def run_refresh(job):
@@ -487,11 +610,12 @@ class Project:
         references = {clone.reference: identifier for identifier, clone in job.clones.items()}
         fresh = dict(job.cached)
         job.control.report(0, len(job.selected))
-        # The engine calculation of the root runs needs only their worksheet.
-        # Comparisons and downstream tables are applied in dependency order.
+        # The engine calculation of the root runs needs only their worksheet (a join, which also reads its
+        # right worksheet, stays here). Comparisons and downstream tables are applied in dependency order.
         prepared = precompute_analyses(
             [(identifier, job.clones[identifier].method, frame, job.clones[identifier].options)
-             for identifier, frame in job.roots.items() if job.layout_data[identifier] is None],
+             for identifier, frame in job.roots.items()
+             if job.layout_data[identifier] is None and identifier not in job.join_data],
             cancel=job.control.cancel,
         )
 
@@ -503,6 +627,8 @@ class Project:
             if snapshot and (source := references.get(snapshot.get("key"))) in fresh:
                 snapshot = {**snapshot, "tables": fresh[source].tables}
             options = {"control": job.control, "layout_data": job.layout_data[identifier], "pairwise": snapshot}
+            if identifier in job.join_data:
+                options["join_data"] = job.join_data[identifier]
             if outcome is not None:
                 options["result"] = outcome.value
             return compute(job.clones[identifier], frame.copy(deep=True), **options)
@@ -553,18 +679,14 @@ class Project:
         run = self.runs[index]
         options = dict(options)
         if method == run.method:
-            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION,
+            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
                         PCA_OVERLAY_APPEARANCE, PCA_SAVED_DIRECTIONS):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:
                 options["Group order"] = run.options["Group order"]
             if method == XY_METHOD:
-                for key in ("Series style", "Series side", "Series color", "Right title", "Right scale",
-                            "Right minimum", "Right maximum", "Y minimum", "Y maximum"):
-                    if key in run.options and key not in options:
-                        options[key] = run.options[key]
-                options = prune_options(options)
+                options = retain_recipe_options(options, run.options)
                 options["Series color"] = assign_colors(options.get("Y columns") or [], options.get("Series color"))
         if method != run.method and any(run.reference in layout.panels for layout in self.layouts):
             raise ValueError("Change parameters for this method or create a new analysis for the layout.")
@@ -782,7 +904,7 @@ class Project:
         return self.table_runs(title)
 
     def table_runs(self, title):
-        affected = [run for run in self.runs if run.title == title and run.source is None]
+        affected = self.readers([title])
         if any(isinstance(run.options.get(PRISM_GRAPH_LINK), str) for run in affected):
             affected.extend(run for run in self.runs
                             if run.title != title and isinstance(run.options.get(PRISM_PANEL_DATA), dict)
@@ -883,6 +1005,26 @@ class Project:
             return None, None
         self.dirty = True
         return change.title, self.table_runs(change.title)
+
+
+def _persist_links(runs, tables):
+    """Write the identity, source and name of every analysis into the tables that store its recipe: on the live
+    project before Save, on a detached copy for a recovery copy."""
+    linked = {run.uid for run in runs if run.source is not None}
+    for run in runs:
+        if run.slot < 0:
+            continue
+        dataset = tables[run.title]
+        if linked or run.slot in dataset.analysis_ids:
+            dataset.analysis_ids[run.slot] = run.uid
+        if run.source is not None:
+            dataset.analysis_sources[run.slot] = run.source
+        else:
+            dataset.analysis_sources.pop(run.slot, None)
+        if run.label is not None:
+            dataset.analysis_labels[run.slot] = run.label
+        else:
+            dataset.analysis_labels.pop(run.slot, None)
 
 
 def tr_formula_only():

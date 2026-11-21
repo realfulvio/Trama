@@ -245,6 +245,23 @@ class EditorTests(GuiCase):
         self.assertEqual(len(segment_axes(figure)), 2)
         self.assertEqual(breaks_summary(dialog.result), "Asse Y, 2 segmenti")
 
+    def test_retains_tick_settings_when_classic_edits_the_segment_share(self):
+        self.language("en")
+        record = deepcopy(X_BREAKS)
+        record["segments"][0].update(major_origin=.5, minor_ticks=2, tick_labels=[[.5, "Blank"]])
+
+        def action(dialog):
+            dialog.vars[(0, "share")].set("40")
+            dialog.vars[(1, "share")].set("25")
+            dialog.ok()
+
+        editor = self.open_editor(self.figure(), record, action)
+        segment = editor.result["segments"][0]
+        self.assertEqual(segment["share"], 40)
+        self.assertEqual(segment["major_origin"], .5)
+        self.assertEqual(segment["minor_ticks"], 2)
+        self.assertEqual(segment["tick_labels"], [[.5, "Blank"]])
+
     def test_a_bad_field_is_named_focused_and_leaves_the_editor_open(self):
         self.language("en")
         figure = self.figure()

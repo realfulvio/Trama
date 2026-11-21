@@ -675,14 +675,14 @@ class QtCanvasTests(unittest.TestCase):
         self.assertFalse(any(self.window.actions[f"draw_{n}"].isChecked()
                              for n in ("select", "line", "arrow", "rectangle", "ellipse")))
 
-    def test_the_graph_toolbar_and_ribbon_offer_the_tools(self):
-        page = self.window.page
-        from PySide6.QtWidgets import QToolBar
-        bars = page.findChildren(QToolBar)
-        offered = {a for bar in bars for a in bar.actions()}
-        self.assertTrue({self.window.actions[f"draw_{n}"] for n in ("select", "rectangle")} <= offered)
-        ribbon = [a for bar in self.window.findChildren(QToolBar, "commandTools") for a in bar.actions()]
-        self.assertIn(self.window.actions["draw"], ribbon)
+    def test_drawing_and_editing_shapes_have_distinct_entry_points(self):
+        canvas = self.window.drawing.toolbar
+        ribbon = self.window.ribbon.widget(self.window.ribbon_pages["graph"])
+        drawing = {self.window.actions[f"draw_{name}"] for name in ("select", "line", "arrow", "rectangle", "ellipse")}
+        self.assertTrue(drawing <= set(canvas.actions()))
+        self.assertFalse(drawing.intersection(ribbon.actions()))
+        self.assertNotIn(self.window.actions["draw"], ribbon.actions())
+        self.assertIn(self.window.actions["shapes"], ribbon.actions())
 
     def test_zoom_or_pan_and_the_tools_do_not_run_together(self):
         tools = self.window.drawing.toolbar

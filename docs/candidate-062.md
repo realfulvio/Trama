@@ -1,6 +1,6 @@
 # TramaStat 0.62.0 — integration and acceptance
 
-Integration after 0.61.0. The validation record below distinguishes the tested code from the final release archive. Complete Prism compatibility is not claimed.
+Integration after 0.61.0. The validation record below distinguishes the tested code from the final release archive. See the compatibility guide for supported file features.
 
 ## Integrated work
 

@@ -87,6 +87,935 @@ class QtShellTests(unittest.TestCase):
         self.app.processEvents()
         self.assertIsNone(self.window.job, "calculation still running")
 
+    def test_paired_proportions_accepts_both_input_formats_and_reopens_the_recipe(self):
+        from unittest.mock import patch
+        from analisi import paired_proportions as paired
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        counts = [[2, 5], [1, 3]]
+        observations = [(before, after) for before in range(2) for after in range(2)
+                        for _ in range(counts[before][after])]
+        titles = self.window.project.add_tables({
+            "Observations": pd.DataFrame(observations, columns=["Before", "After"]),
+            "Matrix": pd.DataFrame({"Negative": [2, 1], "Positive": [5, 3]}),
+        })
+
+        def accept(dialog):
+            dialog.show()
+            self.app.processEvents()
+            field = dialog.controls[paired.FORMAT][1]
+            is_matrix = self.window.selected == ("data", titles[1])
+            if is_matrix:
+                field.setCurrentIndex(field.findData(paired.COUNT_MATRIX))
+                self.assertEqual(field.currentText(), "Matrice dei conteggi")
+                self.assertTrue(set(paired.OBSERVATION_FIELDS).isdisjoint(dialog.options()))
+            else:
+                self.assertEqual(field.currentText(), "Osservazioni")
+                self.assertTrue(set(paired.MATRIX_FIELDS).isdisjoint(dialog.options()))
+                if dialog.error_field is None:
+                    self.assertEqual(dialog.options()[paired.POSITIVE], "1")
+                    dialog.controls[paired.POSITIVE][1].setText("0")
+                else:
+                    self.assertEqual(dialog.error_field, paired.POSITIVE)
+                    self.assertIs(dialog.focusWidget(), dialog.controls[paired.POSITIVE][1])
+                    self.assertIn("Valore positivo", dialog.banner.text())
+                    self.assertEqual(dialog.options()[paired.POSITIVE], "0")
+                    dialog.controls[paired.POSITIVE][1].setText("1")
+            dialog.controls[paired.GRAPH][1].setChecked(True)
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return dialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", accept):
+            for title in titles:
+                self.window.show_sheet("data", title)
+                self.window.analyze(method=paired.PAIRED_PROPORTIONS)
+                self.wait()
+
+        recipes = [run.options for run in self.window.project.runs]
+        self.assertEqual([recipe[paired.FORMAT] for recipe in recipes], [paired.OBSERVATIONS, paired.COUNT_MATRIX])
+        for run in self.window.project.runs:
+            self.assertEqual(run.result.tables[paired.REPORT_SHEET].at["p", "Value"], 0.21875)
+            self.assertEqual(run.result.tables[paired.COUNTS_SHEET].values.tolist(), counts)
+            self.assertIsNotNone(run.result.figure)
+        path = self.folder / "paired.alab"
+        self.window.project.save(path)
+        set_language("en")
+        self.window.open_path(path)
+        for index, run in enumerate(self.window.project.runs):
+            self.window.open_sheet(("result", index))
+            self.wait()
+            self.assertEqual(run.options, recipes[index])
+            self.assertEqual(run.result.tables[paired.REPORT_SHEET].at["p", "Value"], 0.21875)
+
+    def test_power_planning_from_an_empty_project(self):
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QFileDialog
+        from analisi import power_plan as power
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        action = self.window.actions["power"]
+        self.assertTrue(action.isEnabled())
+
+        with patch.object(AnalysisDialog, "exec", return_value=AnalysisDialog.DialogCode.Rejected):
+            action.trigger()
+        self.assertFalse(self.window.project.tables)
+        self.assertFalse(self.window.project.dirty)
+
+        def plan(dialog):
+            dialog.show()
+            self.app.processEvents()
+            self.assertEqual([dialog.tabs.tabText(i) for i in range(3)], ["Disegno", "Effetto", "Curva"])
+            for key, value in ((power.DESIGN, "Independent t"), (power.EFFECT_INPUT, power.MEANS)):
+                box = dialog.controls[key][1]
+                box.setCurrentIndex(box.findData(value))
+            for key, text in ((power.MEAN_A, "5"), (power.MEAN_B, "7"), (power.COMMON_SD, "4,0"),
+                              (power.TARGET, "0,8"), (power.SIZE, "unused"), (power.ALLOCATION, "2/3")):
+                dialog.controls[key][1].setText(text)
+            dialog.run_button.click()
+            self.assertIsNone(dialog.result)
+            self.assertEqual(dialog.error_field, power.ALLOCATION)
+            self.assertIs(dialog.focusWidget(), dialog.controls[power.ALLOCATION][1])
+            self.assertIn("Allocazione A:B", dialog.banner.text())
+            dialog.controls[power.ALLOCATION][1].setText("4:6")
+            dialog.controls[power.SHOW_CURVE][1].setChecked(True)
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", plan):
+            action.trigger()
+            self.wait()
+        self.assertEqual(len(self.window.project.tables), 1)
+        run, = self.window.project.runs
+        self.assertEqual(run.options[power.ALLOCATION], "2:3")
+        self.assertEqual(run.options[power.TARGET], .8)
+        self.assertNotIn(power.SIZE, run.options)
+        expected = (54, 81, 135, .8066126132756494)  # Frozen independent oracle for the 2:3 design.
+        report = run.result.tables[power.METHOD]["Value"]
+        for label, value in zip(("N A", "N B", "Total N", "Power"), expected):
+            self.assertAlmostEqual(report[label], value, places=10)
+        self.assertIn(power.CURVE_SHEET, run.result.tables)
+        recipe = run.options.copy()
+        path = self.folder / "power.alab"
+        self.window.project.save(path)
+        set_language("en")
+        self.window.open_path(path)
+        run, = self.window.project.runs
+        self.assertEqual(run.options, recipe)
+        matches = self.window.navigator.findItems(run.name, Qt.MatchFlag.MatchExactly | Qt.MatchFlag.MatchRecursive)
+        self.assertIn(("graph", 0), [item.data(0, Qt.ItemDataRole.UserRole) for item in matches])
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        self.assertEqual(run.result.tables[power.METHOD]["Value"].tolist(), report.tolist())
+        svg = self.folder / "power.svg"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(svg), "SVG (*.svg)")):
+            self.window.export()
+        self.assertIn("<svg", svg.read_text(encoding="utf-8"))
+
+    def test_power_planning_accepts_multiline_means(self):
+        from analisi import power_plan as power
+        from trama_qt.analysis_dialog import AnalysisDialog
+
+        dialog = AnalysisDialog(self.window, pd.DataFrame(), current=(power.METHOD, {}), only=power.METHOD)
+        self.addCleanup(dialog.deleteLater)
+        for key, value in ((power.DESIGN, "One-way ANOVA"), (power.EFFECT_INPUT, power.MEANS)):
+            box = dialog.controls[key][1]
+            box.setCurrentIndex(box.findData(value))
+        dialog.controls[power.GROUP_MEANS][1].setPlainText("12\n13,5\n15\n16")
+        dialog.controls[power.COMMON_SD][1].setText("5")
+        dialog.controls[power.TARGET][1].setText("0,85")
+        dialog.accept()
+        self.assertIsNotNone(dialog.result, dialog.banner.text())
+        self.assertEqual(dialog.result[1][power.GROUP_MEANS], "12; 13.5; 15; 16")
+        self.assertNotIn(power.GROUPS, dialog.result[1])
+
+    def test_cox_diagnostics_produce_the_chosen_graph_and_preserve_the_exact_ties_boundary(self):
+        import json
+        from unittest.mock import patch
+        from analisi import cox_exact, cox_fit_diagnostics as dx, cox_outputs as cox
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        source = ROOT / "tests" / "data" / "cox-fit-diagnostics"
+        self.window.open_path(source / "followup.csv")
+
+        def accept(dialog):
+            dialog.show()
+            self.app.processEvents()
+
+            def choose(name, value):
+                box = dialog.controls[name][1]
+                position = box.findData(value)
+                self.assertGreaterEqual(position, 0, (name, value))
+                box.setCurrentIndex(position)
+
+            for name, roles in (("Predictors", ("Dose", "Arm")), ("Categorical predictors", ("Arm",))):
+                box = dialog.controls[name][1]
+                for index in range(box.count()):
+                    item = box.item(index)
+                    item.setCheckState(Qt.CheckState.Checked if item.text() in roles else Qt.CheckState.Unchecked)
+            choose(cox.GRAPH, dx.SCALED_GRAPH)
+            dialog.run_button.click()
+            self.assertIsNone(dialog.result)
+            self.assertEqual(dialog.error_field, cox.GRAPH)
+            self.assertEqual(dialog.tabs.tabText(dialog.tabs.currentIndex()), "Diagnostica")
+            self.assertIn("residui di schoenfeld", dialog.banner.text().lower())
+            dialog.controls[dx.SCALED][1].setChecked(True)
+            dialog.controls[dx.COX_SNELL][1].setChecked(True)
+            choose(cox_exact.TIES, cox_exact.EXACT)
+            dialog.run_button.click()
+            self.assertEqual(dialog.error_field, dx.SCALED)
+            self.assertIs(dialog.focusWidget(), dialog.controls[dx.SCALED][1])
+            choose(cox_exact.TIES, "Efron")
+            choose(cox.GRAPH_TERM, "Arm [B]")
+            choose(dx.X_AXIS, dx.SOURCE_ROW)
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", accept):
+            self.window.analyze(method=cox.METHOD)
+            self.wait()
+        run, = self.window.project.runs
+        frozen = json.loads((source / "expected.json").read_text(encoding="utf-8"))["Efron"]
+        for sheet, key in ((dx.SCALED_SHEET, "scaled"), (dx.SNELL_SHEET, "snell"), (dx.SNELL_HAZARD_SHEET, "hazard")):
+            table = run.result.tables[sheet]
+            pd.testing.assert_frame_equal(table, pd.DataFrame(frozen[key]).astype(table.dtypes.to_dict()),
+                                          rtol=2e-8, atol=5e-11)
+        axes, = run.result.figure.axes
+        self.assertEqual(axes.get_xlabel(), dx.SOURCE_ROW)
+        self.assertTrue(axes.get_title().endswith(": Arm [B]"))
+        path = self.folder / "cox.alab"
+        self.window.project.save(path)
+        set_language("en")
+        self.window.open_path(path)
+        restored, = self.window.project.runs
+        self.assertEqual(restored.options, run.options)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        pd.testing.assert_frame_equal(restored.result.tables[dx.SCALED_SHEET], run.result.tables[dx.SCALED_SHEET],
+                                      check_exact=True)
+
+    def test_tolerance_interval_workflow_matches_the_reference_and_round_trips(self):
+        import json
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QFileDialog
+        from analisi import tolerance_intervals as tolerance
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        source = ROOT / "tests" / "data" / "tolerance_093"
+        expected = json.loads((source / "expected.json").read_text(encoding="utf-8"))
+        self.window.open_path(source / "measurements.csv")
+
+        def setup_normal(dialog):
+            dialog.show()
+            self.app.processEvents()
+            self.assertEqual([dialog.tabs.tabText(i) for i in range(2)], ["Dati", "Intervallo"])
+            variables = dialog.controls[tolerance.VARIABLES][1]
+            self.assertTrue(all(variables.item(i).checkState() == Qt.CheckState.Unchecked
+                                for i in range(variables.count())))
+            dialog.run_button.click()
+            self.assertEqual(dialog.error_field, tolerance.VARIABLES)
+            signal, = variables.findItems("Signal", Qt.MatchFlag.MatchExactly)
+            signal.setCheckState(Qt.CheckState.Checked)
+            grouping = dialog.controls[tolerance.GROUP][1]
+            grouping.setCurrentIndex(grouping.findData("Group"))
+            coverage = dialog.controls[tolerance.COVERAGE][1]
+            coverage.setText("100")
+            dialog.run_button.click()
+            self.assertIsNone(dialog.result)
+            self.assertEqual(dialog.error_field, tolerance.COVERAGE)
+            self.assertIs(dialog.focusWidget(), coverage)
+            self.assertIn("Copertura della popolazione", dialog.banner.text())
+            coverage.setText("90,0")
+            dialog.controls[tolerance.SHOW_GRAPH][1].setChecked(True)
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", setup_normal):
+            self.window.analyze(method=tolerance.TOLERANCE)
+            self.wait()
+        run, = self.window.project.runs
+        normal = run.result.tables[tolerance.TOLERANCE].set_index("Group")
+        for lot in ("Lot A", "Lot B"):
+            self.assertAlmostEqual(normal.loc[lot, "Lower"], expected[lot]["normal"]["two_lower"], places=9)
+            self.assertAlmostEqual(normal.loc[lot, "Upper"], expected[lot]["normal"]["two_upper"], places=9)
+        self.assertEqual(run.options[tolerance.COVERAGE], 90.0)
+
+        def setup_rank(dialog):
+            self.assertEqual(dialog.options(), run.options)
+            distribution = dialog.controls[tolerance.DISTRIBUTION][1]
+            distribution.setCurrentIndex(distribution.findData(tolerance.DISTRIBUTION_FREE))
+            self.assertEqual(distribution.currentText(), "Senza distribuzione")
+            sides = dialog.controls[tolerance.SIDES][1]
+            sides.setCurrentIndex(sides.findData(tolerance.LOWER))
+            dialog.accept()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", setup_rank):
+            self.window.change_parameters()
+            self.wait()
+        changed, = self.window.project.runs
+        self.assertEqual(changed.uid, run.uid)
+        self.assertEqual(changed.options[tolerance.DISTRIBUTION], tolerance.DISTRIBUTION_FREE)
+        ranks = changed.result.tables[tolerance.TOLERANCE].set_index("Group")
+        self.assertEqual(ranks.loc["Lot A", "Lower rank"], expected["Lot A"]["rank"]["Lower"]["interval"]["Lower rank"])
+        self.assertAlmostEqual(ranks.loc["Lot A", "Lower"], expected["Lot A"]["rank"]["Lower"]["interval"]["Lower"])
+        self.assertEqual(ranks.loc["Lot B", "Status"], tolerance.INSUFFICIENT)
+        self.assertTrue(pd.isna(ranks.loc["Lot B", "Lower"]))
+        self.assertAlmostEqual(ranks.loc["Lot B", "Maximum confidence (%)"], expected["Lot B"]["rank"]["Lower"]["max"])
+
+        path = self.folder / "tolerance.alab"
+        self.window.project.save(path)
+        set_language("en")
+        self.window.open_path(path)
+        restored, = self.window.project.runs
+        self.assertEqual(restored.options, changed.options)
+        matches = self.window.navigator.findItems(restored.name, Qt.MatchFlag.MatchExactly | Qt.MatchFlag.MatchRecursive)
+        self.assertIn(("graph", 0), [item.data(0, Qt.ItemDataRole.UserRole) for item in matches])
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        pd.testing.assert_frame_equal(restored.result.tables[tolerance.TOLERANCE].set_index("Group"), ranks,
+                                      check_exact=True)
+        svg = self.folder / "tolerance.svg"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(svg), "SVG (*.svg)")):
+            self.window.export()
+        self.assertIn(tolerance.GID_LIMIT, svg.read_text(encoding="utf-8"))
+
+        self.window.show_sheet("data", restored.title)
+        model = self.window.sheet.model()
+        signal_column = self.window.project.tables[restored.title].raw.columns.get_loc("Signal")
+        self.assertTrue(model.setData(model.index(0, signal_column), "1000"))
+        self.app.processEvents()
+        self.wait()
+        updated = restored.result.tables[tolerance.TOLERANCE].set_index("Group")
+        self.assertEqual(updated.loc["Lot A", "Lower"], 3.0)
+        self.assertEqual(updated.loc["Lot B", "Status"], tolerance.INSUFFICIENT)
+
+    def test_weibull_profiles_times_and_recovery_keep_the_confirmed_recipe(self):
+        import json
+        from unittest.mock import patch
+        from analisi import weibull_aft as aft
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        source = ROOT / "tests" / "data" / "weibull_aft"
+        expected = json.loads((source / "expected.json").read_text(encoding="utf-8"))["fixed"]
+        self.window.open_path(source / "follow-up.csv")
+
+        def plan(dialog):
+            dialog.show()
+            self.app.processEvents()
+
+            def control(name):
+                return dialog.controls[name][1]
+
+            self.assertEqual([dialog.tabs.tabText(i) for i in range(3)],
+                             ["Dati", "Modello", "Sopravvivenza prevista"])
+            event = control(aft.EVENT)
+            event.setCurrentIndex(event.findData("Status"))
+            control("Event value").setText("event")
+            control("Censor value").setText("censored")
+            predictor, = control(aft.PREDICTORS).findItems("Treatment", Qt.MatchFlag.MatchExactly)
+            predictor.setCheckState(Qt.CheckState.Checked)
+            self.assertIn(aft.SHAPE, dialog.hidden)
+            mode = control(aft.SHAPE_MODE)
+            mode.setCurrentIndex(mode.findData(aft.FIXED))
+            control(aft.SHAPE).setText("1,5")
+            dialog.focus_field(aft.PROFILES)
+            editor = control(aft.PROFILES)
+            self.assertEqual(editor.fields, ("Treatment",))
+            for index, label in enumerate(("Control $", "Treatment $")):
+                editor.add.click()
+                editor.table.setCurrentCell(index, 1)
+                editor.table.item(index, 0).setText(label)
+                editor.table.item(index, 1).setText(str(index))
+            control(aft.SHOW_GRAPH).setChecked(True)
+            control(aft.TIMES).setPlainText("0\n4\n3")
+            dialog.run_button.click()
+            self.assertIsNone(dialog.result)
+            self.assertEqual(dialog.error_field, aft.TIMES)
+            self.assertIs(dialog.focusWidget(), control(aft.TIMES))
+            control(aft.TIMES).setPlainText("0\n2\n4\n8")
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", plan):
+            self.window.analyze(method=aft.METHOD)
+            self.wait()
+        run, = self.window.project.runs
+        self.assertEqual(self.window.selected, ("result", 0))
+        self.assertEqual(run.options[aft.TIMES], [0.0, 2.0, 4.0, 8.0])
+        curves = run.result.tables[aft.CURVES_SHEET]
+        self.assertEqual(curves["Profile"].drop_duplicates().tolist(), ["Control $", "Treatment $"])
+        for got, wanted in zip(curves["Survival"], sum(expected["survival"], [])):
+            self.assertAlmostEqual(got, wanted, places=10)
+        self.assertAlmostEqual(run.result.tables[aft.COEFFICIENTS_SHEET].at["Treatment", "Time ratio"], 2.0)
+
+        self.window.open_sheet(("graph", 0))
+
+        def cancel_graph_settings(dialog):
+            self.assertEqual(dialog.tabs.tabText(dialog.tabs.currentIndex()), "Sopravvivenza prevista")
+            self.assertEqual(dialog.options(), run.options)
+            return AnalysisDialog.DialogCode.Rejected
+
+        with patch.object(AnalysisDialog, "exec", cancel_graph_settings):
+            self.window.change_parameters()
+        self.assertIs(self.window.project.runs[0], run)
+        path = self.folder / "weibull.alab"
+        self.window.project.save(path)
+        self.window.open_path(path)
+        restored, = self.window.project.runs
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        self.assertEqual(restored.options, run.options)
+        pd.testing.assert_frame_equal(restored.result.tables[aft.CURVES_SHEET], curves, check_exact=True)
+
+        recovered = []
+
+        def retain_result(dialog):
+            self.assertEqual(dialog.error_field, aft.TIME)
+            self.assertIn("riga", dialog.banner.text().lower())
+            self.assertIsNotNone(restored.calculation_error)
+            recovered.append(dialog.error_field)
+            return AnalysisDialog.DialogCode.Rejected
+
+        def set_time(value):
+            self.window.show_sheet("data", restored.title)
+            model = self.window.sheet.model()
+            self.assertTrue(model.setData(model.index(0, 0), value))
+            self.app.processEvents()
+            self.wait()
+
+        with patch.object(AnalysisDialog, "exec", retain_result):
+            set_time("0")
+        self.assertEqual(recovered, [aft.TIME])
+        pd.testing.assert_frame_equal(restored.result.tables[aft.CURVES_SHEET], curves, check_exact=True)
+        set_time("1.1")
+        self.assertIsNone(restored.calculation_error)
+        pd.testing.assert_frame_equal(restored.result.tables[aft.CURVES_SHEET], curves, check_exact=True)
+
+    def test_weibull_profile_editor_keeps_numeric_looking_category_labels_literal(self):
+        from trama_qt.weibull_options import Profiles
+
+        records = [{"Name": "First arm", "Values": {"Arm": "01"}}]
+        editor = Profiles(pd.DataFrame({"Arm": ["01", "1"]}), records)
+        self.addCleanup(editor.deleteLater)
+        editor.change_predictors(["Arm"], ["Arm"])
+        self.assertEqual(editor.values(), records)
+        choice = editor.table.cellWidget(0, 1)
+        self.assertEqual(choice.currentText(), "01")
+        self.assertGreaterEqual(choice.findText("1"), 0)
+
+    def test_ordinal_order_profiles_and_recovery_use_literal_categories(self):
+        import json
+        from unittest.mock import patch
+        from analisi import ordinal_logit as ordinal
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        source = ROOT / "tests" / "data" / "ordinal_logit"
+        expected = json.loads((source / "expected.json").read_text(encoding="utf-8"))
+        self.window.open_path(source / "stages.csv")
+
+        def configure(dialog):
+            dialog.show()
+            self.app.processEvents()
+            controls = {name: widget for name, (_, widget) in dialog.controls.items()}
+            response = controls[ordinal.RESPONSE]
+            response.setCurrentIndex(response.findData("Stage"))
+            predictor, = controls[ordinal.PREDICTORS].findItems("Treatment", Qt.MatchFlag.MatchExactly)
+            predictor.setCheckState(Qt.CheckState.Checked)
+            order = controls[ordinal.ORDER]
+            self.assertEqual(order.values(), ["High", "Low", "Medium"])
+            order.list.setCurrentRow(0)
+            order.down.click()
+            order.down.click()
+            self.assertEqual(order.values(), ["Low", "Medium", "High"])
+
+            controls[ordinal.GRAPH].setChecked(True)
+            dialog.run_button.click()
+            profiles = controls[ordinal.PROFILES]
+            self.assertIsNone(dialog.result)
+            self.assertEqual(dialog.error_field, ordinal.PROFILES)
+            self.assertIs(dialog.focusWidget(), profiles.table)
+            self.assertEqual(dialog.tabs.tabText(dialog.tabs.currentIndex()), "Profili")
+            self.assertIn("almeno un profilo", dialog.banner.text())
+            for index, name in enumerate(("Controllo $", "Trattato $")):
+                profiles.add.click()
+                profiles.table.setCurrentCell(index, 1)
+                profiles.table.item(index, 0).setText(name)
+                profiles.table.item(index, 1).setText(f"{index},0")
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", configure):
+            self.window.analyze(method=ordinal.ORDINAL_LOGIT)
+            self.wait()
+        run, = self.window.project.runs
+        self.assertEqual(self.window.selected, ("result", 0))
+        tables = run.result.tables
+        probabilities = tables["Profile probabilities"]
+        self.assertAlmostEqual(tables["Coefficients"].at["Treatment", "Estimate"], expected["coeff"], places=5)
+        for got, wanted in zip(tables["Thresholds"]["Estimate"], expected["thresholds"]):
+            self.assertAlmostEqual(got, wanted, places=5)
+        self.assertEqual(probabilities["Profile"].tolist(), ["Controllo $", "Trattato $"])
+        for index, wanted in enumerate(expected["probabilities"]):
+            got = probabilities.loc[index, ["P(Low)", "P(Medium)", "P(High)"]]
+            for actual, value in zip(got, wanted):
+                self.assertAlmostEqual(actual, value, places=5)
+        self.assertTrue(any(artist.get_gid() == "ordinal-logit-profile-1-category-1"
+                            for artist in run.result.figure.axes[0].patches))
+
+        path = self.folder / "ordinal.alab"
+        self.window.project.save(path)
+        set_language("en")
+        self.window.open_path(path)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        restored, = self.window.project.runs
+        self.assertEqual(restored.options, run.options)
+        pd.testing.assert_frame_equal(restored.result.tables["Profile probabilities"], probabilities, check_exact=True)
+
+        recovered = []
+
+        def cancel_order_change(dialog):
+            dialog.show()
+            self.app.processEvents()
+            order = dialog.controls[ordinal.ORDER][1]
+            self.assertEqual(dialog.error_field, ordinal.ORDER)
+            self.assertIs(dialog.focusWidget(), order.list)
+            self.assertEqual(order.values(), ["Low", "Medium", "High"])
+            self.assertIn("Critical", order.note.text())
+            recovered.append(dialog.error_field)
+            return AnalysisDialog.DialogCode.Rejected
+
+        def set_stage(value):
+            self.window.show_sheet("data", restored.title)
+            model = self.window.sheet.model()
+            self.assertTrue(model.setData(model.index(0, 0), value))
+            self.app.processEvents()
+            self.wait()
+
+        with patch.object(AnalysisDialog, "exec", cancel_order_change):
+            set_stage("Critical")
+        self.assertEqual(recovered, [ordinal.ORDER])
+        pd.testing.assert_frame_equal(restored.result.tables["Profile probabilities"], probabilities, check_exact=True)
+        set_stage("Low")
+        self.assertIsNone(restored.calculation_error)
+        pd.testing.assert_frame_equal(restored.result.tables["Profile probabilities"], probabilities, check_exact=True)
+
+    def test_rmst_validates_followup_preserves_result_and_reopens_graph(self):
+        import json
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QFileDialog, QLabel
+        from analisi import rmst
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        source = ROOT / "tests" / "data" / "rmst" / "fixtures"
+        expected = json.loads((source / "expected.json").read_text(encoding="utf-8"))
+        self.window.open_path(source / "cohorts.csv")
+
+        def configure(dialog):
+            dialog.show()
+            self.app.processEvents()
+            controls = {name: widget for name, (_, widget) in dialog.controls.items()}
+            self.assertEqual([dialog.tabs.tabText(i) for i in range(dialog.tabs.count())],
+                             ["Dati", "Codici e stima"])
+            self.assertIn(rmst.REFERENCE, dialog.hidden)
+            group = controls[rmst.GROUP]
+            group.setCurrentIndex(group.findData("Group"))
+            self.assertNotIn(rmst.REFERENCE, dialog.hidden)
+            reference = controls[rmst.REFERENCE]
+            self.assertEqual([reference.itemData(i) for i in range(reference.count())], ["Reference", "Series $B"])
+            self.assertIn("Orizzonte massimo utilizzabile: 8.", [label.text() for label in dialog.findChildren(QLabel)])
+            self.assertEqual(controls[rmst.EVENT_CODE].text(), "1")
+            self.assertEqual(controls[rmst.CENSOR_CODE].text(), "0")
+            horizon = controls[rmst.HORIZON]
+            horizon.setText("8,5")
+            dialog.run_button.click()
+            self.assertIsNone(dialog.result)
+            self.assertEqual(dialog.error_field, rmst.HORIZON)
+            self.assertIs(dialog.focusWidget(), horizon)
+            self.assertIn("8,5", dialog.banner.text())
+            self.assertIn("Reference", dialog.banner.text())
+            horizon.setText("6,5")
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", configure):
+            self.window.analyze(method=rmst.METHOD)
+            self.wait()
+        run, = self.window.project.runs
+        self.assertEqual(self.window.selected, ("result", 0))
+        self.assertEqual(run.options[rmst.HORIZON], 6.5)
+        self.assertEqual(run.options[rmst.REFERENCE], "Reference")
+        estimates = run.result.tables[rmst.RMST_SHEET]
+        self.assertEqual(estimates["Group"].tolist(), ["Reference", "Series $B"])
+        for label, wanted in expected["arms"].items():
+            actual = estimates.set_index("Group").loc[label]
+            for metric in ("RMST", "SE", "CI lower", "CI upper"):
+                self.assertAlmostEqual(actual[metric], wanted[metric], places=12)
+        contrasts = run.result.tables[rmst.COMPARISON_SHEET].set_index("Contrast")
+        for contrast, wanted in expected["contrasts"].items():
+            for metric in ("Estimate", "p"):
+                self.assertAlmostEqual(contrasts.loc[contrast, metric], wanted[metric], places=12)
+
+        path = self.folder / "rmst.alab"
+        self.window.project.save(path)
+        self.window.open_path(path)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        restored, = self.window.project.runs
+        self.assertEqual(restored.options, run.options)
+        self.assertEqual(self.window.selected, ("graph", 0))
+        svg = self.folder / "rmst.svg"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(svg), "SVG (*.svg)")):
+            self.window.export()
+        exported = svg.read_text(encoding="utf-8")
+        for gid in ("rmst-curve-0", "rmst-curve-1", "rmst-area-0", "rmst-area-1", "rmst-horizon"):
+            self.assertIn(f'id="{gid}"', exported)
+
+        def graph_settings(dialog):
+            self.assertEqual(dialog.tabs.tabText(dialog.tabs.currentIndex()), "Codici e stima")
+            self.assertEqual(dialog.controls[rmst.HORIZON][1].text(), "6,5")
+            return AnalysisDialog.DialogCode.Rejected
+
+        with patch.object(AnalysisDialog, "exec", graph_settings):
+            self.window.change_parameters()
+
+        recovered = []
+
+        def cancel_recovery(dialog):
+            dialog.show()
+            self.app.processEvents()
+            self.assertEqual(dialog.error_field, rmst.HORIZON)
+            self.assertIs(dialog.focusWidget(), dialog.controls[rmst.HORIZON][1])
+            self.assertIn("Orizzonte massimo utilizzabile: 6.", [label.text() for label in dialog.findChildren(QLabel)])
+            self.assertEqual(dialog.options()[rmst.HORIZON], 6.5)
+            recovered.append(dialog.error_field)
+            return AnalysisDialog.DialogCode.Rejected
+
+        self.window.show_sheet("data", restored.title)
+        model = self.window.sheet.model()
+        with patch.object(AnalysisDialog, "exec", cancel_recovery):
+            self.assertTrue(model.setData(model.index(10, 0), "5"))
+            self.app.processEvents()
+            self.wait()
+        self.assertEqual(recovered, [rmst.HORIZON])
+        self.assertIsNotNone(restored.calculation_error)
+        pd.testing.assert_frame_equal(restored.result.tables[rmst.RMST_SHEET], estimates, check_exact=True)
+
+        def correct_horizon(dialog):
+            dialog.controls[rmst.HORIZON][1].setText("5,5")
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        self.window.open_sheet(("result", 0))
+        with patch.object(AnalysisDialog, "exec", correct_horizon):
+            self.window.change_parameters()
+            self.wait()
+        corrected, = self.window.project.runs
+        self.assertIsNone(corrected.calculation_error)
+        self.assertEqual(corrected.options[rmst.HORIZON], 5.5)
+        self.assertEqual(corrected.result.tables[rmst.RMST_SHEET]["Horizon"].tolist(), [5.5, 5.5])
+
+    def test_rmst_one_cohort_preserves_disabled_graph_and_omits_reference(self):
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QTreeWidgetItemIterator
+        from analisi import rmst
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        self.window.open_path(ROOT / "tests" / "data" / "rmst" / "fixtures" / "cohorts.csv")
+
+        def one_cohort(dialog):
+            dialog.controls[rmst.HORIZON][1].setText("5")
+            dialog.controls[rmst.SHOW_GRAPH][1].setChecked(False)
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", one_cohort):
+            self.window.analyze(method=rmst.METHOD)
+            self.wait()
+        run, = self.window.project.runs
+        self.assertNotIn(rmst.REFERENCE, run.options)
+        self.assertNotIn(rmst.COMPARISON_SHEET, run.result.tables)
+        self.assertIsNone(run.result.figure)
+        project = self.folder / "one-cohort.alab"
+        self.window.project.save(project)
+        self.window.open_path(project)
+        items = QTreeWidgetItemIterator(self.window.navigator)
+        refs = []
+        while item := items.value():
+            refs.append(item.data(0, Qt.ItemDataRole.UserRole))
+            items += 1
+        self.assertIn(("result", 0), refs)
+        self.assertNotIn(("graph", 0), refs)
+
+    def test_kappa_preserves_order_and_bootstrap_fields_and_round_trips(self):
+        import json
+        from threading import Event
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QFileDialog
+        from analisi import cohen_kappa as kappa
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        source = ROOT / "tests" / "data" / "cohen_kappa"
+        golden = json.loads((source / "expected.json").read_text(encoding="utf-8"))
+        self.window.open_path(source / "ratings.csv")
+
+        def configure(dialog):
+            dialog.show()
+            self.app.processEvents()
+            controls = {name: widget for name, (_, widget) in dialog.controls.items()}
+            self.assertEqual(controls[kappa.FIRST].currentData(), "Rater A")
+            self.assertEqual(controls[kappa.SECOND].currentData(), "Rater B")
+            self.assertEqual([dialog.tabs.tabText(i) for i in range(2)], ["Valutazioni", "Intervallo e grafico"])
+
+            weighting = controls[kappa.WEIGHTING]
+            weighting.setCurrentIndex(weighting.findData(kappa.QUADRATIC))
+            self.assertEqual(weighting.currentText(), "Quadratico")
+            order = controls[kappa.ORDER]
+            dialog.run_button.click()
+            self.assertEqual(dialog.error_field, kappa.ORDER)
+            self.assertIs(dialog.focusWidget(), order.list)
+            order.buttons["propose"].click()
+            self.assertEqual(order.values(), ["Mild", "Moderate $", "Severe"])
+            order.buttons["down"].click()
+            self.assertEqual(order.values(), ["Moderate $", "Mild", "Severe"])
+            order.buttons["restore"].click()
+            self.assertEqual(order.values(), [])
+            order.buttons["propose"].click()
+
+            interval = controls[kappa.INTERVAL]
+            interval.setCurrentIndex(interval.findData(kappa.BOOTSTRAP))
+            controls[kappa.RESAMPLES].setText("198")
+            controls[kappa.LEVEL].setText("95,0")
+            controls[kappa.SEED].setText(str(2 ** 64 - 1))
+            dialog.run_button.click()
+            self.assertEqual(dialog.error_field, kappa.RESAMPLES)
+            self.assertIs(dialog.focusWidget(), controls[kappa.RESAMPLES])
+            interval.setCurrentIndex(interval.findData(kappa.NO_INTERVAL))
+            self.assertIn(kappa.RESAMPLES, dialog.hidden)
+            self.assertEqual(dialog.options()[kappa.RESAMPLES], 198)
+            self.assertEqual(dialog.options()[kappa.SEED], 2 ** 64 - 1)
+            interval.setCurrentIndex(interval.findData(kappa.BOOTSTRAP))
+            self.assertEqual(controls[kappa.RESAMPLES].text(), "198")
+            controls[kappa.RESAMPLES].setText("199")
+            controls[kappa.SEED].setText("2701")
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", configure):
+            self.window.analyze(method=kappa.METHOD)
+            self.wait()
+        run, = self.window.project.runs
+        self.assertEqual(self.window.selected, ("result", 0))
+        agreement = run.result.tables[kappa.AGREEMENT]
+        row = agreement.iloc[0]
+        self.assertAlmostEqual(row["Kappa"], golden["scores"]["Quadratic"])
+        self.assertEqual(row["Complete pairs"], 30)
+        self.assertEqual(row["Incomplete pairs"], 2)
+        for key, want in golden["bootstrap"].items():
+            self.assertAlmostEqual(row[key], want, places=14)
+
+        path = self.folder / "kappa.alab"
+        self.window.project.save(path)
+        set_language("en")
+        self.window.open_path(path)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        restored, = self.window.project.runs
+        self.assertEqual(restored.options, run.options)
+        pd.testing.assert_frame_equal(restored.result.tables[kappa.AGREEMENT], agreement, check_exact=True)
+        svg = self.folder / "kappa.svg"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(svg), "SVG (*.svg)")):
+            self.window.export()
+        exported = svg.read_text(encoding="utf-8")
+        self.assertIn('id="kappa-counts"', exported)
+        self.assertIn('id="kappa-diagonal-1"', exported)
+        self.assertNotIn("<image", exported)
+
+        entered_bootstrap = Event()
+        bootstrap = kappa.bootstrap
+
+        def wait_for_cancel(counts, weights, resamples, seed, cancel):
+            entered_bootstrap.set()
+            self.assertTrue(cancel.wait(8))
+            return bootstrap(counts, weights, resamples, seed, cancel)
+
+        with patch.object(kappa, "bootstrap", wait_for_cancel):
+            self.window.recalculate()
+            self.assertTrue(entered_bootstrap.wait(8))
+            self.assertTrue(self.window.cancel_button.isVisible())
+            self.window.cancel_button.click()
+            self.wait()
+        pd.testing.assert_frame_equal(restored.result.tables[kappa.AGREEMENT], agreement, check_exact=True)
+
+        recovered = []
+
+        def cancel_recovery(dialog):
+            dialog.show()
+            self.app.processEvents()
+            order = dialog.controls[kappa.ORDER][1]
+            self.assertEqual(dialog.error_field, kappa.ORDER)
+            self.assertIs(dialog.focusWidget(), order.list)
+            self.assertEqual(order.values(), ["Mild", "Moderate $", "Severe"])
+            self.assertIn("Another category", order.note.text())
+            recovered.append(dialog.error_field)
+            return AnalysisDialog.DialogCode.Rejected
+
+        self.window.show_sheet("data", restored.title)
+        model = self.window.sheet.model()
+        with patch.object(AnalysisDialog, "exec", cancel_recovery):
+            self.assertTrue(model.setData(model.index(0, 0), "Another category"))
+            self.app.processEvents()
+            self.wait()
+        self.assertEqual(recovered, [kappa.ORDER])
+        self.assertIsNotNone(restored.calculation_error)
+        pd.testing.assert_frame_equal(restored.result.tables[kappa.AGREEMENT], agreement, check_exact=True)
+
+    def test_mean_permutation_previews_exact_and_preserves_unsigned_seed(self):
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QFileDialog, QLabel
+        from analisi import mean_permutation as mp
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        self.window.open_path(ROOT / "tests" / "data" / "mean_permutation" / "independent.csv")
+
+        def exact(dialog):
+            dialog.show()
+            self.app.processEvents()
+            self.assertEqual([dialog.tabs.tabText(index) for index in range(2)], ["Dati", "Test"])
+            controls = {field: widget for field, (_, widget) in dialog.controls.items()}
+            self.assertEqual(controls[mp.FIRST].currentData(), "First")
+            self.assertEqual(controls[mp.SECOND].currentData(), "Second")
+            self.assertTrue(any("126" in label.text() for label in dialog.findChildren(QLabel)))
+            controls[mp.SEED].setText("invalid")
+            mode = controls[mp.MODE]
+            mode.setCurrentIndex(mode.findData(mp.EXACT))
+            self.assertEqual(mode.currentText(), "Esatto")
+            self.assertIn(mp.SEED, dialog.hidden)
+            self.assertIn(mp.RESAMPLES, dialog.hidden)
+            self.assertNotIn(mp.SEED, dialog.options())
+            controls[mp.KEEP_DRAWS].setChecked(True)
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", exact):
+            self.window.analyze(method=mp.METHOD)
+            self.wait()
+        run, = self.window.project.runs
+        self.assertEqual(self.window.selected, ("result", 0))
+        row = run.result.tables[mp.RESULTS_SHEET].iloc[0]
+        self.assertEqual(row["Mode used"], mp.EXACT)
+        self.assertEqual(row["Mean difference"], 1.75)
+        self.assertEqual((row["Tail count"], row["Draws"]), (57, 126))
+        self.assertAlmostEqual(row["p"], 57 / 126, places=14)
+        self.assertEqual(len(run.result.tables[mp.DRAWS_SHEET]), 126)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        svg = self.folder / "permutation.svg"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(svg), "SVG (*.svg)")):
+            self.window.export()
+        self.assertIn('id="permutation-observed"', svg.read_text(encoding="utf-8"))
+
+        def monte_carlo(dialog):
+            dialog.show()
+            self.app.processEvents()
+            controls = {field: widget for field, (_, widget) in dialog.controls.items()}
+            mode = controls[mp.MODE]
+            mode.setCurrentIndex(mode.findData(mp.MONTE_CARLO))
+            self.assertNotIn(mp.RESAMPLES, dialog.hidden)
+            controls[mp.RESAMPLES].setText("199")
+            seed = controls[mp.SEED]
+            seed.setText(str(2 ** 64))
+            dialog.run_button.click()
+            self.assertEqual(dialog.error_field, mp.SEED)
+            self.assertIs(dialog.focusWidget(), seed)
+            self.assertIsNone(dialog.result)
+            seed.setText(str(2 ** 64 - 1))
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", monte_carlo):
+            self.window.change_parameters()
+            self.wait()
+        sampled, = self.window.project.runs
+        self.assertEqual(sampled.uid, run.uid)
+        self.assertEqual(sampled.options[mp.SEED], 2 ** 64 - 1)
+        sampled_results = sampled.result.tables[mp.RESULTS_SHEET]
+        sampled_row = sampled_results.iloc[0]
+        self.assertEqual(sampled_row["Mode used"], mp.MONTE_CARLO)
+        self.assertEqual(sampled_row["Draws"], 199)
+        self.assertAlmostEqual(sampled_row["p"], (sampled_row["Tail count"] + 1) / 200)
+        project = self.folder / "permutation.alab"
+        self.window.project.save(project)
+        set_language("en")
+        self.window.open_path(project)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        restored, = self.window.project.runs
+        self.assertEqual(restored.options, sampled.options)
+        pd.testing.assert_frame_equal(restored.result.tables[mp.RESULTS_SHEET], sampled_results, check_exact=True)
+        pd.testing.assert_frame_equal(restored.result.tables[mp.DRAWS_SHEET],
+                                      sampled.result.tables[mp.DRAWS_SHEET], check_exact=True)
+
     def test_paper_preview_scales_the_text_with_the_page(self):
         from matplotlib.figure import Figure
         from trama_qt.window import Page
@@ -571,8 +1500,165 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.project.tables["groups"].analyses[graph.slot][1]["Series style"],
                          {"Treated": "Line and points"})
 
+    def test_xy_mixed_graph_editors_preserve_geometry_and_recipe(self):
+        from unittest.mock import patch
+        from matplotlib.container import BarContainer
+        from PySide6.QtWidgets import QFileDialog
+        from analisi.i18n import active_language, set_language
+        from analisi.presentation import xy_artists, xy_gid
+        from analisi.xy_series import BAR_WIDTH, BARS, STEP, XY_METHOD
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.graph_format import GraphFormatDialog
+        from trama_qt.window import MainWindow
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        self.window._ask = MainWindow._ask.__get__(self.window)
+        source = self.folder / "Measurements.csv"
+        pd.DataFrame({"X": [1, 2, 3, 4], "Repeated X": [1, 1, 3, 4],
+                      "Left $": [2, 3, None, -1], "Right": [5, 7, 6, 4],
+                      "Trend": [3, 4, None, 2]}).to_csv(source, index=False)
+        self.window.open_path(source)
+
+        def choose_data(dialog):
+            controls = {name: widget for name, (_, widget) in dialog.controls.items()}
+            x = controls["X"]
+            x.setCurrentIndex(x.findData("X"))
+            ys = controls["Y columns"]
+            for i in range(ys.count()):
+                item = ys.item(i)
+                item.setCheckState(Qt.CheckState.Checked if item.text() in ("Left $", "Right", "Trend")
+                                   else Qt.CheckState.Unchecked)
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", choose_data):
+            self.window.analyze(method=XY_METHOD)
+            self.wait()
+        run, = self.window.project.runs
+        self.assertEqual(self.window.selected, ("graph", 0))
+
+        def format_mixed(dialog):
+            dialog.show()
+            dialog.tabs.setCurrentIndex(2)
+            self.app.processEvents()
+            self.assertTrue(dialog.bar_width.isHidden())
+            dialog.series_fields["marker_color"].setText("#222222")
+            dialog.draw.set(BARS)
+            self.assertEqual(dialog.draw.currentText(), "Barre")
+            self.assertFalse(dialog.bar_width.isHidden())
+            self.assertTrue(dialog.series_fields["visible"].isEnabled())
+            self.assertFalse(dialog.series_fields["marker_color"].isEnabled())
+            dialog.series_fields["visible"].setChecked(False)
+            dialog.selector.setCurrentIndex(1)
+            dialog.draw.set(BARS)
+            dialog.side.set("Right")
+            dialog.selector.setCurrentIndex(2)
+            dialog.draw.set(STEP)
+            self.assertEqual(dialog.draw.currentText(), "Gradini")
+            self.assertTrue(dialog.series_fields["width"].isEnabled())
+            self.assertFalse(dialog.series_fields["marker"].isEnabled())
+            dialog.bar_width.setText("0")
+            dialog.accept()
+            self.assertIsNone(dialog.result)
+            self.assertIs(dialog.focusWidget(), dialog.bar_width)
+            self.assertIn("larghezza", dialog.banner.text().lower())
+            dialog.bar_width.setText("1,2")
+
+            dialog.right["scale"].set("Log")
+            dialog.accept()
+            self.assertIsNone(dialog.result)
+            self.assertIs(dialog.focusWidget(), dialog.right["scale"])
+            dialog.right["scale"].set("Linear")
+            dialog.scales["y"].set("log")
+            dialog.accept()
+            self.assertIsNone(dialog.result)
+            self.assertIs(dialog.focusWidget(), dialog.scales["y"])
+            dialog.scales["y"].set("linear")
+            dialog.scales["x"].set("log")
+            dialog.accept()
+            self.assertIsNone(dialog.result)
+            self.assertIs(dialog.focusWidget(), dialog.scales["x"])
+            dialog.scales["x"].set("linear")
+            dialog.accept()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return GraphFormatDialog.DialogCode.Accepted
+
+        with patch.object(GraphFormatDialog, "exec", format_mixed):
+            self.window.format_graph()
+        self.assertEqual(run.options[BAR_WIDTH], 1.2)
+        self.assertEqual(run.options["Series style"], {"Left $": BARS, "Right": BARS, "Trend": STEP})
+        self.assertEqual(run.style["series"]["xy:1:Left $"]["marker_color"], "#222222")
+
+        def artists(current):
+            return {xy_gid(artist): artist for artist in xy_artists(current.result.figure.axes[0])}
+
+        drawn = artists(run)
+        left, right = drawn["xy:1:Left $"], drawn["xy:1:Right"]
+        self.assertIsInstance(left, BarContainer)
+        self.assertEqual(drawn["xy:1:Trend"].get_drawstyle(), "steps-post")
+        self.assertFalse(any(rect.get_visible() for rect in left.patches))
+        self.assertEqual(len(left.patches), 3)
+        for bar, center in ((left.patches[0], .7), (right.patches[0], 1.3)):
+            self.assertAlmostEqual(bar.get_width(), .6)
+            self.assertAlmostEqual(bar.get_x() + bar.get_width() / 2, center)
+        self.assertIs(right.patches[0].axes, run.result.figure.axes[1])
+
+        self.window.toggle_inspector()
+        inspector = self.window.inspector
+        self.assertIsNotNone(inspector)
+        inspector.selector.setCurrentIndex(0)
+        self.assertTrue(inspector.fields["visible"].isEnabled())
+        self.assertFalse(inspector.fields["marker"].isEnabled())
+        inspector.fields["visible"].setChecked(True)
+        self.assertTrue(all(rect.get_visible() for rect in left.patches))
+        inspector.discard()
+        self.assertFalse(any(rect.get_visible() for rect in left.patches))
+        inspector.fields["visible"].setChecked(True)
+        self.assertTrue(inspector.apply())
+        self.assertTrue(all(rect.get_visible() for rect in left.patches))
+
+        def change_columns(dialog):
+            dialog.show()
+            self.app.processEvents()
+            x = dialog.controls["X"][1]
+            x.setCurrentIndex(x.findData("Repeated X"))
+            dialog.run_button.click()
+            self.assertIsNone(dialog.result)
+            self.assertEqual(dialog.error_field, "Y columns")
+            self.assertIs(dialog.focusWidget(), dialog.controls["Y columns"][1])
+            self.assertIn("ripete X", dialog.banner.text())
+            x.setCurrentIndex(x.findData("X"))
+            dialog.run_button.click()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", change_columns):
+            self.window.change_parameters()
+            self.wait()
+        updated, = self.window.project.runs
+        self.assertEqual(updated.options[BAR_WIDTH], 1.2)
+        self.assertEqual(updated.options["Series style"], run.options["Series style"])
+
+        path = self.folder / "mixed.alab"
+        self.window.project.save(path)
+        set_language("en")
+        self.window.open_path(path)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        restored, = self.window.project.runs
+        self.assertEqual(restored.options, updated.options)
+        self.assertEqual(artists(restored)["xy:1:Trend"].get_drawstyle(), "steps-post")
+        svg = self.folder / "mixed.svg"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(svg), "SVG (*.svg)")):
+            self.window.export()
+        text = svg.read_text(encoding="utf-8")
+        self.assertIn('id="xybar:Right:0"', text)
+        self.assertNotIn("<image", text)
+
     def test_axis_breaks_on_xy_graph(self):
-        from analisi.axis_breaks import AXIS_BREAKS
+        from analisi.axis_breaks import AXIS_BREAKS, segment_axes
         from trama_qt.axis_breaks import AxisBreaksDialog
         window = self.window
         self.open_example()
@@ -589,9 +1675,23 @@ class QtShellTests(unittest.TestCase):
         self.assertIsNone(dialog.result)  # Shares add up to 90.
         self.assertTrue(dialog.problem.text())
         dialog.cells[(1, "share")].setText("50")
+        dialog.cells[(0, "major_step")].setText("0,2")
+        dialog.cells[(0, "major_origin")].setText("5,6")
+        minor = dialog.cells[(0, "minor_ticks")]
+        minor.setText("1,5")
+        dialog.show()
+        dialog.accept()
+        self.assertIsNone(dialog.result)
+        self.assertIs(dialog.focusWidget(), minor)
+        minor.setText("1")
         dialog.accept()
         record = dialog.result
         self.assertEqual(record["axis"], "y")
+
+        record["segments"][0]["tick_labels"] = [[5.6, "Blank"]]
+        reopened_editor = AxisBreaksDialog(window, axes, record)
+        self.assertEqual(reopened_editor.read_record(), record)
+        reopened_editor.reject()
 
         def change(format_dialog):
             self.assertIsNotNone(format_dialog.breaks_summary)
@@ -607,7 +1707,11 @@ class QtShellTests(unittest.TestCase):
         index = next(i for i, r in enumerate(window.project.runs) if r.method == "XY series")
         window.open_sheet(("graph", index))
         self.wait()
-        self.assertEqual(window.project.runs[index].style[AXIS_BREAKS]["axis"], "y")
+        restored = window.project.runs[index]
+        self.assertEqual(restored.style[AXIS_BREAKS], record)
+        first, _ = segment_axes(restored.result.figure)
+        self.assertEqual(first.get_yticks().round(4).tolist(), [5.6, 5.8, 6.0])
+        self.assertEqual(first.yaxis.get_minorticklocs().round(4).tolist(), [5.5, 5.7, 5.9])
 
     def test_legend_formatting(self):
         from analisi.graph_legend import LEGEND_OPTIONS_KEY
@@ -879,7 +1983,6 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(list(window.project.tables), ["misure"])
 
     def test_recovered_theoretical_graph_exposes_saved_equations(self):
-        from PySide6.QtWidgets import QPushButton
         from analisi.prism_restore import SAVED_XY
         from analisi.prism_xml_generated import XML_GENERATED_XY
 
@@ -895,9 +1998,9 @@ class QtShellTests(unittest.TestCase):
         self.window.refresh()
         self.window.open_sheet(("graph", 0))
         self.wait()
-        results = next(button for button in self.window.page.findChildren(QPushButton)
-                       if button.text() == tr("command.analysis_results"))
-        results.click()
+        results = self.window.actions["analysis_tables"]
+        self.assertTrue(results.isEnabled())
+        results.trigger()
         self.assertEqual(self.window.selected, ("result", 0))
         tabs = self.window.result_tabs
         self.assertEqual([tabs.tabText(index) for index in range(tabs.count())],
@@ -1322,7 +2425,367 @@ class QtShellTests(unittest.TestCase):
             self.assertTrue(overflow.isVisible())
             self.assertIn(classic, overflow.menu().actions())
 
+    def test_home_creates_typed_worksheets_and_the_picker_follows_selection(self):
+        from trama_qt.table_setup import TableSetup
+
+        window = self.window
+        setup = window.page.findChild(TableSetup)
+        self.assertIsNotNone(setup)
+        self.assertEqual(setup.types.count(), 8)
+        setup.encoding.setCurrentIndex(1)
+        setup.series.setValue(3)
+        setup.replicates.setValue(4)
+        template, sample = setup.selection()
+        self.assertFalse(sample)
+        self.assertEqual(len(template.columns), 14)
+        window.create_worksheet(template, sample)
+        first = window.selected
+        self.assertEqual(window.project.tables[first[1]].table_format, "XY with replicates")
+        self.assertEqual(window.sheet.currentIndex().column(), 1)
+
+        window.show_home()
+        setup = window.page.findChild(TableSetup)
+        setup.types.setCurrentRow(7)
+        setup.mode.setCurrentIndex(1)
+        window.create_worksheet(*setup.selection())
+        second = window.selected
+        self.assertEqual(window.project.tables[second[1]].table_format, "nested")
+        self.assertEqual(tuple(window.sheet_picker.currentData()), second)
+        window.sheet_previous.click()
+        self.assertEqual(window.selected, first)
+        window.sheet_next.click()
+        self.assertEqual(window.selected, second)
+
+    def test_graph_ribbon_shows_the_primary_tools_at_1024_pixels(self):
+        window = self.window
+        window.resize(1024, 720)
+        window.ribbon_tabs.setCurrentIndex(window.ribbon_pages["graph"])
+        self.app.processEvents()
+        toolbar = window.ribbon.currentWidget()
+        self.open_example()
+        run = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        window.open_sheet(("graph", window.project.runs.index(run)))
+        for name in ("new_graph", "format_graph", "new_layout", "pairwise",
+                     "annotations", "shapes", "export", "export_options"):
+            action = window.actions[name]
+            self.assertTrue(action.isEnabled(), name)
+            self.assertTrue(toolbar.widgetForAction(action).isVisible(), name)
+
+    def test_graph_commands_live_in_the_ribbon_and_canvas_keeps_navigation(self):
+        from PySide6.QtWidgets import QPushButton
+        from analisi.i18n import tr
+
+        window = self.window
+        title, = window.project.add_tables({"Dose": pd.DataFrame({"Dose": [1., 2., 3.], "Response": [2., 5., 6.]})})
+        window.open_sheet(("data", title))
+        run = self.run_method("Linear regression", {"X": "Dose", "Y": "Response"})
+        index = window.project.runs.index(run)
+        window.open_sheet(("graph", index))
+        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["graph"])
+        self.assertFalse(window.page.findChildren(QPushButton))
+        self.assertEqual(set(window.plot_tools._actions), {"home", "back", "forward", "pan", "zoom"})
+        self.assertTrue(window.actions["plot_margins"].isEnabled())
+        toolbar = window.ribbon.currentWidget()
+        for key in ("format_graph", "inspector", "export", "analysis_tables", "change", "recalculate"):
+            action = window.actions[key]
+            self.assertTrue(action.isEnabled(), key)
+            self.assertIn(action, toolbar.actions())
+        self.assertNotIn(window.actions["draw"], toolbar.actions())
+        window.search.setText(tr("command.analysis_results"))
+        window.search.returnPressed.emit()
+        self.assertEqual(window.selected, ("result", index))
+        self.assertEqual(window.ribbon_tabs.tabText(window.ribbon_tabs.currentIndex()), tr("ribbon.modern.analyze"))
+        window.actions["analysis_graph"].trigger()
+        self.assertEqual(window.selected, ("graph", index))
+        window.ribbon_tabs.setCurrentIndex(window.ribbon_pages["view"])
+        window.show_sheet("graph", index)
+        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["view"])
+
+    def test_search_distinguishes_graph_and_family_results_in_both_languages(self):
+        from analisi.i18n import active_language, set_language
+        from trama_qt.window import MainWindow
+        from unittest.mock import patch
+
+        self.addCleanup(set_language, active_language())
+        for language in ("en", "it"):
+            with self.subTest(language=language):
+                set_language(language)
+                window = MainWindow()
+                try:
+                    actions = window.actions
+                    labels = [action.text().replace("&", "").strip().casefold()
+                              for action in actions.values() if action.text()]
+                    self.assertCountEqual(labels, set(labels))
+                    with patch.object(window, "browse_family") as family, patch.object(window, "switch_run_view") as view:
+                        for key, target in (("analysis_tables", view), ("family_results", family)):
+                            action = actions[key]
+                            action.setEnabled(True)
+                            self.assertIn(action.text(), window.completer.model().stringList())
+                            window.search.setText(action.text())
+                            window.search.returnPressed.emit()
+                            target.assert_called_once_with("result")
+                        self.assertEqual(view.call_count, 1)
+                finally:
+                    window.close()
+                    window.deleteLater()
+
+    def test_ribbon_and_menu_restore_classic_workflows_on_narrow_windows(self):
+        from PySide6.QtWidgets import QToolButton
+        from analisi.i18n import tr
+
+        window = self.window
+        window.resize(760, 650)
+        window.new_table()
+        tabs = ("file", "home", "insert", "analyze", "graph", "arrange", "family", "tools", "view")
+        self.assertEqual([window.ribbon_tabs.tabText(i) for i in range(len(tabs))],
+                         [tr(f"ribbon.modern.{name}") for name in tabs])
+        button = window.findChild(QToolButton, "allCommands")
+        self.assertTrue(button.isVisible())
+        menus = {action.text(): action.menu() for action in button.menu().actions()}
+        for tab, names in {
+            "file": ("exit",),
+            "home": ("paste_special", "paste_transpose", "paste_table", "clear_cells"),
+            "insert": ("new_table", "new_info", "annotations", "info_properties", "remove_info"),
+            "analyze": ("correlation_matrix", "load_example", "source_analysis"),
+            "arrange": ("arrange_shapes", "edit_layout"),
+            "family": ("family_data", "family_info", "family_results", "family_graphs", "family_gallery"),
+            "tools": ("power", "simulate", "monte_carlo", "transpose_xy", "plot_function"),
+            "view": ("combined_navigator", "previous_sheet", "next_sheet"),
+        }.items():
+            with self.subTest(tab=tab):
+                menu = menus[tr(f"ribbon.modern.{tab}")]
+                self.assertTrue(set(window.actions[name] for name in names).issubset(menu.actions()))
+
+    def test_home_data_info_and_layout_do_not_repeat_ribbon_commands(self):
+        from PySide6.QtWidgets import QPushButton
+        from analisi.info import InfoSheet
+        from analisi.presentation import Layout
+        from trama_qt.table_setup import TableSetup
+
+        window = self.window
+        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["file"])
+        self.assertEqual({button.text() for button in window.page.findChildren(QPushButton)}, {tr("setup.create")})
+        file_tools = window.ribbon.currentWidget().actions()
+        for key in ("open", "import", "new_info"):
+            self.assertIn(window.actions[key], file_tools)
+        chooser = window.page.findChild(TableSetup)
+        window.actions["load_example"].trigger()
+        self.assertTrue(chooser.selection()[1])
+        window.create_worksheet(*chooser.selection())
+        _, title = window.selected
+        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["home"])
+        self.assertFalse(window.page.findChildren(QPushButton))
+
+        sheet = InfoSheet.new("Measurements", title)
+        window.project.update_info_sheets({sheet.uid: sheet})
+        window.open_sheet(("info", sheet.uid))
+        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["insert"])
+        props = window.actions["info_properties"]
+        self.assertTrue(props.isEnabled())
+        self.assertIn(props, window.ribbon.currentWidget().actions())
+        self.assertNotIn(props.text(), {button.text() for button in window.page.findChildren(QPushButton)})
+        self.assertTrue(window.actions["remove_info"].isEnabled())
+        self.assertFalse(window.actions["info_up"].isEnabled())
+        self.assertFalse(window.actions["info_down"].isEnabled())
+
+        window.open_sheet(("data", title))
+        run = self.run_method("XY series", {"X": "X", "Y columns": ["Control"]})
+        window.project.layouts.append(Layout("Figure with panel", 1, [run.reference]))
+        window.open_sheet(("layout", 0))
+        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["arrange"])
+        self.assertFalse(window.page.findChildren(QPushButton))
+        for key in ("edit_layout", "export", "recalculate"):
+            self.assertTrue(window.actions[key].isEnabled(), key)
+            self.assertIn(window.actions[key], window.ribbon.currentWidget().actions())
+
+    def test_clipboard_ribbon_commands_change_the_real_worksheet(self):
+        from unittest.mock import patch
+        from PySide6.QtGui import QGuiApplication
+        from trama_qt.sheet import PasteSpecialDialog
+
+        window = self.window
+        clipboard = QGuiApplication.clipboard()
+        clipboard.setText("Header A\tHeader B\n1\t2\n3\t4")
+        window.actions["paste_table"].trigger()
+        dataset = window.project.tables[window.selected[1]]
+        self.assertEqual(list(dataset.raw.columns), ["Header A", "Header B"])
+        self.assertEqual(dataset.raw.values.tolist(), [[1, 2], [3, 4]])
+
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 0))
+        clipboard.setText("11\t12\n13\t14")
+        window.actions["paste_transpose"].trigger()
+        self.assertEqual(dataset.raw.values.tolist(), [[11, 13], [12, 14]])
+        self.assertTrue(window.actions["undo"].isEnabled())
+        window.actions["undo"].trigger()
+        self.assertEqual(dataset.raw.values.tolist(), [[1, 2], [3, 4]])
+
+        def choose_rows(dialog):
+            dialog.bounds[2].setValue(1)
+            dialog.accept()
+            return PasteSpecialDialog.DialogCode.Accepted
+
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 0))
+        clipboard.setText("21\t22\n23\t24\n25\t26")
+        with patch.object(PasteSpecialDialog, "exec", choose_rows):
+            window.actions["paste_special"].trigger()
+        self.assertEqual(dataset.raw.values.tolist(), [[21, 22], [25, 26]])
+        window.actions["clear_cells"].trigger()
+        self.assertTrue(pd.isna(dataset.raw.iat[0, 0]))
+
+    def test_tools_run_standalone_simulation_and_plot_from_empty_project(self):
+        from unittest.mock import patch
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        window = self.window
+        window._ask = MainWindow._ask.__get__(window)
+        empty = window.sessions.active
+
+        def accept(dialog):
+            self.assertFalse(dialog.banner.text(), dialog.banner.text())
+            dialog.accept()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", accept):
+            window.actions["simulate"].trigger()
+            self.wait()
+            self.assertEqual(window.selected[0], "data")
+            self.assertFalse(window.project.tables[window.selected[1]].raw.empty)
+            self.assertFalse(window.project.runs)
+            window.new_project()
+            self.assertIsNot(window.sessions.active, empty)
+            self.assertFalse(window.project.tables)
+            window.actions["plot_function"].trigger()
+            self.wait()
+            self.assertEqual(window.selected[0], "graph")
+            self.assertIsNotNone(window.project.runs[0].result.figure)
+
+    def test_tools_transpose_y_sets_and_configure_monte_carlo(self):
+        from unittest.mock import patch
+        from analisi import monte_carlo, transpose_xy
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.window import MainWindow
+
+        window = self.window
+        window._ask = MainWindow._ask.__get__(window)
+        title, = window.project.add_tables({"Series": pd.DataFrame({"X": [2., 3.], "Y": [5., 7.]})})
+        window.show_sheet("data", title)
+
+        def accept(dialog):
+            self.assertFalse(dialog.banner.text(), dialog.banner.text())
+            if dialog.method == transpose_xy.TRANSPOSE_XY:
+                editor = dialog.controls[transpose_xy.Y_SETS][1]
+                self.assertEqual(editor.values(), [{"name": "Y", "mode": "Single", "columns": ["Y"]}])
+                editor.table.item(0, 0).setText("Reversed")
+            else:
+                self.assertEqual(dialog.method, monte_carlo.MONTE_CARLO)
+                self.assertIn(monte_carlo.X_COLUMN, dialog.hidden)
+                dialog.controls[monte_carlo.REPLICATES][1].setText("20")
+            dialog.accept()
+            self.assertIsNotNone(dialog.result, dialog.banner.text())
+            return AnalysisDialog.DialogCode.Accepted
+
+        with patch.object(AnalysisDialog, "exec", accept):
+            window.actions["transpose_xy"].trigger()
+            self.wait()
+            table = window.project.runs[-1].result.tables[transpose_xy.TABLE]
+            self.assertEqual(table["X"].tolist(), [5., 7.])
+            self.assertEqual(table["Reversed"].tolist(), [2., 3.])
+            window.actions["monte_carlo"].trigger()
+            self.wait()
+            run = window.project.runs[-1]
+            self.assertEqual(run.method, monte_carlo.MONTE_CARLO)
+            self.assertEqual(len(run.result.tables[monte_carlo.REPLICATE_SHEET]), 20)
+
+    def test_family_navigation_and_combined_tree_keep_real_sheet_links(self):
+        from unittest.mock import patch
+        from PySide6.QtCore import Qt
+        from trama_qt.family import FamilySheetsDialog
+
+        window = self.window
+        self.open_example()
+        run = self.run_method("Descriptive statistics", {"Variables": ["Control"]})
+        result = ("result", window.project.runs.index(run))
+        data = ("data", "groups")
+        window.open_sheet(data)
+        window.actions["combined_navigator"].trigger()
+        self.assertTrue(window.actions["combined_navigator"].isChecked())
+        item = window.navigator.currentItem()
+        self.assertIn(result, [tuple(item.child(i).data(0, Qt.ItemDataRole.UserRole))
+                               for i in range(item.childCount())])
+        window.actions["family_results"].trigger()
+        self.assertEqual(window.selected, result)
+        window.actions["family_data"].trigger()
+        self.assertEqual(window.selected, data)
+
+        def choose(dialog):
+            refs = [tuple(dialog.entries.item(i).data(Qt.ItemDataRole.UserRole)) for i in range(dialog.entries.count())]
+            self.assertIn(data, refs)
+            dialog.entries.setCurrentRow(refs.index(result))
+            dialog.accept()
+            return FamilySheetsDialog.DialogCode.Accepted
+
+        with patch.object(FamilySheetsDialog, "exec", choose):
+            window.actions["family_gallery"].trigger()
+        self.assertEqual(window.selected, result)
+
+    def test_arrange_shapes_previews_and_commits_with_one_undo_step(self):
+        from copy import deepcopy
+        from unittest.mock import patch
+        from uuid import uuid4
+        from analisi.graph_shapes import SHAPES
+        from trama_qt.shape_arrange import ArrangeShapesDialog
+        from trama_qt.shapes import DEFAULT_SHAPE
+
+        window = self.window
+        self.open_example()
+        run = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        window.open_sheet(("graph", window.project.runs.index(run)))
+        shapes = [{**DEFAULT_SHAPE, "id": str(uuid4()), "points": [[left, .2], [left + .1, .4]]}
+                  for left in (.1, .4)]
+        window.commit_style(run, {**(run.style or {}), SHAPES: shapes})
+        window.update_actions()
+        self.assertTrue(window.actions["arrange_shapes"].isEnabled())
+        original = deepcopy(run.style[SHAPES])
+
+        def choose(dialog, accept):
+            dialog.shapes.selectAll()
+            field = dialog.modes["horizontal"]
+            field.setCurrentIndex(field.findData("left"))
+            dialog.preview_selection()
+            self.assertEqual(run.style[SHAPES], original)
+            if accept:
+                dialog.accept()
+            else:
+                dialog.reject()
+            return dialog.result()
+
+        with patch.object(ArrangeShapesDialog, "exec", lambda dialog: choose(dialog, False)):
+            window.actions["arrange_shapes"].trigger()
+        self.assertEqual(run.style[SHAPES], original)
+        with patch.object(ArrangeShapesDialog, "exec", lambda dialog: choose(dialog, True)):
+            window.actions["arrange_shapes"].trigger()
+        self.assertAlmostEqual(run.style[SHAPES][1]["points"][0][0], .1)
+        window.actions["undo"].trigger()
+        self.assertEqual(run.style[SHAPES], original)
+
     # -- look and feel -----------------------------------------------------------------------------
+    def test_theme_defaults_to_light_and_respects_a_saved_choice(self):
+        from unittest.mock import MagicMock, patch
+        from trama_qt import theme
+
+        settings = MagicMock()
+        settings.value.side_effect = lambda key, default: default
+        with patch.dict("os.environ", {"TRAMA_THEME": ""}), patch.object(theme, "QSettings", return_value=settings):
+            self.assertEqual(theme.saved_mode(), "light")
+            settings.value.side_effect = None
+            for value, expected in (("system", "system"), ("dark", "dark"), ("invalid", "light")):
+                settings.value.return_value = value
+                self.assertEqual(theme.saved_mode(), expected)
+            with patch.dict("os.environ", {"TRAMA_THEME": "dark"}):
+                self.assertEqual(theme.saved_mode(), "dark")
+
     def test_theme_switch_keeps_the_existing_qt_style(self):
         from unittest.mock import patch
         from trama_qt import theme

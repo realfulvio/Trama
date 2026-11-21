@@ -1,0 +1,70 @@
+{
+  "version": 2,
+  "tables": [
+    {
+      "title": "Calibrazione $ <β>",
+      "columns": [
+        "Dose",
+        "Risposta"
+      ],
+      "kinds": [
+        "numeric",
+        "numeric"
+      ],
+      "rows": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          8
+        ],
+        [
+          4,
+          9
+        ]
+      ],
+      "analyses": [
+        [
+          "Linear regression",
+          {
+            "X": "Dose",
+            "Y": "Risposta"
+          }
+        ]
+      ],
+      "formulas": [],
+      "excluded": [],
+      "table_format": "xy",
+      "graph_styles": {}
+    }
+  ],
+  "layouts": [],
+  "info_sheets": [
+    {
+      "uid": "d6b27e41c85c48b1a081178b4dbbf97d",
+      "title": "Note calibrazione",
+      "table": null,
+      "fields": [
+        [
+          "Campione",
+          "SINT-01"
+        ],
+        [
+          "Operatore",
+          "Esempio"
+        ]
+      ],
+      "notes": "Nota privata sintetica."
+    }
+  ]
+}
