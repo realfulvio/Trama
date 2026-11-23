@@ -166,7 +166,7 @@ class InterfaceDialogTests(TkCase):
         data.index.name = "Mean"
         grid = Grid(self.root, data)
         self.addCleanup(grid.destroy)
-        self.assertEqual(grid.tree.heading("#0", "text"), "Mean")
-        headings = [grid.tree.heading(key, "text") for key in grid.tree["columns"]]
+        self.assertEqual(grid.cells.bands[0][3], "Mean")
+        headings = [band[3] for band in grid.cells.bands[1:]]
         self.assertEqual(headings, ["Mean", "Control"])
-        self.assertEqual(grid.tree.item(grid.tree.get_children()[0], "values"), ("Control", "Mean"))
+        self.assertEqual(tuple(grid.cells.cell_text(0, col) for col in (1, 2)), ("Control", "Mean"))

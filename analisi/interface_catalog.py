@@ -877,6 +877,8 @@ Above and below|Sopra e sotto
 X from Y|X da Y
 Y from X|Y da X
 Nonlinear|Non lineare
+Asymmetric dose-response (concentration X)|Dose-risposta asimmetrica 5PL (concentrazione X)
+Asymmetric dose-response (log10 X)|Dose-risposta asimmetrica 5PL (log10 X)
 Mean response|Risposta media
 Prediction|Previsione
 Point-to-point|Da punto a punto

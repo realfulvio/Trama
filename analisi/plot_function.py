@@ -326,6 +326,7 @@ def plot_function(frame, o):
     if o.get(INTEGRAL):
         tables[INTEGRAL] = _sheet(x, names, [integral(x, y) for y in values])
     figure, axes = _plot(model, "X", "Y")
+    axes._tramastat_log_x_omit_zero = spec.domain == "nonnegative"
     for name, y in zip(names, values):
         axes.plot(x, y, label=name)
     axes.legend()

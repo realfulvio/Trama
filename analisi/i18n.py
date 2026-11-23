@@ -100,6 +100,12 @@ _EN = {
     "command.analyze_data": "Analyze data…", "command.change_parameters": "Change parameters…",
     "command.load_example": "Load example", "command.format_graph": "Format graph…",
     "command.edit_layout": "Edit layout…", "command.info_properties": "Info sheet properties…",
+    "command.category_order": "Category order…",
+    "worksheet_order.note": "Set the display order for grouped distributions and scatter plots.",
+    "worksheet_order.reset": "Use automatic order",
+    "worksheet_order.select": "Select a cell in a source column.",
+    "worksheet_order.limit": "Use a column with up to {limit} distinct levels and shorter labels.",
+    "worksheet_order.empty": "The selected column needs at least two distinct values.",
     # Family.
     "command.source_table": "Source data table", "command.family_gallery": "Family gallery",
     "command.linked_info": "Linked Info sheet", "command.analysis_results": "Analysis results",
@@ -414,6 +420,12 @@ _IT = {
     "command.analyze_data": "Analizza dati…", "command.change_parameters": "Cambia parametri…",
     "command.load_example": "Carica esempio", "command.format_graph": "Formatta grafico…",
     "command.edit_layout": "Modifica layout…", "command.info_properties": "Proprietà foglio Info…",
+    "command.category_order": "Ordine categorie…",
+    "worksheet_order.note": "Imposta l’ordine nei grafici a distribuzioni raggruppate e a dispersione.",
+    "worksheet_order.reset": "Ordine automatico",
+    "worksheet_order.select": "Seleziona una cella in una colonna sorgente.",
+    "worksheet_order.limit": "Usa una colonna con al massimo {limit} categorie distinte ed etichette più brevi.",
+    "worksheet_order.empty": "La colonna selezionata richiede almeno due valori distinti.",
     "command.source_table": "Tabella dati di origine", "command.family_gallery": "Galleria famiglia",
     "command.linked_info": "Foglio Info collegato", "command.analysis_results": "Risultati analisi",
     "command.family_results": "Risultati della famiglia",
@@ -3177,6 +3189,10 @@ _EN.update({
         "Not a likelihood profile, a simultaneous band or a bootstrap, and not an extrapolation."),
     "calib.inverse_nonlinear.association": (
         "Inverse intervals are not available for One-phase association. Choose None."),
+    "calib.inverse_nonlinear.forward_models": "Y from X supports the Linear curve, One-phase decay, 4PL and 5PL.",
+    "calib.inverse_nonlinear.5pl_plateaus": (
+        "The 5PL model could not estimate the regression reliably. "
+        "Include standards with responses between the two plateaus."),
     "calib.inverse_nonlinear.queries": "Inverse intervals accept at most 256 unknown responses.",
     "calib.inverse_nonlinear.level": "Choose a confidence level strictly between 0 and 100.",
     "calib.inverse_nonlinear.uncertainty": "Select None, Mean response or Prediction.",
@@ -3203,6 +3219,11 @@ _IT.update({
         "Non è un profilo di verosimiglianza, una banda simultanea o un bootstrap, e non è un'estrapolazione."),
     "calib.inverse_nonlinear.association": (
         "Gli intervalli inversi non sono disponibili per One-phase association. Scegli None."),
+    "calib.inverse_nonlinear.forward_models": (
+        "Y da X supporta la curva lineare, il decadimento monofase e i modelli 4PL e 5PL."),
+    "calib.inverse_nonlinear.5pl_plateaus": (
+        "Il modello 5PL non riesce a stimare la regressione in modo affidabile. "
+        "Includi standard con risposte comprese tra i due plateau."),
     "calib.inverse_nonlinear.queries": "Gli intervalli inversi accettano al massimo 256 risposte incognite.",
     "calib.inverse_nonlinear.level": "Scegli un livello di confidenza strettamente compreso tra 0 e 100.",
     "calib.inverse_nonlinear.uncertainty": "Scegli None, Mean response o Prediction.",
@@ -3599,6 +3620,71 @@ _SURVIVAL_UI = {
 }
 _EN.update({f"survival.ui.{key}": en for key, (en, _) in _SURVIVAL_UI.items()})
 _IT.update({f"survival.ui.{key}": it for key, (_, it) in _SURVIVAL_UI.items()})
+
+# Worksheet appearance shared by both desktop frontends.
+_WORKSHEET_APPEARANCE = {
+    "command.table_font": ("Table font…", "Carattere delle tabelle…"),
+    "command.cell_background": ("Cell background color…", "Colore sfondo celle…"),
+    "command.clear_cell_background": ("Clear cell backgrounds", "Rimuovi sfondo celle"),
+    "command.sheet_zoom_in": ("Zoom in on table", "Ingrandisci tabella"),
+    "command.sheet_zoom_out": ("Zoom out on table", "Riduci tabella"),
+    "command.sheet_zoom_reset": ("Reset table zoom", "Ripristina zoom tabella"),
+    "worksheet.font_family": ("Font", "Carattere"),
+    "worksheet.font_size": ("Size (pt)", "Dimensione (pt)"),
+    "worksheet.font_default": ("System default", "Predefinito di sistema"),
+    "worksheet.zoom_status": ("Table zoom {percent}%", "Zoom tabella {percent}%"),
+}
+_EN.update({key: en for key, (en, _) in _WORKSHEET_APPEARANCE.items()})
+_IT.update({key: it for key, (_, it) in _WORKSHEET_APPEARANCE.items()})
+
+# Change → Number format… on worksheets and result tables (display only).
+_WORKSHEET_NUMBER_FORMAT = {
+    "command.number_format": ("Number format…", "Formato numerico…"),
+    "number_format.title": ("Number format", "Formato numerico"),
+    "number_format.mode": ("Show numbers as", "Mostra i numeri con"),
+    "number_format.mode_automatic": ("Automatic", "Automatico"),
+    "number_format.mode_fixed": ("Fixed decimals", "Decimali fissi"),
+    "number_format.mode_significant": ("Significant digits", "Cifre significative"),
+    "number_format.mode_scientific": ("Scientific notation", "Notazione scientifica"),
+    "number_format.digits_automatic": ("Digits", "Cifre"),
+    "number_format.digits_fixed": ("Decimal places (0–12)", "Cifre decimali (0–12)"),
+    "number_format.digits_significant": ("Significant digits (1–15)", "Cifre significative (1–15)"),
+    "number_format.digits_scientific": ("Decimals in the mantissa (0–12)", "Decimali della mantissa (0–12)"),
+    "number_format.automatic_note": ("As before: up to 10 significant digits.",
+                                     "Come prima: fino a 10 cifre significative."),
+    "number_format.changing": ("Columns that change: {columns}", "Colonne che cambiano: {columns}"),
+    "number_format.unchanged": ("Unchanged: {reasons}", "Restano invariate: {reasons}"),
+    "number_format.reason_text": ("{columns} (text)", "{columns} (testo)"),
+    "number_format.reason_row_titles": ("{columns} (row titles)", "{columns} (titoli di riga)"),
+    "number_format.reason_codes": ("{columns} (whole numbers and status codes)", "{columns} (interi e codici di stato)"),
+    "number_format.reason_counts": ("{columns} (contingency counts)", "{columns} (conteggi di contingenza)"),
+    "number_format.reason_method": ("{columns} (format set by the analysis)", "{columns} (formato scelto dall’analisi)"),
+    "number_format.more": ("{names} and {count} more", "{names} e altre {count}"),
+    "number_format.preview": ("Preview", "Anteprima"),
+    "number_format.stored": ("Stored value", "Valore memorizzato"),
+    "number_format.shown": ("Shown as", "Mostrato come"),
+    "number_format.sample": ("The selection holds no number: the preview uses an example.",
+                             "La selezione non contiene numeri: l’anteprima usa un esempio."),
+    "number_format.display_only": ("Only the display changes: formulas, analyses, editing, copy and export keep "
+                                   "every stored digit.",
+                                   "Cambia solo la visualizzazione: formule, analisi, modifica, copia ed export "
+                                   "conservano tutte le cifre memorizzate."),
+    "number_format.apply": ("OK", "Conferma"),
+    "number_format.reset": ("Reset", "Ripristina"),
+    "number_format.reset_tip": ("Return these columns to Automatic", "Riporta queste colonne ad Automatico"),
+    "number_format.cancel": ("Cancel", "Annulla"),
+    "number_format.no_sheet_columns": ("This sheet has no numeric columns to format.",
+                                       "Questo foglio non ha colonne numeriche da formattare."),
+    "number_format.no_selected_columns": ("The selection holds no numeric column. Select cells in a column of numbers.",
+                                          "La selezione non contiene colonne numeriche. Seleziona celle in una "
+                                          "colonna di numeri."),
+    "number_format.contingency": ("Contingency tables keep their whole counts: the number format does not apply.",
+                                  "Le tabelle di contingenza mostrano i conteggi interi: il formato numerico non "
+                                  "si applica."),
+}
+_EN.update({key: en for key, (en, _) in _WORKSHEET_NUMBER_FORMAT.items()})
+_IT.update({key: it for key, (_, it) in _WORKSHEET_NUMBER_FORMAT.items()})
+
 _UI_PREFIXES = ("menu.", "command.", "ribbon.", "bar.", "nav.", "ttest.field.", "survival.ui.")
 KEY_BY_LABEL = {}
 for _key, _text in _EN.items():
@@ -3627,28 +3713,30 @@ def config_path(environ=None, platform=None):
     return config_dir(environ, platform) / PREFERENCES_FILE
 
 
-def load_language(path):
-    """Read the preferred language; anything missing, unreadable or unknown means English."""
+def load_preferences(path):
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeError):
-        return DEFAULT_LANGUAGE
-    if not isinstance(data, dict):
-        return DEFAULT_LANGUAGE
-    return canonical(data.get("language"))
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def load_language(path):
+    """Read the preferred language; anything missing, unreadable or unknown means English."""
+    return canonical(load_preferences(path).get("language"))
 
 
 def save_language(path, locale):
     """Write the preference atomically, keeping other settings already in the file."""
     if not isinstance(locale, str) or locale not in CATALOGS:
         raise ValueError(f"Unsupported language: {locale!r}")
+    return save_preferences(path, language=locale)
+
+
+def save_preferences(path, **changes):
     path = Path(path)
-    try:
-        current = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, UnicodeError):
-        current = {}
-    data = current if isinstance(current, dict) else {}
-    data["language"] = locale
+    data = load_preferences(path)
+    data.update(changes)
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary = tempfile.mkstemp(prefix=".preferences-", suffix=".tmp", dir=path.parent)
     try:
@@ -4853,6 +4941,13 @@ KEY_BY_LABEL.setdefault("Cohen's kappa", "interface.Cohen's kappa")
 for _english, _key in (("First rating", "kappa.field.first"), ("Second rating", "kappa.field.second"),
                        ("Category order", "kappa.field.order"), ("Resamples", "kappa.field.resamples")):
     KEY_BY_LABEL.setdefault(_english, _key)
+
+# Repeat analysis on other sheets…: the feature keeps its texts in a leaf module; only the menu command joins the
+# table, so the classic menu translates it through ui() like its neighbours.
+from .repeat_analysis_text import _TEXT as _REPEAT_TEXT
+
+_EN["command.repeat_analysis"], _IT["command.repeat_analysis"] = _REPEAT_TEXT["command"]
+KEY_BY_LABEL.setdefault(_REPEAT_TEXT["command"][0], "command.repeat_analysis")
 
 
 def fixed_choice_keys(values):

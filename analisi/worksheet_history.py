@@ -13,26 +13,42 @@ class WorksheetState:
     excluded: set
     view: tuple | None = None
     column_order: tuple | None = None
+    cell_backgrounds: dict | None = None
+    result_backgrounds: dict | None = None
+    number_formats: dict | None = None
+    result_number_formats: dict | None = None
 
     @classmethod
     def capture(cls, dataset, view=None):
         # Worksheet editing replaces these objects on commit. Retaining them
         # preserves exact cell types, metadata and exclusion flags.
-        return cls(dataset.raw, dataset.formulas, dataset.excluded, view, dataset.column_order)
+        return cls(dataset.raw, dataset.formulas, dataset.excluded, view, dataset.column_order,
+                   dataset.cell_backgrounds, dataset.result_backgrounds,
+                   dataset.number_formats, dataset.result_number_formats)
 
-    def changed(self, other):
+    def data_changed(self, other):
         return (self.raw is not other.raw or self.formulas is not other.formulas
                 or self.excluded is not other.excluded or self.column_order != other.column_order)
+
+    def changed(self, other):
+        return (self.data_changed(other) or self.cell_backgrounds is not other.cell_backgrounds
+                or self.result_backgrounds is not other.result_backgrounds
+                or self.number_formats is not other.number_formats
+                or self.result_number_formats is not other.result_number_formats)
 
     def restore(self, dataset):
         candidate = copy(dataset)
         candidate.raw, candidate.formulas, candidate.excluded = self.raw, self.formulas, self.excluded
         candidate.column_order = self.column_order
-        if candidate.formulas:
+        if self.data_changed(self.capture(dataset)) and candidate.formulas:
             # The current Info values may differ from those at edit time.
             candidate.frame()
         dataset.raw, dataset.formulas, dataset.excluded = self.raw, self.formulas, self.excluded
         dataset.column_order = self.column_order
+        dataset.cell_backgrounds = self.cell_backgrounds if self.cell_backgrounds is not None else {}
+        dataset.result_backgrounds = self.result_backgrounds if self.result_backgrounds is not None else {}
+        dataset.number_formats = self.number_formats if self.number_formats is not None else {}
+        dataset.result_number_formats = self.result_number_formats if self.result_number_formats is not None else {}
 
 
 @dataclass(frozen=True, eq=False)
@@ -71,6 +87,7 @@ class WorksheetHistory:
             states = [state for change in self.changes for state in (change.before, change.after)]
             sizes = {}
             exclusions = {}
+            backgrounds = {}
             for state in states:
                 key = id(state.raw)
                 if key not in sizes:
@@ -78,9 +95,19 @@ class WorksheetHistory:
                     if sizes[key] is None:
                         sizes[key] = int(state.raw.memory_usage(deep=True).sum())
                 exclusions[id(state.excluded)] = len(state.excluded) * 72
+                if state.cell_backgrounds:
+                    backgrounds[id(state.cell_backgrounds)] = len(state.cell_backgrounds) * 112
+                for sheets in (state.result_backgrounds or {}).values():
+                    for cells in sheets.values():
+                        backgrounds[id(cells)] = len(cells) * 112
+                if state.number_formats:
+                    backgrounds[id(state.number_formats)] = len(state.number_formats) * 160
+                for sheets in (state.result_number_formats or {}).values():
+                    for formats in sheets.values():
+                        backgrounds[id(formats)] = len(formats) * 160
             self.frame_sizes = sizes
             if len(self.changes) == 1 or (len(self.changes) <= 24 and
-                                         sum(sizes.values()) + sum(exclusions.values()) <= self.memory_budget):
+                                         sum(sizes.values()) + sum(exclusions.values()) + sum(backgrounds.values()) <= self.memory_budget):
                 return
             del self.changes[0]
 

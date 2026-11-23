@@ -2,7 +2,7 @@
 
 Disponibile nella beta 0.73.0. Le regole e i limiti sotto descrivono il percorso supportato.
 
-`Interpolate a standard curve`, direzione `X from Y`, può calcolare un intervallo di Mean response o di Prediction per One-phase decay e per i quattro modelli 4PL a pendenza variabile (stimolazione e inibizione, X in concentrazione o in log10). One-phase association resta solo stima puntuale. `Uncertainty` = `None` e l'inverso lineare non cambiano tabelle, legenda né geometria.
+`Interpolate a standard curve`, direzione `X from Y`, calcola intervalli per la risposta media o di previsione per il decadimento monofase, le curve 4PL a pendenza variabile e le curve asimmetriche 5PL. I modelli 4PL e 5PL accettano X in concentrazione o in log10. Con l'associazione monofase e con `Uncertainty` impostata su `None` il risultato è una stima puntuale. Per gli intervalli del modello lineare si usa la procedura di calibrazione lineare.
 
 ## Calcolo
 

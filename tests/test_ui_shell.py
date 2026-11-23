@@ -2,6 +2,8 @@
 
 The widget tests need Tk and a display (Xvfb is enough); they are skipped without one.
 """
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import tkinter as tk
 import unittest
 from unittest.mock import patch
@@ -161,6 +163,11 @@ class RibbonTests(TkCase):
         expected = {"New", "Open", "Save", "Cut cells", "Copy", "Paste", "Paste Special…", "Analyze…", "Import…"}
         self.assertTrue(expected <= set(self.ribbon().buttons))
 
+    def test_formula_has_one_ribbon_button_and_is_reachable_in_the_menu(self):
+        self.assertIn("Formula…", self.ribbon().buttons)
+        self.assertNotIn("Add formula…", self.ribbon().buttons)
+        self.assertIn(("Insert", "Calculated column…"), self.app.menu_entries)
+
 
 class GridDrawingTests(TkCase):
     def setUp(self):
@@ -172,6 +179,36 @@ class GridDrawingTests(TkCase):
 
     def tearDown(self):
         self.root.update()
+
+    def test_empty_covariance_result_keeps_its_row_heading(self):
+        axes = pd.MultiIndex.from_arrays([[], [], []], names=["Scope", "Group", "Parameter"])
+        frame = pd.DataFrame(index=axes, columns=axes)
+        grid = tramastat.Grid(self.root, frame)
+        self.addCleanup(grid.destroy)
+        self.assertEqual(grid.cells.frame.shape, (0, 1))
+        self.assertEqual(grid.cells.frame.columns.tolist(), ["Row"])
+
+    def test_exclusion_and_export_have_distinct_shortcuts(self):
+        table = self.app.tables[self.app.selected[1]]
+        self.grid.select_block(0, 0, 0, 0)
+        self.root.focus_force()
+        self.grid.canvas.focus_set()
+        self.root.update()
+
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "shortcut.csv"
+            with patch.object(tramastat.filedialog, "asksaveasfilename", return_value=str(path)) as chooser:
+                self.grid.canvas.event_generate("<Control-e>")
+                self.root.update()
+                self.assertEqual(table.excluded, {(0, 0)})
+                chooser.assert_not_called()
+                self.app.current_grid.canvas.event_generate("<Control-e>")
+                self.root.update()
+                self.assertFalse(table.excluded)
+                self.app.current_grid.canvas.event_generate("<Control-Shift-E>")
+                self.root.update()
+                chooser.assert_called_once()
+            pd.testing.assert_frame_equal(pd.read_csv(path), table.raw, check_dtype=False)
 
     def test_selection_and_active_cell_are_drawn_over_the_cells(self):
         self.grid.select_block(0, 0, 2, 1)
@@ -212,6 +249,36 @@ class GridDrawingTests(TkCase):
 
 
 class ImportedPageExportTests(TkCase):
+    def test_leaving_a_figure_page_releases_tk_images_without_discarding_the_result(self):
+        import gc
+        from weakref import ref
+
+        from matplotlib.figure import Figure
+
+        self.app._clear("Graph")
+        self.root.update()
+        gc.collect()
+        before = set(self.root.tk.call("image", "names"))
+        figure = Figure(figsize=(4, 3))
+        axes = figure.add_subplot()
+        axes.plot([0, 1], [1, 2])
+        original_canvas = figure.canvas
+        self.app.show_figure(figure)
+        self.root.update()
+        view = ref(figure.canvas)
+        images = set(self.root.tk.call("image", "names")) - before
+        self.assertTrue(images)
+
+        figure.canvas.draw_idle()
+        self.app._clear("Data")
+        self.root.update()
+        gc.collect()
+
+        self.assertIs(figure.canvas, original_canvas)
+        self.assertIsNone(view())
+        self.assertFalse(images.intersection(self.root.tk.call("image", "names")))
+        self.assertEqual(list(axes.lines[0].get_ydata()), [1, 2])
+
     def test_export_uses_saved_paper_after_the_canvas_resizes(self):
         from pathlib import Path
         from tempfile import TemporaryDirectory

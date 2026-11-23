@@ -263,7 +263,7 @@ def _text_object(records, encoding, flags, *, multiline=False):
     return text_id, "" if flags & 0x200 else text
 
 
-def _scene(graph, encoding):
+def _scene(graph, encoding, *, observations=None):
     scenes = list(_subgroups(graph, 0x8018))
     _require(len(scenes) == 1)
     header, scene = scenes[0]
@@ -287,8 +287,9 @@ def _scene(graph, encoding):
             series_header = _one(records, 0x8028)
             _require(len(series_header) == 144)
             key, family, dataset, visible = unpack_from("<4H", series_header)
+            drawing = 0x08 if dataset == observations else 0x88
             _require(key not in series and family == 0 and visible == 1 and dataset < 0x8000
-                     and unpack_from("<H", series_header, 58)[0] == 0x88)
+                     and unpack_from("<H", series_header, 58)[0] == drawing)
             caches = [p for tag, path, p in records if tag == 0x29 and path == (40,)]
             _require(len(caches) == 1 and len(caches[0]) >= 12)
             cache = caches[0]
@@ -434,7 +435,7 @@ def _editable(graph, encoding, owners, remaining_cells):
     }
 
 
-def read_editable_graphs(data, sources, result_frames, remaining_cells, *, cached_curves=()):
+def read_editable_graphs(data, sources, result_frames, remaining_cells, *, cached_curves=(), skip=()):
     """Return editable data and drawing metadata for verified graphs."""
     from .legacy_binary_bars import read_bar_graph
     from .legacy_emf_edit import read_cached_emf_curve, read_emf_curve, read_emf_error_points
@@ -455,7 +456,7 @@ def read_editable_graphs(data, sources, result_frames, remaining_cells, *, cache
                 owners[data_uid].append(owner)
     restored = {}
     for uid in indexed:
-        if graph := graphs.get(uid):
+        if uid not in skip and (graph := graphs.get(uid)):
             readers = (
                 (read_emf_curve, (graph, owners, remaining_cells, True)),
                 (_editable, (graph, encoding, owners, remaining_cells)),

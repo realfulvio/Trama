@@ -47,6 +47,7 @@ from analisi._version import VERSION, RELEASE_CHANNEL
 from analisi.analysis_chain import MAX_ANALYSIS_NODES, ChainCancelled, ResultSource
 from analisi.analysis_chain_app import AnalysisChainMixin
 from analisi.family_workflow_app import FamilyWorkflowMixin
+from analisi.repeat_analysis_app import RepeatAnalysisMixin
 from analisi.windows_dpi import configure_native_dpi, window_dpi
 from analisi.window_geometry import clamp_rect, keep_native_window_on_screen
 from analisi.shape_canvas import ShapeCanvas, ShapeHistory, render_shapes
@@ -195,6 +196,7 @@ from analisi.pairwise_graph import (LETTERS as COMPACT_LETTERS, SECTION as PAIRW
                                     pairwise_warning, sync_letters_table,
                                     read_section as read_pairwise, source_problem as pairwise_source_problem)
 from analisi.fit_weights import INVERSE_VARIANCE, NOTE_KEYS, UNWEIGHTED, uses_fitted_y, uses_observed_y
+from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
 from analisi.i18n import config_path, load_language, set_language, tr, translate_message, ui, fixed_choice_keys
 from analisi.language_dialog import LanguageDialog
 from analisi import parallel
@@ -205,6 +207,7 @@ from analisi.modern_workspace import ModernWorksheet
 from analisi.project_tabs import MAX_PROJECT_TABS, ProjectSession, ProjectTabs
 from analisi.legacy_binary_graphs import render_binary_graph
 from analisi.legacy_emf_edit import LIMIT_SOURCE
+from analisi.stats import FIXED_COEFFICIENTS, STARTING_COEFFICIENTS
 from analisi.legacy_fit_graph import FIT_GRAPH_SPEC, FIT_INTERVAL_BAND
 from analisi.legacy_xml_qc import QC_REFERENCE
 from analisi import icc
@@ -213,8 +216,8 @@ from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_DATA
 from analisi.legacy_restore import (LEGACY_GRAPH_LINK, LEGACY_GRAPH_STYLE,
                                    LEGACY_NOTES, LEGACY_PREVIEW, LEGACY_TITLE, SAVED_BINARY_GRAPH,
                                    SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY,
-                                   initial_sheet_reference, layout_panel_sources, linked_panel_readers, panel_source_style,
-                                   resolve_layout_panel_graphs)
+                                   initial_sheet_reference, layout_panel_sources, linked_curve_view, linked_panel_readers,
+                                   paired_graph_index, panel_source_style, resolve_layout_panel_graphs)
 from analisi.legacy_zip_layout import ZIP_LAYOUT, imported_paper
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY, curve_series_labels
 from analisi.repeated_workbench import INPUT_FIELDS, check_global_weighting
@@ -224,12 +227,11 @@ from analisi.rank_tests import (CHOICE_KEYS as RANK_CHOICE_KEYS, CONTINUITY as R
                                 LABEL_KEYS as RANK_LABEL_KEYS, MANN_WHITNEY, P_VALUE as RANK_P, WILCOXON)
 from analisi.row_tests import (RAW as ROW_TEST_RAW, ROW_TESTS, TESTS as ROW_TEST_CHOICES,
                                default_options as row_test_defaults, visibility as row_test_visibility)
-from analisi.nonlinear_calibration import (CONCENTRATION_4PL, INVERSE_INTERVAL_MODELS, INVERSE_MODELS,
-                                           calibration_choice_error)
+from analisi.nonlinear_calibration import (INVERSE_INTERVAL_MODELS, INVERSE_MODELS, check_calibration_options,
+                                           model_field_key as calibration_model_field_key)
 from analisi.nonlinear_calibration import (DIRECTION as CALIBRATION_DIRECTION, DIRECTIONS as CALIBRATION_DIRECTIONS,
                                            UNCERTAINTY as CALIBRATION_UNCERTAINTY,
-                                           calibration_visibility as standard_curve_visibility,
-                                           check_nonlinear_inverse, forward_options, inverse_options)
+                                           calibration_visibility as standard_curve_visibility)
 from analisi.normality import (NORMALITY, QQ_PLOT, QQ_VARIABLE, check_options as check_normality_options,
                                visibility as normality_visibility)
 from analisi.summary_ttest import METHOD as SUMMARY_TTEST, check_options as check_summary_ttest
@@ -697,25 +699,26 @@ def safe_csv(path, frame, index=False):
 
 
 class Grid(ttk.Frame):
-    def __init__(self, parent, frame, *, fit_cells=False, threshold_column=None):
+    """Paged, read-only result cells with the same selection as a data worksheet."""
+
+    def __init__(self, parent, frame, *, fit_cells=False, threshold_column=None,
+                 backgrounds=None, appearance=("", None), zoom=100, number_formats=None):
         super().__init__(parent)
         self.frame = frame
         self.fit_cells = fit_cells
         self.threshold_column = threshold_column
+        self.backgrounds = backgrounds or {}
+        self.number_formats = dict(number_formats or {})
+        self.appearance = appearance
+        self.zoom = zoom
         self.page = 0
         self.page_size = 500
-        self.tree = ttk.Treeview(self, show="tree headings", selectmode="browse")
-        vert = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
-        hori = ttk.Scrollbar(self, orient="horizontal", command=self.tree.xview)
-        self.tree.configure(yscrollcommand=vert.set, xscrollcommand=hori.set)
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        vert.grid(row=0, column=1, sticky="ns")
-        hori.grid(row=1, column=0, sticky="ew")
+        self.cells = None
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
         if len(frame) > self.page_size:
             pager = ttk.Frame(self)
-            pager.grid(row=2, column=0, sticky="ew")
+            pager.grid(row=1, column=0, sticky="ew")
             self.previous = ttk.Button(pager, text=ui("Previous rows"), command=lambda: self.move(-1))
             self.previous.pack(side="left")
             self.next = ttk.Button(pager, text=ui("Next rows"), command=lambda: self.move(1))
@@ -725,43 +728,74 @@ class Grid(ttk.Frame):
         self.refresh()
 
     def move(self, delta):
-        self.page += delta
-        self.refresh()
-        self.tree.yview_moveto(0)
+        if 0 <= self.page + delta <= max(0, (len(self.frame) - 1) // self.page_size):
+            self.page += delta
+            self.refresh()
 
     def refresh(self):
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        ids = [f"col{i}" for i in range(len(self.frame.columns))]
-        self.tree["columns"] = ids
+        if self.cells is not None:
+            self.cells.destroy()
         index_title = str(self.frame.index.name or "Row")
-        self.tree.heading("#0", text=index_title)
         index_width = 57
         if self.frame.index.dtype.kind not in {"i", "u"}:
             lengths = [len(index_title), *(len(display(value)) for value in self.frame.index[:100])]
             index_width = max(115, min(330, max(lengths) * 8 + 24))
-        self.tree.column("#0", width=index_width, stretch=False)
+        widths = [index_width]
         formatters = [threshold_text if name == self.threshold_column else display for name in self.frame.columns]
-        for i, (key, name) in enumerate(zip(ids, self.frame.columns)):
-            self.tree.heading(key, text=str(name), anchor="w")
+        for index, name in enumerate(self.frame.columns):
             width = max(104, min(250, len(str(name)) * 8 + 26))
-            numeric = pd.api.types.is_numeric_dtype(self.frame.dtypes.iat[i])
+            numeric = pd.api.types.is_numeric_dtype(self.frame.dtypes.iat[index])
             if self.fit_cells or not numeric or name == self.threshold_column:
-                lengths = (len(formatters[i](value)) for value in self.frame.iloc[:100, i])
+                lengths = (len(formatters[index](value)) for value in self.frame.iloc[:100, index])
                 width = max(width, min(360, max(lengths, default=0) * 7 + 26))
-            anchor = "e" if numeric else "w"
-            self.tree.column(key, width=width, stretch=False, anchor=anchor)
+            widths.append(width)
         start = self.page * self.page_size
         page = self.frame.iloc[start:start + self.page_size]
-        for offset, row in enumerate(page.itertuples(index=True, name=None), start):
-            self.tree.insert("", "end", iid=str(offset), text=display(row[0]),
-                             values=tuple(formatter(value) for formatter, value in zip(formatters, row[1:], strict=True)),
-                             tags=("stripe",) if offset % 2 else ())
-        self.tree.tag_configure("stripe", background="#f1f6fc")
+        index = pd.Series(page.index.tolist(), name=index_title, dtype=object)
+        shown = pd.concat([index.to_frame(), page.reset_index(drop=True)], axis=1)
+        self.cells = DataGrid(self, shown, None, self.copy, None, display, excluded=(),
+                              source_columns=len(shown.columns), read_only_columns=range(len(shown.columns)),
+                              appearance=self.appearance, zoom=self.zoom, backgrounds=self.backgrounds,
+                              result_widths=widths, formatters=[display, *formatters], row_offset=start,
+                              number_formats=self.number_formats, method_columns=self.method_positions())
+        self.cells.grid(row=0, column=0, sticky="nsew")
         if hasattr(self, "position"):
-            self.position.configure(text=tr("interface.rows_position", first=start + 1, last=start + len(page), total=len(self.frame)))
+            self.position.configure(text=tr("interface.rows_position", first=start + 1,
+                                             last=start + len(page), total=len(self.frame)))
             self.previous.configure(state="normal" if self.page else "disabled")
             self.next.configure(state="normal" if start + len(page) < len(self.frame) else "disabled")
+
+    def selection(self):
+        top, left, bottom, right = self.cells.selection
+        start = self.cells.row_offset
+        return top + start, left, bottom + start, right
+
+    def method_positions(self):
+        """Grid columns whose format the analysis chose (ROC thresholds): they take no number format."""
+        return {position for position, name in enumerate(self.frame.columns, 1) if name == self.threshold_column}
+
+    def set_number_formats(self, number_formats):
+        self.number_formats = dict(number_formats or {})
+        self.cells.set_number_formats(self.number_formats)
+
+    def copy(self):
+        top, left, bottom, right = self.cells.selection
+        lines = ["\t".join(self.cells.cell_text(row, column) for column in range(left, right + 1))
+                 for row in range(top, min(bottom + 1, len(self.cells.frame)))]
+        if lines:
+            self.clipboard_clear()
+            self.clipboard_append("\n".join(lines))
+        return "break"
+
+    def set_appearance(self, appearance, zoom):
+        self.appearance = appearance
+        self.zoom = zoom
+        self.cells.set_appearance(appearance, zoom)
+
+    def set_backgrounds(self, backgrounds):
+        self.backgrounds = backgrounds
+        self.cells.backgrounds = backgrounds
+        self.cells.queue_draw()
 
 
 class GraphToolbar(NavigationToolbar2Tk):
@@ -1268,7 +1302,8 @@ class AnalysisDialog(simpledialog.Dialog):
                   else 470 if self.method == HEAT_MAP
                   else 470 if self.method == NORMALITY
                   else 470 if self.method == REFERENCE_NORMALIZATION
-                  else 400 if self.method in {COMPETING_RISKS, curve_pipeline.CURVE_METHOD}
+                  else 430 if self.method == curve_pipeline.CURVE_METHOD
+                  else 400 if self.method == COMPETING_RISKS
                   else 420 if self.method == WEIBULL_AFT
                   else 470 if self.method == ORDINAL_LOGIT
                   else 390 if self.method == RMST
@@ -1289,7 +1324,7 @@ class AnalysisDialog(simpledialog.Dialog):
         else:
             variables.columnconfigure(1, weight=1)
         if self.method in {SUMMARY_ANOVA, WORKSHEET_JOIN, "Multifactor ANOVA",
-                           kmeans_stability.METHOD, logistic_validation.METHOD}:
+                           kmeans_stability.METHOD, logistic_validation.METHOD, curve_pipeline.CURVE_METHOD}:
             # The notebook keeps a fixed height, so the extra method controls scroll
             # and Run Analysis / Cancel stay on a 1024×768 screen.
             options_page = ttk.Frame(self.fields)
@@ -2311,6 +2346,7 @@ class AnalysisDialog(simpledialog.Dialog):
             for label in ("Method", curve_pipeline.OPERATION, curve_pipeline.SMOOTHING):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_curve_fields())
             self.show_curve_fields()
+            self._bind_scrollable_children(options)
         if self.method == ROBUST_CURVE:
             model, editor = self.controls[ROBUST_MODEL][1], self.controls[ROBUST_INITIAL][1]
             model.trace_add("write", lambda *_: editor.set_model(model.get()))
@@ -4196,13 +4232,7 @@ class AnalysisDialog(simpledialog.Dialog):
         """Name the X unit on the model label. Saved recipe ids stay the catalog names."""
         heading = self.field_rows["Model"][0]
         model = self.controls["Model"][1].get()
-        if str(model).endswith(", log10 X)"):
-            key = "calib.inverse_nonlinear.field.model_log10"
-        elif model in CONCENTRATION_4PL:
-            key = "calib.inverse_nonlinear.field.model_concentration"
-        else:
-            key = "calib.inverse_nonlinear.field.model"
-        heading.configure(text=tr(key))
+        heading.configure(text=tr(calibration_model_field_key(model)))
 
     def show_rank_fields(self):
         """The continuity correction belongs to the normal approximation, so the exact p value switches it off."""
@@ -4529,23 +4559,12 @@ class AnalysisDialog(simpledialog.Dialog):
                 if options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE:
                     check_fit_quality_options(options)
                 validate_profile_data(fit_data, options, classic_roles(self.method, options))
-            forward_calibration = (self.method == "Interpolate a standard curve"
-                                   and options.get(CALIBRATION_DIRECTION) == CALIBRATION_DIRECTIONS[1])
-            if forward_calibration:
-                forward_options(options)
-            # Inverse intervals: a level or replicate count error stays in the dialog on its field.
-            # The nonlinear search runs on the analysis worker. Only the linear inverse still fits here.
-            inverse_intervals = (self.method == "Interpolate a standard curve" and not forward_calibration
-                                 and options.get(CALIBRATION_UNCERTAINTY, "None") != "None")
-            nonlinear_inverse = inverse_intervals and options.get("Curve") == "Nonlinear"
-            if nonlinear_inverse:
-                check_nonlinear_inverse(self.data, options)
-            elif inverse_intervals:
-                inverse_options(options)
-            if self.method == "Interpolate a standard curve" and options.get("X") == options.get("Y"):
-                raise FieldError("Y", "Select distinct columns for X and Y.")
-            if self.method == "Interpolate a standard curve" and options.get("Curve") == "Nonlinear":
-                calibration_choice_error(self.data, options.get("X"), options.get("Y"), "Nonlinear", options.get("Model"))
+            calibration_precompute = False
+            if self.method == "Interpolate a standard curve":
+                check_calibration_options(self.data, options)
+                calibration_precompute = (options.get(CALIBRATION_DIRECTION) == CALIBRATION_DIRECTIONS[1]
+                                          or (options.get("Curve") != "Nonlinear"
+                                              and options.get(CALIBRATION_UNCERTAINTY, "None") != "None"))
             if self.method == XY_METHOD:
                 # Draw styles and the bar width stay on the saved recipe: check the graph they will draw.
                 saved = self.current[1] if self.current and self.current[0] == self.method else {}
@@ -4652,7 +4671,7 @@ class AnalysisDialog(simpledialog.Dialog):
             if (observed_weighting or fit_diagnostics or grouped_validation or dunn_validation or poisson_validation
                     or linear_validation
                     or check_logistic_diagnostics or pca_validation or self.method in RANK_METHODS
-                    or forward_calibration or (inverse_intervals and not nonlinear_inverse)
+                    or calibration_precompute
                     or self.method in PROCESSING_METHODS
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY, POWER_METHOD}
                     or (self.method == curve_pipeline.CURVE_METHOD and options.get("Method") == curve_pipeline.PIPELINE)
@@ -5219,10 +5238,14 @@ class AnalysisRecovery:
     only: object = None
 
 
-class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
+class App(AnalysisChainMixin, FamilyWorkflowMixin, RepeatAnalysisMixin, WorksheetJoinSources):
     @staticmethod
     def make_chain_control():
         return CalculationControl()
+
+    def repeat_compute(self, title, slot, method, options, style, frame, result):
+        """On the worker: the result of a copy of Repeat analysis on other sheets…, styled as a Run of it."""
+        return self.compute(Run(method, title, options, slot=slot, style=style), frame, result=result)
 
     def chain_analysis_dialog(self, frame, *, title, source=None, **options):
         return AnalysisDialog(self.root, frame, join_left=title, join_sources=self.join_sources(title, source),
@@ -5266,6 +5289,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
         self.inspector_element = None
         self.graph_canvas = None
         self.graph_toolbar = None
+        self._figure_view = None
         self.shape_controller = None
         self.shape_popup = None
         self.shape_mode = tk.StringVar(root, value=tr("shape.button"))
@@ -5288,6 +5312,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
 
     def _build(self):
         ui_theme.configure(self.root, "standard" if self.standard_only else load_theme(config_path()))
+        self.table_font = font_preference(config_path())
+        self.table_zoom = 100
         if ui_theme.is_modern():
             self.combined_navigator = False
 
@@ -5311,7 +5337,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                      ("Show or hide Data + Results", self.toggle_combined_navigator),
                      ("Sheet gallery", self.toggle_gallery),
                      ("Previous sheet", lambda: self.step_history(-1)),
-                     ("Next sheet", lambda: self.step_history(1))],
+                     ("Next sheet", lambda: self.step_history(1)),
+                     ("Zoom in on table", lambda: self.zoom_table(1)),
+                     ("Zoom out on table", lambda: self.zoom_table(-1)),
+                     ("Reset table zoom", lambda: self.zoom_table(0))],
             "Insert": [("New table…", self.new_table), ("New Info sheet…", self.new_info), ("Add row", self.add_row),
                        ("Add column…", self.add_column), ("Calculated column…", self.add_formula),
                        ("New graph…", self.new_graph), ("Pairwise Comparisons…", self.pairwise_comparisons),
@@ -5321,8 +5350,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
             "Analyze": [("Analyze data…", self.choose_analysis), ("Change parameters…", self.edit_analysis),
                         ("Analyze result table…", self.analyze_result_table),
                         ("Source analysis", self.source_analysis), ("Change input result…", self.change_input_result),
+                        ("Repeat analysis on other sheets…", self.repeat_analysis),
                         ("Load example", self.example)],
             "Change": [("Format graph…", self.format_graph), ("Edit layout…", lambda: self.new_layout(edit=True)),
+                       ("Category order…", self.edit_category_order),
+                       ("Cell background color…", self.change_cell_background),
+                       ("Clear cell backgrounds", lambda: self.change_cell_background(clear=True)),
+                       ("Number format…", self.change_number_format),
                        ("Info sheet properties…", self.info_properties)],
             "Arrange": [("Arrange drawing objects…", self.arrange_graph_shapes), ("New layout…", self.new_layout),
                         ("Edit layout…", lambda: self.new_layout(edit=True))],
@@ -5340,10 +5374,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
         }
         edit_shortcuts = {"Undo": "Ctrl+Z", "Redo": "Ctrl+Y", "Cut cells": "Ctrl+X", "Copy cells": "Ctrl+C",
                           "Paste into table": "Ctrl+V", "Paste Special…": "Ctrl+Shift+V",
-                          "Paste Transpose": "Ctrl+Shift+T", "Clear selected cells": "Delete"}
+                          "Paste Transpose": "Ctrl+Shift+T", "Clear selected cells": "Delete",
+                          "Exclude / include selected cell": "Ctrl+E"}
         file_shortcuts = {"New project": "Ctrl+Shift+N", "New table": "Ctrl+N", "Open…": "Ctrl+O",
-                          "Save project": "Ctrl+S", "Close project": "Ctrl+W"}
-        shortcuts = {"Edit": edit_shortcuts, "File": file_shortcuts}
+                          "Save project": "Ctrl+S", "Close project": "Ctrl+W", "Export…": "Ctrl+Shift+E"}
+        shortcuts = {"Edit": edit_shortcuts, "File": file_shortcuts,
+                     "View": {"Zoom in on table": "Ctrl+=", "Zoom out on table": "Ctrl+-",
+                              "Reset table zoom": "Ctrl+0"}}
         self.menu_entries = {}  # (English menu, English label) -> (popup, index): labels may be translated
         menus = {}
         for title, entries in commands.items():
@@ -5363,6 +5400,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
             self.menu_entries["Settings", "Theme…"] = settings, settings.index("end")
         settings.add_command(label=ui("Language…"), command=self.choose_language)
         settings.add_command(label=tr("processes.command"), command=self.choose_processes)
+        settings.add_command(label=tr("command.table_font"), command=self.choose_table_font)
         menu.add_cascade(label=tr("theme.settings"), menu=settings)
         menus["Settings"] = settings
         self.root.config(menu=menu)
@@ -5376,6 +5414,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
         self.root.bind("<Control-o>", lambda _: self.open_dialog())
         self.root.bind("<Control-s>", lambda _: self.save())
         self.root.bind("<Control-e>", lambda _: self.toggle_exclusion())
+        self.root.bind("<Control-Shift-E>", lambda _: self.export())
+        for key, step in (("equal", 1), ("minus", -1), ("0", 0)):
+            self.root.bind(f"<Control-{key}>", lambda _, step=step: self.zoom_table(step))
         self.root.bind("<Alt-Left>", lambda _: self.step_history(-1))
         self.root.bind("<Alt-Right>", lambda _: self.step_history(1))
         self.root.bind("<Control-Prior>", lambda _: self.step_history(-1))
@@ -5425,6 +5466,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                                   command=lambda: self.duplicate_family(self.nav_menu_ref))
         self.nav_menu.add_command(label=ui("Save family as…"),
                                   command=lambda: self.save_family_as(self.nav_menu_ref))
+        self.nav_menu.add_command(label=ui("Repeat analysis on other sheets…"), command=self.repeat_from_navigator)
         self.nav.bind("<<TreeviewSelect>>", self.navigate)
         self.nav.bind("<ButtonRelease-1>", self.activate_nav_action)
         self.nav.bind("<Return>", self.activate_nav_action)
@@ -5467,7 +5509,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
               ("Correlation matrix", "heatmap", lambda: self.choose_analysis(CORRELATION_MATRIX))),
              (("Analyze…", "analyze", self.choose_analysis),)),
             ("Change", (("Change parameters…", "format", self.edit_analysis), ("Format", "style", self.format_graph)),
-             (("Add formula…", "formula", self.add_formula),)),
+             ()),
             ("Import / Export", (("Export", "export", self.export),),
              (("Export with options…", "export-options", self.export_with_options),),
              (("Import…", "import", lambda: self.open_dialog(import_data=True)),)),
@@ -5615,8 +5657,18 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
         # The page is rebuilt: an unapplied Inspector draft never reaches the next graph.
         self.dispose_inspector()
         self.cell_address.configure(text="")
+        figure_view, self._figure_view = self._figure_view, None
+        if figure_view is not None:
+            canvas, previous_canvas = figure_view
+            if canvas._idle_draw_id is not None:
+                canvas.get_tk_widget().after_cancel(canvas._idle_draw_id)
+                canvas._idle_draw_id = None
         for child in self.page.winfo_children():
             child.destroy()
+        if figure_view is not None and canvas.figure.canvas is canvas:
+            # Saved results own the Figure, but the closed page owns its Tk canvas and images.
+            canvas.figure.set_canvas(previous_canvas)
+        self.graph_canvas = self.graph_toolbar = None
         self.page.configure(padding=(10, 8) if title else 0)
         if not title:
             return
@@ -5791,6 +5843,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                  else "disabled")
         for entry in (5, 6):
             self.nav_menu.entryconfigure(entry, state=state)
+        ref = self.nav_menu_ref
+        repeatable = (ref is not None and ref[0] in {"result", "graph"} and type(ref[1]) is int
+                      and 0 <= ref[1] < len(self.runs) and self.runs[ref[1]].slot >= 0 and self.pending is None)
+        self.nav_menu.entryconfigure(7, state="normal" if repeatable else "disabled")
+
+    def repeat_from_navigator(self):
+        """The navigator's Repeat analysis on other sheets…: open the sheet under the pointer, then the assistant."""
+        if self.nav_menu_ref is not None and self.nav_menu_ref != self.selected:
+            self.open_sheet(self.nav_menu_ref)
+        self.repeat_analysis()
 
     def navigator_menu(self, event):
         self.update_nav_menu(self.nav.identify_row(event.y))
@@ -6118,6 +6180,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                                          source_columns=len(dataset.raw.columns),
                                          table_format=dataset.table_format,
                                          address_widget=self.cell_address,
+                                         appearance=self.table_font, zoom=self.table_zoom,
+                                         backgrounds=dataset.displayed_backgrounds,
+                                         number_formats=dataset.displayed_number_formats,
                                          read_only_columns=[column for column, source in enumerate(sources)
                                                             if source in locks],
                                          calculated_columns=[column for column, source in enumerate(sources)
@@ -6198,8 +6263,11 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                 self.result_tabs.pack(fill="both", expand=True)
                 for title, frame in result.tables.items():
                     threshold_column = "Threshold" if run.method == "ROC curve" and title == "Diagnostic thresholds" else None
+                    backgrounds = self.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})
+                    number_formats = self.tables[run.title].result_number_formats.get(run.slot, {}).get(title, {})
                     grid = Grid(self.result_tabs, frame, fit_cells=run.method == SAVED_BINARY_RESULT,
-                                threshold_column=threshold_column)
+                                threshold_column=threshold_column, backgrounds=backgrounds,
+                                appearance=self.table_font, zoom=self.table_zoom, number_formats=number_formats)
                     self.result_tabs.add(grid, text=title)
             elif kind == "saved-layout":
                 bar = ttk.Frame(self.page)
@@ -6293,23 +6361,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
     def graph_view_actions(self, run, bar):
         from analisi.legacy_binary_range import BINARY_XY_RANGE
 
-        if run.method == SAVED_XY and BINARY_XY_RANGE in run.options:
+        if (run.method == SAVED_XY and BINARY_XY_RANGE in run.options) or linked_curve_view(run):
             ttk.Button(bar, text=ui("Edit graph data"), command=lambda: self.show("data", run.title)).pack(
                 side="left", padx=5)
-            return
-        link = run.options.get(LEGACY_GRAPH_LINK)
-        if not link:
-            return
-        editable = run.method == SAVED_EDITABLE_GRAPH
-        target = SAVED_BINARY_GRAPH if editable else SAVED_EDITABLE_GRAPH
-        related = next((i for i, other in enumerate(self.runs)
-                        if other.method == target and other.options.get(LEGACY_GRAPH_LINK) == link), None)
-        if related is None and not editable:
-            return
-        if related is not None:
-            ttk.Button(bar, text=ui("View original" if editable else "Open editable graph"),
-                       command=lambda: self.open_graph_view(related)).pack(side="left")
-        if editable:
+        if (related := paired_graph_index(run, self.runs)) is not None:
+            label = "Open editable graph" if run.method == SAVED_BINARY_GRAPH else "View original"
+            ttk.Button(bar, text=ui(label), command=lambda: self.open_graph_view(related)).pack(side="left")
+        if run.method == SAVED_EDITABLE_GRAPH and run.options.get(LEGACY_GRAPH_LINK):
             ttk.Button(bar, text=ui("Edit graph data"), command=lambda: self.show("data", run.title)).pack(side="left", padx=5)
             if self.tables[run.title].table_format not in EDITABLE_LEGACY_FIXED_VALUES and LEGACY_PREVIEW not in run.options:
                 ttk.Button(bar, text=ui("Format…"), command=self.format_graph).pack(side="left", padx=(0, 6))
@@ -6342,7 +6400,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
 
     def show_figure(self, figure, run=None, *, fit_page=False, export=None):
         container = ttk.Frame(self.page) if fit_page else self.page
+        previous_canvas = figure.canvas
         canvas = FigureCanvasTkAgg(figure, master=container)
+        self._figure_view = canvas, previous_canvas
         if export is not None:
             toolbar = ImportedPageToolbar(canvas, self.page, export)
         elif run is None:
@@ -7564,9 +7624,23 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
             return "break"
         if change is not None:
             self.active_data = change.title
-            self.invalidate()
+            if change.before.data_changed(change.after):
+                self.invalidate()
+            else:
+                self.dirty = True
+                kind, key = self.selected or ("data", change.title)
+                if kind == "result" and self.runs[key].title == change.title:
+                    self._refresh_result_backgrounds(self.runs[key])
+                elif (kind, key) == ("data", change.title):
+                    self.current_grid.backgrounds = self.tables[key].displayed_backgrounds
+                    self.current_grid.set_number_formats(self.tables[key].displayed_number_formats)
+                    self.current_grid.queue_draw()
+                else:
+                    self.show("data", change.title)
+                self.refresh_project_tabs()
+                self.update_worksheet_history_buttons()
             state = change.after if redo else change.before
-            if state.view is not None:
+            if state.view is not None and self.current_grid is not None:
                 self.current_grid.update_idletasks()
                 self.current_grid.restore(state.view, focus=True)
             if self.pending is None:
@@ -7815,6 +7889,32 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                 self.error(error)
             else:
                 self.finish_worksheet_edit(data, before, "Edit formula")
+
+    def edit_category_order(self):
+        from analisi.category_order import OrderDraft, set_order
+        from analisi.category_order_dialog import CategoryOrderDialog
+
+        dataset = self.get_dataset()
+        if dataset is None:
+            return
+        cell = self.current_grid.active_cell if self.current_grid is not None else None
+        if cell is None or not 0 <= cell[1] < len(dataset.columns) or dataset.source_indices[cell[1]] is None:
+            self.error(tr("worksheet_order.select"))
+            return
+        column = dataset.columns[cell[1]]
+        try:
+            draft = OrderDraft(dataset, column)
+        except ValueError as error:
+            self.error(error)
+            return
+        if len(draft.levels) < 2 and not draft.saved:
+            self.error(tr("worksheet_order.empty"))
+            return
+        dialog = CategoryOrderDialog(self.root, column, draft)
+        if dialog.result is not None:
+            before = self.worksheet_state(dataset)
+            set_order(dataset, column, dialog.result)
+            self.finish_worksheet_edit(dataset, before, tr("command.category_order").removesuffix("…"))
 
     def enter_worksheet_formula(self, _event=None):
         dataset = self.get_dataset()
@@ -8215,6 +8315,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                         FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE, anova_grouped_plot.PRIMARY):
                 if key in run.options:
                     options[key] = run.options[key]
+            if options.get("Model") == run.options.get("Model"):
+                for key in (FIXED_COEFFICIENTS, STARTING_COEFFICIENTS):
+                    if key in run.options and key not in options:
+                        options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:
                 options["Group order"] = run.options["Group order"]
             if method == XY_METHOD:
@@ -8901,6 +9005,138 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
 
     def error(self, error):
         messagebox.showerror("Trama", str(error), parent=self.root)
+
+    def _active_table_view(self):
+        if self.gallery is not None or not self.selected or not self.ribbon.winfo_manager():
+            return None
+        if self.selected[0] == "data":
+            return self.current_grid
+        if self.selected[0] == "result":
+            tabs = getattr(self, "result_tabs", None)
+            if tabs is not None and tabs.winfo_exists() and tabs.select():
+                return tabs.nametowidget(tabs.select())
+        return None
+
+    def _resize_tables(self):
+        view = self._active_table_view()
+        if isinstance(view, Grid):
+            for tab in self.result_tabs.tabs():
+                self.result_tabs.nametowidget(tab).set_appearance(self.table_font, self.table_zoom)
+        elif view is not None:
+            view.set_appearance(self.table_font, self.table_zoom)
+
+    def choose_table_font(self):
+        from analisi.worksheet_font_dialog import TableFontDialog
+
+        dialog = TableFontDialog(self.root, self.table_font)
+        if dialog.result is not None:
+            try:
+                save_font_preference(config_path(), *dialog.result)
+            except OSError as error:
+                self.error(error)
+                return
+            self.table_font = dialog.result
+            self._resize_tables()
+
+    def zoom_table(self, step):
+        if self._active_table_view() is not None:
+            self.table_zoom = zoom_step(self.table_zoom, step)
+            self._resize_tables()
+            self.status.set(tr("worksheet.zoom_status", percent=self.table_zoom))
+            return "break"
+
+    def _refresh_result_backgrounds(self, run):
+        tabs = getattr(self, "result_tabs", None)
+        if run.result is None or tabs is None or not tabs.winfo_exists():
+            return
+        sheets = self.tables[run.title].result_backgrounds.get(run.slot, {})
+        formats = self.tables[run.title].result_number_formats.get(run.slot, {})
+        for tab, name in zip(tabs.tabs(), run.result.tables):
+            grid = tabs.nametowidget(tab)
+            grid.set_backgrounds(sheets.get(name, {}))
+            grid.set_number_formats(formats.get(name, {}))
+
+    def change_cell_background(self, *, clear=False):
+        view = self._active_table_view()
+        if view is None or self.pending is not None:
+            return
+        result = isinstance(view, Grid)
+        if result:
+            run = self.runs[self.selected[1]]
+            title = run.title
+            name = tuple(run.result.tables)[self.result_tabs.index("current")]
+            box, colors = view.selection(), view.backgrounds
+        else:
+            title = self.selected[1]
+            box, colors = view.selection, view.backgrounds
+        dataset = self.tables[title]
+        before = self.worksheet_state(dataset)
+        color = None
+        if not clear:
+            _, color = colorchooser.askcolor(color=colors.get(box[:2], "#ffe385"), parent=self.root,
+                                              title=tr("command.cell_background").rstrip("…"))
+            if not color:
+                return
+        if result:
+            dataset.set_result_background(run.slot, name, box, (len(view.frame), len(view.frame.columns) + 1), color)
+        else:
+            dataset.set_background(box, color)
+        if self.worksheet_history.record(title, "Cell background", before, self.worksheet_state(dataset)):
+            self.dirty = True
+            if result:
+                self._refresh_result_backgrounds(run)
+            else:
+                view.backgrounds = dataset.displayed_backgrounds
+                view.queue_draw()
+            self.refresh_project_tabs()
+            self.update_worksheet_history_buttons()
+
+    def change_number_format(self):
+        """Change → Number format…: what the selected numeric columns show; the stored values do not change."""
+        from analisi.worksheet_number_format import format_target, result_columns, worksheet_columns
+        from analisi.worksheet_number_format_dialog import NumberFormatDialog
+
+        view = self._active_table_view()
+        if view is None or self.pending is not None:
+            return
+        result = isinstance(view, Grid)
+        grid = view.cells if result else view
+        frame = grid.frame
+        if result:
+            run = self.runs[self.selected[1]]
+            title = run.title
+            name = tuple(run.result.tables)[self.result_tabs.index("current")]
+            columns = result_columns(view.frame, frame.columns[0],
+                                     {view.threshold_column} if view.threshold_column else ())
+            formats = view.number_formats
+        else:
+            title = self.selected[1]
+            columns = worksheet_columns(self.tables[title], frame)
+            formats = self.tables[title].displayed_number_formats
+        dataset = self.tables[title]
+        try:
+            target = format_target(columns, grid.selection, formats, active=grid.active_cell,
+                                   value_at=lambda row, position: frame.iat[row, position], rows=len(frame))
+        except ValueError as error:
+            self.error(error)
+            return
+        dialog = NumberFormatDialog(self.root, target)
+        if dialog.choice is None:
+            return
+        _, spec = dialog.choice
+        before = self.worksheet_state(dataset)
+        if result:
+            dataset.set_result_number_format(run.slot, name, target.keys, spec)
+        else:
+            dataset.set_number_format([frame.columns[position] for position in target.keys], spec)
+        if self.worksheet_history.record(title, "Number format", before, self.worksheet_state(dataset)):
+            self.dirty = True
+            if result:
+                self._refresh_result_backgrounds(run)
+            else:
+                view.set_number_formats(dataset.displayed_number_formats)
+            self.refresh_project_tabs()
+            self.update_worksheet_history_buttons()
 
     def choose_theme(self):
         dialog = ThemeDialog(self.root, config_path(), error=self.error)
@@ -10670,7 +10906,7 @@ def smoke(root, app, directory, legacy_reference=None):
                                    [2.973772893772894, 1.78673703018007, 4.94942740558030])
         app.result_tabs.select(list(tables).index("2 × 2 effects"))
         effects_grid = app.result_tabs.nametowidget(app.result_tabs.select())
-        assert int(effects_grid.tree.column("#0", "width")) >= 200
+        assert (effects_grid.cells.edges[1] - effects_grid.cells.edges[0]) >= 200
         app.search_placeholder = True
         app.search_input.set("Search sheets…")
         capture(root, "window-contingency-effects.png")
@@ -10717,7 +10953,7 @@ def smoke(root, app, directory, legacy_reference=None):
         assert test["p"] == 1 / 7 and test["Fixed-margin tables"] == 8
         app.result_tabs.select(list(run.result.tables).index("Tests"))
         result_grid = app.result_tabs.nametowidget(app.result_tabs.select())
-        assert int(result_grid.tree.column("col0", "width")) > 104
+        assert (result_grid.cells.edges[2] - result_grid.cells.edges[1]) > 104
         capture(root, "window-fisher-exact-rxc.png")
         assert app.save()
         app.import_file(path)
@@ -13321,8 +13557,8 @@ def smoke(root, app, directory, legacy_reference=None):
         assert app.result_tabs.tab(app.result_tabs.select(), "text") == "Interpolated values"
         grid = app.result_tabs.nametowidget(app.result_tabs.select())
         seen = False
-        for item in grid.tree.get_children():
-            values = grid.tree.item(item, "values")
+        for row in range(len(grid.cells.frame)):
+            values = tuple(grid.cells.cell_text(row, column) for column in range(1, grid.cells.columns))
             if "Out of range" in values:
                 assert values[3] == ""
                 seen = True
@@ -13390,8 +13626,8 @@ def smoke(root, app, directory, legacy_reference=None):
         assert app.result_tabs.tab(app.result_tabs.select(), "text") == "Interpolated values"
         grid = app.result_tabs.nametowidget(app.result_tabs.select())
         seen = False
-        for item in grid.tree.get_children():
-            values = grid.tree.item(item, "values")
+        for row in range(len(grid.cells.frame)):
+            values = tuple(grid.cells.cell_text(row, column) for column in range(1, grid.cells.columns))
             if "Out of range" in values:
                 assert values[3] == ""
                 seen = True
@@ -14663,6 +14899,10 @@ def smoke(root, app, directory, legacy_reference=None):
         check_family_workflow(root, app, directory, SimpleNamespace(
             App=App, capture=capture, messagebox=messagebox, filedialog=filedialog, errors=errors))
 
+    def check_repeat_analysis_smoke():
+        from analisi.repeat_analysis_smoke import check_repeat_analysis
+        check_repeat_analysis(root, app, directory, SimpleNamespace(App=App, capture=capture, errors=errors))
+
     def check_cluster_silhouette_smoke():
         from analisi.cluster_silhouette_smoke import check_cluster_silhouette
         check_cluster_silhouette(root, app, directory, SimpleNamespace(
@@ -14705,6 +14945,14 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cluster-silhouette":
             # The Cluster silhouette check alone: TRAMASTAT_SMOKE_ONLY=cluster-silhouette python tramastat.py --smoke DIR
             check_cluster_silhouette_smoke()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "repeat-analysis":
+            # Repeat analysis on other sheets… alone: TRAMASTAT_SMOKE_ONLY=repeat-analysis python tramastat.py --smoke DIR
+            check_repeat_analysis_smoke()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -14775,6 +15023,15 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "language":
             # The Edit → Language… check alone: TRAMASTAT_SMOKE_ONLY=language python tramastat.py --smoke DIR
             check_language()
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "number-format":
+            # Change → Number format… alone: TRAMASTAT_SMOKE_ONLY=number-format python tramastat.py --smoke DIR
+            from analisi.worksheet_number_format_smoke import check_number_format
+            check_number_format(root, app, directory, SimpleNamespace(errors=errors))
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
             app.worker.shutdown(wait=False)
@@ -16478,6 +16735,7 @@ def smoke(root, app, directory, legacy_reference=None):
         check_hierarchical_import_smoke()
         check_hierarchical_style_smoke()
         check_family_workflow_smoke()
+        check_repeat_analysis_smoke()
         check_cluster_silhouette_smoke()
         check_piecewise_equations_smoke()
         from analisi.legacy_mv_scatter_smoke import check_saved_scatter

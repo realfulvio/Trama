@@ -38,3 +38,7 @@ Salva il progetto in formato `.alab`: mantiene tabelle, formule, esclusioni, imp
 
 Per migrare un progetto di un altro programma consulta la [compatibilità](compatibility.md). Per licenza, validazione e componenti inclusi consulta le [note legali](legal.md).
 
+
+### Ordine delle categorie
+
+Per scegliere l’ordine delle categorie di una colonna, seleziona una sua cella e apri **Cambia → Ordine categorie…**. Usa **Sposta su** e **Sposta giù**. L’ordine si applica ai grafici a distribuzioni raggruppate e alle legende dei grafici a dispersione. Le categorie aggiunte in seguito vengono mostrate in coda. **Ordine automatico** torna all’ordine di prima apparizione nei dati. La preferenza resta nel progetto `.alab` e la puoi annullare con **Modifica → Annulla**.

@@ -25,9 +25,10 @@ def main():
                  "competing-risks.md", "kmeans-algorithms.md", "independent-roc-curves.md", "ancova-090.md",
                  "grouped-distributions.md", "qt-migration.md", "qt-canvas-095.md", "qt-gallery.md",
                  "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "qt-report.md", "worksheet-join.md", "qt-recovery.md", "qt-analysis-templates.md",
-                 "qt-excel-workbook.md", "cluster-silhouette-092.md", "paired-proportions.md", "power-from-summary.md",
+                 "qt-excel-workbook.md", "worksheet-number-format.md", "repeat-analysis.md",
+                 "cluster-silhouette-092.md", "paired-proportions.md", "power-from-summary.md",
                  "tolerance-intervals-093.md", "weibull-aft.md", "ordinal-logit.md", "restricted-mean-survival.md", "cohen-kappa.md", "mean-permutation-test.md", "xy-mixed-series.md",
-                 "release-099.md", "release-098.md", "release-097.md", "release-094.md",
+                 "release-100.md", "release-099.md", "release-098.md", "release-097.md", "release-094.md",
                  "release-093.md", "validation-093.md",
                  "release-092.md", "validation-092.md", "release-091.md", "validation-091.md",
                  "pca-regression-087.md", "release-090.md", "validation-090.md",
@@ -79,7 +80,8 @@ def main():
     # Remove research material that could remain in a reused build directory.
     for name in ("Laboratorio.alab", "rm-two-way-sphericity.alab", "Curve-pipeline.alab", "Assi-interrotti.alab",
                  "Stabilita-KMeans.alab", "Validazione-Logistica.alab", "Bland-Altman-ripetute.alab",
-                 "rimodella-visite.alab", "ICC-valutatori.alab", "Precisione-Richiamo.alab"):
+                 "rimodella-visite.alab", "ICC-valutatori.alab", "Precisione-Richiamo.alab",
+                 "Formato-numerico.alab", "Ripeti-analisi.alab"):
         example = root / "docs" / "examples" / name
         if example.is_file():
             (bundle / "docs" / "examples").mkdir(exist_ok=True)

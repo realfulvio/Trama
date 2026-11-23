@@ -279,7 +279,7 @@ PR draft verso `main` dal ramo `claude/project-thread-i504fp`, base `7a7340c`. *
   - Un grafico con opzione sbagliata: scheda "Calcolo non riuscito", aprirlo mostra il motivo e non chiede dialoghi.
   - Con molti grafici scorrere con la barra e col rotellino: i clic restano pronti.
   - `python -m trama_qt --smoke CARTELLA` a 100% e 150%: i passi "gallery" non devono dare problemi.
-- Test attesi: `tests.test_qt_gallery` 38/38 OK, `tests.test_qt_shell` 21/21 OK. Misure con 120 schede in `/mnt/project-files/qt-galleria-095/`.
+- Test attesi: `tests.test_qt_gallery` 38/38 OK, `tests.test_qt_shell` 21/21 OK.
 
 ### Canvas Qt · Disegno e modifica di forme col mouse sul grafico (2026-11-19, pacchetto 01 della 0.95)
 
@@ -301,7 +301,7 @@ Ramo `claude/project-thread-9kot5b`, base `main` `7a7340c`. Windows NON PROVATO.
 
 ### Rifinitura grafica Vetro su Qt · ramo `claude/project-thread-n2ib1i` (2026-11-19)
 
-Ramo nuovo da main `7a7340c`, solo interfaccia: `analisi/` non è toccato. Anteprima con schermate prima/dopo e video in `/mnt/project-files/qt-rifinitura-1119/` (fuori dal repo).
+Ramo nuovo da main `7a7340c`, solo interfaccia: `analisi/` non è toccato.
 
 - Tema chiaro (predefinito), scuro o "Come il sistema": Visualizza → Come il sistema / Chiaro / Scuro. La scelta resta salvata (`QSettings` TramaStat/Trama, chiave `qt/theme`), `TRAMA_THEME=light|dark|system` la forza. In "Come il sistema" il tema cambia da solo quando Windows passa da chiaro a scuro (`styleHints().colorSchemeChanged`). I grafici restano su carta bianca.
 - File → Apri nell’interfaccia Classica e l’opzione `--tk` aprono la finestra Tk con la grafica originale di Trama.

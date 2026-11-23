@@ -9,7 +9,7 @@ from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QEvent, QSignalBlocker, QStringListModel, Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QGuiApplication, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboBox, QCompleter, QDialog, QFileDialog, QFrame,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QScrollArea, QSplitter, QTabBar, QTabWidget, QToolBar,
@@ -23,15 +23,16 @@ from analisi.field_error import FieldError
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, translate_message, ui
 from analisi.correlation_matrix import CORRELATION_MATRIX
 from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
-from analisi.plot_function import PLOT_FUNCTION
+from analisi.plot_function import CURVES as FUNCTION_CURVES, PLOT_FUNCTION
 from analisi.transpose_xy import TRANSPOSE_XY
 from analisi.presentation import apply_style, validate_graph_style
 from analisi.legacy_binary_range import BINARY_XY_RANGE
 from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_EDITS
 from analisi.legacy_fit_graph import FIT_GRAPH
 from analisi.legacy_mv_scatter import CLUSTERED_SCATTER
-from analisi.legacy_restore import (LEGACY_GRAPH_LINK, LEGACY_PREVIEW, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
-                                   SAVED_EDITABLE_GRAPH, SAVED_XY, initial_sheet_reference, layout_panel_sources)
+from analisi.legacy_restore import (LEGACY_PREVIEW, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_EDITABLE_GRAPH,
+                                   SAVED_XY, initial_sheet_reference, layout_panel_sources, linked_curve_view,
+                                   paired_graph_index)
 from analisi.legacy_zip_layout import ZIP_LAYOUT, imported_paper
 from analisi.legacy_zip_column import ZIP_COLUMN
 from analisi.legacy_xml_xy import XML_ERROR_BARS
@@ -45,6 +46,7 @@ from analisi.ordinal_logit import GRAPH as ORDINAL_GRAPH, ORDINAL_LOGIT
 from analisi.tolerance_intervals import SHOW_GRAPH as TOLERANCE_GRAPH, TOLERANCE
 from analisi.weibull_aft import METHOD as WEIBULL_AFT, SHOW_GRAPH as WEIBULL_GRAPH
 from analisi.workbench import GRAPH_METHODS, GROUPS
+from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
 from analisi.paired_graphs import shows_paired_estimation
 
 from . import gui_gc, theme
@@ -60,8 +62,9 @@ from .project import (DATA_SUFFIXES, OPEN_FILTER, LEGACY_GRAPH_METHODS, PROJECT_
                       CalculationControl, Project, Run, compute, result_as_table, run_view, stored_legacy_view)
 from .sessions import MAX_PROJECT_TABS, Sessions
 from .templates import sync_actions as sync_template_actions, t as template_text
+from analisi.repeat_analysis_text import t as repeat_text
 from .shape_canvas import GraphDrawing
-from .sheet import FrameView, WorksheetView
+from .sheet import FrameView, WorksheetView, selection_box, set_table_appearance
 from .batch_export import safe_stem
 from .batch_export_dialog import text as batch_text
 from .status_label import StatusLabel
@@ -311,7 +314,10 @@ class MainWindow(QMainWindow):
         self.plot_tools = None
         self.sheet = None
         self.result_tabs = None
+        self.table_font = font_preference(config_path())
+        self.table_zoom = 100
         self.job = None
+        self.repeat_dialog = None
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="Trama-Qt")
         self.timer = QTimer(self)
         self.timer.setInterval(60)
@@ -412,7 +418,7 @@ class MainWindow(QMainWindow):
           tip=template_text("new_tip"))
         for key in ("save_template", "new_from_template"):  # Short ribbon captions; menus and search keep the full text.
             self.actions[key].setIconText(template_text(f"{key}_short"))
-        a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+E")
+        a("export", tr("command.export"), self.export, icon="upload", shortcut="Ctrl+Shift+E")
         a("export_options", tr("command.export_with_options"), self.export_with_options, icon="download")
         a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")
         a("export_batch", batch_text("command"), self.export_batch, icon="copy")
@@ -437,6 +443,7 @@ class MainWindow(QMainWindow):
         a("clear_cells", tr("command.clear_selected_cells"), lambda: self._sheet_call("clear"), icon="trash-2")
         a("new_table", tr("command.new_table"), self.choose_table, icon="table", shortcut="Ctrl+N")
         self.actions["new_table"].setShortcuts([QKeySequence("Ctrl+N"), QKeySequence("Ctrl+T")])
+        a("category_order", tr("command.category_order"), self.edit_category_order, icon="arrow-up-down")
         a("new_info", tr("command.new_info"), self.new_info, icon="info")
         a("info_properties", tr("command.info_properties"), self.info_properties, icon="sliders-horizontal")
         from .info_editor import t as info_text
@@ -456,7 +463,7 @@ class MainWindow(QMainWindow):
         a("insert_column", qt("qt.insert_column"), self.insert_column, icon="columns-3")
         a("formula", ui("Formula…"), self.edit_formula, icon="sigma")
         a("delete_rows", qt("qt.delete_rows"), self.delete_rows, icon="trash-2")
-        a("exclude", tr("ribbon.exclude"), self.toggle_exclusion, icon="filter")
+        a("exclude", tr("ribbon.exclude"), self.toggle_exclusion, icon="filter", shortcut="Ctrl+E")
         a("analyze", tr("ribbon.analyze"), self.analyze, icon="sigma", shortcut="Ctrl+Shift+A")
         a("power", tr("command.power"), lambda: self.analyze(method=power_plan.METHOD, only=power_plan.METHOD),
           icon="chart-line")
@@ -491,13 +498,16 @@ class MainWindow(QMainWindow):
         a("analyze_result", tr("chain.analyze_result"), self.analyze_result_table, icon="git-compare")
         a("source_analysis", tr("chain.source_analysis"), self.source_analysis, icon="chevron-up")
         a("change_input", tr("chain.change_input"), self.change_input_result, icon="arrow-up-down")
+        a("repeat_analysis", repeat_text("command"), self.repeat_analysis, icon="copy", tip=repeat_text("tip"))
+        self.actions["repeat_analysis"].setIconText(repeat_text("short"))
         a("navigator", tr("command.toggle_navigator"), self.toggle_navigator, icon="panel-bottom", shortcut="Ctrl+F1")
         a("find_sheet", tr("nav.search"), self.focus_sheet_search, icon="search", shortcut="Ctrl+F")
         a("combined_navigator", tr("command.toggle_data_results"), self.toggle_combined_navigator,
           icon="panel-bottom").setCheckable(True)
         a("previous_sheet", tr("command.previous_sheet"), lambda: self.step_sheet(-1), icon="arrow-left",
-          shortcut="Alt+Left")
-        a("next_sheet", tr("command.next_sheet"), lambda: self.step_sheet(1), icon="arrow-right", shortcut="Alt+Right")
+          shortcut="Alt+Left").setShortcuts([QKeySequence("Alt+Left"), QKeySequence("Ctrl+PgUp")])
+        a("next_sheet", tr("command.next_sheet"), lambda: self.step_sheet(1), icon="arrow-right",
+          shortcut="Alt+Right").setShortcuts([QKeySequence("Alt+Right"), QKeySequence("Ctrl+PgDown")])
         themes = QActionGroup(self)
         for mode, icon in (("system", "monitor"), ("light", "sun"), ("dark", "moon")):
             action = a(f"theme_{mode}", qt(f"qt.theme_{mode}"), lambda mode=mode: theme.set_mode(mode), icon=icon,
@@ -507,6 +517,13 @@ class MainWindow(QMainWindow):
             themes.addAction(action)
         a("gallery", gallery_text("action"), self.toggle_gallery, icon="gallery-thumbnails", shortcut="Ctrl+Shift+G",
           tip=gallery_text("tip"))
+        a("table_font", tr("command.table_font"), self.choose_table_font)
+        a("cell_background", tr("command.cell_background"), self.change_cell_background)
+        a("clear_cell_background", tr("command.clear_cell_background"), lambda: self.change_cell_background(clear=True))
+        a("number_format", tr("command.number_format"), self.change_number_format, icon="hash")
+        for key, step, shortcut in (("sheet_zoom_in", 1, "Ctrl+="), ("sheet_zoom_out", -1, "Ctrl+-"),
+                                    ("sheet_zoom_reset", 0, "Ctrl+0")):
+            a(key, tr(f"command.{key}"), lambda step=step: self.zoom_table(step), shortcut=shortcut)
         a("worksheet_preview", tr("modern.preview"), self.toggle_worksheet_preview).setCheckable(True)
         a("search", qt("qt.search"), self.focus_search, shortcut="Ctrl+K")
         for name, method in (("descriptive", "Descriptive statistics"), ("ttest", "t-test"),
@@ -795,8 +812,13 @@ class MainWindow(QMainWindow):
         self.actions["next_sheet"].setEnabled(idle and self._sheet_history_target(1) is not None)
         self.actions["combined_navigator"].setChecked(self.sessions.active.combined_navigator)
         for key in ("cut", "paste_special", "paste_transpose", "clear_cells", "insert_row",
-                    "insert_column", "delete_rows", "exclude", "formula"):
+                    "insert_column", "delete_rows", "exclude", "formula", "category_order"):
             self.actions[key].setEnabled(editable and idle)
+        has_table = (data and self.sheet is not None) or (kind == "result" and self.result_tabs is not None)
+        for key in ("sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset"):
+            self.actions[key].setEnabled(has_table)
+        for key in ("cell_background", "clear_cell_background", "number_format"):
+            self.actions[key].setEnabled(has_table and idle)
         graph_clipboard = kind == "graph" and self.drawing.problem() is None
         self.actions["copy"].setEnabled(data or graph_clipboard)
         self.actions["paste"].setEnabled((editable and idle) or graph_clipboard)
@@ -842,6 +864,7 @@ class MainWindow(QMainWindow):
         self.actions["analyze_result"].setEnabled(kind == "result" and idle)
         self.actions["source_analysis"].setEnabled(chained)
         self.actions["change_input"].setEnabled(changeable and idle and (kind == "result" or chained))
+        self.actions["repeat_analysis"].setEnabled(changeable and idle and self.project.runs[self.selected[1]].slot >= 0)
         has_data = bool(self.project.tables)
         for key in ("analyze", "new_graph", "descriptive", "ttest", "anova", "correlation", "linear", "nonlinear",
                     "survival", "contingency", "correlation_matrix", "monte_carlo", "transpose_xy"):
@@ -1100,7 +1123,7 @@ class MainWindow(QMainWindow):
             self.open_sheet(tuple(ref))
             menu.addAction(self.actions["change"])
             menu.addAction(self.actions["recalculate"])
-            for key in ("analyze_result", "source_analysis", "change_input"):
+            for key in ("analyze_result", "source_analysis", "change_input", "repeat_analysis"):
                 if self.actions[key].isEnabled():
                     menu.addAction(self.actions[key])
         if ref and ref[0] == "data":
@@ -1292,9 +1315,123 @@ class MainWindow(QMainWindow):
                                                                                  project=project),
                                read_only=read_only)
         self.sheet = WorksheetView(model, self)
+        if self.table_font != ("", None) or self.table_zoom != 100:
+            set_table_appearance(self.sheet, self.table_font, self.table_zoom)
         page.worksheet_preview = page.add(WorksheetPreview(self, title, self.sheet))
         self.sheet.setCurrentIndex(model.index(0, 0))
         return page
+
+    def _resize_tables(self):
+        if self.sheet is not None:
+            set_table_appearance(self.sheet, self.table_font, self.table_zoom)
+        if self.result_tabs is not None:
+            for index in range(self.result_tabs.count()):
+                set_table_appearance(self.result_tabs.widget(index), self.table_font, self.table_zoom)
+
+    def choose_table_font(self):
+        from .worksheet_appearance import TableFontDialog
+        dialog = TableFontDialog(self, self.table_font)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            preference = dialog.preference()
+            try:
+                save_font_preference(config_path(), *preference)
+            except OSError as error:
+                self.error(error)
+                return
+            self.table_font = preference
+            self._resize_tables()
+
+    def zoom_table(self, step):
+        self.table_zoom = zoom_step(self.table_zoom, step)
+        self._resize_tables()
+        self.status(tr("worksheet.zoom_status", percent=self.table_zoom))
+
+    def _refresh_result_backgrounds(self, run):
+        if self.result_tabs is None or run.result is None:
+            return
+        dataset = self.project.tables[run.title]
+        sheets = dataset.result_backgrounds.get(run.slot, {})
+        formats = dataset.result_number_formats.get(run.slot, {})
+        for index, name in enumerate(run.result.tables):
+            view = self.result_tabs.widget(index)
+            view.set_backgrounds(sheets.get(name, {}))
+            view.set_number_formats(formats.get(name, {}))
+
+    def change_number_format(self):
+        """Change → Number format…: what the selected numeric columns show; the stored values do not change."""
+        from analisi.worksheet_number_format import format_target, result_columns, worksheet_columns
+        from .worksheet_number_format import NumberFormatDialog
+        if self.busy() or self.gallery is not None:
+            return
+        result = self.result_tabs is not None
+        view = self.result_tabs.currentWidget() if result else self.sheet
+        if view is None or (box := selection_box(view)) is None:
+            return
+        model = view.model()
+        frame = model.frame
+        current = view.currentIndex()
+        active = (current.row(), current.column()) if current.isValid() else None
+        if result:
+            run = self.project.runs[self.selected[1]]
+            title, name = run.title, tuple(run.result.tables)[self.result_tabs.currentIndex()]
+            columns = result_columns(frame, model.index_title, set(model.formatters))
+            formats = self.project.tables[title].result_number_formats.get(run.slot, {}).get(name, {})
+            value_at = lambda row, position: frame.iat[row, position - 1]
+        else:
+            title = self.selected[1]
+            dataset = self.project.tables[title]
+            columns = worksheet_columns(dataset, frame)
+            formats = dataset.displayed_number_formats
+            value_at = lambda row, position: frame.iat[row, position]
+        try:
+            target = format_target(columns, box, formats, active=active, value_at=value_at, rows=len(frame))
+        except ValueError as error:
+            self.error(error)
+            return
+        dialog = NumberFormatDialog(self, target)
+        try:
+            if dialog.exec() != dialog.DialogCode.Accepted or dialog.choice is None:
+                return
+            _, spec = dialog.choice
+        finally:
+            dialog.deleteLater()
+        if result:
+            if self.project.set_result_number_format(title, run.slot, name, target.keys, spec):
+                self._refresh_result_backgrounds(run)
+        else:
+            names = [frame.columns[position] for position in target.keys]
+            if self.project.set_table_number_format(title, names, spec):
+                self.sheet.model().refresh_formats()
+        self.update_title()
+        self.update_actions()
+
+    def change_cell_background(self, *, clear=False):
+        if self.busy() or self.gallery is not None:
+            return
+        result = self.result_tabs is not None
+        view = self.result_tabs.currentWidget() if result else self.sheet
+        if view is None or (box := selection_box(view)) is None:
+            return
+        color = None
+        if not clear:
+            from PySide6.QtWidgets import QColorDialog
+            brush = view.model().data(view.model().index(box[0], box[1]), Qt.ItemDataRole.BackgroundRole)
+            chosen = QColorDialog.getColor(brush.color() if brush else QColor("#ffe385"), self,
+                                          tr("command.cell_background").rstrip("…"))
+            if not chosen.isValid():
+                return
+            color = chosen.name()
+        if result:
+            run = self.project.runs[self.selected[1]]
+            name = tuple(run.result.tables)[self.result_tabs.currentIndex()]
+            model = view.model()
+            if self.project.set_result_background(run.title, run.slot, name, box,
+                                                  (model.rowCount(), model.columnCount()), color):
+                self._refresh_result_backgrounds(run)
+        elif self.project.set_table_background(self.selected[1], box, color):
+            self.sheet.model().refresh_backgrounds()
+        self.update_title()
+        self.update_actions()
 
     def toggle_worksheet_preview(self):
         if self.page is None or self.page.worksheet_preview is None:
@@ -1538,19 +1675,12 @@ class MainWindow(QMainWindow):
             page.notice(qt("qt.stale", error="; ".join(dict.fromkeys(failures))))
 
     def _imported_graph_actions(self, page, run):
-        link = run.options.get(LEGACY_GRAPH_LINK)
-        editable = run.method == SAVED_EDITABLE_GRAPH
-        if editable:
+        if run.method == SAVED_EDITABLE_GRAPH or linked_curve_view(run):
             page.button(ui("Edit graph data"), lambda: self.open_sheet(("data", run.title)),
                         primary=True, icon="table")
-        if not isinstance(link, str) or not link:
-            return
-        target = SAVED_BINARY_GRAPH if editable else SAVED_EDITABLE_GRAPH
-        matches = [index for index, other in enumerate(self.project.runs)
-                   if other.method == target and other.options.get(LEGACY_GRAPH_LINK) == link]
-        if len(matches) == 1:
-            label = ui("View original" if editable else "Open editable graph")
-            page.button(label, lambda: self.open_sheet(("graph", matches[0])), icon="chart-line")
+        if (related := paired_graph_index(run, self.project.runs)) is not None:
+            label = "Open editable graph" if run.method == SAVED_BINARY_GRAPH else "View original"
+            page.button(ui(label), lambda: self.open_sheet(("graph", related)), icon="chart-line")
 
     def _imported_layout_actions(self, page, run, index):
         graphs = self.project.layout_panel_graphs(run)
@@ -1581,7 +1711,7 @@ class MainWindow(QMainWindow):
         subtitle = run.notes or (tr("command.analysis_results") if kind == "result" else tr("ribbon.graph"))
         page = Page(run.name, subtitle)
         result = run.result
-        if kind == "graph" and run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}:
+        if kind == "graph" and (run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH} or linked_curve_view(run)):
             self._imported_graph_actions(page, run)
         elif kind == "graph" and run.method == SAVED_XY and not SOURCE_XY.isdisjoint(run.options):
             button = page.button(ui("Edit graph data"), lambda: self.open_sheet(("data", run.title)),
@@ -1620,7 +1750,12 @@ class MainWindow(QMainWindow):
             for title, frame in result.tables.items():
                 formatters = ({"Threshold": threshold_text} if threshold_text and run.method == "ROC curve"
                               and title == "Diagnostic thresholds" else None)
-                self.result_tabs.addTab(FrameView(frame, formatters), str(title))
+                backgrounds = self.project.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})
+                number_formats = self.project.tables[run.title].result_number_formats.get(run.slot, {}).get(title, {})
+                view = FrameView(frame, formatters, backgrounds=backgrounds, number_formats=number_formats)
+                if self.table_font != ("", None) or self.table_zoom != 100:
+                    set_table_appearance(view, self.table_font, self.table_zoom)
+                self.result_tabs.addTab(view, str(title))
             page.add(self.result_tabs, 1)
         elif result.figure is not None:
             try:
@@ -1736,6 +1871,34 @@ class MainWindow(QMainWindow):
         if columns:
             self._apply_edit(title, lambda: self.project.delete_columns(title, columns))
 
+    def edit_category_order(self):
+        from analisi.category_order import OrderDraft, set_order
+        from .category_order import CategoryOrderDialog
+
+        if not self.prepare_project_change(self.edit_category_order):
+            return
+        title = self._active_table()
+        if title is None:
+            return
+        dataset = self.project.tables[title]
+        index = self.sheet.currentIndex().column() if self.sheet is not None else -1
+        if not 0 <= index < len(dataset.columns) or dataset.source_indices[index] is None:
+            self.error(tr("worksheet_order.select"))
+            return
+        column = dataset.columns[index]
+        try:
+            draft = OrderDraft(dataset, column)
+        except ValueError as error:
+            self.error(error)
+            return
+        if len(draft.levels) < 2 and not draft.saved:
+            self.error(tr("worksheet_order.empty"))
+            return
+        dialog = CategoryOrderDialog(self, column, draft)
+        if dialog.exec() == CategoryOrderDialog.DialogCode.Accepted and (order := draft.result()) is not None:
+            label = tr("command.category_order").removesuffix("…")
+            self._apply_edit(title, lambda: self.project.edit(title, label, lambda data: set_order(data, column, order)))
+
     def rename_column(self, column):
         title = self._active_table()
         if title is None:
@@ -1830,6 +1993,22 @@ class MainWindow(QMainWindow):
             self.error(error)
             return
         if title is None:
+            return
+        if not affected and self.selected and self.selected[0] == "result":
+            run = self.project.runs[self.selected[1]]
+            if run.title == title:
+                self._refresh_result_backgrounds(run)
+                self.update_title()
+                self.update_actions()
+                return
+        if (not affected and not self.project.undo_changed_data and self.selected == ("data", title)
+                and self.sheet is not None):
+            # Colours and number formats only: the grid keeps its selection, current cell and scrolling.
+            model = self.sheet.model()
+            model.refresh_backgrounds()
+            model.refresh_formats()
+            self.update_title()
+            self.update_actions()
             return
         self.show_sheet("data", title)
         if affected:
@@ -1979,7 +2158,10 @@ class MainWindow(QMainWindow):
         except ValueError as error:
             self.error(error)
             return
-        initial_field = ANALYSIS_GRAPH_OPTIONS.get(run.method, (None,))[0] if self.selected[0] == "graph" else None
+        initial_field = None
+        if self.selected[0] == "graph":
+            initial_field = (FUNCTION_CURVES if run.method == PLOT_FUNCTION
+                             else ANALYSIS_GRAPH_OPTIONS.get(run.method, (None,))[0])
         self._ask(run.title, frame, current=(run.method, run.options), index=index, initial_field=initial_field)
 
     # -- analysis chains ----------------------------------------------------------------------------------
@@ -2562,6 +2744,11 @@ class MainWindow(QMainWindow):
                                              source_path=source, cancel=control.cancel),
                          control, running=tr("family.saving"), cancelled=tr("family.save_cancelled"),
                          failed="family.save_failed", finish=finish, discard_when_cancelled=False)
+
+    # == repeat analysis on other sheets (trama_qt/repeat_analysis.py) ===========================
+    def repeat_analysis(self):
+        from .repeat_analysis import repeat_analysis
+        repeat_analysis(self)
 
     # == analysis templates (trama_qt/templates.py) =============================================
     def save_template(self):

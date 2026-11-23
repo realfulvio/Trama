@@ -416,6 +416,8 @@ def marginal_comparisons(frame, response, factors, order, compare, method="holm"
 
 
 FIT_WEIGHTINGS = ("Unweighted", "Inverse variance (column)")
+FIXED_COEFFICIENTS = "Fixed coefficients"
+STARTING_COEFFICIENTS = "Starting coefficients"
 
 
 @dataclass
@@ -434,21 +436,21 @@ class Fit:
     residual_scales: np.ndarray | None = field(default=None, kw_only=True)
 
 
-def _fit_curve(part, x, y, model, label, sigma, initial=None, weighting=None):
+def _fit_curve(part, x, y, model, label, sigma, initial=None, weighting=None, *, fixed=None, start=None):
     if uses_fitted_y(weighting):
-        return _iterated_fit(part, x, y, model, label, initial, weighting)
-    return _fit_once(part, x, y, model, label, sigma, initial, weighting)[0]
+        return _iterated_fit(part, x, y, model, label, initial, weighting, fixed=fixed, start=start)
+    return _fit_once(part, x, y, model, label, sigma, initial, weighting, fixed=fixed, start=start)[0]
 
 
-def _iterated_fit(part, x, y, model, label, initial, weighting):
+def _iterated_fit(part, x, y, model, label, initial, weighting, *, fixed, start):
     """Weights from the fitted curve: an unweighted fit, then WLS refits with the previous fit's scales held fixed."""
-    first, units = _fit_once(part, x, y, model, label, None, initial, UNWEIGHTED, precise=True)
+    first, units = _fit_once(part, x, y, model, label, None, initial, UNWEIGHTED, precise=True, fixed=fixed, start=start)
     spec = MODELS[model]
     xx = part[x].to_numpy()
 
     def refit(previous, scales):
         start = previous.parameters["Estimate"].to_numpy()
-        return _fit_once(part, x, y, model, label, None, start, weighting, frozen=scales, precise=True)[0]
+        return _fit_once(part, x, y, model, label, None, start, weighting, frozen=scales, precise=True, fixed=fixed)[0]
 
     fit, refits, _ = iterate_weights(
         weighting, first, refit, lambda fit: spec.equation(xx, *fit.parameters["Estimate"]),
@@ -458,7 +460,8 @@ def _iterated_fit(part, x, y, model, label, initial, weighting):
     return fit
 
 
-def _fit_once(part, x, y, model, label, sigma, initial=None, weighting=None, *, frozen=None, precise=False):
+def _fit_once(part, x, y, model, label, sigma, initial=None, weighting=None,
+              *, frozen=None, precise=False, fixed=None, start=None):
     """One least-squares fit. Returns the fit and the solver's parameter units (for the IRLS criterion).
 
     ``frozen`` supplies residual scales in the original units. ``precise`` tightens the optimizer so that
@@ -481,7 +484,8 @@ def _fit_once(part, x, y, model, label, sigma, initial=None, weighting=None, *, 
     # Only relative precision affects the fit. Normalize the supplied SDs so
     # changing their common units does not affect the optimizer's tolerance.
     fit_scales = scales / np.median(scales) if scales is not None else None
-    if len(xx) <= len(names) or len(np.unique(xx)) < len(names):
+    estimated = len(names) - len(fixed or {})
+    if len(xx) <= estimated or len(np.unique(xx)) < estimated:
         raise ValueError(f"{label}: not enough distinct X values for the model.")
     if np.ptp(yy) <= 0 and model != "Horizontal line":
         raise ValueError(f"{label}: response values have zero variation.")
@@ -493,45 +497,73 @@ def _fit_once(part, x, y, model, label, sigma, initial=None, weighting=None, *, 
     if initial is None:
         initial = spec.initial(xx, yy)
     initial = np.asarray(initial, dtype=float)
+    if start or fixed:
+        initial = initial.copy()
+        for index, name in enumerate(names):
+            if name in (fixed or {}):
+                initial[index] = fixed[name]
+            elif name in (start or {}):
+                initial[index] = start[name]
+    free = np.array([name not in fixed for name in names]) if fixed else slice(None)
     # Legacy models retain their original parameterization. New models fit in
     # units of their starting magnitudes so tiny concentrations remain estimable.
     magnitudes = np.where(initial == 0, 1., np.abs(initial)) if spec.scale_parameters else np.ones_like(initial)
-    lower, upper = (np.asarray(bound) / magnitudes for bound in spec.bounds)
+    lower, upper = ((np.asarray(bound) / magnitudes)[free] for bound in spec.bounds)
 
     def equation(values, *params):
-        return fn(values, *(params * magnitudes))
+        values_free = params * magnitudes[free]
+        if not fixed:
+            return fn(values, *values_free)
+        expanded = initial.copy()
+        expanded[free] = values_free
+        return fn(values, *expanded)
 
     tolerances = {"method": "trf", "jac": "3-point", "ftol": 1e-12, "xtol": 1e-12, "gtol": 1e-12} if precise else {}
     with warnings.catch_warnings():
         warnings.simplefilter("error", optimize.OptimizeWarning)
         try:
-            params, cov = optimize.curve_fit(equation, xx, yy, p0=initial / magnitudes,
+            params, cov = optimize.curve_fit(equation, xx, yy, p0=(initial / magnitudes)[free],
                                              bounds=(lower, upper), sigma=fit_scales,
                                              maxfev=20000, absolute_sigma=True, **tolerances)
         except (RuntimeError, ValueError, FloatingPointError, optimize.OptimizeWarning) as error:
             raise ValueError(f"{label}: could not estimate the regression reliably.") from error
     sd = np.sqrt(np.diag(cov))
     if (not np.isfinite(sd).all() or (sd <= 0).any()
-            or np.linalg.matrix_rank(cov / np.outer(sd, sd)) < len(names)):
+            or np.linalg.matrix_rank(cov / np.outer(sd, sd)) < estimated):
         raise ValueError(f"{label}: could not estimate the regression reliably.")
 
-    params = params * magnitudes
+    if fixed:
+        expanded = initial.copy()
+        expanded[free] = params * magnitudes[free]
+        params = expanded
+    else:
+        params = params * magnitudes
     predicted = fn(xx, *params)
     residual = yy - predicted
     weighted = residual / scales if scales is not None else residual
     scaled_residual = residual / fit_scales if fit_scales is not None else residual
-    df = len(xx) - len(names)
+    df = len(xx) - estimated
     ss = float(residual @ residual)
     weighted_ss = float(weighted @ weighted)
     if not np.isfinite([ss, weighted_ss]).all():
         raise ValueError(f"{label}: residual sums of squares exceed the numerical range.")
     residual_sd = np.sqrt(ss / df)
     variance = scaled_residual @ scaled_residual / df
-    se = sd * (np.sqrt(variance) * magnitudes)
-    covariance = variance * cov * np.outer(magnitudes, magnitudes)
+    free_units = magnitudes[free]
+    se = sd * (np.sqrt(variance) * free_units)
+    covariance = variance * cov * np.outer(free_units, free_units)
+    if fixed:
+        full_se = np.full(len(names), np.nan)
+        full_se[free] = se
+        se = full_se
+        full_covariance = np.zeros((len(names), len(names)))
+        full_covariance[np.ix_(free, free)] = covariance
+        covariance = full_covariance
     delta = stats.t.ppf(.975, df) * se
     summary = pd.DataFrame({"Estimate": params, "SE": se, "CI 95% low": params - delta,
                             "CI 95% high": params + delta}, index=names)
+    if fixed:
+        summary["Status"] = ["Fixed" if name in fixed else "Estimated" for name in names]
     if spec.log_grid:
         if xx.min() == 0:
             grid = np.r_[0., np.geomspace(xx[xx > 0].min(), xx.max(), 299)]
@@ -561,12 +593,31 @@ def _fit_once(part, x, y, model, label, sigma, initial=None, weighting=None, *, 
                residual_scales=retained_scales), magnitudes
 
 
-def nonlinear(frame, x, y, model, group=None, *, weighting="Unweighted", sigma=None):
+def _coefficient_values(spec, values):
+    if values is None:
+        return {}
+    if not isinstance(values, dict) or not values.keys() <= set(spec.parameters):
+        raise ValueError("Coefficient settings must refer to parameters of the selected model.")
+    low, high = (np.broadcast_to(bound, (len(spec.parameters),)) for bound in spec.bounds)
+    for index, name in enumerate(spec.parameters):
+        if name in values:
+            value = values[name]
+            if type(value) not in (int, float) or not np.isfinite(value) or not low[index] <= value <= high[index]:
+                raise ValueError(f"{name}: choose a finite coefficient within the model bounds.")
+    return values
+
+
+def nonlinear(frame, x, y, model, group=None, *, weighting="Unweighted", sigma=None, fixed=None, start=None):
     """Fit each group with ordinary least squares, supplied relative SDs or weights from the observed Y."""
     if model not in MODELS:
         raise ValueError("Select a supported regression model.")
     if weighting not in NONLINEAR_WEIGHTINGS:
         raise ValueError("Select a supported regression weighting.")
+    spec = MODELS[model]
+    fixed = _coefficient_values(spec, fixed)
+    start = _coefficient_values(spec, start)
+    if len(fixed) == len(spec.parameters) or fixed.keys() & start.keys():
+        raise ValueError("Estimate at least one coefficient and supply starting values only for estimated coefficients.")
     sigma = sigma if weighting == INVERSE_VARIANCE else None
     labels = [group] if group else []
     if weighting == INVERSE_VARIANCE:
@@ -590,7 +641,8 @@ def nonlinear(frame, x, y, model, group=None, *, weighting="Unweighted", sigma=N
         # Check every complete observation before fitting any group, so a zero Y is reported first.
         observed_scales(data[y].to_numpy(), weighting)
     groups = data.groupby(group, sort=False, observed=True) if group else [("All", data)]
-    return {label: _fit_curve(part, x, y, model, label, sigma, weighting=weighting) for label, part in groups}
+    return {label: _fit_curve(part, x, y, model, label, sigma, weighting=weighting, fixed=fixed, start=start)
+            for label, part in groups}
 
 
 def compare_nonlinear(frame, x, y, simple, complex, group=None, *, weighting="Unweighted", sigma=None):

@@ -1,4 +1,4 @@
-"""Inverse calibration for one-phase and four-parameter logistic standard curves.
+"""Calibration for one-phase and four- or five-parameter logistic standard curves.
 
 A nonlinear result is a point estimate inside the observed standard range.
 Out-of-range and non-identifiable responses are reported without an imputed
@@ -10,14 +10,14 @@ catalog function's own limit at x = 0. log10 X is already logarithmic: the
 interpolated value stays in that entered unit and is not exponentiated.
 
 Direction "Y from X" predicts responses at unknown X for Linear, One-phase
-decay and the four variable-slope 4PL curves, with an optional pointwise band
+decay and the 4PL and 5PL curves, with an optional pointwise band
 for the mean response or for the mean of k new observations. Queries outside the
 closed X range of the standards are reported as Outside calibration without a
 value.
 
-Direction "X from Y" can report inverse intervals for the Linear curve and for
-One-phase decay and the four variable-slope 4PL models. One-phase association
-stays a point estimate. A nonlinear interval is the closed set of X in the
+Direction "X from Y" can report inverse intervals for the Linear curve,
+One-phase decay and the 4PL and 5PL models. One-phase association stays a
+point estimate. A nonlinear interval is the closed set of X in the
 observed range whose pointwise asymptotic band contains the query response.
 The same fit supplies the curve, the covariance and the residual variance.
 """
@@ -43,10 +43,14 @@ CURVES = ("Linear", "Nonlinear")
 ONE_PHASE_MODELS = ("One-phase decay", "One-phase association")
 CONCENTRATION_4PL = ("Stimulation (variable slope)", "Inhibition (variable slope)")
 LOG10_4PL = ("Stimulation (variable slope, log10 X)", "Inhibition (variable slope, log10 X)")
+CONCENTRATION_5PL = nonlinear_inverse.CONCENTRATION_5PL
+LOG10_5PL = nonlinear_inverse.LOG10_5PL
+CONCENTRATION_MODELS = (*CONCENTRATION_4PL, CONCENTRATION_5PL)
 _FOUR_PL_MODELS = (*CONCENTRATION_4PL, *LOG10_4PL)
-INVERSE_MODELS = (*ONE_PHASE_MODELS, *_FOUR_PL_MODELS)
-# Association stays point-only. The other inverse models accept a pointwise interval.
-INVERSE_INTERVAL_MODELS = ("One-phase decay", *_FOUR_PL_MODELS)
+_FIVE_PL_MODELS = nonlinear_inverse.FIVE_PL
+_SIGMOID_MODELS = (*_FOUR_PL_MODELS, *_FIVE_PL_MODELS)
+INVERSE_MODELS = (*ONE_PHASE_MODELS, *_SIGMOID_MODELS)
+INVERSE_INTERVAL_MODELS = nonlinear_inverse.MODELS
 MAX_INVERSE_QUERIES = 256
 INTERVAL_NOTE = ("Pointwise asymptotic approximation from the fitted curve and its covariance. "
                  "Not a likelihood profile, a simultaneous band or a bootstrap, and not an extrapolation.")
@@ -70,7 +74,7 @@ DIRECTION = "Direction"
 DIRECTIONS = ("X from Y", "Y from X")
 UNKNOWN_X = "Unknown X"
 UNKNOWN_RESPONSES = "Unknown responses"
-FORWARD_MODELS = ("One-phase decay", *_FOUR_PL_MODELS)
+FORWARD_MODELS = ("One-phase decay", *_SIGMOID_MODELS)
 UNCERTAINTY = "Uncertainty"
 UNCERTAINTIES = ("None", "Mean response", "Prediction")
 LEVEL = "Confidence level (%)"
@@ -117,18 +121,14 @@ def interpolate_standard_curve(frame, x, y, query, curve="Linear", model=None, u
     """Interpolate unknown responses, or keep the existing linear calibration.
 
     Mean response or Prediction adds inverse intervals for the Linear curve and for One-phase decay
-    and the variable-slope 4PL models. None keeps the point-estimate tables. One-phase association
-    stays point-only.
+    and the 4PL and 5PL models. One-phase association provides point estimates.
     """
     if curve not in CURVES:
         raise ValueError("Select a linear or nonlinear standard curve.")
     uncertainty = uncertainty or UNCERTAINTIES[0]
     if uncertainty not in UNCERTAINTIES:
         raise FieldError(UNCERTAINTY, "Select None, Mean response or Prediction.")
-    if uncertainty != UNCERTAINTIES[0] and curve != "Linear":
-        chosen = model or INVERSE_INTERVAL_MODELS[0]
-        if chosen not in INVERSE_INTERVAL_MODELS:
-            raise FieldError(UNCERTAINTY, "Inverse intervals are not available for One-phase association. Choose None.")
+    _check_inverse_uncertainty(curve, model, uncertainty)
     if curve == "Linear":
         fit, estimates = interpolate_linear(frame, x, y, query)
         tables = {INTERPOLATED: estimates, "Linear calibration": _report(fit)}
@@ -178,18 +178,27 @@ def calibration_choice_error(frame, x, y, curve, model):
         raise FieldError("X", f"Not enough distinct X values for {model}.")
     if np.ptp(yy) <= 0:
         raise FieldError("Y", "Response values have zero variation.")
-    if model in _FOUR_PL_MODELS:
+    if model in _SIGMOID_MODELS:
         low, high = float(yy.min()), float(yy.max())
         tolerance = _tolerance(max(abs(low), abs(high)))
         # Standards at only the two plateaus leave the transition unconstrained,
         # even when the optimizer returns finite parameters and covariance.
         if not ((yy - low > tolerance) & (high - yy > tolerance)).any():
-            raise FieldError("Y", "The 4PL model could not estimate the regression reliably. "
+            family = "5PL" if model in _FIVE_PL_MODELS else "4PL"
+            raise FieldError("Y", f"The {family} model could not estimate the regression reliably. "
                                   "Include standards with responses between the two plateaus.")
 
 
 def _log10_model(model):
-    return isinstance(model, str) and model.endswith(_LOG10_MARK)
+    return model == LOG10_5PL or isinstance(model, str) and model.endswith(_LOG10_MARK)
+
+
+def model_field_key(model):
+    if _log10_model(model):
+        return "calib.inverse_nonlinear.field.model_log10"
+    if model in CONCENTRATION_MODELS:
+        return "calib.inverse_nonlinear.field.model_concentration"
+    return "calib.inverse_nonlinear.field.model"
 
 
 def _row_title_column(frame, x, y):
@@ -256,6 +265,11 @@ def _solve(model, theta, xmin, xmax, f_min, f_max, response):
     low, high = (f_min, f_max) if f_min <= f_max else (f_max, f_min)
     if response < low - tolerance or response > high + tolerance:
         return np.nan, OUT_OF_RANGE
+    if model in _FIVE_PL_MODELS:
+        solved = nonlinear_inverse.five_pl_point_estimate(model, theta, response)
+        if solved is not None and xmin <= solved <= xmax:
+            return solved, IN_RANGE
+        return np.nan, NOT_IDENTIFIABLE
 
     def residual(value):
         return _predict(model, theta, [value])[0] - response
@@ -291,9 +305,21 @@ def check_nonlinear_inverse(frame, options):
         replicate_counts(frame, count, query, (options.get("X"), options.get("Y")))
 
 
+def check_calibration_options(frame, options):
+    """Validate visible choices before either desktop schedules the fit."""
+    if calibration_direction(options) == DIRECTIONS[1]:
+        forward_options(options)
+    else:
+        check_nonlinear_inverse(frame, options)
+    x, y = options.get("X"), options.get("Y")
+    if x == y:
+        raise FieldError("Y", "Select distinct columns for X and Y.")
+    calibration_choice_error(frame, x, y, options.get("Curve"), options.get("Model"))
+
+
 def _nonlinear_curve(frame, x, y, query, model, uncertainty="None", level=None, counts=None):
     # Unknown responses stay out of the fit.
-    if model in _FOUR_PL_MODELS:
+    if model in _SIGMOID_MODELS:
         calibration_choice_error(frame, x, y, "Nonlinear", model)
     fit = nonlinear(frame, x, y, model)["All"]
     samples = complete(frame, [query])[query]
@@ -540,7 +566,7 @@ def _interval_block(model, fit, x, y, theta):
     covariance = None if fit.covariance is None else np.asarray(fit.covariance, dtype=float)
     if not _usable_covariance(covariance, len(theta)):
         return COVARIANCE_REASON
-    if model in _FOUR_PL_MODELS:
+    if model in _SIGMOID_MODELS:
         if _at_bound(model, theta):
             return BOUND_REASON
     elif not (np.allclose(covariance, covariance.T, rtol=1e-8, atol=0) and theta[2] * float(np.ptp(xx)) > RATE_BOUND):
@@ -654,12 +680,15 @@ def inverse_options(options):
     uncertainty = options.get(UNCERTAINTY) or UNCERTAINTIES[0]
     if uncertainty not in UNCERTAINTIES:
         raise FieldError(UNCERTAINTY, "Select None, Mean response or Prediction.")
-    if uncertainty != UNCERTAINTIES[0] and curve != "Linear":
-        chosen = options.get("Model") or INVERSE_INTERVAL_MODELS[0]
-        if chosen not in INVERSE_INTERVAL_MODELS:
-            raise FieldError(UNCERTAINTY, "Inverse intervals are not available for One-phase association. Choose None.")
+    _check_inverse_uncertainty(curve, options.get("Model"), uncertainty)
     level = _checked_level(options.get(LEVEL)) if uncertainty != UNCERTAINTIES[0] else None
     return curve, options.get("Model"), uncertainty, level, replicate_option(options, uncertainty)
+
+
+def _check_inverse_uncertainty(curve, model, uncertainty):
+    if curve == "Linear" or uncertainty == UNCERTAINTIES[0] or not model or model in INVERSE_INTERVAL_MODELS:
+        return
+    raise FieldError(UNCERTAINTY, "Inverse intervals are not available for One-phase association. Choose None.")
 
 
 def replicate_option(options, uncertainty):
@@ -683,7 +712,7 @@ def forward_options(options):
     if curve == "Nonlinear":
         model = options.get("Model") or FORWARD_MODELS[0]
         if model not in FORWARD_MODELS:
-            raise FieldError("Model", "Y from X supports the Linear curve, One-phase decay and the variable-slope 4PL models.")
+            raise FieldError("Model", "Y from X supports the Linear curve, One-phase decay, 4PL and 5PL.")
     uncertainty = options.get(UNCERTAINTY) or UNCERTAINTIES[0]
     if uncertainty not in UNCERTAINTIES:
         raise FieldError(UNCERTAINTY, "Select None, Mean response or Prediction.")
@@ -830,10 +859,12 @@ def _forward_nonlinear(frame, x, y, model):
     covariance = None if fit.covariance is None else np.asarray(fit.covariance, dtype=float)
     available = (df > 0 and np.isfinite(s2) and not _zero_residual(ss, len(xx), yy)
                  and _usable_covariance(covariance, len(theta)))
-    if model in _FOUR_PL_MODELS:
+    if model in _SIGMOID_MODELS:
         available = available and not _at_bound(model, theta)
 
         def gradient(values):
+            if model in _FIVE_PL_MODELS:
+                return nonlinear_inverse.five_pl_curve_gradient(model, theta, values)[1]
             return _four_pl_gradient(model, theta, values)
     else:
         available = (available and np.allclose(covariance, covariance.T, rtol=1e-8, atol=0)
@@ -850,10 +881,10 @@ def _forward_nonlinear(frame, x, y, model):
 
 
 def _band_grid(model, observed):
-    """Closed X range of the standards. Concentration 4PL bands follow the fit's log grid, with 0 kept."""
+    """Closed X range of the standards. Concentration bands follow the fit's log grid, with 0 kept."""
     observed = np.asarray(observed, dtype=float)
     xmin, xmax = float(observed.min()), float(observed.max())
-    if model in CONCENTRATION_4PL:
+    if model in CONCENTRATION_MODELS:
         if xmin == 0:
             grid = np.r_[0.0, np.geomspace(observed[observed > 0].min(), xmax, BAND_POINTS - 1)]
         else:
@@ -876,7 +907,7 @@ def predict_standard_curve(frame, x, y, query, curve="Linear", model=None, uncer
     if curve == "Nonlinear":
         model = model or FORWARD_MODELS[0]
         if model not in FORWARD_MODELS:
-            raise FieldError("Model", "Y from X supports the Linear curve, One-phase decay and the variable-slope 4PL models.")
+            raise FieldError("Model", "Y from X supports the Linear curve, One-phase decay, 4PL and 5PL.")
     else:
         model = None
     if uncertainty not in UNCERTAINTIES:

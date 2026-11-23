@@ -31,6 +31,7 @@ from analisi.hierarchical_workbench import (HIERARCHICAL_TABS, HIERARCHY_GRAPH, 
                                            check_hierarchy_view, saved_hierarchical_options)
 from analisi import kmeans_options, kmeans_reports, mean_permutation
 from analisi import mean_permutation_options as permutation_text
+from analisi import nonlinear_calibration as calibration
 from analisi import ordinal_logit as ordinal
 from analisi import paired_proportions as paired
 from analisi.paired_graphs import TTEST_ESTIMATION
@@ -702,6 +703,10 @@ class AnalysisDialog(QDialog):
 
             model.currentIndexChanged.connect(show_log_ic50)
             show_log_ic50()
+        if self.method == "Interpolate a standard curve":
+            for name in (calibration.DIRECTION, "Curve", calibration.UNCERTAINTY, "Model"):
+                self.controls[name][1].currentIndexChanged.connect(self._show_calibration_fields)
+            self._show_calibration_fields()
         if self.method in kmeans_options.METHODS:
             algorithm = self.controls[kmeans_options.ALGORITHM][1]
             algorithm.currentIndexChanged.connect(self._sync_kmeans_options)
@@ -861,6 +866,13 @@ class AnalysisDialog(QDialog):
             if selected:
                 control.setCurrentText(selected)
 
+    def _show_calibration_fields(self):
+        direction, curve, uncertainty, model = (self.controls[name][1].currentData()
+                                               for name in (calibration.DIRECTION, "Curve",
+                                                            calibration.UNCERTAINTY, "Model"))
+        self._set_field_visibility(calibration.calibration_visibility(direction, curve, uncertainty, model))
+        self.rows["Model"][0].setText(tr(calibration.model_field_key(model)))
+
     def _set_field_visibility(self, fields):
         for name, visible in fields.items():
             _, control, form = self.rows[name]
@@ -1001,6 +1013,8 @@ class AnalysisDialog(QDialog):
                 self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            if self.method == "Interpolate a standard curve":
+                calibration.check_calibration_options(self.data, options)
             if self.method == XY_METHOD:
                 check_xy_options(self.data, retain_recipe_options(options, self._saved()), self.xy_left_scale)
             if self.method == SELECT_TRANSFORM:
@@ -1061,6 +1075,8 @@ class AnalysisDialog(QDialog):
             return translate_message(str(error), "ttest.error.")
         if self.method == lognormal_tests.LOGNORMAL:
             return lognormal_tests.format_error(error)
+        if self.method == "Interpolate a standard curve":
+            return translate_message(str(error), "calib.inverse_nonlinear.")
         if self.method in regression_range.METHODS and field in regression_range.FIELDS:
             return ui(str(error))
         if self.method == global_fit.GLOBAL_CUSTOM_EQUATION:

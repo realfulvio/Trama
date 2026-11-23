@@ -21,11 +21,15 @@ from scipy.special import expit
 from scipy.stats import t
 from scipy.optimize import brentq
 
+from .curve_models import asymmetric_dose_terms, log_expm1
 
 DECAY = "One-phase decay"
 CONCENTRATION = ("Stimulation (variable slope)", "Inhibition (variable slope)")
 LOG10 = ("Stimulation (variable slope, log10 X)", "Inhibition (variable slope, log10 X)")
-MODELS = (DECAY, *CONCENTRATION, *LOG10)
+CONCENTRATION_5PL = "Asymmetric dose-response (concentration X)"
+LOG10_5PL = "Asymmetric dose-response (log10 X)"
+FIVE_PL = (CONCENTRATION_5PL, LOG10_5PL)
+MODELS = (DECAY, *CONCENTRATION, *LOG10, *FIVE_PL)
 MEAN = "Mean response"
 PREDICTION = "Prediction"
 QUERY_EVALUATIONS = 50_000
@@ -144,6 +148,12 @@ def _dexpit(value):
     return _D(image, _p_one_minus(image) * value.d)
 
 
+def _dsoftplus(value):
+    image = _I(np.logaddexp(0., value.v.lo), np.logaddexp(0., value.v.hi))
+    slope = _I(expit(value.v.lo), expit(value.v.hi))
+    return _D(image, slope * value.d)
+
+
 def _dlog(value):
     if not np.isfinite((value.v.lo, value.v.hi)).all() or value.v.lo <= 0:
         return _D(_I(-np.inf, np.inf), _I(-np.inf, np.inf))
@@ -178,11 +188,11 @@ def _usable(dual):
 
 
 def _log10(model):
-    return model in LOG10
+    return model == LOG10_5PL or model in LOG10
 
 
 def _concentration(model):
-    return model in CONCENTRATION
+    return model == CONCENTRATION_5PL or model in CONCENTRATION
 
 
 def _as_vector(values, size, what):
@@ -199,13 +209,19 @@ def _validate(model, parameters, covariance, residual_variance, df, response, lo
               uncertainty, level, replicates):
     if model not in MODELS:
         raise InverseError("Unknown calibration model for inverse intervals.")
-    size = 3 if model == DECAY else 4
     if model == DECAY:
+        size = 3
         theta = _as_vector(parameters, 3, "Parameters must be three finite numbers for One-phase decay.")
+    elif model in FIVE_PL:
+        size = 5
+        theta = _as_vector(parameters, 5, "Parameters must be five finite numbers for 5PL.")
+        if theta[4] <= 0. or theta[3] == 0.:
+            raise InverseError("The 5PL asymmetry must be positive and the Hill slope must be nonzero.")
     else:
+        size = 4
         theta = _as_vector(parameters, 4, "Parameters must be four finite numbers for a variable-slope 4PL.")
-        if not _log10(model) and not theta[2] > 0:
-            raise InverseError("The concentration midpoint must be strictly positive.")
+    if _concentration(model) and theta[2] <= 0.:
+        raise InverseError("The concentration midpoint must be strictly positive.")
     try:
         matrix = np.asarray(covariance, dtype=float)
     except (TypeError, ValueError):
@@ -260,6 +276,35 @@ def _validate(model, parameters, covariance, residual_variance, df, response, lo
     return theta, matrix, answer, left, right, quantile * quantile, extra
 
 
+def five_pl_curve_gradient(model, theta, values):
+    """5PL response and parameter derivatives in the selected X units."""
+    bottom, top, mid, hill, asymmetry = theta
+    values = np.asarray(values, dtype=float).reshape(-1)
+    if model == LOG10_5PL:
+        shifted = _LN10 * (values - mid)
+        midpoint_scale = -_LN10
+    else:
+        shifted = np.full(values.shape, -np.inf)
+        np.log(values, out=shifted, where=values > 0.)
+        shifted -= np.log(mid)
+        midpoint_scale = -1. / mid
+    shape, logit, denominator = asymmetric_dose_terms(shifted, hill, asymmetry)
+    span = top - bottom
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
+        fraction = np.exp(-asymmetry * denominator)
+        finite = np.isfinite(shifted) & np.isfinite(denominator)
+        weight = expit(logit[finite])
+        delta = span * fraction[finite]
+        change = delta * asymmetry * weight
+        midpoint = np.zeros_like(values)
+        steepness = np.zeros_like(values)
+        asym = np.zeros_like(values)
+        midpoint[finite] = change * hill * midpoint_scale
+        steepness[finite] = change * shifted[finite]
+        asym[finite] = delta * (shape / -np.expm1(-shape) * weight - denominator[finite])
+    return bottom + span * fraction, np.column_stack((1. - fraction, fraction, midpoint, steepness, asym))
+
+
 def _evaluate(model, theta, values):
     """Curve and parameter gradient. At concentration 0 the limit is a plateau, not 0·∞."""
     values = np.asarray(values, dtype=float).reshape(-1)
@@ -269,6 +314,8 @@ def _evaluate(model, theta, values):
         curve = plateau + span * decay
         gradient = np.column_stack((np.ones(values.shape), decay, -span * values * decay))
         return curve, gradient
+    if model in FIVE_PL:
+        return five_pl_curve_gradient(model, theta, values)
     bottom, top, mid, hill = theta
     if _log10(model):
         shifted = _LN10 * (values - mid)
@@ -297,18 +344,31 @@ def _curve_dual(model, theta, variable):
         curve = _dadd(_dconst(plateau), _dmul(_dconst(span), decay))
         gradient = (_dconst(1.0), decay, _dmul(_dconst(-span), _dmul(variable, decay)))
         return curve, gradient
-    bottom, top, mid, hill = (float(part) for part in theta)
+    bottom, top, mid, hill = (float(part) for part in theta[:4])
     if _log10(model):
         shifted = _dmul(_dconst(_LN10), _dsub(variable, _dconst(mid)))
         slope = -_LN10
     else:
         shifted = _dsub(_dlog(variable), _dconst(log(mid)))
         slope = -1.0 / mid
-    probability = _dexpit(_dmul(_dconst(hill), shifted))
+    if model in FIVE_PL:
+        asymmetry = float(theta[4])
+        shape = log(2.) / asymmetry
+        logit = _dsub(_dconst(log_expm1(shape)), _dmul(_dconst(hill), shifted))
+        denominator = _dsoftplus(logit)
+        weight = _dexpit(logit)
+        probability = _dexp(_dmul(_dconst(-asymmetry), denominator))
+        delta = _dmul(_dconst(top - bottom), probability)
+        change = _dmul(_dconst(asymmetry), _dmul(delta, weight))
+        exponent_derivative = _dsub(_dmul(_dconst(shape / -np.expm1(-shape)), weight), denominator)
+        extra_gradient = (_dmul(delta, exponent_derivative),)
+    else:
+        probability = _dexpit(_dmul(_dconst(hill), shifted))
+        change = _dmul(_dconst(top - bottom), _dmul(probability, _dsub(_dconst(1.0), probability)))
+        extra_gradient = ()
     complement = _dsub(_dconst(1.0), probability)
-    change = _dmul(_dconst(top - bottom), _dmul(probability, complement))
     curve = _dadd(_dconst(bottom), _dmul(_dconst(top - bottom), probability))
-    gradient = (complement, probability, _dmul(change, _dconst(hill * slope)), _dmul(change, shifted))
+    gradient = (complement, probability, _dmul(change, _dconst(hill * slope)), _dmul(change, shifted), *extra_gradient)
     return curve, gradient
 
 
@@ -337,9 +397,26 @@ def _criterion_dual(model, theta, covariance, response, q2, extra, left, right):
     return _dsub(_dmul(difference, difference), spread)
 
 
+def five_pl_point_estimate(model, theta, response):
+    """Invert the midpoint-parameterized 5PL without an absolute tolerance on concentration."""
+    bottom, top, mid, hill, asymmetry = theta
+    span = top - bottom
+    if span == 0. or hill == 0.:
+        return None
+    fraction = (response - bottom) / span
+    if not 0. < fraction < 1.:
+        return None
+    with np.errstate(over="ignore", under="ignore", divide="ignore", invalid="ignore"):
+        shift = (log_expm1(log(2.) / asymmetry) - log_expm1(-np.log(fraction) / asymmetry)) / hill
+        value = mid + shift / _LN10 if model == LOG10_5PL else np.exp(log(mid) + shift)
+    return float(value) if np.isfinite(value) else None
+
+
 def _point_estimate(model, theta, response):
     """Closed-form inverse of the fitted curve, or None when the response is off the asymptotes."""
     response = float(response)
+    if model in FIVE_PL:
+        return five_pl_point_estimate(model, theta, response)
     if model == DECAY:
         plateau, span, rate = (float(part) for part in theta)
         if span == 0 or rate == 0:

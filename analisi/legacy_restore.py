@@ -7,6 +7,7 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 
+from .plot_function import PLOT_FUNCTION
 from .analysis_chain import ResultSource
 from . import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, regression_range
 from .category_graphs import COLUMN_GRAPH, GEOMETRIC_CENTER, GROUPED_GRAPH, MAX_CATEGORIES, MAX_PLOT_CELLS, MAX_POINTS, POINTS
@@ -56,6 +57,28 @@ def initial_sheet_reference(initial_sheet, runs, run_view):
         if (run.title, run.slot) == key:
             return run_view(run.method), index
     return None
+
+
+def linked_curve_view(run):
+    return bool(run.options.get(LEGACY_GRAPH_LINK)) and (
+        run.method == PLOT_FUNCTION or (run.method == SAVED_XY and run.options.get(FIT_GRAPH) is True))
+
+
+def paired_graph_index(run, runs):
+    """Find the unique counterpart of an imported graph by its saved identity."""
+    link = run.options.get(LEGACY_GRAPH_LINK)
+    if not isinstance(link, str) or not link:
+        return None
+    matches = []
+    for index, other in enumerate(runs):
+        if other.options.get(LEGACY_GRAPH_LINK) != link:
+            continue
+        if run.method == SAVED_BINARY_GRAPH:
+            if other.method == SAVED_EDITABLE_GRAPH or linked_curve_view(other):
+                matches.append(index)
+        elif other.method == SAVED_BINARY_GRAPH:
+            matches.append(index)
+    return matches[0] if len(matches) == 1 else None
 
 
 def panel_source_style(method, options):
@@ -1331,17 +1354,23 @@ def restore_sheets(archive, names, sheets, sources, tables, cells, *, focused=No
 
 
 def restore_binary_views(data, sources, tables, cells, fonts, document_title):
+    from .legacy_binary_dose import restore_dose_graphs
     from .legacy_binary_editable import read_editable_graphs
     from .legacy_binary_graphs import read_binary_graphs
     from .legacy_binary_layouts import read_binary_layouts
     from .legacy_binary_range import BINARY_XY_RANGE
-    from .legacy_binary_results import restore_binary_results
+    from .legacy_binary_results import report_saved_result_warnings, restore_binary_results
+    from .legacy_binary_simulation import read_simulation_graphs
     from .legacy_emf_edit import CURVE, LIMIT_SOURCE, POINTS
     from .legacy_layout_edit import LEGACY_EDITABLE_PANELS
     from .legacy_pdf_stacks import STACK_KIND
 
     source_names = set(tables)
-    cells = restore_binary_results(data, sources, tables, cells, fonts)
+    dose_curves, classic_curves, calibration_curves = {}, {}, {}
+    unavailable_results = set()
+    cells = restore_binary_results(
+        data, sources, tables, cells, fonts, dose_curves=dose_curves, classic_curves=classic_curves,
+        calibration_curves=calibration_curves, pending_analyses=unavailable_results)
     for title, frame in tables.items():
         if title not in source_names:
             saved = frame.attrs["legacy_binary_result"]
@@ -1377,14 +1406,42 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
         first.attrs.setdefault("import_warnings", []).append(
             f"Unavailable imported graph previews ({count}) · " + ", ".join(unavailable[:4]))
     cells, layouts = _restore_binary_layouts(data, document_title, graphs, tables, cells, read_binary_layouts)
-    if graphs and len(tables) < 256 and cells < MAX_CELLS:
+    restored_graphs = set()
+    if graphs:
         result_frames = {frame.attrs["legacy_binary_result"]["sheet_id"]: frame for frame in tables.values()
                          if "legacy_binary_result" in frame.attrs}
+        if classic_curves:
+            restored_graphs = restore_dose_graphs(data, graphs, graph_links, {}, result_frames,
+                                                 classic_curves=classic_curves)
+        if calibration_curves:
+            restored_graphs.update(restore_dose_graphs(
+                data, [graph for graph in graphs if graph["id"] not in restored_graphs], graph_links,
+                calibration_curves, result_frames, verify_series=True))
+        titles = {graph["id"]: graph["title"] for graph in graphs if graph["id"] not in restored_graphs}
+        for uid, analysis, frame, options, style in read_simulation_graphs(data, result_frames, titles,
+                                                                          MAX_CELLS - cells):
+            if len(tables) >= 256:
+                break
+            title = titles[uid]
+            frame.attrs.update(
+                table_format="xy",
+                legacy_recipes=[(PLOT_FUNCTION, {
+                    **options, LEGACY_TITLE: title[:150] + " · Linked", LEGACY_GRAPH_LINK: graph_links[uid],
+                    LEGACY_NOTES: "Edit the equation parameters or the saved X values to redraw the curve.",
+                })],
+                legacy_graph_styles={0: style},
+            )
+            _store_table(tables, f"Imported graph data · {title}", frame)
+            cells += frame.size
+            restored_graphs.add(uid)
+            unavailable_results.discard(analysis)
+    report_saved_result_warnings(tables, unavailable_results)
+    if graphs and len(tables) < 256 and cells < MAX_CELLS:
         try:
             cached_curves = {panel["graph_id"] for _, options in layouts
                              for panel in options.get(LEGACY_EDITABLE_PANELS, ())}
             editable = read_editable_graphs(data, sources, result_frames, MAX_CELLS - cells,
-                                            cached_curves=cached_curves)
+                                            cached_curves=cached_curves, skip=restored_graphs)
         except ValueError:
             editable = {}
         linked = {}
@@ -1434,6 +1491,7 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
                 LEGACY_GRAPH_LINK: graph_links[uid],
                 **({LEGACY_PREVIEW: graph["preview"]} if table_format != EDITABLE_LEGACY_XY else {}),
             }))
+            restored_graphs.add(uid)
             if shaded_range is not None:
                 frame.attrs["legacy_recipes"].append((SAVED_XY, {
                     LEGACY_TITLE: graph["title"] + " · Linked range",
@@ -1445,6 +1503,9 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
             if table_format in (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF):
                 linked[uid] = (frame, style)
         _link_layout_panel_data(layouts, graph_links, linked)
+    if graphs and dose_curves:
+        restore_dose_graphs(data, [graph for graph in graphs if graph["id"] not in restored_graphs],
+                            graph_links, dose_curves, result_frames)
 
 
 def _store_collection(tables, title, label, table_format, views):

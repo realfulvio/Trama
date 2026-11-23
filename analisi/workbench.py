@@ -9,7 +9,8 @@ from . import stats as engine, ttest_options
 from . import regression_range
 from .advanced import anova_comparisons, kmeans_scan
 from . import kmeans_archive, kmeans_options, kmeans_reports
-from .legacy_fit_graph import (FIT_GRAPH, FIT_GRAPH_POINTS, FIT_GRAPH_SPEC, FIT_GRAPH_TICKS, FIT_INTERVAL_BAND, LOG_DOSE_MODEL,
+from .legacy_fit_graph import (FIT_GRAPH, FIT_GRAPH_OBSERVATIONS, FIT_GRAPH_POINTS, FIT_GRAPH_SPEC, FIT_GRAPH_TICKS,
+                               FIT_INTERVAL_BAND, LOG_DOSE_MODEL,
                               draw_fit_interval_band, fitted_graph_points)
 from .replicate_fit import MERGE_REPLICATES, stack_replicates
 from .hartigan_wong import IterationLimitError
@@ -53,6 +54,7 @@ from .fit_weights import INVERSE_VARIANCE, NONLINEAR_WEIGHTINGS
 from .forest_plot import FOREST_PLOT, OPTIONS as FOREST_OPTIONS, forest_plot
 from .meta_analysis import META_ANALYSIS, OPTIONS as META_OPTIONS, meta_analysis
 from .frequency import FREQUENCY, FREQUENCY_OPTIONS, frequency
+from .category_order import preferred_levels, ranks
 from .graph_legend import typed_group_token
 from .heatmap import HEAT_MAP, OPTIONS as HEAT_MAP_OPTIONS, heat_map
 from .reference_normalization import (METHOD as REFERENCE_NORMALIZATION, OPTIONS as REFERENCE_NORMALIZATION_OPTIONS,
@@ -96,7 +98,7 @@ from .paired_graphs import (BEFORE_AFTER, BEFORE_AFTER_OPTIONS, TRAJECTORIES, TR
                             shows_paired_estimation)
 from .spline_fit import SPLINE_FIT
 from .outlier_screening import OPTIONS as OUTLIER_OPTIONS, OUTLIERS, identify_outliers
-from .parameter_intervals import (OPTIONS as PARAMETER_CI_OPTIONS, settings as parameter_ci_settings,
+from .parameter_intervals import (OPTIONS as PARAMETER_CI_OPTIONS, WALD, settings as parameter_ci_settings,
                                   parameter_outputs, ProfileBudget, REPORT_LOG_IC50,
                                   TRANSFORMED_PARAMETERS, has_ic50, log_ic50_table)
 from .normality import NORMALITY, OPTIONS as NORMALITY_OPTIONS, is_legacy as legacy_normality, normality
@@ -579,6 +581,9 @@ def _scatter(frame, o):
         raise ValueError("No complete XY pairs.")
     figure, axes = _plot("Scatter plot", x, y)
     groups = data.groupby(group, sort=False, observed=True) if group else [("All", data)]
+    if group and (priority := ranks(frame, group)):
+        parts = {label: part for label, part in groups}
+        groups = [(label, parts[label]) for label in preferred_levels(parts, priority)]
     separate_overlay = o.get("Ellipse", NONE) != NONE and o.get("Ellipse grouping") == SEPARATE_GROUP
     point_colors = {}
     for label, part in groups:
@@ -934,8 +939,12 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None, ran
     parameter_config = parameter_ci_settings(o)
     parameter_budget = parameter_budget if parameter_budget is not None else ProfileBudget()
     range_settings = range_settings or {}
+    fixed = o.get(engine.FIXED_COEFFICIENTS)
+    if fixed and parameter_config.method != WALD:
+        raise ValueError("Use Wald intervals for this fit with fixed coefficients.")
     fits = engine.nonlinear(frame, x, y, model, o.get("Group"),
-                            weighting=o.get("Weighting", "Unweighted"), sigma=o.get("SD column"))
+                            weighting=o.get("Weighting", "Unweighted"), sigma=o.get("SD column"),
+                            fixed=fixed, start=o.get(engine.STARTING_COEFFICIENTS))
     interval_band = o.get(FIT_INTERVAL_BAND) if (
         axes is None and model == LOG_DOSE_MODEL and len(fits) == 1 and not o.get("Group")
     ) else None
@@ -1120,6 +1129,8 @@ def _imported_xy(frame, options, layout_data=None):
             raise ValueError("Invalid linked cluster scatter appearance.")
         frame = clustered_points(frame, options[CLUSTERED_SCATTER], style["palette"])
     text = ["Series", "Geometry"]
+    if options.get(FIT_GRAPH) is True and options.get(FIT_GRAPH_OBSERVATIONS) is False:
+        frame = frame.loc[frame["Geometry"] == "line"]
     if "Observation" in frame:
         text.append("Observation")
     data = engine.complete(frame, ["X", "Y", "Dataset"], text)

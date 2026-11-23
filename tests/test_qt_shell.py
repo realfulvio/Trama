@@ -1016,6 +1016,37 @@ class QtShellTests(unittest.TestCase):
         pd.testing.assert_frame_equal(restored.result.tables[mp.DRAWS_SHEET],
                                       sampled.result.tables[mp.DRAWS_SHEET], check_exact=True)
 
+    def test_change_category_order_in_the_classic_menu(self):
+        from unittest.mock import patch
+
+        from analisi.category_order import WORKSHEET_ORDERS
+        from trama_qt.category_order import CategoryOrderDialog
+        from trama_qt.classic_bar import MENUS
+
+        window = self.window
+        title, = window.project.add_tables({"Samples": pd.DataFrame({"Group": ["A", "B", "A"]})})
+        window.open_sheet(("data", title))
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 0))
+        data = window.project.tables[title]
+        self.assertIn("category_order", dict(MENUS)["Change"])
+        action = window.actions["category_order"]
+        self.assertTrue(action.isEnabled())
+
+        def move(dialog, result):
+            dialog.down.click()
+            self.assertEqual(dialog.levels.item(0).text(), "B")
+            return result
+
+        accepted, rejected = CategoryOrderDialog.DialogCode.Accepted, CategoryOrderDialog.DialogCode.Rejected
+        with patch.object(CategoryOrderDialog, "exec", lambda dialog: move(dialog, rejected)):
+            action.trigger()
+        self.assertNotIn(WORKSHEET_ORDERS, data.raw.attrs)
+        with patch.object(CategoryOrderDialog, "exec", lambda dialog: move(dialog, accepted)):
+            action.trigger()
+        self.assertEqual(data.raw.attrs[WORKSHEET_ORDERS]["Group"], ["str:B", "str:A"])
+        window.actions["undo"].trigger()
+        self.assertNotIn(WORKSHEET_ORDERS, data.raw.attrs)
+
     def test_paper_preview_scales_the_text_with_the_page(self):
         from matplotlib.figure import Figure
         from trama_qt.window import Page
@@ -2829,6 +2860,37 @@ class QtShellTests(unittest.TestCase):
         report.setChecked(False)
         self.assertNotIn(REPORT_LOG_IC50, dialog.options())
 
+    def test_standard_curve_dialog_keeps_only_the_selected_direction_fields(self):
+        from analisi import nonlinear_calibration as cal
+        from trama_qt.analysis_dialog import AnalysisDialog
+
+        method = "Interpolate a standard curve"
+        frame = pd.DataFrame({"X": range(-5, 3), "Y": range(8), "Input X": range(8), "Input Y": range(8)})
+        recipe = {"X": "X", "Y": "Y", "Curve": "Nonlinear", "Model": cal.CONCENTRATION_5PL,
+                  cal.DIRECTION: "Y from X", cal.UNKNOWN_X: "Input X", cal.UNKNOWN_RESPONSES: "Input Y",
+                  cal.UNCERTAINTY: "Prediction"}
+        dialog = AnalysisDialog(self.window, frame, current=(method, recipe), only=method)
+        self.addCleanup(dialog.deleteLater)
+        self.assertNotIn(cal.UNKNOWN_RESPONSES, dialog.options())
+        self.assertIn(cal.LEVEL, dialog.options())
+        dialog.accept()
+        self.assertEqual(dialog.error_field, "Model")  # Concentration X cannot contain negative standards.
+        self.assertIsNone(dialog.result)
+        direction = dialog.controls[cal.DIRECTION][1]
+        direction.setCurrentIndex(direction.findData("X from Y"))
+        model = dialog.controls["Model"][1]
+        model.setCurrentIndex(model.findData(cal.LOG10_5PL))
+        self.assertNotIn(cal.LEVEL, dialog.hidden)
+        dialog.accept()
+        name, result = dialog.result
+        self.assertEqual(name, method)
+        self.assertEqual(result["Model"], cal.LOG10_5PL)
+        self.assertEqual(result[cal.UNKNOWN_RESPONSES], "Input Y")
+        self.assertEqual(result[cal.UNCERTAINTY], "Prediction")
+        self.assertEqual(result[cal.LEVEL], 95)
+        self.assertIsNone(result[cal.COUNT])
+        self.assertNotIn(cal.UNKNOWN_X, result)
+
     def test_classic_file_menu_keeps_tk_open_reachable(self):
         window = self.window
         window.resize(760, 650)
@@ -2875,7 +2937,10 @@ class QtShellTests(unittest.TestCase):
         self.open_example()
         self.app.processEvents()
         buttons = window.toolbar.findChildren(QToolButton)
-        self.assertEqual(len(buttons), 30)
+        self.assertEqual(len(buttons), 29)
+        actions = [button.defaultAction() for button in buttons]
+        self.assertEqual(actions.count(window.actions["formula"]), 1)
+        self.assertIn(window.actions["formula"], window.command_menus["Insert"].actions())
         for button in buttons:
             self.assertTrue(button.isVisible(), button.accessibleName())
             self.assertFalse(button.icon().isNull(), button.accessibleName())
@@ -2995,6 +3060,41 @@ class QtShellTests(unittest.TestCase):
         self.assertIn(window.actions["edit_layout"], commands)
         for key in ("edit_layout", "export", "recalculate"):
             self.assertTrue(window.actions[key].isEnabled(), key)
+
+    def test_classic_shortcuts_match_tk_for_exclusion_export_and_sheet_history(self):
+        from unittest.mock import patch
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QFileDialog
+
+        window = self.window
+        self.open_example()
+        first = window.selected
+        dataset = window.project.tables[first[1]]
+        window.activateWindow()
+        window.sheet.setFocus()
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 0))
+        self.app.processEvents()
+
+        destination = self.folder / "shortcut.csv"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(destination), "")) as chooser:
+            QTest.keyClick(window.sheet, Qt.Key.Key_E, Qt.KeyboardModifier.ControlModifier)
+            self.assertEqual(dataset.excluded, {(0, 0)})
+            chooser.assert_not_called()
+            QTest.keyClick(window.sheet, Qt.Key.Key_E, Qt.KeyboardModifier.ControlModifier)
+            self.assertFalse(dataset.excluded)
+            QTest.keyClick(window.sheet, Qt.Key.Key_E,
+                           Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+            chooser.assert_called_once()
+        pd.testing.assert_frame_equal(pd.read_csv(destination), dataset.raw, check_dtype=False)
+
+        title, = window.project.add_tables({"Second sheet": pd.DataFrame({"Response": [1.]})})
+        second = ("data", title)
+        window.open_sheet(second)
+        self.app.processEvents()
+        QTest.keyClick(window.sheet, Qt.Key.Key_PageUp, Qt.KeyboardModifier.ControlModifier)
+        self.assertEqual(window.selected, first)
+        QTest.keyClick(window.sheet, Qt.Key.Key_PageDown, Qt.KeyboardModifier.ControlModifier)
+        self.assertEqual(window.selected, second)
 
     def test_clipboard_ribbon_commands_change_the_real_worksheet(self):
         from unittest.mock import patch

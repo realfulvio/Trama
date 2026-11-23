@@ -11,9 +11,11 @@ from zipfile import BadZipFile, ZipFile, is_zipfile
 
 import numpy as np
 
+from .category_order import WORKSHEET_ORDERS
 from .data import (COLUMN_FORMULA_FUNCTIONS, ELEMENTWISE_FORMULA_FUNCTIONS, MAX_CELLS, MAX_COLUMNS, MAX_ENTRY,
                    RANDOM_FORMULA_CALLS, SHEET_LOGIC, _member, _table, formula, worksheet_logic_tokens)
 from .formula_windows import CONDITIONAL_CALLS, WINDOW_CALLS, WINDOW_CLAUSES, WINDOW_KEYWORDS
+from .graph_legend import MAX_LEGEND_KEY_LENGTH, typed_group_token
 from .info import InfoSheet, MAX_INFO_FIELDS, MAX_INFO_SHEETS
 
 _LEGACY_NS = "{http://graphpad.com/prism/Prism.htm}"
@@ -275,6 +277,15 @@ def _zip_table(archive, names, table, remaining_cells, *, result=False):
     frame.attrs["legacy_y_format"] = mode
     if category_orders:
         frame.attrs["legacy_category_orders"] = category_orders
+        orders = {}
+        for uid, labels in category_orders.items():
+            columns = frame.attrs["legacy_columns"].get(uid, ())
+            if len(columns) == 1:
+                tokens = [typed_group_token(label) for label in labels]
+                if all(len(token) <= MAX_LEGEND_KEY_LENGTH for token in tokens):
+                    orders[columns[0]] = tokens
+        if orders:
+            frame.attrs[WORKSHEET_ORDERS] = orders
     return _restore_formulas(frame, variables, transforms) if transforms else frame
 
 

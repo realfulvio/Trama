@@ -586,8 +586,11 @@ def validate_graph_style(axes, style):
             name = "logarithmic" if scale == "log" else "probability"
             raise ValueError(f"Stacked bars start at zero, so the {dimension.upper()} axis cannot use a {name} "
                              "scale. Choose linear, or change Placement of groups in Graph settings.")
-        if scale == "log" and dimension + "scale" in style and (axis.get_data_interval() <= 0).any():
-            raise ValueError("A logarithmic axis requires strictly positive data.")
+        if scale == "log" and dimension + "scale" in style:
+            low, high = axis.get_data_interval()
+            omit_zero = dimension == "x" and getattr(axes, "_tramastat_log_x_omit_zero", False) and low == 0 < high
+            if (low <= 0 or high <= 0) and not omit_zero:
+                raise ValueError("A logarithmic axis requires strictly positive data.")
         if scale == "log" and any(ref["value"] <= 0 for ref in refs):
             raise ValueError("A reference on a logarithmic axis must be strictly positive.")
         if scale in PROBABILITY_SCALES:
@@ -644,7 +647,11 @@ def _apply_axis(axes, dimension, style, previous, defaults):
     options = style.get("axis", {}).get(dimension, {})
     prior_options = previous.get("axis", {}).get(dimension, {})
     if options != prior_options or scale != previous.get(scale_key, defaults["scale"]):
-        getattr(axes, f"set_{dimension}scale")(scale)
+        configure_scale = getattr(axes, f"set_{dimension}scale")
+        if dimension == "x" and scale == "log" and getattr(axes, "_tramastat_log_x_omit_zero", False):
+            configure_scale(scale, nonpositive="mask")
+        else:
+            configure_scale(scale)
         if scale == defaults["scale"]:
             for which in ("major", "minor"):
                 getattr(axis, f"set_{which}_locator")(defaults[f"{which}_locator"])

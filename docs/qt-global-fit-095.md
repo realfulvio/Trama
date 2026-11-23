@@ -112,6 +112,3 @@ un risultato Windows né un DPI nativo. Il collaudo Windows a 100% e 150% resta 
 7. Cambia parametri…, cambia qualcosa, Annulla: la ricetta resta quella confermata.
 8. Gruppo → SD: `Control $` diventa "fuori dai dati"; Rimuovi vincoli non applicabili.
 9. Salva, riapri, Ricalcola; Esporta tabella / Esporta grafico.
-
-Evidenze (fuori dal sorgente): `/mnt/project-files/qt-global-fit-095/` del progetto (rapporti del verificatore,
-log, screenshot dello smoke).

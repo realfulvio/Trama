@@ -25,17 +25,47 @@ def _setup(view):
     view.verticalHeader().setHighlightSections(False)
 
 
+def set_table_appearance(view, preference, zoom):
+    family, size = preference
+    base = size if size is not None else 9.5
+    font = theme.table_font(base * zoom / 100)
+    if family:
+        font.setFamily(family)
+    previous = view.font().pointSizeF()
+    ratio = font.pointSizeF() / previous if previous > 0 else 1
+    view.setFont(font)
+    heading = view.horizontalHeader()
+    heading.setFont(font)
+    view.verticalHeader().setFont(font)
+    row_height = view.fontMetrics().height() + 4
+    if isinstance(view, FrameView):
+        row_height = max(row_height, round(26 * zoom / 100))
+    view.verticalHeader().setDefaultSectionSize(row_height)
+    if isinstance(view, WorksheetView):
+        widths = [view.columnWidth(column) for column in range(heading.count())]
+        heading.setDefaultSectionSize(round(112 * font.pointSizeF() / 9.5))
+        for column, width in enumerate(widths):
+            view.setColumnWidth(column, round(width * ratio))
+        heading.updateGeometry()
+        heading.viewport().update()
+    else:
+        view._fit_columns()
+    if view.currentIndex().isValid():
+        view.scrollTo(view.currentIndex())
+
+
 def selection_box(view):
     """The rectangle around the selected cells as (top, left, bottom, right), or the current cell."""
-    indexes = view.selectionModel().selectedIndexes() if view.selectionModel() else []
-    if not indexes:
+    # The selection ranges, not every selected index: a whole 50 000 × 20 sheet stays instant.
+    ranges = [item for item in view.selectionModel().selection() if not item.isEmpty()] \
+        if view.selectionModel() else []
+    if not ranges:
         current = view.currentIndex()
         if not current.isValid():
             return None
         return current.row(), current.column(), current.row(), current.column()
-    rows = [index.row() for index in indexes]
-    columns = [index.column() for index in indexes]
-    return min(rows), min(columns), max(rows), max(columns)
+    return (min(item.top() for item in ranges), min(item.left() for item in ranges),
+            max(item.bottom() for item in ranges), max(item.right() for item in ranges))
 
 
 class WorksheetHeading(QHeaderView):
@@ -350,15 +380,19 @@ class WorksheetView(QTableView):
         self._add_freeze_action(menu, self.columnAt(position.x()))
         menu.addSeparator()
         menu.addAction(tr("command.toggle_exclusion"), self.host.toggle_exclusion)
+        menu.addSeparator()
+        menu.addAction(self.host.actions["cell_background"])
+        menu.addAction(self.host.actions["clear_cell_background"])
+        menu.addAction(self.host.actions["number_format"])
         menu.exec(self.viewport().mapToGlobal(position))
 
 
 class FrameView(QTableView):
     """A result table with copy (tab-separated, decimal point as in the classic grid)."""
 
-    def __init__(self, frame, formatters=None, parent=None):
+    def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None, number_formats=None):
         super().__init__(parent)
-        self.setModel(FrameModel(frame, formatters, self))
+        self.setModel(FrameModel(frame, formatters, self, backgrounds=backgrounds, number_formats=number_formats))
         _setup(self)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ContiguousSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -370,14 +404,29 @@ class FrameView(QTableView):
         action.triggered.connect(self.copy)
         self.addAction(action)
 
+    def set_backgrounds(self, backgrounds):
+        model = self.model()
+        model.backgrounds = backgrounds
+        if model.rowCount():
+            model.dataChanged.emit(model.index(0, 0), model.index(model.rowCount() - 1, model.columnCount() - 1))
+
+    def set_number_formats(self, number_formats):
+        """Display only; the columns are fitted again to the new texts, the selection and scrolling stay."""
+        model = self.model()
+        if model.formats.formats == dict(number_formats or {}):
+            return
+        model.set_number_formats(number_formats)
+        self._fit_columns()
+
     def _fit_columns(self):
         model = self.model()
         metrics = self.fontMetrics()
+        scale = self.font().pointSizeF() / 9.5
         for column in range(model.columnCount()):
             title = str(model.headerData(column, Qt.Orientation.Horizontal) or "")
             texts = [model.data(model.index(row, column)) or "" for row in range(min(model.rowCount(), 100))]
             width = max([metrics.horizontalAdvance(text) for text in [title, *texts]] or [40]) + 24
-            self.setColumnWidth(column, max(70, min(360, width)))
+            self.setColumnWidth(column, max(round(70 * scale), min(round(360 * scale), width)))
 
     def copy(self):
         box = selection_box(self)
@@ -390,7 +439,8 @@ class FrameView(QTableView):
             lines.append("\t".join(str(model.headerData(column, Qt.Orientation.Horizontal) or "")
                                    for column in range(left, right + 1)))
         for row in range(top, bottom + 1):
-            lines.append("\t".join(model.data(model.index(row, column)) or "" for column in range(left, right + 1)))
+            # The stored numbers, not the number format on screen.
+            lines.append("\t".join(model.plain_text(row, column) or "" for column in range(left, right + 1)))
         QGuiApplication.clipboard().setText("\n".join(lines) + "\n")
 
 

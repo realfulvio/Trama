@@ -252,6 +252,8 @@ class Smoke:
             analysis_templates(self, window)
             from .excel_smoke import run as excel_workbook
             excel_workbook(self, window, timings=language == LANGUAGES[0])
+            from .repeat_smoke import run as repeat_analysis
+            repeat_analysis(self, window)
             from .canvas_smoke import check_canvas
             self.notes += check_canvas(self)  # Last: it replaces the project with its own.
         except Exception:  # noqa: BLE001 - the report must say what broke, then the next language runs.
@@ -614,7 +616,18 @@ def _worksheet_preview_scenario(smoke, window):
     smoke.shot(window, "worksheet-linked-graph")
 
 
-SCENARIOS = {"qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario}
+def _number_format_scenario(smoke, window):
+    from .number_format_smoke import run as number_format
+    number_format(smoke, window, timings=smoke.language == LANGUAGES[0])
+
+
+def _repeat_scenario(smoke, window):
+    from .repeat_smoke import run as repeat_analysis
+    repeat_analysis(smoke, window)
+
+
+SCENARIOS = {"qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
+             "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

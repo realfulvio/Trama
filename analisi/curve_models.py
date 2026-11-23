@@ -553,6 +553,21 @@ def _dose_space(logarithmic):
     return lambda x, mid: _log_positive(x) - np.log(mid)
 
 
+def log_expm1(value):
+    """Compute log(exp(value) − 1) for a positive value without overflowing."""
+    return value + np.log(-np.expm1(-value))
+
+
+def asymmetric_dose_terms(shifted, slope, symmetry):
+    """Logistic denominator and its unpowered logit for the midpoint-based 5PL."""
+    shape = np.log(2.) / symmetry
+    with np.errstate(over="ignore", under="ignore", divide="ignore"):
+        offset = log_expm1(shape)
+        logit = offset - slope * shifted if slope else np.full_like(shifted, offset)
+        denominator = np.logaddexp(0., logit)
+    return shape, logit, denominator
+
+
 def _dose_models(logarithmic):
     space = _dose_space(logarithmic)
     suffix = ", log10 X" if logarithmic else ""
@@ -594,11 +609,9 @@ def _dose_models(logarithmic):
             positive=positive_mid, limits={"Hill slope": slope_limits}, **options)
 
     def asymmetric(x, bottom, top, mid, slope, symmetry):
-        # log(expm1(z)) for z > 0, including the large-z limit.
-        z = np.log(2.) / symmetry
+        _, _, denominator = asymmetric_dose_terms(space(x, mid), slope, symmetry)
         with np.errstate(over="ignore", under="ignore", divide="ignore"):
-            adjustment = z + np.log(-np.expm1(-z))
-            fraction = np.exp(-symmetry * np.logaddexp(0., adjustment - slope * space(x, mid)))
+            fraction = np.exp(-symmetry * denominator)
         return bottom + (top - bottom) * fraction
 
     def asym_initial(x, y):

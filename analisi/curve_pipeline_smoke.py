@@ -112,7 +112,10 @@ def check_curve_pipeline(root, app, directory, tools):
         message = banner.call_args.args[1]
         assert names(field, message), (field, message)
         control = dialog.field_rows[field][1]
-        assert dialog.fields.select() == str(control.master), field
+        page = control.master
+        while page is not None and page.master is not dialog.fields:
+            page = page.master
+        assert page is not None and dialog.fields.select() == str(page), field
         assert control.winfo_viewable(), field
         assert dialog.initial_focus is control, (field, dialog.initial_focus)
         if shot:
@@ -216,7 +219,7 @@ def check_curve_pipeline(root, app, directory, tools):
         assert shown(dialog) == {"X", "Y", "Method", cp.OPERATION, cp.SMOOTHING}, shown(dialog)
         fields(dialog, ((cp.OPERATION, cp.FIRST), (cp.SMOOTHING, SG)))
         assert shown(dialog) == {"X", "Y", "Method", cp.OPERATION, cp.SMOOTHING, cp.HALF_WINDOW, cp.DEGREE}
-        dialog.fields.select(dialog.field_rows[cp.OPERATION][1].master)
+        dialog.focus_field(cp.OPERATION)
         tools.capture(dialog, "window-curve-pipeline-options.png")
         # Going back brings the older controls back as they were; the pipeline keeps what was chosen.
         fields(dialog, (("Method", "Differentiate"),))
