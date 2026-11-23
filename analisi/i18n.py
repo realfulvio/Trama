@@ -5591,3 +5591,9 @@ _IT.update(_RESHAPE_IT)
 for _key, _text in _RESHAPE_EN.items():
     if _key == "reshape.method" or _key.startswith("reshape.field."):
         KEY_BY_LABEL.setdefault(_text, _key)
+
+# Linked secondary axes (analisi.linked_axes): the editor captions, notes and the exact engine messages.
+from .linked_axes_text import EN as _LINKED_EN, IT as _LINKED_IT  # noqa: E402
+
+_EN.update(_LINKED_EN)
+_IT.update(_LINKED_IT)

@@ -84,6 +84,7 @@ from .independent_roc import METHOD as INDEPENDENT_ROC, independent_roc
 from .logistic_validation import METHOD as LOGISTIC_VALIDATION, OPTIONS as LOGISTIC_VALIDATION_OPTIONS
 from .logistic_validation import analysis as logistic_validation
 from .custom_fit import CUSTOM_EQUATION, custom_fit
+from .linked_axes import SUPPORT_ATTR, mark_linked_axes
 from .global_custom_fit import GLOBAL_CUSTOM_EQUATION, global_custom_fit
 from .plot_function import PLOT_FUNCTION
 from .robust_curve import OPTIONS as ROBUST_CURVE_OPTIONS, ROBUST_CURVE, robust_curve
@@ -1235,7 +1236,28 @@ def _imported_layout(options, layout_data=None):
     return figure
 
 
+# Linked secondary axes (analisi.linked_axes): the dimensions each analysis graph can link. Graphs that draw
+# XY series, XY error bars and global fits mark their own Axes; the checks of the current figure (one plot
+# panel, numeric axes, no breaks) run when the axes are drawn.
+LINKED_AXES_METHODS = {
+    "Linear regression": ("x", "y"), COMPARE_LINES: ("x", "y"), "Deming regression": ("x", "y"),
+    "Nonlinear regression": ("x", "y"), ROBUST_CURVE: ("x", "y"), CUSTOM_EQUATION: ("x", "y"),
+    GLOBAL_CUSTOM_EQUATION: ("x", "y"), SPLINE_FIT: ("x", "y"), "Kaplan–Meier survival": ("x", "y"),
+    COLUMN_GRAPH: ("y",), GROUPED_GRAPH: ("y",),
+}
+
+
 def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=None):
+    """Calculate ``method`` on ``frame`` and mark its graph for linked secondary axes."""
+    result = _analyse(method, frame, options, layout_data=layout_data, cancel=cancel, join_data=join_data)
+    dimensions = LINKED_AXES_METHODS.get(method)
+    figure = result.figure if dimensions else None
+    if figure is not None and figure.axes and not hasattr(figure.axes[0], SUPPORT_ATTR):
+        mark_linked_axes(figure.axes[0], *dimensions)
+    return result
+
+
+def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=None):
     """Calculate ``method`` on ``frame``. ``join_data`` is the evaluated right worksheet of
     Join worksheets by key, already resolved by the application (the engine never looks sheets up)."""
     from .legacy_xml_binding import SCATCHARD, scatchard

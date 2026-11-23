@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 
 from .axis_breaks import mark_supported
+from .linked_axes import mark_linked_axes
 from matplotlib.colors import is_color_like
 
 from .curve_models import MODELS
@@ -173,6 +174,7 @@ def global_analysis(frame, options):
 
     figure, axes = _plot(f"Global fit · {model}", xlabel, ylabel)
     mark_supported(axes)
+    mark_linked_axes(axes, "x", "y")
     positive = True
     residuals, predictions, by_series = [], [], []
     for label, fit in fits.groups.items():
