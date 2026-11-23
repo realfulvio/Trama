@@ -1,0 +1,22 @@
+Time,Event,Group
+1,1,Control
+1,1,Control
+1,0,Control
+2,0,Control
+3,1,Control
+4,0,Control
+6,1,Control
+8,1,Control
+0,0,Treatment
+1,0,Treatment
+2,1,Treatment
+2,1,Treatment
+4,0,Treatment
+5,1,Treatment
+7,0,Treatment
+2,0,Censored
+3,0,Censored
+7,0,Censored
+1,1,Terminal tie
+1,1,Terminal tie
+

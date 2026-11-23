@@ -115,6 +115,7 @@ from .survival_input import (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJ
                              PAIRWISE_PAIRS, PAIRWISE_PAIR_LIST,
                              CONTROL_PAIRS, SELECTED_PAIRS, UNADJUSTED, pairwise_scope, CENSOR_CODE, EVENT_CODE,
                              OTHER_STATUS, STATUS_POLICIES, recode_statuses)
+from .survival_bands import SHEET as SIMULTANEOUS_SHEET, join_bands
 from .survival_plot import (ERROR_BARS, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS, GREENWOOD, INTERVAL, RISK_TABLE,
                             SURVIVAL_GRAPH, SURVIVAL_SERIES, SURVIVAL_SUMMARY, UNCERTAINTY, SurvivalGraphData,
                             draw_survival_graph, linked_survival_graph, survival_graph_settings)
@@ -892,8 +893,9 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
                                          standard_error=show_error)
     graph_data = SurvivalGraphData(curves, settings, time, level, bool(o.get(RISK_TABLE)),
                                    compact and not _has_survival_orientation(o))
+    simultaneous = {}
     figure, tables, risks = draw_survival_graph(graph_data, "Kaplan–Meier survival" if axes is None else event,
-                                               axes, risk_axes)
+                                               axes, risk_axes, bands=simultaneous)
     plateau = o.get("Median method") == MEDIAN_METHODS[1]
     summaries = []
     for label, curve in curves.items():
@@ -922,6 +924,8 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
                                                 for label, table in tables.items()}, names=["Group"])
     else:
         outputs.update({f"Curve: {label}": table for label, table in tables.items()})
+    if simultaneous:
+        outputs[SIMULTANEOUS_SHEET] = join_bands(simultaneous)
     context = {SURVIVAL_SUMMARY: graph_data} if o.get(SURVIVAL_GRAPH) is True else {}
     return Result(outputs, figure, table_contexts=context)
 
@@ -1033,6 +1037,15 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None, ran
     return Result(outputs, figure)
 
 
+INDEXLESS = {SIMULTANEOUS_SHEET}  # their rows carry Group and Time as columns: no index to keep
+
+
+def _by_response(title, parts):
+    """One sheet for several responses: a Response variable column in front of the rows of each."""
+    table = pd.concat(parts, names=["Response variable"])
+    return table.reset_index(level=0).reset_index(drop=True) if title in INDEXLESS else table.reset_index()
+
+
 def _classic_analysis(method, frame, options, predict, run, *, outside=None):
     response_field, response_key = CLASSIC_RESPONSES[method]
     roles = classic_roles(method, options)
@@ -1055,7 +1068,7 @@ def _classic_analysis(method, frame, options, predict, run, *, outside=None):
         result = run(frame, {**options, response_key: responses[0], "Group": group}, compact=compact,
                      **extra_options)
         if compact:
-            result.tables = {title: table.reset_index() for title, table in result.tables.items()}
+            result.tables = {title: table.reset_index(drop=title in INDEXLESS) for title, table in result.tables.items()}
         return result
     rows = (len(responses) + 1) // 2
     has_risks = method == "Kaplan–Meier survival" and options.get("Show risk table below graph")
@@ -1080,8 +1093,7 @@ def _classic_analysis(method, frame, options, predict, run, *, outside=None):
             raise ValueError(f"{response}: {error}") from error
         for title, table in result.tables.items():
             tables.setdefault(title, {})[response] = table
-    return Result({title: pd.concat(parts, names=["Response variable"]).reset_index()
-                   for title, parts in tables.items()}, figure)
+    return Result({title: _by_response(title, parts) for title, parts in tables.items()}, figure)
 
 
 def _imported_xy(frame, options, layout_data=None):
