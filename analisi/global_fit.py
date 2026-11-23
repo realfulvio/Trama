@@ -460,7 +460,7 @@ def _comparison(reduced, full, n, scale):
 
 def global_nonlinear(frame, x, y, model, group, *, shared=(), fixed=None, bounds=None, initial=None,
                      weighting="Unweighted", sigma=None, compare=False, compare_local=(),
-                     intervals="symmetric", series_constraints=None):
+                     intervals="symmetric", series_constraints=None, curve_grid=None):
     """Fit one objective over all complete rows in the selected groups.
 
     Supply shared parameter names, common fixed values and optional common
@@ -477,7 +477,8 @@ def global_nonlinear(frame, x, y, model, group, *, shared=(), fixed=None, bounds
     at the best fit or a zero residual variance suppress inference. The optional
     comparisons relax all sharing or add equality constraints to selected local
     parameters, respectively. The additional sharing test requires the selected
-    parameters to be free in every series.
+    parameters to be free in every series. An optional drawing grid supplies
+    common X coordinates for the curves and bands without affecting the fit.
     """
     if model not in MODELS:
         raise ValueError("Select a supported regression model.")
@@ -502,6 +503,11 @@ def global_nonlinear(frame, x, y, model, group, *, shared=(), fixed=None, bounds
     labels = tuple(parts)
     lower, upper, fixed_values, overrides = _series_options(
         labels, spec.parameters, shared, fixed, bounds, initial, series_constraints)
+    if spec.anchor_parameters:
+        anchors = [spec.parameters.index(name) for name in spec.anchor_parameters]
+        if np.isnan(fixed_values[:, anchors]).all():
+            raise ValueError(f"{model} requires a fixed value for {' or '.join(spec.anchor_parameters)}. "
+                             "Set it in Parameters or Series constraints.")
     for name in spec.required_fixed:
         missing = np.isnan(fixed_values[:, spec.parameters.index(name)])
         if missing.any():
@@ -605,7 +611,9 @@ def global_nonlinear(frame, x, y, model, group, *, shared=(), fixed=None, bounds
         x_values, y_values, scales, parameters = xs[i], ys[i], sds[i], solved.estimates[i]
         predicted = spec.equation(x_values, *parameters)
         predictions.append(predicted)
-        if spec.log_grid and np.any(x_values > 0):
+        if curve_grid is not None:
+            grid = curve_grid
+        elif spec.log_grid and np.any(x_values > 0):
             smallest_positive = x_values[x_values > 0].min()
             if x_values.min() == 0:
                 grid = np.r_[0., np.geomspace(smallest_positive, x_values.max(), 299)]

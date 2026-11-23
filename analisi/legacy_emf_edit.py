@@ -299,10 +299,10 @@ def _edit_points(raw, values, style):
     return result
 
 
-def _xy_group_links(source, records):
+def _xy_group_links(source, records, *, link_size=40):
     roles = source.attrs["worksheet_roles"]
     _require(len(roles["x"]) == 1)
-    links = [unpack_from("<3I", payload) for tag, _, payload in records if tag == 0x0D and len(payload) == 40]
+    links = [unpack_from("<3I", payload) for tag, _, payload in records if tag == 0x0D and len(payload) == link_size]
     _require(len(links) == len(roles["y"]) and sorted(index for index, _, _ in links) == list(range(len(links))))
     return roles["x"][0], {uid: (repeat, roles["y"][index]) for index, uid, repeat in links}
 

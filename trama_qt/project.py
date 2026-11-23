@@ -18,6 +18,7 @@ from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
 from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCancelled, ResultSource,
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
+from analisi.linked_axes import linked_axes_status
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, MAX_ENTRY, Dataset,
                           info_references, load_tables, load_workspace, project_document, save_project)
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
@@ -27,6 +28,7 @@ from analisi.category_order import keep_source_columns
 from analisi.i18n import tr, ui
 from analisi.info import info_contexts, validate_info_sheets
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY
+from analisi.plot_function import OBSERVATION_COLUMNS
 from analisi.pca_graphs import SAVED_DIRECTIONS as PCA_SAVED_DIRECTIONS, SAVED_VIEWPORT as PCA_SAVED_VIEWPORT
 from analisi.pca_overlays import SAVED_APPEARANCE as PCA_OVERLAY_APPEARANCE
 from analisi.pca_parallel_archive import ARCHIVE as PCA_PARALLEL_ARCHIVE
@@ -41,7 +43,7 @@ from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attac
 from analisi.parallel_analyses import precompute as precompute_analyses
 from analisi.presentation import apply_style, compose_layout
 from analisi.legacy_emf_edit import LIMIT_SOURCE
-from analisi.stats import FIXED_COEFFICIENTS, STARTING_COEFFICIENTS
+from analisi.stats import FIXED_COEFFICIENTS, STARTING_COEFFICIENTS, STARTING_COEFFICIENTS_BY_SERIES
 from analisi.legacy_fit_graph import FIT_GRAPH_SPEC, FIT_INTERVAL_BAND
 from analisi.legacy_xml_qc import QC_REFERENCE
 from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_DATA, LEGACY_PANEL_EDITS
@@ -134,6 +136,12 @@ def breaks_warning(figure, style):
     return tr("axis_breaks.status.ignored", reason=reason)
 
 
+def graph_warning(figure, style):
+    """The notes about saved style sections that the graph cannot draw right now (breaks, linked axes)."""
+    notes = [note for note in (breaks_warning(figure, style), linked_axes_status(figure, style)) if note]
+    return " ".join(notes) or None
+
+
 def _attach_pairwise(result, frame, pairwise, method):
     if "message" in pairwise:
         attach_pairwise(result.figure, (), None, message=pairwise["message"])
@@ -175,7 +183,7 @@ def compute(run, frame, control=None, layout_data=None, pairwise=None, *, result
         except ValueError as error:
             result.style_warning = str(error)
         else:
-            result.style_warning = breaks_warning(result.figure, run.style)
+            result.style_warning = graph_warning(result.figure, run.style)
     if pairwise is None or result.figure is None or not result.figure.axes:
         sync_letters_table(result)
     else:
@@ -666,11 +674,11 @@ class Project(WorksheetJoinSources):
             for key in (LEGACY_TITLE, LEGACY_NOTES, LEGACY_GRAPH_LINK, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
                         PCA_OVERLAY_APPEARANCE, PCA_SAVED_DIRECTIONS, PCA_SAVED_VIEWPORT, PCA_PARALLEL_ARCHIVE,
                         KMEANS_ARCHIVE, FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE,
-                        anova_grouped_plot.PRIMARY):
+                        anova_grouped_plot.PRIMARY, OBSERVATION_COLUMNS):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Model") == run.options.get("Model"):
-                for key in (FIXED_COEFFICIENTS, STARTING_COEFFICIENTS):
+                for key in (FIXED_COEFFICIENTS, STARTING_COEFFICIENTS, STARTING_COEFFICIENTS_BY_SERIES):
                     if key in run.options and key not in options:
                         options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:
@@ -843,7 +851,7 @@ class Project(WorksheetJoinSources):
         if record_shapes:
             self.record_shapes(run, style)
         run.style = style
-        run.result.style_warning = breaks_warning(run.result.figure, style)
+        run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
         self.dirty = True
@@ -857,7 +865,7 @@ class Project(WorksheetJoinSources):
             apply_style(run.result.figure, style)
         self.record_shapes(run, style)
         run.style = style
-        run.result.style_warning = breaks_warning(run.result.figure, style)
+        run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
         self.dirty = True

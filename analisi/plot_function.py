@@ -16,6 +16,7 @@ PLOT_FUNCTION = "Plot a function"
 MODEL, X_SOURCE, X_MIN, X_MAX, SEGMENTS, X_COLUMN, CURVES = (
     "Model", "X source", "X minimum", "X maximum", "Segments", "X column", "Curves")
 FIRST, SECOND, INTEGRAL = "First derivative", "Second derivative", "Integral"
+OBSERVATION_COLUMNS = "Observed XY columns"
 LINEAR, GEOMETRIC, WORKSHEET = "Linear", "Geometric", "Worksheet"
 SOURCES = (LINEAR, GEOMETRIC, WORKSHEET)
 VALUES, PARAMETERS, SETTINGS = "Function values", "Parameters", "Settings"
@@ -287,6 +288,17 @@ def _sheet(x, names, columns):
     return pd.DataFrame({"X": x, **dict(zip(names, columns, strict=True))})
 
 
+def _draw_observations(axes, frame, columns):
+    if (not isinstance(columns, (tuple, list)) or len(columns) != 2
+            or not all(isinstance(name, str) and name in frame.columns for name in columns)
+            or columns[0] == columns[1]):
+        raise FieldError(OBSERVATION_COLUMNS, "The original observation columns are unavailable.")
+    x, y = (pd.to_numeric(frame[name], errors="coerce").to_numpy(dtype=float, na_value=np.nan)
+            for name in columns)
+    keep = np.isfinite(x) & np.isfinite(y)
+    axes.plot(x[keep], y[keep], linestyle="None", marker="o", label=columns[1])
+
+
 def plot_function(frame, o):
     model = check_model(o)
     curves = check_curves(model, o.get(CURVES))
@@ -327,6 +339,9 @@ def plot_function(frame, o):
         tables[INTEGRAL] = _sheet(x, names, [integral(x, y) for y in values])
     figure, axes = _plot(model, "X", "Y")
     axes._tramastat_log_x_omit_zero = spec.domain == "nonnegative"
+    axes._tramastat_log_y_omit_zero = model == "Linear-quadratic fractional cell death"
+    if OBSERVATION_COLUMNS in o:
+        _draw_observations(axes, frame, o[OBSERVATION_COLUMNS])
     for name, y in zip(names, values):
         axes.plot(x, y, label=name)
     axes.legend()

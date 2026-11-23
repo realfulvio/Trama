@@ -54,15 +54,17 @@ def fixture(labels, values, *, malformed=False, overlapping=False, flags=7, link
     return result_document(analysis, src, result, analysis_ids=analysis_ids)
 
 
-def numeric_fixture(*, step=None, analysis_id=3, fraction_source=None):
+def numeric_fixture(*, step=None, analysis_id=3, fraction_source=None, source_free=False, generated_flags=None):
     flags = 0x00100000 if step is None else 0x20001000
     if fraction_source is not None:
         flags = 0x00140400
+    if generated_flags is not None:
+        flags = generated_flags
     kind = 1 if step is None else 4
     name = record(9, b"Saved analysis\0")
     outputs = record(0x3c, struct.pack("<11i", 10, 7, *([-1] * 9)))
     view = record(0x3f, struct.pack("<7i", 2, 1, kind, flags, 0, -1, 0))
-    source = struct.pack("<2i", 1, 0) if fraction_source is None else bytes(4)
+    source = bytes(4) if source_free or fraction_source is not None else struct.pack("<2i", 1, 0)
     analysis = group(0x39, struct.pack("<H", 3), name, record(0x3b, source), outputs, view)
     if fraction_source is not None:
         companion = group(0xE1, struct.pack("<H", 3), name, record(0x3a, struct.pack("<8H", 29, *([0] * 7))),
@@ -116,6 +118,20 @@ class SavedXSequenceTests(unittest.TestCase):
         records[0xF3] = bytes(len(records[0xF3]))
         with self.assertRaises(_UnsupportedSheet):
             _x_sequence(records.items(), 3, formatted_curve=True)
+
+    def test_formatted_concentration_sequence_uses_the_second_slot_status(self):
+        records = {
+            0x10: struct.pack("<HI2Id2Id", 1, 2, 5, 0, .125, 5, 183, .25),
+            0x90: b"\0\0",
+            0xF3: struct.pack("<12I", 2, 16, 16, 2, 0, 5, 0xffffffff, 0x7fffffff,
+                              0, 5, 0xffffffff, 0x7fffffff),
+        }
+        self.assertEqual(_x_sequence(records.items(), 3, formatted_curve=True), [.125, .375, .625])
+        records[0xF3] = struct.pack("<12I", 2, 16, 16, 2, 0, 5, 0xffffffff, 0x7fffffff,
+                                   0, 1, 0xffffffff, 0x7fffffff)
+        with self.assertRaises(_UnsupportedSheet):
+            _x_sequence(records.items(), 3, formatted_curve=True)
+
 
 
 class LegacyBinaryResultTests(unittest.TestCase):
@@ -200,6 +216,41 @@ class LegacyBinaryResultTests(unittest.TestCase):
         self.assertTrue(pd.isna(snapshot["Y"].iloc[1]))
         self.assertEqual(list(self.restore(numeric_fixture(step=-.25))), ["Measurements"])
 
+
+    def test_older_generated_x_view_requires_no_source_table(self):
+        supported = numeric_fixture(step=.25, source_free=True, generated_flags=0x1802)
+        snapshot = self.restore(supported)["Imported result · Saved numbers"]
+        self.assertEqual(snapshot["X"].tolist(), [1., 1.25, 1.5])
+        self.assertEqual(snapshot.attrs["legacy_binary_result"]["source_ids"], [])
+        unrelated = numeric_fixture(step=.25, generated_flags=0x1802)
+        self.assertEqual(list(self.restore(unrelated)), ["Measurements"])
+
+    def test_formatted_simulation_recovers_values_with_one_recorded_x_row(self):
+        sizes = (0xFFFFFFFF, 0x7FFFFFFF)
+        name = record(9, b"Saved model\0")
+        generated = struct.pack("<7i", 2, 1, 4, 0x20001002, 0, -1, 0)
+        outputs = record(0x3c, struct.pack("<11i", 10, 7, *([-1] * 9)))
+        x = group(0xf, struct.pack("<15i", 20, 0, 0, 3, 7, 102, -1, 4, 4, 11, 1, 20, 0, 1, 1),
+                  record(9, b"Dose\0"), record(0x90, bytes(2)),
+                  record(0x10, struct.pack("<HI2Id2Id", 1, 2, 1, 0, 1., 0, 0, .5)),
+                  record(0xf3, struct.pack("<12I", 2, 16, 16, 2, 0, 1, *sizes, 0, 0, *sizes)))
+        y = group(0xf, struct.pack("<15i", 21, 0, 0, 3, 7, 102, -1, 1, 40, 10, 1, 20, 0, 3, 3),
+                  record(9, b"Signal\0"),
+                  record(0x10, struct.pack("<HI", 1, 3) + b"".join(struct.pack("<IId", 1, 53, v) for v in (2., 4., 7.))),
+                  record(0xf3, struct.pack("<4I", 2, 16, 16, 3) + struct.pack("<4I", 0, 1, *sizes) * 3))
+        result = group(8, struct.pack("<H", 7), record(9, b"Saved numbers\0"),
+                       record(0x8e, struct.pack("<9i", -1, 0, 4, 4, 10, 0, -1, -1, -2)),
+                       record(0xd, struct.pack("<3I", 0, 21, 1) + bytes(12)), x, y)
+        for inputs in (bytes(4), struct.pack("<2i", 1, 0)):
+            analysis = group(0x39, struct.pack("<H", 3), name, record(0x3b, inputs),
+                             outputs, record(0x3f, generated))
+            tables = self.restore(result_document(analysis, sheet(0, b"Measurements"), result))
+            if inputs == bytes(4):
+                actual = tables["Imported result · Saved numbers"]
+                self.assertEqual(actual.to_dict("list"), {"Dose": [1., 1.5, 2.], "Signal": [2., 4., 7.]})
+                self.assertEqual(actual.attrs["legacy_binary_result"]["source_ids"], [])
+            else:
+                self.assertEqual(list(tables), ["Measurements"])
 
     def test_analysis_index_ignores_unlisted_or_ambiguous_groups(self):
         raw = fixture([b"P value"], [b"0.0001"], analysis_ids=())

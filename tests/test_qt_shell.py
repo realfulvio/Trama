@@ -87,6 +87,52 @@ class QtShellTests(unittest.TestCase):
         self.app.processEvents()
         self.assertIsNone(self.window.job, "calculation still running")
 
+    def test_curve_pipeline_shows_only_applicable_fields_and_saves_canonical_values(self):
+        from PySide6.QtWidgets import QLabel
+        from analisi import curve_pipeline as cp
+        from analisi.curve_pipeline_dialog import NOTE_KEYS
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        frame = pd.DataFrame({"X": [0, 1, 2, 3, 4], "Y": [1, 2, 3, 4, 5]})
+        dialog = AnalysisDialog(self.window, frame, only=cp.CURVE_METHOD)
+        self.addCleanup(dialog.deleteLater)
+        dialog.show()
+        self.app.processEvents()
+
+        def choose(field, value):
+            widget = dialog.controls[field][1]
+            widget.setCurrentIndex(widget.findData(value))
+
+        def shown_notes():
+            return [note.text() for note in dialog.findChildren(QLabel)
+                    if not note.isHidden() and note.text() in {tr(key) for key in NOTE_KEYS}]
+
+        choose("X", "X")
+        choose("Y", "Y")
+        dialog.controls["LOWESS fraction"][1].setText("0,6")
+        self.assertEqual(dialog.options(), {"X": "X", "Y": "Y", "Method": "LOWESS", "LOWESS fraction": 0.6})
+        self.assertEqual(shown_notes(), [])
+
+        choose("Method", cp.PIPELINE)
+        self.assertEqual(shown_notes(), [tr(NOTE_KEYS[0])])
+        choose(cp.OPERATION, cp.CUMULATIVE)
+        choose(cp.SMOOTHING, cp.SAVITZKY_GOLAY)
+        dialog.controls[cp.BASELINE][1].setText("1,25")
+        self.assertEqual(shown_notes(), [tr(key) for key in NOTE_KEYS])
+        self.assertEqual(set(dialog.options()), {"X", "Y", "Method", *cp.PIPELINE_FIELDS})
+        choose("Method", "LOWESS")
+        self.assertEqual(dialog.options()["LOWESS fraction"], 0.6)
+        choose("Method", cp.PIPELINE)
+        dialog.run_button.click()
+        self.assertIsNotNone(dialog.result, dialog.banner.text())
+        method, options = dialog.result
+        self.assertEqual(method, cp.CURVE_METHOD)
+        self.assertEqual(options[cp.BASELINE], 1.25)
+        self.assertEqual(options[cp.SMOOTHING], cp.SAVITZKY_GOLAY)
+
     def test_paired_proportions_accepts_both_input_formats_and_reopens_the_recipe(self):
         from unittest.mock import patch
         from analisi import paired_proportions as paired

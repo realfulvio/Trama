@@ -418,6 +418,7 @@ def marginal_comparisons(frame, response, factors, order, compare, method="holm"
 FIT_WEIGHTINGS = ("Unweighted", "Inverse variance (column)")
 FIXED_COEFFICIENTS = "Fixed coefficients"
 STARTING_COEFFICIENTS = "Starting coefficients"
+STARTING_COEFFICIENTS_BY_SERIES = "Starting coefficients by series"
 
 
 @dataclass
@@ -607,7 +608,8 @@ def _coefficient_values(spec, values):
     return values
 
 
-def nonlinear(frame, x, y, model, group=None, *, weighting="Unweighted", sigma=None, fixed=None, start=None):
+def nonlinear(frame, x, y, model, group=None, *, weighting="Unweighted", sigma=None, fixed=None, start=None,
+              series_start=None):
     """Fit each group with ordinary least squares, supplied relative SDs or weights from the observed Y."""
     if model not in MODELS:
         raise ValueError("Select a supported regression model.")
@@ -616,7 +618,13 @@ def nonlinear(frame, x, y, model, group=None, *, weighting="Unweighted", sigma=N
     spec = MODELS[model]
     fixed = _coefficient_values(spec, fixed)
     start = _coefficient_values(spec, start)
-    if len(fixed) == len(spec.parameters) or fixed.keys() & start.keys():
+    if series_start is None:
+        series_start = {}
+    if not isinstance(series_start, dict) or any(not isinstance(label, str) or not label for label in series_start):
+        raise ValueError("Starting coefficients by series must identify each series by name.")
+    starts = {label: _coefficient_values(spec, values) for label, values in series_start.items()}
+    if (len(fixed) == len(spec.parameters) or fixed.keys() & start.keys()
+            or any(fixed.keys() & values.keys() for values in starts.values())):
         raise ValueError("Estimate at least one coefficient and supply starting values only for estimated coefficients.")
     sigma = sigma if weighting == INVERSE_VARIANCE else None
     labels = [group] if group else []
@@ -641,7 +649,8 @@ def nonlinear(frame, x, y, model, group=None, *, weighting="Unweighted", sigma=N
         # Check every complete observation before fitting any group, so a zero Y is reported first.
         observed_scales(data[y].to_numpy(), weighting)
     groups = data.groupby(group, sort=False, observed=True) if group else [("All", data)]
-    return {label: _fit_curve(part, x, y, model, label, sigma, weighting=weighting, fixed=fixed, start=start)
+    return {label: _fit_curve(part, x, y, model, label, sigma, weighting=weighting,
+                              fixed=fixed, start=start | starts.get(label, {}))
             for label, part in groups}
 
 

@@ -3,9 +3,12 @@ import numpy as np
 import pandas as pd
 
 from .axis_breaks import mark_supported
+from .linked_axes import mark_linked_axes
 from matplotlib.colors import is_color_like
 
 from .curve_models import MODELS
+from . import regression_range as rr
+from .legacy_fit_graph import FIT_GRAPH_SPEC
 from .fit_weights import GLOBAL_WEIGHTINGS, observed_scales, uses_observed_y
 from .repeated_input import SAVED_REPLICATE_DISPLAY, _series_name, curve_input, decode_series_constraints, mixed_input
 from .reporting import Result, _plot, _report
@@ -142,6 +145,19 @@ def global_analysis(frame, options):
     model = options["Model"]
     intervals = "profile" if options.get("Parameter intervals") == "Profile likelihood" else "symmetric"
     kwargs = {"intervals": intervals} if intervals != "symmetric" else {}
+    saved_grid = options.get(FIT_GRAPH_SPEC)
+    draw_observations = True
+    if (isinstance(saved_grid, dict) and saved_grid.get("model") == model and saved_grid.get("x") == options.get("X")
+            and saved_grid.get("series") == options.get("Y columns") and options.get("Input format") == "Wide XY"
+            and options.get("X values", "As entered") == "As entered"
+            and all(key in saved_grid for key in rr.CURVE_FIELDS)):
+        settings = rr.ranges({key: saved_grid[key] for key in rr.CURVE_FIELDS} | {"Model": model})
+        if all(key in settings for key in rr.CURVE_FIELDS):
+            draw_observations = saved_grid.get("observations") is not False
+            if saved_grid.get("spacing") == "log" and settings[rr.CURVE_MIN] > 0:
+                kwargs["curve_grid"] = np.geomspace(*(settings[key] for key in rr.CURVE_FIELDS))
+            else:
+                kwargs["curve_grid"] = rr.drawing_grid(data["X"], settings)
     constraints = decode_series_constraints(options.get("Series constraints", []))
     fits = global_nonlinear(
         data, "X", "Response", model, "Series",
@@ -173,25 +189,27 @@ def global_analysis(frame, options):
 
     figure, axes = _plot(f"Global fit · {model}", xlabel, ylabel)
     mark_supported(axes)
+    mark_linked_axes(axes, "x", "y")
     positive = True
     residuals, predictions, by_series = [], [], []
     for label, fit in fits.groups.items():
         name = str(label)
-        color = _plot_saved_replicates(axes, frame, options, label)
-        curve_label = name
-        if color is None:
-            dots = axes.scatter(fit.data["X"], fit.data["Response"], label=name, s=18)
-            color = dots.get_facecolor()[0]
-            curve_label = None
+        color, curve_label = None, name
+        if draw_observations:
+            color = _plot_saved_replicates(axes, frame, options, label)
+            if color is None:
+                dots = axes.scatter(fit.data["X"], fit.data["Response"], label=name, s=18)
+                color = dots.get_facecolor()[0]
+                curve_label = None
         x, predicted = fit.curve.T
-        axes.plot(x, predicted, color=color, label=curve_label)
+        line, = axes.plot(x, predicted, color=color, label=curve_label)
         positive = positive and bool(np.all(x > 0))
         values = pd.DataFrame({"Series": label, "X": x, "Predicted": predicted})
         if fit.band is not None:
             low, high = fit.band.T
             values["CI 95% low"], values["CI 95% high"] = low, high
             if options.get("Show confidence bands", False):
-                axes.fill_between(x, low, high, color=color, alpha=.15, linewidth=0)
+                axes.fill_between(x, low, high, color=line.get_color(), alpha=.15, linewidth=0)
         predictions.append(values)
         residuals.append(fit.residuals.assign(Series=label))
         by_series.append({"Series": label, **fit.diagnostics})

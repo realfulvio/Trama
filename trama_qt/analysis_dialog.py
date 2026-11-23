@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 from analisi.anova_planned_contrasts import ALPHA as CONTRAST_ALPHA, CONTRAST_LIST, CORRECTION as CONTRAST_CORRECTION
 from analisi.anova_planned_contrasts import FACTOR_LIST as CONTRAST_FACTOR_LIST
 from analisi.anova_terms import TERM_LIST
-from analisi import lognormal_tests, regression_range, ttest_options
+from analisi import curve_pipeline, curve_pipeline_dialog, lognormal_tests, regression_range, ttest_options
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
 from analisi import cluster_silhouette, cohen_kappa as kappa, cox_exact, cox_outputs
@@ -50,7 +50,7 @@ from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS,
                                OPTIONAL_MULTIPLE, TEXT, check_survival_options, classic_roles)
 from analisi.stats import GEOMETRIC_REPORT, SUMMARY_FORMAT, summary_confidence, summary_fields
 
-from . import anova_model, ellipse_groups, global_fit, logistic_validation, planned_contrasts
+from . import anova_model, ellipse_groups, global_catalog, global_fit, logistic_validation, planned_contrasts
 from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
 from . import rm_sphericity_dialog as sphericity_options
@@ -58,6 +58,7 @@ from . import icc as icc_binding
 from . import precision_recall as precision_options
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
+from . import standard_curve as calibration_options
 from . import worksheet_join as join_editor
 from . import kappa_options, ordinal_options, permutation_options, rmst_options, survival_pairs, weibull_options
 from .function_curves import FunctionCurves
@@ -189,6 +190,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = None  # Repeated measures ANOVA sphericity correction (trama_qt.rm_sphericity_dialog)
         self.icc = None  # Intraclass correlation (trama_qt.icc)
         self.precision = None  # Precision–recall curve (trama_qt.precision_recall)
+        self.calibration = None  # Standard-curve calibration (trama_qt.standard_curve)
         self.reshape = None  # Reshape long and wide editor (trama_qt.reshape_long_wide)
         method = current[0] if current and current[0] in METHODS else None
         self.method = method or self._first_method()
@@ -260,6 +262,8 @@ class AnalysisDialog(QDialog):
             self.banner.setText(self.icc.message(error))
         if error and self.precision is not None:
             self.banner.setText(self.precision.message(error))
+        if error and self.calibration is not None:
+            self.banner.setText(self.calibration.message(error))
         if error_field:
             if self.anova is not None and error:  # engine errors reopen here; word them in the active language
                 self.banner.setText(self.anova.message(FieldError(error_field, str(error))))
@@ -344,6 +348,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = None
         self.icc = None
         self.precision = None
+        self.calibration = None
         self.reshape = None
         self.join = None
         pages, scrolls = {}, {}
@@ -355,7 +360,8 @@ class AnalysisDialog(QDialog):
         kappa_method = self.method == kappa.METHOD
         permutation_method = self.method == mean_permutation.METHOD
         page_specs = (("variables", ui("Design")), ("options", ui("Effect")), ("curve", ui("Curve"))) if power_method else (
-            ("variables", qt("qt.variables")), *global_fit.pages(self.method), *select_editor.pages(self.method),
+            ("variables", qt("qt.variables")), *global_fit.pages(self.method),
+            *global_catalog.pages(self.method), *select_editor.pages(self.method),
             ("options", qt("qt.options")))
         survival_method = self.method == "Kaplan–Meier survival"
         lognormal_method = self.method == lognormal_tests.LOGNORMAL
@@ -652,6 +658,8 @@ class AnalysisDialog(QDialog):
             report = self.controls[SUMMARY_FORMAT][1]
             report.currentIndexChanged.connect(lambda _: self._set_field_visibility(summary_fields(report.currentData())))
             self._set_field_visibility(summary_fields(report.currentData()))
+        if self.method == curve_pipeline.CURVE_METHOD:
+            self._configure_curve_fields(options)
         if self.method == plot_function.PLOT_FUNCTION:
             source = self.controls[plot_function.X_SOURCE][1]
             source.currentIndexChanged.connect(lambda _: self._set_field_visibility(
@@ -678,6 +686,7 @@ class AnalysisDialog(QDialog):
             self.ellipse_groups.sync()
         self.anova = anova_model.attach(self, saved)
         global_fit.attach(self)
+        global_catalog.attach(self, pages, saved)
         if self.method == "t-test":
             design = self.controls["Design"][1]
             layout = self.controls[ttest_options.INPUT][1]
@@ -703,10 +712,6 @@ class AnalysisDialog(QDialog):
 
             model.currentIndexChanged.connect(show_log_ic50)
             show_log_ic50()
-        if self.method == "Interpolate a standard curve":
-            for name in (calibration.DIRECTION, "Curve", calibration.UNCERTAINTY, "Model"):
-                self.controls[name][1].currentIndexChanged.connect(self._show_calibration_fields)
-            self._show_calibration_fields()
         if self.method in kmeans_options.METHODS:
             algorithm = self.controls[kmeans_options.ALGORITHM][1]
             algorithm.currentIndexChanged.connect(self._sync_kmeans_options)
@@ -717,6 +722,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = sphericity_options.attach(self)
         self.icc = icc_binding.attach(self, saved)
         self.precision = precision_options.attach(self)
+        self.calibration = calibration_options.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
         select_editor.attach(self, pages, saved)
         if self.method == extraction.EXTRACT_REARRANGE:
@@ -777,6 +783,31 @@ class AnalysisDialog(QDialog):
         if self.method == kmeans_options.CLUSTERING:
             fields[kmeans_options.INITIAL_ROWS] = algorithm in kmeans_options.ITERATION_FIELDS
         self._set_field_visibility(fields)
+
+    def _configure_curve_fields(self, form):
+        notes = []
+        for key in curve_pipeline_dialog.NOTE_KEYS:
+            note = QLabel(tr(key))
+            note.setWordWrap(True)
+            note.setObjectName("muted")
+            form.addRow(note)
+            notes.append(note)
+
+        choices = [self.controls[name][1] for name in ("Method", curve_pipeline.OPERATION, curve_pipeline.SMOOTHING)]
+
+        def sync():
+            method, operation, smoothing = (choice.currentData() for choice in choices)
+            self._set_field_visibility(curve_pipeline.visibility(method, operation, smoothing))
+            visible = curve_pipeline_dialog.notes_visibility(method, smoothing, curve_pipeline.PIPELINE,
+                                                            curve_pipeline.SAVITZKY_GOLAY)
+            for note, shown in zip(notes, visible):
+                form.setRowVisible(note, shown)
+            if self.error_field in self.hidden:
+                self.clear_field_error(self.error_field)
+
+        for choice in choices:
+            choice.currentIndexChanged.connect(sync)
+        sync()
 
     def _configure_power_fields(self, pages):
         notes = {}
@@ -866,13 +897,6 @@ class AnalysisDialog(QDialog):
             if selected:
                 control.setCurrentText(selected)
 
-    def _show_calibration_fields(self):
-        direction, curve, uncertainty, model = (self.controls[name][1].currentData()
-                                               for name in (calibration.DIRECTION, "Curve",
-                                                            calibration.UNCERTAINTY, "Model"))
-        self._set_field_visibility(calibration.calibration_visibility(direction, curve, uncertainty, model))
-        self.rows["Model"][0].setText(tr(calibration.model_field_key(model)))
-
     def _set_field_visibility(self, fields):
         for name, visible in fields.items():
             _, control, form = self.rows[name]
@@ -960,8 +984,12 @@ class AnalysisDialog(QDialog):
                 options[name] = control.toPlainText().strip()
             elif kind == PARAMETER_LIST:
                 options[name] = control.values()
+            elif kind == global_catalog.TABLE:
+                options.update(control.values())
             elif kind in (global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
-                options[name] = control.values()
+                value = control.values()
+                if value or self.method != global_catalog.METHOD:
+                    options[name] = value
             elif kind == GROUP_CHOICE:
                 value = control.currentText()
                 options[name] = value if self.method in ("Kaplan–Meier survival", lognormal_tests.LOGNORMAL) else value.strip()
@@ -988,6 +1016,8 @@ class AnalysisDialog(QDialog):
     def accept(self):
         try:
             options = global_fit.confirm(self, self.options())
+            if self.method == global_catalog.METHOD:
+                global_catalog.check_global_weighting(self.data, options)
             if self.method == "Kaplan–Meier survival":
                 check_survival_options(self.data, options)
             if self.method == "t-test":
@@ -1075,11 +1105,11 @@ class AnalysisDialog(QDialog):
             return translate_message(str(error), "ttest.error.")
         if self.method == lognormal_tests.LOGNORMAL:
             return lognormal_tests.format_error(error)
-        if self.method == "Interpolate a standard curve":
-            return translate_message(str(error), "calib.inverse_nonlinear.")
+        if self.method == curve_pipeline.CURVE_METHOD:
+            return curve_pipeline_dialog.describe_error(error, field)
         if self.method in regression_range.METHODS and field in regression_range.FIELDS:
             return ui(str(error))
-        if self.method == global_fit.GLOBAL_CUSTOM_EQUATION:
+        if self.method in (global_fit.GLOBAL_CUSTOM_EQUATION, global_catalog.METHOD):
             return global_fit.describe_error(error, field)
         if self.method in (*kmeans_options.METHODS, kmeans_reports.MODEL_GRAPH):
             return ui(str(error))
@@ -1095,6 +1125,8 @@ class AnalysisDialog(QDialog):
             return self.icc.message(error)
         if self.precision is not None:  # Precision–recall curve: engine messages in the active language
             return self.precision.message(error)
+        if self.method == calibration_options.METHOD:
+            return calibration_options.translate_error(error)
         if self.method == reshape_editor.METHOD:
             return reshape_editor.message(error)
         if self.method == SELECT_TRANSFORM:

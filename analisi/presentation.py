@@ -32,6 +32,8 @@ from .axis_breaks import (AXIS_BREAKS, GID_PREFIX as BREAK_GID_PREFIX, apply_axi
                           normalise_axis_breaks, panel_guides, plot_fraction_problem, refresh_legend, segment_axes,
                           tag_new_artists)
 from .graph_annotations import ANNOTATIONS, draw_annotations, validate_annotations
+from .linked_axes import (LINKED_AXES, apply_linked_axes, clear_linked_axes, log_offset_problem,
+                          normalise_linked_axes, range_problem)
 from .graph_legend import (LEGEND_OPTIONS_KEY, apply_legend_options, is_non_native_figure,
                            restore_legend_snapshots, validate_legend_options)
 from .graph_shapes import SHAPES, draw_shapes, validate_shapes
@@ -199,7 +201,7 @@ def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
                     "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", LEGEND_OPTIONS_KEY, "series",
                     "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY,
-                    "hierarchical", AXIS_BREAKS},
+                    "hierarchical", AXIS_BREAKS, LINKED_AXES},
             "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
         if key in style and not _text(style[key]):
@@ -259,6 +261,8 @@ def validated_style(style):
         problem = plot_fraction_problem(style)
         if problem:
             raise ValueError(problem)
+    if LINKED_AXES in style:
+        normalise_linked_axes(style[LINKED_AXES])
     if "hierarchical" in style:
         from .hierarchical_style import validate_hierarchical_style
 
@@ -557,6 +561,25 @@ def _check_xy_bar_scales(axes, style, defaults):
                 raise FieldError(field, f"{column} is drawn as bars, which need a linear left Y axis.")
 
 
+def _check_linked_axes(style, scales):
+    """Linked axes must agree with the scale and the limits this same style gives the primary axes.
+
+    A conflict that comes from the graph itself (a logarithmic default, a second Y axis, breaks) is not an error:
+    ``apply_linked_axes`` leaves the axis out and says why.
+    """
+    for dimension, item in normalise_linked_axes(style.get(LINKED_AXES)).items():
+        _check_math_text(item["label"])
+        if dimension + "scale" in style and scales[dimension] == "log":
+            problem = log_offset_problem(dimension, item)
+            if problem:
+                raise ValueError(problem)
+        options = style.get("axis", {}).get(dimension, {})
+        if "min" in options and "max" in options:
+            problem = range_problem(dimension, item, (options["min"], options["max"]))
+            if problem:
+                raise ValueError(problem)
+
+
 def validate_graph_style(axes, style):
     validated_style(style)
     for key in ("title", "xlabel", "ylabel"):
@@ -588,7 +611,7 @@ def validate_graph_style(axes, style):
                              "scale. Choose linear, or change Placement of groups in Graph settings.")
         if scale == "log" and dimension + "scale" in style:
             low, high = axis.get_data_interval()
-            omit_zero = dimension == "x" and getattr(axes, "_tramastat_log_x_omit_zero", False) and low == 0 < high
+            omit_zero = getattr(axes, f"_tramastat_log_{dimension}_omit_zero", False) and low == 0 < high
             if (low <= 0 or high <= 0) and not omit_zero:
                 raise ValueError("A logarithmic axis requires strictly positive data.")
         if scale == "log" and any(ref["value"] <= 0 for ref in refs):
@@ -613,6 +636,7 @@ def validate_graph_style(axes, style):
         xscale=xscale,
         yscale=yscale,
     )
+    _check_linked_axes(style, {"x": xscale, "y": yscale})
     if style.get(LEGEND_OPTIONS_KEY) and is_non_native_figure(axes.figure):
         raise ValueError("Legend formatting is not supported on raster or archived preview figures without native artists.")
     return style
@@ -648,7 +672,7 @@ def _apply_axis(axes, dimension, style, previous, defaults):
     prior_options = previous.get("axis", {}).get(dimension, {})
     if options != prior_options or scale != previous.get(scale_key, defaults["scale"]):
         configure_scale = getattr(axes, f"set_{dimension}scale")
-        if dimension == "x" and scale == "log" and getattr(axes, "_tramastat_log_x_omit_zero", False):
+        if scale == "log" and getattr(axes, f"_tramastat_log_{dimension}_omit_zero", False):
             configure_scale(scale, nonpositive="mask")
         else:
             configure_scale(scale)
@@ -1036,6 +1060,7 @@ def apply_style(figure, style):
         restore_legend_snapshots(figure)
     clear_axis_guides_and_bands(axes)
     clear_axis_breaks(figure)
+    clear_linked_axes(axes)
     for artist in (*getattr(axes, "_tramastat_references", ()), *getattr(axes, "_tramastat_annotations", ()),
                    *getattr(axes, "_tramastat_shapes", ())):
         artist.remove()
@@ -1098,6 +1123,7 @@ def apply_style(figure, style):
     if style.get(LEGEND_OPTIONS_KEY):
         apply_legend_options(figure, style[LEGEND_OPTIONS_KEY])
     refresh_legend(figure)
+    apply_linked_axes(figure, normalise_linked_axes(style.get(LINKED_AXES)), style)
     axes._tramastat_style = deepcopy(style)
     # Annotations that depend on the formatted axis (pairwise brackets) are removed and drawn again.
     after = getattr(axes, "_tramastat_after_style", None)

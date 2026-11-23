@@ -66,10 +66,49 @@ Trama legge strutture supportate di **PZFX**, progetti XML/ZIP compatibili e dei
 - **Dose-risposta a pendenza variabile nei PZT ZIP.** Per il profilo verificato dopo una trasformazione log10, Trama usa le repliche individuali e stima una curva indipendente per serie con intervalli di profilo. Il grafico collegato mostra le osservazioni, conserva i limiti degli assi supportati e campiona le curve fino al limite osservato di ogni serie. Modificare i dati ricalcola la catena, che resta collegata nel progetto `.alab`.
 - **Fascia di controllo nei grafici a colonne PZT.** Nel profilo compatibile il grafico riprende media ± deviazione standard campionaria dal foglio di statistiche descrittive. Trama conserva i colori assegnati alle posizioni del foglio originale e usa simboli nativi. La relazione con il risultato resta nel progetto `.alab`.
 - **Riepiloghi geometrici nei PZT ZIP.** Le ricette compatibili per colonne senza sottocolonne di repliche si riaprono in **Statistica descrittiva → Riepilogo geometrico**. Trama ricalcola numerosità, somma se richiesta, media e deviazione standard geometriche e l'intervallo di confidenza al livello salvato. L'intervallo è calcolato sui logaritmi e riportato sulla scala dei dati.
+- **Simulazioni di legame competitivo nei PZT binari.** I profili a un sito con log Ki o log IC50 si aprono in **Traccia una funzione** quando i parametri e la griglia riproducono tutti i punti del disegno archiviato. Se il grafico conserva una configurazione diversa, Trama la mantiene distinta dalla tabella dei risultati salvati. L'originale resta consultabile e la nuova curva si aggiorna quando modifichi i parametri o le ascisse.
+- **Competizione omologa con più serie.** Nei PZT binari compatibili, la simulazione riapre una griglia X comune con parametri modificabili per ciascuna serie. La legenda conserva le etichette salvate. La concentrazione usata nel calcolo viene dal coefficiente numerico di ciascuna serie.
+- **Competizione a due siti e deplezione.** Trama conserva i fogli di risultato delle simulazioni PZT compatibili con griglia regolare. Le curve log Ki e log IC50 a due siti e la competizione a un sito con deplezione si aprono come funzioni modificabili quando serie, coefficienti e coordinate salvate concordano. Le voci di serie prive di punti restano fuori dalla nuova figura.
+- **Fit globali nei PZT binari.** I profili verificati a due serie per la competizione
+  allosterica e la deplezione recettoriale si ricalcolano dai fogli originali.
+  Trama recupera i coefficienti condivisi e i valori fissi del profilo.
+  Per la deplezione con X in concentrazione, la figura mantiene la griglia
+  logaritmica e la tabella originale conserva le ascisse lineari.
+  Le ricette e i collegamenti ai disegni salvati restano disponibili in `.alab`.
+- **Spostamento EC50 di Gaddum–Schild.** Nei quattro profili PZT verificati,
+  **Apri grafico modificabile** collega il fit globale alle cinque serie
+  originali, comprese le risposte mancanti. Trama recupera la concentrazione
+  fissa di ciascuna serie e la scelta tra pendenza di Schild stimata e fissata a 1.
+  La vista originale conserva la freccia e la nota multilinea.
+- **Cinetica di associazione nei PZT binari.** I due profili verificati
+  con una o due concentrazioni riaprono il fit delle repliche originali.
+  Con una concentrazione, Trama recupera la concentrazione e il tasso
+  di dissociazione fissati. Con due, recupera le concentrazioni per serie
+  e stima insieme i parametri condivisi. Il grafico mostra le curve
+  con il campionamento e gli assi salvati. Il foglio originale resta raggiungibile.
+- **Dissociazione a una fase nei PZT binari.** La simulazione verificata
+  si riapre in **Traccia una funzione** con valore iniziale, fondo
+  e tasso salvati. Il grafico usa i 200 punti del disegno. La tabella
+  originale da 201 punti, le note e il foglio associato restano consultabili.
+- **Saturazione a un sito nei PZT binari.** I profili verificati di legame
+  specifico e totale si riaprono in **Traccia una funzione**. Il grafico
+  usa i 150 punti del disegno salvato. La tabella originale da 151 punti
+  resta consultabile con il suo campionamento.
+- **Michaelis–Menten con kcat nei PZT binari.** Il profilo verificato riapre
+  il fit dalla serie selezionata e recupera la concentrazione enzimatica
+  fissata. Le altre serie restano disponibili nel foglio dati. La vista
+  modificabile mantiene l'intervallo degli assi e la griglia del disegno.
+- **Cinetica enzimatica sigmoide nei PZT binari.** La simulazione
+  allosterica verificata riapre Vmax, K a metà risposta e pendenza di Hill
+  in **Traccia una funzione**, con i 151 punti della griglia salvata.
+- **Rette semilogaritmiche e log-log nei PZT binari.** I due profili
+  verificati riaprono il modello e i fogli di origine in **Regressione non lineare**.
+  Il grafico conserva gli assi, i 150 punti di curva e la visibilità delle serie.
 - **Grafici a colonne con media geometrica nei PZT ZIP.** Nel profilo verificato con osservazioni individuali e intervallo di confidenza al 95%, Trama ricrea i punti e i limiti asimmetrici dal foglio dati. Conserva l'asse Y lineare o logaritmico e i limiti salvati. Il grafico usa lo stile nativo, si aggiorna quando cambiano i dati e resta modificabile dopo il salvataggio in `.alab`.
 - **Curve teoriche senza fogli sorgente.** Nei PZT XML compatibili, Trama recupera i valori originali generati, la sequenza X, gli assi, i colori e le annotazioni supportate. Le annotazioni mantengono la posizione e il testo si ridimensiona quando lo spazio disponibile si riduce. I valori si aprono in un foglio XY modificabile e il grafico si aggiorna con il foglio. Le equazioni e i coefficienti originali restano consultabili come riferimento. Il ricalcolo usa il foglio, comprese le modifiche e le esclusioni confermate. I caratteri e alcune decorazioni possono avere una resa diversa dall'originale.
 - **Esportazione vettoriale:** **Esporta** salva il disegno originale PDF o EMF quando è conservato nel progetto. Le copie modificabili EMF compatibili esportano i dati correnti. Per salvare un layout importato con le modifiche ai pannelli, usa **Esporta EMF corrente…**.
 - **Dati importati modificabili:** nei sottotipi previsti è possibile modificare i dati delle viste recuperate conservandone la presentazione supportata. Questo non estende automaticamente l'editabilità a tutti i documenti.
+- **Residui salvati in PZT:** quando le coordinate del grafico corrispondono alla tabella dei residui, Trama apre una copia modificabile a dispersione. Le modifiche aggiornano il grafico della copia. Per ricalcolare i residui dai dati di origine serve una ricetta di regressione compatibile. La figura e il foglio risultati originali restano consultabili.
 
 Il supporto dei formati legacy è limitato ai contenuti verificati. Non è previsto un export universale verso questi formati. Mantieni l'originale e confronta dati, impostazioni e figure prima di usare una conversione in un lavoro importante.
 

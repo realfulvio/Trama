@@ -17,6 +17,7 @@ class CurveModel:
     scale_parameters: bool = True
     required_fixed: tuple[str, ...] = ()
     required_shared: tuple[str, ...] = ()
+    anchor_parameters: tuple[str, ...] = ()
 
 
 _POSITIVE = np.finfo(float).tiny
@@ -171,14 +172,14 @@ NESTED_MODELS = {
 # Additional scientific curve equations and explicit parameter conventions.
 # Saved IDs and parameter names in MODELS above are part of the project format.
 def _spec(equation, parameters, initial, *, positive=(), nonnegative=(), limits=None,
-          domain=None, log_grid=False, fixed=(), shared=()):
+          domain=None, log_grid=False, fixed=(), shared=(), anchor=()):
     names = tuple(parameters.split("|"))
     bounds = {name: (_POSITIVE, np.inf) for name in positive}
     bounds.update({name: (0., np.inf) for name in nonnegative})
     bounds.update(limits or {})
     lower, upper = zip(*(bounds.get(name, (-np.inf, np.inf)) for name in names), strict=True)
     return CurveModel(equation, names, initial, (lower, upper), domain, log_grid,
-                      required_fixed=fixed, required_shared=shared)
+                      required_fixed=fixed, required_shared=shared, anchor_parameters=anchor)
 
 
 def _poly_initial(x, y, order):
@@ -511,12 +512,21 @@ def _linear_quadratic(x, alpha, beta):
     return np.exp(-x * (alpha + beta * x))
 
 
+def _fractional_cell_death(x, alpha, beta):
+    return -np.expm1(-x * (alpha + beta * x))
+
+
 def _linear_quadratic_initial(x, y):
     valid = (x > 0) & (y > 0)
     if np.unique(x[valid]).size >= 2:
         intercept, slope = _line_initial(x[valid], -np.log(y[valid]) / x[valid])
         return max(intercept, .01 / x.max()), max(slope, .01 / x.max()**2)
     return .2 / x.max(), .2 / x.max()**2
+
+
+def _cell_survival_count_initial(x, y):
+    initial = max(float(np.max(y)), 1.)
+    return initial, *_linear_quadratic_initial(x, y / initial)
 
 
 _OTHER = {
@@ -531,6 +541,12 @@ _OTHER = {
     "Linear-quadratic cell survival (percent)": _spec(
         lambda x, a, b: 100 * _linear_quadratic(x, a, b), "Alpha|Beta",
         lambda x, y: _linear_quadratic_initial(x, y / 100),
+        nonnegative=("Alpha", "Beta"), domain="nonnegative"),
+    "Linear-quadratic cell survival (counts)": _spec(
+        lambda x, y0, a, b: y0 * _linear_quadratic(x, a, b), "Initial count|Alpha|Beta",
+        _cell_survival_count_initial, nonnegative=("Initial count", "Alpha", "Beta"), domain="nonnegative"),
+    "Linear-quadratic fractional cell death": _spec(
+        _fractional_cell_death, "Alpha|Beta", lambda x, y: _linear_quadratic_initial(x, 1. - y),
         nonnegative=("Alpha", "Beta"), domain="nonnegative"),
 }
 
@@ -633,8 +649,10 @@ def _dose_models(logarithmic):
         return low, high, *initial_midpoints(x), sign, sign, .5
 
     def bell(x, plateau1, dip, plateau2, mid1, mid2, slope1, slope2):
-        return dip + (plateau1 - dip) * expit(slope1 * space(x, mid1)) + (
-            plateau2 - dip) * expit(-slope2 * space(x, mid2))
+        # A zero slope contributes half its amplitude, including at zero concentration.
+        first = expit(slope1 * space(x, mid1)) if slope1 else np.full_like(x, .5, dtype=float)
+        second = expit(-slope2 * space(x, mid2)) if slope2 else np.full_like(x, .5, dtype=float)
+        return dip + (plateau1 - dip) * first + (plateau2 - dip) * second
 
     def bell_initial(x, y):
         left, right = y[np.argmin(x)], y[np.argmax(x)]
@@ -646,6 +664,9 @@ def _dose_models(logarithmic):
     def ec_anything(x, bottom, top, ecf, slope, fraction):
         offset = np.log(fraction) - np.log(100 - fraction)
         return bottom + (top - bottom) * expit(slope * space(x, ecf) + offset)
+
+    def control_shift(x, bottom, top, control, slope, ratio):
+        return _dose_variable(space(x, control) - np.log(ratio), bottom, top, 0., slope)
 
     def schild(x, bottom, top, mid, slope, pa2, schild_slope, antagonist):
         with np.errstate(divide="ignore"):
@@ -683,12 +704,14 @@ def _dose_models(logarithmic):
 
     qualifier = " (log10 X)" if logarithmic else " (concentration X)"
     ec = f"{prefix}EC50"
+    control = f"{ec} control"
     ec1, ec2 = f"{ec} 1", f"{ec} 2"
     ka, tau = f"{prefix}KA", f"{prefix}Tau"
     kb, alpha = f"{prefix}KB", f"{prefix}Alpha"
     absolute = f"{prefix}Absolute IC50"
     ec_positive = () if logarithmic else (ec,)
     pair_positive = () if logarithmic else (ec1, ec2)
+    bell_parameters = f"Plateau 1|Dip|Plateau 2|{ec1}|{ec2}|Hill slope 1|Hill slope 2"
     catalog.update({
         f"Asymmetric dose-response{qualifier}": _spec(asymmetric, f"Bottom|Top|{ec}|Hill slope|Asymmetry",
                                                        asym_initial, positive=(*ec_positive, "Asymmetry"), **options),
@@ -696,12 +719,19 @@ def _dose_models(logarithmic):
                                                     biphasic_initial, positive=pair_positive,
                                                     limits={"Fraction": (0., 1.)}, **options),
         f"Bell-shaped dose-response{qualifier}": _spec(
-            bell, f"Plateau 1|Dip|Plateau 2|{ec1}|{ec2}|Hill slope 1|Hill slope 2",
+            bell, bell_parameters,
             bell_initial, positive=(*pair_positive, "Hill slope 1", "Hill slope 2"), **options),
+        f"Bell-shaped dose-response with signed slopes{qualifier}": _spec(
+            bell, bell_parameters, bell_initial, positive=pair_positive, **options),
         f"ECanything{qualifier}": _spec(ec_anything, f"Bottom|Top|{prefix}ECF|Hill slope|F",
                                         lambda x, y: (*asym_initial(x, y)[:4], 50.),
                                         positive=() if logarithmic else ("ECF",),
                                         limits={"F": (_POSITIVE, np.nextafter(100., 0.))}, fixed=("F",), **options),
+        f"EC50 shift from control{qualifier}": _spec(
+            control_shift, f"Bottom|Top|{control}|Hill slope|EC50 ratio",
+            lambda x, y: (*initial(x, y), 1., 1.),
+            positive=("Hill slope", "EC50 ratio") + (() if logarithmic else (control,)),
+            shared=("Bottom", "Top", control, "Hill slope"), anchor=(control, "EC50 ratio"), **options),
         f"Gaddum/Schild EC50 shift{qualifier}": _spec(schild, f"Bottom|Top|{ec}|Hill slope|pA2|Schild slope|B",
                                                        lambda x, y: (*initial(x, y), 1., 8., 1., 1e-8),
                                                        positive=(*ec_positive, "Hill slope", "Schild slope"),

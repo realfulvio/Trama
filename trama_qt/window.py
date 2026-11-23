@@ -49,6 +49,7 @@ from analisi.workbench import GRAPH_METHODS, GROUPS
 from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
 from analisi.paired_graphs import shows_paired_estimation
 
+from . import global_catalog
 from . import gui_gc, theme
 from .analysis_dialog import AnalysisDialog
 from .classic_bar import ClassicToolbar, build_menus
@@ -2160,8 +2161,9 @@ class MainWindow(QMainWindow):
             return
         initial_field = None
         if self.selected[0] == "graph":
-            initial_field = (FUNCTION_CURVES if run.method == PLOT_FUNCTION
-                             else ANALYSIS_GRAPH_OPTIONS.get(run.method, (None,))[0])
+            initial_field = {PLOT_FUNCTION: FUNCTION_CURVES,
+                             global_catalog.METHOD: global_catalog.PARAMETERS}.get(
+                                 run.method, ANALYSIS_GRAPH_OPTIONS.get(run.method, (None,))[0])
         self._ask(run.title, frame, current=(run.method, run.options), index=index, initial_field=initial_field)
 
     # -- analysis chains ----------------------------------------------------------------------------------

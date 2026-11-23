@@ -98,6 +98,29 @@ class GlobalFitTests(unittest.TestCase):
         self.assertIsNone(joint.comparison)
         self.assertTrue(joint.comparison_note)
 
+    def test_control_anchored_ec50_shift_recovers_ratio_on_both_scales(self):
+        x = np.geomspace(.04, 90., 24)
+        frame = pd.concat([
+            pd.DataFrame({"x": x, "y": 2 + 60 / (1 + (shifted / x) ** 1.4) + .002 * np.sin(x),
+                          "group": group})
+            for group, shifted in (("Control", 1.3), ("Treatment", 5.2))
+        ])
+        for suffix, midpoint, input_frame in (
+            ("concentration X", "EC50 control", frame),
+            ("log10 X", "Log EC50 control", frame.assign(x=np.log10(frame["x"]))),
+        ):
+            with self.subTest(scale=suffix):
+                model = f"EC50 shift from control ({suffix})"
+                shared = ("Bottom", "Top", midpoint, "Hill slope")
+                with self.assertRaisesRegex(ValueError, "requires a fixed.*EC50 ratio"):
+                    fit(input_frame, model, shared=shared)
+                joint = fit(input_frame, model, shared=shared,
+                            series_constraints={"Control": {"EC50 ratio": {"fixed": 1.}}})
+                self.assertEqual(joint.diagnostics["df"], len(frame) - 5)
+                self.assertEqual(joint.groups["Control"].parameters.at["EC50 ratio", "Estimate"], 1.)
+                self.assertAlmostEqual(joint.groups["Treatment"].parameters.at["EC50 ratio", "Estimate"],
+                                       4., delta=.002)
+
     def test_missing_rows_preserve_duplicate_input_labels_and_weight_alignment(self):
         frame = saturation_frame()
         frame.loc[4, ["y", "sd"]] = np.nan

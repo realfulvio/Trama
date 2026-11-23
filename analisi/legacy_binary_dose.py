@@ -3,6 +3,7 @@ from hashlib import sha256
 from struct import Struct, error as StructError, pack, unpack, unpack_from
 
 import numpy as np
+from scipy.special import ndtri
 import pandas as pd
 
 from pandas.api.types import is_numeric_dtype
@@ -15,6 +16,7 @@ from .legacy_fit_graph import FIT_GRAPH, FIT_GRAPH_OBSERVATIONS, FIT_GRAPH_POINT
 from .legacy_restore import LEGACY_GRAPH_LINK, LEGACY_NOTES, LEGACY_TITLE, SAVED_XY, _append_linked_recipe
 from .legacy_xml_binding import indexed_analyses
 from .presentation import validated_style
+from .probability_scale import PROBABILITY_SCALES
 from .reference_normalization import INDEPENDENT, KEEP, MAXIMUM, METHOD, MINIMUM, NORMALIZED, PERCENTAGES, RAW
 
 
@@ -46,7 +48,12 @@ _BIPHASIC_PROFILES = {
     "dc3fc420ab207688d846606d6fcd2bb88f699bd509932f43a537acc3f89e16aa": "Biphasic dose-response (concentration X)",
     "af7eed14d291c937bddb125ddcc1cd9fc65964b4e4aab734463f5dacee7510e6": "Biphasic dose-response (log10 X)",
 }
+_CALIBRATION_POLYNOMIALS = {
+    "7db973bdf5567b217bc1c9b5bd49297cf4cc86803e1aaf888e0c9aa9dd9185c4": "Polynomial (order 2)",
+    "a1fbe90d9874e4694a062fb09305c78f6f5143d4838fcca50f3aca9a0159a512": "Polynomial (order 3)",
+}
 _CALIBRATION_PROFILES = {
+    **_CALIBRATION_POLYNOMIALS,
     "b08e5e2f3ed686173631fc329a4a41d51315f3c6a5427bbf49f7f16bb0451142": "Stimulation (variable slope, log10 X)",
     "fc0d53b1d95f29c2642811d8ae9b4f352087d40f89ba252d2d81f9ee39aff5d1": "Asymmetric dose-response (log10 X)",
 }
@@ -124,8 +131,9 @@ def classic_fit_models(data):
     return models
 
 
-def early_biphasic_inputs(data, companions, indexed):
+def early_fit_inputs(data, companions, indexed, *, profiles=None):
     """Resolve matching analysis companions carrying the worksheet and column selection."""
+    profiles = _BIPHASIC_PROFILES | (profiles or {})
     try:
         _, analyses = indexed_analyses(data)
     except (ValueError, StructError):
@@ -143,7 +151,7 @@ def early_biphasic_inputs(data, companions, indexed):
             count, sheet = unpack("<2i", _record_once(companion, 0x3B))
             if count != 1 or sheet not in indexed:
                 continue
-            model = _model(records, _one(records, 0x46), _BIPHASIC_PROFILES)
+            model = _model(records, _one(records, 0x46), profiles)
             if model:
                 found[uid] = sheet, model, _record_once(companion, 0x3D)
         except (ValueError, StructError):
@@ -176,6 +184,8 @@ def restore_dose_recipes(data, sources, sheets, snapshots, pending, *, curves=No
             continue
         if early:
             sheet, early_model, selection = early
+            if early_model not in _BIPHASIC_PROFILES.values():
+                continue
         if uid not in pending or sheets.get(sheet) is None:
             continue
         parent = normalized.get(sheet)
@@ -283,7 +293,7 @@ def _dataset_link(sheet, column, expected_role):
     return None
 
 
-def _graph_curve(graph, curves):
+def _graph_curve(graph, curves, *, verify_series=False):
     sheet_ids = set(_id_array(_one(graph, 0x14)))
     order = _id_array(_one(graph, 0x15))
     payload = _one(graph, 0x16)
@@ -293,7 +303,9 @@ def _graph_curve(graph, curves):
     curve_link, = (link for link in links if curves.get(link) is not None)
     curve, sheet, observations, source, slot = curves[curve_link]
     extra = [link for link in links if link != curve_link]
-    _require(curve in sheet_ids and (not extra or extra == [observations] and sheet in sheet_ids)
+    detached = (verify_series and source.attrs["legacy_recipes"][slot][1]["Model"]
+                in _CALIBRATION_POLYNOMIALS.values())
+    _require(curve in sheet_ids and (not extra or extra == [observations] and (sheet in sheet_ids or detached))
              and sheet_ids <= {curve, sheet})
     return curve, source, slot, curve_link[0], observations[0] if extra else None
 
@@ -317,6 +329,11 @@ def _matching_grid(cache, values, axes, *, high_anchored=False):
             if np.any(values[:, index] <= 0):
                 return False
             values[:, index] = np.log10(values[:, index])
+        elif axis["scale"] in PROBABILITY_SCALES:
+            probabilities = values[:, index] / PROBABILITY_SCALES[axis["scale"]]
+            if np.any((probabilities <= 0.) | (probabilities >= 1.)):
+                return False
+            values[:, index] = ndtri(probabilities)
     units = [axis["unit"] for axis in axes]
     if high_anchored:
         # A lower tick may be inset from the drawing origin.
@@ -356,7 +373,8 @@ def _classic_graph(graph, encoding, candidates, result_frames):
 
 
 def _calibration_labels(graph, encoding, axes, curve_id, observed_id, samples, source, options):
-    texts, _, _, scene = _scene(graph, encoding, observations=observed_id)
+    observation_ids = () if observed_id is None else (observed_id,)
+    texts, _, _, scene = _scene(graph, encoding, observation_ids=observation_ids)
     cache = {dataset: values for dataset, values in scene.values()}
     expected = {curve_id: samples.to_numpy(dtype=float)}
     if observed_id is not None:
@@ -384,7 +402,8 @@ def restore_dose_graphs(data, graphs, links, curves, result_frames, *, classic_c
                 source, slot, samples, axes, labels = _classic_graph(records[uid], encoding, classic_curves, result_frames)
                 show_points = False
             else:
-                curve, source, slot, curve_id, observed_id = _graph_curve(records[uid], curves)
+                curve, source, slot, curve_id, observed_id = _graph_curve(records[uid], curves,
+                                                                        verify_series=verify_series)
                 samples = result_frames[curve]
                 axes = _axis_config(records[uid], viewport_only=True)
                 show_points = observed_id is not None
@@ -393,6 +412,12 @@ def restore_dose_graphs(data, graphs, links, curves, result_frames, *, classic_c
                     options = source.attrs["legacy_recipes"][slot][1]
                     labels = _calibration_labels(records[uid], encoding, axes, curve_id, observed_id, samples, source,
                                                  options)
+                    model = options["Model"]
+                    if model in _CALIBRATION_POLYNOMIALS.values():
+                        fit = stats.nonlinear(source, options["X"], options["Y"], model)["All"]
+                        x_values, expected = samples.to_numpy(dtype=float).T
+                        predicted = stats.MODELS[model].equation(x_values, *fit.parameters["Estimate"])
+                        _require(np.allclose(predicted, expected, rtol=1e-6, atol=1e-6))
             options = source.attrs["legacy_recipes"][slot][1]
             grid = _sample_settings(samples, options)
             style = {"axis": {}, "legend": "hidden", **labels}

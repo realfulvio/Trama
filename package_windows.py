@@ -28,7 +28,8 @@ def main():
                  "qt-excel-workbook.md", "worksheet-number-format.md", "repeat-analysis.md",
                  "cluster-silhouette-092.md", "paired-proportions.md", "power-from-summary.md",
                  "tolerance-intervals-093.md", "weibull-aft.md", "ordinal-logit.md", "restricted-mean-survival.md", "cohen-kappa.md", "mean-permutation-test.md", "xy-mixed-series.md",
-                 "release-100.md", "release-099.md", "release-098.md", "release-097.md", "release-094.md",
+                 "survival-simultaneous-bands.md", "linked-axes.md",
+                 "release-101.md", "release-100.md", "release-099.md", "release-098.md", "release-097.md", "release-094.md",
                  "release-093.md", "validation-093.md",
                  "release-092.md", "validation-092.md", "release-091.md", "validation-091.md",
                  "pca-regression-087.md", "release-090.md", "validation-090.md",
@@ -51,7 +52,7 @@ def main():
                  "nonlinear-parameter-intervals.md", "custom-parameter-profiles.md", "global-custom-parameter-profiles.md", "global-custom-070.md", "lognormal-tests-070.md", "equivalence-tost-071.md", "pca-selection-070.md",
                  "weighted-multiple-regression-070.md", "anova-diagnostics-070.md", "variance-assumptions-070.md",
                  "heatmap-colors-072.md", "robust-curve-073.md", "reference-normalization.md",
-                 "nonlinear-inverse-intervals-073.md", "heatmap-layout.md", "correlation-details.md", "spearman-exact-extended.md", "lognormality.md", "summary-anova.md", "qq-panels.md", "lognormal-anova.md", "summary-ttest.md"):
+                 "nonlinear-inverse-intervals-073.md", "pade-calibration.md", "heatmap-layout.md", "correlation-details.md", "spearman-exact-extended.md", "lognormality.md", "summary-anova.md", "qq-panels.md", "lognormal-anova.md", "summary-ttest.md"):
         (bundle / "docs").mkdir(exist_ok=True)
         if (root / "docs" / name).is_file():
             shutil.copy2(root / "docs" / name, bundle / "docs" / name)

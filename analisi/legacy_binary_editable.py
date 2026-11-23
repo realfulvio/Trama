@@ -11,6 +11,7 @@ from matplotlib.ticker import NullLocator
 
 from .legacy_binary import _DATASET, _records
 from .legacy_binary_graphs import _emf_dimensions, _graph_index, _read_title
+from .probability_scale import FRACTION_SCALE, PERCENT_SCALE
 
 
 def _require(condition):
@@ -217,7 +218,7 @@ def _axis_coordinates(paths, configs):
     return result
 
 
-def _axis_config(graph, *, viewport_only=False):
+def _axis_config(graph, *, viewport_only=False, probability_y=None):
     axes = [p for tag, path, p in graph if tag == 0x17 and not path]
     _require(len(axes) == 3 and all(len(p) == 60 for p in axes))
     scales = {}
@@ -227,14 +228,20 @@ def _axis_config(graph, *, viewport_only=False):
         _require(uid not in scales)
         scales[uid] = header, records
     configs = []
-    for p in axes[:2]:
+    for dimension, p in enumerate(axes[:2]):
+        probability = probability_y if dimension == 1 else None
         low, high = unpack_from("<2d", p, 16)
         length, _, kind, title = unpack_from("<4H", p, 42)
         tick_id, = unpack_from("<H", p, 54)
         header, records = scales[tick_id]
         tick_low, tick_high, unit = unpack_from("<3d", header, 2)
-        _require(kind in (0, 1) and unpack_from("<H", header, 28)[0] == kind
-                 and 100 <= length <= 20000 and all(isfinite(value) for value in (low, high, unit))
+        tick_kind, = unpack_from("<H", header, 28)
+        if probability:
+            _require(viewport_only and kind == {PERCENT_SCALE: 3, FRACTION_SCALE: 4}[probability]
+                     and tick_kind == 0 and -6 <= low < high <= 6)
+        else:
+            _require(kind in (0, 1) and tick_kind == kind)
+        _require(100 <= length <= 20000 and all(isfinite(value) for value in (low, high, unit))
                  and -1e100 < low < high < 1e100 and unit > 0
                  and (kind == 0 or -300 <= low < high <= 300))
         if viewport_only:
@@ -244,7 +251,7 @@ def _axis_config(graph, *, viewport_only=False):
             _require(isclose(low, tick_low, abs_tol=unit) and isclose(high, tick_high, abs_tol=unit)
                      and isclose((high - low) / length, unit, rel_tol=1e-5))
         configs.append({"bounds": [low, high], "title": title, "length": length, "unit": unit,
-                        "scale": "log" if kind else "linear",
+                        "scale": probability or ("log" if kind else "linear"),
                         "custom_ticks": [p for tag, path, p in records if tag == 0x26 and not path]})
     return configs
 
@@ -263,7 +270,8 @@ def _text_object(records, encoding, flags, *, multiline=False):
     return text_id, "" if flags & 0x200 else text
 
 
-def _scene(graph, encoding, *, observations=None):
+def _scene(graph, encoding, *, observation_ids=(), empty_series=(), empty_drawing=0xA8,
+           curve_drawing=0x88, annotated=False):
     scenes = list(_subgroups(graph, 0x8018))
     _require(len(scenes) == 1)
     header, scene = scenes[0]
@@ -271,14 +279,19 @@ def _scene(graph, encoding, *, observations=None):
     _require(len(header) == 12 and len(chart) == 48)
     chart_title, = unpack_from("<H", chart, 32)
     texts, series = {}, {}
+    pending_empty = set(empty_series)
     custom = []
     for object_header, records in _subgroups(scene, 0x8020):
         _require(len(object_header) == 30)
         kind, = unpack_from("<H", object_header)
         flags, = unpack_from("<H", object_header, 28)
+        if annotated and kind == 3:
+            # Keep arrow objects in the paired original drawing. They do not
+            # take a series slot in the fit or in the coordinate cache.
+            continue
         _require(kind in (2, 8, 9, 10, 15))
         if kind in (2, 15):
-            text_id, text = _text_object(records, encoding, flags)
+            text_id, text = _text_object(records, encoding, flags, multiline=annotated)
             _require(text_id not in texts)
             texts[text_id] = text
             if kind == 15 and texts[text_id]:
@@ -287,15 +300,22 @@ def _scene(graph, encoding, *, observations=None):
             series_header = _one(records, 0x8028)
             _require(len(series_header) == 144)
             key, family, dataset, visible = unpack_from("<4H", series_header)
-            drawing = 0x08 if dataset == observations else 0x88
-            _require(key not in series and family == 0 and visible == 1 and dataset < 0x8000
-                     and unpack_from("<H", series_header, 58)[0] == drawing)
+            drawing, = unpack_from("<H", series_header, 58)
             caches = [p for tag, path, p in records if tag == 0x29 and path == (40,)]
+            if key in pending_empty:
+                _require((family, dataset, visible, drawing) == (0, 0xFFFD, 1, empty_drawing)
+                         and len(caches) == 1 and caches[0] == bytes(4))
+                pending_empty.remove(key)
+                continue
+            expected_drawing = 0x08 if dataset in observation_ids else curve_drawing
+            _require(key not in series and family == 0 and visible == 1 and dataset < 0x8000
+                     and drawing == expected_drawing)
             _require(len(caches) == 1 and len(caches[0]) >= 12)
             cache = caches[0]
             count, = unpack_from("<I", cache)
             _require(count >= 4 and count % 2 == 0 and len(cache) == 4 + 4 * count)
             series[key] = dataset, np.frombuffer(cache[4:], dtype="<i4").reshape(-1, 2)
+    _require(not pending_empty)
     return texts, custom, texts.get(chart_title, ""), series
 
 
@@ -435,6 +455,58 @@ def _editable(graph, encoding, owners, remaining_cells):
     }
 
 
+def _saved_residual_points(graph, encoding, result_frames, tables, remaining_cells):
+    """Bind finite residual coordinates to the corresponding saved result columns."""
+    from .legacy_binary_global import _matching_observations
+    from .legacy_binary_range import range_axes
+    from .legacy_emf_edit import _drawing_series, _geometry
+
+    sheet, = _id_array(_one(graph, 0x14))
+    result = result_frames[sheet]
+    metadata = result.attrs["legacy_binary_result"]
+    _require(metadata["source_ids"] and result.columns.is_unique and 2 <= len(result.columns) <= 33)
+    series = _drawing_series(graph, 0, (0xA,))
+    geometry = _geometry(graph)
+    configs = _axis_config(graph)
+    axes = range_axes(graph, encoding, geometry)
+    _require(all(axis["scale"] == "linear" for axis in axes) and axes[1]["label"] == "Residual")
+    links = [unpack_from("<3I", payload) for tag, path, payload in tables[sheet]
+             if tag == 0x0D and not path and len(payload) == 24]
+    _require(len(links) == len(series) == len(result.columns) - 1
+             and sorted(position for position, _, _ in links) == list(range(len(series)))
+             and all(repeats == 1 for _, _, repeats in links)
+             and len({uid for _, uid, _ in links}) == len(series)
+             and {uid for _, uid, _ in links} == {uid for uid, _, _ in series})
+
+    columns = {uid: position + 1 for position, uid, _ in links}
+    marker_shapes = {1: "s", 2: "^", 3: "v", 4: "D", 5: "o"}
+    frames, styles = [], []
+    for uid, cache, attributes in series:
+        position = columns[uid]
+        xy = result.iloc[:, [0, position]].to_numpy(dtype=float, na_value=np.nan)
+        _require(cache.size % 2 == 0 and _matching_observations(cache.reshape(-1, 2), xy, configs))
+        xy = xy[np.isfinite(xy).all(axis=1)]
+        remaining_cells -= 4 * len(xy)
+        _require(remaining_cells >= 0)
+        shape, marker_size = unpack_from("<2H", attributes, 60)
+        _require(shape in marker_shapes and 1 <= marker_size <= 30)
+        styles.append({"id": uid, "marker": marker_shapes[shape], "marker_size": marker_size,
+                       "color": "#" + bytes(attributes[68:71]).hex()})
+        frames.append(pd.DataFrame({"X": xy[:, 0], "Y": xy[:, 1], "Series": str(result.columns[position]),
+                                    "Dataset": uid}))
+
+    for axis, other in zip(axes, reversed(axes), strict=True):
+        axis.update(cross=other["bounds"][0], color="#111111", width=0.8, ticks=axis["ticks"] or None)
+    references = []
+    if axes[1]["bounds"][0] < 0 < axes[1]["bounds"][1]:
+        references.append({"y": 0.0, "color": "#111111", "width": 0.8})
+    return pd.concat(frames, ignore_index=True), {
+        "kind": "residual_points", "title": _read_title(_one(graph, 9), encoding), "axes": axes,
+        "series": styles, "aspect": configs[1]["length"] / configs[0]["length"],
+        "references": references,
+    }
+
+
 def read_editable_graphs(data, sources, result_frames, remaining_cells, *, cached_curves=(), skip=()):
     """Return editable data and drawing metadata for verified graphs."""
     from .legacy_binary_bars import read_bar_graph
@@ -464,6 +536,7 @@ def read_editable_graphs(data, sources, result_frames, remaining_cells, *, cache
                 (read_emf_curve, (graph, owners, remaining_cells)),
                 (read_emf_error_points, (graph, sources, tables, remaining_cells)),
                 (read_emf_limit_points, (graph, sources, tables, remaining_cells, encoding)),
+                (_saved_residual_points, (graph, encoding, result_frames, tables, remaining_cells)),
                 (read_pdf_stack, (graph, sources, tables, remaining_cells)),
             )
             if uid in cached_curves:
@@ -480,7 +553,7 @@ def read_editable_graphs(data, sources, result_frames, remaining_cells, *, cache
 
 
 def render_editable_graph(frame, style):
-    """Render the saved line styles against the current editable coordinates."""
+    """Render the saved series styles against the current editable coordinates."""
     _require(isinstance(style, dict) and {"X", "Y", "Dataset", "Series"} <= set(frame.columns))
     figure = Figure(figsize=(7.2, 4.8), layout="constrained")
     axes = figure.add_subplot()
@@ -495,23 +568,31 @@ def render_editable_graph(frame, style):
         axes.spines[spine].set_position(("data", config["cross"]))
         axes.spines[spine].set_color(config["color"])
         axes.spines[spine].set_linewidth(config["width"])
-        ticks = axis.set_ticks([tick[0] for tick in config["ticks"]],
-                               [tick[1] for tick in config["ticks"]], parse_math=False)
         axis.set_minor_locator(NullLocator())
         axis.set_tick_params(color=config["color"], width=config["width"])
-        for artist, tick in zip(axis.get_major_ticks(len(ticks)), config["ticks"], strict=True):
-            artist.label1.update(fonts.get(tick[1], {}))
-            if len(tick) == 3:
-                artist.tick1line.set_markersize(tick[2])
-                artist.tick2line.set_markersize(tick[2])
+        if config["ticks"] is not None:
+            ticks = axis.set_ticks([tick[0] for tick in config["ticks"]],
+                                   [tick[1] for tick in config["ticks"]], parse_math=False)
+            for artist, tick in zip(axis.get_major_ticks(len(ticks)), config["ticks"], strict=True):
+                artist.label1.update(fonts.get(tick[1], {}))
+                if len(tick) == 3:
+                    artist.tick1line.set_markersize(tick[2])
+                    artist.tick2line.set_markersize(tick[2])
     for reference in style["references"]:
         axes.axhline(reference["y"], color=reference["color"], lw=reference["width"], ls=(0, (1, 2)))
+    residuals = style.get("kind") == "residual_points"
     for series in style["series"]:
         part = frame.loc[frame["Dataset"].eq(series["id"])]
         labels = part["Series"].dropna().astype(str).unique()
         if part.empty or len(labels) != 1:
             raise ValueError("Each editable legacy dataset needs one series label.")
-        axes.plot(part["X"], part["Y"], label=labels[0], color=series["color"], lw=series["width"])
+        if residuals:
+            axes.plot(part["X"], part["Y"], label=labels[0], color=series["color"], linestyle="none",
+                      marker=series["marker"], markersize=series["marker_size"])
+        else:
+            axes.plot(part["X"], part["Y"], label=labels[0], color=series["color"], lw=series["width"])
+    if residuals:
+        axes.legend()
     axes.set_xlim(style["axes"][0]["bounds"])
     axes.set_ylim(style["axes"][1]["bounds"])
     return figure

@@ -14,7 +14,7 @@ def _file_argument(argv):
 
 
 def _option(argv, name):
-    """The value after ``name`` (``--smoke FOLDER``, ``--scenario NAME``), or ``None``."""
+    """Return the value after a named option, or ``None``."""
     if name in argv and argv.index(name) + 1 < len(argv):
         return argv[argv.index(name) + 1]
     return None
@@ -23,7 +23,9 @@ def _option(argv, name):
 def main(argv=None):
     argv = list(sys.argv if argv is None else argv)
     scenario = _option(argv, "--scenario")
-    if "--smoke" in argv and scenario is not None:  # A dedicated smoke never reads the user's preferences.
+    only = _option(argv, "--only")
+    if "--smoke" in argv and (scenario is not None or only is not None):
+        # A dedicated smoke never reads the user's preferences.
         folder = _option(argv, "--smoke")
         if folder:
             preferences = os.path.join(os.path.abspath(folder), "preferences")
@@ -68,18 +70,29 @@ def main(argv=None):
             splash.close()
         position = argv.index("--smoke") + 1
         if position >= len(argv):
-            print("Usage: python -m trama_qt --smoke FOLDER [--scenario NAME]")
+            print("Usage: python -m trama_qt --smoke FOLDER [--scenario NAME | --only NAME]")
             return 2
-        if "--only" in argv and argv[argv.index("--only") + 1:argv.index("--only") + 2] == ["qt-analysis-templates"]:
+        folder = argv[position]
+        if only == "qt-analysis-templates":
             from .templates_smoke import run_dedicated as run  # Templates only: EN/IT, light and dark.
-            status = run(argv[position])
+            status = run(folder)
+        elif only == "qt-pade-calibration":
+            from .pade_calibration_smoke import PadeSmoke
+            status = "PASS" if PadeSmoke(folder).run() == 0 else "FAIL"
+        elif only == "qt-linked-axes":
+            from .linked_axes_smoke import run
+            status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
+        elif only == "qt-survival-bands":
+            from .survival_bands_smoke import run
+            status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
         else:
             from .smoke import SCENARIOS, run
             if scenario is not None and scenario not in SCENARIOS:
                 print(f"Unknown scenario {scenario}. Choose: {', '.join(SCENARIOS)}")
                 return 2
-            status = run(argv[position], scenario=scenario)
-        print(f"Qt smoke: {status} ({argv[position]}{f', {scenario}' if scenario else ''})")
+            status = run(folder, scenario=scenario)
+        smoke_name = only or scenario
+        print(f"Qt smoke: {status} ({folder}{f', {smoke_name}' if smoke_name else ''})")
         return 0 if status == "PASS" else 1
 
     from .recovery import RecoveryController

@@ -80,10 +80,11 @@ _TEXT = {
     "max": ("Use at most {count} coefficients.", "Usa al massimo {count} coefficienti."),
     "series_title": ("Overrides for one series. A blank field inherits the common setting shown in grey.",
                      "Vincoli per una serie. Un campo vuoto eredita l'impostazione comune mostrata in grigio."),
-    "series_list": ("Series with complete X, Y and Group", "Serie con X, Y e Gruppo completi"),
+    "series_list": ("Selected series", "Serie selezionate"),
     "coefficient": ("Coefficient", "Coefficiente"),
     "initial": ("Start", "Iniziale"),
     "fixed": ("Fixed value", "Valore fisso"),
+    "model_default": ("From model", "Da modello"),
     "estimated": ("estimated", "stimato"),
     "local_tag": ("Local", "Locale"),
     "shared_tag": ("Shared · all series", "Condiviso · tutte le serie"),
@@ -107,8 +108,8 @@ _TEXT = {
                      "Vincoli per serie assenti dalle righe complete: {names}."),
     "leftover": ("Constraints for coefficients no longer in the list: {names}.",
                  "Vincoli per coefficienti non più nell'elenco: {names}."),
-    "none": ("Choose X, Y and Group on the Variables tab: the series come from their complete rows.",
-             "Scegli X, Y e Gruppo nella scheda Variabili: le serie vengono dalle loro righe complete."),
+    "none": ("Select the source columns on the Variables tab to list the available series.",
+             "Seleziona le colonne nella scheda Variabili per vedere le serie disponibili."),
     "pruned": ("Removed {count} non-applicable constraint(s).", "Rimossi {count} vincoli non applicabili."),
 }
 
@@ -246,7 +247,7 @@ def _key_in(message, fallback=None):
 
 
 # -- coefficients -------------------------------------------------------------------------------------------
-class _ScopeDelegate(QStyledItemDelegate):
+class ScopeDelegate(QStyledItemDelegate):
     """Local, Shared or Fixed in a combo box; the item keeps the canonical value in UserRole."""
 
     def createEditor(self, parent, _option, _index):
@@ -290,7 +291,7 @@ class GlobalCoefficientEditor(QWidget):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.AllEditTriggers
                                    & ~QAbstractItemView.EditTrigger.CurrentChanged)
-        self.table.setItemDelegateForColumn(self.SCOPE, _ScopeDelegate(self.table))
+        self.table.setItemDelegateForColumn(self.SCOPE, ScopeDelegate(self.table))
         self.table.setMinimumHeight(170)
         layout.addWidget(self.table, 1)
         buttons = QHBoxLayout()
@@ -513,7 +514,7 @@ class GlobalSeriesEditor(QWidget):
     def __init__(self, saved, *, coefficients, series, parent=None):
         super().__init__(parent)
         self.coefficients, self.series_labels = coefficients, series
-        self.edits, self.originals, self.load_error = {}, {}, None
+        self.edits, self.load_error = {}, None
         self.available, self.series, self.fields, self.problem = [], None, {}, None
         self._read(saved)
         layout = QVBoxLayout(self)
@@ -574,16 +575,14 @@ class GlobalSeriesEditor(QWidget):
             self.load_error = str(error)
             return
         for label, parameters in decoded.items():
-            key = str(label)
-            self.originals[key] = label
-            self.edits[key] = {str(name): {k: shown_number(v) for k, v in fields.items()}
+            self.edits[label] = {str(name): {k: shown_number(v) for k, v in fields.items()}
                                for name, fields in parameters.items() if isinstance(fields, dict)}
 
     # series
     def refresh_series(self):
         """Series of the complete rows (recomputed when X, Y, Group or the SD column change)."""
         try:
-            self.available = [str(label) for label in self.series_labels()]
+            self.available = list(self.series_labels())
         except (ValueError, TypeError, OverflowError):
             self.available = []
         labels = [*self.available, *[label for label in self.edits if label not in self.available]]
@@ -591,7 +590,7 @@ class GlobalSeriesEditor(QWidget):
         self.list.blockSignals(True)
         self.list.clear()
         for label in labels:
-            shown = label if label in self.available else f"{label}  · {text('outside')}"
+            shown = str(label) if label in self.available else f"{label}  · {text('outside')}"
             item = QListWidgetItem(shown)
             item.setData(Qt.ItemDataRole.UserRole, label)
             item.setToolTip(repr(label))
@@ -616,7 +615,6 @@ class GlobalSeriesEditor(QWidget):
         self.refresh_coefficients()
 
     def select_series(self, label):
-        label = str(label)
         for index in range(self.list.count()):
             if self.list.item(index).data(Qt.ItemDataRole.UserRole) == label:
                 self.list.setCurrentRow(index)
@@ -692,9 +690,10 @@ class GlobalSeriesEditor(QWidget):
         scope = row.get("scope")
         if scope is None:
             return dict.fromkeys(OVERRIDE_KEYS, "")
-        start = row.get("start", "").strip() or "1"
-        lower = row.get("lower", "").strip() or "−∞"
-        upper = row.get("upper", "").strip() or "+∞"
+        default = text("model_default") if row.get("model_defaults") else None
+        start = row.get("start", "").strip() or default or "1"
+        lower = row.get("lower", "").strip() or default or "−∞"
+        upper = row.get("upper", "").strip() or default or "+∞"
         if scope == "Fixed":
             return {"initial": "", "lower": lower, "upper": upper, "fixed": start}
         if scope == "Shared":
@@ -825,7 +824,7 @@ class GlobalSeriesEditor(QWidget):
                 if numbers:
                     parameters[name] = numbers
             if parameters:
-                records.append({"series": self.originals.get(label, label), "parameters": parameters})
+                records.append({"series": label, "parameters": parameters})
         self.problem = None
         return records
 

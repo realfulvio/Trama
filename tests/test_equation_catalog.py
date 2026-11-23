@@ -91,6 +91,26 @@ class EquationCatalogTests(unittest.TestCase):
                 result = stats.nonlinear(pd.DataFrame({"x": xx, "y": yy}), "x", "y", name)["All"]
                 np.testing.assert_allclose(result.parameters["Estimate"], expected, atol=3e-5, rtol=3e-5)
 
+    def test_bell_shaped_dose_response_retains_signed_hill_slopes(self):
+        log_x = np.linspace(-11., -2., 80)
+        y = 110 - 80 / (1 + 10**(.8 * (log_x + 8.5))) - 20 / (1 + 10**(-1.3 * (log_x + 4)))
+        y += 0.0001 * np.sin(np.arange(len(y)))
+        for suffix, x, mids in (("concentration X", 10**log_x, (10**-8.5, 10**-4)),
+                                ("log10 X", log_x, (-8.5, -4.))):
+            with self.subTest(suffix=suffix):
+                model = f"Bell-shaped dose-response with signed slopes ({suffix})"
+                target = [30., 110., 90., *mids, -.8, -1.3]
+                start = dict(zip(MODELS[model].parameters, target, strict=True))
+                fit = stats.nonlinear(pd.DataFrame({"X": x, "Y": y}), "X", "Y", model, start=start)["All"]
+                np.testing.assert_allclose(fit.parameters["Estimate"], target, atol=8e-4, rtol=2e-5)
+                self.assertEqual(fit.diagnostics["df"], len(x) - len(target))
+
+    def test_bell_shaped_dose_response_zero_slopes_are_defined_at_zero_dose(self):
+        spec = MODELS["Bell-shaped dose-response with signed slopes (concentration X)"]
+        with np.errstate(invalid="raise"):
+            values = spec.equation(np.array([0., 1., 10.]), 30., 110., 90., 1., 10., 0., 0.)
+        np.testing.assert_allclose(values, [60., 60., 60.])
+
     def test_joint_competitive_enzyme_fit_recovers_ki_from_fixed_series_concentrations(self):
         x = np.r_[0., np.geomspace(.04, 60., 35)]
         inhibitor = {"control": 0., "dose 1": 2., "dose 2": 9.}

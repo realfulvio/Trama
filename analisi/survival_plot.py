@@ -10,9 +10,11 @@ import numpy as np
 import pandas as pd
 
 from .analysis_chain import RESULT_CONTEXT
+from .linked_axes import style_without_linked_y
 from .processing import FieldError
 from .reporting import Result, _plot
 from .stats import _critical_value, ci_columns
+from .survival_bands import LOWER, SIMULTANEOUS, UPPER, band_frame
 
 CURVE = "Curve"
 UNITS = "Display units"
@@ -28,10 +30,11 @@ FRACTION, PERCENT = "Fraction", "Percent"
 CENSORED, ALL, FINAL = "Censored observations", "All observations", "Final censor only"
 NO_UNCERTAINTY, ERROR_BARS, BAND = "None", "Standard error bars", "Pointwise confidence band"
 CI_BARS = "Pointwise confidence bars"
+SIMULTANEOUS_LABEL = "simultaneous band"
 LOG_LOG, GREENWOOD = "Log-log", "Symmetric Greenwood"
 GRAPH_OPTIONS = {
     CURVE: (SURVIVAL, CUMULATIVE), UNITS: (FRACTION, PERCENT),
-    MARKERS: (CENSORED, ALL, FINAL), UNCERTAINTY: (NO_UNCERTAINTY, ERROR_BARS, BAND, CI_BARS),
+    MARKERS: (CENSORED, ALL, FINAL), UNCERTAINTY: (NO_UNCERTAINTY, ERROR_BARS, BAND, CI_BARS, SIMULTANEOUS),
     INTERVAL: (LOG_LOG, GREENWOOD), RISK_TABLE: False,
 }
 
@@ -52,7 +55,39 @@ def ordinate_label(settings):
     return name + (" (%)" if settings[UNITS] == PERCENT else "")
 
 
-def display_curve(axes, label, curve, settings, level):
+BAND_GID = "kaplan-meier-simultaneous-band"
+
+
+def band_legend_label(level, grouped):
+    """The one legend entry of the bands: the level and, with several curves, the plural (each has its own).
+
+    It stays about as short as a curve label: a longer one makes the constrained layout squeeze the panels of a
+    compact multi-response figure. The method is named in the dialog, the sheet and the guide.
+    """
+    return f"{repr(float(level)).removesuffix('.0')}% {SIMULTANEOUS_LABEL}{'s' if grouped else ''}"
+
+
+def draw_simultaneous_band(axes, times, limits, factor, cumulative, color, gid):
+    """Step band over each run of times that have limits; it stops where they are empty.
+
+    ``limits`` holds the survival-scale (lower, upper); the cumulative view shows [1 − upper, 1 − lower].
+    A run holds its last limits up to the next time, so the final available step is not left with no width.
+    """
+    lower, upper = limits
+    if cumulative:
+        lower, upper = 1 - upper, 1 - lower
+    present = np.isfinite(lower) & np.isfinite(upper)
+    padded = np.r_[False, present, False]
+    starts, stops = np.flatnonzero(~padded[:-2] & padded[1:-1]), np.flatnonzero(padded[1:-1] & ~padded[2:])
+    for number, (start, stop) in enumerate(zip(starts, stops)):
+        x, low, high = times[start:stop + 1], lower[start:stop + 1], upper[start:stop + 1]
+        if stop + 1 < len(times):
+            x, low, high = np.r_[x, times[stop + 1]], np.r_[low, low[-1]], np.r_[high, high[-1]]
+        axes.fill_between(x, factor * low, factor * high, step="post", color=color, alpha=.17, linewidth=0,
+                          label="_nolegend_", gid=f"{gid}-{number}")
+
+
+def display_curve(axes, label, curve, settings, level, band=None, gid=BAND_GID):
     low_name, high_name = ci_columns(level)
     survival = curve["Survival"].to_numpy()
     lower, upper = (curve[key].to_numpy() for key in (low_name, high_name))
@@ -84,7 +119,12 @@ def display_curve(axes, label, curve, settings, level):
     table = curve.drop(columns=["Survival", low_name, high_name, "Standard error"], errors="ignore")
     table[name] = y[1:]
     table[low_name], table[high_name] = factor * lower, factor * upper
-    if settings[UNCERTAINTY] == BAND:
+    if settings[UNCERTAINTY] == SIMULTANEOUS:
+        if band is None:
+            band = band_frame(curve, level)
+        draw_simultaneous_band(axes, times, (band[LOWER].to_numpy(), band[UPPER].to_numpy()), factor, cumulative,
+                               color, gid)
+    elif settings[UNCERTAINTY] == BAND:
         initial = int(not cumulative)
         axes.fill_between(x, factor * np.r_[initial, lower], factor * np.r_[initial, upper],
                           step="post", color=color, alpha=.17, linewidth=0)
@@ -123,7 +163,15 @@ class SurvivalGraphData:
     short_labels: bool
 
 
-def draw_survival_graph(data, title, axes=None, risk_axes=None, *, order=()):
+def add_band_key(axes, band, level, grouped):
+    """A legend-only entry. Its color is the curve's when there is one curve, neutral gray otherwise."""
+    color = "#6b7280" if grouped else band.get_facecolor()[0][:3]
+    axes.fill_between([], [], [], color=color, alpha=.3, linewidth=0, label=band_legend_label(level, grouped),
+                      gid=f"{BAND_GID}-key")
+
+
+def draw_survival_graph(data, title, axes=None, risk_axes=None, *, order=(), bands=None):
+    """Draw the curves; ``bands``, when a dict is given, receives each curve's simultaneous-band frame."""
     ylabel = ordinate_label(data.settings)
     if axes is None and data.show_risk:
         figure = Figure(figsize=(8, 5.5), dpi=100, layout="constrained")
@@ -143,11 +191,18 @@ def draw_survival_graph(data, title, axes=None, risk_axes=None, *, order=()):
     tables, risk_rows = {}, {}
     rank = {label: index for index, label in enumerate(order)}
     labels = sorted(data.curves, key=lambda label: rank.get(str(label), len(rank))) if rank else data.curves
-    for label in labels:
+    for number, label in enumerate(labels):
         curve = data.curves[label]
         risk_rows[str(label)] = risk_counts(curve, ticks)
-        tables[label] = display_curve(axes, label, curve, data.settings, data.level)
-    if len(data.curves) > 1:
+        band = band_frame(curve, data.level) if data.settings[UNCERTAINTY] == SIMULTANEOUS else None
+        if bands is not None and band is not None:
+            bands[label] = band
+        tables[label] = display_curve(axes, label, curve, data.settings, data.level, band,
+                                      f"{BAND_GID}-{axes.figure.axes.index(axes)}-{number}")
+    drawn = [artist for artist in axes.collections if str(artist.get_gid()).startswith(f"{BAND_GID}-")]
+    if drawn:
+        add_band_key(axes, drawn[0], data.level, len(data.curves) > 1)
+    if len(data.curves) > 1 or drawn:
         axes.legend()
     risks = pd.DataFrame.from_dict(risk_rows, orient="index", columns=ticks).rename_axis("Group")
     if data.show_risk:
@@ -229,4 +284,5 @@ def style_after_parameter_change(style, before, after):
         updated["axis"] = axes
     if refs:
         updated["reference_lines"] = refs
-    return updated
+    # The Y quantity changed (probability, percent, cumulative events): a unit set for the old one no longer holds.
+    return style_without_linked_y(updated)

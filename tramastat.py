@@ -1311,7 +1311,9 @@ class AnalysisDialog(simpledialog.Dialog):
         # Keep the title bar, the heading, an error banner and the buttons on the screen of a 1024x768 monitor.
         room = max(240, self.winfo_screenheight() - ui_theme.px(230))
         width = (620 if self.method == GLOBAL_CUSTOM_EQUATION
-                 else 550 if self.method == "Global nonlinear regression" else 466)
+                 else 550 if self.method == "Global nonlinear regression"
+                 else 560 if self.method == "Kaplan–Meier survival"  # the Italian caption of the simultaneous band
+                 else 466)
         content_width = min(ui_theme.px(width), max(400, self.winfo_screenwidth() - ui_theme.px(330)))
         self.fields.configure(width=content_width, height=min(ui_theme.px(wanted), room))
         if ui_theme.is_modern():
@@ -8309,7 +8311,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, RepeatAnalysisMixin, Workshee
         run = self.runs[index]
         method, options = dialog.result
         if method == run.method:
-            for key in (LEGACY_TITLE, LEGACY_NOTES, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
+            for key in (LEGACY_TITLE, LEGACY_NOTES, LEGACY_GRAPH_LINK, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
                         pca_overlays.SAVED_APPEARANCE, PCA_SAVED_DIRECTIONS, pca_parallel_archive.ARCHIVE,
                         PCA_SAVED_VIEWPORT, kmeans_archive.ARCHIVE,
                         FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE, anova_grouped_plot.PRIMARY):

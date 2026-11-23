@@ -33,6 +33,7 @@ from .curve_models import MODELS
 from .data import decimal_comma
 from .exploration import interpolate_linear
 from . import nonlinear_inverse
+from . import pade_calibration as pade
 from .nonlinear_inverse import InverseBudgetError
 from .processing import FieldError
 from .reporting import _report
@@ -49,7 +50,8 @@ CONCENTRATION_MODELS = (*CONCENTRATION_4PL, CONCENTRATION_5PL)
 _FOUR_PL_MODELS = (*CONCENTRATION_4PL, *LOG10_4PL)
 _FIVE_PL_MODELS = nonlinear_inverse.FIVE_PL
 _SIGMOID_MODELS = (*_FOUR_PL_MODELS, *_FIVE_PL_MODELS)
-INVERSE_MODELS = (*ONE_PHASE_MODELS, *_SIGMOID_MODELS)
+PADE_MODEL = pade.MODEL
+INVERSE_MODELS = (*ONE_PHASE_MODELS, *_SIGMOID_MODELS, PADE_MODEL)
 INVERSE_INTERVAL_MODELS = nonlinear_inverse.MODELS
 MAX_INVERSE_QUERIES = 256
 INTERVAL_NOTE = ("Pointwise asymptotic approximation from the fitted curve and its covariance. "
@@ -74,7 +76,9 @@ DIRECTION = "Direction"
 DIRECTIONS = ("X from Y", "Y from X")
 UNKNOWN_X = "Unknown X"
 UNKNOWN_RESPONSES = "Unknown responses"
-FORWARD_MODELS = ("One-phase decay", *_SIGMOID_MODELS)
+FORWARD_INTERVAL_MODELS = ("One-phase decay", *_SIGMOID_MODELS)
+FORWARD_MODELS = (*FORWARD_INTERVAL_MODELS, PADE_MODEL)
+_FORWARD_MODEL_ERROR = "Y from X supports the Linear curve, One-phase decay, 4PL, 5PL and Padé (1,1)."
 UNCERTAINTY = "Uncertainty"
 UNCERTAINTIES = ("None", "Mean response", "Prediction")
 LEVEL = "Confidence level (%)"
@@ -159,7 +163,12 @@ def interpolate_standard_curve(frame, x, y, query, curve="Linear", model=None, u
 
 def calibration_choice_error(frame, x, y, curve, model):
     """Point the dialog at the choice that blocks a nonlinear fit, when one is known."""
-    if curve != "Nonlinear" or model not in MODELS:
+    if curve != "Nonlinear":
+        return
+    if model == PADE_MODEL:
+        pade.validate_standards(frame, x, y)
+        return
+    if model not in MODELS:
         return
     spec = MODELS[model]
     try:
@@ -311,14 +320,43 @@ def check_calibration_options(frame, options):
         forward_options(options)
     else:
         check_nonlinear_inverse(frame, options)
+        if not options.get(UNKNOWN_RESPONSES):
+            raise FieldError(UNKNOWN_RESPONSES, "Choose a column of unknown response values.")
     x, y = options.get("X"), options.get("Y")
     if x == y:
         raise FieldError("Y", "Select distinct columns for X and Y.")
     calibration_choice_error(frame, x, y, options.get("Curve"), options.get("Model"))
 
 
+def _pade_inverse_curve(frame, x, y, query):
+    fitted = pade.fit_pade(frame, x, y)
+    samples = complete(frame, [query])[query]
+    if samples.empty:
+        raise FieldError(UNKNOWN_RESPONSES, "Enter one or more unknown response values.")
+    title_column = _row_title_column(frame, x, y)
+    positions = _query_positions(frame, query) if title_column is not None else None
+    columns = ["Source row", "Response", "Interpolated X", "Status", "Domain low", "Domain high"]
+    if title_column is not None:
+        columns.insert(1, "Row title")
+    responses = samples.to_numpy(dtype=float)
+    solved, statuses = pade.invert_pade(fitted, responses)
+    rows = []
+    for offset, index in enumerate(samples.index):
+        record = {"Source row": index, "Response": float(responses[offset]), "Interpolated X": float(solved[offset]),
+                  "Status": statuses[offset], "Domain low": fitted.x_min, "Domain high": fitted.x_max}
+        if title_column is not None:
+            record["Row title"] = frame[title_column].iloc[int(positions[offset])]
+        rows.append(record)
+    estimates = pd.DataFrame(rows, columns=columns)
+    tables = {"Interpolated values": estimates, "Calibration parameters": fitted.parameters.copy(),
+              "Fit diagnostics": _report(dict(fitted.diagnostics))}
+    return StandardCurve(tables, curve=np.array(fitted.curve, copy=True), model=PADE_MODEL)
+
+
 def _nonlinear_curve(frame, x, y, query, model, uncertainty="None", level=None, counts=None):
     # Unknown responses stay out of the fit.
+    if model == PADE_MODEL:
+        return _pade_inverse_curve(frame, x, y, query)
     if model in _SIGMOID_MODELS:
         calibration_choice_error(frame, x, y, "Nonlinear", model)
     fit = nonlinear(frame, x, y, model)["All"]
@@ -656,13 +694,14 @@ def _nonlinear_intervals(fit, x, y, model, theta, estimates, uncertainty, level,
 def calibration_visibility(direction, curve, uncertainty, model=None):
     """Fields that matter for the current choices. Hidden values never reach the calculation.
 
-    Intervals exist for every Y from X curve, for the inverse Linear curve, and for an inverse
-    nonlinear model in ``INVERSE_INTERVAL_MODELS``. A call without ``model`` keeps the historical
-    nonlinear inverse fields hidden, so older callers do not change.
+    Intervals exist for Linear and supported nonlinear models in Y from X, for the inverse Linear
+    curve, and for an inverse nonlinear model in ``INVERSE_INTERVAL_MODELS``. A call without
+    ``model`` keeps the historical visibility, so older callers do not change.
     """
     forward = direction == DIRECTIONS[1]
+    forward_intervals = forward and (curve == "Linear" or model is None or model in FORWARD_INTERVAL_MODELS)
     inverse_nonlinear = not forward and curve == "Nonlinear" and model in INVERSE_INTERVAL_MODELS
-    intervals = forward or curve == "Linear" or inverse_nonlinear
+    intervals = forward_intervals or (not forward and curve == "Linear") or inverse_nonlinear
     return {UNKNOWN_RESPONSES: not forward, UNKNOWN_X: forward, "Model": curve == "Nonlinear",
             UNCERTAINTY: intervals, LEVEL: intervals and uncertainty in UNCERTAINTIES[1:],
             COUNT: intervals and uncertainty == UNCERTAINTIES[2]}
@@ -688,6 +727,8 @@ def inverse_options(options):
 def _check_inverse_uncertainty(curve, model, uncertainty):
     if curve == "Linear" or uncertainty == UNCERTAINTIES[0] or not model or model in INVERSE_INTERVAL_MODELS:
         return
+    if model == PADE_MODEL:
+        raise FieldError(UNCERTAINTY, f"Intervals are not available for {PADE_MODEL}. Choose None.")
     raise FieldError(UNCERTAINTY, "Inverse intervals are not available for One-phase association. Choose None.")
 
 
@@ -712,10 +753,12 @@ def forward_options(options):
     if curve == "Nonlinear":
         model = options.get("Model") or FORWARD_MODELS[0]
         if model not in FORWARD_MODELS:
-            raise FieldError("Model", "Y from X supports the Linear curve, One-phase decay, 4PL and 5PL.")
+            raise FieldError("Model", _FORWARD_MODEL_ERROR)
     uncertainty = options.get(UNCERTAINTY) or UNCERTAINTIES[0]
     if uncertainty not in UNCERTAINTIES:
         raise FieldError(UNCERTAINTY, "Select None, Mean response or Prediction.")
+    if uncertainty != UNCERTAINTIES[0] and curve == "Nonlinear" and model not in FORWARD_INTERVAL_MODELS:
+        raise FieldError(UNCERTAINTY, f"Intervals are not available for {model}. Choose None.")
     level = None
     if uncertainty != UNCERTAINTIES[0]:
         raw = options.get(LEVEL, DEFAULT_LEVEL)
@@ -847,7 +890,15 @@ def _at_bound(model, theta):
     return bool(stuck.any())
 
 
-def _forward_nonlinear(frame, x, y, model):
+def _forward_nonlinear(frame, x, y, model, *, standards=None):
+    if model == PADE_MODEL:
+        fitted = pade.fit_pade(frame, x, y, standards=standards)
+
+        def predict(values):
+            return pade.predict_pade(fitted, values)
+
+        tables = {"Calibration parameters": fitted.parameters.copy(), "Fit diagnostics": _report(dict(fitted.diagnostics))}
+        return predict, None, None, np.nan, fitted.df, False, tables, None, fitted.curve
     fit = nonlinear(frame, x, y, model)["All"]
     names = MODELS[model].parameters
     theta = tuple(float(fit.parameters.at[name, "Estimate"]) for name in names)
@@ -907,11 +958,13 @@ def predict_standard_curve(frame, x, y, query, curve="Linear", model=None, uncer
     if curve == "Nonlinear":
         model = model or FORWARD_MODELS[0]
         if model not in FORWARD_MODELS:
-            raise FieldError("Model", "Y from X supports the Linear curve, One-phase decay, 4PL and 5PL.")
+            raise FieldError("Model", _FORWARD_MODEL_ERROR)
     else:
         model = None
     if uncertainty not in UNCERTAINTIES:
         raise FieldError(UNCERTAINTY, "Select None, Mean response or Prediction.")
+    if uncertainty != UNCERTAINTIES[0] and model is not None and model not in FORWARD_INTERVAL_MODELS:
+        raise FieldError(UNCERTAINTY, f"Intervals are not available for {model}. Choose None.")
     banded = uncertainty != UNCERTAINTIES[0]
     if banded and (level is None or not np.isfinite(level) or not 0 < level < 100):
         raise FieldError(LEVEL, "Choose a confidence level strictly between 0 and 100.")
@@ -919,7 +972,12 @@ def predict_standard_curve(frame, x, y, query, curve="Linear", model=None, uncer
         raise FieldError("Y", "Select distinct columns for X and Y.")
     if not query:
         raise FieldError(UNKNOWN_X, "Choose a column of unknown X values.")
-    standards = complete(frame, [x, y])
+    try:
+        standards = complete(frame, [x, y])
+    except ValueError as error:
+        message = str(error)
+        field = "Y" if f'"{y}"' in message and f'"{x}"' not in message else "X"
+        raise FieldError(field, message) from error
     if standards.empty:
         raise FieldError("X", "The calibration standards do not define an X interval.")
     samples = complete(frame, [query])[query]
@@ -927,6 +985,9 @@ def predict_standard_curve(frame, x, y, query, curve="Linear", model=None, uncer
         raise FieldError(UNKNOWN_X, "Enter one or more unknown X values.")
     if model is None:
         predict, gradient, covariance, s2, df, available, tables, fitted, grid_curve = _forward_linear(standards, x, y)
+    elif model == PADE_MODEL:
+        predict, gradient, covariance, s2, df, available, tables, fitted, grid_curve = _forward_nonlinear(
+            frame, x, y, model, standards=standards)
     else:
         calibration_choice_error(frame, x, y, "Nonlinear", model)
         predict, gradient, covariance, s2, df, available, tables, fitted, grid_curve = _forward_nonlinear(

@@ -717,6 +717,7 @@ Final censor only|Solo censura finale
 Standard error bars|Barre dell’errore standard
 Pointwise confidence band|Banda di confidenza puntuale
 Pointwise confidence bars|Barre di confidenza puntuali
+Hall–Wellner simultaneous band|Banda simultanea Hall–Wellner (conservativa)
 Symmetric Greenwood|Greenwood simmetrico
 Rows and columns|Righe e colonne
 Count|Conteggio

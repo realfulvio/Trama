@@ -187,7 +187,7 @@ class BinaryDoseFitTests(unittest.TestCase):
         source = ({3}, [(uid, 0, kind, records)])
         with patch.object(dose, "indexed_analyses", return_value=source), \
                 patch.object(dose, "_BIPHASIC_PROFILES", dose._PROFILES):
-            found = dose.early_biphasic_inputs(b"", {uid: (companion, [])}, {3})
+            found = dose.early_fit_inputs(b"", {uid: (companion, [])}, {3})
             self.assertEqual(found[uid], (3, "Inhibition (standard slope)", selection))
             different = [(tag, b"other\0" if tag == 9 else payload) for tag, payload in companion]
-            self.assertEqual(dose.early_biphasic_inputs(b"", {uid: (different, [])}, {3}), {})
+            self.assertEqual(dose.early_fit_inputs(b"", {uid: (different, [])}, {3}), {})

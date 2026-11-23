@@ -7,7 +7,7 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 
-from .plot_function import PLOT_FUNCTION
+from .plot_function import OBSERVATION_COLUMNS, PLOT_FUNCTION
 from .analysis_chain import ResultSource
 from . import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, regression_range
 from .category_graphs import COLUMN_GRAPH, GEOMETRIC_CENTER, GROUPED_GRAPH, MAX_CATEGORIES, MAX_PLOT_CELLS, MAX_POINTS, POINTS
@@ -23,6 +23,7 @@ from .pca_overlays import KIND as PCA_OVERLAY, SAVED_APPEARANCE as PCA_OVERLAY_A
 from .pca_parallel_archive import ARCHIVE as PCA_PARALLEL_ARCHIVE
 from .legacy_import import _identifier, _json_object, _store_table, _zip_table
 from .legacy_fit_graph import FIT_GRAPH, FIT_GRAPH_POINTS, FIT_GRAPH_SPEC, FIT_GRAPH_TICKS, fit_graph_spec, saved_samples
+from .stats import STARTING_COEFFICIENTS_BY_SERIES
 from .legacy_pca_view import saved_component_directions, saved_parallel_reference, saved_score_overlay
 from .legacy_recipes import restore_log_dose_fit, restore_recipe, saved_anova_diagnostics, saved_anova_primary_factor
 from .legacy_mv_scatter import APPEARANCE, CLUSTERED_SCATTER, saved_scatter
@@ -61,7 +62,10 @@ def initial_sheet_reference(initial_sheet, runs, run_view):
 
 def linked_curve_view(run):
     return bool(run.options.get(LEGACY_GRAPH_LINK)) and (
-        run.method == PLOT_FUNCTION or (run.method == SAVED_XY and run.options.get(FIT_GRAPH) is True))
+        run.method == PLOT_FUNCTION or (run.method == SAVED_XY and run.options.get(FIT_GRAPH) is True)
+        or (run.method == "Global nonlinear regression" and FIT_GRAPH_SPEC in run.options)
+        or (run.method == "Nonlinear regression" and STARTING_COEFFICIENTS_BY_SERIES in run.options
+            and FIT_GRAPH_SPEC in run.options))
 
 
 def paired_graph_index(run, runs):
@@ -1356,6 +1360,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells, *, focused=No
 def restore_binary_views(data, sources, tables, cells, fonts, document_title):
     from .legacy_binary_dose import restore_dose_graphs
     from .legacy_binary_editable import read_editable_graphs
+    from .legacy_binary_global import restore_global_graphs
     from .legacy_binary_graphs import read_binary_graphs
     from .legacy_binary_layouts import read_binary_layouts
     from .legacy_binary_range import BINARY_XY_RANGE
@@ -1366,11 +1371,12 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
     from .legacy_pdf_stacks import STACK_KIND
 
     source_names = set(tables)
-    dose_curves, classic_curves, calibration_curves = {}, {}, {}
+    dose_curves, classic_curves, calibration_curves, global_curves = {}, {}, {}, {}
     unavailable_results = set()
     cells = restore_binary_results(
         data, sources, tables, cells, fonts, dose_curves=dose_curves, classic_curves=classic_curves,
-        calibration_curves=calibration_curves, pending_analyses=unavailable_results)
+        calibration_curves=calibration_curves, global_curves=global_curves,
+        pending_analyses=unavailable_results)
     for title, frame in tables.items():
         if title not in source_names:
             saved = frame.attrs["legacy_binary_result"]
@@ -1417,22 +1423,26 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
             restored_graphs.update(restore_dose_graphs(
                 data, [graph for graph in graphs if graph["id"] not in restored_graphs], graph_links,
                 calibration_curves, result_frames, verify_series=True))
+        restored_global, recovered = restore_global_graphs(data, graphs, graph_links, global_curves, result_frames)
+        restored_graphs.update(restored_global)
+        unavailable_results.difference_update(recovered)
         titles = {graph["id"]: graph["title"] for graph in graphs if graph["id"] not in restored_graphs}
-        for uid, analysis, frame, options, style in read_simulation_graphs(data, result_frames, titles,
-                                                                          MAX_CELLS - cells):
-            if len(tables) >= 256:
-                break
-            title = titles[uid]
-            frame.attrs.update(
-                table_format="xy",
-                legacy_recipes=[(PLOT_FUNCTION, {
-                    **options, LEGACY_TITLE: title[:150] + " · Linked", LEGACY_GRAPH_LINK: graph_links[uid],
-                    LEGACY_NOTES: "Edit the equation parameters or the saved X values to redraw the curve.",
-                })],
-                legacy_graph_styles={0: style},
-            )
-            _store_table(tables, f"Imported graph data · {title}", frame)
-            cells += frame.size
+        for uid, analysis, frame, options, style in read_simulation_graphs(
+                data, result_frames, titles, MAX_CELLS - cells, observations=sources):
+            observed = OBSERVATION_COLUMNS in options
+            if not observed:
+                if len(tables) >= 256:
+                    continue
+                frame.attrs["table_format"] = "xy"
+                _store_table(tables, f"Imported graph data · {titles[uid]}", frame)
+                cells += frame.size
+            recipes = frame.attrs.setdefault("legacy_recipes", [])
+            frame.attrs.setdefault("legacy_graph_styles", {})[len(recipes)] = style
+            recipes.append((PLOT_FUNCTION, {
+                **options, LEGACY_TITLE: titles[uid][:150] + " · Linked", LEGACY_GRAPH_LINK: graph_links[uid],
+                LEGACY_NOTES: ("Edit the original observations or equation parameters to redraw the graph." if observed
+                               else "Edit the equation parameters or the saved X values to redraw the curve."),
+            }))
             restored_graphs.add(uid)
             unavailable_results.discard(analysis)
     report_saved_result_warnings(tables, unavailable_results)
@@ -1480,6 +1490,8 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
             else:
                 table_format = EDITABLE_LEGACY_XY
                 notes = "Editable XY graph with recovered formatting. Original drawing remains available."
+                if kind == "residual_points":
+                    notes = "Edit the coordinates from the saved residual table. The original drawing remains available."
             if binding is not None:
                 frame = sources[binding["sheet"]]
             else:

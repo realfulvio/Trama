@@ -86,6 +86,7 @@ from .independent_roc import METHOD as INDEPENDENT_ROC, independent_roc
 from .logistic_validation import METHOD as LOGISTIC_VALIDATION, OPTIONS as LOGISTIC_VALIDATION_OPTIONS
 from .logistic_validation import analysis as logistic_validation
 from .custom_fit import CUSTOM_EQUATION, custom_fit
+from .linked_axes import SUPPORT_ATTR, mark_linked_axes
 from .global_custom_fit import GLOBAL_CUSTOM_EQUATION, global_custom_fit
 from .plot_function import PLOT_FUNCTION
 from .robust_curve import OPTIONS as ROBUST_CURVE_OPTIONS, ROBUST_CURVE, robust_curve
@@ -117,6 +118,7 @@ from .survival_input import (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJ
                              PAIRWISE_PAIRS, PAIRWISE_PAIR_LIST,
                              CONTROL_PAIRS, SELECTED_PAIRS, UNADJUSTED, pairwise_scope, CENSOR_CODE, EVENT_CODE,
                              OTHER_STATUS, STATUS_POLICIES, recode_statuses)
+from .survival_bands import SHEET as SIMULTANEOUS_SHEET, join_bands
 from .survival_plot import (ERROR_BARS, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS, GREENWOOD, INTERVAL, RISK_TABLE,
                             SURVIVAL_GRAPH, SURVIVAL_SERIES, SURVIVAL_SUMMARY, UNCERTAINTY, SurvivalGraphData,
                             draw_survival_graph, linked_survival_graph, survival_graph_settings)
@@ -897,8 +899,9 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
                                          standard_error=show_error)
     graph_data = SurvivalGraphData(curves, settings, time, level, bool(o.get(RISK_TABLE)),
                                    compact and not _has_survival_orientation(o))
+    simultaneous = {}
     figure, tables, risks = draw_survival_graph(graph_data, "Kaplan–Meier survival" if axes is None else event,
-                                               axes, risk_axes)
+                                               axes, risk_axes, bands=simultaneous)
     plateau = o.get("Median method") == MEDIAN_METHODS[1]
     summaries = []
     for label, curve in curves.items():
@@ -927,11 +930,14 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
                                                 for label, table in tables.items()}, names=["Group"])
     else:
         outputs.update({f"Curve: {label}": table for label, table in tables.items()})
+    if simultaneous:
+        outputs[SIMULTANEOUS_SHEET] = join_bands(simultaneous)
     context = {SURVIVAL_SUMMARY: graph_data} if o.get(SURVIVAL_GRAPH) is True else {}
     return Result(outputs, figure, table_contexts=context)
 
 
-def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None, range_settings=None, outside=None):
+def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None, range_settings=None, outside=None,
+               plot_grid=None, plot_observations=True):
     x, y, model = o["X"], o["Y"], o["Model"]
     report_log_ic50 = o.get(REPORT_LOG_IC50) is True and has_ic50(model)
     # Band fields are checked before any fit; Band=None ignores stale level and drawing.
@@ -944,7 +950,9 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None, ran
         raise ValueError("Use Wald intervals for this fit with fixed coefficients.")
     fits = engine.nonlinear(frame, x, y, model, o.get("Group"),
                             weighting=o.get("Weighting", "Unweighted"), sigma=o.get("SD column"),
-                            fixed=fixed, start=o.get(engine.STARTING_COEFFICIENTS))
+                            fixed=fixed, start=o.get(engine.STARTING_COEFFICIENTS),
+                            series_start=o.get(engine.STARTING_COEFFICIENTS_BY_SERIES) if o.get(MERGE_REPLICATES)
+                            else None)
     interval_band = o.get(FIT_INTERVAL_BAND) if (
         axes is None and model == LOG_DOSE_MODEL and len(fits) == 1 and not o.get("Group")
     ) else None
@@ -987,7 +995,7 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None, ran
             more = outside if not group else outside.loc[outside[group] == label]
             xy = pd.concat((xy[[x, y]], regression_range.extra_xy(more, x, y)), ignore_index=True)
         observations[label] = xy
-        dots = axes.scatter(xy[x], xy[y], label=str(label))
+        dots = axes.scatter(xy[x], xy[y], label=str(label), visible=plot_observations)
         if group:
             dots._tramastat_legend_key = f"group:{typed_group_token(label)}"
         colors[label] = dots.get_facecolor()[0]
@@ -998,7 +1006,13 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None, ran
             coords = regression_range.coordinate_table(grid, predicted, fit.data[x])
             tables.setdefault(regression_range.CURVE_SHEET, {})[label] = coords.rename_axis("Sample")
             fit.curve = coords[["X", "Predicted"]].to_numpy()
-        axes.plot(*fit.curve.T, color=colors[label])
+        curve_x, curve_y = fit.curve.T
+        if plot_grid is not None:
+            curve_x = plot_grid
+            curve_y = engine.MODELS[model].equation(curve_x, *fit.parameters["Estimate"])
+            if not np.isfinite(curve_y).all():
+                raise FieldError(regression_range.CURVE_MAX, "The model must predict finite values on the drawn curve.")
+        axes.plot(curve_x, curve_y, color=colors[label])
         if residual_axes is not None:
             residual_axes.scatter(fit.residuals["X"], fit.residuals["Residual"], color=colors[label])
         parameters, parameter_status = parameter_outputs(fit, model, parameter_config, budget=parameter_budget)
@@ -1011,7 +1025,7 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None, ran
             tables.setdefault(TRANSFORMED_PARAMETERS, {})[label] = log_ic50_table(parameters)
         tables["Fit"][label] = _report({**fit.diagnostics, **fit_bounds}).rename_axis("Metric")
         tables["Residuals"][label] = fit.residuals.rename_axis("Source row")
-    if model == "Normalized inhibition":
+    if model == "Normalized inhibition" or plot_grid is not None:
         axes.set_xscale("log")
     if len(fits) > 1:
         axes.legend()
@@ -1042,6 +1056,15 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None, ran
     return Result(outputs, figure)
 
 
+INDEXLESS = {SIMULTANEOUS_SHEET}  # their rows carry Group and Time as columns: no index to keep
+
+
+def _by_response(title, parts):
+    """One sheet for several responses: a Response variable column in front of the rows of each."""
+    table = pd.concat(parts, names=["Response variable"])
+    return table.reset_index(level=0).reset_index(drop=True) if title in INDEXLESS else table.reset_index()
+
+
 def _classic_analysis(method, frame, options, predict, run, *, outside=None):
     response_field, response_key = CLASSIC_RESPONSES[method]
     roles = classic_roles(method, options)
@@ -1064,7 +1087,7 @@ def _classic_analysis(method, frame, options, predict, run, *, outside=None):
         result = run(frame, {**options, response_key: responses[0], "Group": group}, compact=compact,
                      **extra_options)
         if compact:
-            result.tables = {title: table.reset_index() for title, table in result.tables.items()}
+            result.tables = {title: table.reset_index(drop=title in INDEXLESS) for title, table in result.tables.items()}
         return result
     rows = (len(responses) + 1) // 2
     has_risks = method == "Kaplan–Meier survival" and options.get("Show risk table below graph")
@@ -1089,8 +1112,7 @@ def _classic_analysis(method, frame, options, predict, run, *, outside=None):
             raise ValueError(f"{response}: {error}") from error
         for title, table in result.tables.items():
             tables.setdefault(title, {})[response] = table
-    return Result({title: pd.concat(parts, names=["Response variable"]).reset_index()
-                   for title, parts in tables.items()}, figure)
+    return Result({title: _by_response(title, parts) for title, parts in tables.items()}, figure)
 
 
 def _imported_xy(frame, options, layout_data=None):
@@ -1246,7 +1268,28 @@ def _imported_layout(options, layout_data=None):
     return figure
 
 
+# Linked secondary axes (analisi.linked_axes): the dimensions each analysis graph can link. Graphs that draw
+# XY series, XY error bars and global fits mark their own Axes; the checks of the current figure (one plot
+# panel, numeric axes, no breaks) run when the axes are drawn.
+LINKED_AXES_METHODS = {
+    "Linear regression": ("x", "y"), COMPARE_LINES: ("x", "y"), "Deming regression": ("x", "y"),
+    "Nonlinear regression": ("x", "y"), ROBUST_CURVE: ("x", "y"), CUSTOM_EQUATION: ("x", "y"),
+    GLOBAL_CUSTOM_EQUATION: ("x", "y"), SPLINE_FIT: ("x", "y"), "Kaplan–Meier survival": ("x", "y"),
+    COLUMN_GRAPH: ("y",), GROUPED_GRAPH: ("y",),
+}
+
+
 def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=None):
+    """Calculate ``method`` on ``frame`` and mark its graph for linked secondary axes."""
+    result = _analyse(method, frame, options, layout_data=layout_data, cancel=cancel, join_data=join_data)
+    dimensions = LINKED_AXES_METHODS.get(method)
+    figure = result.figure if dimensions else None
+    if figure is not None and figure.axes and not hasattr(figure.axes[0], SUPPORT_ATTR):
+        mark_linked_axes(figure.axes[0], *dimensions)
+    return result
+
+
+def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=None):
     """Calculate ``method`` on ``frame``. ``join_data`` is the evaluated right worksheet of
     Join worksheets by key, already resolved by the application (the engine never looks sheets up)."""
     from .legacy_xml_binding import SCATCHARD, scatchard
@@ -1425,7 +1468,17 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=
             data = stack_replicates(frame, o)
             settings = {**o, "X": "X", "Y": "Response", "Group": "Series", "SD column": "SD"}
             extra = None if outside is None or outside.empty else stack_replicates(outside, o)
-            result = fit(data, settings, outside=extra)
+            saved = o.get(FIT_GRAPH_SPEC)
+            bound_preview = (isinstance(saved, dict) and saved.get("model") == o["Model"] and saved.get("x") == o["X"]
+                             and saved.get("series") == o.get("Y columns")
+                             and all(field in ranges and ranges[field] == saved.get(field)
+                                     for field in regression_range.CURVE_FIELDS))
+            plot_grid = None
+            if (bound_preview and saved.get("spacing") == "log"
+                    and ranges[regression_range.CURVE_MIN] > 0):
+                plot_grid = np.geomspace(*(ranges[field] for field in regression_range.CURVE_FIELDS))
+            plot_observations = not bound_preview or saved.get("observations") is not False
+            result = fit(data, settings, outside=extra, plot_grid=plot_grid, plot_observations=plot_observations)
             for axes in result.figure.axes:
                 axes.set_xlabel(o["X"], parse_math=False)
             return result

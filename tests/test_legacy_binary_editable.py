@@ -39,7 +39,8 @@ def _plot_emf(*, annotation=False, second_curve=False, ambiguous=False):
     return _emf(record)
 
 
-def _binary_xy(dataset=17, *, log_x=False, annotation=False, second_curve=False, ambiguous=False):
+def _binary_xy(dataset=17, *, log_x=False, annotation=False, second_curve=False, ambiguous=False,
+               include_scene=True):
     sheet_id, graph_id, series_id = 8, 6, 5
     emf = _plot_emf(annotation=annotation, second_curve=second_curve, ambiguous=ambiguous)
     graph = _record(9, b"Graph name\0") + _record(0x5E, pack("<II", len(emf), 1) + bytes(128) + emf)
@@ -76,7 +77,8 @@ def _binary_xy(dataset=17, *, log_x=False, annotation=False, second_curve=False,
         objects += _group(0x8020, header, _group(0x8028, series, cache))
     if annotation:
         objects += _group(0x8020, pack("<H", 3) + bytes(28))
-    graph += _group(0x8018, bytes(12), objects)
+    if include_scene:
+        graph += _group(0x8018, bytes(12), objects)
     y_ids = [17, 18] if second_curve else [17]
     source = b"".join(_record(0x0D, pack("<3I", index, uid, 1) + bytes(12))
                       for index, uid in enumerate(y_ids))
@@ -111,6 +113,14 @@ class EditableLegacyGraphTests(unittest.TestCase):
         frame.loc[1, "Response"] = 0.5
         data = _binary_xy()
         self.assertFalse(read_editable_graphs(data, {8: frame}, {}, 100))
+        previews, skipped = read_binary_graphs(data)
+        self.assertEqual(([graph["id"] for graph in previews], skipped), ([6], []))
+
+    def test_result_graph_without_a_drawing_scene_leaves_original_preview(self):
+        frame = pd.DataFrame({"X": [0.0, 1.0, 2.0], "Residual": [0.0, 1.0, 0.0]})
+        frame.attrs["legacy_binary_result"] = {"source_ids": [2]}
+        data = _binary_xy(include_scene=False)
+        self.assertFalse(read_editable_graphs(data, {}, {8: frame}, 100))
         previews, skipped = read_binary_graphs(data)
         self.assertEqual(([graph["id"] for graph in previews], skipped), ([6], []))
 

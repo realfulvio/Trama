@@ -23,7 +23,9 @@ _ANALYSIS_TAGS = {9, 0x3B, 0x3C, 0x3D, 0x3F, 0x46}
 _SHEET_TAGS = {9, 0x0D, 0x8E}
 _DATASET_TAGS = {9, 0x10, 0x11, 0x64, 0x90, 0xB6, 0xD5, 0xF3}
 _EXPLICIT_NUMERIC = {(1, 1, 0x00100000), (1, 1, 0x28001800)}
-_GENERATED_X = {(1, 4, 0x20001000), (1, 4, 0x20001002), (1, 4, 0x20001800)}
+_FORMATTED_SIMULATION_X = (1, 4, 0x20001002)
+_GENERATED_X = {(1, 4, 0x20001000), _FORMATTED_SIMULATION_X, (1, 4, 0x20001800)}
+_UNLINKED_GENERATED_X = (1, 4, 0x1802)
 _CLASSIC_GENERATED_X = {(1, 4, 0x20001801), (1, 4, 0x20001001), (1, 4, 0x1801)}
 _FRACTION_OF_TOTAL_VIEW = (1, 1, 0x00140400)
 _DECIMAL = re.compile(r"[+-]?\d{1,24}(?:\.\d{1,24})?(?:[Ee][+-]?\d{1,3})?")
@@ -200,18 +202,32 @@ def _x_sequence(records, rows, *, source_free=False, formatted_curve=False):
     (first, first_style, start), (second, second_style, step) = _NUMERIC_CELL[precision].iter_unpack(contents[6:])
     standard = ((first, first_style, second, second_style) == (1, 0, 0, 0)
                 and (attributes == attributes_long or precision == 0 and attributes == attributes_short))
+    formatted_step = second in (1, first) or (first, second, second_style) == (1, 0, 0)
     formatted = (formatted_curve and precision == 1 and first in (1, 5) and first_style == 0
-                 and second == 1 and second_style <= 255
+                 and formatted_step and second_style <= 255
                  and attributes == Struct("<12I").pack(2, 16, 16, 2, 0, first, 0xFFFFFFFF, 0x7FFFFFFF,
-                                                        0, 1, 0xFFFFFFFF, 0x7FFFFFFF))
+                                                        0, second, 0xFFFFFFFF, 0x7FFFFFFF))
     if (not (standard or formatted) or not isfinite(start) or not isfinite(step)
             or step <= 0 or not isfinite(start + (rows - 1) * step)):
         raise _UnsupportedSheet("Invalid saved X sequence")
     return [start + index * step for index in range(rows)]
 
 
+def _formatted_simulation_values(records, rows):
+    cells, attributes, stride = _cell_storage(records, rows)
+    if stride != 16:
+        raise _UnsupportedSheet("Unrecognized simulation result attributes")
+    values = []
+    for index, (status, width, value) in enumerate(cells):
+        if (status != 1 or width > 255 or not isfinite(value)
+                or unpack_from("<4I", attributes, index * stride) != (0, 1, 0xFFFFFFFF, 0x7FFFFFFF)):
+            raise _UnsupportedSheet("Unrecognized formatted simulation value")
+        values.append(value)
+    return values
+
+
 def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remaining_cells, fonts,
-                       *, source_free=False, formatted_curve=False):
+                       *, source_free=False, formatted_curve=False, formatted_simulation=False):
     if unpack_from("<i", layout)[0] != -1 or len(datasets) > MAX_COLUMNS:
         return None
     x_uid = None
@@ -225,7 +241,8 @@ def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remain
         if (uid < 0 or uid in fields or analysis != analysis_id or owner != sheet_id
                 or storage != _RESULT_STORAGE or repeats != 1 or count != rows or rows < 0):
             raise _UnsupportedSheet("Invalid curve data set ownership or dimensions")
-        if (kind, role, form) == (4, 4, 11) and rows in ((0, 1) if source_free else (0,)) and x_uid is None:
+        if ((kind, role, form) == (4, 4, 11)
+                and rows in ((0, 1) if source_free or formatted_simulation else (0,)) and x_uid is None):
             x_uid = uid
         elif (kind, role, form) != (1, 40, _PLAIN):
             return None
@@ -241,7 +258,10 @@ def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remain
     if len(fields) * height > remaining_cells:
         raise _UnsupportedSheet("Saved curve exceeds the size limit")
     x_records = fields[x_uid][2]
-    columns = [_x_sequence(x_records, height, source_free=source_free, formatted_curve=formatted_curve)]
+    formatted_simulation = formatted_simulation and fields[x_uid][1] == 1
+    columns = [_x_sequence(x_records, height, source_free=source_free,
+                           formatted_curve=formatted_curve or formatted_simulation)]
+    read_values = _formatted_simulation_values if formatted_simulation else _numeric_values
     headers = []
     for position, uid in enumerate((x_uid, *y_uids)):
         _, rows, records = fields[uid]
@@ -256,7 +276,7 @@ def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remain
             title = _formatted_label(content, fonts)
         headers.append(title or (f"Y{position}" if position else "X"))
         if position:
-            columns.append(_numeric_values(records, rows))
+            columns.append(read_values(records, rows))
     return _table(headers, [list(row) for row in zip(*columns, strict=True)])
 
 
@@ -381,12 +401,16 @@ def report_saved_result_warnings(tables, unavailable, unreadable=0):
 
 
 def restore_binary_results(data, sources, tables, cells, fonts, *, dose_curves=None, classic_curves=None,
-                           calibration_curves=None, pending_analyses=None):
+                           calibration_curves=None, global_curves=None, pending_analyses=None):
     """Add verified snapshots and attach matching native recipes to the original source grids."""
     analyses, sheets, indexed, analysis_ids, companions = _read_groups(data)
-    from .legacy_binary_dose import classic_fit_models, early_biphasic_inputs, restore_dose_recipes
+    from .legacy_binary_dose import classic_fit_models, early_fit_inputs, restore_dose_recipes
 
-    early_inputs = early_biphasic_inputs(data, companions, indexed) if companions else {}
+    early_inputs = {}
+    if companions:
+        from .legacy_binary_global import EARLY_GLOBAL_PROFILES
+
+        early_inputs = early_fit_inputs(data, companions, indexed, profiles=EARLY_GLOBAL_PROFILES)
     has_model_settings = any(
         tag == 0x46 and len(payload) == 1348 for entry in analyses.values() if entry
         for tag, payload in entry[0]
@@ -445,10 +469,13 @@ def restore_binary_results(data, sources, tables, cells, fonts, *, dose_curves=N
                     if len(datasets) > MAX_COLUMNS + 1:
                         raise _UnsupportedSheet("Saved-result table exceeds the column limit")
                     frame = _sheet_frame(sheet_id, metadata, datasets, MAX_CELLS - cells, fonts, analysis_id=analysis_id)
-                elif mode == _PLAIN and (view_kind in _GENERATED_X or (
-                        slot == 2 and analysis_id in classic_models and view_kind in _CLASSIC_GENERATED_X)):
+                elif mode == _PLAIN and (view_kind in _GENERATED_X
+                        or (slot == 0 and not source_ids and view_kind == _UNLINKED_GENERATED_X)
+                        or (slot == 2 and analysis_id in classic_models and view_kind in _CLASSIC_GENERATED_X)):
+                    formatted_simulation = slot == 0 and not source_ids and view_kind == _FORMATTED_SIMULATION_X
                     frame = _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout,
-                                               MAX_CELLS - cells, fonts, formatted_curve=analysis_id in early_inputs)
+                                               MAX_CELLS - cells, fonts, formatted_curve=analysis_id in early_inputs,
+                                               formatted_simulation=formatted_simulation)
                 else:
                     continue
                 if frame is None:
@@ -494,6 +521,10 @@ def restore_binary_results(data, sources, tables, cells, fonts, *, dose_curves=N
                                         early_inputs=early_inputs, classic_models=classic_models,
                                         classic_curves=classic_curves, calibration_curves=calibration_curves)
         unavailable.difference_update(restored)
+    if global_curves is not None and unavailable:
+        from .legacy_binary_global import global_candidates
+
+        global_curves.update(global_candidates(data, sources, sheets, snapshots, unavailable, early_inputs=early_inputs))
     if pending_analyses is not None:
         pending_analyses.update(unavailable)
         unavailable = ()
