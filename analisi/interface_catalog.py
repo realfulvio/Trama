@@ -15,6 +15,22 @@ Kolmogorov–Smirnov|Kolmogorov–Smirnov
 Analyze Data|Analizza dati
 Find an analysis|Cerca un’analisi
 Run Analysis|Esegui analisi
+Fit and curve range|Intervalli X
+Show observations outside fit|Mostra osservazioni fuori dal fit
+Fit X minimum|X minimo per il fit
+Fit X maximum|X massimo per il fit
+Curve X minimum|X minimo della curva
+Curve X maximum|X massimo della curva
+Curve points|Punti della curva
+Enter a finite X value or leave this field empty.|Inserisci un valore X finito oppure lascia vuoto il campo.
+Choose a whole number from 2 to 2000.|Scegli un numero intero da 2 a 2000.
+The maximum X must be greater than the minimum X.|X massimo deve essere maggiore di X minimo.
+No observations fall within the fit X range.|Nessuna osservazione rientra nell’intervallo X del fit.
+The X column must contain real, finite values.|La colonna X deve contenere valori reali e finiti.
+The drawn curve needs a maximum X greater than its minimum X.|Per disegnare la curva, X massimo deve essere maggiore di X minimo.
+The model must predict finite values on the drawn curve.|Il modello deve produrre valori finiti nell’intervallo della curva.
+The drawn curve for this model requires positive X values.|La curva di questo modello richiede X positivi.
+The drawn curve for this model requires nonnegative X values.|La curva di questo modello richiede X non negativi.
 Cancel|Annulla
 OK|OK
 Apply|Applica
@@ -385,6 +401,19 @@ Distance matrix|Matrice delle distanze
 Merge map|Mappa delle fusioni
 Elbow data|Dati del grafico a gomito
 Elbow plot|Grafico a gomito
+Silhouette data|Dati della silhouette
+Silhouette plot|Grafico della silhouette
+Clustered data plot|Grafico dei dati per gruppo
+Define clusters by count or height to plot clustered data.|Definisci i gruppi per numero o altezza per mostrare il grafico dei dati.
+Choose an axis with clusters defined by count or height.|Scegli una direzione con gruppi definiti per numero o altezza.
+Gap data|Dati della statistica Gap
+Gap plot|Grafico della statistica Gap
+Gap reference datasets|Campioni di riferimento per Gap
+Gap seed|Seme casuale per Gap
+Choose between 5 and 100 Gap reference datasets.|Scegli da 5 a 100 campioni di riferimento per Gap.
+Gap seed must be an integer between 0 and 4294967295.|Il seme casuale per Gap deve essere un intero da 0 a 4294967295.
+The chosen distance is undefined for the simulated Gap data.|La distanza scelta non è definita per i dati simulati della statistica Gap.
+The reference linkage produced non-finite merge distances.|Il metodo di collegamento ha prodotto distanze di fusione non finite nei campioni di riferimento.
 Cophenetic distances|Distanze cofenetiche
 Cophenetic correlation|Correlazione cofenetica
 Matrix format|Formato della matrice
@@ -523,6 +552,8 @@ Comparison families|Famiglie di confronti
 Series|Serie
 X values|Valori X
 Merge numbered replicates|Unisci repliche numerate
+Choose numbered replicates or grouping variables.|Scegli le repliche numerate oppure le variabili di raggruppamento.
+Select up to eight response series.|Seleziona fino a otto serie di risposta.
 Parameter intervals|Intervalli dei parametri
 Compare with independent fits|Confronta con adattamenti indipendenti
 Show confidence bands|Mostra bande di confidenza
@@ -806,6 +837,12 @@ Individual observations|Osservazioni individuali
 Means at each X|Medie per ogni X
 Symmetric t|t simmetrico
 Profile likelihood|Verosimiglianza profilata
+Show estimation plot|Mostra grafico della stima
+Matched observations|Osservazioni appaiate
+Differences|Differenze
+Mean and 95% CI|Media e IC 95%
+Paired effect|Effetto appaiato
+Report log10(IC50)|Mostra log10(IC50)
 No change|Nessuna modifica
 Multiply by|Moltiplica per
 Natural log|Logaritmo naturale
@@ -932,7 +969,7 @@ Enter whole numbers for the position and size.|Inserisci numeri interi per posiz
 Enter whole-number coordinates for the panel.|Inserisci coordinate intere per il pannello.
 Enter a positive panel width and height within the layout.|Inserisci larghezza e altezza positive entro il layout.
 Keep the panel within the original layout’s panel area.|Mantieni il pannello entro l’area dei pannelli del layout originale.
-Invalid Prism layout edits.|Le modifiche al layout importato non sono valide.
+Invalid legacy layout edits.|Le modifiche al layout importato non sono valide.
 Reuse seed|Riutilizza seme
 New seed|Nuovo seme
 Copy seed|Copia seme
@@ -958,7 +995,12 @@ CAPTIONS.update({
 })
 
 CAPTIONS.update({
+    "Geometric mean": "Media geometrica",
     "Geometric mean and 95% CI": "Media geometrica e IC al 95%",
+    "Geometric mean requires strictly positive observations.": "La media geometrica richiede osservazioni strettamente positive.",
+    "For a geometric mean, choose a confidence interval or no interval.": "Per la media geometrica, scegli un intervallo di confidenza o nessun intervallo.",
+    "Summary format": "Tipo di riepilogo", "Full summary": "Riepilogo completo",
+    "Geometric summary": "Riepilogo geometrico", "Include sum": "Includi la somma",
     "Shapiro–Wilk": "Shapiro–Wilk", "D’Agostino–Pearson": "D’Agostino–Pearson",
     "Anderson–Darling": "Anderson–Darling", "Kolmogorov–Smirnov (Lilliefors)": "Kolmogorov–Smirnov (Lilliefors)",
     "Alpha": "Alfa", "Q–Q plot": "Grafico Q–Q", "Q–Q variable": "Variabile Q–Q",
@@ -1408,8 +1450,6 @@ CAPTIONS.update({
 })
 
 MESSAGES.update({
-    "icc.classic": ("Edit intraclass correlation in Trama's Vetro interface.",
-                    "Modifica la correlazione intraclasse nell'interfaccia Vetro di Trama."),
     "icc.error.raters_columns": ("Choose columns for {field}.", "Scegli le colonne per {field}."),
     "icc.error.raters_min": ("Choose at least two columns for {field}.", "Scegli almeno due colonne per {field}."),
     "icc.error.raters_once": ("Choose each column of {field} only once.",

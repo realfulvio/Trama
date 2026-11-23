@@ -211,7 +211,108 @@ class GridDrawingTests(TkCase):
         self.assertIsNone(self.grid.series_color("Group"))
 
 
+class ImportedPageExportTests(TkCase):
+    def test_export_uses_saved_paper_after_the_canvas_resizes(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from matplotlib.figure import Figure
+        from analisi.legacy_restore import SAVED_BINARY_LAYOUT
+        from analisi.legacy_zip_layout import ZIP_LAYOUT
+        from analisi.workbench import Result
+
+        paper = (8.5, 11.)
+        figure = Figure(figsize=paper)
+        figure.add_subplot().plot([0, 1], [1, 2])
+        self.app._add_tables({"Imported layout": pd.DataFrame({"Panels": [1]})})
+        self.app.runs = [tramastat.Run(SAVED_BINARY_LAYOUT, "Imported layout",
+                                       {ZIP_LAYOUT: {"paper": list(paper)}}, Result({}, figure))]
+        self.app.show("saved-layout", 0)
+        self.root.update()
+        preview = tuple(figure.get_size_inches())
+        self.assertNotEqual(preview, paper)
+        toolbar = next(child for child in self.app.page.winfo_children()
+                       if isinstance(child, tramastat.ImportedPageToolbar))
+        with TemporaryDirectory() as folder:
+            for name, export in (("menu", self.app.export), ("toolbar", toolbar.save_figure)):
+                path = Path(folder) / f"{name}.svg"
+                with patch("tramastat.filedialog.asksaveasfilename", return_value=str(path)):
+                    export()
+                svg = path.read_text(encoding="utf-8")
+                self.assertIn('width="612pt" height="792pt"', svg)
+                self.assertNotIn("<image ", svg)
+                self.assertEqual(tuple(figure.get_size_inches()), preview)
+        self.assertEqual(self.errors, [])
+
+
 class DialogTests(TkCase):
+    def test_calculated_column_menu_keeps_values_and_supports_undo(self):
+        import tkinter as tk
+        from analisi.i18n import tr
+
+        self.app._add_tables({"Study": pd.DataFrame({"Dose": [2, 4], "Result": [None, None]})})
+        data = self.app.tables["Study"]
+        data.set_worksheet_formula(1, "=Dose * 2")
+        self.app.show("data", "Study")
+        self.root.update()
+        grid = self.app.current_grid
+        with patch.object(tk.Menu, "tk_popup", autospec=True) as popup:
+            grid.canvas.event_generate("<Button-3>", x=int(grid.edges[0]) + 3, y=4)
+            popup.assert_not_called()
+            grid.canvas.event_generate("<Button-3>", x=int(grid.edges[1]) + 3, y=4)
+            popup.assert_called_once()
+        menu = popup.call_args.args[0]
+        self.assertEqual(menu.entrycget(0, "label"), tr("worksheet.formula.freeze"))
+        menu.invoke(0)
+        self.assertEqual(data.formulas, {})
+        self.assertEqual(data.raw["Result"].tolist(), [4, 8])
+        self.app.apply_worksheet_history()
+        self.assertIn("Result", data.formulas)
+        self.app.apply_worksheet_history(redo=True)
+        self.assertEqual(data.raw["Result"].tolist(), [4, 8])
+        self.assertEqual(self.errors, [])
+
+    def test_formula_reference_search_replaces_the_selection_and_preserves_a_quoted_name(self):
+        from analisi.data import Dataset
+        from analisi.graph_language_smoke import drive_mapped_dialog
+        from analisi.worksheet_formula_dialog import WorksheetFormulaDialog
+
+        name = "Nùmero [μM] 'étape'"
+        data = Dataset(pd.DataFrame({**{f"Raw {index:02d}": [2., 4.] for index in range(26)}, name: [0., 1.]}))
+
+        def enter(dialog):
+            try:
+                dialog.reference_group.current(1)
+                dialog.reference_query.set("normpdf")
+                self.assertIn("NORMPDF(x, mean, sd)", dialog.reference_detail.cget("text"))
+                dialog.expression.insert(0, "=unused")
+                dialog.expression.selection_range(1, "end")
+                dialog.reference_insert.invoke()
+                self.assertEqual(dialog.expression.get(), "=NORMPDF()")
+                self.assertEqual(dialog.expression.index("insert"), len("=NORMPDF("))
+                dialog.reference_group.current(0)
+                dialog.reference_query.set("aa")
+                self.assertEqual(dialog.reference_results.get(0), f"AA · {name}")
+                dialog.reference_search.focus_force()
+                dialog.update()
+                dialog.reference_search.event_generate("<Return>")
+                self.assertIsNone(dialog.result)
+                self.assertTrue(dialog.winfo_exists())
+                self.assertIn(repr(name), dialog.expression.get())
+                dialog.ok()
+                self.assertIsNotNone(dialog.result, dialog.problem.cget("text") if dialog.winfo_exists() else "")
+            except Exception as error:
+                self.errors.append(str(error))
+                if dialog.winfo_exists():
+                    dialog.cancel()
+
+        drive_mapped_dialog(self.root, WorksheetFormulaDialog, enter, self.errors)
+        dialog = WorksheetFormulaDialog(self.root, data, name="Density")
+        self.assertFalse(self.errors, self.errors)
+        self.assertIn(repr(name), dialog.result)
+        data.set_formula("Density", dialog.result)
+        self.assertAlmostEqual(data.frame()["Density"].iloc[0], 0.3989422804014327)
+
     def test_analysis_dialog_fits_the_screen_and_shows_the_error_banner(self):
         data = pd.DataFrame({"X": [1., 2., 3.], "Y": [2., 4., 6.]})
         shown = {}

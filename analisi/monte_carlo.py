@@ -79,7 +79,7 @@ ROW_COLUMNS = ["Replicate", "Estimate", "Statistic", "p", "CI low", "CI high", "
 OK, UNDEFINED = "OK", "Undefined"
 
 # Presentation keys that TramaStat keeps on every recipe when parameters change.
-_KEPT_KEYS = frozenset({"Prism title", "Prism notes"})
+_KEPT_KEYS = frozenset({"Legacy title", "Legacy notes"})
 
 TEST_VS_TRUTH = ("Test vs Truth: p compares each estimate with Null value (Pearson: no difference), and Reject "
                  "means p < Alpha. Coverage asks whether the interval contains the truth used to generate the data "

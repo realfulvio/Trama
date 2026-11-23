@@ -5,12 +5,80 @@ from tempfile import TemporaryDirectory
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-from analisi.data import EDITABLE_PRISM_XY, MAX_COLUMNS, Dataset, load_workspace, save_project
+from analisi.data import EDITABLE_LEGACY_XY, MAX_COLUMNS, Dataset, load_workspace, save_project
 from analisi.grid_data import clear_block, clipboard_rows, copy_block, filter_clipboard_rows, paste_block
 from analisi.grid_widget import _heading_bands
 
 
 class GridDataTests(unittest.TestCase):
+    def test_freeze_formula_keeps_position_exclusions_and_dependent_values(self):
+        data = Dataset(pd.DataFrame({"Dose": [2, 4], "Result": [None, None], "Other": [7, 9]}),
+                       excluded={(1, 0), (0, 2)})
+        data.set_worksheet_formula(1, "=Dose * 2")
+        data.set_formula("Adjusted", '=COL("Result") + 1')
+        before = data.frame()
+        data.freeze_worksheet_formula(1)
+        self.assertEqual(list(data.raw), ["Dose", "Result", "Other"])
+        self.assertEqual(data.source_indices, (0, 1, 2, None))
+        self.assertEqual(data.excluded, {(1, 0), (0, 2)})
+        self.assertEqual(set(data.formulas), {"Adjusted"})
+        assert_frame_equal(data.frame(), before)
+        paste_block(data, 0, 0, [["12"]])
+        self.assertEqual(data.frame().loc[0, ["Result", "Adjusted"]].tolist(), [4, 5])
+        paste_block(data, 0, 1, [["6"]])
+        self.assertEqual(data.frame().loc[0, ["Result", "Adjusted"]].tolist(), [6, 7])
+        self.assertTrue(pd.isna(data.frame().loc[1, "Result"]))
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "frozen.alab"
+            save_project(path, {"Study": data})
+            saved, _ = load_workspace(path)
+        assert_frame_equal(saved["Study"].frame(), data.frame(), check_dtype=False)
+        self.assertEqual(saved["Study"].excluded, data.excluded)
+
+    def test_freeze_formula_rejects_a_source_column_and_oversize_without_changes(self):
+        from unittest.mock import patch
+
+        data = Dataset(pd.DataFrame({"Dose": [2, 4]}))
+        data.set_formula("Derived", "=Dose * 2")
+        raw, formulas = data.raw, data.formulas
+        with self.assertRaisesRegex(ValueError, "calculated column"):
+            data.freeze_worksheet_formula(0)
+        with patch("analisi.data.MAX_CELLS", 3), self.assertRaisesRegex(ValueError, "size limit"):
+            data.freeze_worksheet_formula(1)
+        self.assertIs(data.raw, raw)
+        self.assertIs(data.formulas, formulas)
+
+    def test_formula_conversion_confirms_values_and_remaps_only_the_selected_source(self):
+        frame = pd.DataFrame({"Dose": [2, 4], "Label": ["a", "b"], "Retained": [7, 9]})
+        frame.attrs["worksheet_roles"] = {"x": [], "y": [["Dose"], ["Label"], ["Retained"]]}
+        data = Dataset(frame, excluded={(0, 1), (1, 2)})
+        original = data.raw
+        with self.assertRaisesRegex(ValueError, "Confirm replacement"):
+            data.set_worksheet_formula(1, "=A * 2")
+        with self.assertRaisesRegex(ValueError, "cannot depend on itself"):
+            data.set_worksheet_formula(1, "=B + 1", replace_values=True)
+        self.assertIs(data.raw, original)
+        self.assertEqual(data.excluded, {(0, 1), (1, 2)})
+        data.set_worksheet_formula(1, '=CONCATENATE("A", A)', replace_values=True)
+        self.assertEqual(list(data.frame()), ["Dose", "Label", "Retained"])
+        self.assertEqual(data.frame()["Label"].tolist(), ["A2", "A4"])
+        self.assertEqual(data.excluded, {(1, 1)})
+        self.assertEqual(data.worksheet_excluded, {(1, 2)})
+        self.assertIn("Dose", data.formulas["Label"])
+        self.assertEqual(frame.attrs["worksheet_roles"]["y"], [["Dose"], ["Label"], ["Retained"]])
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "converted.alab"
+            save_project(path, {"Study": data})
+            saved, _ = load_workspace(path)
+        self.assertEqual(saved["Study"].raw.attrs["worksheet_roles"]["y"], [["Dose"], ["Retained"]])
+        assert_frame_equal(saved["Study"].frame(), data.frame(), check_dtype=False)
+
+    def test_paste_keeps_expression_like_text_as_data_in_empty_columns(self):
+        data = Dataset(pd.DataFrame({"Dose": [2., 4.], "Notes": pd.array([None, None], dtype="Float64")}))
+        paste_block(data, 0, 1, [["=A * 2"]])
+        self.assertEqual(data.raw["Notes"].iloc[0], "=A * 2")
+        self.assertEqual(data.formulas, {})
+
     def test_paste_filter_keeps_first_then_skips_rows_before_writing(self):
         source = clipboard_rows('one\t0\r\ntwo\t1,25\r\n"three\ncontinued"\t2\r\nfour\t\r\nfive\t4\r\n')
         selected = filter_clipboard_rows(source, first=2, last=4, skip=1)
@@ -141,9 +209,9 @@ class GridDataTests(unittest.TestCase):
         self.assertEqual(clipboard_rows(text),
                          [["4,125", "4.125"], ["-1,25", "A.1"], ["1,2e-20", ""], ["", ""]])
 
-    def test_prism_graph_points_keep_series_identity_and_existing_rows(self):
+    def test_legacy_graph_points_keep_series_identity_and_existing_rows(self):
         data = Dataset(pd.DataFrame({"X": [0, 1], "Y": [2, 3], "Series": ["Group A"] * 2, "Dataset": [1, 1]}))
-        data.table_format = EDITABLE_PRISM_XY
+        data.table_format = EDITABLE_LEGACY_XY
         with self.assertRaisesRegex(ValueError, "Use Format"):
             paste_block(data, 0, 1, [["8", "Another series"]])
         self.assertEqual(data.raw.iloc[0].tolist(), [0, 2, "Group A", 1])
@@ -155,8 +223,8 @@ class GridDataTests(unittest.TestCase):
 
     def test_saved_xy_worksheet_preserves_known_implicit_x(self):
         frame = pd.DataFrame({"Control": [1], "Treatment": [2]})
-        frame.attrs.update(table_format="xy", prism_x=None, prism_y=["a", "b"],
-                           prism_columns={"a": ["Control"], "b": ["Treatment"]})
+        frame.attrs.update(table_format="xy", legacy_x=None, legacy_y=["a", "b"],
+                           legacy_columns={"a": ["Control"], "b": ["Treatment"]})
         with TemporaryDirectory() as directory:
             path = Path(directory) / "project.alab"
             save_project(path, {"XY": Dataset(frame)})

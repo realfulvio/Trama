@@ -31,13 +31,15 @@ import pandas as pd
 from .analysis_chain import ChainCancelled, MAX_ANALYSIS_NODES, ResultSource
 from .analysis_labels import valid_label
 from .family_workflow import same_file  # Also through links or another spelling of the path.
-from .data import (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_STACKS, EDITABLE_PRISM_XY,
+from .data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_STACKS, EDITABLE_LEGACY_XY,
                    MAX_CELLS, MAX_COLUMNS, MAX_ENTRY, Dataset, _formula_tree, _project_column_kind,
-                   _validated_worksheet_roles, _worksheet_roles, formula_calculation_order, info_references,
+                   _validated_column_order, _validated_worksheet_roles, _worksheet_roles,
+                   formula_calculation_order, info_references,
                    validate_analysis_links)
 from .graph_annotations import ANNOTATIONS
 from .graph_shapes import SHAPES
 from .layout_geometry import AUTO_PAPER, WHITE
+from .legacy_project_metadata import IMPORTED_METHODS, is_import_option, saved_name
 from .presentation import Layout, validated_style
 
 SCHEMA = 1
@@ -49,14 +51,11 @@ MAX_LAYOUTS = 128
 MAX_NAME = 1024
 MAX_DEPTH = 32
 KINDS = ("numeric", "text", "mixed")
-IMPORTED_FORMATS = {EDITABLE_PRISM_XY, EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_STACKS, EDITABLE_PRISM_EMF,
-                    "Prism graph collection", "Prism layout collection"}
-IMPORTED_METHODS = {"Imported Prism XY graph", "Imported Prism original graph", "Imported Prism layout",
-                    "Imported Prism editable graph", "Imported Prism saved results"}
-IMPORTED_OPTION = "Prism "  # Every option an import adds (graph links, previews, panel data…) starts so.
+IMPORTED_FORMATS = {EDITABLE_LEGACY_XY, EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_STACKS, EDITABLE_LEGACY_EMF,
+                    "Imported graph collection", "Imported layout collection"}
 _LOCAL_ID = re.compile(r"A[1-9][0-9]{0,5}")
 _ROOT_KEYS = {"schema", "kind", "tables", "layouts"}
-_TABLE_KEYS = {"name", "format", "columns", "roles", "formulas", "analyses"}
+_TABLE_KEYS = {"name", "format", "columns", "roles", "formulas", "analyses", "column_order"}
 _COLUMN_KEYS = {"name", "kind"}
 _ANALYSIS_KEYS = {"id", "method", "options", "source", "label", "style"}
 _SOURCE_KEYS = {"id", "table"}
@@ -104,6 +103,7 @@ class TableSpec:
     roles: dict | None
     formulas: tuple           # ((name, expression), …)
     analyses: tuple           # AnalysisSpec, in slot order
+    column_order: tuple[str, ...] | None = None
 
     @property
     def column_names(self):
@@ -238,13 +238,13 @@ def _recipe_problem(method, options, columns, *, root):
     """Why a recipe cannot travel in a template, or None. ``columns`` are those of its own table."""
     from .workbench import METHODS
 
-    if not isinstance(method, str) or method in IMPORTED_METHODS:
+    if not isinstance(method, str) or saved_name(method) in IMPORTED_METHODS:
         return "imported-analysis", "This analysis shows an imported view; remove it or analyse the data again."
     if method not in METHODS:
         return "unknown-method", f"The analysis {method!r} is not available in this version of Trama."
     if not isinstance(options, dict):
         return "invalid-options", "The saved options of this analysis are not valid."
-    if any(isinstance(key, str) and key.startswith(IMPORTED_OPTION) for key in options):
+    if any(isinstance(key, str) and is_import_option(key) for key in options):
         return "imported-analysis", "This analysis keeps data of an imported file; analyse the data again."
     try:
         _json_value(options)
@@ -361,7 +361,8 @@ def plan_template(tables, layouts=(), info_sheets=None, *, cancel=None):
                 style = style or None
             label = dataset.analysis_labels.get(slot)
             analyses.append(AnalysisSpec(local[title, slot], method, _plain(deepcopy(options)), link, label, style))
-        specs.append(TableSpec(title, dataset.table_format, columns, roles, tuple(formulas), tuple(analyses)))
+        specs.append(TableSpec(title, dataset.table_format, columns, roles, tuple(formulas), tuple(analyses),
+                               dataset.column_order))
     for title, dataset in tables.items():  # A comparison drawn on a graph reads another analysis by slot.
         for slot, (method, options) in enumerate(dataset.analyses):
             if (title, slot) in imported:
@@ -408,6 +409,8 @@ def template_payload(template):
         if table.roles is not None:
             record["roles"] = deepcopy(table.roles)
         record["formulas"] = [[name, expression] for name, expression in table.formulas]
+        if table.column_order is not None:
+            record["column_order"] = list(table.column_order)
         analyses = []
         for analysis in table.analyses:
             item = {"id": analysis.id, "method": analysis.method, "options": deepcopy(analysis.options)}
@@ -510,7 +513,7 @@ def _parse_tables(records):
         names.add(name)
         what = f"Table {name!r}"
         table_format = _text(record["format"], f"{what} format", limit=160, field="file")
-        if table_format in IMPORTED_FORMATS:
+        if saved_name(table_format) in IMPORTED_FORMATS:
             _fail("imported-table", f"{what} uses an imported sheet format.", field="file", table=name)
         columns = []
         for item in _list(record["columns"], f"{what} columns", MAX_COLUMNS):
@@ -544,6 +547,9 @@ def _parse_tables(records):
             if info_references(expression):
                 _fail("info-formula", f"The formula {formula_name!r} of {what} reads an Info sheet.", field="file")
             formulas.append((formula_name, expression))
+        column_order = None
+        if "column_order" in record:
+            column_order = _validated_column_order(record["column_order"], column_names, dict(formulas))
         known = column_names + [formula_name for formula_name, _ in formulas]
         analyses = []
         for item in _list(record["analyses"], f"{what} analyses", MAX_ANALYSIS_NODES):
@@ -574,7 +580,8 @@ def _parse_tables(records):
                 _json_value(style)
             ids[identifier] = (name, len(analyses))
             analyses.append(AnalysisSpec(identifier, item["method"], item["options"], source, label, style or None))
-        tables.append(TableSpec(name, table_format, tuple(columns), roles, tuple(formulas), tuple(analyses)))
+        tables.append(TableSpec(name, table_format, tuple(columns), roles, tuple(formulas), tuple(analyses),
+                                column_order))
     if not tables:
         _fail("type", "The template has no data table.", field="file")
     if len(ids) > MAX_ANALYSIS_NODES:
@@ -802,6 +809,7 @@ def instantiate_template(template, sources, mapping, *, avoid=(), cancel=None):
                                     f"the new data: {error}", field=table.name, table=table.name,
                                     column=name) from error
         dataset.formulas = {name: dataset.formulas[name] for name in expressions}
+        dataset.column_order = table.column_order
         dataset.analysis_ids = {slot: ids[analysis.id] for slot, analysis in enumerate(table.analyses)}
         dataset.analysis_sources = {slot: ResultSource(ids[analysis.source[0]], analysis.source[1])
                                     for slot, analysis in enumerate(table.analyses) if analysis.source is not None}

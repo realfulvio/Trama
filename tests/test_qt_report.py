@@ -101,8 +101,8 @@ class ReportCatalogTests(unittest.TestCase):
     def test_recipe_is_json_without_paths_caches_or_imported_drawings(self):
         from trama_qt.report_catalog import recipe
         cleaned = recipe({"X": "Dose", "Level": np.float64(0.95), "Count": np.int64(3), "Pair": ("a", "b"),
-                          "Missing": float("nan"), "Prism graph preview": b"\x00", "Source": "/home/luca/x.csv",
-                          "Windows": "C:\\Users\\luca\\x.csv", "Blob": b"x", "Nested": {"Prism notes": "x", "k": 1}})
+                          "Missing": float("nan"), "Legacy graph preview": b"\x00", "Source": "/home/luca/x.csv",
+                          "Windows": "C:\\Users\\luca\\x.csv", "Blob": b"x", "Nested": {"Legacy notes": "x", "k": 1}})
         self.assertEqual(cleaned, {"X": "Dose", "Level": 0.95, "Count": 3, "Pair": ["a", "b"], "Missing": None,
                                    "Nested": {"k": 1}})
         json.dumps(cleaned, allow_nan=False)
@@ -121,6 +121,23 @@ class ReportDialogTests(unittest.TestCase):
         dialog = ReportDialog(None, candidates(project), "Calibrazione")
         self.addCleanup(dialog.deleteLater)
         return dialog
+
+    def test_report_buttons_remain_reachable_on_a_short_screen(self):
+        from PySide6.QtWidgets import QDialogButtonBox, QScrollArea
+
+        dialog = self.dialog()
+        dialog.resize(680, 420)
+        dialog.show()
+        self.app.processEvents()
+
+        self.assertEqual(dialog.height(), 420)
+        scroll = dialog.findChild(QScrollArea)
+        self.assertGreater(scroll.verticalScrollBar().maximum(), 0)
+        self.assertFalse(scroll.isAncestorOf(dialog.box))
+        for choice in (QDialogButtonBox.StandardButton.Ok, QDialogButtonBox.StandardButton.Cancel):
+            button = dialog.box.button(choice)
+            self.assertTrue(button.isVisible())
+            self.assertLessEqual(button.mapTo(dialog, button.rect().bottomRight()).y(), dialog.height())
 
     def test_empty_selection_and_empty_names_are_field_errors(self):
         dialog = self.dialog()
@@ -278,11 +295,10 @@ class ReportWindowTests(unittest.TestCase):
             self.wait()
         return answers
 
-    def test_action_is_in_the_file_tab(self):
+    def test_action_is_in_the_file_menu(self):
         from trama_qt.report_dialog import text
         self.assertEqual(self.window.actions["export_report"].text(), text("command"))
-        file_tab = self.window.ribbon.widget(0)
-        self.assertIn(self.window.actions["export_report"], file_tab.actions())
+        self.assertIn(self.window.actions["export_report"], self.window.command_menus["File"].actions())
         self.assertFalse(self.window.actions["export_report"].isEnabled())  # Nothing to report yet.
         self.prepare()
         self.assertTrue(self.window.actions["export_report"].isEnabled())

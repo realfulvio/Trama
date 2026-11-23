@@ -1,4 +1,6 @@
-# Interface themes
+# Interface themes in the 0.73 beta
+
+This page documents the 0.73 beta. For the Classica launchers in current portable builds, see the [launcher guide](qt-migration.md).
 
 **Settings → Theme…** offers **Standard theme** and **Modern theme**. In Italian the choices are **Tema standard** and **Tema Moderno**. The same chooser is reachable from the start page.
 

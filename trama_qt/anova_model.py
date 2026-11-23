@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QGridLayout, QGroup
                                QListWidget, QListWidgetItem, QPushButton, QSizePolicy, QVBoxLayout, QWidget)
 
 from analisi import anova_planned_contrasts as planned
+from analisi.anova_diagnostics import ASSUMPTIONS, TEST_SET
+from analisi.anova_contrast_editor import check_contrast_input, contrast_context
 from analisi.anova_diagnostics import format_anova_error, graph_choice, ensure_graph_budget
 from analisi.anova_diagnostics import validate as validate_diagnostics
 from analisi.anova_ss import KEY as SUMS_OF_SQUARES, TYPE_I, TYPE_II, TYPE_III, sums_of_squares
@@ -494,6 +496,9 @@ class AnovaFields:
         self.interaction = controls[ORDER][1]
         self.kind_box = controls[SUMS_OF_SQUARES][1]
         self.editor = controls[MODEL_TERMS][1]
+        self.assumptions = controls[ASSUMPTIONS][1]
+        self.assumptions.toggled.connect(self.sync_assumption_tests)
+        self.sync_assumption_tests(self.assumptions.isChecked())
         self.order = FactorOrder(self.saved.get(FACTORS))
         _caption, widget, form = dialog.rows[SUMS_OF_SQUARES]
         row, _role = form.getWidgetPosition(widget)
@@ -537,6 +542,9 @@ class AnovaFields:
         items = (self.factor_list.item(row) for row in range(self.factor_list.count()))
         return [item.text() for item in items if item.checkState() == Qt.CheckState.Checked]
 
+    def sync_assumption_tests(self, enabled):
+        self.dialog._set_field_visibility({TEST_SET: enabled})
+
     def offered(self):
         return [self.factor_list.item(row).text() for row in range(self.factor_list.count())]
 
@@ -556,20 +564,7 @@ class AnovaFields:
         """Model factors, their levels in the rows the fit will use, and the engine's data check."""
         model = self.model_factors()
         response = self.response.currentData() or self.response.currentText()
-        data = self.dialog.data
-        try:
-            levels = planned.frame_levels(data, response, model) if model else {}
-        except (ValueError, KeyError):  # Response not yet a numeric column: the levels of the factor columns
-            levels = {name: sorted(data[name].dropna().astype(str).unique()) for name in model if name in data}
-
-        def check(names):
-            try:
-                planned.check_categories(data, response, names)
-            except FieldError:
-                raise
-            except (ValueError, KeyError):  # column problems are reported by the fit itself
-                pass
-
+        levels, check = contrast_context(self.dialog.data, response, model)
         return model, levels, check
 
     def relayout(self):
@@ -650,18 +645,7 @@ class AnovaFields:
             check_comparison_controls(options, factors, terms)
         check_anova_options(options)
         model = active_factors(factors, terms) if terms is not None else list(factors)
-        request = planned.check_request(options, model)
-        if request is not None:
-            response = options.get("Response")
-            try:
-                planned.check_categories(self.dialog.data, response, model)
-                levels = planned.frame_levels(self.dialog.data, response, model)
-            except FieldError:
-                raise
-            except (ValueError, KeyError):
-                levels = None  # the worker's fit reports the columns
-            if levels is not None:
-                planned.check_levels(request[1], request[0], levels, model)
+        check_contrast_input(options, self.dialog.data, model)
         validate_diagnostics(options)
         graph = graph_choice(options)
         if graph != "None":

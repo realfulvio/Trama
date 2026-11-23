@@ -13,10 +13,10 @@ from analisi import advanced, kmeans_options as k, kmeans_reports as reports
 from analisi.analysis_chain import result_frame
 from analisi.data import load_tables
 from analisi.field_error import FieldError
-from analisi.prism_recipes import restore_recipe
-from analisi.prism_restore import PRISM_TITLE, SAVED_XY
+from analisi.legacy_recipes import restore_recipe
+from analisi.legacy_restore import LEGACY_TITLE, SAVED_XY
 from analisi.workbench import analyse
-from tests.test_prism_recipes import source, var
+from tests.test_legacy_recipes import source, var
 
 
 class KmeansReportTests(unittest.TestCase):
@@ -181,17 +181,17 @@ class KmeansReportTests(unittest.TestCase):
                 for uid, graph_id, title in (("elbow", 2, "Linked"), ("unrelated", 3, "Snapshot")):
                     write(f"graphs/{uid}/sheet.json", {"uid": uid, "fenID": graph_id, "title": title,
                                                       "inputDataSets": ["wss"]})
-            tables = load_tables(path, restore_prism=True)
+            tables = load_tables(path, restore_legacy=True)
         fitted = tables["Signal"]
-        (method, options), (view_method, view_options) = fitted.attrs["prism_recipes"]
+        (method, options), (view_method, view_options) = fitted.attrs["legacy_recipes"]
         self.assertEqual((method, view_method), (k.SELECTION, reports.MODEL_GRAPH))
-        self.assertEqual((view_options[reports.METRIC], view_options[PRISM_TITLE]), ("WSS", "Linked"))
-        link = fitted.attrs["prism_analysis_sources"][1]
-        self.assertEqual((link.analysis_id, link.table), (fitted.attrs["prism_analysis_ids"][0], "Selection"))
-        archived = tables["Prism result · Clustering · Elbow plot"]
+        self.assertEqual((view_options[reports.METRIC], view_options[LEGACY_TITLE]), ("WSS", "Linked"))
+        link = fitted.attrs["legacy_analysis_sources"][1]
+        self.assertEqual((link.analysis_id, link.table), (fitted.attrs["legacy_analysis_ids"][0], "Selection"))
+        archived = tables["Imported result · Clustering · Elbow plot"]
         self.assertEqual(archived["WCSS"].tolist(), [104, 4, 2])
-        self.assertNotIn("Prism graph · Linked", tables)
-        self.assertEqual(tables["Prism graph · Snapshot"].attrs["prism_recipes"][0][0], SAVED_XY)
+        self.assertNotIn("Imported graph · Linked", tables)
+        self.assertEqual(tables["Imported graph · Snapshot"].attrs["legacy_recipes"][0][0], SAVED_XY)
 
     def test_archive_restores_flags_for_reports_on_editable_recipe(self):
         content = {"data": {"variables": [var("signal")]},

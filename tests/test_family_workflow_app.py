@@ -13,7 +13,7 @@ from analisi.family_workflow_dialog import FamilyDialog, family_error_text
 from analisi.i18n import tr
 from analisi.info import InfoSheet
 from analisi.presentation import Layout
-from analisi.prism_restore import PRISM_TITLE
+from analisi.legacy_restore import LEGACY_TITLE
 from analisi.theme_preferences import save_theme
 from tests.test_graph_i18n import TkCase
 
@@ -62,12 +62,12 @@ class RunNames(FamilyAppCase):
     def test_label_wins_then_the_imported_title_then_the_legacy_name(self):
         run = self.app.runs[0]
         self.assertEqual(run.name, 'Linear regression of A')
-        run.options[PRISM_TITLE] = 'Imported title'
+        run.options[LEGACY_TITLE] = 'Imported title'
         self.assertEqual(run.name, 'Imported title')
         run.label = 'Chosen label'
         self.assertEqual(run.name, 'Chosen label')
         run.label = None
-        run.options.pop(PRISM_TITLE)
+        run.options.pop(LEGACY_TITLE)
         run.source = ResultSource(run.uid, 'Normalized')
         self.assertEqual(run.name, 'Linear regression of Normalized')
 
@@ -222,14 +222,14 @@ class DialogBehaviour(FamilyAppCase):
 
 class RecoveredLayoutCopy(FamilyAppCase):
     def test_a_recovered_layout_is_copied_with_new_graph_identities(self):
-        from analisi.prism_layout_edit import PRISM_PANEL_DATA
-        from analisi.prism_restore import (PRISM_GRAPH_LINK, PRISM_GRAPH_STYLE, SAVED_BINARY_LAYOUT,
+        from analisi.legacy_layout_edit import LEGACY_PANEL_DATA
+        from analisi.legacy_restore import (LEGACY_GRAPH_LINK, LEGACY_GRAPH_STYLE, SAVED_BINARY_LAYOUT,
                                            SAVED_EDITABLE_GRAPH)
         tables = {
             'Recovered A': Dataset(pd.DataFrame({'X': [1., 2.], 'Y': [3., 4.]}), analyses=[
-                (SAVED_EDITABLE_GRAPH, {PRISM_GRAPH_LINK: 'graph-a', PRISM_GRAPH_STYLE: {'fixture': 'A'}})]),
+                (SAVED_EDITABLE_GRAPH, {LEGACY_GRAPH_LINK: 'graph-a', LEGACY_GRAPH_STYLE: {'fixture': 'A'}})]),
             'Recovered layouts': Dataset(pd.DataFrame({'View': ['Synthetic']}), analyses=[
-                (SAVED_BINARY_LAYOUT, {PRISM_PANEL_DATA: {'1': 'graph-a'}})])}
+                (SAVED_BINARY_LAYOUT, {LEGACY_PANEL_DATA: {'1': 'graph-a'}})])}
         path = Path(self.tmp.name)/'recovered.alab'
         save_project(path, tables)
         self.app.import_file(path)
@@ -245,9 +245,9 @@ class RecoveredLayoutCopy(FamilyAppCase):
         with patch.object(self.app, 'open_sheet') as opened:
             self.app.apply_family(bundle)
         copied = {run.title: run for run in self.app.runs if run.title.startswith('Repeat')}
-        link = copied['Repeat Recovered A'].options[PRISM_GRAPH_LINK]
+        link = copied['Repeat Recovered A'].options[LEGACY_GRAPH_LINK]
         self.assertNotEqual(link, 'graph-a')
-        self.assertEqual(copied['Repeat Recovered layouts'].options[PRISM_PANEL_DATA], {'1': link})
-        self.assertEqual(tables['Recovered layouts'].analyses[0][1][PRISM_PANEL_DATA], {'1': 'graph-a'})
+        self.assertEqual(copied['Repeat Recovered layouts'].options[LEGACY_PANEL_DATA], {'1': link})
+        self.assertEqual(tables['Recovered layouts'].analyses[0][1][LEGACY_PANEL_DATA], {'1': 'graph-a'})
         opened.assert_called_once()
         self.assertEqual(opened.call_args.args[0][0], 'saved-layout')

@@ -14,43 +14,48 @@ from uuid import uuid4
 
 import pandas as pd
 
+from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
 from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCancelled, ResultSource,
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
-from analisi.data import (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, MAX_ENTRY, Dataset,
+from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, MAX_ENTRY, Dataset,
                           info_references, load_tables, load_workspace, project_document, save_project)
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.graph_shapes import SHAPES
-from analisi.grid_data import clear_block, grow_rows, paste_block
+from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
 from analisi.i18n import tr, ui
 from analisi.info import info_contexts, validate_info_sheets
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY
-from analisi.pca_graphs import SAVED_DIRECTIONS as PCA_SAVED_DIRECTIONS
+from analisi.pca_graphs import SAVED_DIRECTIONS as PCA_SAVED_DIRECTIONS, SAVED_VIEWPORT as PCA_SAVED_VIEWPORT
 from analisi.pca_overlays import SAVED_APPEARANCE as PCA_OVERLAY_APPEARANCE
+from analisi.pca_parallel_archive import ARCHIVE as PCA_PARALLEL_ARCHIVE
 from analisi.monte_carlo import MONTE_CARLO as MONTE_CARLO_METHOD, MonteCarloCancelled, monte_carlo
 from analisi.kmeans_archive import ARCHIVE as KMEANS_ARCHIVE
 from analisi.kmeans_stability import METHOD as KMEANS_STABILITY, analysis as kmeans_stability
+from analisi import logistic_validation
 from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attach_pairwise,
                                     comparison_rows as pairwise_rows, endpoint_resolver as pairwise_endpoint,
                                     graph_problem as pairwise_graph_problem, read_section as read_pairwise,
                                     source_problem as pairwise_source_problem, sync_letters_table)
 from analisi.parallel_analyses import precompute as precompute_analyses
 from analisi.presentation import apply_style, compose_layout
-from analisi.prism_emf_edit import LIMIT_SOURCE
-from analisi.prism_fit_graph import FIT_GRAPH_SPEC, FIT_INTERVAL_BAND
-from analisi.prism_xml_qc import QC_REFERENCE
-from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS
-from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK,
-                                   PRISM_GRAPH_STYLE, PRISM_NOTES, PRISM_PREVIEW, PRISM_TITLE,
+from analisi.legacy_emf_edit import LIMIT_SOURCE
+from analisi.legacy_fit_graph import FIT_GRAPH_SPEC, FIT_INTERVAL_BAND
+from analisi.legacy_xml_qc import QC_REFERENCE
+from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_DATA, LEGACY_PANEL_EDITS
+from analisi.legacy_restore import (LEGACY_GRAPH_LINK,
+                                   LEGACY_GRAPH_STYLE, LEGACY_NOTES, LEGACY_PREVIEW, LEGACY_TITLE,
                                    SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT,
-                                   SAVED_EDITABLE_GRAPH, SAVED_XY, panel_source_style, resolve_layout_panel_graphs)
-from analisi.prism_xml_binding import SCATCHARD
+                                   SAVED_EDITABLE_GRAPH, SAVED_XY, linked_panel_readers, panel_source_style,
+                                   resolve_layout_panel_graphs)
+from analisi.legacy_xml_binding import SCATCHARD
 from analisi.shape_interaction import ShapeHistory
 from analisi.select_transform import SELECT_TRANSFORM, seeded_transform_options
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.survival_plot import SURVIVAL_GRAPH
 from analisi.workbench import analyse
 from analisi import worksheet_join
+from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
 from analisi.worksheet_history import WorksheetHistory, WorksheetState
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
@@ -58,7 +63,7 @@ from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
 PROJECT_SUFFIXES = {".alab", ".prism", ".prismt", ".pzf", ".pzt", ".pzfx", ".xml"}
 DATA_SUFFIXES = {".csv", ".tsv", ".txt", ".xlsx"}
 OPEN_FILTER = "*.alab *.csv *.tsv *.txt *.xlsx *.prism *.prismt *.pzt *.pzfx *.pzf *.xml"
-PRISM_GRAPH_METHODS = {SAVED_XY, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}
+LEGACY_GRAPH_METHODS = {SAVED_XY, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}
 SAVED_VIEWS = {SAVED_BINARY_GRAPH, SAVED_BINARY_RESULT, SAVED_BINARY_LAYOUT, SAVED_EDITABLE_GRAPH, SCATCHARD}
 HIERARCHY_GRAPH = "Hierarchy graph"
 MAX_TABLES = 256
@@ -68,12 +73,10 @@ def run_view(method):
     """Which sheet shows a run first: its results, its graph or a saved layout."""
     if method == SAVED_BINARY_LAYOUT:
         return "saved-layout"
-    return "graph" if method in PRISM_GRAPH_METHODS or method == HIERARCHY_GRAPH else "result"
-
-
-def stored_prism_view(dataset):
-    return (dataset.table_format in {BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION}
-            or any(method == SAVED_BINARY_RESULT for method, _ in dataset.analyses))
+    if method in LEGACY_GRAPH_METHODS or method in {
+            HIERARCHY_GRAPH, anova_comparison_plot.METHOD, anova_diagnostics.METHOD, anova_grouped_plot.METHOD}:
+        return "graph"
+    return "result"
 
 
 @dataclass
@@ -98,11 +101,11 @@ class Run:
     @property
     def name(self):
         source_title = self.source.table if self.source is not None else self.title
-        return self.label or self.options.get(PRISM_TITLE) or f"{self.method} of {source_title}"
+        return self.label or self.options.get(LEGACY_TITLE) or f"{self.method} of {source_title}"
 
     @property
     def notes(self):
-        return self.options.get(PRISM_NOTES)
+        return self.options.get(LEGACY_NOTES)
 
 
 class CalculationControl:
@@ -157,6 +160,8 @@ def compute(run, frame, control=None, layout_data=None, pairwise=None, *, result
             result = monte_carlo(frame, run.options, progress=control.report, cancel=control.cancel)
         elif run.method == KMEANS_STABILITY and control is not None:  # one progress step per K-means fit
             result = kmeans_stability(frame, run.options, cancel=control.cancel, progress=control.report)
+        elif run.method == logistic_validation.METHOD and control is not None:
+            result = logistic_validation.analysis(frame, run.options, cancel=control.cancel, progress=control.report)
         elif run.method == XY_METHOD:
             result = xy_series(frame, run.options, left_scale=(run.style or {}).get("yscale", "linear"))
         else:
@@ -250,7 +255,7 @@ def _file_stamp(path):
     return [status.st_size, status.st_mtime_ns]
 
 
-class Project:
+class Project(WorksheetJoinSources):
     def __init__(self, number=1):
         self.number = number
         self.tables = {}
@@ -316,7 +321,7 @@ class Project:
                 for index, (method, options) in enumerate(dataset.analyses)]
 
     # -- files ----------------------------------------------------------------------------------
-    def load(self, path):
+    def load(self, path, *, initial_sheet=None):
         """Open a project or import a data file into this project. Returns the titles added."""
         path = Path(path)
         if path.suffix.lower() == ".alab":
@@ -330,7 +335,7 @@ class Project:
             self.source_stamp = _file_stamp(path)
             return list(loaded)
         info_sheets = []
-        tables = load_tables(path, restore_prism=True, info_sheets=info_sheets)
+        tables = load_tables(path, restore_legacy=True, info_sheets=info_sheets, initial_sheet=initial_sheet)
         if path.suffix.lower() in PROJECT_SUFFIXES and not self.tables:
             self.origin = path
             self.source_stamp = _file_stamp(path)
@@ -531,7 +536,7 @@ class Project:
 
     def layout_panel_data(self, run):
         """Data of the editable graphs a saved layout draws again."""
-        if not isinstance(run.options.get(PRISM_PANEL_DATA), dict):
+        if not isinstance(run.options.get(LEGACY_PANEL_DATA), dict):
             return None
         return {panel: (self.tables[graph.title].frame(mask_excluded=True),
                         panel_source_style(graph.method, graph.options))
@@ -550,34 +555,6 @@ class Project:
         return [by_reference[reference] for reference in layout.panels if reference in by_reference]
 
     # -- joins ----------------------------------------------------------------------------------------
-    def join_sources(self, title, source=None):
-        """The worksheets a join of ``title`` can read on the right, with their columns: the native data
-        sheets of this project except the left one (a join of a result table may read its own data sheet)."""
-        return {name: [*dataset.raw.columns, *dataset.formulas] for name, dataset in self.tables.items()
-                if not stored_prism_view(dataset) and (source is not None or name != title)}
-
-    def join_problem(self, run):
-        """Why the right worksheet of a join cannot be read, as a FieldError on Join right sheet, or None.
-        The exact title is the identity of the sheet: a missing one is never replaced by another."""
-        title = worksheet_join.right_title(run.options)
-        if title is None or title not in self.tables:
-            return worksheet_join.missing_source(title)
-        if stored_prism_view(self.tables[title]):
-            return worksheet_join.view_source(title)
-        if run.source is None and title == run.title:
-            return worksheet_join.same_source(title)
-        return None
-
-    def join_data(self, run):
-        """The evaluated right worksheet of a join (excluded cells blank), read on the window thread so the
-        worker gets a consistent copy; the FieldError of a source that cannot be read; None for other runs."""
-        if run.method != worksheet_join.METHOD:
-            return None
-        problem = self.join_problem(run)
-        if problem is not None:
-            return problem
-        return self.tables[worksheet_join.right_title(run.options)].frame(mask_excluded=True)
-
     def readers(self, titles):
         """The runs that read the worksheets ``titles``: their analyses and the joins that read them on the right."""
         titles = set(titles)
@@ -683,9 +660,10 @@ class Project:
         run = self.runs[index]
         options = dict(options)
         if method == run.method:
-            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
-                        PCA_OVERLAY_APPEARANCE, PCA_SAVED_DIRECTIONS, KMEANS_ARCHIVE, FIT_GRAPH_SPEC,
-                        FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE):
+            for key in (LEGACY_TITLE, LEGACY_NOTES, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
+                        PCA_OVERLAY_APPEARANCE, PCA_SAVED_DIRECTIONS, PCA_SAVED_VIEWPORT, PCA_PARALLEL_ARCHIVE,
+                        KMEANS_ARCHIVE, FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE,
+                        anova_grouped_plot.PRIMARY):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:
@@ -750,31 +728,31 @@ class Project:
     # -- export ---------------------------------------------------------------------------------------
     def imported_vector_format(self, run):
         """The available vector export format for a recovered drawing."""
-        preview = run.options.get(PRISM_PREVIEW)
+        preview = run.options.get(LEGACY_PREVIEW)
         fmt = preview.get("format") if isinstance(preview, dict) else None
         if run.method in {SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT} and fmt in ("emf", "pdf"):
             return fmt
         dataset = self.tables.get(run.title)
-        style = run.options.get(PRISM_GRAPH_STYLE)
+        style = run.options.get(LEGACY_GRAPH_STYLE)
         if (run.method == SAVED_EDITABLE_GRAPH and fmt == "emf" and dataset is not None
                 and isinstance(style, dict)
-                and (dataset.table_format in {EDITABLE_PRISM_EMF, EDITABLE_PRISM_COLUMNS} or LIMIT_SOURCE in style)):
+                and (dataset.table_format in {EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_COLUMNS} or LIMIT_SOURCE in style)):
             return fmt
         return None
 
     def export_imported_vector(self, run, path, *, current_layout=False):
-        from analisi.prism_binary_graphs import export_binary_graph
-        from analisi.prism_layout_edit import edit_panel_artwork, export_edited_layout
+        from analisi.legacy_binary_graphs import export_binary_graph
+        from analisi.legacy_layout_edit import edit_panel_artwork, export_edited_layout
 
         options = run.options
-        preview = options[PRISM_PREVIEW]
+        preview = options[LEGACY_PREVIEW]
         if current_layout:
-            export_edited_layout(path, preview, options.get(PRISM_EDITABLE_PANELS),
-                                 options.get(PRISM_PANEL_EDITS), self.layout_panel_data(run))
+            export_edited_layout(path, preview, options.get(LEGACY_EDITABLE_PANELS),
+                                 options.get(LEGACY_PANEL_EDITS), self.layout_panel_data(run))
             return
         if run.method == SAVED_EDITABLE_GRAPH:
             frame = self.tables[run.title].frame(mask_excluded=True)
-            preview = edit_panel_artwork(frame, options[PRISM_GRAPH_STYLE], preview)
+            preview = edit_panel_artwork(frame, options[LEGACY_GRAPH_STYLE], preview)
         export_binary_graph(path, preview, layout=run.method == SAVED_BINARY_LAYOUT)
 
     def layout_panel_figures(self, layout):
@@ -828,7 +806,7 @@ class Project:
             return ui("Use Open editable graph when available, or export the original drawing in its saved "
                       "vector format.")
         if run.method == SAVED_EDITABLE_GRAPH and (
-                self.tables[run.title].table_format in EDITABLE_PRISM_FIXED_VALUES or PRISM_PREVIEW in run.options):
+                self.tables[run.title].table_format in EDITABLE_LEGACY_FIXED_VALUES or LEGACY_PREVIEW in run.options):
             return ui("Use Edit graph data to change values in the recovered drawing.")
         if run.result is None or run.result.figure is None or not run.result.figure.axes:
             return ui("Calculate the graph first.")
@@ -889,7 +867,7 @@ class Project:
     # -- worksheet edits ------------------------------------------------------------------------
     def editable(self, title):
         dataset = self.tables[title]
-        if stored_prism_view(dataset):
+        if stored_legacy_view(dataset):
             raise ValueError("Select a source table or use Result as Data to create an editable table.")
         return dataset
 
@@ -902,6 +880,7 @@ class Project:
             candidate.frame()  # A formula that no longer evaluates rejects the edit.
         before = WorksheetState.capture(dataset)
         dataset.raw, dataset.formulas, dataset.excluded = candidate.raw, candidate.formulas, candidate.excluded
+        dataset.column_order = candidate.column_order
         after = WorksheetState.capture(dataset)
         if not self.history.record(title, label, before, after):
             return None
@@ -910,14 +889,15 @@ class Project:
 
     def table_runs(self, title):
         affected = self.readers([title])
-        if any(isinstance(run.options.get(PRISM_GRAPH_LINK), str) for run in affected):
-            affected.extend(run for run in self.runs
-                            if run.title != title and isinstance(run.options.get(PRISM_PANEL_DATA), dict)
-                            and any(graph.title == title for graph in self.layout_panel_graphs(run).values()))
+        if any(isinstance(run.options.get(LEGACY_GRAPH_LINK), str) for run in affected):
+            affected.extend(linked_panel_readers(title, self.runs, self.tables))
         return affected
 
     def paste(self, title, top, left, rows, label="Paste"):
         return self.edit(title, label, lambda dataset: paste_block(dataset, top, left, rows))
+
+    def edit_cell(self, title, row, column, text):
+        return self.edit(title, "Edit cell", lambda dataset: edit_cell_value(dataset, row, column, text))
 
     def clear(self, title, selection):
         return self.edit(title, "Clear cells", lambda dataset: clear_block(dataset, selection))
@@ -952,7 +932,13 @@ class Project:
             raw = dataset.raw.copy()
             if not name.strip() or name in raw.columns or name in dataset.formulas:
                 raise ValueError("Choose a new column name.")
-            position_ = max(0, min(position, len(raw.columns)))
+            if dataset.column_order is None:
+                position_ = max(0, min(position, len(raw.columns)))
+            else:
+                order = dataset.column_order
+                at = max(0, min(position, len(order)))
+                position_ = sum(index is not None for index in dataset.source_indices[:at])
+                dataset.column_order = (*order[:at], name, *order[at:])
             raw.insert(position_, name, pd.Series([pd.NA] * len(raw), dtype="Float64"))
             raw.attrs = dict(dataset.raw.attrs)
             dataset.excluded = {(row, column + 1 if column >= position_ else column)
@@ -965,14 +951,20 @@ class Project:
 
         def change(dataset):
             raw = dataset.raw
-            names = [raw.columns[index] for index in columns if index < len(raw.columns)]
-            if not names:
+            indices = dataset.source_indices
+            sources = {indices[index] for index in columns if 0 <= index < len(indices)} - {None}
+            if not sources:
                 raise ValueError(tr_formula_only())
+            if dataset.formulas and len(sources) == len(raw.columns):
+                raise ValueError("Keep at least one source column in a worksheet with formulas.")
+            names = raw.columns[sorted(sources)]
             frame = raw.drop(columns=names)
             frame.attrs = dict(raw.attrs)
-            keep = [index for index in range(len(raw.columns)) if index not in columns]
+            keep = [index for index in range(len(raw.columns)) if index not in sources]
             mapping = {old: new for new, old in enumerate(keep)}
             dataset.excluded = {(row, mapping[column]) for row, column in dataset.excluded if column in mapping}
+            if dataset.column_order is not None:
+                dataset.column_order = tuple(name for name in dataset.column_order if name not in names)
             dataset.raw = frame
         return self.edit(title, "Delete columns", change)
 
@@ -980,12 +972,17 @@ class Project:
         def change(dataset):
             raw = dataset.raw
             name_ = name.strip()
-            if column >= len(raw.columns):
+            indices = dataset.source_indices
+            if not 0 <= column < len(indices) or (source := indices[column]) is None:
                 raise ValueError(tr_formula_only())
-            if not name_ or (name_ != raw.columns[column] and (name_ in raw.columns or name_ in dataset.formulas)):
+            previous = raw.columns[source]
+            if not name_ or (name_ != previous and (name_ in raw.columns or name_ in dataset.formulas)):
                 raise ValueError("Choose a new column name.")
-            frame = raw.rename(columns={raw.columns[column]: name_})
+            frame = raw.rename(columns={previous: name_})
             frame.attrs = dict(raw.attrs)
+            if dataset.column_order is not None:
+                order = dataset.column_order
+                dataset.column_order = (*order[:column], name_, *order[column + 1:])
             dataset.raw = frame
         return self.edit(title, "Rename column", change)
 
@@ -996,7 +993,9 @@ class Project:
     def toggle_exclusion(self, title, cells):
         def change(dataset):
             current = set(dataset.excluded)
-            cells_ = {cell for cell in cells if cell[0] < len(dataset.raw) and cell[1] < len(dataset.raw.columns)}
+            indices = dataset.source_indices
+            cells_ = {(row, indices[column]) for row, column in cells
+                      if 0 <= row < len(dataset.raw) and 0 <= column < len(indices) and indices[column] is not None}
             if cells_ and cells_ <= current:
                 current -= cells_
             else:

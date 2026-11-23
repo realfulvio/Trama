@@ -12,7 +12,7 @@ Arrowheads have a point-based physical size, including after zoom and DPI change
 
 ## Reference evidence and limits
 
-The drawing editor supports named point sizes, two arrowhead designs and three hatch patterns. End caps, additional arrow styles, rounded rectangles, arcs, rotation and direct mouse drawing remain further work.
+Trama provides named controls for point sizes, two arrowhead designs and three hatch patterns. End caps, additional arrow styles, rounded rectangles, arcs, rotation, direct mouse drawing and round-trip editing of external drawing objects are outside this release.
 
 ## Verification
 

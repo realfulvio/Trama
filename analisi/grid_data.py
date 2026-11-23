@@ -10,7 +10,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from .data import (EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, EDITABLE_PRISM_XY,
+from .data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, EDITABLE_LEGACY_XY,
                    MAX_CELLS, MAX_COLUMNS, MAX_ENTRY, _table, decimal_comma)
 
 
@@ -126,16 +126,19 @@ def paste_block(dataset, top, left, rows):
             or not rows or not rows[0] or any(len(row) != len(rows[0]) for row in rows)):
         raise ValueError("Select a valid cell and a rectangular block.")
     stop_row, stop_column = top + len(rows), left + len(rows[0])
-    if dataset.table_format == EDITABLE_PRISM_XY and (stop_row > len(raw) or (left < 4 and stop_column > 2)):
+    if dataset.formulas:
+        span = dataset.source_span(left, stop_column)
+        if span is None:
+            raise ValueError("Calculated columns are edited using Formula. Select source cells for paste.")
+        left, stop_column = span
+    if dataset.table_format == EDITABLE_LEGACY_XY and (stop_row > len(raw) or (left < 4 and stop_column > 2)):
         raise ValueError("Edit existing X/Y coordinates here. Use Format to rename or style a series.")
-    if dataset.table_format in EDITABLE_PRISM_FIXED_VALUES and (
+    if dataset.table_format in EDITABLE_LEGACY_FIXED_VALUES and (
         stop_row > len(raw) or stop_column > len(raw.columns)
         or any(left <= column < stop_column for column in dataset.locked_columns)
     ):
         raise ValueError("Edit only the numerical values of the existing graph data.")
     height, width = max(len(raw), stop_row), max(len(raw.columns), stop_column)
-    if dataset.formulas and stop_column > len(raw.columns):
-        raise ValueError("Calculated columns are edited using Formula. Select source cells for paste.")
     if (width > max(MAX_COLUMNS, len(raw.columns)) or height * width > MAX_CELLS):
         raise ValueError("The paste would exceed the table size limit.")
     candidate = grow_rows(raw, height)
@@ -181,23 +184,33 @@ def paste_block(dataset, top, left, rows):
     preview = copy.copy(dataset)
     preview.raw = candidate
     preview.frame()
-    if dataset.table_format in EDITABLE_PRISM_FIXED_VALUES:
-        from .prism_binary_bars import validate_bar_values
-        from .prism_emf_edit import edit_emf_preview
-        from .prism_pdf_stacks import validate_stack_values
-        from .prism_restore import PRISM_GRAPH_STYLE, PRISM_PREVIEW, SAVED_EDITABLE_GRAPH
+    if dataset.table_format in EDITABLE_LEGACY_FIXED_VALUES:
+        from .legacy_binary_bars import validate_bar_values
+        from .legacy_emf_edit import edit_emf_preview
+        from .legacy_pdf_stacks import validate_stack_values
+        from .legacy_restore import LEGACY_GRAPH_STYLE, LEGACY_PREVIEW, SAVED_EDITABLE_GRAPH
 
         recipes = [options for method, options in dataset.analyses if method == SAVED_EDITABLE_GRAPH]
         if len(recipes) != 1:
             raise ValueError("The recovered graph is missing or ambiguous.")
         options, = recipes
-        style = options.get(PRISM_GRAPH_STYLE)
-        if dataset.table_format == EDITABLE_PRISM_EMF:
-            edit_emf_preview(candidate, style, options.get(PRISM_PREVIEW))
+        style = options.get(LEGACY_GRAPH_STYLE)
+        if dataset.table_format == EDITABLE_LEGACY_EMF:
+            edit_emf_preview(candidate, style, options.get(LEGACY_PREVIEW))
         else:
-            validator = validate_bar_values if dataset.table_format == EDITABLE_PRISM_COLUMNS else validate_stack_values
+            validator = validate_bar_values if dataset.table_format == EDITABLE_LEGACY_COLUMNS else validate_stack_values
             validator(candidate, style)
     dataset.raw = candidate
+
+
+def edit_cell_value(dataset, row, column, text):
+    """Handle a typed expression in an empty variable without changing clipboard semantics."""
+    expression = text.strip()
+    if (row >= 0 and expression.startswith("=") and dataset.can_enter_formula(column)
+            and dataset.source_indices[column] is not None and not dataset.column_has_values(column)):
+        dataset.set_worksheet_formula(column, expression)
+    else:
+        paste_block(dataset, row, column, [[text]])
 
 
 def clear_block(dataset, selection):
@@ -206,9 +219,12 @@ def clear_block(dataset, selection):
     raw = dataset.raw
     if not (0 <= top <= bottom and 0 <= left <= right):
         raise ValueError("Select a valid cell range.")
-    if right >= len(raw.columns):
+    span = dataset.source_span(left, right + 1)
+    if span is None:
         raise ValueError("Calculated columns cannot be cleared. Select source cells.")
-    if dataset.table_format in EDITABLE_PRISM_FIXED_VALUES or any(
+    left, stop_column = span
+    right = stop_column - 1
+    if dataset.table_format in EDITABLE_LEGACY_FIXED_VALUES or any(
             left <= column <= right for column in dataset.locked_columns):
         raise ValueError("Edit the supported values of the recovered graph individually.")
     stop = min(bottom + 1, len(raw))

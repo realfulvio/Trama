@@ -26,8 +26,8 @@ from .data import Dataset, info_references, save_project
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts
 from .pairwise_graph import SECTION, read_section
 from .presentation import Layout
-from .prism_layout_edit import PRISM_PANEL_DATA
-from .prism_restore import (PRISM_GRAPH_LINK, PRISM_TITLE, SAVED_BINARY_LAYOUT, panel_source_style)
+from .legacy_layout_edit import LEGACY_PANEL_DATA
+from .legacy_restore import (LEGACY_GRAPH_LINK, LEGACY_TITLE, SAVED_BINARY_LAYOUT, panel_source_style)
 from . import worksheet_join
 
 MAX_TABLES = 256
@@ -133,7 +133,7 @@ class _Graph:
                 for parent in dict.fromkeys(found):
                     self.parents.setdefault(node, []).append(parent)
                     self.children.setdefault(parent, []).append(node)
-                link = options.get(PRISM_GRAPH_LINK)
+                link = options.get(LEGACY_GRAPH_LINK)
                 if isinstance(link, str) and panel_source_style(method, options) is not None:
                     self.editable.setdefault(link, []).append(node)
                 if method == SAVED_BINARY_LAYOUT:
@@ -147,7 +147,7 @@ class _Graph:
         """Graphs identified by the panel links of a recovered layout. A link shared by two editable
         graphs is ambiguous: refused when the family needs it, ignored when only looking."""
         title, slot = node
-        links = self.tables[title].analyses[slot][1].get(PRISM_PANEL_DATA)
+        links = self.tables[title].analyses[slot][1].get(LEGACY_PANEL_DATA)
         found = []
         if isinstance(links, dict):
             for link in links.values():
@@ -353,7 +353,7 @@ class FamilyPreview:
 def display_name(dataset, title, slot):
     method, options = dataset.analyses[slot]
     source = dataset.analysis_sources.get(slot)
-    explicit = dataset.analysis_labels.get(slot) or options.get(PRISM_TITLE)
+    explicit = dataset.analysis_labels.get(slot) or options.get(LEGACY_TITLE)
     return explicit, explicit or f"{method} of {source.table if source is not None else title}"
 
 
@@ -460,7 +460,7 @@ class FamilyBundle:
 
 def _recovered_links(options):
     links = set()
-    link = options.get(PRISM_GRAPH_LINK)
+    link = options.get(LEGACY_GRAPH_LINK)
     if isinstance(link, str):
         links.add(link)
     return links
@@ -493,12 +493,12 @@ def _remap_options(options, slot_map, old_count, new_count, link_map, table_name
             # another analysis, and a valid one follows the compaction of the slots.
             section["Source slot"] = slot_map[old] if old in slot_map else new_count + max(0, old - old_count)
     if link_map:
-        link = options.get(PRISM_GRAPH_LINK)
+        link = options.get(LEGACY_GRAPH_LINK)
         if isinstance(link, str) and link in link_map:
-            options[PRISM_GRAPH_LINK] = link_map[link]
-        panels = options.get(PRISM_PANEL_DATA)
+            options[LEGACY_GRAPH_LINK] = link_map[link]
+        panels = options.get(LEGACY_PANEL_DATA)
         if isinstance(panels, dict):
-            options[PRISM_PANEL_DATA] = {panel: link_map.get(link, link) if isinstance(link, str) else link
+            options[LEGACY_PANEL_DATA] = {panel: link_map.get(link, link) if isinstance(link, str) else link
                                          for panel, link in panels.items()}
     return options
 
@@ -508,7 +508,7 @@ def _copy_raw(dataset):
     attrs = deepcopy(dict(dataset.raw.attrs))
     # The explicit arguments carry recipes, formulas and exclusions; leftovers of an import would
     # inject the original recipes into the copy or resurrect cells that were included again.
-    for name in ("prism_recipes", "prism_formulas", "excluded"):
+    for name in ("legacy_recipes", "legacy_formulas", "excluded"):
         attrs.pop(name, None)
     if "table_format" in attrs:
         attrs["table_format"] = dataset.table_format
@@ -582,7 +582,7 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph):
                           if slot in mapping},
             info={}, analysis_ids={mapping[slot]: identities[title, slot] for slot in slots
                                    if (title, slot) in identities},
-            analysis_sources={}, analysis_labels=labels)
+            analysis_sources={}, analysis_labels=labels, column_order=dataset.column_order)
         # Sources are rebuilt from identities of the copies, so they can only refer to the copies.
         built[title].analysis_sources.update(sources)
 

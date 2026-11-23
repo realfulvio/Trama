@@ -14,6 +14,7 @@ Retained components are the prefix of that comparison, through the first failure
 import numpy as np
 import pandas as pd
 
+from . import pca_parallel_archive
 from .exploration import pca
 from .field_error import FieldError
 from .stats import complete
@@ -96,12 +97,14 @@ BUDGET = 6_000_000
 
 
 class Retention:
-    """Extra sheets and, for a scree plot, the null percentile curve."""
+    """Extra sheets and the parallel reference series for a scree plot."""
 
-    def __init__(self, tables=None, quantile=None, percentile=None):
+    def __init__(self, tables=None, quantile=None, percentile=None, mean=None, bounds=None):
         self.tables = {} if tables is None else tables
         self.quantile = quantile
         self.percentile = percentile
+        self.mean = mean
+        self.bounds = bounds
 
 
 def visible_fields(selection):
@@ -158,7 +161,8 @@ def assess(frame, options, parts, eigenvectors, scores):
     alive = _alive(eigenvalues)
     rank = int(alive.sum())
     n, p = len(scores), len(eigenvectors)
-    mean = quantile = random = None
+    mean = quantile = random = bounds = None
+    rule_note = _NOTES[rule]
     simulations = seed = percentile = None
     if rule == FIXED:
         count = _whole(options.get(RETAINED, OPTIONS[RETAINED]), RETAINED)
@@ -176,9 +180,21 @@ def assess(frame, options, parts, eigenvectors, scores):
         simulations = _whole(options.get(SIMULATIONS, OPTIONS[SIMULATIONS]), SIMULATIONS)
         seed = _whole(options.get(SEED, OPTIONS[SEED]), SEED)
         percentile = _real(options.get(PERCENTILE, OPTIONS[PERCENTILE]), PERCENTILE)
-        random = _replicates(frame, options, n, p, len(names), simulations, seed)
-        mean = random.mean(axis=0)
-        quantile = np.quantile(random, percentile / 100, axis=0, method="linear")
+        # A saved summary has no individual replicates to export.
+        saved = None if options.get(SAVE, OPTIONS[SAVE]) else pca_parallel_archive.matching(
+            frame, options, eigenvalues, simulations, seed, percentile)
+        if saved is not None:
+            mean, lower, upper = saved
+            rule_note = ("Uses the parallel reference saved with the input data. "
+                         "Retains the prefix of living components strictly above the selected percentile.")
+        else:
+            random = _replicates(frame, options, n, p, len(names), simulations, seed)
+            mean = random.mean(axis=0)
+            opposite = 100 - percentile
+            levels = sorted((percentile, opposite))
+            lower, upper = np.quantile(random, np.asarray(levels) / 100, axis=0, method="linear")
+        bounds = lower, upper
+        quantile = lower if percentile < 50 else upper
         passed = alive & (eigenvalues > quantile)
     retained = _prefix(passed) if rule == PARALLEL else passed
     count = int(retained.sum())
@@ -193,6 +209,8 @@ def assess(frame, options, parts, eigenvectors, scores):
         "Random mean": np.full(len(names), np.nan) if mean is None else mean,
         "Random percentile": np.full(len(names), np.nan) if quantile is None else quantile,
     })
+    if bounds is not None:
+        selection["Random lower percentile"], selection["Random upper percentile"] = bounds
     kept = [name for name, flag in zip(names, retained) if flag]
     selected_scores = pd.DataFrame({"Source row": scores.index.to_numpy()})
     for name in kept:
@@ -212,7 +230,7 @@ def assess(frame, options, parts, eigenvectors, scores):
         "Simulations": np.nan if simulations is None else simulations,
         "Seed": np.nan if seed is None else seed,
         "Percentile": np.nan if percentile is None else percentile,
-        "Rule": _NOTES[rule],
+        "Rule": rule_note,
     }])
     tables = {
         SELECTION_SHEET: selection,
@@ -225,7 +243,7 @@ def assess(frame, options, parts, eigenvectors, scores):
         replicates = pd.DataFrame(random, columns=names)
         replicates.insert(0, "Simulation", np.arange(1, len(random) + 1))
         tables[PARALLEL_SHEET] = replicates
-    return Retention(tables, quantile, percentile)
+    return Retention(tables, quantile, percentile, mean, bounds)
 
 
 def _validate(options, rule):

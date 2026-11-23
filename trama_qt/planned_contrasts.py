@@ -20,7 +20,6 @@ reads them. A level that the data no longer has (a value edited or a row exclude
 ``(not in the data)`` until the user picks another level or removes the weight.
 """
 from copy import deepcopy
-from fractions import Fraction
 import math
 
 from PySide6.QtCore import Qt, QTimer
@@ -30,8 +29,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogBut
                                QWidget)
 
 from analisi import anova_planned_contrasts as engine
-from analisi.anova_planned_contrasts import (ALPHA, CONTRASTS, CORRECTION, CORRECTIONS, DEFAULT_ALPHA, FACTORS,
-                                             HOLM, KEYS, MAX_NAME, ContrastError)
+from analisi.anova_contrast_editor import clean_state, coefficient_text, parse_coefficient
+from analisi.anova_planned_contrasts import (ALPHA, CONTRASTS, CORRECTION, CORRECTIONS, FACTORS,
+                                             KEYS, MAX_NAME, ContrastError)
 from analisi.data import decimal_comma
 from analisi.field_error import FieldError
 from analisi.i18n import active_language, tr
@@ -68,59 +68,6 @@ def _button(text, command):
     button.setAutoDefault(False)
     button.clicked.connect(command)
     return button
-
-
-def coefficient_text(value):
-    """A saved coefficient as the editor shows it: integers plain, decimals with the comma in Italian."""
-    if value is None:
-        return ""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return str(value)
-    if math.isfinite(value) and float(value).is_integer() and abs(value) < 1e15:
-        text = str(int(value))
-    else:
-        text = repr(float(value))
-    return text.replace(".", ",") if active_language() == "it" else text
-
-
-def parse_coefficient(text):
-    """Typed text → JSON number. Accepts ``0,5``, ``0.5``, ``-1/3`` and exponents. Raises ValueError."""
-    text = str(text).strip()
-    if not text:
-        raise ValueError("empty")
-    if "/" in text:
-        numerator, denominator = (Fraction(decimal_comma(part.strip())) for part in text.split("/", 1))
-        if denominator == 0:
-            raise ValueError("division by zero")
-        value = float(numerator / denominator)
-    else:
-        value = float(decimal_comma(text))
-    if math.isfinite(value) and value.is_integer() and abs(value) < 2 ** 53:
-        return int(value)
-    return value
-
-
-def _clean_state(saved):
-    """The four keys of a recipe as an editable state. Malformed parts are kept as far as they can be shown."""
-    factors = saved.get(FACTORS)
-    factors = [name for name in factors if isinstance(name, str)] if isinstance(factors, (list, tuple)) else []
-    contrasts = []
-    raw = saved.get(CONTRASTS)
-    for record in raw if isinstance(raw, (list, tuple)) else ():
-        if not isinstance(record, dict):
-            continue
-        weights = []
-        for weight in record.get("weights") or ():
-            if not isinstance(weight, dict):
-                continue
-            levels = weight.get("levels")
-            levels = list(levels) if isinstance(levels, (list, tuple)) else []
-            weights.append({"levels": levels, "coefficient": weight.get("coefficient")})
-        name = record.get("name")
-        contrasts.append({"name": name if isinstance(name, str) else "", "weights": weights})
-    correction = saved.get(CORRECTION, HOLM)
-    alpha = saved.get(ALPHA, DEFAULT_ALPHA)
-    return {FACTORS: factors, CONTRASTS: contrasts, CORRECTION: correction, ALPHA: alpha}
 
 
 class ContrastEditor(QDialog):
@@ -665,7 +612,7 @@ class ContrastPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("plannedContrastPanel")
         saved = dict(saved or {})
-        self.state = _clean_state(saved)
+        self.state = clean_state(saved)
         self.pending = None
         self.context = lambda: ([], {}, lambda _model: None)
         layout = QVBoxLayout(self)
@@ -735,7 +682,7 @@ class ContrastPanel(QWidget):
         return editor
 
     def accept_state(self, state):
-        self.state = _clean_state(state)
+        self.state = clean_state(state)
         self.pending = None
         _say(self.problem, "")
         self.refresh()

@@ -472,19 +472,12 @@ def diagnostic_sheet(first, second, *, distribution="Normal", level=95.0):
     return {SHEET: _report({key: result[key] for key in KEYS})}
 
 
-def attach_ttest(frame, options, tables):
-    """Add the sheet for an unpaired t-test when the option is on. Means stay untouched."""
+def attach_ttest(first, second, options, tables, *, level=95.):
+    """Use the same oriented samples and confidence level as the unpaired t-test."""
     design = options.get("Design")
     if not requested(options, design):
         return tables
-    from .stats import complete
-    response, group = options.get("Response"), options.get("Group")
-    data = complete(frame, [response], [group])
-    order = options.get("Group order")
-    labels = list(order) if order else data[group].drop_duplicates().tolist()
-    first = data.loc[data[group] == labels[0], response].to_numpy(dtype=float)
-    second = data.loc[data[group] == labels[1], response].to_numpy(dtype=float)
-    tables.update(diagnostic_sheet(first, second, distribution=NORMAL, level=95.0))
+    tables.update(diagnostic_sheet(first, second, distribution=NORMAL, level=level))
     return tables
 
 

@@ -20,15 +20,61 @@ Subject trajectories
 from math import ceil
 
 from matplotlib.collections import LineCollection
+from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 
 from .category_graphs import COLORS, MAX_POINTS, _REPLICATE, _title
 from .data import _worksheet_roles
+from .i18n import active_language, tr, ui
 from .presentation import GraphGroup, register_groups
 from .processing import FieldError, _column
 from .reporting import Result, _plot, _report
+from .stats import ci_columns
+
+
+TTEST_ESTIMATION = "Show estimation plot"
+
+
+def shows_paired_estimation(method, options):
+    return method == "t-test" and options.get("Design") == "Paired" and options.get(TTEST_ESTIMATION) is True
+
+
+def paired_estimation_figure(first, second, summary, response, *, level=95.):
+    """Plot the complete pairs and the interval calculated by the same test."""
+    first, second = first.to_numpy(dtype=float), second.to_numpy(dtype=float)
+    figure = Figure(figsize=(8, 5), dpi=100, layout="constrained")
+    values, effects = figure.subplots(1, 2, width_ratios=(3, 2))
+    pairs = np.stack((np.column_stack((np.zeros(len(second)), second)),
+                      np.column_stack((np.ones(len(first)), first))), axis=1)
+    values.add_collection(LineCollection(pairs, colors="#a8b7c0", linewidths=.7, alpha=.65))
+    values.scatter(np.zeros(len(second)), second, color="#2866ae", s=24, zorder=3)
+    values.scatter(np.ones(len(first)), first, color="#087f76", s=24, zorder=3)
+    reference, treatment = str(summary["Second / null"]), str(summary["First"])
+    values.set_xticks([0., 1.], [reference, treatment], parse_math=False)
+    values.set_xlim(-.35, 1.35)
+    values.set_ylabel(response or tr("ttest.plot.measurements"), parse_math=False)
+    values.set_title(tr("ttest.plot.pairs"))
+    effects.axhline(0, color="#81929b", linewidth=1, linestyle="--")
+    effects.scatter(np.zeros(len(first)), first - second, color="#2866ae", alpha=.55, s=22)
+    estimate = summary["Difference"]
+    low, high = (summary[key] for key in ci_columns(level))
+    interval = effects.vlines(1., low, high, color="#087f76", linewidth=1.5)
+    interval.set_gid("paired-mean-confidence-interval")
+    effects.hlines([low, high], .94, 1.06, color="#087f76", linewidth=1.5)
+    effects.scatter([1.], [estimate], color="#087f76", s=32, zorder=3)
+    effects.set_xlim(-.45, 1.45)
+    percent = repr(float(level)).removesuffix(".0")
+    if active_language() == "it":
+        percent = percent.replace(".", ",")
+    caption = tr("ttest.ci.caption", level=percent)
+    effects.set_xticks([0., 1.], [tr("ttest.plot.differences"), caption])
+    effects.set_ylabel(f"{treatment} − {reference}", parse_math=False)
+    effects.set_title(tr("ttest.plot.effect"))
+    for axes in (values, effects):
+        axes.spines[["right", "top"]].set_visible(False)
+    return figure
 
 BEFORE_AFTER = "Before/after"
 TRAJECTORIES = "Subject trajectories"

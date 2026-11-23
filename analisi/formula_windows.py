@@ -11,6 +11,9 @@ from .formula_row_statistics import ROW_STATISTICS, row_statistic
 _SUMMARY_STATISTICS = {"MEAN", "SUM", "MIN", "MAX", "STDEV", "STDERR", "COUNT", "COUNTA"}
 WINDOW_CALLS = _SUMMARY_STATISTICS | ROW_STATISTICS
 CONDITIONAL_CALLS = {f"{name}IF": name for name in _SUMMARY_STATISTICS}
+# These statistics use the same evaluator with or without explicit window clauses.
+_IMPLICIT_WINDOW_CALLS = {"STDEV", "STDERR", "COUNTA"}
+_LOWERED_CALLS = CONDITIONAL_CALLS.keys() | _IMPLICIT_WINDOW_CALLS
 _CLAUSE_ORDER = ("OVER", "WHERE", "ORDER", "ROWS")
 WINDOW_CLAUSES = set(_CLAUSE_ORDER)
 WINDOW_KEYWORDS = WINDOW_CLAUSES | {"ASC", "DESC", "PRECEDING", "FOLLOWING", "UNBOUNDED"}
@@ -154,7 +157,7 @@ def _lower(nodes, *, in_arguments=False):
         clause = _word(nodes[index]) if index < len(nodes) else ""
         name = _word(result[-1]) if result else ""
         conditional = name in CONDITIONAL_CALLS
-        if clause not in WINDOW_CLAUSES and not conditional:
+        if clause not in WINDOW_CLAUSES and not conditional and name not in _IMPLICIT_WINDOW_CALLS:
             in_call = bool(name) and result[-1][1] not in {"and", "or", "not"}
             result.extend([_OPEN, *_lower(node, in_arguments=in_call), _CLOSE])
             continue
@@ -205,7 +208,7 @@ def lower_window_clauses(tokens):
     significant = [item for item in tokens if item[0] not in
                    {tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.ENDMARKER}]
     if not any((previous == _CLOSE and _word(current) in WINDOW_CLAUSES)
-               or (_word(previous) in CONDITIONAL_CALLS and current == _OPEN)
+               or (_word(previous) in _LOWERED_CALLS and current == _OPEN)
                for previous, current in zip(significant, significant[1:])):
         return tokens
     return _lower(_groups(significant))

@@ -2,7 +2,7 @@
 
 A planned contrast is a comparison you decide **before** looking at the results: a treatment against the mean of two controls, a linear trend over doses, a difference of differences. Trama combines the estimated marginal means of the ANOVA model with your coefficients, which must add up to 0, and reports one row per contrast with its estimate, standard error, t test and confidence interval.
 
-In the Qt window choose **Analyze → Multifactor ANOVA** (*Analisi → ANOVA multifattoriale*) and press **Planned contrasts…** (*Contrasti pianificati…*). The editor works on a copy: nothing changes in the analysis until you press OK in the editor and then Run (*Esegui*) in the ANOVA dialog. Cancel leaves the recipe as it was.
+In Classica or Qt choose **Analyze → Multifactor ANOVA** (*Analisi → ANOVA multifattoriale*) and press **Planned contrasts…** (*Contrasti pianificati…*). The editor works on a copy: nothing changes in the analysis until you press OK in the editor and then Run (*Esegui*) in the ANOVA dialog. Cancel leaves the recipe as it was.
 
 ## The editor
 

@@ -9,7 +9,7 @@ from .data import Dataset, save_project
 from .grouped_anova import METHOD
 
 
-def archived_chain(path, *, valid=True):
+def archived_chain(path, *, valid=True, graph=None):
     """Build a synthetic result dependency with the child listed before its producer."""
     with ZipFile(path, "w") as project:
         def write(name, value):
@@ -20,7 +20,14 @@ def archived_chain(path, *, valid=True):
                 "uid": table, "format": kind, "dataFormat": "y_single", "dataSets": columns, **shape,
             }})
 
-        write("document.json", {"sheets": {"data": ["raw"], "analyses": ["test", "extract"]}})
+        document = {"data": ["raw"], "analyses": ["test", "extract"]}
+        if graph is not None:
+            document["graphs"] = ["graph"]
+            write("graphs/graph/sheet.json", {
+                "uid": "graph", "title": "Extracted observations", "fenID": 3,
+                "inputDataSets": ["b", "a"], **graph,
+            })
+        write("document.json", {"sheets": document})
         for uid, title in (("r", "Temperature"), ("c", "Treatment"), ("y", "Signal"),
                            ("row", "Temperature"), ("a", "Pump"), ("b", "Other")):
             write(f"data/sets/{uid}.json", {"title": title})
@@ -57,7 +64,7 @@ def archived_chain(path, *, valid=True):
             },
         }, resultSheets=[{"uid": "table"}])
         write("analyses/extract/result_sheets/table.json",
-              {"dataSheet": "wide", "name": "Results", "isVisible": True})
+              {"dataSheet": "wide", "name": "Results", "isVisible": True, "graphId": 3})
 
 
 def check_linked_grouped_anova(root, app, directory, capture, wait):
@@ -99,7 +106,7 @@ def check_linked_grouped_anova(root, app, directory, capture, wait):
     wait()
     reopened, saved = open_result()
     assert reopened.source == run.source and isclose(saved, edited, abs_tol=1e-12)
-    app.show("data", "Prism result · extract · Results")
+    app.show("data", "Imported result · extract · Results")
     assert app.get_dataset().frame().iloc[1]["Pump [1]"] == 8
     open_result()
     capture(root, "window-linked-grouped-anova.png")

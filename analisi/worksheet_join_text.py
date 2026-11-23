@@ -33,8 +33,6 @@ EN = {
     "join.note.results": ("Results: Joined data, Join provenance (worksheet rows and state of every output row) "
                           "and Join diagnostics. Editing either worksheet recalculates the join."),
     "join.note.no_sheet": "Add a second data sheet to the project to join it with this one.",
-    "join.classic": ("Join worksheets by key is calculated and edited in the standard window. Open this project "
-                     "without --tk to update it; the classic window keeps the recipe unchanged."),
     "join.error.sheet_none": "Choose the right worksheet in Join right sheet.",
     "join.error.sheet_missing": ('The worksheet "{sheet}" is not in this project. Choose a data sheet in Join right '
                                  "sheet to link it again."),
@@ -92,8 +90,6 @@ IT = {
     "join.note.results": ("Risultati: Joined data, Join provenance (righe dei fogli e stato di ogni riga) e Join "
                           "diagnostics. Modificare uno dei due fogli ricalcola l’unione."),
     "join.note.no_sheet": "Aggiungi un secondo foglio dati al progetto per unirlo a questo.",
-    "join.classic": ("Unisci fogli per chiave si calcola e si modifica nella finestra standard. Apri questo "
-                     "progetto senza --tk per aggiornarlo; la finestra classica conserva la ricetta invariata."),
     "join.error.sheet_none": "Scegli il foglio di destra in Foglio di destra.",
     "join.error.sheet_missing": ('Il foglio "{sheet}" non è in questo progetto. Scegli un foglio dati in Foglio di '
                                  "destra per ricollegarlo."),

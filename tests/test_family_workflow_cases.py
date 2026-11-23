@@ -136,7 +136,7 @@ class Contents(TestCase):
         copy = duplicate_family({'R': dataset}, [], [], ('data', 'R'), name='R2').tables['R2']
         pd.testing.assert_frame_equal(copy.raw, original.raw)
         self.assertEqual(dict(copy.raw.attrs), {k: v for k, v in original.raw.attrs.items()
-                                                if k not in {'excluded', 'prism_recipes', 'prism_formulas'}})
+                                                if k not in {'excluded', 'legacy_recipes', 'legacy_formulas'}})
         self.assertEqual(copy.table_format, 'XY')
         self.assertEqual(copy.excluded, {(0, 1)})
         self.assertTrue(pd.isna(copy.raw.iloc[2, 1]) and pd.isna(copy.raw.iloc[1, 4]))
@@ -154,12 +154,12 @@ class Contents(TestCase):
 
     def test_recipes_only_present_in_attrs_are_not_reinjected_into_a_partial_copy(self):
         frame = pd.DataFrame({'X': [0., 1.], 'Y': [1., 2.]})
-        frame.attrs['prism_recipes'] = [fit(), ('Histogram', {'Response': 'Y', 'Bins': 3})]
+        frame.attrs['legacy_recipes'] = [fit(), ('Histogram', {'Response': 'Y', 'Bins': 3})]
         dataset = Dataset(frame)
         self.assertEqual(len(dataset.analyses), 2)
         copy = duplicate_family({'P': dataset}, [], [], ('graph', ('P', 1)), name='Only ').tables['Only P']
         self.assertEqual([method for method, _ in copy.analyses], ['Histogram'])
-        self.assertNotIn('prism_recipes', copy.raw.attrs)
+        self.assertNotIn('legacy_recipes', copy.raw.attrs)
 
     def test_chain_across_tables_with_the_source_declared_after_its_children(self):
         ids = [str(UUID(int=number)) for number in range(1, 4)]

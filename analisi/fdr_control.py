@@ -253,6 +253,17 @@ def _family_label(values, names):
                      for name, value in zip(names, values, strict=True))
 
 
+def discovery_level(options):
+    """Read the percentage common to worksheet and pairwise FDR analyses."""
+    level = options.get(LEVEL, 5.0)
+    if isinstance(level, bool) or not isinstance(level, (int, np.integer, float, np.floating)):
+        raise FieldError(LEVEL, ERR_LEVEL)
+    level = float(level)
+    if not math.isfinite(level) or not 0 < level < 100:
+        raise FieldError(LEVEL, ERR_LEVEL)
+    return level
+
+
 def _request(options):
     if not isinstance(options, dict):
         raise FieldError(P_COLUMNS, ERR_P_COUNT)
@@ -273,12 +284,7 @@ def _request(options):
     method_name = options.get(FDR_METHOD, BH)
     if method_name not in METHOD_CODES:
         raise FieldError(FDR_METHOD, ERR_METHOD)
-    level = options.get(LEVEL, 5.0)
-    if isinstance(level, bool) or not isinstance(level, (int, np.integer, float, np.floating)):
-        raise FieldError(LEVEL, ERR_LEVEL)
-    level = float(level)
-    if not math.isfinite(level) or not 0 < level < 100:
-        raise FieldError(LEVEL, ERR_LEVEL)
+    level = discovery_level(options)
     plot = options.get(PLOT, False)
     if not isinstance(plot, (bool, np.bool_)):
         raise FieldError(PLOT, ERR_PLOT)

@@ -22,7 +22,7 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.layout_engine import ConstrainedLayoutEngine
 from matplotlib.lines import Line2D
 from matplotlib.path import Path
-from matplotlib.ticker import AutoMinorLocator, FixedLocator, Formatter, MaxNLocator, NullLocator, ScalarFormatter
+from matplotlib.ticker import AutoMinorLocator, FixedLocator, Formatter, Locator, MaxNLocator, NullLocator, ScalarFormatter
 from matplotlib.transforms import Bbox, IdentityTransform
 
 from .field_error import FieldError
@@ -611,12 +611,26 @@ def _formatter(source):
     return copy(source)
 
 
-class _PowerOfTen(Formatter):
+class PowerOfTenFormatter(Formatter):
     """Concentration labels for values already expressed as log10 concentrations."""
 
     def __call__(self, value, pos=None):
         exponent = 0 if value == 0 else value
         return f"$10^{{{exponent:g}}}$"
+
+
+class ConcentrationMinorLocator(Locator):
+    """Positions for 2–9 between decades on an axis in log10 coordinates."""
+
+    def __call__(self):
+        return self.tick_values(*self.axis.get_view_interval())
+
+    def tick_values(self, vmin, vmax):
+        low, high = sorted((vmin, vmax))
+        if not (isfinite(low) and isfinite(high)) or ceil(high) - floor(low) > MAX_TICKS // 8:
+            return []
+        positions = (decade + log10(factor) for decade in range(floor(low), ceil(high)) for factor in range(2, 10))
+        return [position for position in positions if low <= position <= high]
 
 
 class _NamedTicks(Formatter):
@@ -649,7 +663,7 @@ def _set_segment(panel, dimension, segment, formatter, minor):
     getattr(panel, f"set_{dimension}lim")(segment["low"], segment["high"])
     axis.set_major_locator(FixedLocator(segment_ticks(segment)))
     powers = segment.get("tick_format") == "power10"
-    numeric = _PowerOfTen() if powers else _formatter(formatter)
+    numeric = PowerOfTenFormatter() if powers else _formatter(formatter)
     labels = segment.get("tick_labels")
     axis.set_major_formatter(_NamedTicks(numeric, labels) if labels else numeric)
     count = segment.get("minor_ticks")
@@ -659,9 +673,7 @@ def _set_segment(panel, dimension, segment, formatter, minor):
     elif count == 0:
         locator = NullLocator()
     elif powers and count == 8 and step == 1 and float(segment.get("major_origin", segment["low"])).is_integer():
-        low, high = segment["low"], segment["high"]
-        positions = (decade + log10(factor) for decade in range(floor(low), ceil(high)) for factor in range(2, 10))
-        locator = FixedLocator([position for position in positions if low <= position <= high])
+        locator = FixedLocator(ConcentrationMinorLocator().tick_values(segment["low"], segment["high"]))
     elif step is None:
         locator = AutoMinorLocator(count + 1)
     else:

@@ -12,6 +12,7 @@ from .data import _worksheet_roles
 from .pairwise_graph import register_anchors
 from .processing import FieldError
 from .reporting import Result, _plot
+from .stats import geometric_interval_fields, geometric_summary
 
 
 COLUMN_GRAPH, GROUPED_GRAPH = "Column graph", "Grouped graph"
@@ -20,7 +21,9 @@ GROUPED_STYLES = (BARS, POINTS, SYMBOLS, RANGE)
 COLUMN_STYLES = (POINTS, BARS, SYMBOLS, RANGE, PAIRED)
 INTERVALS = ("None", "SD", "SEM", "Confidence interval", "Range", "Interquartile range")
 PLACEMENTS = ("Spread exact ties", "Centered", "Jitter")
-OPTIONS = {"Center": ("Mean", "Median"), "Interval": INTERVALS, "Confidence level (%)": 95.,
+GEOMETRIC_CENTER = "Geometric mean"
+_CENTERS = ("Mean", "Median")
+OPTIONS = {"Center": (*_CENTERS, GEOMETRIC_CENTER), "Interval": INTERVALS, "Confidence level (%)": 95.,
            "Overlay observations": False, "Point placement": PLACEMENTS}
 # Grouped graphs read raw replicates or summaries that were calculated elsewhere.
 RAW, SUMMARIES = INPUTS = ("Raw replicates", "Precomputed summaries")
@@ -32,7 +35,7 @@ SUMMARY_ERRORS = ("None", "SD", "SEM", DISTANCES, LIMITS)
 ENTERED_SEM, DERIVED_SEM = SEM_SOURCES = ("Entered SEM, else SD / √N", "SD / √N")
 SUMMARY_STYLES = (BARS, SYMBOLS)
 GROUPED_OPTIONS = {"Input": INPUTS, "Graph style": GROUPED_STYLES, "Placement of groups": GROUP_PLACEMENTS,
-                   "Center": OPTIONS["Center"], "Interval": INTERVALS,
+                   "Center": _CENTERS, "Interval": INTERVALS,
                    "Confidence level (%)": OPTIONS["Confidence level (%)"],
                    "Summary error": SUMMARY_ERRORS, "SEM source": SEM_SOURCES,
                    "Overlay observations": False, "Point placement": PLACEMENTS}
@@ -364,6 +367,21 @@ def _summary_data(frame, names, row_labels, layout, error, sem_source):
 def _summary(values, center, interval, level, floating):
     if not len(values):
         return np.nan, np.nan, np.nan
+    if center == GEOMETRIC_CENTER:
+        if (values <= 0).any():
+            raise FieldError("Variables", "Geometric mean requires strictly positive observations.")
+        values_summary = geometric_summary(values, level=level, spread=True)
+        midpoint = values_summary[GEOMETRIC_CENTER]
+        if not np.isfinite(midpoint):
+            raise FieldError("Variables", values_summary["Geometric note"])
+        if interval == "Confidence interval":
+            low, high = (values_summary[key] for key in geometric_interval_fields(level))
+            if len(values) > 1 and not np.isfinite([low, high]).all():
+                raise FieldError("Variables", values_summary["Geometric note"])
+            return midpoint, low, high
+        if floating:
+            return midpoint, float(values.min()), float(values.max())
+        return midpoint, np.nan, np.nan
     with np.errstate(over="ignore", invalid="ignore"):
         midpoint = float(np.mean(values) if center == "Mean" else np.median(values))
         if floating or interval == "Range":
@@ -375,7 +393,7 @@ def _summary(values, center, interval, level, floating):
             if interval != "SD":
                 margin /= np.sqrt(len(values))
             if interval == "Confidence interval":
-                margin *= t.isf((1 - level) / 2, len(values) - 1)
+                margin *= t.isf((1 - level / 100) / 2, len(values) - 1)
             low, high = midpoint - margin, midpoint + margin
         else:
             low = high = np.nan
@@ -514,7 +532,7 @@ def category_graph(frame, options, *, grouped=False):
         field = "Summary error" if source == SUMMARIES else "Interval"
         raise FieldError(field, "Stacked bars have no error bars. The errors of the components do not define "
                                 "an interval for the stack.")
-    level = .95
+    level = 95.
     if source == SUMMARIES:
         if options.get("Center", "Mean") != "Mean":
             raise FieldError("Center", "Precomputed summaries provide the estimate in their [Mean] or [Center] "
@@ -525,16 +543,18 @@ def category_graph(frame, options, *, grouped=False):
         error = "None" if stacked else _choice(options, "Summary error", SUMMARY_ERRORS)
         sem_source = _choice(options, "SEM source", SEM_SOURCES)
     else:
-        center = _choice(options, "Center", OPTIONS["Center"])
+        center = _choice(options, "Center", GROUPED_OPTIONS["Center"] if grouped else OPTIONS["Center"])
         interval = "None" if style in {RANGE, PAIRED} or stacked else _choice(options, "Interval", INTERVALS)
         if center == "Median" and interval in {"SD", "SEM", "Confidence interval"}:
             raise FieldError("Interval", "Choose Range or Interquartile range for a median.")
+        if center == GEOMETRIC_CENTER and interval not in {"None", "Confidence interval"}:
+            raise FieldError("Interval", "For a geometric mean, choose a confidence interval or no interval.")
         if interval == "Confidence interval":
             try:
-                level = float(options.get("Confidence level (%)", 95.)) / 100
+                level = float(options.get("Confidence level (%)", 95.))
             except (TypeError, ValueError, OverflowError):
                 level = np.nan
-            if not 0 < level < 1:
+            if not 0 < level < 100:
                 raise FieldError("Confidence level (%)", "Choose a confidence level strictly between 0 and 100.")
     show_points = source == RAW and not stacked and (style in {POINTS, PAIRED} or options.get("Overlay observations", False))
     placement = "Centered" if style == PAIRED else _choice(options, "Point placement", PLACEMENTS) if show_points else "Centered"

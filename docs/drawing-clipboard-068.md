@@ -14,7 +14,7 @@ Copy leaves the project and graph history unchanged. Cut deletes the original on
 
 The system Unicode text clipboard contains an independent, versioned `TramaStat/native-drawing` JSON envelope, bounded to 65,536 characters. Only one canonical drawing is accepted. Unknown fields/versions, duplicate JSON keys, nonfinite numbers and malformed records are rejected; text is never executed. Ordinary table text is rejected by Paste drawing. The `.alab` drawing schema is unchanged and absent optional properties remain absent.
 
-This protocol supports transfer between compatible TramaStat windows and projects. It does not implement the proprietary drawing clipboards, attached object text, multiple-object transfer or drawing transfer from preserved imported binary graphs.
+This protocol supports transfer between compatible TramaStat windows and projects. It does not implement third-party OLE clipboard formats, attached object text, multiple-object transfer or drawing transfer from preserved imported binary graphs.
 
 ## Reference and validation
 

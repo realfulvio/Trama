@@ -12,17 +12,13 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-The **0.94 beta** adds independent ROC comparisons, ANCOVA adjusted means and grouped box or violin plots. [What’s new](docs/release-094.md).
+The **0.99 beta** aligns the Classic Tk and Qt workspaces, adds clustered data plots, silhouette and Gap diagnostics for hierarchical clustering, and improves worksheet formula editing. [0.99 beta release notes](docs/release-099.md).
 
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
-## Data and graph in one workspace
+## Two ways to open the Classic interface
 
-The optional **Modern theme**, available from **Settings → Theme…**, places a linked graph beneath the worksheet and an Inspector beside it. A compact command bar keeps the main actions close at hand; the Standard theme remains available.
-
-![Actual Modern-theme worksheet, linked graph and Inspector with synthetic data, captured from the Windows portable.](docs/media/homepage/modern-workspace-windows.png)
-
-*Real screenshot from the Windows 0.73 beta portable. Standard remains the default; theme changes apply at the next launch. [Theme guide](docs/interface-themes.md).*
+**Trama.exe** opens Classic in Tk. **Trama - Qt.cmd** opens Classic in PySide6/Qt. Both open and save the same `.alab` projects. [Launcher guide](docs/qt-migration.md)
 
 ## From observations to figures
 

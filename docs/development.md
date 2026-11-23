@@ -20,7 +20,7 @@ Su Linux è necessario anche Tk. Per i test GUI headless configura un display di
 
 ```sh
 python -m unittest discover -s tests
-python tests/prism_reference.py
+python tests/legacy_reference.py
 python tramastat.py --smoke
 ```
 

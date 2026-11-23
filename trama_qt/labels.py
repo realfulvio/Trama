@@ -12,7 +12,7 @@ from analisi.i18n import active_language, tr, ui
 
 # Engine modules (no Tk) that publish label and choice tables, with the attribute names they use.
 _SOURCES = (
-    ("anova_diagnostics", ("LABEL_KEYS",), ("GRAPH_CHOICE_KEYS",)),
+    ("anova_diagnostics", ("LABEL_KEYS",), ("GRAPH_CHOICE_KEYS", "TEST_CHOICE_KEYS")),
     ("anova_planned_contrasts", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("competing_risks_workbench", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("equivalence_workbench", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
@@ -30,6 +30,7 @@ _SOURCES = (
     ("rank_tests", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("reference_normalization_dialog", ("LABEL_KEYS",), ()),
     ("rmcorr", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
+    ("ttest_options", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("variance_assumptions", ("LABEL_KEYS",), ()),
     ("variance_ratio", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("xy_errors", ("XY_ERROR_LABEL_KEYS",), ("XY_ERROR_CHOICE_KEYS",)),

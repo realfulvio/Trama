@@ -8,6 +8,7 @@ import pandas as pd
 from analisi import i18n
 from analisi.workbench import GROUPS, METHODS
 from tests.test_graph_i18n import LanguageMixin, TkCase, descendants
+from analisi import ttest_options as tt
 
 
 class InterfaceCatalogTests(LanguageMixin, unittest.TestCase):
@@ -57,8 +58,9 @@ class InterfaceDialogTests(TkCase):
 
     def test_analysis_dialog_translates_only_interface_and_roundtrips_choices(self):
         from tramastat import AnalysisDialog
-        data = pd.DataFrame({"Mean": [1., 2., 3., 4.], "Control": [2., 3., 4., 5.]})
-        saved = {"Design": "Paired", "Response": "Mean", "Group": "Control", "Subject": "", "Null mean": 0.0}
+        data = pd.DataFrame({"Mean": [1., 2., 3., 4.], "Control": ["A", "B", "A", "B"],
+                             "ID": [1, 1, 2, 2]})
+        saved = {"Design": "Paired", "Response": "Mean", "Group": "Control", "Subject": ""}
         snapshots = {}
         for code in ("en", "it"):
             self.use(code)
@@ -77,17 +79,22 @@ class InterfaceDialogTests(TkCase):
                 self.assertEqual(dialog.controls["Design"][1].get(), "One-sample")
                 dialog.controls["Design"][1].set("Paired")
                 self.assertEqual(dialog.field_rows["Response"][1].get(), "Mean")
-                self.assertEqual(tuple(dialog.field_rows["Response"][1]["values"]), ("Mean", "Control"))
+                self.assertEqual(tuple(dialog.field_rows["Response"][1]["values"]), ("Mean", "Control", "ID"))
                 self.assertEqual(dialog.field_rows["Group"][1].get(), "Control")
                 with patch("tramastat.messagebox.showerror") as error:
+                    self.assertFalse(dialog.validate())
+                    error.assert_called_once()
+                    dialog.controls["Subject"][1].set("ID")
                     self.assertTrue(dialog.validate(), error.call_args)
                 seen["result"] = deepcopy(dialog.result)
 
             snapshots[code] = self.drive_dialog(AnalysisDialog, inspect, data,
                                                   current=("t-test", deepcopy(saved)), only="t-test")["result"]
         self.assertEqual(snapshots["it"], snapshots["en"])
-        self.assertEqual(snapshots["it"], ("t-test", {**saved, "Subject": None}))
-        self.assertEqual(data.columns.tolist(), ["Mean", "Control"])
+        self.assertEqual(snapshots["it"], ("t-test", {**saved, "Subject": "ID", tt.INPUT: tt.GROUPED,
+                                                       tt.ALTERNATIVE: tt.TWO_SIDED, tt.LEVEL: 95.,
+                                                       tt.REVERSE: False, tt.DETAILS: False}))
+        self.assertEqual(data.columns.tolist(), ["Mean", "Control", "ID"])
 
     def test_translated_method_search_and_dispatch_keep_canonical_identifier(self):
         from tramastat import AnalysisDialog

@@ -12,7 +12,7 @@ Trama è un'applicazione per Windows che riunisce fogli dati, analisi statistich
 
 Windows 10/11 a 64 bit · Versione portabile · Interfaccia italiano / inglese
 
-La **0.94 beta** aggiunge confronti ROC di coorti indipendenti, ANCOVA con medie aggiustate e box plot o violini raggruppati. [Novità e limiti](docs/release-094.md).
+La **0.99 beta** allinea l’interfaccia Classica tra Tk e Qt, aggiunge il grafico dei gruppi, la silhouette e la statistica Gap al clustering gerarchico e migliora la modifica delle formule nei fogli. [Note della 0.99 beta](docs/release-099.md).
 
 ## Un foglio familiare. Un flusso di lavoro completo.
 
@@ -20,13 +20,9 @@ Seleziona intervalli, gestisci repliche e celle escluse, copia e incolla dalla c
 
 ![Foglio XY con repliche, selezione di un intervallo e navigatore di progetto, nella vera applicazione Windows.](docs/media/homepage/worksheet-windows.png)
 
-## Dati e grafico, insieme
+## Due avvii per l’interfaccia Classica
 
-Il **Tema Moderno**, opzionale da **Impostazioni → Tema…**, affianca alla griglia un'anteprima del grafico collegato e un ispettore per colori, assi e legenda. Una barra più essenziale dà accesso alle azioni principali; il Tema standard rimane disponibile.
-
-![Tema Moderno: griglia, anteprima collegata e ispettore nella vera applicazione, con dati sintetici. Cattura del portabile Windows 0.73 beta.](docs/media/homepage/modern-workspace-windows.png)
-
-*Schermata reale del portabile Windows 0.73 beta. Il Tema standard rimane quello predefinito; la scelta si applica al prossimo avvio. [Guida ai temi](docs/interface-themes.md).*
+**Trama.exe** apre la Classica in Tk. **Trama - Qt.cmd** apre la Classica in PySide6/Qt. Entrambi leggono e salvano gli stessi progetti `.alab`. [Guida agli avvii](docs/qt-migration.md)
 
 ## Gli strumenti per andare oltre il foglio di calcolo
 

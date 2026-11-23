@@ -17,7 +17,7 @@ Il file ha estensione `.tramatpl` ed è JSON leggibile (schema 1).
 
 Il salvataggio è bloccato, con il motivo scritto nel dialogo, quando il progetto contiene qualcosa che il modello non sa ricostruire:
 
-- tabelle, analisi o layout importati da formati esterni (restano disponibili solo come viste);
+- tabelle, analisi o layout importati da progetti esterni (restano disponibili solo come viste);
 - una formula che legge un foglio Info;
 - un'analisi con metodo sconosciuto, opzioni non valide o una colonna che non esiste più;
 - collegamenti tra analisi rotti o circolari.

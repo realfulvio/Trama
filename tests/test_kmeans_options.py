@@ -10,8 +10,8 @@ from analisi import advanced, kmeans_options as option, kmeans_reports
 from analisi.analysis_chain import ChainCancelled
 from analisi.field_error import FieldError
 from analisi.workbench import analyse
-from analisi.prism_recipes import restore_recipe
-from tests.test_prism_recipes import source, var
+from analisi.legacy_recipes import restore_recipe
+from tests.test_legacy_recipes import source, var
 
 
 class KmeansOptionsTests(unittest.TestCase):
@@ -156,7 +156,7 @@ class KmeansOptionsTests(unittest.TestCase):
         self.assertEqual(restored[option.ALGORITHM], option.MACQUEEN)
         self.assertEqual(restored[option.MACQUEEN_ITERATIONS], 50)
         self.assertNotIn(option.MAX_ITERATIONS, restored)
-        self.assertIn("saved MacQueen settings", restored["Prism import notes"])
+        self.assertIn("saved MacQueen settings", restored["Legacy import notes"])
         selection = analyse(method, self.frame, restored).tables["Selection"]
         self.assertEqual(selection.loc[option.ALGORITHM, "Value"], option.MACQUEEN)
         content["report"] = {"transformedData": True}

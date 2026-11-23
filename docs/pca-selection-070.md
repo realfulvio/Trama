@@ -20,7 +20,7 @@ Una componente è viva se il suo autovalore è strettamente sopra il massimo del
 
 Compaiono solo con un criterio attivo.
 
-- **PCA selection**: una riga per componente, con Alive, Rule pass, Retained e, se c'è la simulazione, Random mean e Random percentile.
+- **PCA selection**: una riga per componente, con Alive, Rule pass e Retained. Per l'analisi parallela include la media, il percentile usato per selezionare le componenti e i due limiti dell'intervallo di riferimento.
 - **PCA selection settings**: criterio, conteggio, N, P, rango, standardize e i parametri della simulazione quando servono.
 - **Selected scores**: Source row è l'indice reale, senza rinumerare dopo mancanti o esclusioni. Zero componenti lasciano solo questa colonna.
 - **Selected loadings**: le stesse coordinate della vista loadings, cioè V√λ, con le componenti morte a zero.
@@ -32,7 +32,9 @@ Source row e Variable permettono **Use Result as Data** anche con zero component
 
 È una convenzione di Trama, non la riproduzione del generatore di un altro programma. I replicati escono in ordine da `Generator(PCG64(seed)).standard_normal((N, P))`. Ogni matrice è centrata. Se Standardize è attivo, ogni colonna è divisa per la deviazione standard campionaria del replicato; altrimenti è moltiplicata per la deviazione standard osservata.
 
-Il confronto è stretto: la componente viva passa se l'autovalore osservato è maggiore del percentile chiesto. **Rule pass** registra ogni confronto. **Retained** è solo il prefisso fino al primo fallimento. La legenda dello scree nomina il percentile; la curva nulla ha gid `trama-pca-parallel-reference`. La serie osservata resta senza etichetta, con la chiave di stile storica `line:1:`.
+La componente viva passa se l'autovalore osservato è strettamente maggiore del percentile scelto. **Rule pass** registra ogni confronto. **Retained** include le componenti fino al primo fallimento. Lo scree mostra la media e la fascia fra i percentili simmetrici `p` e `100 − p`, insieme alla soglia usata per la selezione. La soglia mantiene il gid `trama-pca-parallel-reference` e la serie osservata mantiene la chiave di stile `line:1:`.
+
+I progetti importati con PCA standardizzata al 95° percentile possono conservare la media e i limiti salvati se coincidono misure, autovalori e impostazioni. Il foglio **PCA selection settings** indica quando usa quel riferimento. Modificando i dati o le impostazioni di calcolo, oppure richiedendo l'esportazione dei singoli replicati, Trama simula il riferimento con il seme della ricetta.
 
 La simulazione gira sul worker corrente, dopo il controllo dei campi. Il dialogo rifiuta un input invalido prima di allocare i replicati e tiene il focus sul campo. Per la sola analisi parallela valgono P ≤ 64 e N×P×B ≤ 2.000.000 valori simulati. B è un intero da 10 a 10.000, il seme un intero da 0 a 2^32−1, il percentile un numero finito strettamente fra 0 e 100. Il seme si salva nella ricetta; le matrici simulate e lo stato del generatore no.
 

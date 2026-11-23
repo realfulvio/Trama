@@ -17,8 +17,8 @@ from analisi.processing import FieldError
 from analisi.workbench import analyse, METHODS
 
 DATA = Path(__file__).resolve().parent / "data" / "mlr_weighting"
-EXPECTED = json.loads((DATA / "expected.json").read_text())
-PROFILES = json.loads((DATA / "profiles.json").read_text())
+EXPECTED = json.loads((DATA / "expected.json").read_text(encoding="utf-8"))
+PROFILES = json.loads((DATA / "profiles.json").read_text(encoding="utf-8"))
 METHOD = "Multiple regression"
 RTOL, ATOL = 2e-9, 2e-10
 MODES = ["Weight column", "Inverse variance (SD column)", "1/abs(Y)", "1/Y²"]

@@ -38,7 +38,7 @@ class LegacyTests(unittest.TestCase):
             self.assertEqual(restored.raw.iloc[1, 1], 3)
             self.assertTrue(pd.isna(restored.frame(mask_excluded=True).iloc[1, 1]))
 
-    def test_prism_grouped_import_keeps_replicate_boundaries(self):
+    def test_legacy_grouped_import_keeps_replicate_boundaries(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "grouped.prism"
             with ZipFile(path, "w") as archive:

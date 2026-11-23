@@ -1,6 +1,6 @@
 # Precision–recall curve
 
-In the Vetro interface, choose **Analyze → Group Comparison → Precision–recall curve** (IT: *Curva precisione–richiamo*) when you already have the scores of one or two instruments on the same samples and the event is rare. The scores come from outside Trama: a lab assay, a classifier you ran elsewhere, a risk score. For the out-of-fold probabilities of a logistic model fitted in Trama, use **Validate binary logistic model**, which reports the same average precision.
+In Classica or Qt, choose **Analyze → Group Comparison → Precision–recall curve** (IT: *Curva precisione–richiamo*) when you already have the scores of one or two instruments on the same samples and the event is rare. The scores come from outside Trama: a lab assay, a classifier you ran elsewhere, a risk score. For the out-of-fold probabilities of a logistic model fitted in Trama, use **Validate binary logistic model**, which reports the same average precision.
 
 ## Fields
 
@@ -14,7 +14,7 @@ In the Vetro interface, choose **Analyze → Group Comparison → Precision–re
 | Bootstrap CI | Optional percentile bootstrap, also with a single score. |
 | Confidence level (%), Bootstrap replicates, Bootstrap seed | Shown and saved only with Bootstrap CI. Level strictly between 0 and 100; replicates from 199 to 10,000; seed from 0 to 18,446,744,073,709,551,615. |
 
-While you choose the columns the dialog shows how many samples the curves will share, how many are positive and the prevalence, or why they cannot be counted yet. A label in **Outcome** that is neither Positive nor Negative is refused on the Outcome field, naming the first row where it appears. A score that is not a finite number (text, ±infinity) is refused on its field with the row number. A single class among the complete rows is refused on Outcome.
+In Qt, the dialog shows how many samples the curves will share, how many are positive and the prevalence while you choose the columns. Both interfaces validate the data before running the analysis. A label in **Outcome** that is neither Positive nor Negative is refused on the Outcome field, naming the first row where it appears. A score that is not a finite number (text, ±infinity) is refused on its field with the row number. A single class among the complete rows is refused on Outcome.
 
 ## Rows used
 

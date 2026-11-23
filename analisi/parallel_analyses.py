@@ -28,6 +28,7 @@ from __future__ import annotations
 from .forest_plot import FOREST_PLOT
 from .heatmap import HEAT_MAP
 from .kmeans_stability import METHOD as KMEANS_STABILITY
+from .logistic_validation import METHOD as LOGISTIC_VALIDATION
 from .monte_carlo import MONTE_CARLO
 from .paired_graphs import BEFORE_AFTER
 from .parallel import process_count, run_tasks
@@ -35,7 +36,7 @@ from .worksheet_join import METHOD as WORKSHEET_JOIN
 from .workbench import SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY
 from .xy_series import XY_METHOD
 
-LOCAL_METHODS = frozenset({MONTE_CARLO, KMEANS_STABILITY, XY_METHOD, SAVED_XY, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
+LOCAL_METHODS = frozenset({MONTE_CARLO, KMEANS_STABILITY, LOGISTIC_VALIDATION, XY_METHOD, SAVED_XY, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
                            SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, FOREST_PLOT, BEFORE_AFTER, HEAT_MAP,
                            WORKSHEET_JOIN})
 

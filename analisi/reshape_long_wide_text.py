@@ -43,8 +43,6 @@ EN = {
     "reshape.preview.complete": "The preview shows the whole result.",
     "reshape.preview.limit": "The preview shows at most {rows} rows and {columns} columns.",
     "reshape.preview.error": "Not ready to run: {message}",
-    "reshape.classic": "Reshape long and wide is edited in the Qt window. The classic window calculates the saved "
-                       "recipe but has no editor for it.",
     "reshape.error.direction": 'Choose "Long to wide" or "Wide to long".',
     "reshape.error.list": "The column list is not valid.",
     "reshape.error.no_ids": "Choose at least one ID column.",
@@ -116,8 +114,6 @@ IT = {
     "reshape.preview.complete": "L'anteprima mostra tutto il risultato.",
     "reshape.preview.limit": "L'anteprima mostra al massimo {rows} righe e {columns} colonne.",
     "reshape.preview.error": "Non si può ancora eseguire: {message}",
-    "reshape.classic": "Rimodella lungo e largo si modifica nella finestra Qt. La finestra classica calcola la "
-                       "ricetta salvata ma non ha un editor per questa analisi.",
     "reshape.error.direction": 'Scegli "Da lungo a largo" o "Da largo a lungo".',
     "reshape.error.list": "L'elenco delle colonne non è valido.",
     "reshape.error.no_ids": "Scegli almeno una colonna ID.",

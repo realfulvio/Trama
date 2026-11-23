@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import unicodedata
 
 from analisi.workbench import GRAPH_METHODS
+from analisi.paired_graphs import shows_paired_estimation
 
 from .project import run_view
 
@@ -47,6 +48,7 @@ def graph_runs(project):
     """``(index, run)`` of every graph sheet, as the navigator lists them."""
     return [(index, run) for index, run in enumerate(project.runs)
             if run_view(run.method) == "graph" or run.method in GRAPH_METHODS
+            or (run.result is None and shows_paired_estimation(run.method, run.options))
             or (run.result is not None and run.result.figure is not None and run_view(run.method) == "result")]
 
 

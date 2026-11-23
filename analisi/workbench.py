@@ -5,11 +5,13 @@ import pandas as pd
 from matplotlib.figure import Figure
 from scipy import stats
 
-from . import stats as engine
+from . import stats as engine, ttest_options
+from . import regression_range
 from .advanced import anova_comparisons, kmeans_scan
 from . import kmeans_archive, kmeans_options, kmeans_reports
-from .prism_fit_graph import (FIT_GRAPH_POINTS, FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, LOG_DOSE_MODEL,
+from .legacy_fit_graph import (FIT_GRAPH, FIT_GRAPH_POINTS, FIT_GRAPH_SPEC, FIT_GRAPH_TICKS, FIT_INTERVAL_BAND, LOG_DOSE_MODEL,
                               draw_fit_interval_band, fitted_graph_points)
+from .replicate_fit import MERGE_REPLICATES, stack_replicates
 from .hartigan_wong import IterationLimitError
 from .cluster_consensus import DIMENSION_ADJUSTED, KL_CHOICES, KL_SCALING, UNSCALED_WSS
 from .kmeans_stability import METHOD as KMEANS_STABILITY, OPTIONS as KMEANS_STABILITY_OPTIONS
@@ -18,6 +20,7 @@ from .anova_diagnostics import OPTIONS as ANOVA_DIAG_OPTIONS
 from .anova_diagnostics import active as anova_diagnostics_active, build as build_anova_diagnostics
 from .anova_diagnostics import ensure_graph_budget as ensure_anova_graph_budget, graph_choice as anova_graph_choice
 from .anova_diagnostics import validate as validate_anova_diagnostics
+from . import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
 from .anova_ss import CHOICES as SS_CHOICES, KEY as SUMS_OF_SQUARES, SHEETS as ANOVA_SHEETS
 from .anova_ss import sums_of_squares as anova_sums_of_squares
 from . import anova_planned_contrasts as planned_contrasts
@@ -57,7 +60,8 @@ from .reference_normalization import (METHOD as REFERENCE_NORMALIZATION, OPTIONS
 from . import grouped_anova
 from .hierarchical_workbench import (HIERARCHICAL_OPTIONS, HIERARCHY_GRAPH, HIERARCHY_GRAPH_OPTIONS, hierarchical_result,
                                      hierarchy_graph)
-from .inference import CHI_SQUARE_P, DUNN_OPTIONS, KRUSKAL_P, KRUSKAL_P_METHODS, dunn_comparisons, kruskal_wallis
+from .inference import (CHI_SQUARE_P, DUNN_OPTIONS, KRUSKAL_P, KRUSKAL_P_METHODS, dunn_comparisons,
+                        kruskal_wallis, selected_pair_indices)
 from .linear_diagnostics import LINEAR_OPTIONS, linear_result
 from .cohen_kappa_workbench import COHEN_KAPPA, OPTIONS as COHEN_KAPPA_OPTIONS, cohen_kappa
 from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, equivalence_test
@@ -88,11 +92,13 @@ from .transpose_xy import OPTIONS as TRANSPOSE_OPTIONS, TRANSPOSE_XY, transpose_
 from .reshape_long_wide import METHOD as RESHAPE_LONG_WIDE, OPTIONS as RESHAPE_OPTIONS, reshape_long_wide
 from .worksheet_join import METHOD as WORKSHEET_JOIN, OPTIONS as WORKSHEET_JOIN_OPTIONS, join_worksheets
 from .paired_graphs import (BEFORE_AFTER, BEFORE_AFTER_OPTIONS, TRAJECTORIES, TRAJECTORY_OPTIONS, before_after,
-                            subject_trajectories)
+                            subject_trajectories, TTEST_ESTIMATION, paired_estimation_figure,
+                            shows_paired_estimation)
 from .spline_fit import SPLINE_FIT
 from .outlier_screening import OPTIONS as OUTLIER_OPTIONS, OUTLIERS, identify_outliers
 from .parameter_intervals import (OPTIONS as PARAMETER_CI_OPTIONS, settings as parameter_ci_settings,
-                                  parameter_outputs, ProfileBudget)
+                                  parameter_outputs, ProfileBudget, REPORT_LOG_IC50,
+                                  TRANSFORMED_PARAMETERS, has_ic50, log_ic50_table)
 from .normality import NORMALITY, OPTIONS as NORMALITY_OPTIONS, is_legacy as legacy_normality, normality
 from .paired_proportions import OPTIONS as PAIRED_PROPORTIONS_OPTIONS, PAIRED_PROPORTIONS, paired_proportions
 from .nested import METHODS as NESTED_METHODS, NESTED_ANOVA, NESTED_T, nested_analysis
@@ -103,16 +109,20 @@ from .xy_series import XY_METHOD, xy_series
 from .processing import FieldError
 from .rank_tests import MANN_WHITNEY, OPTIONS as RANK_OPTIONS, WILCOXON, is_legacy as legacy_rank_test, rank_test
 from .row_tests import ROW_TESTS, OPTIONS as ROW_TEST_OPTIONS, row_tests
+from . import fdr_control
 from .survival_input import (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED, PAIRWISE_ALPHA,
-                             PAIRWISE_METHODS, CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS_POLICIES, recode_statuses)
+                             PAIRWISE_METHODS, PAIRWISE_CORRECTIONS, PAIRWISE_FDR, PAIRWISE_SCOPE, PAIRWISE_SCOPES,
+                             PAIRWISE_PAIRS, PAIRWISE_PAIR_LIST,
+                             CONTROL_PAIRS, SELECTED_PAIRS, UNADJUSTED, pairwise_scope, CENSOR_CODE, EVENT_CODE,
+                             OTHER_STATUS, STATUS_POLICIES, recode_statuses)
 from .survival_plot import (ERROR_BARS, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS, GREENWOOD, INTERVAL, RISK_TABLE,
                             SURVIVAL_GRAPH, SURVIVAL_SERIES, SURVIVAL_SUMMARY, UNCERTAINTY, SurvivalGraphData,
                             draw_survival_graph, linked_survival_graph, survival_graph_settings)
-from .prism_restore import (MAX_LAYOUT_PANEL_DATA, PRISM_GRAPH_STYLE, PRISM_LAYOUT_PANELS, PRISM_PREVIEW,
-                            PRISM_RESULT_SHEET, PRISM_TITLE, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
+from .legacy_restore import (MAX_LAYOUT_PANEL_DATA, LEGACY_GRAPH_STYLE, LEGACY_LAYOUT_PANELS, LEGACY_PREVIEW,
+                            LEGACY_RESULT_SHEET, LEGACY_TITLE, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
                             SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY)
 
-GEOMETRIC_MEAN = "Geometric mean and 95% CI"
+GEOMETRIC_MEAN = engine.GEOMETRIC_MEAN
 ANOVA_EFFECTS, ANOVA_ALPHA, ANOVA_MODEL_FIT = "Effect sizes", "Alpha", "Model fit"
 OPTIONAL = "Optional"
 MULTIPLE = "Multiple"
@@ -136,7 +146,7 @@ def classic_roles(method, options):
     }
 
 
-def _combined_groups(frame, predictor, responses, groups, *, numbered=True):
+def _combined_groups(frame, predictor, responses, groups, *, numbered=True, outside=None):
     """Return the frame and the column holding the effective group of each row.
 
     One grouping variable with one response uses the raw values. Otherwise rows
@@ -157,15 +167,20 @@ def _combined_groups(frame, predictor, responses, groups, *, numbered=True):
                 f"{key}={value!r}" for key, value in zip(groups, values, strict=True))
             for index, values in enumerate(patterns.itertuples(index=False, name=None), 1)
         }
-        labels = [names.get(values) for values in frame.loc[:, groups].itertuples(index=False, name=None)]
-        frame = frame.assign(**{group: labels})
-    return frame, group
+        def combined(data):
+            labels = [names.get(values) for values in data.loc[:, groups].itertuples(index=False, name=None)]
+            return data.assign(**{group: labels})
+
+        frame = combined(frame)
+        if outside is not None:
+            outside = combined(outside)
+    return frame, group, outside
 
 
 def _survival_levels(frame, time, responses, groups):
     if not groups or not responses or time not in frame or any(c not in frame for c in (*responses, *groups)):
         return []
-    frame, group = _combined_groups(frame, time, responses, groups, numbered=False)
+    frame, group, _ = _combined_groups(frame, time, responses, groups, numbered=False)
     numeric = frame[[time, *responses]].apply(pd.to_numeric, errors="coerce")
     keep = numeric[time].notna() & numeric[responses].notna().any(axis=1) & frame[group].notna()
     return [str(label) for label in pd.unique(frame.loc[keep, group])]
@@ -191,18 +206,28 @@ def check_survival_options(frame, options):
     coded = recode_statuses(frame, responses, options)
     wants_trend, wants_hazard = options.get("Log-rank trend"), options.get("Hazard ratio")
     correction = options.get(PAIRWISE_CORRECTION, "None")
-    control = options.get(PAIRWISE_CONTROL) if correction != "None" else None
+    scope = pairwise_scope(options)
+    control = correction != "None" and scope == CONTROL_PAIRS
+    selected = correction != "None" and scope == SELECTED_PAIRS
     if correction != "None":
-        if not isinstance(correction, str) or correction not in PAIRWISE_METHODS:
+        if not isinstance(correction, str) or correction not in PAIRWISE_CORRECTIONS:
             raise FieldError(PAIRWISE_CORRECTION, "Choose a supported correction for the pairwise tests.")
-        if not options.get(PAIRWISE_ADJUSTED, True):
+        if scope not in PAIRWISE_SCOPES:
+            raise FieldError(PAIRWISE_SCOPE, "Choose a comparison family.")
+        if correction in fdr_control.FDR_METHODS:
+            fdr_control.discovery_level(options)
+        elif correction == UNADJUSTED or not options.get(PAIRWISE_ADJUSTED, True):
             alpha = options.get(PAIRWISE_ALPHA, .05)
             if (isinstance(alpha, (bool, np.bool_)) or not isinstance(alpha, (int, float, np.floating))
                     or not 0 < alpha < 1):
                 raise FieldError(PAIRWISE_ALPHA, "Pairwise alpha must be between zero and one.")
-    if not (wants_trend or wants_hazard or control):
+    if not (wants_trend or wants_hazard or control or selected):
         return coded
     levels = _survival_levels(coded, options.get("Time"), responses, roles["Grouping variables"])
+    if selected:
+        if len(levels) > 12:
+            raise FieldError(PAIRWISE_PAIRS, "Pairwise survival tests support up to twelve groups.")
+        selected_pair_indices(levels, options.get(PAIRWISE_PAIRS), PAIRWISE_PAIRS)
     if len(levels) != len(set(levels)):
         raise ValueError("Group names must stay distinct when written as text.")
     if wants_trend:
@@ -219,7 +244,8 @@ def check_survival_options(frame, options):
             detail = ([f"missing {', '.join(missing)}"] if missing else []) + (
                 [f"unknown {', '.join(unknown)}"] if unknown else [])
             raise FieldError("Trend group order", "Trend group order: list every group once (" + "; ".join(detail) + ").")
-    if control and (len(levels) < 2 or not isinstance(control, str) or control not in levels):
+    control_name = options.get(PAIRWISE_CONTROL)
+    if control and (len(levels) < 2 or not isinstance(control_name, str) or control_name not in levels):
         raise FieldError(PAIRWISE_CONTROL, "Choose a control from at least two observed groups.")
     numerator = options.get("Hazard ratio numerator")
     if wants_hazard and numerator and str(numerator) not in levels:
@@ -229,12 +255,13 @@ def check_survival_options(frame, options):
 
 # Fields are column roles, options, or typed defaults.
 METHODS = {
-    "Descriptive statistics": {"Variables": MULTIPLE, GEOMETRIC_MEAN: False},
+    "Descriptive statistics": {"Variables": MULTIPLE, engine.SUMMARY_FORMAT: (engine.FULL_REPORT, engine.GEOMETRIC_REPORT),
+                               GEOMETRIC_MEAN: False, engine.SUMMARY_CONFIDENCE: 95., engine.SUMMARY_SUM: True},
     TOLERANCE: TOLERANCE_OPTIONS,
     NORMALITY: NORMALITY_OPTIONS,
-    "t-test": {"Design": ("Welch", "Student", "Paired", "One-sample"),
+    "t-test": {"Design": ("Welch", "Student", "Paired", "One-sample"), **ttest_options.OPTIONS,
                "Response": None, "Group": OPTIONAL, "Subject": OPTIONAL, "Null mean": 0.0,
-               VARIANCE_SHOW: False},
+               VARIANCE_SHOW: False, TTEST_ESTIMATION: False},
     "Paired t-test (columns)": {"First": None, "Second": None},
     LOGNORMAL: LOGNORMAL_OPTIONS,
     VARIANCE_RATIO: {"First": None, "Second": None, "Confidence level (%)": 95.0,
@@ -264,14 +291,17 @@ METHODS = {
     PAIRED_PROPORTIONS: PAIRED_PROPORTIONS_OPTIONS,
     PARTS_GRAPH: PARTS_OPTIONS,
     GOODNESS_OF_FIT: GOODNESS_OPTIONS,
-    "Linear regression": {"X": None, "Y": None, **LINEAR_OPTIONS},
+    "Linear regression": {"X": None, "Y": None, **LINEAR_OPTIONS, **dict.fromkeys(regression_range.FIELDS, TEXT)},
     COMPARE_LINES: COMPARE_LINES_OPTIONS,
     ANCOVA: ANCOVA_OPTIONS,
     "Nonlinear regression": {"X": None, "Y columns": MULTIPLE, "Grouping variables": OPTIONAL_MULTIPLE,
+                             MERGE_REPLICATES: False,
                              "Model": tuple(name for name, spec in engine.MODELS.items()
                                             if not (spec.required_fixed or spec.required_shared)),
                              "Weighting": NONLINEAR_WEIGHTINGS, "SD column": OPTIONAL,
-                             **BAND_OPTIONS, **FIT_QUALITY_OPTIONS, **PARAMETER_CI_OPTIONS},
+                             **BAND_OPTIONS, **FIT_QUALITY_OPTIONS, **PARAMETER_CI_OPTIONS,
+                             REPORT_LOG_IC50: False, **dict.fromkeys(regression_range.FIELDS, TEXT),
+                             regression_range.SHOW_OUTSIDE: False},
     "Compare nonlinear models": {"X": None, "Y": None, "Group": OPTIONAL,
                                  "Nested models": tuple(f"{a} → {b}" for a, b in engine.NESTED_MODELS),
                                  "Weighting": engine.FIT_WEIGHTINGS, "SD column": OPTIONAL},
@@ -295,8 +325,10 @@ METHODS = {
                          planned_contrasts.CORRECTION: planned_contrasts.CORRECTIONS,
                          planned_contrasts.ALPHA: planned_contrasts.DEFAULT_ALPHA},
     "Kaplan–Meier survival": {"Time": None, "Event columns": MULTIPLE, "Grouping variables": OPTIONAL_MULTIPLE,
-                              PAIRWISE_CORRECTION: ("None", *PAIRWISE_METHODS), PAIRWISE_CONTROL: GROUP_CHOICE,
-                              PAIRWISE_ADJUSTED: True, PAIRWISE_ALPHA: .05,
+                              PAIRWISE_CORRECTION: PAIRWISE_CORRECTIONS,
+                              PAIRWISE_SCOPE: PAIRWISE_SCOPES, PAIRWISE_CONTROL: GROUP_CHOICE,
+                              PAIRWISE_PAIRS: PAIRWISE_PAIR_LIST,
+                              PAIRWISE_ADJUSTED: True, PAIRWISE_ALPHA: .05, PAIRWISE_FDR: 5.,
                               "Median method": MEDIAN_METHODS, "Confidence level (%)": 95.0,
                               "Gehan–Breslow–Wilcoxon": False, "Log-rank trend": False,
                               "Trend group order": GROUP_ORDER, "Hazard ratio": False,
@@ -402,6 +434,7 @@ GROUPS = {
 # These analyses create a graph when calculated. Keep their Graphs entry
 # available while a reopened project's results are still unloaded.
 GRAPH_METHODS = frozenset({
+    anova_comparison_plot.METHOD, anova_diagnostics.METHOD, anova_grouped_plot.METHOD,
     *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", ba_repeated.METHOD, icc.METHOD, "Correlation", CORRELATE_CONTROL,
     COMPARE_INDEPENDENT, CORRELATION_MATRIX, COHEN_KAPPA, "Deming regression",
     "Global nonlinear regression", "Hierarchical clustering", HIERARCHY_GRAPH, "Histogram", FREQUENCY,
@@ -523,6 +556,14 @@ def _anova(frame, o):
         raise ValueError("Choose which factor or cells to compare.")
     if planned is not None:  # the same fit: design, coefficients, residual SS and df of the table above
         tables.update(planned_contrasts.tables(planned, model_factors, data, design, beta, error, df))
+    primary = o.get(anova_grouped_plot.PRIMARY)
+    if len(model_factors) > 1 and primary in model_factors:
+        try:
+            tables[anova_grouped_plot.TABLE] = anova_grouped_plot.observations(data, model_factors, primary)
+        except FieldError:
+            # A large grouped worksheet can exceed the data limits. Leave the ANOVA
+            # available and let its linked graph report that the source table is unavailable.
+            pass
     figure = None
     if anova_diagnostics_active(o):
         extra, figure = build_anova_diagnostics(
@@ -741,7 +782,8 @@ def _comparison_sheet(result, labels):
 
 def _has_survival_orientation(options):
     return bool(options.get("Log-rank trend") or options.get("Hazard ratio") or
-                (options.get(PAIRWISE_CORRECTION, "None") != "None" and options.get(PAIRWISE_CONTROL)))
+                (options.get(PAIRWISE_CORRECTION, "None") != "None"
+                 and pairwise_scope(options) in (CONTROL_PAIRS, SELECTED_PAIRS)))
 
 
 def _survival_extras(frame, o, time, event, group, level, group_count):
@@ -775,10 +817,73 @@ def _survival_extras(frame, o, time, event, group, level, group_count):
     return outputs
 
 
-def _survival(frame, o, axes=None, compact=False, risk_axes=None):
+def _pairwise_survival_fdr(report, options, method):
+    level = fdr_control.discovery_level(options)
+    p = report["p"].to_numpy(dtype=float)
+    available = np.isfinite(p)
+    report["Adjusted p"] = np.nan
+    report["Discovery"] = pd.Series(pd.NA, dtype="boolean", index=report.index)
+    family = {"FDR method": method, PAIRWISE_FDR: level,
+              "Tests planned": len(p), "Tests used": int(available.sum()), "Discoveries": 0}
+    if method == fdr_control.BKY:
+        family.update({"Stage-1 discoveries": np.nan, "Estimated true nulls (m0)": np.nan})
+    if available.any():
+        outcome = fdr_control.adjust_family(p[available], fdr_control.METHOD_CODES[method], level / 100.)
+        report.loc[available, "Adjusted p"] = outcome["adjusted"]
+        report.loc[available, "Discovery"] = outcome["rejected"]
+        family["Discoveries"] = sum(outcome["rejected"])
+        if method == fdr_control.BKY:
+            family.update({"Stage-1 discoveries": outcome["r1"], "Estimated true nulls (m0)": outcome["m0"]})
+    return pd.DataFrame([family])
+
+
+def _pairwise_survival(frame, options, time, event, group, curves, correction, scope):
     from itertools import combinations
     from .operations import adjust_p
 
+    if len(curves) > 12:
+        raise ValueError("Pairwise survival tests support up to twelve groups.")
+    if scope == CONTROL_PAIRS:
+        resolved = [label for label in curves if str(label) == options[PAIRWISE_CONTROL]]
+        if len(resolved) != 1:
+            raise FieldError(PAIRWISE_CONTROL, "The control group has no observations for this response.")
+        control, = resolved
+        pairs = ((control, label) for label in curves if label != control)
+    elif scope == SELECTED_PAIRS:
+        pairs = options[PAIRWISE_PAIRS]
+    else:
+        pairs = combinations(curves, 2)
+    by_label = {str(label): label for label in curves} if scope == SELECTED_PAIRS else curves
+    rows = []
+    for first, second in pairs:
+        row = {"Comparison": f"{first} / {second}"}
+        if scope == SELECTED_PAIRS:
+            row.update({"First group": first, "Second group": second})
+        if first in by_label and second in by_label:
+            labels = [by_label[first], by_label[second]] if scope == SELECTED_PAIRS else [first, second]
+            chosen = frame[group].isin(labels)
+            _, test = engine.survival(frame.loc[chosen], time, event, group, strict=False)
+            row.update(test or {"p": np.nan})
+        else:
+            row.update(p=np.nan, Status="A selected group has no observations for this response.")
+        rows.append(row)
+    result = pd.DataFrame(rows)
+    if correction in fdr_control.FDR_METHODS:
+        family = _pairwise_survival_fdr(result, options, correction)
+        return {"Pairwise log-rank": result.set_index("Comparison"), "Pairwise FDR": family}
+    adjusted = options.get(PAIRWISE_ADJUSTED, True) and correction != UNADJUSTED
+    p = result["p"]
+    if correction != UNADJUSTED and p.notna().any():
+        p = adjust_p(result, "p", PAIRWISE_METHODS[correction])["Adjusted p"]
+        if adjusted:
+            result["Adjusted p"] = p
+    if not adjusted:
+        alpha = options.get(PAIRWISE_ALPHA, .05)
+        result["Significant"] = p.lt(alpha).astype("boolean").where(p.notna())
+    return {"Pairwise log-rank": result.set_index("Comparison")}
+
+
+def _survival(frame, o, axes=None, compact=False, risk_axes=None):
     time, event, group = o["Time"], o["Event"], o.get("Group")
     level = float(o.get("Confidence level (%)", 95.0))
     settings = survival_graph_settings(o)
@@ -809,34 +914,9 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
             "Reason": "The groups do not share enough risk sets with events for this comparison."}).rename_axis("Metric")
     outputs.update(_survival_extras(frame, o, time, event, group, level, len(curves)))
     correction = o.get(PAIRWISE_CORRECTION, "None")
-    if group and len(curves) > 1 and correction != "None":
-        if len(curves) > 12:
-            raise ValueError("Pairwise survival tests support up to twelve groups.")
-        control = o.get(PAIRWISE_CONTROL)
-        if control:
-            resolved = [label for label in curves if str(label) == control]
-            if len(resolved) != 1:
-                raise FieldError(PAIRWISE_CONTROL, "The control group has no observations for this response.")
-            control_label, = resolved
-            groups = ((control_label, label) for label in curves if label != control_label)
-        else:
-            groups = combinations(curves, 2)
-        pairwise = []
-        for left, right in groups:
-            _, test = engine.survival(frame[frame[group].isin([left, right])], time, event, group, strict=False)
-            pairwise.append({"Comparison": f"{left} / {right}", **(test or {"p": np.nan})})
-        pairs = pd.DataFrame(pairwise)
-        adjusted = o.get(PAIRWISE_ADJUSTED, True)
-        if pairs["p"].notna().any():
-            p_adjusted = adjust_p(pairs, "p", PAIRWISE_METHODS[correction])["Adjusted p"]
-            if adjusted:
-                pairs["Adjusted p"] = p_adjusted
-            else:
-                alpha = o.get(PAIRWISE_ALPHA, .05)
-                pairs["Significant"] = p_adjusted.lt(alpha).astype("boolean").where(p_adjusted.notna())
-        elif not adjusted:
-            pairs["Significant"] = pd.array([pd.NA] * len(pairs), dtype="boolean")
-        outputs["Pairwise log-rank"] = pairs.set_index("Comparison")
+    scope = pairwise_scope(o)
+    if group and correction != "None" and (len(curves) > 1 or scope == SELECTED_PAIRS):
+        outputs.update(_pairwise_survival(frame, o, time, event, group, curves, correction, scope))
     if compact:
         outputs["Survival curves"] = pd.concat({label: table.rename_axis("Time point")
                                                 for label, table in tables.items()}, names=["Group"])
@@ -846,12 +926,14 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
     return Result(outputs, figure, table_contexts=context)
 
 
-def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None):
+def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None, range_settings=None, outside=None):
     x, y, model = o["X"], o["Y"], o["Model"]
+    report_log_ic50 = o.get(REPORT_LOG_IC50) is True and has_ic50(model)
     # Band fields are checked before any fit; Band=None ignores stale level and drawing.
     band = band_settings(o)
     parameter_config = parameter_ci_settings(o)
     parameter_budget = parameter_budget if parameter_budget is not None else ProfileBudget()
+    range_settings = range_settings or {}
     fits = engine.nonlinear(frame, x, y, model, o.get("Group"),
                             weighting=o.get("Weighting", "Unweighted"), sigma=o.get("SD column"))
     interval_band = o.get(FIT_INTERVAL_BAND) if (
@@ -886,12 +968,27 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None):
         residual_axes.set_ylabel("Residual, raw Y units" if weighted else "Residual")
         residual_axes.axhline(0, color="#334155", linewidth=1)
     tables = {"Parameters": {}, "Fit": {}, "Residuals": {}}
+    fit_bounds = {field: range_settings[field] for field in regression_range.FIT_FIELDS if field in range_settings}
+    observations = {}
+    group = o.get("Group")
     colors = {}
     for label, fit in fits.items():
-        dots = axes.scatter(fit.data[x], fit.data[y], label=str(label))
-        if o.get("Group"):
+        xy = fit.data
+        if outside is not None and not outside.empty:
+            more = outside if not group else outside.loc[outside[group] == label]
+            xy = pd.concat((xy[[x, y]], regression_range.extra_xy(more, x, y)), ignore_index=True)
+        observations[label] = xy
+        dots = axes.scatter(xy[x], xy[y], label=str(label))
+        if group:
             dots._tramastat_legend_key = f"group:{typed_group_token(label)}"
         colors[label] = dots.get_facecolor()[0]
+        grid = regression_range.drawing_grid(fit.data[x], range_settings)
+        if grid is not None:
+            with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+                predicted = engine.MODELS[model].equation(grid, *fit.parameters["Estimate"])
+            coords = regression_range.coordinate_table(grid, predicted, fit.data[x])
+            tables.setdefault(regression_range.CURVE_SHEET, {})[label] = coords.rename_axis("Sample")
+            fit.curve = coords[["X", "Predicted"]].to_numpy()
         axes.plot(*fit.curve.T, color=colors[label])
         if residual_axes is not None:
             residual_axes.scatter(fit.residuals["X"], fit.residuals["Residual"], color=colors[label])
@@ -901,7 +998,9 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None):
         tables["Parameters"][label] = parameters.rename_axis("Parameter")
         if parameter_status is not None:
             tables.setdefault("Parameter CI status", {})[label] = parameter_status.rename_axis("Parameter")
-        tables["Fit"][label] = _report(fit.diagnostics).rename_axis("Metric")
+        if report_log_ic50:
+            tables.setdefault(TRANSFORMED_PARAMETERS, {})[label] = log_ic50_table(parameters)
+        tables["Fit"][label] = _report({**fit.diagnostics, **fit_bounds}).rename_axis("Metric")
         tables["Residuals"][label] = fit.residuals.rename_axis("Source row")
     if model == "Normalized inhibition":
         axes.set_xscale("log")
@@ -927,13 +1026,14 @@ def _nonlinear(frame, o, axes=None, compact=False, *, parameter_budget=None):
             outputs.update({f"Band: {label}": sheet for label, sheet in sheets.items()})
         outputs["Band status"] = status
     if FIT_GRAPH_SPEC in o:
-        points = fitted_graph_points(fits, model, x, y, o[FIT_GRAPH_SPEC])
+        points = fitted_graph_points(fits, model, x, y, o[FIT_GRAPH_SPEC], observations=observations,
+                                     custom_range=any(field in range_settings for field in regression_range.CURVE_FIELDS))
         if points is not None:
             outputs[FIT_GRAPH_POINTS] = points
     return Result(outputs, figure)
 
 
-def _classic_analysis(method, frame, options, predict, run):
+def _classic_analysis(method, frame, options, predict, run, *, outside=None):
     response_field, response_key = CLASSIC_RESPONSES[method]
     roles = classic_roles(method, options)
     responses, groups = roles[response_field], roles["Grouping variables"]
@@ -947,10 +1047,13 @@ def _classic_analysis(method, frame, options, predict, run):
     if method == "Kaplan–Meier survival":
         frame = check_survival_options(frame, {**options, **roles})
     stable_groups = method == "Kaplan–Meier survival" and _has_survival_orientation(options)
-    frame, group = _combined_groups(frame, options[predict], responses, groups, numbered=not stable_groups)
+    frame, group, outside = _combined_groups(frame, options[predict], responses, groups,
+                                             numbered=not stable_groups, outside=outside)
+    extra_options = {"outside": outside} if outside is not None else {}
     if len(responses) == 1:
         compact = len(groups) > 1
-        result = run(frame, {**options, response_key: responses[0], "Group": group}, compact=compact)
+        result = run(frame, {**options, response_key: responses[0], "Group": group}, compact=compact,
+                     **extra_options)
         if compact:
             result.tables = {title: table.reset_index() for title, table in result.tables.items()}
         return result
@@ -962,7 +1065,7 @@ def _classic_analysis(method, frame, options, predict, run):
     tables = {}
     for i, response in enumerate(responses):
         panel = grid[i // 2, i % 2]
-        extras = {}
+        extras = dict(extra_options)
         if has_risks:
             panel, risk_panel = panel.subgridspec(2, 1, height_ratios=[3, 1.2])
         axes = figure.add_subplot(panel)
@@ -982,17 +1085,20 @@ def _classic_analysis(method, frame, options, predict, run):
 
 
 def _imported_xy(frame, options, layout_data=None):
-    from .prism_mv_scatter import APPEARANCE, CLUSTERED_SCATTER, appearance_record, apply_axes, clustered_points
-    from .prism_xml_binding_layout import XML_BINDING_XY, render_binding_graph
-    from .prism_xml_qc import XML_QC, render_qc_graph
-    from .prism_xml_xy import XML_ERROR_BARS, render_xml_error_graph
-    from .prism_xml_generated import XML_GENERATED_XY, render_generated_graph
-    from .prism_zip_column import ZIP_COLUMN, render_aligned_column
-    from .prism_zip_xy import ZIP_SPARSE_XY, render_sparse_xy
+    from .legacy_binary_range import BINARY_XY_RANGE, render_binary_range
+    from .legacy_mv_scatter import APPEARANCE, CLUSTERED_SCATTER, appearance_record, apply_axes, clustered_points
+    from .legacy_xml_binding_layout import XML_BINDING_XY, render_binding_graph
+    from .legacy_xml_qc import XML_QC, render_qc_graph
+    from .legacy_xml_xy import XML_ERROR_BARS, render_xml_error_graph
+    from .legacy_xml_generated import XML_GENERATED_XY, render_generated_graph
+    from .legacy_zip_column import ZIP_COLUMN, render_aligned_column
+    from .legacy_zip_xy import ZIP_SPARSE_XY, render_sparse_xy
 
     if options.get(SURVIVAL_GRAPH) is True:
-        return linked_survival_graph(frame, options.get(PRISM_TITLE, "Kaplan–Meier survival"),
+        return linked_survival_graph(frame, options.get(LEGACY_TITLE, "Kaplan–Meier survival"),
                                      options.get(SURVIVAL_SERIES, []))
+    if BINARY_XY_RANGE in options:
+        return render_binary_range(frame, options[BINARY_XY_RANGE], options[LEGACY_TITLE])
     if XML_GENERATED_XY in options:
         return render_generated_graph(frame, options[XML_GENERATED_XY])
     if XML_QC in options:
@@ -1001,10 +1107,10 @@ def _imported_xy(frame, options, layout_data=None):
         return render_xml_error_graph(frame, options)
     if XML_BINDING_XY in options:
         binding = (layout_data or {}).get("binding")
-        return render_binding_graph(frame, options[XML_BINDING_XY], options.get(PRISM_TITLE, "Binding"),
+        return render_binding_graph(frame, options[XML_BINDING_XY], options.get(LEGACY_TITLE, "Binding"),
                                     binding=binding)
     if ZIP_SPARSE_XY in options:
-        return render_sparse_xy(frame, options[ZIP_SPARSE_XY], options.get(PRISM_TITLE, "Prism XY graph"))
+        return render_sparse_xy(frame, options[ZIP_SPARSE_XY], options.get(LEGACY_TITLE, "Imported XY graph"))
     if ZIP_COLUMN in options:
         return render_aligned_column(frame, options[ZIP_COLUMN])
 
@@ -1019,7 +1125,7 @@ def _imported_xy(frame, options, layout_data=None):
     data = engine.complete(frame, ["X", "Y", "Dataset"], text)
     if data.empty:
         raise ValueError("The saved graph has no complete XY points.")
-    figure, axes = _plot(options.get(PRISM_TITLE, "Prism XY graph"), options.get("X label", "X"),
+    figure, axes = _plot(options.get(LEGACY_TITLE, "Imported XY graph"), options.get("X label", "X"),
                          options.get("Y label", "Y"))
     colors = {}
     markers, captions = [], []
@@ -1050,7 +1156,7 @@ def _imported_xy(frame, options, layout_data=None):
                 captions.append(str(label))
             color = artist.get_facecolor()[0]
         else:
-            raise ValueError("Invalid geometry in a saved Prism series.")
+            raise ValueError("Invalid geometry in a saved legacy series.")
         if all(column in group for column in error_columns):
             errors = group[error_columns].to_numpy(dtype=float, na_value=np.nan)
             valid = np.isfinite(errors) & (errors >= 0)
@@ -1066,6 +1172,13 @@ def _imported_xy(frame, options, layout_data=None):
             label.set_parse_math(False)
     elif len(colors) <= 15:
         axes.legend()
+    if options.get(FIT_GRAPH) is True and type(options.get(FIT_GRAPH_TICKS)) is bool:
+        from matplotlib.ticker import NullLocator
+
+        from .axis_breaks import ConcentrationMinorLocator, PowerOfTenFormatter
+
+        axes.xaxis.set_major_formatter(PowerOfTenFormatter())
+        axes.xaxis.set_minor_locator(ConcentrationMinorLocator() if options[FIT_GRAPH_TICKS] else NullLocator())
     return Result({"Saved XY coordinates": data}, figure)
 
 
@@ -1079,37 +1192,37 @@ def _preview_figure(image):
 
 
 def _imported_layout(options, layout_data=None):
-    from .prism_binary_graphs import render_binary_graph, validate_binary_graph
-    from .prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS, edited_layout_preview
+    from .legacy_binary_graphs import render_binary_graph, validate_binary_graph
+    from .legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_EDITS, edited_layout_preview
 
-    if PRISM_PREVIEW in options:
-        preview = edited_layout_preview(options[PRISM_PREVIEW], options.get(PRISM_EDITABLE_PANELS),
-                                        options.get(PRISM_PANEL_EDITS), layout_data)
+    if LEGACY_PREVIEW in options:
+        preview = edited_layout_preview(options[LEGACY_PREVIEW], options.get(LEGACY_EDITABLE_PANELS),
+                                        options.get(LEGACY_PANEL_EDITS), layout_data)
         return _preview_figure(render_binary_graph(preview, layout=True, crop=False))
-    panels = options.get(PRISM_LAYOUT_PANELS)
+    panels = options.get(LEGACY_LAYOUT_PANELS)
     if not isinstance(panels, list) or not 1 <= len(panels) <= 24:
-        raise ValueError("Invalid saved Prism layout placements.")
+        raise ValueError("Invalid saved legacy layout placements.")
     placements, bytes_used = [], 0
     for panel in panels:
         if not isinstance(panel, dict) or not isinstance(bounds := panel.get("bounds"), list) or len(bounds) != 4:
-            raise ValueError("Invalid saved Prism layout placement.")
+            raise ValueError("Invalid saved legacy layout placement.")
         if any(type(value) is not int or not -32768 <= value <= 32767 for value in bounds):
-            raise ValueError("Invalid saved Prism layout coordinates.")
+            raise ValueError("Invalid saved legacy layout coordinates.")
         x0, y0, x1, y1 = bounds
         if x0 >= x1 or y0 >= y1:
-            raise ValueError("Invalid saved Prism layout rectangle.")
+            raise ValueError("Invalid saved legacy layout rectangle.")
         preview = panel.get("preview")
         if preview is not None:
             validate_binary_graph(preview)
             bytes_used += len(preview["data"])
         placements.append((bounds, preview))
     if bytes_used == 0 or bytes_used > MAX_LAYOUT_PANEL_DATA:
-        raise ValueError("Invalid saved Prism layout artwork.")
+        raise ValueError("Invalid saved legacy layout artwork.")
     left, top = (min(bounds[i] for bounds, _ in placements) for i in (0, 1))
     right, bottom = (max(bounds[i] for bounds, _ in placements) for i in (2, 3))
     width, height = right - left, bottom - top
     if max(width, height) > 100 * min(width, height):
-        raise ValueError("Invalid saved Prism layout aspect ratio.")
+        raise ValueError("Invalid saved legacy layout aspect ratio.")
     scale = 10 / max(width, height)
     figure = Figure(figsize=(scale * width, scale * height), dpi=144)
     axes = figure.add_axes((0, 0, 1, 1))
@@ -1125,7 +1238,7 @@ def _imported_layout(options, layout_data=None):
 def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=None):
     """Calculate ``method`` on ``frame``. ``join_data`` is the evaluated right worksheet of
     Join worksheets by key, already resolved by the application (the engine never looks sheets up)."""
-    from .prism_xml_binding import SCATCHARD, scatchard
+    from .legacy_xml_binding import SCATCHARD, scatchard
 
     o = options
     if method == WORKSHEET_JOIN:
@@ -1138,46 +1251,50 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=
     if method == SCATCHARD:
         return scatchard(frame, o)
     if method == SAVED_BINARY_RESULT:
-        return Result({o.get(PRISM_RESULT_SHEET, "Saved results"): frame})
+        return Result({o.get(LEGACY_RESULT_SHEET, "Saved results"): frame})
     if method == SAVED_BINARY_GRAPH:
-        from .prism_binary_graphs import render_binary_graph
+        from .legacy_binary_graphs import render_binary_graph
 
-        return Result({}, _preview_figure(render_binary_graph(o.get(PRISM_PREVIEW))))
+        return Result({}, _preview_figure(render_binary_graph(o.get(LEGACY_PREVIEW))))
     if method == SAVED_BINARY_LAYOUT:
-        from .prism_layout_edit import PRISM_PANEL_DATA
-        from .prism_zip_layout import ZIP_LAYOUT, render_positioned_layout
+        from .legacy_layout_edit import LEGACY_PANEL_DATA
+        from .legacy_zip_layout import ZIP_LAYOUT, render_positioned_layout
 
         if ZIP_LAYOUT in o:
-            panels = (layout_data or {}) if PRISM_PANEL_DATA in o else None
+            panels = (layout_data or {}) if LEGACY_PANEL_DATA in o else None
             return Result({}, render_positioned_layout(frame, o[ZIP_LAYOUT], panels))
         return Result({}, _imported_layout(o, layout_data))
     if method == SAVED_EDITABLE_GRAPH:
-        from .prism_emf_edit import CURVE, POINTS, edit_emf_preview
-        from .prism_pdf_stacks import STACK_KIND, render_pdf_stack
+        from .legacy_emf_edit import CURVE, POINTS, edit_emf_preview
+        from .legacy_pdf_stacks import STACK_KIND, render_pdf_stack
 
-        style = o.get(PRISM_GRAPH_STYLE)
+        style = o.get(LEGACY_GRAPH_STYLE)
         if isinstance(style, dict) and style.get("kind") == STACK_KIND:
-            return Result({}, _preview_figure(render_pdf_stack(frame, style, o.get(PRISM_PREVIEW))))
+            return Result({}, _preview_figure(render_pdf_stack(frame, style, o.get(LEGACY_PREVIEW))))
         if isinstance(style, dict) and style.get("kind") in (CURVE, POINTS):
-            from .prism_binary_graphs import render_binary_graph
+            from .legacy_binary_graphs import render_binary_graph
 
-            preview = edit_emf_preview(frame, style, o.get(PRISM_PREVIEW))
+            preview = edit_emf_preview(frame, style, o.get(LEGACY_PREVIEW))
             return Result({}, _preview_figure(render_binary_graph(preview)))
         if isinstance(style, dict) and style.get("kind") == "columns":
-            from .prism_binary_bars import edit_bar_preview
-            from .prism_binary_graphs import render_binary_graph
+            from .legacy_binary_bars import edit_bar_preview
+            from .legacy_binary_graphs import render_binary_graph
 
-            preview = edit_bar_preview(frame, style, o.get(PRISM_PREVIEW))
+            preview = edit_bar_preview(frame, style, o.get(LEGACY_PREVIEW))
             return Result({}, _preview_figure(render_binary_graph(preview)))
-        from .prism_binary_editable import render_editable_graph
+        from .legacy_binary_editable import render_editable_graph
 
         figure = render_editable_graph(frame, style)
         figure.axes[0]._tramastat_numeric_axes = ("x", "y")
         return Result({}, figure)
     if method == "Descriptive statistics":
-        summary = engine.describe(frame, o["Variables"], geometric=bool(o.get(GEOMETRIC_MEAN)))
-        from .prism_xml_qc import QC_REFERENCE, qc_summary
+        if o.get(engine.SUMMARY_FORMAT) == engine.GEOMETRIC_REPORT:
+            summary = engine.describe(frame, o["Variables"], geometric_report=True,
+                                      level=engine.summary_confidence(o), total=o.get(engine.SUMMARY_SUM, True))
+            return Result({"Summary": summary})
+        from .legacy_xml_qc import QC_REFERENCE, qc_summary
 
+        summary = engine.describe(frame, o["Variables"], geometric=bool(o.get(GEOMETRIC_MEAN)))
         tables = qc_summary(frame, summary, o[QC_REFERENCE]) if QC_REFERENCE in o else {"Summary": summary}
         return Result(tables)
     if method == TOLERANCE:
@@ -1186,10 +1303,28 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=
         # Recipes saved before the test choices existed keep the Shapiro–Wilk "Normality" sheet.
         return _normality(frame, o) if legacy_normality(o) else normality(frame, o)
     if method == "t-test":
-        result = engine.t_test(frame, o["Response"], o.get("Group"), o["Design"].lower(),
-                               o.get("Subject"), order=o.get("Group order"), null=o.get("Null mean", 0.0))
-        tables = {"t-test": _report(result)}
-        attach_ttest(frame, o, tables)
+        layout, level, alternative = ttest_options.check(o)
+        mode = o["Design"].lower()
+        detailed = o.get(ttest_options.DETAILS) is True
+        reverse = o.get(ttest_options.REVERSE) is True
+        if layout == ttest_options.COLUMNS:
+            first, second = o[ttest_options.FIRST], o[ttest_options.SECOND]
+            if reverse:
+                first, second = second, first
+            summary, a, b = engine.t_test_columns(frame, first, second, mode, o.get("Subject"),
+                                                  level=level, alternative=alternative, detailed=detailed)
+            response = None
+        else:
+            response = o["Response"]
+            summary, a, b = engine.t_test(frame, response, o.get("Group"), mode, o.get("Subject"),
+                                          order=o.get("Group order"), null=o.get("Null mean", 0.0),
+                                          return_samples=True, level=level, alternative=alternative,
+                                          reverse=reverse, detailed=detailed)
+        tables = {"t-test": _report(summary)}
+        plot = shows_paired_estimation(method, o)
+        if plot:
+            return Result(tables, paired_estimation_figure(a, b, summary, response, level=level))
+        attach_ttest(a, b, o, tables, level=level)
         return Result(tables)
     if method == "Paired t-test (columns)":
         return Result({"t-test": _report(engine.paired_t_test(frame, o["First"], o["Second"]))})
@@ -1268,7 +1403,22 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=
     if method == "Nonlinear regression":
         parameter_ci_settings(o)
         check_fit_options(o)
-        return _classic_analysis(method, frame, o, "X", partial(_nonlinear, parameter_budget=ProfileBudget(cancel)))
+        ranges = regression_range.ranges(o)
+        if o.get(regression_range.SHOW_OUTSIDE) is True:
+            frame, outside = regression_range.fitting_rows(frame, o["X"], ranges, return_outside=True)
+        else:
+            frame = regression_range.fitting_rows(frame, o["X"], ranges)
+            outside = None
+        fit = partial(_nonlinear, parameter_budget=ProfileBudget(cancel), range_settings=ranges)
+        if o.get(MERGE_REPLICATES) is True:
+            data = stack_replicates(frame, o)
+            settings = {**o, "X": "X", "Y": "Response", "Group": "Series", "SD column": "SD"}
+            extra = None if outside is None or outside.empty else stack_replicates(outside, o)
+            result = fit(data, settings, outside=extra)
+            for axes in result.figure.axes:
+                axes.set_xlabel(o["X"], parse_math=False)
+            return result
+        return _classic_analysis(method, frame, o, "X", fit, outside=outside)
     if method == CUSTOM_EQUATION:
         return custom_fit(frame, o, cancel=cancel)
     if method == GLOBAL_CUSTOM_EQUATION:
@@ -1290,6 +1440,12 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=
         return nb2_analysis(frame, o)
     if method == "Multifactor ANOVA":
         return _anova(frame, o)
+    if method == anova_comparison_plot.METHOD:
+        return anova_comparison_plot.comparison_plot(frame)
+    if method == anova_diagnostics.METHOD:
+        return anova_diagnostics.linked_plot(frame, o)
+    if method == anova_grouped_plot.METHOD:
+        return anova_grouped_plot.graph(frame, o)
     if method == KMEANS_STABILITY:
         return kmeans_stability(frame, o, cancel=cancel)
     if method == LOGISTIC_VALIDATION:
@@ -1307,7 +1463,7 @@ def analyse(method, frame, options, *, layout_data=None, cancel=None, join_data=
     if method == "Hierarchical clustering":
         return hierarchical_result(frame, o, cancel=cancel)
     if method == HIERARCHY_GRAPH:
-        return hierarchy_graph(frame, o)
+        return hierarchy_graph(frame, o, cancel=cancel)
     if method == kmeans_reports.MODEL_GRAPH:
         return kmeans_reports.model_plot(frame, o)
     if method == CLUSTER_SILHOUETTE:

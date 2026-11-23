@@ -45,6 +45,9 @@ Other refusals name `Model terms` as well: an empty list, a term with no factor,
 * **Effect sizes and model fit** use the same sums of squares and residual degrees of freedom. The *Model terms* sheet lists each selected term with its order, its degrees of freedom and its kind of effect.
 * **Estimated marginal means and post hoc comparisons** use the design matrix of the selected model. The mean for one level of a compared factor is the average of the design rows over the levels of the other factors of the model, each combination of levels counted once (equal weights, the usual estimated marginal mean). Factors outside the model do not enter that average. Comparisons of cells, simple effects and control levels use the same design. A factor that is in no term cannot be compared, and the error says so on the field that named it. Tukey and Dunnett keep their existing coordinates and family handling.
 * **Residual diagnostics** (leverage, studentized residual, Cook's distance, PRESS, the five assumption tests and the graphs) are computed from the same full-model design, coefficients and residuals.
+  When assumption tests are enabled, **ANOVA assumption tests included** selects both families, the four normality tests, or Spearman's variance diagnostic alone.
+
+Supported imported multifactor ANOVA recipes keep their requested tests and diagnostic graphs. Each requested plot opens as a separate graph linked to **ANOVA residual diagnostics**. Editing the input recalculates those graphs from the same ANOVA, and project saving preserves the links. The Normal Q–Q graph uses the Trama convention with theoretical quantiles on the horizontal axis.
 
 When the ticked terms are the Full hierarchy of the chosen Factors, the numbers equal the Full hierarchy numbers; a unit test compares them to the historical Patsy fit for orders 1 to 3, including factor levels that look like numbers.
 

@@ -7,7 +7,7 @@
 1. Apri la pagina [Download](https://github.com/realfulvio/Trama/releases).
 2. Scarica `Trama-<versione>-Windows-x64.zip` (nelle release precedenti `TramaStat-<versione>-Windows-x64.zip`), non l'archivio del codice sorgente.
 3. Estrai **tutta** la cartella in una posizione in cui puoi leggere e scrivere.
-4. Nella cartella estratta, avvia `Trama.exe` o **Trama - Tk.cmd** per l’interfaccia Classica. Per PySide6/Qt, usa **Trama - Qt.cmd**. Conserva i due avvii accanto a `Trama.exe` e alla cartella `_internal`.
+4. Nella cartella estratta, avvia **Trama.exe** per la Classica in Tk oppure **Trama - Qt.cmd** per la Classica in PySide6/Qt. Tieni entrambi i file accanto alla cartella `_internal`.
 
 Non serve installare Python. Sono supportati Windows 10 e 11 a 64 bit. Per vedere correttamente dialoghi e pulsanti è richiesto uno spazio schermo di almeno 1024 × 768 pixel.
 

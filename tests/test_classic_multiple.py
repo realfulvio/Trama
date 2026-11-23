@@ -1,8 +1,10 @@
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.text import Text
 
 from analisi.workbench import analyse, classic_roles
 
@@ -48,11 +50,19 @@ class MultipleVariableClassicTests(unittest.TestCase):
         self.assertEqual(result.tables["Pairwise log-rank"].groupby("Response variable").size().tolist(), [6, 6])
         self.assertEqual(list(result.tables["Number at risk"].columns), ["Response variable", "Group", "Time", "At risk"])
         canvas = FigureCanvasAgg(result.figure)
-        canvas.draw()
-        risk_tables = [table for axes in result.figure.axes for table in axes.tables]
-        self.assertEqual(len(risk_tables), 2)
-        for table in risk_tables:
-            bounds = table.get_window_extent(canvas.get_renderer())
+        risk_labels = {}
+        draw_text = Text.draw
+
+        def capture_risk_text(text, renderer):
+            draw_text(text, renderer)
+            identifier = text.get_gid()
+            if identifier and identifier.startswith(("risk-label-", "risk-count-")):
+                risk_labels[identifier] = text.get_window_extent(renderer)
+
+        with patch.object(Text, "draw", capture_risk_text):
+            canvas.draw()
+        self.assertEqual({name.split("-")[2] for name in risk_labels if name.startswith("risk-count-")}, {"1", "3"})
+        for bounds in risk_labels.values():
             self.assertGreaterEqual(bounds.y0, 0)
             self.assertLessEqual(bounds.y1, result.figure.bbox.y1)
         one = data.assign(Group=data["Treatment"].str.cat(data["Stage"], sep="/"))

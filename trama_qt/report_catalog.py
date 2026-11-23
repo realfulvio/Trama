@@ -16,16 +16,16 @@ import re
 import tempfile
 
 from analisi.i18n import active_language
-from analisi.prism_emf_edit import LIMIT_SOURCE
-from analisi.prism_zip_layout import ZIP_LAYOUT
+from analisi.legacy_emf_edit import LIMIT_SOURCE
+from analisi.legacy_project_metadata import is_import_option
+from analisi.legacy_zip_layout import ZIP_LAYOUT
 from analisi.report_bundle import LAYOUT_METHOD
 
-from .project import PRISM_GRAPH_METHODS, SAVED_VIEWS
+from .project import LEGACY_GRAPH_METHODS, SAVED_VIEWS
 
 TABLE, FIGURE = "table", "figure"
 # Recipe keys that only describe where an imported drawing came from or a cached copy of it.
 PRIVATE_OPTIONS = {LIMIT_SOURCE, ZIP_LAYOUT}
-PRIVATE_PREFIX = "Prism "
 _ABSOLUTE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\|/(?:home|Users|tmp|mnt|media|var|etc|root|private)/)")
 
 _TEXT = {
@@ -87,7 +87,7 @@ def plain(value, depth=0):
         result = {}
         for key, entry in value.items():
             key = str(key)
-            if key in PRIVATE_OPTIONS or key.startswith(PRIVATE_PREFIX):
+            if key in PRIVATE_OPTIONS or is_import_option(key):
                 continue
             entry = plain(entry, depth + 1)
             if entry is not _DROP:
@@ -135,8 +135,8 @@ def candidates(project):
             label = name if len(tables) == 1 else f"{name} · {table}"
             items.append(Item(("table", index, table), TABLE, label, method, options, problem, signature))
         figure = getattr(result, "figure", None)
-        if figure is not None or method in PRISM_GRAPH_METHODS or method in SAVED_VIEWS:
-            if method in PRISM_GRAPH_METHODS or method in SAVED_VIEWS:
+        if figure is not None or method in LEGACY_GRAPH_METHODS or method in SAVED_VIEWS:
+            if method in LEGACY_GRAPH_METHODS or method in SAVED_VIEWS:
                 reason = text("imported")
             elif figure is None or not figure.axes:
                 reason = text("empty")
@@ -157,7 +157,7 @@ def candidates(project):
         else:
             waiting = [run.name for _i, run in panels
                        if run.result is None or run.result.figure is None or run.calculation_error
-                       or run.method in PRISM_GRAPH_METHODS or not run.result.figure.axes]
+                       or run.method in LEGACY_GRAPH_METHODS or not run.result.figure.axes]
             errors = [run.calculation_error for _i, run in panels if run.calculation_error]
             reason = text("layout", names=", ".join(waiting)) if waiting else ""
             if reason and errors:
@@ -193,7 +193,7 @@ def _svg(project, item, folder):
                 project.export_layout(project.layouts[key], path, {"format": "svg"})
             else:
                 from analisi.figure_export import export_figure
-                from analisi.prism_zip_layout import ZIP_LAYOUT as zip_layout
+                from analisi.legacy_zip_layout import ZIP_LAYOUT as zip_layout
                 run = project.runs[key]
                 paper = run.options[zip_layout]["paper"] if zip_layout in run.options else None
                 export_figure(run.result.figure, path, {"format": "svg"}, size_inches=paper)

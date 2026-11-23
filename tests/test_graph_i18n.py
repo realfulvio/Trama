@@ -1,6 +1,7 @@
 """Italian in Format Graph and the Inspector: catalog, canonical choices and literal user text."""
 import ast
 from copy import deepcopy
+import gc
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -70,6 +71,8 @@ class GraphCatalog(LanguageMixin, unittest.TestCase):
 class TkCase(LanguageMixin, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # Finish disposal of earlier Tcl widgets on the Tk owner thread.
+        gc.collect()
         try:
             import tkinter as tk
             cls.root = tk.Tk()
@@ -80,6 +83,8 @@ class TkCase(LanguageMixin, unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.root.destroy()
+        cls.root = None
+        gc.collect()
 
 
 def descendants(widget):

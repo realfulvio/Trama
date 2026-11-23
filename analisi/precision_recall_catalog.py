@@ -17,8 +17,6 @@ CAPTIONS = {
 
 _E = "prec.error."
 MESSAGES = {
-    "precision.classic": ("Edit precision–recall curves in Trama's Vetro interface.",
-                          "Modifica le curve precisione–richiamo nell’interfaccia Vetro di Trama."),
     _E + "column": ("Choose a column for {field}.", "Scegli una colonna per {field}."),
     _E + "reused": ('Column "{name}" is already used for {other}. Choose a different column for {field}.',
                     'La colonna "{name}" è già usata per {other}. Scegli una colonna diversa per {field}.'),

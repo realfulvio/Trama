@@ -24,6 +24,8 @@ OPTIONS = {METHOD: METHODS, LEVEL: 95.0}
 LABEL_KEYS = {METHOD: 'parameter_ci.method', LEVEL: 'parameter_ci.level'}
 CHOICE_KEYS = {WALD: 'parameter_ci.wald', PROFILE: 'parameter_ci.profile'}
 STATUS = 'Parameter CI status'
+REPORT_LOG_IC50 = 'Report log10(IC50)'
+TRANSFORMED_PARAMETERS = 'Transformed parameters'
 MAX_POINTS, MAX_PARAMETERS = 5000, 8
 MAX_EVALUATIONS, MAX_VALUES = 20000, 10_000_000
 MAX_EXPANSIONS = 32
@@ -33,6 +35,20 @@ MAX_EXPANSIONS = 32
 class Settings:
     method: str
     level: float
+
+
+def has_ic50(model):
+    spec = MODELS.get(model)
+    return spec is not None and 'IC50' in spec.parameters
+
+
+def log_ic50_table(parameters):
+    """Transform the estimate and each finite positive endpoint on the same fit."""
+    columns = ['Estimate', *(name for name in parameters if name.startswith('CI '))]
+    values = parameters.loc['IC50', columns].to_numpy(dtype=float)
+    positive = np.where(np.isfinite(values) & (values > 0), values, np.nan)
+    return pd.DataFrame([np.log10(positive)], columns=columns,
+                        index=pd.Index(['log10(IC50)'], name='Parameter'))
 
 
 def validate_profile_data(frame, options, roles):

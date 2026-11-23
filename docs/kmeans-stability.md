@@ -1,6 +1,6 @@
 # Stabilità K-means
 
-**Stabilità K-means** (in inglese *K-means stability*) misura quanto si ripetono le partizioni K-means quando si tolgono righe a caso o si cambia il seme. La trovi in **Analizza → Raggruppamento**, dopo la selezione del modello k-means. Per ogni k dell'intervallo scelto puoi vedere i gruppi fragili e le osservazioni che cambiano assegnazione. L'analisi non sceglie il numero di gruppi. Raggruppamento k-means, Selezione del modello k-means e silhouette restano analisi separate e non cambiano.
+**Stabilità K-means** (in inglese *K-means stability*) misura quanto si ripetono le partizioni K-means quando si tolgono righe a caso o si cambia il seme. In Classica e in Qt la trovi in **Analizza → Raggruppamento**, dopo la selezione del modello k-means. Per ogni k dell'intervallo scelto puoi vedere i gruppi fragili e le osservazioni che cambiano assegnazione. L'analisi non sceglie il numero di gruppi. Raggruppamento k-means, Selezione del modello k-means e silhouette restano analisi separate e non cambiano.
 
 ## Opzioni
 
@@ -10,7 +10,7 @@
 | **k minimo** | 2 | intero da 2 a 12 |
 | **k massimo** | 4 | intero da k minimo a 12 |
 | **Standardizza** | sì | sì o no |
-| **Algoritmo k-means** | Lloyd | Lloyd o Hartigan–Wong, come nel raggruppamento k-means |
+| **Algoritmo k-means** | Lloyd | Lloyd, Hartigan–Wong, MacQueen o Forgy–Lloyd |
 | **Limite di iterazioni Hartigan–Wong** | 10 | da 1 a 1000; il campo compare solo con Hartigan–Wong |
 | **Seme casuale** | 42 | intero da 0 a 4294967295 |
 | **Ricampionamenti** | 100 | intero da 5 a 2000 |
@@ -19,7 +19,7 @@
 | **k dei report per osservazione** | 2 | intero fra k minimo e k massimo |
 | **Mostra la matrice di co-assegnazione** | no | richiede al massimo 200 righe complete |
 
-Il progetto salva le opzioni con i nomi e i valori inglesi, quindi una ricetta si riapre uguale in qualunque lingua. Con Lloyd il limite di iterazioni non viene salvato.
+Il progetto salva le opzioni con i nomi e i valori inglesi, quindi una ricetta si riapre uguale in qualunque lingua. Il limite di iterazioni Hartigan–Wong si salva solo con quell’algoritmo.
 
 ## Come funziona
 

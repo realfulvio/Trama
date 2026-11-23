@@ -164,8 +164,7 @@ class GraphStylePresetDialogTests(unittest.TestCase):
         second = self.commit(1, SECOND)
         before_second = deepcopy(second.style)
         self.assertTrue(window.actions["graph_style_presets"].isEnabled())
-        window.ribbon_tabs.setCurrentIndex(window.ribbon_pages["graph"])
-        graph_actions = window.ribbon.currentWidget().actions()
+        graph_actions = window.command_menus["Change"].actions()
         self.assertIn(window.actions["format_graph"], graph_actions)
         self.assertIn(window.actions["graph_style_presets"], graph_actions)
 

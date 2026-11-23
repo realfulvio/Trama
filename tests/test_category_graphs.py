@@ -44,6 +44,24 @@ class CategoryGraphTests(unittest.TestCase):
         result.figure.savefig(out, format="svg")
         self.assertIn(b"<svg", out.getvalue())
 
+    def test_geometric_summary_draws_asymmetric_intervals_from_positive_data(self):
+        frame = pd.DataFrame({"Control": [1., 4., 16., None], "Treated": [9., 9., None, None]})
+        options = {"Variables": list(frame), "Graph style": "Individual points", "Center": "Geometric mean",
+                   "Interval": "Confidence interval", "Confidence level (%)": 90.}
+        result = category_graph(frame, options)
+        quantile = np.sqrt(2.) * .9 / np.sqrt(1 - .9**2)
+        low, high = 4.**(1 - quantile / np.sqrt(3.)), 4.**(1 + quantile / np.sqrt(3.))
+        table = result.tables["Graph data"]
+        np.testing.assert_array_equal(table["N"], [3, 2])
+        np.testing.assert_allclose(table["Geometric mean"], [4., 9.], rtol=1e-14)
+        axis, = result.figure.axes
+        np.testing.assert_allclose(_whiskers(axis), [[(0., low, high)], [(1., 9., 9.)]], rtol=1e-12)
+        self.assertGreater(high - 4, 4 - low)
+        with self.assertRaisesRegex(ValueError, "strictly positive"):
+            category_graph(frame.assign(Control=[0, 4, 16, None]), options)
+        with self.assertRaisesRegex(ValueError, "no interval"):
+            category_graph(frame, {**options, "Interval": "SEM"})
+
     def test_matched_rows_never_bridge_missing_values(self):
         frame = pd.DataFrame({"Week 1": [1., 2., None], "Week 2": [2., None, 3.], "Week 3": [3., 4., 5.]})
         data = Dataset(frame, excluded={(0, 1)}).frame(mask_excluded=True)

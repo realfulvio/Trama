@@ -68,7 +68,7 @@ def main(argv=None):
             splash.close()
         position = argv.index("--smoke") + 1
         if position >= len(argv):
-            print("Usage: python -m trama_qt --smoke FOLDER [--scenario qt-excel-workbook]")
+            print("Usage: python -m trama_qt --smoke FOLDER [--scenario NAME]")
             return 2
         if "--only" in argv and argv[argv.index("--only") + 1:argv.index("--only") + 2] == ["qt-analysis-templates"]:
             from .templates_smoke import run_dedicated as run  # Templates only: EN/IT, light and dark.

@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from . import i18n, ui_theme
+from .distribution_formulas_smoke import drive_formula_editor
 from .language_dialog import LanguageDialog
 from .table_setup import TEMPLATES, NewTableDialog, TableSetup
 from .theme_preferences import save_theme
@@ -274,7 +275,8 @@ def _check_language(root, app, directory, tools, windows):
     italian.show("data", title)
     italian.current_grid.select((2, 1))
     italian.toggle_exclusion()
-    with patch.object(simpledialog, "askstring", side_effect=["Somma", '=COL("Intensità") + COL("Serie B")']):
+    drive_formula_editor(italian.root, '=COL("Intensità") + COL("Serie B")', errors)
+    with patch.object(simpledialog, "askstring", return_value="Somma"):
         italian.add_formula()
     assert not errors, errors
     assert dataset.formulas == {"Somma": '=COL("Intensità") + COL("Serie B")'}, dataset.formulas

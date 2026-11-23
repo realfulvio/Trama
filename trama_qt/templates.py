@@ -731,9 +731,9 @@ def _read_files(paths):
 
 def project_sources(project):
     """The data sheets of the active project as sources: name → callable (the copy is taken when chosen)."""
-    from .project import stored_prism_view
+    from .project import stored_legacy_view
     return {title: (lambda dataset=dataset: dataset.frame().reset_index(drop=True))
-            for title, dataset in project.tables.items() if not stored_prism_view(dataset)}
+            for title, dataset in project.tables.items() if not stored_legacy_view(dataset)}
 
 
 def build_project(number, tables, layouts):

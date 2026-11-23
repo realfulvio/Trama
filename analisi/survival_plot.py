@@ -1,8 +1,11 @@
 """Kaplan–Meier presentation options. Inference stays on the survival scale."""
 from dataclasses import dataclass
 
+from matplotlib.artist import Artist
 from matplotlib.figure import Figure
+from matplotlib.text import Text
 from matplotlib.ticker import PercentFormatter
+from matplotlib.transforms import blended_transform_factory, offset_copy
 import numpy as np
 import pandas as pd
 
@@ -142,8 +145,7 @@ def draw_survival_graph(data, title, axes=None, risk_axes=None, *, order=()):
     labels = sorted(data.curves, key=lambda label: rank.get(str(label), len(rank))) if rank else data.curves
     for label in labels:
         curve = data.curves[label]
-        indices = curve["Time"].to_numpy().searchsorted(ticks)
-        risk_rows[str(label)] = np.r_[curve["At risk"].to_numpy(), 0][indices]
+        risk_rows[str(label)] = risk_counts(curve, ticks)
         tables[label] = display_curve(axes, label, curve, data.settings, data.level)
     if len(data.curves) > 1:
         axes.legend()
@@ -151,27 +153,56 @@ def draw_survival_graph(data, title, axes=None, risk_axes=None, *, order=()):
     if data.show_risk:
         if len(data.curves) > 8:
             raise ValueError("The plot can show a risk table for up to eight groups.")
-        draw_risk_table(risk_axes, risks, data.short_labels)
+        draw_risk_table(axes, risk_axes, {label: data.curves[label] for label in labels}, data.short_labels)
     return figure, tables, risks
 
 
-def draw_risk_table(axes, risks, short_labels):
+def risk_counts(curve, ticks):
+    indices = curve["Time"].to_numpy().searchsorted(ticks)
+    return np.r_[curve["At risk"].to_numpy(), 0][indices]
+
+
+class _RiskCounts(Artist):
+    """Draw counts at current major ticks, including during navigation and export."""
+
+    def __init__(self, plot, panel, curves, row_positions):
+        super().__init__()
+        self.plot = plot
+        self.curves = curves
+        self.row_positions = row_positions
+        self.panel_index = panel.figure.axes.index(panel)
+        self.set_gid(f"kaplan-meier-risk-counts-{self.panel_index}")
+        self.transform = blended_transform_factory(plot.transData, panel.transAxes)
+
+    def draw(self, renderer):
+        if not self.get_visible():
+            return
+        left, right = sorted(self.plot.get_xlim())
+        ticks = np.unique(self.plot.get_xticks())
+        ticks = ticks[(ticks >= max(left, 0)) & (ticks <= right)]
+        renderer.open_group("kaplan-meier-risk-counts", self.get_gid())
+        try:
+            for index, (curve, y) in enumerate(zip(self.curves.values(), self.row_positions, strict=True)):
+                for column, (tick, count) in enumerate(zip(ticks, risk_counts(curve, ticks), strict=True)):
+                    text = Text(x=tick, y=y, text=str(count), transform=self.transform, ha="center",
+                                va="center", fontsize=8, color="#203b53",
+                                gid=f"risk-count-{self.panel_index}-{index}-{column}", usetex=False, parse_math=False)
+                    text.set_figure(self.get_figure())
+                    text.draw(renderer)
+        finally:
+            renderer.close_group("kaplan-meier-risk-counts")
+
+
+def draw_risk_table(plot, axes, curves, short_labels):
     axes.set_axis_off()
-    labels = [label.partition(" · ")[0] if short_labels else label for label in risks.index]
-    values = np.column_stack([labels, risks.to_numpy()])
-    table = axes.table(cellText=values, colLabels=["Group", *(f"{tick:g}" for tick in risks.columns)],
-                       cellLoc="center", bbox=[0, 0, 1, 1])
-    table.auto_set_font_size(False)
-    table.set_fontsize(8)
-    for (row, column), cell in table.get_celld().items():
-        cell.set_edgecolor("#d3dde7")
-        cell.set_linewidth(.6)
-        if row == 0 or column == 0:
-            cell.set_facecolor("#eaf2fa")
-            cell.get_text().set_color("#203b53")
-            cell.get_text().set_weight("bold")
-        elif row % 2 == 0:
-            cell.set_facecolor("#f6f9fc")
+    positions = np.linspace(.78, .08, len(curves) + 1)
+    left = offset_copy(axes.transAxes, fig=axes.figure, x=-8, units="points")
+    labels = [str(label).partition(" · ")[0] if short_labels else str(label) for label in curves]
+    panel_index = axes.figure.axes.index(axes)
+    for index, (label, y) in enumerate(zip(["At risk", *labels], positions, strict=True)):
+        axes.text(0, y, label, transform=left, ha="right", va="center", color="#203b53",
+                  fontsize=8, weight="bold", gid=f"risk-label-{panel_index}-{index}", parse_math=False)
+    axes.add_artist(_RiskCounts(plot, axes, curves, positions[1:]))
 
 
 def linked_survival_graph(frame, title, order):

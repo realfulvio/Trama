@@ -12,9 +12,10 @@ def main():
     bundle = root / "dist" / "Trama"
     if not (bundle / "Trama.exe").is_file():
         raise SystemExit("Build Trama.exe first.")
-    for label, flag in (("Tk", "--tk"), ("Qt", "--qt")):
-        launcher = bundle / f"Trama - {label}.cmd"
-        launcher.write_bytes(f'@echo off\r\nstart "" /D "%~dp0." "%~dp0Trama.exe" {flag}\r\n'.encode("ascii"))
+    (bundle / "Trama - Tk.cmd").unlink(missing_ok=True)
+    (bundle / "Trama - Qt.cmd").write_bytes(
+        b'@echo off\r\nstart "" /D "%~dp0." "%~dp0Trama.exe" --qt %*\r\n'
+    )
     shutil.copy2(root / "README.md", bundle / "README.md")
     shutil.copy2(root / "LICENSE", bundle / "LICENSE.txt")
     shutil.copy2(root / "LICENSE", bundle / "LICENSE")
@@ -26,7 +27,7 @@ def main():
                  "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "qt-report.md", "worksheet-join.md", "qt-recovery.md", "qt-analysis-templates.md",
                  "qt-excel-workbook.md", "cluster-silhouette-092.md", "paired-proportions.md", "power-from-summary.md",
                  "tolerance-intervals-093.md", "weibull-aft.md", "ordinal-logit.md", "restricted-mean-survival.md", "cohen-kappa.md", "mean-permutation-test.md", "xy-mixed-series.md",
-                 "release-098.md", "release-097.md", "release-094.md",
+                 "release-099.md", "release-098.md", "release-097.md", "release-094.md",
                  "release-093.md", "validation-093.md",
                  "release-092.md", "validation-092.md", "release-091.md", "validation-091.md",
                  "pca-regression-087.md", "release-090.md", "validation-090.md",

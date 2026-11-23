@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from analisi import i18n, ui_theme
-from analisi.parameter_intervals import METHOD,LEVEL,PROFILE,WALD
+from analisi.parameter_intervals import METHOD, LEVEL, PROFILE, REPORT_LOG_IC50, WALD
 from tests.test_graph_i18n import TkCase
 
 FRAME = pd.DataFrame({'X':np.arange(8.),'Y':[1.2,2.8,4.2,5.9,7.1,8.7,10.4,12.]})
@@ -51,6 +51,28 @@ class ParameterDialogTests(TkCase):
             d.controls[LEVEL][1].set('90,5');self.assertTrue(d.validate())
             self.assertEqual(d.result[1][LEVEL],90.5)
         self.drive(action)
+
+    def test_log_ic50_follows_the_model_and_the_saved_choice(self):
+        self.use('it')
+
+        def action(dialog, _):
+            caption, _ = dialog.field_rows[REPORT_LOG_IC50]
+            self.assertEqual(caption.cget('text'), 'Mostra log10(IC50)')
+            log_ic50 = dialog.controls[REPORT_LOG_IC50][1]
+            self.assertTrue(log_ic50.get())
+            self.assertTrue(dialog.validate())
+            self.assertIs(dialog.result[1][REPORT_LOG_IC50], True)
+            dialog.controls['Model'][1].set('Straight line')
+            self.assertFalse(caption.grid_info())
+            self.assertTrue(dialog.validate())
+            self.assertNotIn(REPORT_LOG_IC50, dialog.result[1])
+            dialog.controls['Model'][1].set('Normalized inhibition (variable slope)')
+            self.assertTrue(caption.grid_info())
+            log_ic50.set(False)
+            self.assertTrue(dialog.validate())
+            self.assertNotIn(REPORT_LOG_IC50, dialog.result[1])
+
+        self.drive(action, **{'Model': 'Normalized inhibition (variable slope)', REPORT_LOG_IC50: True})
 
     def test_parameter_profiles_and_diagnostics_are_never_fit_on_dialog_thread(self):
         def action(d,seen):

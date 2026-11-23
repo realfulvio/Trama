@@ -4,6 +4,8 @@ from types import SimpleNamespace
 
 from .analysis_chain import AnalysisGraph, ChainCancelled, evaluate_graph, result_frame
 from .i18n import tr
+from .legacy_layout_edit import LEGACY_PANEL_DATA
+from .worksheet_join import METHOD as WORKSHEET_JOIN
 
 
 class AnalysisChainMixin:
@@ -56,10 +58,12 @@ class AnalysisChainMixin:
         except ValueError as error:
             self.error(error)
             return
-        dialog = self.chain_analysis_dialog(frame)
+        from .analysis_chain import ResultSource
+
+        source = ResultSource(run.uid, table)
+        dialog = self.chain_analysis_dialog(frame, title=run.title, source=source)
         if dialog.result:
-            from .analysis_chain import ResultSource
-            self.submit_new_analysis(run.title, frame, dialog, source=ResultSource(run.uid, table))
+            self.submit_new_analysis(run.title, frame, dialog, source=source)
 
     def source_analysis(self):
         if not self.selected or self.selected[0] not in {'result', 'graph'}:
@@ -106,7 +110,8 @@ class AnalysisChainMixin:
         except ValueError as error:
             self.error(error)
             return
-        dialog = self.chain_analysis_dialog(frame, current=(run.method, run.options), only=run.method)
+        dialog = self.chain_analysis_dialog(frame, title=run.title, source=source,
+                                            current=(run.method, run.options), only=run.method)
         if dialog.result:
             self.submit_edit(index, frame, dialog, source=source, change_source=True)
 
@@ -184,13 +189,17 @@ class AnalysisChainMixin:
         cached = {run.uid: run.result for run in self.runs
                   if run.result is not None and not run.calculation_error and run.uid not in selected}
         clones, pairwise, roots, previous_errors = {}, {}, {}, {}
-        frames = {}
+        frames, joins, panels = {}, {}, {}
         for identifier in selected:
             run = live[identifier]
             previous_errors[identifier] = run.calculation_error
             candidate = clones[identifier] = copy(run)
             candidate.options, candidate.style = deepcopy(run.options), deepcopy(run.style)
             pairwise[identifier] = self.pairwise_snapshot(run)
+            if run.method == WORKSHEET_JOIN:
+                joins[identifier] = self.join_data(run)
+            if LEGACY_PANEL_DATA in run.options:
+                panels[identifier] = self.layout_panel_data(run)
             if run.source is None:
                 if run.title not in frames:
                     frames[run.title] = self.tables[run.title].frame(mask_excluded=True)
@@ -207,8 +216,11 @@ class AnalysisChainMixin:
             snapshot = pairwise[identifier]
             if snapshot and (source := references.get(snapshot.get('key'))) in fresh:
                 snapshot = {**snapshot, 'tables': fresh[source].tables}
+            extra = {"join_data": joins[identifier]} if identifier in joins else {}
+            if identifier in panels:
+                extra["layout_data"] = panels[identifier]
             return self.compute(clones[identifier], frame.copy(deep=True), control=node_control,
-                                pairwise=snapshot)
+                                pairwise=snapshot, **extra)
 
         def work():
             return evaluate_graph(graph, selected, roots, cached, calculate, cancel=control.cancel,
@@ -266,7 +278,7 @@ class AnalysisChainMixin:
             self.refresh_navigator()
             if self.modern_workspace is not None:
                 self.modern_workspace.refresh()
-            if self.selected and self.selected[0] in {'result', 'graph', 'layout'} and self.gallery is None:
+            if self.selected and self.selected[0] in {'result', 'graph', 'layout', 'saved-layout'} and self.gallery is None:
                 self.show(*self.selected)
             self.update_worksheet_history_buttons()
             self.sync_inspector()

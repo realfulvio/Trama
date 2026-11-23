@@ -1,6 +1,6 @@
 # Intraclass correlation (ICC)
 
-Choose **Analyze → Group Comparison → Intraclass correlation** (IT: *Correlazione intraclasse*) when several raters or instruments measure the **same subjects** on a continuous scale and you want to quantify how closely they agree. Each worksheet row is one subject; each column you tick under **Raters** is one rater (or instrument, or occasion).
+In Classica or Qt, choose **Analyze → Group Comparison → Intraclass correlation** (IT: *Correlazione intraclasse*) when several raters or instruments measure the **same subjects** on a continuous scale and you want to quantify how closely they agree. Each worksheet row is one subject. Each column you select under **Raters** is one rater, instrument or occasion. In Classica, hold Ctrl to add or remove a rater from the selection.
 
 The ICC answers two different questions, and you choose which one:
 
@@ -38,7 +38,7 @@ The ICC does not change when every value is shifted by a constant or multiplied 
 
 | Field | Meaning |
 |---|---|
-| Raters | Two or more numeric columns, up to 64. The **order in which you tick them** is kept in the recipe and is the order of the profile graph and of the *Rater columns* setting. The estimate does not depend on the order. |
+| Raters | Two or more numeric columns, up to 64. The **order in which you select them** is kept in the recipe and is the order of the profile graph and of the *Rater columns* setting. The estimate does not depend on the order. |
 | Subject | Optional label column, shown in the Subjects and Excluded rows sheets. It has no effect on the calculation: the **physical row** is the identity of the subject, so repeated or blank labels are fine. |
 | Definition | **Absolute agreement** (default) or **Consistency**. |
 | Unit | **Single measure** (default) or **Mean of raters**. |

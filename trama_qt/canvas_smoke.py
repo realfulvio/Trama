@@ -144,7 +144,6 @@ class CanvasSmoke:
         stored = self.shapes
         self.expect(stored == [STORED], f"the stored recipe was changed on opening: {stored}")
         self.expect(self.drawn() == [STORED["id"]], "the stored rectangle is not drawn")
-        self.window.ribbon_tabs.setCurrentIndex(self.window.ribbon_pages["graph"])  # Graph tab: the tools sit beside the other graph commands.
         for name in ("select", "line", "arrow", "rectangle", "ellipse"):
             self.expect(self.window.actions[f"draw_{name}"].isEnabled(), f"draw_{name} is disabled on a native graph")
         self.shot("1-open", dark=True)
@@ -174,9 +173,12 @@ class CanvasSmoke:
                     f"resizing moved the wrong corner: {resized['points']}")
         self.shot("3-edited")
 
-        # Copy and paste.
-        self.window.actions["shape_copy"].trigger()
-        self.window.actions["shape_paste"].trigger()
+        # Use the same buttons as the Classic worksheet toolbar.
+        buttons = self.window.toolbar.buttons
+        self.expect(buttons["copy"].isEnabled() and buttons["paste"].isEnabled(),
+                    "the toolbar clipboard buttons are disabled on a native graph")
+        buttons["copy"].click()
+        buttons["paste"].click()
         self.app.processEvents()
         pasted = self.shapes
         self.expect(len(pasted) == 3 and pasted[2]["id"] not in {s["id"] for s in pasted[:2]},
@@ -255,7 +257,7 @@ class CanvasSmoke:
         # A layout page has no tools either.
         self.window.open_sheet(("data", "Measurements"))
         self.expect(not self.window.actions["draw_select"].isEnabled(), "the tools are on over the worksheet")
-        self.log.append(f"cycle OK: {len(final)} shapes, exports {svg.name}, {png.name}, {pdf.name}")
+        self.log.append(f"cycle OK: toolbar copy/paste, {len(final)} shapes, exports {svg.name}, {png.name}, {pdf.name}")
 
 
 def check_canvas(smoke):

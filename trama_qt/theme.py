@@ -1,6 +1,4 @@
-"""Vetro look for the Qt interface: colour tokens, light and dark themes that follow the system, Figtree,
-Lucide icons drawn from SVG at the screen's scale, one style sheet and the few effects (soft shadows under the
-panels, frosted glass behind modal dialogs, short animations) that a style sheet cannot express."""
+"""The Classica Qt palette, compact controls, screen fitting and scalable icons."""
 import atexit
 from functools import lru_cache
 import math
@@ -19,6 +17,8 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFrame, QGraphi
                                QGraphicsPixmapItem, QGraphicsScene, QMainWindow, QMenu, QScrollArea, QTabBar,
                                QVBoxLayout, QWidget)
 
+from analisi import ui_icons
+
 from .strings import qt
 
 
@@ -35,16 +35,16 @@ ASSETS = asset_root()
 QT_ASSETS = ASSETS / "qt"
 WINDOWS = sys.platform == "win32"
 
-LIGHT = dict(bg="#EEF2F4", panel="#FFFFFF", panel2="#F7F9FA", border="#E1E6EA", text="#17242D",
-             text2="#5A6873", text3="#8A97A0", accent="#0B7A73", accent_dark="#075E58", accent_hi="#14908A",
-             tint="#E2F2EF", field="#CFD7DC", field_hover="#AFBBC2", hover="#EDF2F3", on_accent="#FFFFFF",
-             grid="#EDF1F3", scroll="#C9D2D7", scroll_hover="#A9B6BD", warning_bg="#FBEFE9", warning="#7A2E12",
-             error_bg="#FDECEC", error="#A3262A", header="#F4F7F8")
+LIGHT = dict(bg="#EEF1F4", panel="#FAFBFC", panel2="#F4F6F8", border="#D3DAE0", text="#1A2931",
+             text2="#586874", text3="#A3AFB7", accent="#0A7C76", accent_dark="#075F5B", accent_hi="#14908A",
+             tint="#DCEFED", field="#D3DAE0", field_hover="#B1BCC5", hover="#E8ECEF", on_accent="#FFFFFF",
+             grid="#E1E6EA", scroll="#C9D2D7", scroll_hover="#A9B6BD", warning_bg="#FBEFE9", warning="#7A2E12",
+             error_bg="#FDF2F1", error="#B3261E", header="#EEF1F4", icon_ink="#3A4E5A")
 DARK = dict(bg="#0D1417", panel="#152025", panel2="#18252B", border="#22323A", text="#E3EBEE",
             text2="#9BABB3", text3="#6F808A", accent="#35B8AC", accent_dark="#6AD3C9", accent_hi="#4CC9BD",
             tint="#123936", field="#2E424B", field_hover="#445C66", hover="#1D2C32", on_accent="#04211E",
             grid="#1E2B31", scroll="#33464E", scroll_hover="#4A626C", warning_bg="#3A2319", warning="#F3B79E",
-            error_bg="#3B1C1F", error="#F2A7A9", header="#18252B")
+            error_bg="#3B1C1F", error="#F2A7A9", header="#18252B", icon_ink="#C3D0D6")
 # Shadows under the panels (blur, vertical offset, opacity) and the veil over a window behind a modal dialog.
 SHADOWS = {False: ((18, 5, 0.10), (3, 1, 0.06)), True: ((20, 6, 0.55), (3, 1, 0.35))}
 SHADOW_RGB = {False: (18, 42, 52), True: (0, 0, 0)}
@@ -80,7 +80,10 @@ def color(key):
 
 
 def load_fonts():
-    """Register Figtree (OFL) and return the family used by the interface."""
+    """Use Segoe UI with the Windows font backend, and bundle a font for other backends."""
+    if WINDOWS and QApplication.platformName() == "windows":
+        FAMILY[0] = "Segoe UI"
+        return FAMILY[0]
     family = None
     for path in sorted((QT_ASSETS / "fonts").glob("Figtree-*.ttf")):
         font_id = QFontDatabase.addApplicationFont(str(path))
@@ -182,6 +185,39 @@ def icon(name, colour=None, size=18):  # noqa: ARG001 - size kept for callers; t
     return QIcon(SvgIcon(name, colour))
 
 
+@lru_cache(maxsize=256)
+def _classic_pixmap(name, size, ratio, ink, accent, background):
+    source = ui_icons.render(name, max(1, round(size * ratio)), ink=ink, accent=accent, knockout=background)
+    pixels = source.tobytes()
+    image = QImage(pixels, source.width, source.height, QImage.Format.Format_RGBA8888)
+    pixmap = QPixmap.fromImage(image.copy())
+    pixmap.setDevicePixelRatio(ratio)
+    return pixmap
+
+
+class ClassicIcon(SvgIcon):
+    """Draw the original Classica artwork with the same renderer as Tk."""
+
+    def clone(self):
+        return ClassicIcon(self.name, self.colour, self.disabled)
+
+    def key(self):
+        return "trama-classica"
+
+    def isNull(self):
+        return self.name not in ui_icons.ICONS
+
+    def _pixmap(self, size, mode, ratio):
+        monochrome = self.disabled if mode == QIcon.Mode.Disabled else self.colour
+        ink = _resolve(monochrome, "icon_ink")
+        accent = _resolve(monochrome, "accent")
+        return _classic_pixmap(self.name, min(size.width(), size.height()), float(ratio), ink, accent, T["panel2"])
+
+
+def classic_icon(name, colour=None):
+    return QIcon(ClassicIcon(name, colour))
+
+
 def icon_size(size=18):
     return QSize(size, size)
 
@@ -225,42 +261,55 @@ def stylesheet():
     check = _ui_image("check", "on_accent", 3.2)
     dash = _ui_image("minus", "on_accent", 3.2)
     down, up = _ui_image("chevron-down", "text2", 2.2), _ui_image("chevron-up", "text2", 2.2)
+    right = _ui_image("chevron-right", "text2", 2.2)
     down_off, up_off = _ui_image("chevron-down", "text3", 2.2), _ui_image("chevron-up", "text3", 2.2)
     primary = (f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {t['accent_hi']}, stop:1 {t['accent']})")
-    menu_radius = MENU_RADIUS
     return f"""
     QMainWindow, QDialog {{ background: {t['bg']}; }}
     QWidget {{ color: {t['text']}; }}
-    QToolTip {{ background: {t['panel']}; color: {t['text']}; border: 1px solid {t['border']}; border-radius: 6px;
+    QToolTip {{ background: {t['panel']}; color: {t['text']}; border: 1px solid {t['border']}; border-radius: 0px;
         padding: 5px 8px; }}
-    QFrame#card {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: {CARD_RADIUS}px; }}
+    QFrame#card {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 0px; }}
     QFrame#commandBar {{ background: {t['panel']}; border-bottom: 1px solid {t['border']}; }}
     QLabel#pageTitle {{ font-size: 16pt; font-weight: 700; }}
     QLabel#pageSubtitle, QLabel#muted {{ color: {t['text2']}; }}
     QLabel#sectionTitle {{ color: {t['text2']}; font-weight: 600; }}
     QFrame#projectStrip {{ background: {t['bg']}; }}
-    QTabBar#projectTabs::tab {{ background: transparent; color: {t['text2']}; margin: 4px 1px 0 0;
-        padding: 6px 6px 6px 12px; border: 1px solid transparent; border-bottom: none;
-        border-top-left-radius: 8px; border-top-right-radius: 8px; min-width: 96px; }}
+    QTabBar#projectTabs::tab {{ background: transparent; color: {t['text2']}; margin: 1px 1px 0 0;
+        padding: 3px 7px; border: 1px solid transparent; border-bottom: none;
+        border-top-left-radius: 0px; border-top-right-radius: 0px; min-width: 96px; }}
     QTabBar#projectTabs::tab:selected {{ background: {t['panel']}; color: {t['text']}; font-weight: 600;
         border-color: {t['border']}; }}
     QTabBar#projectTabs::tab:hover:!selected {{ background: {t['hover']}; color: {t['text']}; }}
-    QToolButton#projectTabClose {{ padding: 2px; border-radius: 5px; }}
+    QToolButton#projectTabClose {{ padding: 2px; border-radius: 0px; }}
     QToolButton#projectTabClose:hover {{ background: {t['field']}; }}
-    QToolButton#newProjectTab {{ margin: 4px 0 0 2px; padding: 4px; }}
-    QLabel#notice {{ background: {t['warning_bg']}; color: {t['warning']}; border-radius: 8px; padding: 8px 12px; }}
-    QLabel#errorBanner {{ background: {t['error_bg']}; color: {t['error']}; border-radius: 8px; padding: 8px 12px; }}
+    QToolButton#newProjectTab {{ margin: 1px 0 0 2px; padding: 2px; }}
+    QLabel#notice {{ background: {t['warning_bg']}; color: {t['warning']}; border-radius: 0px; padding: 8px 12px; }}
+    QLabel#errorBanner {{ background: {t['error_bg']}; color: {t['error']}; border-radius: 0px; padding: 8px 12px; }}
 
-    QTabBar#ribbonTabs::tab {{ background: transparent; border: none; border-radius: 6px; margin: 2px 2px 4px 0;
-        padding: 6px 10px; color: {t['text2']}; }}
-    QTabBar#ribbonTabs::tab:hover:!selected {{ color: {t['text']}; background: {t['hover']}; }}
-    QTabBar#ribbonTabs::tab:selected {{ color: {t['text']}; font-weight: 600; }}
-    QToolBar#commandTools, QToolBar#graphTools, QToolBar#plotTools {{ border: none; background: transparent; spacing: 2px; }}
+    QMenuBar {{ background: {t['panel2']}; border: 0; padding: 1px 3px; }}
+    QMenuBar::item {{ background: transparent; padding: 3px 7px; }}
+    QMenuBar::item:selected {{ background: {t['tint']}; color: {t['text']}; }}
+    QFrame#classicToolbar {{ background: {t['panel2']}; border-bottom: 1px solid {t['border']}; }}
+    QFrame#classicToolbar QToolButton {{ padding: 2px 3px; }}
+    QFrame#classicToolbar QToolButton#primary {{ padding: 2px 7px; background: {t['accent']}; }}
+    QFrame#classicToolbar QToolButton#primary:disabled {{ background: {t['field']}; }}
+    QFrame#classicDivider {{ color: {t['field_hover']}; }}
+    QLabel#classicGroup {{ color: {t['text2']}; font-size: 8pt; }}
+    QFrame#classicNavigator, QFrame#classicSheet {{ background: {t['panel']}; }}
+    QFrame#setupSidebar {{ background: #10333e; }}
+    QFrame#setupSidebar QLabel {{ color: #d7edee; }}
+    QFrame#setupSidebar QPushButton {{ text-align: left; background: #153f4d; color: #fff; border-color: #476873; }}
+    QFrame#setupSidebar QPushButton:hover {{ background: #25505c; }}
+    QListWidget#setupTypes {{ background: #153f4d; color: #fff; border: 0; }}
+    QListWidget#setupTypes::item {{ color: #fff; padding: 2px 6px; }}
+    QListWidget#setupTypes::item:hover {{ background: #25505c; }}
+    QListWidget#setupTypes::item:selected {{ background: #e8f4f3; color: #10333e; }}
+    QToolBar#plotTools {{ border: none; background: transparent; spacing: 2px; }}
     QToolBar::separator {{ background: {t['border']}; width: 1px; margin: 6px 6px; }}
     QToolBar#plotTools QLabel {{ color: {t['text2']}; }}
 
-    QToolButton {{ border: 1px solid transparent; border-radius: 7px; padding: 5px 9px; background: transparent; }}
-    QToolBar#graphTools QToolButton {{ padding: 5px 6px; }}
+    QToolButton {{ border: 1px solid transparent; border-radius: 0px; padding: 5px 9px; background: transparent; }}
     QToolButton:hover {{ background: {t['hover']}; }}
     QToolButton:pressed {{ background: {t['tint']}; }}
     QToolButton:checked {{ background: {t['tint']}; color: {t['accent_dark']}; }}
@@ -273,7 +322,7 @@ def stylesheet():
     QToolButton::menu-indicator {{ image: none; width: 0; }}
 
     QPushButton {{ background: {t['panel']}; border: 1px solid {t['field']}; border-bottom-color: {t['field_hover']};
-        border-radius: 7px; padding: 6px 14px; }}
+        border-radius: 0px; padding: 6px 14px; }}
     QPushButton:hover {{ background: {t['hover']}; border-color: {t['field_hover']}; }}
     QPushButton:pressed {{ background: {t['tint']}; }}
     QPushButton:focus {{ border-color: {t['accent']}; }}
@@ -288,7 +337,7 @@ def stylesheet():
         width: 12px; height: 12px; left: 4px; }}
 
     QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit, QTextEdit {{ background: {t['panel']};
-        border: 1px solid {t['field']}; border-radius: 7px; padding: 5px 8px;
+        border: 1px solid {t['field']}; border-radius: 0px; padding: 5px 8px;
         selection-background-color: {t['tint']}; selection-color: {t['text']}; }}
     QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QPlainTextEdit:hover,
     QTextEdit:hover {{ border-color: {t['field_hover']}; }}
@@ -302,13 +351,13 @@ def stylesheet():
     QComboBox::down-arrow {{ image: url({down}); width: 12px; height: 12px; }}
     QComboBox::down-arrow:disabled {{ image: url({down_off}); }}
     QComboBox QAbstractItemView {{ background: {t['panel']}; border: 1px solid {t['border']};
-        border-radius: {menu_radius}px; padding: 4px; selection-background-color: {t['tint']};
+        border-radius: 0px; padding: 4px; selection-background-color: {t['tint']};
         selection-color: {t['text']}; outline: 0; }}
     QSpinBox, QDoubleSpinBox {{ padding-right: 24px; }}
     QSpinBox::up-button, QDoubleSpinBox::up-button {{ subcontrol-origin: border; subcontrol-position: top right;
-        width: 20px; border: none; border-top-right-radius: 7px; background: transparent; margin: 1px 1px 0 0; }}
+        width: 20px; border: none; border-top-right-radius: 0px; background: transparent; margin: 1px 1px 0 0; }}
     QSpinBox::down-button, QDoubleSpinBox::down-button {{ subcontrol-origin: border;
-        subcontrol-position: bottom right; width: 20px; border: none; border-bottom-right-radius: 7px;
+        subcontrol-position: bottom right; width: 20px; border: none; border-bottom-right-radius: 0px;
         background: transparent; margin: 0 1px 1px 0; }}
     QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover, QSpinBox::down-button:hover,
     QDoubleSpinBox::down-button:hover {{ background: {t['hover']}; }}
@@ -319,7 +368,7 @@ def stylesheet():
 
     QCheckBox, QRadioButton {{ spacing: 8px; }}
     QCheckBox::indicator, QListView::indicator, QTreeView::indicator, QTableView::indicator,
-    QGroupBox::indicator {{ width: 14px; height: 14px; border: 1px solid {t['field_hover']}; border-radius: 4px;
+    QGroupBox::indicator {{ width: 14px; height: 14px; border: 1px solid {t['field_hover']}; border-radius: 0px;
         background: {t['panel']}; }}
     QCheckBox::indicator:hover, QListView::indicator:hover, QTreeView::indicator:hover {{
         border-color: {t['accent']}; }}
@@ -331,33 +380,35 @@ def stylesheet():
         image: url({dash}); }}
     QCheckBox::indicator:disabled {{ background: {t['panel2']}; border-color: {t['field']}; }}
     QCheckBox::indicator:checked:disabled {{ background: {t['field']}; border-color: {t['field']}; }}
-    QRadioButton::indicator {{ width: 14px; height: 14px; border: 1px solid {t['field_hover']}; border-radius: 8px;
+    QRadioButton::indicator {{ width: 14px; height: 14px; border: 1px solid {t['field_hover']}; border-radius: 0px;
         background: {t['panel']}; }}
     QRadioButton::indicator:hover {{ border-color: {t['accent']}; }}
     QRadioButton::indicator:checked {{ border: 5px solid {t['accent']}; width: 6px; height: 6px;
         background: {t['panel']}; }}
     QRadioButton::indicator:disabled {{ background: {t['panel2']}; border-color: {t['field']}; }}
 
-    QGroupBox {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 10px;
+    QGroupBox {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 0px;
         margin-top: 20px; padding: 6px 0 0 0; }}
     QGroupBox::title {{ subcontrol-origin: margin; subcontrol-position: top left; left: 4px; top: 2px;
         padding: 0 4px; color: {t['text2']}; font-weight: 600; }}
 
     QListWidget, QTreeWidget, QListView, QTreeView {{ background: {t['panel']}; border: 1px solid {t['border']};
-        border-radius: 8px; outline: 0; padding: 3px; }}
-    QListWidget::item, QTreeWidget::item {{ padding: 4px 6px; border-radius: 6px; }}
+        border-radius: 0px; outline: 0; padding: 3px; }}
+    QListWidget::item, QTreeWidget::item {{ padding: 4px 6px; border-radius: 0px; }}
     QListWidget::item:hover, QTreeWidget::item:hover {{ background: {t['hover']}; }}
     QListWidget::item:selected, QTreeWidget::item:selected {{ background: {t['tint']}; color: {t['accent_dark']}; }}
     QTreeView::branch, QTreeView::branch:selected, QTreeView::branch:hover {{ background: transparent; }}
     QTreeWidget#navigator {{ border: none; background: transparent; padding: 0; }}
-    QTreeWidget#navigator::item {{ padding: 5px 4px; border-radius: 7px; }}
+    QTreeWidget#navigator::branch:open:has-children {{ image: url({down}); }}
+    QTreeWidget#navigator::branch:closed:has-children {{ image: url({right}); }}
+    QTreeWidget#navigator::item {{ padding: 1px 3px; border-radius: 0px; }}
     QTreeWidget#navigator::item:hover {{ background: {t['hover']}; }}
     QTreeWidget#navigator::item:selected {{ background: {t['tint']}; color: {t['accent_dark']}; font-weight: 600; }}
 
-    QTabWidget::pane {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 10px; }}
+    QTabWidget::pane {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 0px; }}
     QTabWidget::tab-bar {{ left: 0; }}
     QTabBar::tab {{ background: transparent; padding: 6px 14px; margin: 0 4px 6px 0; border: none;
-        border-radius: 7px; color: {t['text2']}; }}
+        border-radius: 0px; color: {t['text2']}; }}
     QTabBar::tab:hover:!selected {{ background: {t['hover']}; color: {t['text']}; }}
     QTabBar::tab:selected {{ background: {t['tint']}; color: {t['accent_dark']}; font-weight: 600; }}
 
@@ -371,24 +422,25 @@ def stylesheet():
         border-bottom: 1px solid {t['border']}; border-right: 1px solid {t['grid']}; }}
 
     QScrollBar:vertical {{ width: 12px; background: transparent; margin: 3px; }}
-    QScrollBar::handle:vertical {{ background: {t['scroll']}; border-radius: 3px; min-height: 32px; }}
+    QScrollBar::handle:vertical {{ background: {t['scroll']}; border-radius: 0px; min-height: 32px; }}
     QScrollBar:horizontal {{ height: 12px; background: transparent; margin: 3px; }}
-    QScrollBar::handle:horizontal {{ background: {t['scroll']}; border-radius: 3px; min-width: 32px; }}
+    QScrollBar::handle:horizontal {{ background: {t['scroll']}; border-radius: 0px; min-width: 32px; }}
     QScrollBar::handle:hover {{ background: {t['scroll_hover']}; }}
     QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
     QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 
     QSplitter::handle {{ background: transparent; }}
-    QStatusBar {{ background: {t['bg']}; color: {t['text2']}; padding-left: 10px; }}
+    QStatusBar {{ background: {t['panel2']}; color: {t['text2']};
+        border-top: 1px solid {t['field_hover']}; padding-left: 4px; }}
     QStatusBar::item {{ border: none; }}
     QStatusBar QToolButton[statusTool="true"] {{ padding: 2px; }}
     QStatusBar QLabel {{ padding: 0 6px; }}
-    QProgressBar {{ background: {t['border']}; border: none; border-radius: 3px; max-height: 6px; }}
-    QProgressBar::chunk {{ background: {primary}; border-radius: 3px; }}
+    QProgressBar {{ background: {t['border']}; border: none; border-radius: 0px; max-height: 6px; }}
+    QProgressBar::chunk {{ background: {primary}; border-radius: 0px; }}
 
-    QMenu {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: {menu_radius}px;
+    QMenu {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 0px;
         padding: 5px; }}
-    QMenu::item {{ padding: 6px 26px 6px 10px; border-radius: 6px; margin: 1px 0; }}
+    QMenu::item {{ padding: 6px 26px 6px 10px; border-radius: 0px; margin: 1px 0; }}
     QMenu::item:selected {{ background: {t['tint']}; color: {t['text']}; }}
     QMenu::item:disabled {{ color: {t['text3']}; }}
     QMenu::icon {{ padding-left: 8px; }}
@@ -785,7 +837,6 @@ def native_frame(widget):
             dwm.DwmSetWindowAttribute(hwnd, name, ctypes.byref(data), ctypes.sizeof(data))
 
         popup = widget.windowType() in {Qt.WindowType.Popup, Qt.WindowType.ToolTip}
-        attribute(33, 3 if popup else 2)  # DWMWA_WINDOW_CORNER_PREFERENCE: round small / round.
         if not popup:
             attribute(20, 1 if STATE["dark"] else 0)  # DWMWA_USE_IMMERSIVE_DARK_MODE
             caption = T["panel"] if isinstance(widget, QMainWindow) else T["bg"]
@@ -796,40 +847,13 @@ def native_frame(widget):
 
 
 class _WindowPolish(QObject):
-    """Every dialog fits the screen it opens on and a modal one frosts its main window; every top-level window
-    gets the native frame of the theme; menus get rounded corners."""
-
-    WATCHED = {QEvent.Type.Show, QEvent.Type.Hide, QEvent.Type.Polish, QEvent.Type.Resize}
+    """Fit dialogs within the available desktop and apply the native frame colours."""
 
     def eventFilter(self, watched, event):
-        kind = event.type()
-        if kind not in self.WATCHED or not isinstance(watched, QWidget):
-            return False
-        if kind == QEvent.Type.Polish:
-            if isinstance(watched, QMenu) and not WINDOWS:
-                watched.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-            return False
-        if not watched.isWindow():
-            return False
-        if WINDOWS and kind in {QEvent.Type.Show, QEvent.Type.Resize}:
-            if isinstance(watched, QMenu) or (watched.windowType() == Qt.WindowType.Popup
-                                             and isinstance(watched.parentWidget(), QComboBox)):
-                # Frameless Qt popups can stay square even when DWM accepts the rounding preference.
-                outline = QPainterPath()
-                outline.addRoundedRect(QRectF(watched.rect()), MENU_RADIUS, MENU_RADIUS)
-                watched.setMask(QRegion(outline.toFillPolygon().toPolygon()))
-        if kind == QEvent.Type.Show:
+        if event.type() == QEvent.Type.Show and isinstance(watched, QWidget) and watched.isWindow():
             native_frame(watched)
             if isinstance(watched, QDialog):
                 keep_on_screen(watched)
-                if watched.isModal():
-                    veil = _veil_for(watched)
-                    if veil is not None:
-                        veil.dialogs.add(id(watched))
-                        watched.destroyed.connect(lambda _=None, key=id(watched), v=veil: _release(v, key))
-        elif kind == QEvent.Type.Hide and isinstance(watched, QDialog):
-            for veil in list(_live_veils(watched)):
-                veil.release(id(watched))
         return False
 
 

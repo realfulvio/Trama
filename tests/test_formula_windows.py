@@ -18,6 +18,23 @@ class WindowFormulaTests(unittest.TestCase):
                                    "Category": [1, 1, "1", "1", "1", None],
                                    "Keep": [1, 0, 1, 0, 1, 1]})
 
+    def test_unqualified_sample_statistics_and_nonblank_count(self):
+        frame = pd.DataFrame({"Reading": pd.Series([2, 4, "100", None], dtype=object),
+                              "Label": ["Control", "", "  ", "Dose"]})
+        for expression, expected in {
+            "STDEV(Reading)": np.sqrt(2),
+            "STDERR(Reading)": 1.0,
+            "COUNTA(Label)": 2.0,
+            "1 + STDEV(Reading) / SQRT(COUNTA(Label))": 2.0,
+        }.items():
+            with self.subTest(expression=expression):
+                np.testing.assert_allclose(formula(frame, expression), [expected] * 4)
+        self.assertTrue(formula(frame.iloc[:1], "STDERR(Reading)").isna().all())
+        self.assertEqual(formula(frame.iloc[1:3], "COUNTA(Label)").tolist(), [0., 0.])
+        for expression in ("STDEV()", "STDERR(Reading, Label)"):
+            with self.subTest(expression=expression), self.assertRaises(ValueError):
+                formula(frame, expression)
+
     def test_seeded_random_calls_draw_per_row_and_per_call(self):
         frame = pd.DataFrame({"X": np.zeros(5000)})
         uniform = formula(frame, "WITH_SEED(42, RND(-2, 4))")

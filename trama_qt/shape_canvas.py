@@ -19,7 +19,7 @@ from analisi.axis_breaks import segment_axes
 from analisi.graph_shapes import ARROW_HEADS, ARROW_STYLES, HATCHES, LINE_STYLES, SHAPES, on_axis_domain
 from analisi.i18n import tr
 from analisi.presentation import apply_style
-from analisi.prism_restore import SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH, SAVED_XY
+from analisi.legacy_restore import SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH, SAVED_XY
 from analisi.qq_panels import panel_axes
 from analisi.shape_clipboard import dump_shape, paste_shape
 from analisi.shape_context import DEFAULTS, ENDING_SIZES, WIDTHS, edit_records
@@ -218,10 +218,6 @@ class GraphDrawing:
                 canvas, figure.axes[0], records=lambda: shapes_of(run), commit=lambda records: self.commit(run, records),
                 status=self.window.status, allowed=self.allowed, edit=self.edit, context=self.context,
                 clipboard=self.clipboard_action, mode_changed=lambda mode: self.sync())
-        if tools is not None and run.method not in IMPORTED_GRAPHS:
-            tools.addSeparator()
-            for mode in TOOLS:
-                tools.addAction(self.window.actions[f"draw_{mode}"])
         if self.reason is not None:
             note = QLabel(qt("qt.draw_unavailable", reason=self.reason))
             note.setObjectName("muted")

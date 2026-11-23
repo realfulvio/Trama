@@ -36,7 +36,7 @@ DUNN_OPTIONS = {DUNN: DUNN_MODES, DUNN_CONTROL: "Group choice", DUNN_PAIRS: DUNN
                 DUNN_ADJUSTMENT: DUNN_ADJUSTMENTS, DUNN_ALPHA: .05}
 
 
-def _selected_pair_indices(groups, selected, field):
+def selected_pair_indices(groups, selected, field):
     if not isinstance(selected, (list, tuple)) or not selected:
         raise FieldError(field, "Add at least one pair of groups.")
     by_label = {}
@@ -77,7 +77,7 @@ def dunn_comparisons(groups, values, options, *, matched=False):
     if mode == "Versus control":
         pairs = _control_pairs(groups, options.get(DUNN_CONTROL), DUNN_CONTROL)
     elif mode == DUNN_PAIRS:
-        pairs = _selected_pair_indices(groups, options.get(DUNN_PAIRS), DUNN_PAIRS)
+        pairs = selected_pair_indices(groups, options.get(DUNN_PAIRS), DUNN_PAIRS)
     else:
         pairs = list(combinations(range(count), 2))
     adjustment = options.get(DUNN_ADJUSTMENT, DUNN_ADJUSTMENTS[0])
@@ -233,7 +233,7 @@ def one_way_anova(frame, response, group, *, method="ordinary", posthoc=None, le
     if mode == unequal_anova.VERSUS_CONTROL:
         pairs = _control_pairs(groups, family.get(unequal_anova.CONTROL), unequal_anova.CONTROL)
     elif mode == unequal_anova.PAIRS:
-        pairs = _selected_pair_indices(groups, family.get(unequal_anova.PAIRS), unequal_anova.PAIRS)
+        pairs = selected_pair_indices(groups, family.get(unequal_anova.PAIRS), unequal_anova.PAIRS)
     elif mode == unequal_anova.ALL_PAIRS:
         pairs = list(combinations(range(count), 2))
     else:

@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QComboBox, QDial
 from analisi.i18n import tr, ui
 from analisi.layout_geometry import AUTO_PAPER, PAPER_SIZES, WHITE
 from analisi.presentation import Layout
-from analisi.prism_layout_edit import edited_layout_preview
+from analisi.legacy_layout_edit import edited_layout_preview
 
 from .theme import fit_dialog
 

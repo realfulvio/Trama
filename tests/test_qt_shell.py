@@ -1042,6 +1042,48 @@ class QtShellTests(unittest.TestCase):
         self.assertLess(widths[1], widths[0] * 0.65)
         self.assertAlmostEqual(ratios[0], ratios[1], delta=0.005)
 
+    def test_imported_page_is_readable_and_can_show_the_entire_paper(self):
+        from matplotlib.figure import Figure
+        from PySide6.QtCore import QPoint, QPointF, Qt
+        from PySide6.QtGui import QWheelEvent
+        from PySide6.QtWidgets import QScrollArea
+        from trama_qt.strings import qt
+        from trama_qt.window import Page
+
+        paper = (8.5, 11.0)
+        figure = Figure(figsize=paper)
+        figure.add_subplot().plot([0, 1], [1, 2])
+        page = Page("Imported layout")
+        self.addCleanup(page.close)
+        canvas = self.window._canvas(page, figure, paper=paper, imported_layout=True)
+        page.resize(750, 430)
+        page.show()
+        self.app.processEvents()
+
+        preview = page.findChild(QScrollArea)
+        scroll = preview.verticalScrollBar()
+        width_at_open = canvas.width()
+        self.assertGreaterEqual(width_at_open, preview.viewport().width() - 2)
+        self.assertGreater(scroll.maximum(), 0)
+        self.assertAlmostEqual(canvas.width() / canvas.height(), paper[0] / paper[1], delta=0.01)
+        wheel = QWheelEvent(QPointF(25, 30), QPointF(25, 30), QPoint(), QPoint(0, -120),
+                            Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+        self.app.sendEvent(canvas, wheel)
+        self.assertGreater(scroll.value(), 0)
+
+        fit = next(action for action in self.window.plot_tools.actions() if action.text() == qt("qt.fit_entire_page"))
+        fit.trigger()
+        self.app.processEvents()
+        self.assertEqual(scroll.maximum(), 0)
+        self.assertLess(canvas.width(), width_at_open)
+        self.assertLessEqual(canvas.height(), preview.viewport().height())
+        self.assertEqual(tuple(figure.get_size_inches()), paper)
+        fit.trigger()
+        self.app.processEvents()
+        self.assertEqual(canvas.width(), width_at_open)
+        self.assertGreater(scroll.maximum(), 0)
+        self.assertEqual(tuple(figure.get_size_inches()), paper)
+
     def run_method(self, method, options):
         title = self.window.selected[1] if self.window.selected[0] == "data" else self.window.project.runs[
             self.window.selected[1]].title
@@ -1230,6 +1272,68 @@ class QtShellTests(unittest.TestCase):
         window.inspector_wanted = True
         window.show_sheet("graph", window.project.runs.index(graph))
         self.assertIsNotNone(window.inspector)
+
+    def test_worksheet_preview_keeps_the_grid_and_commits_only_on_apply(self):
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        figure = graph.result.figure
+        title = figure.axes[0].get_title()
+        window.open_sheet(("data", graph.title))
+        canvas = figure.canvas
+        sheet = window.sheet
+        workspace = window.page.worksheet_preview
+        action = window.actions["worksheet_preview"]
+        self.assertIn(action, window.command_menus["View"].actions())
+        self.assertIsNone(workspace.canvas)
+
+        action.trigger()
+        self.assertIs(window.sheet, sheet)
+        self.assertIs(figure.canvas, canvas)
+        self.assertIsNot(workspace.canvas.figure, figure)
+        workspace.format_box.click()
+        inspector = window.inspector
+        inspector.widgets["title"].setText("Confirmed on Apply")
+        inspector._now("title")
+        self.assertEqual(workspace.canvas.figure.axes[0].get_title(), "Confirmed on Apply")
+        self.assertEqual(figure.axes[0].get_title(), title)
+        self.assertTrue(inspector.apply())
+        self.assertEqual(figure.axes[0].get_title(), "Confirmed on Apply")
+        self.assertEqual(window.project.tables[graph.title].graph_styles[graph.slot]["title"], "Confirmed on Apply")
+
+        inspector.widgets["title"].setText("Discard this")
+        inspector._now("title")
+        inspector.cancel()
+        self.assertFalse(workspace.format_box.isChecked())
+        self.assertEqual(workspace.canvas.figure.axes[0].get_title(), "Confirmed on Apply")
+
+        self.assertTrue(window.edit_cell(graph.title, 0, 0, "20"))
+        self.wait()
+        self.assertIs(window.sheet, sheet)
+        self.assertIsNot(graph.result.figure, figure)
+        self.assertIs(workspace.result, graph.result)
+        self.assertEqual(workspace.canvas.figure.axes[0].get_title(), "Confirmed on Apply")
+        workspace.open_button.click()
+        self.assertEqual(window.selected, ("graph", window.project.runs.index(graph)))
+        self.assertIsNone(workspace.canvas)
+
+    def test_worksheet_preview_never_starts_an_uncalculated_graph(self):
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        graph.result = None
+        window.open_sheet(("data", graph.title))
+        window.actions["worksheet_preview"].trigger()
+        workspace = window.page.worksheet_preview
+        self.assertIsNone(window.job)
+        self.assertIsNone(graph.result)
+        self.assertIsNone(workspace.canvas)
+        self.assertTrue(workspace.calculate.isEnabled())
+        workspace.calculate.click()
+        self.wait()
+        self.assertEqual(window.selected, ("data", graph.title))
+        self.assertIs(workspace.result, graph.result)
+        self.assertIsNotNone(workspace.canvas)
 
     def test_annotations(self):
         from trama_qt.annotations import AnnotationEditor, GraphAnnotationsDialog
@@ -2081,11 +2185,11 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(list(window.project.tables), ["misure"])
 
     def test_recovered_theoretical_graph_exposes_saved_equations(self):
-        from analisi.prism_restore import SAVED_XY
-        from analisi.prism_xml_generated import XML_GENERATED_XY
+        from analisi.legacy_restore import SAVED_XY
+        from analisi.legacy_xml_generated import XML_GENERATED_XY
 
         frame = pd.DataFrame({"X": [0, 1], "Y1": [2, 4]})
-        frame.attrs["prism_recipes"] = [(SAVED_XY, {XML_GENERATED_XY: {
+        frame.attrs["legacy_recipes"] = [(SAVED_XY, {XML_GENERATED_XY: {
             "aspect": 1, "title": "Recovered graph", "x": "X", "series": [{"column": "Y1", "color": "#366999"}],
             "axes": [{"bounds": bound, "label": name, "ticks": bound, "minor": [], "grid": False}
                      for name, bound in (("X", [0, 1]), ("Y", [0, 5]))],
@@ -2112,9 +2216,9 @@ class QtShellTests(unittest.TestCase):
         from PySide6.QtWidgets import QComboBox, QPushButton
         from analisi.data import Dataset, save_project
         from analisi.i18n import ui
-        from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA
-        from analisi.prism_restore import (
-            BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK, PRISM_GRAPH_STYLE,
+        from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_DATA
+        from analisi.legacy_restore import (
+            BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, LEGACY_GRAPH_LINK, LEGACY_GRAPH_STYLE,
             SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_EDITABLE_GRAPH,
         )
         from analisi.workbench import Result
@@ -2122,13 +2226,13 @@ class QtShellTests(unittest.TestCase):
         path = self.folder / "legacy.alab"
         save_project(path, {
             "Original": Dataset(pd.DataFrame({"Drawing": [1]}), table_format=BINARY_GRAPH_COLLECTION,
-                                analyses=[(SAVED_BINARY_GRAPH, {PRISM_GRAPH_LINK: "graph-a"}),
-                                          (SAVED_BINARY_GRAPH, {PRISM_GRAPH_LINK: "unmatched"})]),
+                                analyses=[(SAVED_BINARY_GRAPH, {LEGACY_GRAPH_LINK: "graph-a"}),
+                                          (SAVED_BINARY_GRAPH, {LEGACY_GRAPH_LINK: "unmatched"})]),
             "Coordinates": Dataset(pd.DataFrame({"Y": [6.], "Lower error": [1.]}), analyses=[
-                (SAVED_EDITABLE_GRAPH, {PRISM_GRAPH_LINK: "graph-a", PRISM_GRAPH_STYLE: {}})]),
+                (SAVED_EDITABLE_GRAPH, {LEGACY_GRAPH_LINK: "graph-a", LEGACY_GRAPH_STYLE: {}})]),
             "Page": Dataset(pd.DataFrame({"Drawing": [1]}), table_format=BINARY_LAYOUT_COLLECTION, analyses=[
-                (SAVED_BINARY_LAYOUT, {PRISM_PANEL_DATA: {"1": "graph-a", "2": "unmatched"},
-                                       PRISM_EDITABLE_PANELS: [{"id": "1", "title": "Panel A"}]})]),
+                (SAVED_BINARY_LAYOUT, {LEGACY_PANEL_DATA: {"1": "graph-a", "2": "unmatched"},
+                                       LEGACY_EDITABLE_PANELS: [{"id": "1", "title": "Panel A"}]})]),
         })
         window = self.window
         panel_errors = []
@@ -2176,7 +2280,7 @@ class QtShellTests(unittest.TestCase):
 
         from matplotlib.figure import Figure
         from PySide6.QtWidgets import QFileDialog
-        from analisi.prism_restore import PRISM_PREVIEW, SAVED_BINARY_GRAPH
+        from analisi.legacy_restore import LEGACY_PREVIEW, SAVED_BINARY_GRAPH
         from trama_qt.project import Run
 
         original_emf = _emf_drawing(pack("<II4i", 43, 24, 4, 6, 12, 18))
@@ -2188,7 +2292,7 @@ class QtShellTests(unittest.TestCase):
         window.selected = ("graph", 0)
         for fmt, data in (("emf", original_emf), ("pdf", pdf.getvalue())):
             with self.subTest(fmt=fmt):
-                run = Run(SAVED_BINARY_GRAPH, "Drawing", {PRISM_PREVIEW: _vector_record(data, fmt)})
+                run = Run(SAVED_BINARY_GRAPH, "Drawing", {LEGACY_PREVIEW: _vector_record(data, fmt)})
                 window.project.runs = [run]
                 target = self.folder / "Original"
                 with patch.object(QFileDialog, "getSaveFileName", return_value=(str(target), "")) as dialog:
@@ -2200,9 +2304,9 @@ class QtShellTests(unittest.TestCase):
         from unittest.mock import patch
 
         from PySide6.QtWidgets import QFileDialog
-        from analisi.data import Dataset, EDITABLE_PRISM_EMF
-        from analisi.prism_emf_edit import POINTS
-        from analisi.prism_restore import PRISM_GRAPH_STYLE, PRISM_PREVIEW, SAVED_EDITABLE_GRAPH
+        from analisi.data import Dataset, EDITABLE_LEGACY_EMF
+        from analisi.legacy_emf_edit import POINTS
+        from analisi.legacy_restore import LEGACY_GRAPH_STYLE, LEGACY_PREVIEW, SAVED_EDITABLE_GRAPH
         from trama_qt.project import Run
 
         def line(x, y, xx, yy):
@@ -2215,34 +2319,34 @@ class QtShellTests(unittest.TestCase):
         axes = {"bounds": [0., 10.], "unit": .1, "scale": "linear"}
         style = {"kind": POINTS, "chart": [0, 0, 100, 100], "axes": [axes, axes],
                  "source": [[4., 6., 2., 1.]]}
-        run = Run(SAVED_EDITABLE_GRAPH, "XY", {PRISM_GRAPH_STYLE: style, PRISM_PREVIEW: _vector_record(original)})
+        run = Run(SAVED_EDITABLE_GRAPH, "XY", {LEGACY_GRAPH_STYLE: style, LEGACY_PREVIEW: _vector_record(original)})
         frame = pd.DataFrame({"X": [4.], "Y": [6.], "Upper error": [2.], "Lower error": [2.], "Series": ["A"]})
         window = self.window
-        window.project.tables["XY"] = Dataset(frame, table_format=EDITABLE_PRISM_EMF)
+        window.project.tables["XY"] = Dataset(frame, table_format=EDITABLE_LEGACY_EMF)
         window.project.runs = [run]
         window.selected = ("graph", 0)
         target = self.folder / "Adjusted.emf"
         with patch.object(QFileDialog, "getSaveFileName", return_value=(str(target), "")):
             window.export()
         self.assertEqual(target.read_bytes(), edited)
-        self.assertEqual(run.options[PRISM_PREVIEW], _vector_record(original))
+        self.assertEqual(run.options[LEGACY_PREVIEW], _vector_record(original))
 
     def test_export_imported_layout_preserves_original_and_current_emf(self):
         from unittest.mock import patch
 
         from PySide6.QtWidgets import QFileDialog, QPushButton
-        from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS
-        from analisi.prism_restore import PRISM_PREVIEW, SAVED_BINARY_LAYOUT
+        from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_EDITS
+        from analisi.legacy_restore import LEGACY_PREVIEW, SAVED_BINARY_LAYOUT
         from analisi.workbench import Result
         from trama_qt.project import Run
 
         original = _emf_layout()
         edited = _emf_layout(first=(14, 18, 76, 42))
         run = Run(SAVED_BINARY_LAYOUT, "Page", {
-            PRISM_PREVIEW: _vector_record(original),
-            PRISM_EDITABLE_PANELS: [{"id": "1", "bounds": [10, 10, 110, 70]},
+            LEGACY_PREVIEW: _vector_record(original),
+            LEGACY_EDITABLE_PANELS: [{"id": "1", "bounds": [10, 10, 110, 70]},
                                     {"id": "2", "bounds": [120, 80, 220, 140]}],
-            PRISM_PANEL_EDITS: {"1": [14, 18, 90, 60]},
+            LEGACY_PANEL_EDITS: {"1": [14, 18, 90, 60]},
         }, result=Result({}))
         window = self.window
         window.project.runs = [run]
@@ -2265,17 +2369,17 @@ class QtShellTests(unittest.TestCase):
         from PIL import Image
         from PySide6.QtWidgets import QDialog, QPushButton
         from analisi.data import Dataset, save_project
-        from analisi.prism_binary_graphs import validate_binary_graph
-        from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_EDITS
-        from analisi.prism_restore import BINARY_LAYOUT_COLLECTION, PRISM_PREVIEW, SAVED_BINARY_LAYOUT
+        from analisi.legacy_binary_graphs import validate_binary_graph
+        from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_EDITS
+        from analisi.legacy_restore import BINARY_LAYOUT_COLLECTION, LEGACY_PREVIEW, SAVED_BINARY_LAYOUT
 
         original = _emf_layout()
         earlier = [120, 81, 219, 139]
         expected_prior = _emf_layout(second=(120, 81, 99, 58))
         expected_edited = _emf_layout((14, 18, 76, 42), (120, 81, 99, 58))
         edits = {"2": earlier}
-        options = {PRISM_PREVIEW: _vector_record(original), PRISM_PANEL_EDITS: edits,
-                   PRISM_EDITABLE_PANELS: [{"id": "1", "title": "First", "bounds": [10, 10, 110, 70]},
+        options = {LEGACY_PREVIEW: _vector_record(original), LEGACY_PANEL_EDITS: edits,
+                   LEGACY_EDITABLE_PANELS: [{"id": "1", "title": "First", "bounds": [10, 10, 110, 70]},
                                            {"id": "2", "title": "Second", "bounds": [120, 80, 220, 140]}]}
         seed = self.folder / "original.alab"
         save_project(seed, {"Page": Dataset(pd.DataFrame({"Drawing": [1]}), table_format=BINARY_LAYOUT_COLLECTION,
@@ -2324,7 +2428,7 @@ class QtShellTests(unittest.TestCase):
             dialog.accept()
             return QDialog.DialogCode.Accepted
 
-        with patch("analisi.prism_binary_graphs.render_binary_graph", side_effect=render):
+        with patch("analisi.legacy_binary_graphs.render_binary_graph", side_effect=render):
             window.open_path(seed)
             window.open_sheet(("saved-layout", 0))
             self.wait()
@@ -2339,7 +2443,7 @@ class QtShellTests(unittest.TestCase):
             self.assertEqual(run.uid, before.uid)
             self.assertEqual(rendered[-1], expected_edited)
             self.assertTrue(window.project.dirty)
-            self.assertEqual(run.options[PRISM_PREVIEW], options[PRISM_PREVIEW])
+            self.assertEqual(run.options[LEGACY_PREVIEW], options[LEGACY_PREVIEW])
             saved = self.folder / "edited.alab"
             window.project.save(saved)
             window.open_path(saved)
@@ -2347,7 +2451,7 @@ class QtShellTests(unittest.TestCase):
             self.wait()
             self.assertEqual(rendered[-1], expected_edited)
             edit(restore)
-            self.assertEqual(window.project.runs[0].options[PRISM_PANEL_EDITS], edits)
+            self.assertEqual(window.project.runs[0].options[LEGACY_PANEL_EDITS], edits)
             self.assertEqual(rendered[-1], expected_prior)
 
     def test_layout_compose_edit_reopen(self):
@@ -2410,6 +2514,43 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(pages, 2)
         import pypdfium2 as pdfium
         self.assertEqual(len(pdfium.PdfDocument(str(self.folder / "bundle.pdf"))), 2)
+
+    def test_keep_calculated_values_targets_the_clicked_heading_and_supports_undo(self):
+        from PySide6.QtCore import QPoint, QTimer
+        from PySide6.QtWidgets import QMenu
+        from analisi.i18n import tr
+
+        window = self.window
+        title = window.project.add_tables({"Study": pd.DataFrame({"Dose": [2, 4], "Result": [None, None]})})[0]
+        dataset = window.project.tables[title]
+        dataset.set_worksheet_formula(1, "=Dose * 2")
+        window.open_sheet(("data", title))
+        view = window.sheet
+        view.setCurrentIndex(view.model().index(0, 0))
+        heading = view.horizontalHeader()
+        popup = []
+
+        def close_menu():
+            menu = next((child for child in view.findChildren(QMenu) if child.isVisible()), None)
+            if menu is not None:
+                popup.extend(menu.actions())
+                menu.close()
+
+        timer = QTimer(heading)
+        timer.setSingleShot(True)
+        timer.timeout.connect(close_menu)
+        timer.start(10)
+        heading.customContextMenuRequested.emit(QPoint(heading.sectionViewportPosition(1) + 10, 4))
+        timer.stop()
+        self.assertEqual([action.text() for action in popup], [tr("worksheet.formula.freeze")])
+        popup[0].trigger()
+        self.assertEqual(dataset.formulas, {})
+        self.assertEqual(dataset.raw["Result"].tolist(), [4, 8])
+        window.undo()
+        self.assertIn("Result", dataset.formulas)
+        self.assertNotIn("Result", dataset.raw)
+        window.undo(redo=True)
+        self.assertEqual(dataset.raw["Result"].tolist(), [4, 8])
 
     def test_insert_delete_rename_and_exclude(self):
         window = self.window
@@ -2479,6 +2620,165 @@ class QtShellTests(unittest.TestCase):
         self.assertAlmostEqual(window.project.tables["groups"].raw.iloc[0, 0], 9.0)
         self.assertEqual(window.sheet.currentIndex().row(), 1)
 
+    def test_formula_typed_into_empty_variable_stays_in_its_column(self):
+        window = self.window
+        frame = pd.DataFrame({"Input": [2., 4.], "Output": [None, None], "Other": [1., 3.]})
+        window.project.add_tables({"Study": frame})
+        window.open_sheet(("data", "Study"))
+        dataset = window.project.tables["Study"]
+        window.edit_cell("Study", 0, 1, "=A * 2 + C")
+        self.wait()
+        self.assertIn("Output", dataset.formulas)
+        self.assertEqual(list(dataset.frame()), ["Input", "Output", "Other"])
+        self.assertEqual(dataset.frame()["Output"].tolist(), [5., 11.])
+        window.edit_cell("Study", 0, 2, "10")
+        self.wait()
+        self.assertEqual(dataset.frame()["Output"].tolist(), [14., 11.])
+        window.undo()
+        window.undo()
+        self.assertFalse(dataset.formulas)
+        self.assertTrue(dataset.raw["Output"].isna().all())
+        window.undo(redo=True)
+        self.assertEqual(dataset.frame()["Output"].tolist(), [5., 11.])
+
+    def test_formula_reference_inserts_a_search_result_without_closing_the_editor(self):
+        from PySide6.QtTest import QTest
+        from analisi.data import Dataset
+        from trama_qt.formula import FormulaDialog
+
+        name = "Dòse [μM] 'étape' \"A\""
+        dataset = Dataset(pd.DataFrame({"Observed": [2., 4.], name: [8., 10.],
+                                        "Derived dose": [None, None]}))
+        dialog = FormulaDialog(self.window, dataset, column=2)
+        self.addCleanup(dialog.deleteLater)
+        dialog.show()
+        self.app.processEvents()
+        dialog.reference_search.setText("dose [μm]")
+        self.assertEqual(dialog.reference_results.count(), 1)
+        dialog.expression.setPlainText("=2 * placeholder")
+        cursor = dialog.expression.textCursor()
+        cursor.setPosition(5)
+        cursor.setPosition(len("=2 * placeholder"), cursor.MoveMode.KeepAnchor)
+        dialog.expression.setTextCursor(cursor)
+        QTest.keyClick(dialog.reference_search, Qt.Key.Key_Return)
+        self.assertIsNone(dialog.result)
+        self.assertTrue(dialog.isVisible())
+        self.assertTrue(dialog.expression.toPlainText().startswith("=2 * COL("))
+        dialog.accept()
+        self.assertIsNotNone(dialog.result)
+        self.assertFalse(dataset.formulas)
+        dataset.set_worksheet_formula(2, dialog.result[1])
+        self.assertEqual(dataset.frame()["Derived dose"].tolist(), [16., 20.])
+
+    def test_formula_function_reference_uses_engine_signature_and_leaves_caret_inside(self):
+        from PySide6.QtTest import QTest
+        from analisi.data import Dataset
+        from trama_qt.formula import FormulaDialog
+
+        dataset = Dataset(pd.DataFrame({"Observed": [0., 1.]}))
+        dialog = FormulaDialog(self.window, dataset, "Density")
+        self.addCleanup(dialog.deleteLater)
+        dialog.show()
+        self.app.processEvents()
+        dialog.reference_group.setCurrentIndex(1)
+        dialog.reference_search.setText("_WINDOW_STATISTIC")
+        self.assertFalse(dialog.reference_insert.isEnabled())
+        dialog.reference_search.setText("normpdf")
+        self.assertEqual(dialog.reference_detail.text().split(" · ")[0], "NORMPDF(x, mean, sd)")
+        dialog.expression.setPlainText("=")
+        dialog.expression.moveCursor(dialog.expression.textCursor().MoveOperation.End)
+        QTest.keyClick(dialog.reference_results, Qt.Key.Key_Return)
+        self.assertEqual(dialog.expression.toPlainText(), "=NORMPDF()")
+        self.assertEqual(dialog.expression.textCursor().position(), len("=NORMPDF("))
+        dialog.reference_group.setCurrentIndex(0)
+        dialog.reference_search.setText("A")
+        dialog.reference_insert.click()
+        dialog.accept()
+        dataset.set_formula(*dialog.result)
+        self.assertAlmostEqual(dataset.frame()["Density"].iloc[0], 0.3989422804014327)
+
+    def test_equals_shortcut_confirms_replacement_and_keeps_errors_in_the_dialog(self):
+        from unittest.mock import patch
+        from PySide6.QtTest import QTest
+        from trama_qt.formula import FormulaDialog
+
+        window = self.window
+        window.project.add_tables({"Study": pd.DataFrame({"Dose": [2., 4.], "Response": [9., 7.]})})
+        window.open_sheet(("data", "Study"))
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 1))
+        window.sheet.setFocus()
+        dataset = window.project.tables["Study"]
+        seen = []
+
+        def cancel(dialog):
+            self.assertEqual(dialog.column, 1)
+            seen.append(dialog.replace_values)
+            return FormulaDialog.DialogCode.Rejected
+
+        with patch.object(FormulaDialog, "exec", cancel):
+            QTest.keyClick(window.sheet, Qt.Key.Key_Equal)
+        self.assertEqual(seen, [True])
+        self.assertEqual(dataset.raw["Response"].tolist(), [9., 7.])
+        self.assertFalse(dataset.formulas)
+
+        def accept(dialog):
+            dialog.expression.setPlainText("=B + 1")
+            dialog.accept()
+            self.assertIn("cannot depend on itself", dialog.problem.text())
+            self.assertIsNone(dialog.result)
+            self.assertEqual(dataset.raw["Response"].tolist(), [9., 7.])
+            dialog.expression.setPlainText("=A * 2")
+            dialog.accept()
+            self.assertIsNotNone(dialog.result)
+            return FormulaDialog.DialogCode.Accepted
+
+        with patch.object(FormulaDialog, "exec", accept):
+            QTest.keyClick(window.sheet, Qt.Key.Key_Equal)
+        self.assertEqual(dataset.frame()["Response"].tolist(), [4., 8.])
+        window.undo()
+        self.assertEqual(dataset.raw["Response"].tolist(), [9., 7.])
+
+    def test_interleaved_formula_has_read_only_cells_and_keeps_source_actions_aligned(self):
+        from analisi.grid_data import clipboard_rows
+
+        window = self.window
+        frame = pd.DataFrame({"Mass": [1., 3.], "Double": [2., 6.], "Dose": [9., 5.]})
+        frame.attrs["legacy_formulas"] = {"Double": "Mass * 2"}
+        window.project.add_tables({"Study": frame})
+        window.open_sheet(("data", "Study"))
+        dataset = window.project.tables["Study"]
+        model = window.sheet.model()
+        self.assertIn("ƒx   Double", model.headerData(1, Qt.Orientation.Horizontal))
+        self.assertFalse(model.flags(model.index(0, 1)) & Qt.ItemFlag.ItemIsEditable)
+        self.assertTrue(model.flags(model.index(0, 2)) & Qt.ItemFlag.ItemIsEditable)
+        self.assertFalse(model.setData(model.index(0, 1), "16"))
+        model.setData(model.index(0, 2), "16")
+        self.wait()
+        self.assertEqual(dataset.frame().iloc[0].tolist(), [1., 2., 16.])
+
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 2))
+        window.toggle_exclusion()
+        self.assertEqual(dataset.excluded, {(0, 1)})
+        self.assertTrue(window.sheet.copy())
+        self.assertEqual(clipboard_rows(self.app.clipboard().text()), [[""]])
+        window.clear_cells((0, 2, 0, 2))
+        self.assertTrue(pd.isna(dataset.raw.iat[0, 1]))
+        self.assertFalse(dataset.excluded)
+        window.undo()
+        self.assertEqual(dataset.worksheet_excluded, {(0, 2)})
+
+        window.project.insert_column("Study", 2, "Inserted")
+        self.assertEqual(dataset.columns, ("Mass", "Double", "Inserted", "Dose"))
+        self.assertEqual(dataset.worksheet_excluded, {(0, 3)})
+        window.project.rename_column("Study", 2, "New name")
+        self.assertEqual(dataset.columns, ("Mass", "Double", "New name", "Dose"))
+        window.project.delete_columns("Study", [1, 2])
+        self.assertEqual(dataset.columns, ("Mass", "Double", "Dose"))
+        window.undo()
+        self.assertEqual(dataset.columns, ("Mass", "Double", "New name", "Dose"))
+        window.undo(redo=True)
+        self.assertEqual(dataset.columns, ("Mass", "Double", "Dose"))
+
     def test_desktop_smoke(self):
         """python -m trama_qt --smoke, in English on the test screen: every dialog fits and nothing is clipped."""
         from trama_qt.smoke import run
@@ -2508,20 +2808,33 @@ class QtShellTests(unittest.TestCase):
         self.app.processEvents()
         self.assertEqual(failures, [])
 
-    def test_compact_ribbon_keeps_classic_command_reachable(self):
-        from PySide6.QtWidgets import QToolButton
+    def test_nonlinear_log_ic50_follows_the_model_and_the_saved_choice(self):
+        from analisi.parameter_intervals import REPORT_LOG_IC50
+        from trama_qt.analysis_dialog import AnalysisDialog
 
+        model_name = "Normalized inhibition (variable slope)"
+        recipe = {"X": "X", "Y columns": ["Y"], "Model": model_name, REPORT_LOG_IC50: True}
+        frame = pd.DataFrame({"X": [1., 2., 4.], "Y": [90., 70., 30.]})
+        dialog = AnalysisDialog(self.window, frame, current=("Nonlinear regression", recipe))
+        self.addCleanup(dialog.deleteLater)
+        model = dialog.controls["Model"][1]
+        report = dialog.controls[REPORT_LOG_IC50][1]
+
+        self.assertIs(dialog.options()[REPORT_LOG_IC50], True)
+        model.setCurrentIndex(model.findData("Straight line"))
+        self.assertIn(REPORT_LOG_IC50, dialog.hidden)
+        self.assertNotIn(REPORT_LOG_IC50, dialog.options())
+        model.setCurrentIndex(model.findData(model_name))
+        self.assertNotIn(REPORT_LOG_IC50, dialog.hidden)
+        report.setChecked(False)
+        self.assertNotIn(REPORT_LOG_IC50, dialog.options())
+
+    def test_classic_file_menu_keeps_tk_open_reachable(self):
         window = self.window
-        window.resize(600, 480)
-        window.ribbon_tabs.setCurrentIndex(0)
+        window.resize(760, 650)
         self.app.processEvents()
-        self.assertLessEqual(window.width(), 600)
-        toolbar = window.ribbon.currentWidget()
-        classic = window.actions["classic"]
-        if not toolbar.widgetForAction(classic).isVisible():
-            overflow = toolbar.findChild(QToolButton, "qt_toolbar_ext_button")
-            self.assertTrue(overflow.isVisible())
-            self.assertIn(classic, overflow.menu().actions())
+        self.assertIn(window.actions["classic"], window.command_menus["File"].actions())
+        self.assertTrue(window.actions["classic"].isEnabled())
 
     def test_home_creates_typed_worksheets_and_the_picker_follows_selection(self):
         from trama_qt.table_setup import TableSetup
@@ -2554,23 +2867,23 @@ class QtShellTests(unittest.TestCase):
         window.sheet_next.click()
         self.assertEqual(window.selected, second)
 
-    def test_graph_ribbon_shows_the_primary_tools_at_1024_pixels(self):
+    def test_classic_toolbar_fits_all_buttons_at_1024_pixels(self):
+        from PySide6.QtWidgets import QToolButton
+
         window = self.window
         window.resize(1024, 720)
-        window.ribbon_tabs.setCurrentIndex(window.ribbon_pages["graph"])
-        self.app.processEvents()
-        toolbar = window.ribbon.currentWidget()
         self.open_example()
-        run = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
-        window.open_sheet(("graph", window.project.runs.index(run)))
-        for name in ("new_graph", "format_graph", "new_layout", "pairwise",
-                     "annotations", "shapes", "export", "export_options"):
-            action = window.actions[name]
-            self.assertTrue(action.isEnabled(), name)
-            self.assertTrue(toolbar.widgetForAction(action).isVisible(), name)
+        self.app.processEvents()
+        buttons = window.toolbar.findChildren(QToolButton)
+        self.assertEqual(len(buttons), 30)
+        for button in buttons:
+            self.assertTrue(button.isVisible(), button.accessibleName())
+            self.assertFalse(button.icon().isNull(), button.accessibleName())
+            self.assertLessEqual(button.mapTo(window.toolbar, button.rect().bottomRight()).x(),
+                                 window.toolbar.width(), button.accessibleName())
 
-    def test_graph_commands_live_in_the_ribbon_and_canvas_keeps_navigation(self):
-        from PySide6.QtWidgets import QPushButton
+    def test_classic_graph_controls_and_canvas_navigation(self):
+        from PySide6.QtWidgets import QToolButton
         from analisi.i18n import tr
 
         window = self.window
@@ -2579,25 +2892,19 @@ class QtShellTests(unittest.TestCase):
         run = self.run_method("Linear regression", {"X": "Dose", "Y": "Response"})
         index = window.project.runs.index(run)
         window.open_sheet(("graph", index))
-        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["graph"])
-        self.assertFalse(window.page.findChildren(QPushButton))
+        self.app.processEvents()
+        commands = {button.defaultAction() for button in window.page.actions_row.parentWidget().findChildren(QToolButton)}
+        self.assertEqual(commands, {window.actions[name] for name in ("annotations", "draw", "inspector")})
         self.assertEqual(set(window.plot_tools._actions), {"home", "back", "forward", "pan", "zoom"})
+        self.assertGreater(window.plot_tools.y(), window.page.canvases[0].parentWidget().y())
         self.assertTrue(window.actions["plot_margins"].isEnabled())
-        toolbar = window.ribbon.currentWidget()
         for key in ("format_graph", "inspector", "export", "analysis_tables", "change", "recalculate"):
-            action = window.actions[key]
-            self.assertTrue(action.isEnabled(), key)
-            self.assertIn(action, toolbar.actions())
-        self.assertNotIn(window.actions["draw"], toolbar.actions())
+            self.assertTrue(window.actions[key].isEnabled(), key)
         window.search.setText(tr("command.analysis_results"))
         window.search.returnPressed.emit()
         self.assertEqual(window.selected, ("result", index))
-        self.assertEqual(window.ribbon_tabs.tabText(window.ribbon_tabs.currentIndex()), tr("ribbon.modern.analyze"))
         window.actions["analysis_graph"].trigger()
         self.assertEqual(window.selected, ("graph", index))
-        window.ribbon_tabs.setCurrentIndex(window.ribbon_pages["view"])
-        window.show_sheet("graph", index)
-        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["view"])
 
     def test_search_distinguishes_graph_and_family_results_in_both_languages(self):
         from analisi.i18n import active_language, set_language
@@ -2627,61 +2934,55 @@ class QtShellTests(unittest.TestCase):
                     window.close()
                     window.deleteLater()
 
-    def test_ribbon_and_menu_restore_classic_workflows_on_narrow_windows(self):
-        from PySide6.QtWidgets import QToolButton
-        from analisi.i18n import tr
+    def test_classic_menus_preserve_the_desktop_commands(self):
+        from analisi.i18n import ui
 
         window = self.window
         window.resize(760, 650)
         window.new_table()
-        tabs = ("file", "home", "insert", "analyze", "graph", "arrange", "family", "tools", "view")
-        self.assertEqual([window.ribbon_tabs.tabText(i) for i in range(len(tabs))],
-                         [tr(f"ribbon.modern.{name}") for name in tabs])
-        button = window.findChild(QToolButton, "allCommands")
-        self.assertTrue(button.isVisible())
-        menus = {action.text(): action.menu() for action in button.menu().actions()}
-        for tab, names in {
-            "file": ("exit",),
-            "home": ("paste_special", "paste_transpose", "paste_table", "clear_cells"),
-            "insert": ("new_table", "new_info", "annotations", "info_properties", "remove_info"),
-            "analyze": ("correlation_matrix", "load_example", "source_analysis"),
-            "arrange": ("arrange_shapes", "edit_layout"),
-            "family": ("family_data", "family_info", "family_results", "family_graphs", "family_gallery"),
-            "tools": ("power", "simulate", "monte_carlo", "transpose_xy", "plot_function"),
-            "view": ("combined_navigator", "previous_sheet", "next_sheet"),
+        self.assertEqual([action.text() for action in window.menuBar().actions()][:-1],
+                         [ui(key) for key in ("File", "Edit", "View", "Insert", "Analyze",
+                                              "Change", "Arrange", "Family", "Tools")])
+        self.assertEqual(window.menuBar().actions()[-1].text(), tr("theme.settings"))
+        for menu, names in {
+            "File": ("exit", "open", "save", "export_batch", "export_report", "new_from_template", "import_excel"),
+            "Edit": ("paste_special", "paste_transpose", "paste_table", "clear_cells"),
+            "Insert": ("new_table", "new_info", "annotations", "shapes"),
+            "Analyze": ("correlation_matrix", "load_example", "source_analysis", "recalculate"),
+            "Change": ("info_properties", "remove_info", "format_graph", "graph_style_presets"),
+            "Arrange": ("arrange_shapes", "edit_layout"),
+            "Family": ("family_data", "family_info", "family_results", "family_graphs", "family_gallery"),
+            "Tools": ("power", "simulate", "monte_carlo", "transpose_xy", "plot_function"),
+            "View": ("combined_navigator", "previous_sheet", "next_sheet"),
         }.items():
-            with self.subTest(tab=tab):
-                menu = menus[tr(f"ribbon.modern.{tab}")]
-                self.assertTrue(set(window.actions[name] for name in names).issubset(menu.actions()))
+            with self.subTest(menu=menu):
+                self.assertTrue(set(window.actions[name] for name in names).issubset(window.command_menus[menu].actions()))
 
-    def test_home_data_info_and_layout_do_not_repeat_ribbon_commands(self):
-        from PySide6.QtWidgets import QPushButton
+    def test_classic_home_data_info_and_layout_keep_their_controls(self):
+        from PySide6.QtWidgets import QPushButton, QToolButton
         from analisi.info import InfoSheet
         from analisi.presentation import Layout
         from trama_qt.table_setup import TableSetup
 
         window = self.window
-        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["file"])
-        self.assertEqual({button.text() for button in window.page.findChildren(QPushButton)}, {tr("setup.create")})
-        file_tools = window.ribbon.currentWidget().actions()
-        for key in ("open", "import", "new_info"):
-            self.assertIn(window.actions[key], file_tools)
+        self.assertFalse(window.toolbar.isVisible())
+        self.assertFalse(window.nav_card.isVisible())
+        self.assertIn(tr("setup.create"), {button.text() for button in window.page.findChildren(QPushButton)})
         chooser = window.page.findChild(TableSetup)
         window.actions["load_example"].trigger()
         self.assertTrue(chooser.selection()[1])
         window.create_worksheet(*chooser.selection())
         _, title = window.selected
-        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["home"])
+        self.assertTrue(window.toolbar.isVisible())
+        self.assertTrue(window.nav_card.isVisible())
         self.assertFalse(window.page.findChildren(QPushButton))
 
         sheet = InfoSheet.new("Measurements", title)
         window.project.update_info_sheets({sheet.uid: sheet})
         window.open_sheet(("info", sheet.uid))
-        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["insert"])
         props = window.actions["info_properties"]
         self.assertTrue(props.isEnabled())
-        self.assertIn(props, window.ribbon.currentWidget().actions())
-        self.assertNotIn(props.text(), {button.text() for button in window.page.findChildren(QPushButton)})
+        self.assertIn(props, window.command_menus["Change"].actions())
         self.assertTrue(window.actions["remove_info"].isEnabled())
         self.assertFalse(window.actions["info_up"].isEnabled())
         self.assertFalse(window.actions["info_down"].isEnabled())
@@ -2690,11 +2991,10 @@ class QtShellTests(unittest.TestCase):
         run = self.run_method("XY series", {"X": "X", "Y columns": ["Control"]})
         window.project.layouts.append(Layout("Figure with panel", 1, [run.reference]))
         window.open_sheet(("layout", 0))
-        self.assertEqual(window.ribbon_tabs.currentIndex(), window.ribbon_pages["arrange"])
-        self.assertFalse(window.page.findChildren(QPushButton))
+        commands = {button.defaultAction() for button in window.page.actions_row.parentWidget().findChildren(QToolButton)}
+        self.assertIn(window.actions["edit_layout"], commands)
         for key in ("edit_layout", "export", "recalculate"):
             self.assertTrue(window.actions[key].isEnabled(), key)
-            self.assertIn(window.actions[key], window.ribbon.currentWidget().actions())
 
     def test_clipboard_ribbon_commands_change_the_real_worksheet(self):
         from unittest.mock import patch
@@ -2729,6 +3029,68 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(dataset.raw.values.tolist(), [[21, 22], [25, 26]])
         window.actions["clear_cells"].trigger()
         self.assertTrue(pd.isna(dataset.raw.iat[0, 0]))
+
+    def test_worksheet_cut_keeps_data_if_the_clipboard_write_fails(self):
+        from unittest.mock import Mock, patch
+        from PySide6.QtGui import QGuiApplication
+        from trama_qt.strings import qt
+
+        window = self.window
+        title, = window.project.add_tables({"Samples": pd.DataFrame({"Reading": [47, 53]})})
+        window.open_sheet(("data", title))
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 0))
+        before = window.project.tables[title].raw.copy()
+        clipboard = Mock()
+        clipboard.text.return_value = "Unrelated clipboard text"
+        with patch("trama_qt.sheet.QGuiApplication.clipboard", return_value=clipboard), patch.object(window, "error") as error:
+            window.toolbar.buttons["cut"].click()
+        pd.testing.assert_frame_equal(window.project.tables[title].raw, before)
+        self.assertFalse(window.project.history.can_apply())
+        error.assert_called_once_with(qt("qt.cell_clipboard_failed"))
+
+        window.toolbar.buttons["cut"].click()
+        self.assertEqual(QGuiApplication.clipboard().text().strip(), "47")
+        self.assertTrue(pd.isna(window.project.tables[title].raw.iat[0, 0]))
+        window.actions["undo"].trigger()
+        pd.testing.assert_frame_equal(window.project.tables[title].raw, before)
+
+    def test_windows_worksheet_cut_retries_a_busy_clipboard(self):
+        from unittest.mock import Mock, patch
+        from PySide6.QtGui import QGuiApplication
+        from trama_qt.strings import qt
+
+        window = self.window
+        title, = window.project.add_tables({"Samples": pd.DataFrame({"Reading": [47, 53]})})
+        window.open_sheet(("data", title))
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 0))
+        dataset = window.project.tables[title]
+        before = dataset.raw.copy()
+        clipboard = Mock()
+        clipboard.ownsClipboard.side_effect = [False, False, False, True]
+
+        def verify_before_clearing():
+            pd.testing.assert_frame_equal(dataset.raw, before)
+            return clipboard.setText.call_args.args[0]
+
+        clipboard.text.side_effect = verify_before_clearing
+        with (patch.object(QGuiApplication, "platformName", return_value="windows"),
+              patch.object(QGuiApplication, "clipboard", return_value=clipboard),
+              patch.object(window, "error") as error):
+            window.toolbar.buttons["cut"].click()
+            error.assert_called_once_with(qt("qt.cell_clipboard_failed"))
+            pd.testing.assert_frame_equal(dataset.raw, before)
+            self.assertFalse(window.project.history.can_apply())
+            clipboard.text.assert_not_called()
+            error.reset_mock()
+
+            window.toolbar.buttons["cut"].click()
+            error.assert_not_called()
+            self.assertTrue(pd.isna(dataset.raw.iat[0, 0]))
+
+        self.assertEqual(clipboard.setText.call_count, 4)
+        clipboard.text.assert_called_once()
+        window.actions["undo"].trigger()
+        pd.testing.assert_frame_equal(dataset.raw, before)
 
     def test_tools_run_standalone_simulation_and_plot_from_empty_project(self):
         from unittest.mock import patch
@@ -2807,6 +3169,9 @@ class QtShellTests(unittest.TestCase):
         result = ("result", window.project.runs.index(run))
         data = ("data", "groups")
         window.open_sheet(data)
+        self.assertTrue(window.actions["combined_navigator"].isChecked())
+        window.actions["combined_navigator"].trigger()
+        self.assertFalse(window.actions["combined_navigator"].isChecked())
         window.actions["combined_navigator"].trigger()
         self.assertTrue(window.actions["combined_navigator"].isChecked())
         item = window.navigator.currentItem()
@@ -2936,87 +3301,27 @@ class QtShellTests(unittest.TestCase):
         self.assertGreater(light[0], 200)
         self.assertNotEqual(light[1], dark[1])
 
-    def test_modal_dialog_frosts_the_window_behind_it(self):
-        from PySide6.QtCore import QEvent
+    def test_classic_modal_dialog_leaves_the_background_clear(self):
         from PySide6.QtWidgets import QDialog
         from trama_qt.theme import GlassVeil
+
         dialog = QDialog(self.window)
         dialog.setModal(True)
         dialog.show()
         self.app.processEvents()
-        veils = [child for child in self.window.children() if isinstance(child, GlassVeil)]
-        self.assertEqual(len(veils), 1)
-        self.assertEqual(veils[0].geometry(), self.window.rect())
-        self.assertEqual(veils[0].progress, 1.0)  # No animation offscreen.
-        dialog.reject()
-        self.app.processEvents()
-        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        self.assertEqual([child for child in self.window.children() if isinstance(child, GlassVeil)], [])
-        plain = QDialog(self.window)  # Not modal: the window stays clear.
-        plain.show()
-        self.app.processEvents()
-        self.assertEqual([child for child in self.window.children() if isinstance(child, GlassVeil)], [])
-        plain.close()
+        self.assertFalse(self.window.findChildren(GlassVeil))
+        dialog.close()
 
-    def test_panels_cast_a_soft_shadow_and_the_navigator_slides(self):
-        from trama_qt import theme
+    def test_classic_navigator_toggles_and_restores_its_width(self):
         window = self.window
-        central = window.centralWidget()
-        self.assertIsInstance(central, theme.ShadowCanvas)
+        self.open_example()
         self.app.processEvents()
-        image = central.grab().toImage()
-        card = window.nav_card
-        below = card.mapTo(central, card.rect().bottomLeft())
-        shade = image.pixelColor(below.x() + card.width() // 2, below.y() + 6)
-        self.assertNotEqual(shade.name().upper(), theme.T["bg"].upper())
-        window.toggle_navigator()
-        self.assertFalse(card.isVisible())
-        window.toggle_navigator()
-        self.app.processEvents()
-        self.assertTrue(card.isVisible())
-        self.assertGreater(window.body.sizes()[0], 100)
-
-    def test_windows_menu_and_combo_shapes_do_not_depend_on_dwm_rounding(self):
-        from unittest.mock import patch
-
-        from PySide6.QtCore import QPoint
-        from PySide6.QtWidgets import QComboBox, QMenu
-        from trama_qt import theme
-
-        menu = QMenu(self.window)
-        menu.addAction("First action")
-        combo = QComboBox(self.window)
-        combo.addItems(["First option", "Second option"])
-        self.addCleanup(menu.close)
-        self.addCleanup(combo.close)
-        combo.show()
-        with patch.object(theme, "WINDOWS", True):
-            menu.popup(self.window.mapToGlobal(QPoint(25, 25)))
-            self.app.processEvents()
-            self.assertTrue(menu.mask().contains(menu.rect().center()))
-            self.assertFalse(menu.mask().contains(menu.rect().topLeft()))
-            menu.close()
-            combo.showPopup()
-            self.app.processEvents()
-            popup = combo.view().window()
-            self.assertTrue(popup.mask().contains(popup.rect().center()))
-            self.assertFalse(popup.mask().contains(popup.rect().topLeft()))
-            combo.hidePopup()
-
-    def test_a_second_navigator_toggle_reverses_the_running_slide(self):
-        from unittest.mock import patch
-
-        from PySide6.QtTest import QTest
-        from trama_qt import theme
-
-        window = self.window
         width = window.body.sizes()[0]
         self.assertGreater(width, 0)
-        with patch.object(theme, "animations_enabled", return_value=True):
-            window.actions["navigator"].trigger()
-            QTest.qWait(40)
-            window.actions["navigator"].trigger()
-            QTest.qWait(350)
+        window.toggle_navigator()
+        self.assertFalse(window.nav_card.isVisible())
+        window.toggle_navigator()
+        self.app.processEvents()
         self.assertTrue(window.nav_card.isVisible())
         self.assertEqual(window.body.sizes()[0], width)
 

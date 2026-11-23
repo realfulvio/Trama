@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from analisi import lognormal_tests as ratio
 from analisi.field_error import FieldError
 from analisi.lognormal_tests import (BASE_E, FIRST_OVER_SECOND, GREATER, LOGNORMAL, NO_GRAPH, ONE_SAMPLE, PAIRED,
                                      LOG_OBSERVATIONS, LOG_RATIOS, RATIO_ESTIMATION, SECOND_OVER_FIRST, STUDENT,
@@ -60,11 +61,66 @@ class Catalog(unittest.TestCase):
                          (1.0, 1.0, 95.0))
 
     def test_visibility_follows_the_design(self):
-        self.assertEqual(visibility("Paired"), {"Second": True, "Hypothetical geometric mean": False,
-                                                "Pairing correlation": True, "Show variance comparison": False})
-        self.assertEqual(visibility("One-sample"), {"Second": False, "Hypothetical geometric mean": True,
-                                                    "Pairing correlation": False, "Show variance comparison": False})
+        for design, expected in (("Paired", (True, False, True)), ("One-sample", (False, True, False))):
+            fields = visibility(design)
+            self.assertEqual(tuple(fields[name] for name in (ratio.SECOND, ratio.REFERENCE, ratio.PAIRING)), expected)
         self.assertFalse(visibility("Welch")["Pairing correlation"])
+        self.assertFalse(visibility("One-sample", ratio.GROUPED)[ratio.INPUT])
+        self.assertFalse(visibility("Welch", ratio.GROUPED)[ratio.SUBJECT])
+        paired = visibility("Paired", ratio.GROUPED)
+        self.assertTrue(all(paired[name] for name in (*ratio.GROUP_FIELDS, ratio.FIRST_GROUP)))
+        self.assertFalse(paired[ratio.FIRST] or paired[ratio.SECOND])
+
+
+class GroupedSamples(unittest.TestCase):
+    def setUp(self):
+        self.first = "  Control $"
+        self.wide = frame()
+        self.long = (self.wide.rename(columns={"Before": self.first}).assign(ID=list("abcde"))
+                     .melt(id_vars="ID", var_name="Visit", value_name="Value"))
+        self.grouped = options(**{ratio.INPUT: ratio.GROUPED, ratio.RESPONSE: "Value", ratio.GROUP: "Visit",
+                                  ratio.SUBJECT: "ID", ratio.FIRST_GROUP: self.first, ratio.GRAPH: NO_GRAPH})
+
+    def test_paired_matches_subject_and_reports_both_source_rows(self):
+        expected = lognormal_test(self.wide, options(Graph=NO_GRAPH))
+        reordered = self.long.iloc[[6, 8, 5, 9, 7, 0, 1, 2, 3, 4]]
+        result = analyse(LOGNORMAL, reordered, self.grouped)
+        pd.testing.assert_frame_equal(result.tables[ratio.TEST_SHEET], expected.tables[ratio.TEST_SHEET])
+        pairs = result.tables[ratio.RATIOS_SHEET]
+        self.assertEqual(pairs["Subject"].tolist(), list("abcde"))
+        self.assertEqual(pairs["First source row"].tolist(), list(range(5)))
+        self.assertEqual(pairs["Second source row"].tolist(), list(range(5, 10)))
+        self.assertEqual(result.tables[ratio.OBSERVATIONS_SHEET]["Sample"].tolist(), [self.first] * 5 + ["After"] * 5)
+
+    def test_independent_layouts_match_wide_and_keep_ratio_direction(self):
+        for design in (WELCH, STUDENT):
+            with self.subTest(design=design):
+                settings = {**self.grouped, ratio.DESIGN: design, ratio.SUBJECT: "Unused"}
+                expected = lognormal_test(self.wide, options(Design=design, Graph=NO_GRAPH))
+                shuffled = pd.concat([self.long.iloc[5:], self.long.iloc[:5]])
+                actual = lognormal_test(shuffled, settings)
+                pd.testing.assert_frame_equal(actual.tables[ratio.TEST_SHEET], expected.tables[ratio.TEST_SHEET])
+                reversed_result = lognormal_test(shuffled, {**settings, ratio.FIRST_GROUP: "After"})
+                self.assertAlmostEqual(row(reversed_result)["Geometric ratio"], 1 / row(actual)["Geometric ratio"])
+
+    def test_complete_pairs_before_positive_check(self):
+        data = pd.concat([self.long, pd.DataFrame({"ID": ["z"], "Visit": [self.first], "Value": [-1.]})],
+                         ignore_index=True)
+        self.assertEqual(row(lognormal_test(data, self.grouped))["N first"], 5)
+        with self.assertRaises(FieldError) as raised:
+            lognormal_test(data, {**self.grouped, ratio.DESIGN: WELCH})
+        self.assertEqual(raised.exception.field, ratio.RESPONSE)
+        self.assertIn("Source row 10", str(raised.exception))
+
+    def test_group_and_subject_errors_have_field_names(self):
+        cases = [(self.long, {ratio.FIRST_GROUP: "Gone"}, ratio.FIRST_GROUP),
+                 (self.long, {ratio.SUBJECT: "Visit"}, ratio.SUBJECT),
+                 (pd.concat([self.long, self.long.iloc[:1]]), {}, ratio.SUBJECT),
+                 (self.long.assign(Visit=[1] * 5 + ["1"] * 5), {}, ratio.GROUP)]
+        for frame_, overrides, field in cases:
+            with self.subTest(field=field), self.assertRaises(FieldError) as raised:
+                lognormal_test(frame_, {**self.grouped, **overrides})
+            self.assertEqual(raised.exception.field, field)
 
 
 class Numbers(unittest.TestCase):

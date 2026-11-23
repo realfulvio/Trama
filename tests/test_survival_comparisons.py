@@ -364,5 +364,132 @@ class DispatcherTests(unittest.TestCase):
         self.assertAlmostEqual(out["gbw"]["p"], stats.chi2.sf(out["gbw"]["χ²"], 2))
 
 
+class SelectedSurvivalPairTests(unittest.TestCase):
+    def test_only_selected_pairs_enter_the_multiplicity_family(self):
+        labels = {"Low": "Low / $", "Mid": "Mid", "High": "High"}
+        data = fixture().replace({"Group": labels})
+        pairs = [["High", "Low / $"], ["High", "Mid"]]
+        options = {**BASE, "Pairwise scope": "Selected pairs", "Selected survival pairs": pairs,
+                   "Pairwise correction": "Holm–Šídák"}
+        report = analyse(KM, data, options).tables["Pairwise log-rank"]
+        self.assertEqual(report[["First group", "Second group"]].values.tolist(), pairs)
+        expected = []
+        for pair in pairs:
+            subset = data.loc[data.Group.isin(pair)]
+            statistic, probability = survdiff(subset.Time, subset.Event, subset.Group)
+            expected.append((statistic, probability))
+        np.testing.assert_allclose(report[["Log-rank χ²", "p"]], expected, rtol=2e-12)
+        p = np.asarray(expected)[:, 1]
+        first, second = np.argsort(p)
+        adjusted = np.zeros(2)
+        adjusted[first] = 1 - (1 - p[first]) ** 2
+        adjusted[second] = max(p[second], adjusted[first])
+        np.testing.assert_allclose(report["Adjusted p"], adjusted, rtol=2e-12)
+
+        unadjusted = analyse(KM, data, {**options, "Pairwise correction": "Unadjusted",
+                                        "Pairwise alpha": .2}).tables["Pairwise log-rank"]
+        np.testing.assert_allclose(unadjusted["p"], p)
+        self.assertEqual(unadjusted["Significant"].tolist(), list(p < .2))
+        self.assertNotIn("Adjusted p", unadjusted)
+
+    def test_invalid_or_reversed_duplicate_pairs_name_the_editor(self):
+        from analisi.processing import FieldError
+        for pairs in ([], [["Low", "Low"]], [["Low", "Gone"]], [["Low", "Mid"], ["Mid", "Low"]]):
+            with self.subTest(pairs=pairs), self.assertRaises(FieldError) as error:
+                analyse(KM, fixture(), {**BASE, "Pairwise correction": "Holm",
+                                        "Pairwise scope": "Selected pairs", "Selected survival pairs": pairs})
+            self.assertEqual(error.exception.field, "Selected survival pairs")
+
+    def test_response_with_missing_group_retains_the_selected_pair_with_blank_p(self):
+        data = fixture()
+        data["Second"] = data.Event.where(data.Group != "Low")
+        outcome = analyse(KM, data, {**BASE, "Event columns": ["Event", "Second"], "Pairwise correction": "Šídák",
+                                    "Pairwise scope": "Selected pairs",
+                                     "Selected survival pairs": [["Group='Low'", "Group='High'"],
+                                                                 ["Group='Mid'", "Group='High'"]]})
+        table = outcome.tables["Pairwise log-rank"]
+        first = table[table["Response variable"] == "Event"]
+        second = table[table["Response variable"] == "Second"]
+        np.testing.assert_allclose(first["Adjusted p"], 1 - (1 - first.p)**2)
+        self.assertTrue(pd.isna(second.p.iloc[0]))
+        self.assertIn("no observations", second.Status.iloc[0])
+        self.assertAlmostEqual(second["Adjusted p"].iloc[1], second.p.iloc[1])
+
+    def test_saved_control_and_all_pairs_keep_the_existing_result_schema(self):
+        data = fixture()
+        for scope, control in (("Versus control", "Mid"), ("All pairs", "")):
+            with self.subTest(scope=scope):
+                saved = {**BASE, "Pairwise correction": "Holm", "Pairwise control group": control}
+                original = analyse(KM, data, saved).tables["Pairwise log-rank"]
+                explicit = analyse(KM, data, {**saved, "Pairwise scope": scope}).tables["Pairwise log-rank"]
+                pd.testing.assert_frame_equal(original, explicit, check_exact=True)
+                self.assertEqual(list(original.columns), ["Log-rank χ²", "df", "p", "Adjusted p"])
+
+
+class SurvivalFDRTests(unittest.TestCase):
+    def test_selected_family_matches_independent_corrections_and_keeps_raw_p(self):
+        from statsmodels.stats.multitest import multipletests
+        from analisi import fdr_control
+
+        options = {**BASE, "Pairwise scope": "Selected pairs",
+                   "Selected survival pairs": [["Low", "High"], ["Mid", "High"]]}
+        raw = analyse(KM, fixture(), {**options, "Pairwise correction": "Unadjusted"}).tables["Pairwise log-rank"].p
+        for method, code in ((fdr_control.BH, "fdr_bh"), (fdr_control.BY, "fdr_by"), (fdr_control.BKY, "fdr_tsbky")):
+            for percent in (5., 30.):
+                with self.subTest(method=method, percent=percent):
+                    opts = {**options, "Pairwise correction": method, fdr_control.LEVEL: percent}
+                    tables = analyse(KM, fixture(), opts).tables
+                    tests, family = tables["Pairwise log-rank"], tables["Pairwise FDR"].iloc[0]
+                    rejected, adjusted, *_ = multipletests(raw, alpha=percent / 100, method=code, maxiter=1)
+                    self.assertEqual(tests.index.tolist(), ["Low / High", "Mid / High"])
+                    pd.testing.assert_series_equal(tests.p, raw, check_exact=True)
+                    np.testing.assert_allclose(tests["Adjusted p"], adjusted, rtol=2e-12)
+                    self.assertEqual(tests.Discovery.tolist(), rejected.tolist())
+                    self.assertEqual(family["Tests planned"], 2)
+                    self.assertEqual(family["Tests used"], 2)
+                    self.assertEqual(family["Discoveries"], int(rejected.sum()))
+                    self.assertEqual(family[fdr_control.LEVEL], percent)
+
+    def test_unavailable_pairs_do_not_enter_the_response_family(self):
+        from analisi import fdr_control
+
+        data = fixture()
+        data["Second"] = data.Event.where(data.Group != "Low")
+        outcome = analyse(KM, data, {**BASE, "Event columns": ["Event", "Second"],
+                                    "Pairwise correction": fdr_control.BKY, "Pairwise scope": "Selected pairs",
+                                    "Selected survival pairs": [["Group='Low'", "Group='High'"],
+                                                                ["Group='Mid'", "Group='High'"]]})
+        family = outcome.tables["Pairwise FDR"].set_index("Response variable")
+        self.assertEqual(family["Tests planned"].tolist(), [2, 2])
+        self.assertEqual(family["Tests used"].tolist(), [2, 1])
+        self.assertEqual(family["Estimated true nulls (m0)"].tolist(), [2, 1])
+        second = outcome.tables["Pairwise log-rank"].query("`Response variable` == 'Second'")
+        self.assertTrue(pd.isna(second.p.iloc[0]))
+        self.assertTrue(pd.isna(second["Adjusted p"].iloc[0]))
+        self.assertTrue(pd.isna(second.Discovery.iloc[0]))
+        self.assertFalse(second.Discovery.iloc[1])
+
+    def test_empty_family_has_blank_decisions_and_zero_used_tests(self):
+        from analisi import fdr_control
+
+        data = fixture().assign(Event=0)
+        results = analyse(KM, data, {**BASE, "Pairwise correction": fdr_control.BKY}).tables
+        report = results["Pairwise log-rank"]
+        self.assertTrue(report[["p", "Adjusted p", "Discovery"]].isna().all().all())
+        self.assertEqual(results["Pairwise FDR"].iloc[0]["Tests used"], 0)
+
+    def test_level_validation_and_legacy_fdr_schema(self):
+        from analisi import fdr_control
+        from analisi.field_error import FieldError
+
+        for value in (True, 0, 100, float("inf"), float("nan")):
+            with self.subTest(value=value), self.assertRaises(FieldError) as error:
+                analyse(KM, fixture(), {**BASE, "Pairwise correction": fdr_control.BKY, fdr_control.LEVEL: value})
+            self.assertEqual(error.exception.field, fdr_control.LEVEL)
+        legacy = analyse(KM, fixture(), {**BASE, "Pairwise correction": "FDR"}).tables
+        self.assertNotIn("Pairwise FDR", legacy)
+        self.assertEqual(legacy["Pairwise log-rank"].columns.tolist(), ["Log-rank χ²", "df", "p", "Adjusted p"])
+
+
 if __name__ == "__main__":
     unittest.main()

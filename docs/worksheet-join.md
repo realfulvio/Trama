@@ -2,7 +2,7 @@
 
 **Analizza → Elaborazione dati → Unisci fogli per chiave…** (inglese: Analyze → Data Processing → Join worksheets by key) collega le righe di due fogli dati dello stesso progetto che hanno la stessa chiave: per esempio le misure di un campione e la sua anagrafica di visita. Il risultato è un'analisi come le altre: si ricalcola da solo quando cambia uno dei due fogli, si può esportare in CSV, analizzare con **Analizza questo risultato…** o trasformare in un foglio con **Usa risultato come dati**.
 
-La funzione si usa nella finestra standard (Qt). La finestra classica (`--tk`) conserva la ricetta ma non la calcola e non la modifica.
+La funzione è disponibile in Classica (Tk) e in Qt. Entrambe possono aprire e modificare la stessa ricetta salvata.
 
 ## Esempio
 
@@ -71,7 +71,7 @@ I nomi dei fogli di risultato, delle colonne e degli stati restano in inglese in
 ## Ricalcolo, salvataggio e copie
 
 - Modificare, escludere o annullare una cella in uno dei due fogli ricalcola l'unione e le analisi collegate al suo risultato. Se non cambia niente, aprire il risultato non ricalcola niente.
-- Il foglio di destra è ricordato con il suo titolo esatto nel file `.alab`. Se non c'è più (per esempio in un progetto copiato a mano) il risultato mostra un errore che lo nomina; **Cambia parametri** mostra il titolo come "(mancante)" e chiede di sceglierne un altro. Trama non sceglie mai da solo un foglio sostitutivo.
+- Il foglio di destra è ricordato con il suo titolo esatto nel file `.alab`. Se non c'è più (per esempio in un progetto copiato a mano) il risultato mostra un errore che lo nomina; **Cambia parametri** conserva il titolo salvato e chiede di sceglierne un altro. Trama non sceglie mai da solo un foglio sostitutivo.
 - **Duplica famiglia** dal foglio di sinistra crea una copia che continua a leggere lo stesso foglio di destra del progetto. Se la copia comprende anche il foglio di destra, l'unione copiata legge la copia.
 - **Salva famiglia come…** porta con sé anche il foglio di destra, così l'unione si apre e si calcola nel nuovo progetto.
 - Ogni scheda di progetto ha i suoi fogli: due progetti aperti con titoli uguali non si mescolano.

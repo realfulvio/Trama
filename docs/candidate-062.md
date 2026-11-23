@@ -1,6 +1,6 @@
 # TramaStat 0.62.0 — integration and acceptance
 
-Integration after 0.61.0. The validation record below distinguishes the tested code from the final release archive. See the compatibility guide for supported file features.
+Integration after 0.61.0. The validation record below distinguishes the tested code from the final release archive. The validation covers the imported formats and operations listed below.
 
 ## Integrated work
 

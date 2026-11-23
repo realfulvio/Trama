@@ -1,6 +1,6 @@
 # Editable clustering imports
 
-Supported hierarchical analyses in `.prism` and `.prismt` ZIP projects can reopen as native **Hierarchical clustering** analyses. They remain connected to their imported source worksheet.
+Supported hierarchical analyses in imported ZIP projects can reopen as native **Hierarchical clustering** analyses. They remain connected to their imported source worksheet.
 
 The converter restores row, column or combined clustering, supported column and row transforms, cluster counts or an uncut tree, and observation labels using the saved column identifiers. Supported saved transforms are None, Center and Standardize; complete and group-average linkage with Euclidean distance are recognized. Standardization uses the sample standard deviation; columns are transformed before rows.
 
@@ -12,6 +12,14 @@ Enable **Output → Merge map** to see one table per clustering direction with t
 
 Enable **Output → Elbow data** to report within-cluster sums of squares (WCSS) for each cut from one cluster to one fewer than the number of observations. WCSS uses squared deviations from cluster centers on the same scaled data and merge sequence as the fitted tree. Select **Graph output → Elbow plot** to show those values, with separate panels for row and column clustering. The importer links a saved elbow graph when both its graph identifier and its source dataset match the saved result.
 
+Choose **Graph output → Silhouette plot** to compare cluster counts, or enable **Output → Silhouette data** alongside the dendrogram or heat map. Trama uses the fitted tree and the chosen distance metric on the same scaled data. It evaluates cuts in merge order up to one fewer cluster than the number of observations. The one-cluster score is blank because it has no alternative cluster. Singletons contribute zero. For clustering in both directions, rows and columns each have their own results and graph panel. A silhouette plot linked to a **Merges** result updates with the source analysis.
+
+Choose **Graph output → Gap plot** to compare the observed WCSS against simulated reference data. To keep the current figure, enable **Output → Gap data**. Trama draws 100 reference samples by default from a uniform distribution over each scaled variable's observed range. Each reference uses the same linkage and distance as the observed tree. The table shows log WCSS, mean log reference WCSS, their difference (Gap) and the reference standard deviation multiplied by √(1 + 1/B), where B is the number of references. The chosen cluster count is the first with Gap(k) at least Gap(k + 1) minus the following uncertainty. If no adjacent pair satisfies the rule, Trama marks the largest count with a defined Gap. A cut with zero dispersion leaves the corresponding log and Gap undefined.
+
+The **Output** page lets you choose 5–100 references and a seed. The seed fixes each replicate independently of the number of processes. A Gap plot linked to an analysis result uses the source tree and its reference settings. Selecting the Gap plot generates its data table automatically.
+
+Choose **Graph output → Clustered data plot** to show observations in their original units, colored according to the count or height cut. Trama uses the first two measurements along each fitted direction. With one measurement, it plots that measurement against the cluster number. An uncut direction is omitted when the other direction has a cut. With many clusters the plot uses a numeric color scale. To choose another pair of measurements, run **Scatter / confidence ellipse** from an **Assignments** result and select the coordinates and grouping column.
+
 ## Working with an imported analysis
 
 1. Open the imported analysis or graph in the project navigator.
@@ -21,7 +29,7 @@ Enable **Output → Elbow data** to report within-cluster sums of squares (WCSS)
 
 Saved result snapshots remain independent of the native calculation and keep their original values. They can be useful for reviewing the imported project after source edits.
 
-To add another view, select **Merges** (or **Row Merges** or **Column Merges** when clustering both directions) and choose **Analyze this result… → Hierarchy graph**. Choose the figure and, for a dendrogram or elbow plot, the axis. The graph uses the fitted tree, then updates when the worksheet or clustering parameters change. If a change removes its input result sheet, use **Change input result…** to choose the current Merges sheet.
+To add another view, select **Merges** (or **Row Merges** or **Column Merges** when clustering both directions) and choose **Analyze this result… → Hierarchy graph**. Choose the figure and, for a dendrogram, clustered data, elbow, silhouette or Gap plot, the axis. The graph uses the fitted tree, then updates when the worksheet or clustering parameters change. If a change removes its input result sheet, use **Change input result…** to choose the current Merges sheet.
 
 ## Limits
 

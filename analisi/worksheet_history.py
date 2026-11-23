@@ -12,23 +12,27 @@ class WorksheetState:
     formulas: dict
     excluded: set
     view: tuple | None = None
+    column_order: tuple | None = None
 
     @classmethod
     def capture(cls, dataset, view=None):
         # Worksheet editing replaces these objects on commit. Retaining them
         # preserves exact cell types, metadata and exclusion flags.
-        return cls(dataset.raw, dataset.formulas, dataset.excluded, view)
+        return cls(dataset.raw, dataset.formulas, dataset.excluded, view, dataset.column_order)
 
     def changed(self, other):
-        return self.raw is not other.raw or self.formulas is not other.formulas or self.excluded is not other.excluded
+        return (self.raw is not other.raw or self.formulas is not other.formulas
+                or self.excluded is not other.excluded or self.column_order != other.column_order)
 
     def restore(self, dataset):
         candidate = copy(dataset)
         candidate.raw, candidate.formulas, candidate.excluded = self.raw, self.formulas, self.excluded
+        candidate.column_order = self.column_order
         if candidate.formulas:
             # The current Info values may differ from those at edit time.
             candidate.frame()
         dataset.raw, dataset.formulas, dataset.excluded = self.raw, self.formulas, self.excluded
+        dataset.column_order = self.column_order
 
 
 @dataclass(frozen=True, eq=False)

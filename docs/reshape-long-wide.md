@@ -4,7 +4,7 @@
 
 Le altre due funzioni vicine restano come prima: **Riorganizza repliche** impila le repliche di più colonne, **Estrai e riorganizza** costruisce fogli XY, Column, Grouped o Contingency.
 
-Si usa nella finestra standard (Qt). La finestra classica calcola una ricetta salvata ma non ha l'editor: per cambiarla si usa la finestra standard.
+Si usa sia nella Classica sia in Qt. Nella Classica, un clic nella lista aggiunge o toglie una colonna. I pulsanti **Sposta su** e **Sposta giù** impostano l'ordine della selezione.
 
 ## Da lungo a largo
 

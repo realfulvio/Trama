@@ -130,6 +130,7 @@ class GraphInspector(QFrame):
         box = QGroupBox(title)
         form = QFormLayout(box)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self.body.addWidget(box)
         return form
 

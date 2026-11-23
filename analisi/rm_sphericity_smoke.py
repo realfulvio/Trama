@@ -54,7 +54,7 @@ SIBLINGS = {
             "Response", "Factors", "Term selection", "Interaction order", "Sums of squares", "Model terms",
             "Compare marginal means by", "Cell comparison factors", "Within factors (simple effects)",
             "Control level(s), separated by |", "Families", "Reverse comparisons", "Correction",
-            "Effect sizes", "Alpha", "ANOVA residual diagnostics", "ANOVA assumption tests",
+            "Effect sizes", "Alpha", "ANOVA residual diagnostics", "ANOVA assumption tests", "ANOVA assumption tests included",
             "ANOVA diagnostic alpha", "ANOVA diagnostic graph", "ANOVA Q–Q reference line"
         ],
         ["Variables", "Model", "Options", "Effect sizes", "Diagnostics"]),

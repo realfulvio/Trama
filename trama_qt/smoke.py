@@ -19,8 +19,8 @@ import traceback
 
 import pandas as pd
 from PySide6 import __version__ as PYSIDE_VERSION
-from PySide6.QtCore import QRect
-from PySide6.QtWidgets import QAbstractButton, QApplication, QDialog, QLabel, QMessageBox, QWidget
+from PySide6.QtCore import QRect, Qt
+from PySide6.QtWidgets import QAbstractButton, QApplication, QDialog, QLabel, QMessageBox, QToolButton, QWidget
 
 LANGUAGES = ("en", "it")
 
@@ -53,6 +53,8 @@ class Smoke:
         for child in widget.findChildren(QWidget):
             if not child.isVisibleTo(widget) or QWidget.width(child) <= 0:
                 continue
+            if isinstance(child, QToolButton) and child.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly:
+                continue  # Its label is in the tooltip by design, as on the Tk Classica toolbar.
             if isinstance(child, QAbstractButton) and child.text():
                 needed = child.minimumSizeHint().width()
             elif isinstance(child, QLabel) and child.text() and not child.wordWrap() and child.pixmap().isNull():
@@ -140,6 +142,7 @@ class Smoke:
         return window.project.runs.index(run)
 
     def build(self):
+        from analisi.grid_data import clipboard_decimal_mark, copy_block
         from analisi.layout_geometry import AUTO_PAPER, WHITE
         from analisi.presentation import Layout
         window = self.window
@@ -148,6 +151,19 @@ class Smoke:
             data, index=False)
         window.open_path(data)
         self.wait()
+        dataset = window.project.tables["groups"]
+        before = dataset.raw.copy()
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 0))
+        copied = copy_block(before, (0, 0, 0, 0), dataset.excluded, decimal_mark=clipboard_decimal_mark())
+        window.toolbar.buttons["cut"].click()
+        actual = self.app.clipboard().text()
+        cut_ok = pd.isna(dataset.raw.iat[0, 0]) and actual.rstrip("\r\n") == copied.rstrip("\r\n")
+        self.expect(cut_ok, "worksheet toolbar cut did not copy and clear the selected cell")
+        window.actions["undo"].trigger()
+        restored = dataset.raw.equals(before)
+        self.expect(restored, "worksheet undo did not restore the cell after cutting")
+        if cut_ok and restored:
+            self.notes.append(f"[{self.language}] worksheet toolbar cut and undo OK")
         refs = {"result": self.calculate("Transform", {"Variables": ["Control", "Treated"],
                                                        "Operation": "Absolute value"}),
                 "paired": self.calculate("Paired t-test (columns)", {"First": "Control", "Second": "Treated"}),
@@ -190,10 +206,7 @@ class Smoke:
                 window.open_sheet(ref)
                 self.wait()
                 self.shot(window, f"page-{name}")
-            for tab in range(window.ribbon_tabs.count()):
-                window.ribbon_tabs.setCurrentIndex(tab)
-                self.shot(window, f"ribbon-{tab + 1}")
-            window.ribbon_tabs.setCurrentIndex(0)
+            self.shot(window.toolbar, "classic-toolbar")
 
             window.open_sheet(("data", "groups"))
             text = self.folder / "import.txt"
@@ -559,8 +572,7 @@ class Smoke:
                  f"Screenshots: {self.shots}", ""]
         lines += self.problems or ["No problems found."]
         if self.notes:
-            lines += ["", "Pointer drawing (QTest events sent to the canvas widget; the operating system pointer and "
-                      "the native Windows DPI are not exercised here):", *self.notes]
+            lines += ["", "Desktop checks (widget events at the current display scale):", *self.notes]
         (self.folder / "report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
         status = "FAIL" if self.problems else "PASS"
         (self.folder / "status.txt").write_text(status + "\n", encoding="utf-8")
@@ -572,7 +584,37 @@ def _excel_scenario(smoke, window):
     excel_workbook(smoke, window, timings=smoke.language == LANGUAGES[0])
 
 
-SCENARIOS = {"qt-excel-workbook": _excel_scenario}
+def _worksheet_preview_scenario(smoke, window):
+    window.project.add_tables({"groups": pd.DataFrame({"Dose": [1., 2., 4., 8.], "Response": [4., 7., 8., 10.]})})
+    window.show_sheet("data", "groups")
+    index = smoke.calculate("XY series", {"X": "Dose", "Y columns": ["Response"]})
+    run = window.project.runs[index]
+    original = run.result.figure
+    title = original.axes[0].get_title()
+    window.open_sheet(("data", run.title))
+    sheet = window.sheet
+    window.actions["worksheet_preview"].trigger()
+    preview = window.page.worksheet_preview
+    preview.choice.setCurrentIndex(preview.choice.findData(run.uid))
+    preview.format_box.click()
+    inspector = window.inspector
+    if inspector is None or preview.canvas is None:
+        smoke.problem("the worksheet has no preview or formatting panel")
+        return
+    smoke.shot(window, "worksheet-preview")
+    inspector.widgets["title"].setText("Control / Treatment")
+    inspector._now("title")
+    smoke.expect(original.axes[0].get_title() == title, "the preview changed the original figure")
+    smoke.expect(inspector.apply(), "the worksheet Inspector failed to apply")
+    smoke.expect(original.axes[0].get_title() == "Control / Treatment", "the graph did not receive the style")
+    inspector.cancel()
+    smoke.expect(window.sheet is sheet and window.job is None, "the preview replaced or recalculated the worksheet")
+    preview.open_button.click()
+    smoke.expect(window.selected == ("graph", index), "Open graph did not select the linked figure")
+    smoke.shot(window, "worksheet-linked-graph")
+
+
+SCENARIOS = {"qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

@@ -11,7 +11,7 @@ import pandas as pd
 from analisi.data import Dataset, info_references, load_project, load_tables, load_workspace, save_project
 from analisi.info import InfoSheet, info_contexts
 from analisi.info_widget import InfoEditor
-from test_prism_binary import document, group, record
+from test_legacy_binary import document, group, record
 
 
 class InfoSheetTests(unittest.TestCase):

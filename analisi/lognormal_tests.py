@@ -26,13 +26,17 @@ from scipy import stats
 
 from .category_graphs import COLORS
 from .field_error import FieldError
+from .i18n import tr, translate_message
 from .reporting import Result, _plot, _report
+from .ttest_options import COLUMNS, GROUPED, INPUT
 from .variance_ratio import SHOW as VARIANCE_SHOW, attach_lognormal
 
 LOGNORMAL = "Lognormal t-test"
 DESIGN = "Design"
 PAIRED, WELCH, STUDENT, ONE_SAMPLE = DESIGNS = ("Paired", "Welch", "Student", "One-sample")
 FIRST, SECOND = "First", "Second"
+RESPONSE, GROUP, SUBJECT, FIRST_GROUP = "Response", "Group", "Subject", "First group"
+GROUP_FIELDS = (RESPONSE, GROUP, SUBJECT)
 REPORT_RATIO = "Report ratio"
 FIRST_OVER_SECOND, SECOND_OVER_FIRST = ORIENTATIONS = ("First / Second", "Second / First")
 NULL_RATIO = "Null ratio"
@@ -48,11 +52,13 @@ RATIO_ESTIMATION, LOG_OBSERVATIONS, LOG_RATIOS, NO_GRAPH = GRAPHS = (
 PAIRING = "Pairing correlation"
 
 # The first entry of each choice is its default in the dialog.
-OPTIONS = {DESIGN: DESIGNS, FIRST: None, SECOND: None, REPORT_RATIO: ORIENTATIONS, NULL_RATIO: 1.0,
+OPTIONS = {DESIGN: DESIGNS, INPUT: (COLUMNS, GROUPED), FIRST: None, SECOND: None,
+           RESPONSE: None, GROUP: None, SUBJECT: None, FIRST_GROUP: "Group choice",
+           REPORT_RATIO: ORIENTATIONS, NULL_RATIO: 1.0,
            REFERENCE: 1.0, LEVEL: 95.0, ALTERNATIVE: ALTERNATIVES, LOG_BASE: LOG_BASES, GRAPH: GRAPHS,
            PAIRING: True, VARIANCE_SHOW: False}
 # Fields that belong on the Data tab; the others sit on the Test and graph tab.
-DATA_FIELDS = (DESIGN, FIRST, SECOND, REPORT_RATIO, REFERENCE)
+DATA_FIELDS = (DESIGN, INPUT, FIRST, SECOND, *GROUP_FIELDS, FIRST_GROUP, REPORT_RATIO, REFERENCE)
 
 TEST_SHEET, OBSERVATIONS_SHEET, RATIOS_SHEET, SETTINGS_SHEET = (
     "Lognormal test", "Log observations", "Paired ratios", "Settings")
@@ -64,10 +70,13 @@ GID = "lognormal:"
 # Interface captions and choice labels. Recipes keep the English field names and values.
 TAB_KEYS = {"Data": "ratio_t.tab.data", "Test and graph": "ratio_t.tab.test"}
 LABEL_KEYS = {DESIGN: "ratio_t.field.design", FIRST: "ratio_t.field.first", SECOND: "ratio_t.field.second",
+              INPUT: "ttest.field.input", RESPONSE: "ratio_t.field.response", GROUP: "ratio_t.field.group",
+              SUBJECT: "ratio_t.field.subject", FIRST_GROUP: "ratio_t.field.first_group",
               REPORT_RATIO: "ratio_t.field.report", NULL_RATIO: "ratio_t.field.null", REFERENCE: "ratio_t.field.reference",
               LEVEL: "ratio_t.field.level", ALTERNATIVE: "ratio_t.field.alternative", LOG_BASE: "ratio_t.field.base",
               GRAPH: "ratio_t.field.graph", PAIRING: "ratio_t.field.pairing"}
 CHOICE_KEYS = {PAIRED: "ratio_t.choice.paired", WELCH: "ratio_t.choice.welch", STUDENT: "ratio_t.choice.student",
+               COLUMNS: "ttest.input.columns", GROUPED: "ttest.input.grouped",
                ONE_SAMPLE: "ratio_t.choice.one_sample", FIRST_OVER_SECOND: "ratio_t.choice.first_second",
                SECOND_OVER_FIRST: "ratio_t.choice.second_first", TWO_SIDED: "ratio_t.choice.two_sided",
                GREATER: "ratio_t.choice.greater", LESS: "ratio_t.choice.less", BASE_E: "ratio_t.choice.natural",
@@ -77,9 +86,12 @@ CHOICE_KEYS = {PAIRED: "ratio_t.choice.paired", WELCH: "ratio_t.choice.welch", S
 _EPS = np.finfo(float).eps
 
 
-def visibility(design):
+def visibility(design, layout=COLUMNS):
     """Fields that apply to the chosen design; the others are inactive and never validated."""
-    return {SECOND: design != ONE_SAMPLE, REFERENCE: design == ONE_SAMPLE, PAIRING: design == PAIRED,
+    grouped = design != ONE_SAMPLE and layout == GROUPED
+    return {INPUT: design != ONE_SAMPLE, FIRST: not grouped, SECOND: design != ONE_SAMPLE and not grouped,
+            RESPONSE: grouped, GROUP: grouped, SUBJECT: grouped and design == PAIRED, FIRST_GROUP: grouped,
+            REFERENCE: design == ONE_SAMPLE, PAIRING: design == PAIRED,
             VARIANCE_SHOW: design in (WELCH, STUDENT)}
 
 
@@ -129,7 +141,7 @@ def _settings(options):
 
 # ----- data ----------------------------------------------------------------------------------------------------------
 
-def _column(frame, name, role):
+def _column_cells(frame, name, role):
     if not isinstance(name, str) or not name:
         raise FieldError(role, f"Choose a column for {role}.")
     if name not in frame:
@@ -137,10 +149,19 @@ def _column(frame, name, role):
     raw = frame[name]
     if isinstance(raw, pd.DataFrame):
         raise FieldError(role, "Worksheet column names must be unique.")
-    cells = raw.to_numpy(dtype=object)
-    present = np.array([not (value is None or value is pd.NA or (isinstance(value, float) and np.isnan(value))
-                             or (isinstance(value, str) and not value.strip()) or value is pd.NaT)
-                        for value in cells], dtype=bool)
+    return raw.to_numpy(dtype=object)
+
+
+def _present(cells):
+    return np.array([not (value is None or value is pd.NA or value is pd.NaT
+                          or (isinstance(value, (float, np.floating)) and np.isnan(value))
+                          or (isinstance(value, str) and not value.strip()))
+                     for value in cells], dtype=bool)
+
+
+def _column(frame, name, role):
+    cells = _column_cells(frame, name, role)
+    present = _present(cells)
     values = np.full(len(cells), np.nan)
     for i in np.flatnonzero(present):
         value = cells[i]
@@ -153,7 +174,7 @@ def _column(frame, name, role):
     return present, values
 
 
-def _used(frame, role, name, present, values, rows):
+def _used(frame, role, name, values, rows):
     """Return the float values of the used rows, or raise on the first unusable cell of that column."""
     chosen = values[rows]
     bad = ~np.isfinite(chosen) | ~(chosen > 0)
@@ -174,7 +195,7 @@ def _prepare(frame, design, first_name, second_name):
     present_a, values_a = _column(frame, first_name, FIRST)
     if design == ONE_SAMPLE:
         rows_a = np.flatnonzero(present_a)
-        return {"rows_a": rows_a, "a": _used(frame, FIRST, first_name, present_a, values_a, rows_a),
+        return {"rows_a": rows_a, "a": _used(frame, FIRST, first_name, values_a, rows_a),
                 "rows_b": np.array([], dtype=int), "b": np.array([])}
     if not isinstance(second_name, str) or not second_name:
         raise FieldError(SECOND, f"Choose a column for {SECOND}.")
@@ -183,12 +204,88 @@ def _prepare(frame, design, first_name, second_name):
     present_b, values_b = _column(frame, second_name, SECOND)
     if design == PAIRED:
         rows = np.flatnonzero(present_a & present_b)
-        a = _used(frame, FIRST, first_name, present_a, values_a, rows)
-        b = _used(frame, SECOND, second_name, present_b, values_b, rows)
+        a = _used(frame, FIRST, first_name, values_a, rows)
+        b = _used(frame, SECOND, second_name, values_b, rows)
         return {"rows_a": rows, "a": a, "rows_b": rows, "b": b}
     rows_a, rows_b = np.flatnonzero(present_a), np.flatnonzero(present_b)
-    return {"rows_a": rows_a, "a": _used(frame, FIRST, first_name, present_a, values_a, rows_a),
-            "rows_b": rows_b, "b": _used(frame, SECOND, second_name, present_b, values_b, rows_b)}
+    return {"rows_a": rows_a, "a": _used(frame, FIRST, first_name, values_a, rows_a),
+            "rows_b": rows_b, "b": _used(frame, SECOND, second_name, values_b, rows_b)}
+
+
+def _group_rows(frame, options, design, present):
+    roles = GROUP_FIELDS if design == PAIRED else GROUP_FIELDS[:2]
+    chosen = {options.get(RESPONSE)}
+    fields = {}
+    for role in roles[1:]:
+        name = options.get(role)
+        fields[role] = _column_cells(frame, name, role)
+        if name in chosen:
+            raise FieldError(role, "Choose distinct columns for the lognormal t-test.")
+        chosen.add(name)
+        present = present & _present(fields[role])
+    rows = np.flatnonzero(present)
+    eligible = pd.DataFrame({role: cells[rows] for role, cells in fields.items()}, index=rows)
+    levels = eligible[GROUP].drop_duplicates().tolist()
+    if len(levels) != 2:
+        raise FieldError(GROUP, "The grouping column must contain exactly two levels.")
+    if str(levels[0]) == str(levels[1]):
+        raise FieldError(GROUP, "The two group labels must have different text.")
+    return eligible, levels
+
+
+def group_choices(frame, options):
+    """Offer the group labels as entered, even when they have spaces or punctuation."""
+    try:
+        present = _present(_column_cells(frame, options.get(RESPONSE), RESPONSE))
+        _, levels = _group_rows(frame, options, options[DESIGN], present)
+    except FieldError:
+        return ()
+    return tuple(map(str, levels))
+
+
+def _prepare_grouped(frame, options, design):
+    response = options.get(RESPONSE)
+    present, values = _column(frame, response, RESPONSE)
+    eligible, levels = _group_rows(frame, options, design, present)
+    names = list(map(str, levels))
+    first = options.get(FIRST_GROUP) or names[0]
+    if first not in names:
+        raise FieldError(FIRST_GROUP, "Choose the first group from the two worksheet levels.")
+    a_index = names.index(first)
+    a, b = (eligible.loc[eligible[GROUP] == levels[index]] for index in (a_index, 1 - a_index))
+    if design == PAIRED:
+        if eligible.duplicated([SUBJECT, GROUP]).any():
+            raise FieldError(SUBJECT, "Found duplicate subject/group measurements.")
+        # Match by subject, preserving both original row positions and the order of the first group.
+        partners = pd.Series(b.index.to_numpy(), index=b[SUBJECT])
+        a = a.loc[a[SUBJECT].isin(partners.index)]
+        rows_b = partners.loc[a[SUBJECT]].to_numpy(dtype=int)
+        if len(a) < 2:
+            raise FieldError(SUBJECT, f"A paired test needs at least two complete pairs; {len(a)} found.")
+    else:
+        rows_b = b.index.to_numpy(dtype=int)
+        for sample, name in ((a, first), (b, names[1 - a_index])):
+            if len(sample) < 2:
+                raise FieldError(RESPONSE, f'Group "{name}" needs at least two positive observations; {len(sample)} found.')
+    rows_a = a.index.to_numpy(dtype=int)
+    return first, names[1 - a_index], {
+        "rows_a": rows_a, "a": _used(frame, RESPONSE, response, values, rows_a),
+        "rows_b": rows_b, "b": _used(frame, RESPONSE, response, values, rows_b),
+        **({SUBJECT: a[SUBJECT].to_numpy()} if design == PAIRED else {}),
+    }
+
+
+def format_error(error):
+    return translate_message(error, "ratio_t.error.",
+                             {"role": lambda role: tr(LABEL_KEYS[role]) if role in LABEL_KEYS else role})
+
+
+def check_grouped(frame, options):
+    """Validate grouped roles before submitting a dialog and keep the selected ratio direction."""
+    design = options[DESIGN]
+    if design != ONE_SAMPLE and options.get(INPUT) == GROUPED:
+        first, _, _ = _prepare_grouped(frame, options, design)
+        options[FIRST_GROUP] = first
 
 
 # ----- numerics ------------------------------------------------------------------------------------------------------
@@ -288,9 +385,13 @@ def _pairing_correlation(la, lb):
 
 def lognormal_test(frame, options):
     design, orientation, null, reference, level, alternative, base, graph, pairing = _settings(options)
-    first_name = options.get(FIRST)
-    second_name = options.get(SECOND) if design != ONE_SAMPLE else None
-    data = _prepare(frame, design, first_name, second_name)
+    grouped = design != ONE_SAMPLE and _choice(options, INPUT, (COLUMNS, GROUPED), COLUMNS) == GROUPED
+    if grouped:
+        first_name, second_name, data = _prepare_grouped(frame, options, design)
+    else:
+        first_name = options.get(FIRST)
+        second_name = options.get(SECOND) if design != ONE_SAMPLE else None
+        data = _prepare(frame, design, first_name, second_name)
     la, lb = np.log(data["a"]), np.log(data["b"])
     n, m = len(la), len(lb)
     if design == PAIRED and n < 2:
@@ -348,8 +449,11 @@ def lognormal_test(frame, options):
     differences = (sign * _log_ratio(data["a"], data["b"]) if design == PAIRED
                    else sign * _log_ratio(data["a"], reference) if design == ONE_SAMPLE else None)
     if design == PAIRED:
+        pair_rows = ({SUBJECT: data[SUBJECT], "First source row": frame.index[data["rows_a"]],
+                      "Second source row": frame.index[data["rows_b"]]} if grouped
+                     else {"Source row": frame.index[data["rows_a"]]})
         tables[RATIOS_SHEET] = pd.DataFrame({
-            "Source row": frame.index[data["rows_a"]], "First": data["a"], "Second": data["b"],
+            **pair_rows, "First": data["a"], "Second": data["b"],
             "Log ratio": differences / divisor, "Ratio": [_exp(value) for value in differences]})
 
     settings = {"Design": design, "First": first_name, "Second": second_name if design != ONE_SAMPLE else "Not used",
@@ -360,6 +464,10 @@ def lognormal_test(frame, options):
                                                         else "On" if pairing else "Off"),
                 "Interval": "Two-sided at the stated level, also for one-sided P values; Null ratio does not move it.",
                 "Log scale": "log10 columns" if base == BASE_10 else "natural-log columns"}
+    if grouped:
+        settings.update({INPUT: GROUPED, RESPONSE: options[RESPONSE], GROUP: options[GROUP]})
+        if design == PAIRED:
+            settings[SUBJECT] = options[SUBJECT]
     if design == PAIRED and pairing:
         r, p, note = _pairing_correlation(_log_ratio(data["a"], data["a"][0]),
                                          _log_ratio(data["b"], data["b"][0]))

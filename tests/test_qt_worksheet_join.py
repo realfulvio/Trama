@@ -476,15 +476,19 @@ class QtJoinTests(unittest.TestCase):
         remapped = _remap_options(copy_recipe, {}, 0, 0, {}, {RIGHT: "Copy of right", LEFT: "Copy $"})
         self.assertEqual(remapped[wj.RIGHT_SHEET], "Copy of right")
 
-    def test_classic_window_keeps_the_recipe(self):
+    def test_classic_calculates_the_qt_recipe_with_identical_tables(self):
         import importlib.util
         if importlib.util.find_spec("tkinter") is None:
             self.skipTest("Tk is not available")
-        import tramastat
+        from tramastat import App
+
         run = self.create_join()
-        with self.assertRaises(ValueError) as caught:
-            tramastat.App.compute(run, self.window.project.tables[LEFT].frame(mask_excluded=True))
-        self.assertIn("standard window", str(caught.exception))
+        project = self.window.project
+        result = App.compute(run, project.tables[LEFT].frame(mask_excluded=True),
+                             join_data=project.join_data(run))
+        self.assertEqual(list(result.tables), list(run.result.tables))
+        for title, table in result.tables.items():
+            pd.testing.assert_frame_equal(table, run.result.tables[title])
 
 
 if __name__ == "__main__":

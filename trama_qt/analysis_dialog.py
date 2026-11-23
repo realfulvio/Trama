@@ -17,17 +17,24 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 from analisi.anova_planned_contrasts import ALPHA as CONTRAST_ALPHA, CONTRAST_LIST, CORRECTION as CONTRAST_CORRECTION
 from analisi.anova_planned_contrasts import FACTOR_LIST as CONTRAST_FACTOR_LIST
 from analisi.anova_terms import TERM_LIST
+from analisi import lognormal_tests, regression_range, ttest_options
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
 from analisi import cluster_silhouette, cohen_kappa as kappa, cox_exact, cox_outputs
 from analisi import cohen_kappa_options as kappa_text, cohen_kappa_workbench as kappa_form
 from analisi import extract_rearrange as extraction
 from analisi.field_error import FieldError
-from analisi.hierarchical_workbench import check_leaf_options, saved_hierarchical_options
+from analisi.parameter_intervals import REPORT_LOG_IC50, has_ic50
+from analisi.replicate_fit import MERGE_REPLICATES, replicate_groups
+from analisi.hierarchical_gap import GAP_DATA, GAP_OPTIONS, GAP_PLOT
+from analisi.hierarchical_workbench import (HIERARCHICAL_TABS, HIERARCHY_GRAPH, check_hierarchical_options,
+                                           check_hierarchy_view, saved_hierarchical_options)
 from analisi import kmeans_options, kmeans_reports, mean_permutation
 from analisi import mean_permutation_options as permutation_text
 from analisi import ordinal_logit as ordinal
 from analisi import paired_proportions as paired
+from analisi.paired_graphs import TTEST_ESTIMATION
+from analisi.variance_ratio import SHOW as TTEST_VARIANCE
 from analisi import monte_carlo, plot_function, power_plan, rmst, transpose_xy
 from analisi import rmst_dialog, rmst_workbench as rmst_form
 from analisi import tolerance_intervals as tolerance
@@ -36,8 +43,11 @@ from analisi import weibull_aft_workbench as weibull_form
 from analisi.i18n import tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
 from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
+from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_FIELDS, PAIRWISE_SCOPE, PAIRWISE_PAIR_LIST,
+                                     pairwise_corrections, pairwise_scope)
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
-                               OPTIONAL_MULTIPLE, TEXT, classic_roles)
+                               OPTIONAL_MULTIPLE, TEXT, check_survival_options, classic_roles)
+from analisi.stats import GEOMETRIC_REPORT, SUMMARY_FORMAT, summary_confidence, summary_fields
 
 from . import anova_model, ellipse_groups, global_fit, logistic_validation, planned_contrasts
 from . import kmeans_stability as stability_options
@@ -48,7 +58,7 @@ from . import precision_recall as precision_options
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
 from . import worksheet_join as join_editor
-from . import kappa_options, ordinal_options, permutation_options, rmst_options, weibull_options
+from . import kappa_options, ordinal_options, permutation_options, rmst_options, survival_pairs, weibull_options
 from .function_curves import FunctionCurves
 from .transpose_sets import TransposeSets
 from .labels import choice_label, field_label, method_label
@@ -67,7 +77,6 @@ try:
 except Exception:  # pragma: no cover
     PARAMETER_LIST = "Parameter list"
 
-HIERARCHY_GRAPH = "Hierarchy graph"
 CATEGORY_ROLES = {"Group", "Rows", "Columns", "Subject", "Row label", "Row factor variable",
                   "Column factor variable", "Row (treatment) variable", "Column (outcome) variable",
                   "X categories", "Y categories"}
@@ -347,6 +356,15 @@ class AnalysisDialog(QDialog):
         page_specs = (("variables", ui("Design")), ("options", ui("Effect")), ("curve", ui("Curve"))) if power_method else (
             ("variables", qt("qt.variables")), *global_fit.pages(self.method), *select_editor.pages(self.method),
             ("options", qt("qt.options")))
+        survival_method = self.method == "Kaplan–Meier survival"
+        lognormal_method = self.method == lognormal_tests.LOGNORMAL
+        if survival_method:
+            page_specs += (("survival-pairs", ui("Pairwise tests")),)
+        hierarchy_method = self.method == "Hierarchical clustering"
+        if hierarchy_method:
+            page_specs += tuple((name, ui(name)) for name in HIERARCHICAL_TABS)
+        if self.method in regression_range.METHODS:
+            page_specs += (("range", ui(regression_range.TAB_TITLE)),)
         cox_fields = (cox_outputs.DIAGNOSTICS, cox_outputs.SCHOENFELD, *cox_outputs.FIT_DIAGNOSTICS,
                       cox_outputs.GRAPH, cox_outputs.GRAPH_TERM, cox_outputs.X_AXIS)
         if cox_method:
@@ -380,6 +398,8 @@ class AnalysisDialog(QDialog):
             self.tabs.addTab(scroll, name)
         variables, options = pages["variables"], pages["options"]
         saved = self._saved()
+        if survival_method:
+            saved = {**saved, PAIRWISE_SCOPE: pairwise_scope(saved)}
         if kappa_method:
             saved = {**kappa_text.defaults(self.data), **saved}
         paired_method = self.method == paired.PAIRED_PROPORTIONS
@@ -401,6 +421,12 @@ class AnalysisDialog(QDialog):
             labels, captions = kappa_form.LABEL_KEYS, kappa_form.CHOICE_KEYS
         if permutation_method:
             labels, captions = mean_permutation.LABEL_KEYS, mean_permutation.CHOICE_KEYS
+        if self.method == "t-test":
+            labels, captions = ttest_options.LABEL_KEYS, ttest_options.CHOICE_KEYS
+        if lognormal_method:
+            labels, captions = lognormal_tests.LABEL_KEYS, lognormal_tests.CHOICE_KEYS
+            for page, title in (("variables", "Data"), ("options", "Test and graph")):
+                self.tabs.setTabText(self.tabs.indexOf(scrolls[page]), tr(lognormal_tests.TAB_KEYS[title]))
         if self.method == CUSTOM_EQUATION and not saved:
             saved = {"Equation": DEFAULT_EQUATION, "Parameters": [dict(record) for record in EXAMPLE_PARAMETERS]}
         elif self.method == global_fit.GLOBAL_CUSTOM_EQUATION and not saved:
@@ -422,6 +448,8 @@ class AnalysisDialog(QDialog):
             text_defaults = power_plan.TEXT_DEFAULTS
             for name, form in (("Design", variables), ("Effect", options), ("Curve", pages["curve"])):
                 power_forms.update(dict.fromkeys(power_plan.TABS[name], form))
+        hierarchy_forms = {field: pages[tab] for tab, names in HIERARCHICAL_TABS.items()
+                           for field in names} if hierarchy_method else {}
         columns = [str(name) for name in self.data.columns]
         numeric = [str(name) for name in self.data.select_dtypes(include="number").columns]
         categorical = [name for name in columns if name not in numeric] or columns
@@ -445,8 +473,18 @@ class AnalysisDialog(QDialog):
                 variable = label in kappa_form.RATING_FIELDS
             if permutation_method:
                 variable = label in mean_permutation.DATA_FIELDS
+            if self.method == "t-test" and label in ("Design", ttest_options.INPUT):
+                variable = True
             form = (power_forms.get(label) or pages.get(global_fit.page_of(self.method, label))
                     or (variables if variable else options))
+            if label in hierarchy_forms:
+                form = hierarchy_forms[label]
+            if lognormal_method:
+                form = variables if label in lognormal_tests.DATA_FIELDS else options
+            if survival_method and label in PAIRWISE_FIELDS:
+                form = pages["survival-pairs"]
+            if self.method in regression_range.METHODS and label in (*regression_range.FIELDS, regression_range.SHOW_OUTSIDE):
+                form = pages["range"]
             if self.method == transpose_xy.TRANSPOSE_XY and label == transpose_xy.Y_SETS:
                 form = variables
             if cox_method and label in cox_fields:
@@ -526,6 +564,8 @@ class AnalysisDialog(QDialog):
             elif kind == EQUATION_TEXT:
                 widget = QPlainTextEdit(str(saved.get(label, DEFAULT_EQUATION)))
                 widget.setMinimumHeight(90)
+            elif kind == PAIRWISE_PAIR_LIST:
+                widget = survival_pairs.PairEditor(saved.get(label, ()))
             elif kind == PARAMETER_LIST:
                 widget = ParameterTable(saved.get(label, ()))
             elif kind in (global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
@@ -535,7 +575,8 @@ class AnalysisDialog(QDialog):
                 widget = QComboBox()
                 widget.setMinimumContentsLength(18)
                 if isinstance(kind, tuple):
-                    choices = list(kind)
+                    choices = (pairwise_corrections(saved) if survival_method and label == PAIRWISE_CORRECTION
+                               else list(kind))
                     for choice in choices:
                         choice_caption = str(choice)
                         if self.method == kmeans_options.SELECTION and label == "Criterion" and choice == "Gap":
@@ -544,7 +585,7 @@ class AnalysisDialog(QDialog):
                         widget.addItem(text, choice)
                     default = choices[0] if choices else ""
                 elif kind == GROUP_CHOICE:
-                    widget.setEditable(True)
+                    widget.setEditable(not lognormal_method)
                     widget.addItem("", "")
                     default = ""
                 else:
@@ -556,6 +597,8 @@ class AnalysisDialog(QDialog):
                                          (ordinal_method and label == ordinal.RESPONSE)) and categorical:
                         default = categorical[category_position % len(categorical)]
                         category_position += 1
+                    elif self.method == "t-test" and label in (ttest_options.FIRST, ttest_options.SECOND) and numeric:
+                        default = numeric[min(int(label == ttest_options.SECOND), len(numeric) - 1)]
                     elif kind is None and numeric:
                         default = numeric[numeric_position % len(numeric)]
                         numeric_position += 1
@@ -567,7 +610,7 @@ class AnalysisDialog(QDialog):
                     widget.addItem(str(value), value)
                     position = widget.count() - 1
                 widget.setCurrentIndex(max(position, 0))
-                if kind == GROUP_CHOICE and value:
+                if kind == GROUP_CHOICE and value and widget.isEditable():
                     widget.setEditText(str(value))
             if widget is None:
                 # A compound editor of the classic dialog: keep the saved value or the default.
@@ -588,6 +631,26 @@ class AnalysisDialog(QDialog):
                 form.addRow(caption, widget)
             self.controls[label] = (kind, widget)
             self.rows[label] = (caption, widget, form)
+        if hierarchy_method:
+            plot = self.controls["Graph output"][1]
+            report_gap = self.controls[GAP_DATA][1]
+
+            def sync_gap():
+                graph_gap = plot.currentData() == GAP_PLOT
+                self._set_field_visibility({
+                    GAP_DATA: not graph_gap,
+                    **dict.fromkeys(GAP_OPTIONS, graph_gap or report_gap.isChecked()),
+                })
+
+            plot.currentIndexChanged.connect(sync_gap)
+            report_gap.toggled.connect(sync_gap)
+            sync_gap()
+        if survival_method:
+            survival_pairs.attach(self)
+        if self.method == "Descriptive statistics":
+            report = self.controls[SUMMARY_FORMAT][1]
+            report.currentIndexChanged.connect(lambda _: self._set_field_visibility(summary_fields(report.currentData())))
+            self._set_field_visibility(summary_fields(report.currentData()))
         if self.method == plot_function.PLOT_FUNCTION:
             source = self.controls[plot_function.X_SOURCE][1]
             source.currentIndexChanged.connect(lambda _: self._set_field_visibility(
@@ -614,6 +677,31 @@ class AnalysisDialog(QDialog):
             self.ellipse_groups.sync()
         self.anova = anova_model.attach(self, saved)
         global_fit.attach(self)
+        if self.method == "t-test":
+            design = self.controls["Design"][1]
+            layout = self.controls[ttest_options.INPUT][1]
+
+            def show_ttest_fields():
+                mode = design.currentData()
+                self._set_field_visibility({**ttest_options.visibility(mode, layout.currentData()),
+                                            TTEST_ESTIMATION: mode == "Paired",
+                                            TTEST_VARIANCE: mode in ("Welch", "Student")})
+
+            design.currentIndexChanged.connect(show_ttest_fields)
+            layout.currentIndexChanged.connect(show_ttest_fields)
+            show_ttest_fields()
+        if lognormal_method:
+            for name in (lognormal_tests.DESIGN, lognormal_tests.INPUT, *lognormal_tests.GROUP_FIELDS):
+                self.controls[name][1].currentIndexChanged.connect(self._show_lognormal_fields)
+            self._show_lognormal_fields()
+        if self.method == "Nonlinear regression":
+            model = self.controls["Model"][1]
+
+            def show_log_ic50():
+                self._set_field_visibility({REPORT_LOG_IC50: has_ic50(model.currentData())})
+
+            model.currentIndexChanged.connect(show_log_ic50)
+            show_log_ic50()
         if self.method in kmeans_options.METHODS:
             algorithm = self.controls[kmeans_options.ALGORITHM][1]
             algorithm.currentIndexChanged.connect(self._sync_kmeans_options)
@@ -757,6 +845,22 @@ class AnalysisDialog(QDialog):
         if self.error_field in self.hidden:
             self.clear_field_error(self.error_field)
 
+    def _show_lognormal_fields(self):
+        names = (lognormal_tests.DESIGN, lognormal_tests.INPUT, *lognormal_tests.GROUP_FIELDS)
+        options = {name: self.controls[name][1].currentData() for name in names}
+        visibility = lognormal_tests.visibility(options[lognormal_tests.DESIGN], options[lognormal_tests.INPUT])
+        self._set_field_visibility(visibility)
+        if visibility[lognormal_tests.FIRST_GROUP]:
+            control = self.controls[lognormal_tests.FIRST_GROUP][1]
+            selected = control.currentText()
+            labels = list(lognormal_tests.group_choices(self.data, options))
+            if selected and selected not in labels:
+                labels.append(selected)
+            control.clear()
+            control.addItems(labels)
+            if selected:
+                control.setCurrentText(selected)
+
     def _set_field_visibility(self, fields):
         for name, visible in fields.items():
             _, control, form = self.rows[name]
@@ -799,6 +903,10 @@ class AnalysisDialog(QDialog):
                 continue
             if name in self.hidden:
                 continue
+            if name in (REPORT_LOG_IC50, TTEST_ESTIMATION) and not control.isChecked():
+                continue
+            if self.method == "Nonlinear regression" and name == MERGE_REPLICATES and not control.isChecked():
+                continue
             if kind == "kept":
                 options[name] = deepcopy(control)
             elif kind in (MULTIPLE, OPTIONAL_MULTIPLE):
@@ -831,7 +939,8 @@ class AnalysisDialog(QDialog):
                 options[name] = value
             elif kind == TEXT:
                 options[name] = control.text()
-            elif kind in (TERM_LIST, select_editor.EDITOR, plot_function.CURVE_LIST, transpose_xy.SETS_LIST):
+            elif kind in (TERM_LIST, select_editor.EDITOR, plot_function.CURVE_LIST, transpose_xy.SETS_LIST,
+                          PAIRWISE_PAIR_LIST):
                 options[name] = control.values()
             elif kind == CONTRAST_LIST:
                 options.update(control.values())  # the four planned-contrast keys, or none
@@ -842,7 +951,8 @@ class AnalysisDialog(QDialog):
             elif kind in (global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
                 options[name] = control.values()
             elif kind == GROUP_CHOICE:
-                options[name] = control.currentText().strip()
+                value = control.currentText()
+                options[name] = value if self.method in ("Kaplan–Meier survival", lognormal_tests.LOGNORMAL) else value.strip()
             else:
                 value = control.currentData()
                 if value is None:
@@ -866,6 +976,17 @@ class AnalysisDialog(QDialog):
     def accept(self):
         try:
             options = global_fit.confirm(self, self.options())
+            if self.method == "Kaplan–Meier survival":
+                check_survival_options(self.data, options)
+            if self.method == "t-test":
+                ttest_options.preserve_direction(options, self.data)
+            if self.method == lognormal_tests.LOGNORMAL:
+                lognormal_tests.check_grouped(self.data, options)
+            if self.method in regression_range.METHODS:
+                ranges = regression_range.normalize(options)
+                fit_data = regression_range.fitting_rows(self.data, options.get("X"), ranges)
+            if self.method == "Nonlinear regression" and options.get(MERGE_REPLICATES):
+                replicate_groups(fit_data, options)
             if self.anova is not None:
                 self.anova.check(options)  # the engine's cheap checks; the fit stays on the worker
             if self.stability is not None:
@@ -887,7 +1008,9 @@ class AnalysisDialog(QDialog):
             if self.method == extraction.EXTRACT_REARRANGE:
                 extraction.check_options(self.data, options)
             if self.method == "Hierarchical clustering":
-                check_leaf_options(self.data, options)  # Leaf ordering: the choice and the size, before the worker
+                check_hierarchical_options(self.data, options)
+            if self.method == HIERARCHY_GRAPH:
+                check_hierarchy_view(self.data, options)
             if self.method in kmeans_options.METHODS:
                 kmeans_options.scale(options)
                 kmeans_options.fit_options(self.method, self.data, options)
@@ -910,6 +1033,8 @@ class AnalysisDialog(QDialog):
                     cox_exact.check_outputs(options)
                 else:
                     cox_outputs.graph_view(options)
+            if self.method == "Descriptive statistics" and options.get(SUMMARY_FORMAT) == GEOMETRIC_REPORT:
+                summary_confidence(options)
             if self.method == tolerance.TOLERANCE:
                 tolerance.check_options(self.data, options)
             if self.method == weibull.METHOD:
@@ -930,6 +1055,14 @@ class AnalysisDialog(QDialog):
         super().accept()
 
     def _message(self, error, field=None):
+        if self.method == "Kaplan–Meier survival":
+            return ui(str(error))
+        if self.method == "t-test":
+            return translate_message(str(error), "ttest.error.")
+        if self.method == lognormal_tests.LOGNORMAL:
+            return lognormal_tests.format_error(error)
+        if self.method in regression_range.METHODS and field in regression_range.FIELDS:
+            return ui(str(error))
         if self.method == global_fit.GLOBAL_CUSTOM_EQUATION:
             return global_fit.describe_error(error, field)
         if self.method in (*kmeans_options.METHODS, kmeans_reports.MODEL_GRAPH):
@@ -950,7 +1083,7 @@ class AnalysisDialog(QDialog):
             return reshape_editor.message(error)
         if self.method == SELECT_TRANSFORM:
             return select_editor.message(error)
-        if self.method == "Hierarchical clustering":
+        if self.method in ("Hierarchical clustering", HIERARCHY_GRAPH):
             return ui(str(error))
         if self.method == extraction.EXTRACT_REARRANGE:
             if str(error) == f"Choose a column for {field}.":

@@ -142,14 +142,15 @@ class CatalogTests(unittest.TestCase):
         window.project = fixture_project()
         window.refresh()
         try:
-            listed = []
-            for position in range(window.navigator.topLevelItemCount()):
-                section = window.navigator.topLevelItem(position)
-                listed += [tuple(section.child(row).data(0, Qt.ItemDataRole.UserRole))
-                           for row in range(section.childCount())
-                           if section.child(row).data(0, Qt.ItemDataRole.UserRole)[0] in {"graph", "layout",
-                                                                                          "saved-layout"}]
-            self.assertEqual(listed, [entry.ref for entry in catalog(window.project)])
+            from PySide6.QtWidgets import QTreeWidgetItemIterator
+            listed = set()
+            items = QTreeWidgetItemIterator(window.navigator)
+            while (item := items.value()) is not None:
+                ref = item.data(0, Qt.ItemDataRole.UserRole)
+                if ref and ref[0] in {"graph", "layout", "saved-layout"}:
+                    listed.add(tuple(ref))
+                items += 1
+            self.assertEqual(listed, {entry.ref for entry in catalog(window.project)})
         finally:
             window.project.dirty = False
             window.close()
@@ -456,16 +457,11 @@ class GalleryWindowTests(unittest.TestCase):
         return gallery
 
     def test_gallery_opens_from_the_status_bar_and_lists_the_cards(self):
-        from PySide6.QtWidgets import QToolButton
-        from analisi.i18n import tr
-
         self.open_fixture()
         action = self.window.actions["gallery"]
-        view_tab = self.window.ribbon.widget(self.window.ribbon_pages["view"])
-        commands = self.window.findChild(QToolButton, "allCommands").menu()
-        view_menu = next(item.menu() for item in commands.actions() if item.text() == tr("ribbon.modern.view"))
+        view_menu = self.window.command_menus["View"]
         self.assertIn(action, view_menu.actions())
-        self.assertNotIn(action, view_tab.actions())
+        self.assertNotIn("gallery", self.window.toolbar.buttons)
         self.assertTrue(self.window.gallery_button.isVisible())
         self.assertIs(self.window.gallery_button.defaultAction(), action)
         self.assertTrue(action.isEnabled())

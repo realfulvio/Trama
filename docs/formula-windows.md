@@ -2,6 +2,10 @@
 
 Use **Calculated column** to assign a statistic to the rows of a data table. Add `OVER` to calculate within each group and `WHERE` to select the rows that contribute. Use `COL("Column title")` for literal column names, including titles with spaces.
 
+In a multiple-variables table, select a cell and press `=` to open the formula editor for that column. You can also type a complete formula into an empty variable. Use a column name or its worksheet letter, such as `A * 2`. When a name and a letter coincide, the name takes precedence. Trama saves the referenced column names so formulas keep the same inputs when new columns are inserted. Replacing an existing column's data requires confirmation, and Undo restores its values. Pasting cells keeps treating the clipboard contents as data.
+
+In the editor, search **Columns** by name or worksheet letter, or switch to **Functions** to see the arguments accepted by each function. Press Enter in the search or results, double-click a match, or use **Insert** to put it at the cursor. A column is inserted as a `COL()` reference, including any spaces or punctuation in its name. For a function, the cursor moves inside the parentheses so you can enter its arguments.
+
 ```text
 =MEAN(COL("Response")) OVER COL("Treatment")
 =SUM(COL("Dose")) OVER COL("Subject") WHERE COL("Visit") <= 3
@@ -10,13 +14,17 @@ Use **Calculated column** to assign a statistic to the rows of a data table. Add
 
 The filter affects the calculation. Each row with a group receives that group's result. Grouping by a comparison, such as `OVER COL("Visit") > 0`, is also supported. A blank partition leaves the result blank on that row. In a `WHERE` comparison, text fields match without regard to case.
 
-`MEAN`, `SUM`, `MIN`, `MAX`, `STDEV`, `STDERR`, `COUNT` and `COUNTA` support these clauses. `STDEV` and `STDERR` use the sample standard deviation. `COUNT` counts finite numeric values. `COUNTA` counts nonblank values, including text. Omit `OVER` to use a single group covering the worksheet. Put a statistic and its clauses in parentheses before combining it with a larger formula.
+`MEAN`, `SUM`, `MIN`, `MAX`, `STDEV`, `STDERR`, `COUNT` and `COUNTA` support these clauses. `STDEV` and `STDERR` use the sample standard deviation and return blank with fewer than two observations. `COUNT` counts numeric values and `COUNTA` counts nonblank values, including text. A formula such as `=STDERR(Response)` uses the full column and repeats the result on each row. Omit `OVER` to use a single group covering the worksheet. Put a statistic and its clauses in parentheses before combining it with a larger formula.
 
 Use `MEANIF(values, condition)`, `SUMIF`, `MINIF`, `MAXIF`, `STDEVIF`, `STDERRIF`, `COUNTIF` or `COUNTAIF` to write the condition inside the function. These forms also accept `OVER`. If you add a `WHERE` clause, a row must satisfy both conditions to contribute.
 
 ## Calculated columns that use other formulas
 
 A formula can refer to another calculated column on either side of it. For example, an earlier column named `Output` can use `=2 * COL("Adjusted dose")`. Trama calculates the inputs first and keeps the columns in their worksheet order. Editing or excluding a source value updates the dependent results. A direct or indirect circular reference is reported before the edit is applied.
+
+On import, a calculated column between source columns keeps its position. The order also carries over when saving the project, exporting the worksheet, or creating an analysis template.
+
+Right-click a calculated column and choose **Keep calculated values** to make its cells editable. The current values, including blanks, stay in the same column. Other formulas can still use the column, and Undo restores its formula.
 
 ## Ordered and moving statistics
 

@@ -122,7 +122,7 @@ class AnalysisChainAppTests(TkCase):
         from analisi.hierarchical_style import describe_hierarchical_artists
         from analisi.hierarchical_workbench import HIERARCHY_GRAPH
         from analisi.presentation import apply_style
-        from tests.test_prism_hierarchical_recipes import write_project
+        from tests.test_legacy_hierarchical_recipes import write_project
 
         source = Path(self.tmp.name) / "tree.prismt"
         write_project(source, row_only=True)

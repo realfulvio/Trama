@@ -44,7 +44,7 @@ import numpy as np
 import pandas as pd
 
 from analisi._version import VERSION, RELEASE_CHANNEL
-from analisi.analysis_chain import MAX_ANALYSIS_NODES, ResultSource
+from analisi.analysis_chain import MAX_ANALYSIS_NODES, ChainCancelled, ResultSource
 from analisi.analysis_chain_app import AnalysisChainMixin
 from analisi.family_workflow_app import FamilyWorkflowMixin
 from analisi.windows_dpi import configure_native_dpi, window_dpi
@@ -59,7 +59,7 @@ from analisi.nested import (CONFIRM as NESTED_CONFIRM, METHODS as NESTED_METHODS
                             SUBCOLUMNS as NESTED_SUBCOLUMNS, is_nested_worksheet, nested_defaults,
                             preferred_nested_method)
 from analisi.correlation_matrix import CORRELATION_MATRIX
-from analisi.data import (EDITABLE_PRISM_EMF, EDITABLE_PRISM_FIXED_VALUES, MAX_CELLS, MAX_COLUMNS, Dataset, _table, decimal_comma, info_references, load_project, load_tables,
+from analisi.data import (EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, MAX_CELLS, MAX_COLUMNS, Dataset, _table, decimal_comma, info_references, load_project, load_tables,
                           load_workspace, save_project)
 from analisi.ellipse_workbench import (BY_GROUP as ELLIPSE_BY_GROUP, ELLIPSE_TABS, GROUP_STYLES as ELLIPSE_GROUP_STYLES,
                                      ellipse_grouping_column, ellipse_visibility)
@@ -77,7 +77,8 @@ from analisi.distribution_graphs import (BOX_VIOLIN, SEPARATE as BOX_SEPARATE,
                                          visibility as box_violin_visibility)
 from analisi.grouped_distributions import GROUPED_DISTRIBUTIONS, visibility as grouped_distribution_visibility
 from analisi.paired_graphs import (AFTER, BEFORE, BEFORE_AFTER, MAX_PAIRS, PAIR_LIST, PAIRS as BEFORE_AFTER_PAIRS,
-                                   TITLE as PAIR_TITLE, TRAJECTORIES, trajectory_defaults)
+                                   TITLE as PAIR_TITLE, TRAJECTORIES, TTEST_ESTIMATION, shows_paired_estimation,
+                                   trajectory_defaults)
 from analisi.forest_plot import (BY_COLUMN as FOREST_BY_COLUMN, FOREST_PLOT, LIMITS_NOTE as FOREST_LIMITS_NOTE,
                                   REFERENCE_NOTE as FOREST_REFERENCE_NOTE, ROLE_ROWS as FOREST_ROLE_ROWS,
                                   ROW_CHOICE as FOREST_ROW_CHOICE, defaults_for as forest_defaults,
@@ -93,7 +94,7 @@ from analisi.graph_dialog import ChoiceBinding, GraphFormatDialog, pick_color
 from analisi.graph_annotations import ANNOTATIONS
 from analisi.graph_shapes import SHAPES, skipped_shapes
 from analisi.grid_data import (clear_block, clipboard_decimal_mark, clipboard_rows, copy_block,
-                               filter_clipboard_rows, grow_rows, paste_block)
+                               edit_cell_value, filter_clipboard_rows, grow_rows, paste_block)
 from analisi.grid_widget import DataGrid, column_label
 from analisi.heatmap import (CATEGORY_COLOR_LIST, CATEGORY_COLORS as HEAT_MAP_CATEGORY_COLORS,
                             COLOR_MAPPING as HEAT_MAP_MAPPING, HEAT_MAP, LEGEND_INTERVAL as HEAT_MAP_INTERVAL,
@@ -118,9 +119,11 @@ from analisi.heatmap_number_format import (LEGEND_DECIMALS as HEAT_MAP_LEGEND_DE
                                            NUMBER_FORMAT as HEAT_MAP_NUMBER_FORMAT,
                                            NUMBER_FORMATS as HEAT_MAP_NUMBER_FORMATS,
                                            parse_legend_decimals as parse_heat_map_legend_decimals)
-from analisi.hierarchical_workbench import (HIERARCHICAL_TABS, HIERARCHY_GRAPH, TREE_AXIS,
-                                           check_hierarchy_view, check_leaf_options, hierarchy_view_available,
-                                           saved_hierarchical_options)
+from analisi.hierarchical_gap import GAP_DATA, GAP_OPTIONS, GAP_PLOT
+from analisi.hierarchical_workbench import (HIERARCHICAL_TABS, HIERARCHY_GRAPH, SILHOUETTE_DATA, SILHOUETTE_PLOT,
+                                           TREE_AXIS, check_hierarchical_options, check_hierarchy_view,
+                                           hierarchy_view_available, saved_hierarchical_options, uses_hierarchy_gap,
+                                           uses_hierarchy_silhouette)
 from analisi.leaf_order import FIELD as LEAF_ORDERING, OPTIMAL as OPTIMAL_LEAF_ORDER
 from analisi.info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
 from analisi.info_widget import InfoDetails, InfoEditor
@@ -161,8 +164,10 @@ from analisi.nonlinear_bands import (BAND as NL_BAND, BAND_NONE as NL_BAND_NONE,
 from analisi.parameter_intervals import (METHOD as PARAM_CI_METHOD, LEVEL as PARAM_CI_LEVEL,
                                         PROFILE as PARAM_CI_PROFILE, WALD as PARAM_CI_WALD, OPTIONS as PARAM_CI_OPTIONS,
                                         LABEL_KEYS as PARAM_CI_LABELS, CHOICE_KEYS as PARAM_CI_CHOICES,
-                                        settings as check_parameter_ci, validate_profile_data)
+                                        REPORT_LOG_IC50, has_ic50, settings as check_parameter_ci,
+                                        validate_profile_data)
 from analisi.linear_diagnostics import BAND_NONE, linear_confidence_level
+from analisi import regression_range
 from analisi.linear_estimates import (FORWARD as LINEAR_Y_CI, INVERSE as LINEAR_X_CI,
                                      X_VALUE as LINEAR_X_VALUE, Y_VALUE as LINEAR_Y_VALUE,
                                      LABEL_KEYS as LINEAR_ESTIMATE_LABELS,
@@ -198,20 +203,22 @@ from analisi.processes_dialog import ProcessesDialog
 from analisi.theme_preferences import load_ribbon_expanded, load_theme, save_ribbon_expanded, ThemeDialog
 from analisi.modern_workspace import ModernWorksheet
 from analisi.project_tabs import MAX_PROJECT_TABS, ProjectSession, ProjectTabs
-from analisi.prism_binary_graphs import render_binary_graph
-from analisi.prism_emf_edit import LIMIT_SOURCE
-from analisi.prism_fit_graph import FIT_GRAPH_SPEC, FIT_INTERVAL_BAND
-from analisi.prism_xml_qc import QC_REFERENCE
-from analisi.icc import METHOD as ICC_METHOD, cancellable as icc_cancellable
+from analisi.legacy_binary_graphs import render_binary_graph
+from analisi.legacy_emf_edit import LIMIT_SOURCE
+from analisi.legacy_fit_graph import FIT_GRAPH_SPEC, FIT_INTERVAL_BAND
+from analisi.legacy_xml_qc import QC_REFERENCE
+from analisi import icc
 from analisi import precision_recall
-from analisi.prism_layout_edit import PRISM_EDITABLE_PANELS, PRISM_PANEL_DATA, PRISM_PANEL_EDITS, edited_layout_preview
-from analisi.prism_restore import (BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION, PRISM_GRAPH_LINK, PRISM_GRAPH_STYLE,
-                                   PRISM_NOTES, PRISM_PREVIEW, PRISM_TITLE, SAVED_BINARY_GRAPH,
+from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_DATA, LEGACY_PANEL_EDITS, edited_layout_preview
+from analisi.legacy_restore import (LEGACY_GRAPH_LINK, LEGACY_GRAPH_STYLE,
+                                   LEGACY_NOTES, LEGACY_PREVIEW, LEGACY_TITLE, SAVED_BINARY_GRAPH,
                                    SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY,
-                                   panel_source_style, resolve_layout_panel_graphs)
-from analisi.prism_zip_layout import ZIP_LAYOUT
+                                   initial_sheet_reference, layout_panel_sources, linked_panel_readers, panel_source_style,
+                                   resolve_layout_panel_graphs)
+from analisi.legacy_zip_layout import ZIP_LAYOUT, imported_paper
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY, curve_series_labels
 from analisi.repeated_workbench import INPUT_FIELDS, check_global_weighting
+from analisi.replicate_fit import MERGE_REPLICATES, replicate_groups
 from analisi.roc import threshold_text
 from analisi.rank_tests import (CHOICE_KEYS as RANK_CHOICE_KEYS, CONTINUITY as RANK_CONTINUITY, EXACT as RANK_EXACT,
                                 LABEL_KEYS as RANK_LABEL_KEYS, MANN_WHITNEY, P_VALUE as RANK_P, WILCOXON)
@@ -350,8 +357,11 @@ from analisi.cohen_kappa_dialog import (CategoryOrderEditor, defaults as kappa_d
 from analisi.select_transform import CALCULATED, FILTERS, SELECT_TRANSFORM
 from analisi.select_transform_dialog import CalculatedVariables, RowFilters
 from analisi.transpose_dialog import TransposeSets
-from analisi.reshape_long_wide import METHOD as RESHAPE_LONG_WIDE
+from analisi import reshape_long_wide as reshape, reshape_tk
+from analisi import worksheet_join as worksheet_join_engine, worksheet_join_tk
 from analisi.worksheet_join import METHOD as WORKSHEET_JOIN
+from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
+from analisi.worksheet_join_labels import message as translate_join_error
 from analisi.transpose_xy import (ROW_TITLE as TRANSPOSE_TITLE, SETS_LIST, TRANSPOSE_XY, X as TRANSPOSE_X,
                                   Y_SETS as SETS_LIST_LABEL,
                                   propose_sets, proposed_x)
@@ -361,12 +371,13 @@ from analisi import deming_dialog
 from analisi.ols_diagnostics import (LINEAR_CI, LINEAR_DIAGNOSTICS, LINEAR_PROFILES, LINEAR_RESIDUAL_PLOT,
                                      TABS as OLS_TABS, check_weighted_profiles)
 from analisi import mlr_weighting
+from analisi import logistic_validation
 from analisi.logistic_diagnostics import (LOGISTIC_CI, LOGISTIC_CUTOFF, LOGISTIC_DIAGNOSTICS, LOGISTIC_PROFILES,
                                           TABS as LOGISTIC_TABS)
 from analisi.pca_graphs import (COLOR_GROUPS as PCA_COLOR_GROUPS, GRAPH as PCA_GRAPH,
                                 HORIZONTAL as PCA_HORIZONTAL, LABEL as PCA_LABEL, ONE_DIMENSION as PCA_ONE_DIMENSION,
                                 POINT_VIEWS as PCA_POINT_VIEWS, SAVED_DIRECTIONS as PCA_SAVED_DIRECTIONS,
-                                SHOW_LABELS as PCA_SHOW_LABELS,
+                                SAVED_VIEWPORT as PCA_SAVED_VIEWPORT, SHOW_LABELS as PCA_SHOW_LABELS,
                                 TABS as PCA_TABS, VERTICAL as PCA_VERTICAL, validate as validate_pca_graph)
 from analisi.pca_regression import (CHOICE_KEYS as PCA_REGRESSION_CHOICE_KEYS, CONFIDENCE as PCR_CONFIDENCE,
                                     DEPENDENT as PCR_DEPENDENT, ENABLE as PCR_ENABLE,
@@ -379,7 +390,7 @@ from analisi.ancova import (ADJUSTMENT as ANCOVA_ADJUSTMENT, ANCOVA, COMPARISONS
                             REFERENCE_X as ANCOVA_REFERENCE, format_error as format_ancova_error,
                             group_choices as ancova_group_choices, reference_value as ancova_reference_value,
                             visibility as ancova_visibility)
-from analisi import pca_overlays
+from analisi import pca_overlays, pca_parallel_archive
 from analisi.pca_retention import (CHOICE_KEYS as PCA_CHOICE_KEYS, LABEL_KEYS as PCA_SELECT_LABELS,
                                   SELECTION as PCA_SELECTION, TABS as PCA_SELECTION_TABS,
                                   check as check_pca_selection, simulates as pca_simulates,
@@ -399,6 +410,7 @@ from analisi.text_import_dialog import TextImportDialog
 from analisi import ui_shell, ui_theme
 from analisi.workspace_icons import show_hint, workspace_icons
 from analisi.worksheet_history import WorksheetState
+from analisi.worksheet_formula_dialog import WorksheetFormulaDialog
 from analisi.additional import bland_altman_visibility, regression_visibility
 from analisi.models import DIAGNOSTICS as POISSON_DIAGNOSTICS_FIELD
 from analisi.exploration import LIMIT_INTERVALS as BLAND_ALTMAN_INTERVALS
@@ -413,7 +425,7 @@ from analisi.power_plan import (ALLOCATION as POWER_ALLOCATION, DESIGN as POWER_
                                 check_options as check_power_options, normalized_options as power_options,
                                 visibility as power_visibility)
 from analisi.power_plan_dialog import MultilineEntry
-from analisi import kmeans_archive, kmeans_options, kmeans_reports
+from analisi import kmeans_archive, kmeans_options, kmeans_reports, kmeans_stability
 from analisi import lognormal_anova
 from analisi.unequal_anova import check_one_way_options, one_way_visibility
 from analisi.variance_assumptions import (ALPHA as VARIANCE_ALPHA, BARTLETT as VARIANCE_BARTLETT,
@@ -439,12 +451,14 @@ from analisi.spearman_exact_budget import (FIELD as SPEARMAN_BUDGET, STANDARD as
                                            extended_request as spearman_extended_request)
 from analisi.correlation_details import (COMPARE_INDEPENDENT, CORRELATE_CONTROL, CORRELATION_METHODS,
                                          validate_request as validate_correlation_request)
-from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED,
-                                   PAIRWISE_ALPHA, pairwise_fields)
+from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED, PAIRWISE_SCOPE,
+                                   PAIRWISE_FIELDS, PAIRWISE_PAIRS, PAIRWISE_PAIR_LIST, pairwise_corrections,
+                                   pairwise_fields, pairwise_scope)
 from analisi.workbench import (ANOVA_ALPHA, ANOVA_EFFECTS, CLASSIC_RESPONSES, GRAPH_METHODS, GROUP_CHOICE,
                                GROUP_ORDER, GROUPS, METHODS, MULTIPLE, OPTIONAL, OPTIONAL_MULTIPLE, TEXT, Result, analyse,
                                _anova_row_count, anova_visibility, check_anova_options, check_survival_options,
                                classic_roles, survival_levels)
+from analisi.stats import GEOMETRIC_REPORT, SUMMARY_FORMAT, summary_confidence, summary_fields
 from analisi.anova_diagnostics import (ALPHA as ANOVA_DIAG_ALPHA, ASSUMPTIONS as ANOVA_ASSUMPTIONS,
                                        DIAGNOSTICS as ANOVA_DIAGNOSTICS, GRAPH as ANOVA_DIAG_GRAPH,
                                        GRAPH_CHOICE_KEYS as ANOVA_GRAPH_CHOICE_KEYS, GRAPH_QQ as ANOVA_GRAPH_QQ,
@@ -456,7 +470,10 @@ from analisi.anova_diagnostics import (ALPHA as ANOVA_DIAG_ALPHA, ASSUMPTIONS as
 from analisi.anova_ss import KEY as ANOVA_SUMS_OF_SQUARES, TYPE_III as ANOVA_TYPE_III
 from analisi.anova_ss import sums_of_squares as anova_sums_of_squares
 from analisi.anova_ss_dialog import SumsOfSquaresPanel
-from analisi.anova_planned_contrasts import KEYS as PLANNED_CONTRAST_KEYS
+from analisi import anova_planned_contrasts as planned_contrasts
+from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, lognormal_tests, ttest_options
+from analisi.anova_contrast_editor import check_contrast_input, contrast_context
+from analisi.anova_contrasts_tk import ContrastPanel
 from analisi.anova_terms import (FULL as ANOVA_FULL_TERMS, MODEL_TERMS as ANOVA_MODEL_TERMS, TERM_LIST,
                                  TERM_SELECTION as ANOVA_TERM_SELECTION, active_factors as anova_active_factors,
                                  check_comparison_controls as check_anova_comparisons, check_options as check_anova_terms)
@@ -467,7 +484,7 @@ from analisi.processing import (BASELINES, COMBINED_TOTALS, DENOMINATORS, FieldE
                                 METHODS as PROCESSING_METHODS, PRUNE_MODES, WILSON_BROWN)
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-PRISM_GRAPH_METHODS = {SAVED_XY, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}
+LEGACY_GRAPH_METHODS = {SAVED_XY, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}
 
 
 def extended_request(method, options):
@@ -516,6 +533,20 @@ def translate_independent_roc_error(error):
     return translate_message(str(error), "iroc.error.", {"field": ui, "first": ui})
 
 
+def translate_precision_recall_error(error):
+    thousands = lambda value: value.replace(",", ".")
+    return translate_message(error, precision_recall.ERROR_PREFIX, {
+        "field": ui, "other": ui, **dict.fromkeys(("low", "high", "count", "limit", "a", "b"), thousands),
+    })
+
+
+def translate_icc_error(error):
+    thousands = lambda value: value.replace(",", ".")
+    return translate_message(error, icc.ERROR_PREFIX, {
+        "field": ui, "raters": ui, **dict.fromkeys(("low", "high", "limit", "cells", "count"), thousands),
+    })
+
+
 def translate_grouped_error(error):
     """A Grouped distribution plot message in the active language; field names become the dialog captions."""
     known = {name.casefold(): name for name in METHODS[GROUPED_DISTRIBUTIONS]}
@@ -531,6 +562,14 @@ def translate_tolerance_error(error):
     names stay literal."""
     return translate_message(str(error), TOLERANCE_ERROR_PREFIX,
                              {"field": lambda name: tr(TOLERANCE_LABEL_KEYS.get(name, name))})
+
+
+def translate_logistic_validation_error(error):
+    return translate_message(str(error), logistic_validation.ERROR_PREFIX, convert={"field": ui})
+
+
+def translate_kmeans_stability_error(error):
+    return translate_message(str(error), kmeans_stability.ERROR_PREFIX, convert={"field": ui})
 
 
 def translate_correlation_error(error):
@@ -623,12 +662,10 @@ PROJECT_SUFFIXES = {".alab", ".prism", ".prismt", ".pzf", ".pzt", ".pzfx", ".xml
 def run_view(method):
     if method == SAVED_BINARY_LAYOUT:
         return "saved-layout"
-    return "graph" if method in PRISM_GRAPH_METHODS or method == HIERARCHY_GRAPH else "result"
-
-
-def stored_prism_view(dataset):
-    return (dataset.table_format in {BINARY_GRAPH_COLLECTION, BINARY_LAYOUT_COLLECTION}
-            or any(method == SAVED_BINARY_RESULT for method, _ in dataset.analyses))
+    if method in LEGACY_GRAPH_METHODS or method in {
+            HIERARCHY_GRAPH, anova_comparison_plot.METHOD, anova_diagnostics.METHOD, anova_grouped_plot.METHOD}:
+        return "graph"
+    return "result"
 
 
 def display(value):
@@ -735,6 +772,15 @@ class GraphToolbar(NavigationToolbar2Tk):
     def save_figure(self, *args):
         if self.before_export():
             return super().save_figure(*args)
+
+
+class ImportedPageToolbar(NavigationToolbar2Tk):
+    def __init__(self, canvas, parent, export):
+        self.export = export
+        super().__init__(canvas, parent, pack_toolbar=False)
+
+    def save_figure(self, *args):
+        return self.export()
 
 
 class OrderPicker(ttk.Frame):
@@ -1071,7 +1117,11 @@ def format_pca_error(error, field=None):
 
 
 class AnalysisDialog(simpledialog.Dialog):
-    def __init__(self, parent, data, current=None, only=None, initial_field=None, error=None):
+    def __init__(self, parent, data, current=None, only=None, initial_field=None, error=None, *,
+                 join_sources=None, join_left=None, initial_pair=0):
+        self.join_sources = join_sources or {}
+        self.join_left = join_left
+        self.initial_pair = initial_pair
         self.only = (only,) if isinstance(only, str) else only
         self.data = data
         self.current = current
@@ -1148,9 +1198,6 @@ class AnalysisDialog(simpledialog.Dialog):
         search = self.query.get().strip().casefold()
         for group, methods in GROUPS.items():
             matches = [name for name in methods if (not self.only or name in self.only)
-                       and name != RESHAPE_LONG_WIDE  # edited only in the Qt window (trama_qt.reshape_long_wide)
-                       and name != WORKSHEET_JOIN  # edited only in the Qt window (trama_qt.worksheet_join)
-                       and name not in {ICC_METHOD, precision_recall.METHOD}  # edited in Vetro
                        and (name != HIERARCHY_GRAPH or name == self.method or hierarchy_view_available(self.data))
                        and (name != kmeans_reports.MODEL_GRAPH or name == self.method
                             or kmeans_reports.model_plot_available(self.data))
@@ -1205,7 +1252,7 @@ class AnalysisDialog(simpledialog.Dialog):
         self.controls.clear()
         self.field_rows = {}
         self.choice_bindings = {}
-        self.anova_order = None
+        self.anova_order = self.contrast_panel = None
         self.select_editors = {}
         self.parameters = None
         self.series_parameters = None
@@ -1213,6 +1260,7 @@ class AnalysisDialog(simpledialog.Dialog):
         self.mlr_note = None
         self.reference_replicate_note = None
         self.sphericity_note = None
+        self.reshape = self.join = None
         wanted = (430 if self.method == GLOBAL_CUSTOM_EQUATION
                   else 470 if self.method == "Multiple regression"
                   else 500 if self.method == "One-way ANOVA"
@@ -1233,10 +1281,15 @@ class AnalysisDialog(simpledialog.Dialog):
         self.fields.configure(width=content_width, height=min(ui_theme.px(wanted), room))
         if ui_theme.is_modern():
             self.heading.configure(wraplength=content_width)
-        variables = ttk.Frame(self.fields, padding=10)
+        scroll_variables = self.method in {icc.METHOD, reshape.METHOD, WORKSHEET_JOIN}
+        variables = ttk.Frame(self.fields, padding=0 if scroll_variables else 10)
         self.fields.add(variables, text=ui("Variables"))
-        variables.columnconfigure(1, weight=1)
-        if self.method == SUMMARY_ANOVA:
+        if scroll_variables:
+            variables = self._make_scrollable_tab(variables)
+        else:
+            variables.columnconfigure(1, weight=1)
+        if self.method in {SUMMARY_ANOVA, WORKSHEET_JOIN, "Multifactor ANOVA",
+                           kmeans_stability.METHOD, logistic_validation.METHOD}:
             # The notebook keeps a fixed height, so the extra method controls scroll
             # and Run Analysis / Cancel stay on a 1024×768 screen.
             options_page = ttk.Frame(self.fields)
@@ -1250,6 +1303,11 @@ class AnalysisDialog(simpledialog.Dialog):
         numeric = list(self.data.select_dtypes(include="number").columns)
         categorical = [name for name in columns if name not in numeric] or columns
         saved = self.current[1] if self.current and self.current[0] == self.method else {}
+        if self.method == WORKSHEET_JOIN:
+            self.join = worksheet_join_tk.JoinEditor(self, variables, options, saved)
+            self._bind_scrollable_children(variables)
+            self._bind_scrollable_children(options)
+            return
         if self.method in kmeans_options.METHODS:
             saved = kmeans_options.saved_scaling(saved)
         if (self.method in ("Correlation", CORRELATE_CONTROL) and self.current
@@ -1264,7 +1322,8 @@ class AnalysisDialog(simpledialog.Dialog):
         tabs = {}
         if self.method == "Kaplan–Meier survival":
             self.fields.tab(options, text=ui("Comparisons"))
-            tabs = {"Pairwise tests": (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED, PAIRWISE_ALPHA),
+            saved = {**saved, PAIRWISE_SCOPE: pairwise_scope(saved)}
+            tabs = {"Pairwise tests": PAIRWISE_FIELDS,
                     "Status coding": (EVENT_CODE, CENSOR_CODE, OTHER_STATUS),
                     "Graph": SURVIVAL_GRAPH_OPTIONS}
         elif self.method in DUNN_METHODS:
@@ -1360,6 +1419,11 @@ class AnalysisDialog(simpledialog.Dialog):
             # The four samples and their directions on the first page; the area and the inference on the second.
             self.fields.tab(options, text=ui("Area and inference"))
             fields_by_tab.update(dict.fromkeys((IROC_DIRECTION_A, IROC_DIRECTION_B), variables))
+        elif self.method == precision_recall.METHOD:
+            fields_by_tab.update(dict.fromkeys(precision_recall.CODE_FIELDS, variables))
+        elif self.method == reshape.METHOD:
+            saved = reshape_tk.defaults(columns, numeric, saved)
+            fields_by_tab.update(dict.fromkeys(reshape.OPTIONS, variables))
         elif self.method == POWER_METHOD:
             # Design and goal on the first page, the expected effect on the second, the curve on a third.
             self.fields.tab(variables, text=ui("Design"))
@@ -1481,7 +1545,11 @@ class AnalysisDialog(simpledialog.Dialog):
             fields_by_tab.update(dict.fromkeys(RMST_DATA, variables))
             fields_by_tab.update(dict.fromkeys(RMST_ESTIMATES, options))
         elif self.method == "Nonlinear regression":
-            tabs = {tr("parameter_ci.tab"): (*PARAM_CI_OPTIONS, NL_BAND, NL_BAND_LEVEL, NL_BAND_DRAWING)}
+            tabs = {tr("parameter_ci.tab"): (*PARAM_CI_OPTIONS, REPORT_LOG_IC50,
+                                            NL_BAND, NL_BAND_LEVEL, NL_BAND_DRAWING),
+                    regression_range.TAB_TITLE: (*regression_range.FIELDS, regression_range.SHOW_OUTSIDE)}
+        elif self.method == "Linear regression":
+            tabs = {regression_range.TAB_TITLE: (*regression_range.FIELDS, regression_range.SHOW_OUTSIDE)}
         elif self.method == CUSTOM_EQUATION:
             # Variables / Equation / Parameters / Output; the two editors get tabs of their own.
             self.fields.tab(options, text=ui("Output"))
@@ -1553,11 +1621,14 @@ class AnalysisDialog(simpledialog.Dialog):
         category_roles = {"Group", "Rows", "Columns", "Subject", "Row label", "Row factor variable",
                           "Column factor variable", "Row (treatment) variable", "Column (outcome) variable",
                           "X categories", "Y categories"}
+        if self.method == precision_recall.METHOD:
+            category_roles.add(precision_recall.OUTCOME)
         numeric_position, category_position = 0, 0
         for label, kind in METHODS[self.method].items():
-            if self.method == "Multifactor ANOVA" and label in PLANNED_CONTRAST_KEYS:
-                continue  # Planned contrasts (0.96) are edited in the Qt window; validate() keeps the saved ones.
-            use_vars = (kind in (MULTIPLE, OPTIONAL_MULTIPLE, OPTIONAL, None) or label == "Input format") and label not in {
+            if self.method == "Multifactor ANOVA" and label in planned_contrasts.KEYS:
+                continue  # The planned-contrast editor owns these four fields.
+            use_vars = (kind in (MULTIPLE, OPTIONAL_MULTIPLE, OPTIONAL, None) or label == "Input format"
+                        or (self.method == "t-test" and label in ("Design", ttest_options.INPUT))) and label not in {
                 "Comparison factor", "Condition on factors",
             }
             parent = fields_by_tab.get(label, variables if use_vars else options)
@@ -1587,7 +1658,8 @@ class AnalysisDialog(simpledialog.Dialog):
             weibull_control = self.method == WEIBULL_AFT and label in WEIBULL_LABEL_KEYS
             rmst_control = self.method == RMST and label in RMST_LABEL_KEYS
             reference_control = self.method == REFERENCE_NORMALIZATION and label in REFERENCE_LABEL_KEYS
-            label_text = (tr(RANK_LABEL_KEYS[label]) if rank_control
+            label_text = (tr(ttest_options.LABEL_KEYS[label]) if self.method == "t-test" and label in ttest_options.LABEL_KEYS
+                          else tr(RANK_LABEL_KEYS[label]) if rank_control
                           else tr(ROBUST_LABEL_KEYS[label]) if robust_control
                           else tr(KAPPA_LABEL_KEYS[label]) if kappa_control
                           else tr(COMPETING_LABEL_KEYS[label]) if competing_control
@@ -1619,7 +1691,7 @@ class AnalysisDialog(simpledialog.Dialog):
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
                 continue
-            if kind == DUNN_PAIR_LIST:
+            if kind in (DUNN_PAIR_LIST, PAIRWISE_PAIR_LIST):
                 field = PairPicker(parent, saved.get(label, ()))
                 field.grid(row=row, column=1, sticky="ew", pady=3)
                 self.controls[label] = (kind, field)
@@ -1780,6 +1852,12 @@ class AnalysisDialog(simpledialog.Dialog):
                 self.controls[label] = (kind, field)
                 self.field_rows[label] = heading, field
                 continue
+            if self.method == reshape.METHOD and label in reshape_tk.ORDERED_FIELDS:
+                field = reshape_tk.OrderedColumns(parent, columns, saved.get(label) or ())
+                field.grid(row=row, column=1, sticky="ew", pady=3)
+                self.controls[label] = kind, field
+                self.field_rows[label] = heading, field
+                continue
             if kind in (MULTIPLE, OPTIONAL_MULTIPLE):
                 panel = ttk.Frame(parent)
                 panel.grid(row=row, column=1, sticky="ew", pady=3)
@@ -1867,6 +1945,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 choices = (kind if isinstance(kind, tuple) else [] if kind == GROUP_CHOICE
                            else forest_labels if kind == FOREST_ROW_CHOICE
                            else [""] + columns if kind == OPTIONAL else columns)
+                if self.method == "Kaplan–Meier survival" and label == PAIRWISE_CORRECTION:
+                    choices = pairwise_corrections(saved)
                 if self.method == rm_sphericity.METHOD and label == rm_sphericity.FIELD:
                     # The one-way spelling is offered only when the opened recipe already uses it.
                     choices = rm_sphericity.choices_for(saved)
@@ -1878,6 +1958,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 elif kind is None and label in category_roles and categorical:
                     default = categorical[category_position % len(categorical)]
                     category_position += 1
+                elif self.method == "t-test" and label in (ttest_options.FIRST, ttest_options.SECOND) and numeric:
+                    default = numeric[min(int(label == ttest_options.SECOND), len(numeric) - 1)]
                 elif kind is None and numeric:
                     default = numeric[numeric_position % len(numeric)]
                     numeric_position += 1
@@ -1944,6 +2026,11 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, MLR_CHOICE_KEYS)
                     elif self.method == "Multifactor ANOVA" and label == ANOVA_DIAG_GRAPH:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ANOVA_GRAPH_CHOICE_KEYS)
+                    elif self.method == "t-test" and label in {"Design", ttest_options.INPUT, ttest_options.ALTERNATIVE}:
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, ttest_options.CHOICE_KEYS)
+                    elif self.method == "Multifactor ANOVA" and label == anova_diagnostics.TEST_SET:
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices,
+                                                                    anova_diagnostics.TEST_CHOICE_KEYS)
                     elif self.method == HEAT_MAP and label == HEAT_MAP_NUMBER_FORMAT:
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, HEAT_MAP_NUMBER_FORMAT_KEYS)
                     elif self.method == HEAT_MAP and label == CELL_LABEL_NUMBER_FORMAT:
@@ -1969,6 +2056,8 @@ class AnalysisDialog(simpledialog.Dialog):
                         self.choice_bindings[label] = ChoiceBinding(
                             field, variable, choices,
                             {**fixed_choice_keys(choices), rm_sphericity.LEGACY: "rm.sphericity.choice.legacy"})
+                    elif self.method == reshape.METHOD and label == reshape.DIRECTION:
+                        self.choice_bindings[label] = ChoiceBinding(field, variable, choices, reshape_tk.DIRECTION_KEYS)
                     elif isinstance(kind, tuple):
                         self.choice_bindings[label] = ChoiceBinding(field, variable, choices, fixed_choice_keys(choices))
             field.grid(row=row, column=1, sticky="ew", pady=3)
@@ -1976,6 +2065,10 @@ class AnalysisDialog(simpledialog.Dialog):
             self.field_rows[label] = heading, field
             if self.method == "Multifactor ANOVA" and label == ANOVA_SUMS_OF_SQUARES:
                 positions[parent] += 1  # the notes and the factor order of Type I use the next row
+        if self.method == "Descriptive statistics":
+            report = self.controls[SUMMARY_FORMAT][1]
+            report.trace_add("write", lambda *_: self.show_fields(summary_fields(report.get())))
+            self.show_fields(summary_fields(report.get()))
         if self.method in INPUT_FIELDS:
             input_format = self.controls["Input format"][1]
             input_format.trace_add("write", lambda *_: self.show_input_fields())
@@ -1991,7 +2084,7 @@ class AnalysisDialog(simpledialog.Dialog):
             ttk.Label(status_tab, text=ui("Use the same codes for all selected status columns. Text matches as written."),
                       wraplength=370, foreground="#486075").grid(
                           row=positions[status_tab], column=0, columnspan=2, sticky="w", pady=(8, 0))
-            for name in ("Log-rank trend", "Hazard ratio", PAIRWISE_CORRECTION, PAIRWISE_ADJUSTED):
+            for name in ("Log-rank trend", "Hazard ratio", PAIRWISE_CORRECTION, PAIRWISE_SCOPE, PAIRWISE_ADJUSTED):
                 self.controls[name][1].trace_add("write", lambda *_: self.show_survival_fields())
             self.update_survival_groups(saved.get("Trend group order") or ())
         if self.method in DUNN_METHODS:
@@ -2009,8 +2102,15 @@ class AnalysisDialog(simpledialog.Dialog):
                 if name in self.controls:
                     self.controls[name][1].trace_add("write", lambda *_: self.show_fields(self.kmeans_visibility()))
             self.show_fields(self.kmeans_visibility())
+        if self.method == kmeans_stability.METHOD:
+            self.controls[kmeans_stability.ALGORITHM][1].trace_add(
+                "write", lambda *_: self.show_fields(self.kmeans_visibility()))
+            self.show_fields(self.kmeans_visibility())
+        if self.method in {kmeans_stability.METHOD, logistic_validation.METHOD}:
+            self._bind_scrollable_children(options)
         if self.method == "Hierarchical clustering":
-            for label in ("Direction", "Row cut", "Column cut", "Graph output", "Distance matrix", "Cophenetic distances"):
+            for label in ("Direction", "Row cut", "Column cut", "Graph output", "Distance matrix",
+                          "Cophenetic distances", GAP_DATA):
                 self.controls[label][1].trace_add("write", lambda *_: self.show_hierarchical_fields())
             self.show_hierarchical_fields()
         if self.method == HIERARCHY_GRAPH:
@@ -2176,6 +2276,12 @@ class AnalysisDialog(simpledialog.Dialog):
             self._bind_scrollable_children(model_page)
             self._bind_scrollable_widgets(model_page, picker.static_widgets())
             self._bind_scrollable_widgets(model_page, self.anova_order.static_widgets())
+            self.contrast_panel = ContrastPanel(options, self, saved, self.anova_contrast_context)
+            self.contrast_panel.grid(row=positions[options], column=0, columnspan=2, sticky="ew", pady=(8, 0))
+            for field in planned_contrasts.KEYS:
+                self.field_rows[field] = (self.contrast_panel, self.contrast_panel)
+            self._bind_scrollable_children(options)
+            self._bind_scrollable_widgets(options, [self.contrast_panel.button])
         if self.method == FOREST_PLOT:
             self.forest_order = [name for name in saved.get("Study columns", ()) if name in columns]
             self.controls["Study columns"][1].bind("<<ListboxSelect>>", lambda _: self.forest_columns())
@@ -2323,12 +2429,14 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method == LOGNORMAL:
             self.variance_ratio_note = ttk.Label(options, wraplength=360, foreground="#486075", justify="left")
             self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
-            self.controls[RATIO_DESIGN][1].trace_add("write", lambda *_: self.show_lognormal_fields())
+            for name in (RATIO_DESIGN, lognormal_tests.INPUT, *lognormal_tests.GROUP_FIELDS):
+                self.controls[name][1].trace_add("write", lambda *_: self.show_lognormal_fields())
             self.show_lognormal_fields()
         if self.method == "t-test":
             self.variance_ratio_note = ttk.Label(options, wraplength=360, foreground="#486075", justify="left")
             self.variance_ratio_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.controls["Design"][1].trace_add("write", lambda *_: self.show_ttest_variance())
+            self.controls[ttest_options.INPUT][1].trace_add("write", lambda *_: self.show_ttest_variance())
             self.show_ttest_variance()
         if self.method == VARIANCE_RATIO:
             self.variance_ratio_note = ttk.Label(options, text=tr(VARIANCE_RATIO_NOTE), wraplength=360,
@@ -2360,6 +2468,25 @@ class AnalysisDialog(simpledialog.Dialog):
             ttk.Label(options, text=tr("iroc.hint"), wraplength=ui_theme.px(400), foreground="#486075",
                       justify="left").grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.show_fields(self.independent_roc_fields())
+        if self.method == precision_recall.METHOD:
+            for label in (precision_recall.SECOND_SCORE, precision_recall.BOOTSTRAP):
+                self.controls[label][1].trace_add("write", lambda *_: self.show_fields(self.precision_recall_fields()))
+            self.show_fields(self.precision_recall_fields())
+        if self.method == icc.METHOD:
+            self.icc_rater_order = []
+            self.icc_summary = ttk.Label(variables, wraplength=ui_theme.px(400), justify="left")
+            self.icc_summary.grid(row=positions[variables], column=0, columnspan=2, sticky="w", pady=(8, 0))
+            self.controls[icc.RATERS][1].bind("<<ListboxSelect>>", lambda _: self.show_icc_summary())
+            for label in (icc.DEFINITION, icc.UNIT):
+                self.controls[label][1].trace_add("write", lambda *_: self.show_icc_summary())
+            self.controls[icc.BOOTSTRAP][1].trace_add("write", lambda *_: self.show_fields(self.icc_fields()))
+            self.show_icc_summary()
+            self.show_fields(self.icc_fields())
+            self._bind_scrollable_children(variables)
+        if self.method == reshape.METHOD:
+            options.destroy()
+            self.reshape = reshape_tk.ReshapeEditor(self)
+            self._bind_scrollable_children(variables)
         if self.method == POWER_METHOD:
             self.power_allocation_note = None
             for label, note in ((POWER_ALLOCATION, "power.note.design"), (POWER_GROUP_MEANS, "power.note.effect"),
@@ -2457,6 +2584,7 @@ class AnalysisDialog(simpledialog.Dialog):
                       foreground="#486075", justify="left").grid(row=positions[confidence_page],
                       column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.controls[NL_BAND][1].trace_add("write", lambda *_: self.show_fields(self.band_fields()))
+            self.controls["Model"][1].trace_add("write", lambda *_: self.show_fields(self.band_fields()))
             self.show_fields(self.band_fields())
             ttk.Label(options, text=tr("analysis.fit.note.diagnostics"), wraplength=420,
                       foreground="#486075", justify="left").grid(
@@ -2535,6 +2663,7 @@ class AnalysisDialog(simpledialog.Dialog):
         if control and control not in choices:
             choices.append(control)
         self.field_rows[PAIRWISE_CONTROL][1].configure(values=choices)
+        self.controls[PAIRWISE_PAIRS][1].set_levels(levels)
         if numerator.get() not in levels:
             numerator.set(levels[0] if levels else "")
         self.show_survival_fields()
@@ -2564,7 +2693,7 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method != "Kaplan–Meier survival":
             return {}
         return pairwise_fields(self.controls[PAIRWISE_CORRECTION][1].get(),
-                               self.controls[PAIRWISE_ADJUSTED][1].get())
+                               self.controls[PAIRWISE_SCOPE][1].get(), self.controls[PAIRWISE_ADJUSTED][1].get())
 
     def show_survival_fields(self):
         self.show_fields(self.survival_pairwise_fields())
@@ -2712,9 +2841,12 @@ class AnalysisDialog(simpledialog.Dialog):
             if not isinstance(widget, ttk.Label):
                 widget.bind("<FocusIn>", lambda _e, w=widget, fn=reveal: fn(w), add="+")
 
-    def focus_field(self, name):
+    def focus_field(self, name, pair=None):
         """Show the tab that holds a field and move the keyboard focus to it."""
-        _, widget = self.field_rows.get(name, (None, None))
+        if self.join is not None:
+            widget = self.join.focus_target(name, self.initial_pair if pair is None else pair)
+        else:
+            _, widget = self.field_rows.get(name, (None, None))
         if widget is None:
             return
         page = widget.master
@@ -2770,6 +2902,8 @@ class AnalysisDialog(simpledialog.Dialog):
         self.show_fields(self.processing_visibility())
 
     def kmeans_visibility(self):
+        if self.method == kmeans_stability.METHOD:
+            return kmeans_stability.visibility(self.controls[kmeans_stability.ALGORITHM][1].get())
         if self.method not in kmeans_options.METHODS:
             return {}
         algorithm = self.controls[kmeans_options.ALGORITHM][1].get()
@@ -2793,7 +2927,7 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method == HIERARCHY_GRAPH:
             graph = value("Graph output")
             return {
-                **dict.fromkeys(HIERARCHICAL_TABS["Graph"][2:], graph != "Elbow plot"),
+                **dict.fromkeys(HIERARCHICAL_TABS["Graph"][2:], graph in ("Dendrogram", "Heat map")),
                 TREE_AXIS: graph != "Heat map", "Dendrogram orientation": graph == "Dendrogram",
             }
         if self.method != "Hierarchical clustering":
@@ -2802,7 +2936,7 @@ class AnalysisDialog(simpledialog.Dialog):
         rows, columns = direction != "Columns", direction != "Rows"
         row_cut, column_cut = value("Row cut"), value("Column cut")
         graph = value("Graph output")
-        tree_graph = graph != "Elbow plot"
+        tree_graph = graph in ("Dendrogram", "Heat map")
         return {
             "Row cut": rows, "Clusters": rows and row_cut == "Count",
             "Row cut height": rows and row_cut == "Cut height",
@@ -2811,7 +2945,10 @@ class AnalysisDialog(simpledialog.Dialog):
             "Dendrogram orientation": graph == "Dendrogram",
             "Show cut line": tree_graph and (
                 (rows and row_cut == "Cut height") or (columns and column_cut == "Cut height")),
-            "Elbow data": tree_graph,
+            "Elbow data": graph != "Elbow plot",
+            SILHOUETTE_DATA: graph != SILHOUETTE_PLOT,
+            GAP_DATA: graph != GAP_PLOT,
+            **dict.fromkeys(GAP_OPTIONS, graph == GAP_PLOT or value(GAP_DATA)),
             **dict.fromkeys(("Branch appearance", "Branch width", "Branch style", "Branch opacity (%)",
                              "Label type", "First label", "Label interval (0 = automatic)", "Label angle"), tree_graph),
             "Matrix format": value("Distance matrix") or value("Cophenetic distances"),
@@ -3124,6 +3261,13 @@ class AnalysisDialog(simpledialog.Dialog):
         names = self.anova_listed()
         return self.anova_order.arrange(names) if self.anova_order is not None else names
 
+    def anova_contrast_context(self):
+        factors = self.anova_factors()
+        picker = self.controls[ANOVA_MODEL_TERMS][1]
+        model = anova_active_factors(factors, picker.terms()) if picker.selected() else factors
+        levels, check = contrast_context(self.data, self.controls["Response"][1].get(), model)
+        return model, levels, check
+
     def agreement_visibility(self):
         if self.method != "Bland–Altman":
             return {}
@@ -3420,6 +3564,36 @@ class AnalysisDialog(simpledialog.Dialog):
             if proposed != inference.get():
                 inference.set(proposed)
         self.show_fields(self.independent_roc_fields())
+
+    def precision_recall_fields(self):
+        if self.method != precision_recall.METHOD:
+            return {}
+        return precision_recall.visibility(self.controls[precision_recall.SECOND_SCORE][1].get(),
+                                           self.controls[precision_recall.BOOTSTRAP][1].get())
+
+    def icc_fields(self):
+        if self.method != icc.METHOD:
+            return {}
+        return icc.visibility(self.controls[icc.BOOTSTRAP][1].get())
+
+    def icc_raters(self):
+        control = self.controls[icc.RATERS][1]
+        selected = [control.get(index) for index in control.curselection()]
+        kept = [name for name in self.icc_rater_order if name in selected]
+        return kept + [name for name in selected if name not in kept]
+
+    def show_icc_summary(self):
+        self.icc_rater_order = self.icc_raters()
+        if len(self.icc_rater_order) < 2:
+            self.icc_summary.configure(text=tr("icc.summary.none"))
+            return
+        counts = icc.summary(self.data, {icc.RATERS: self.icc_rater_order})
+        definition, unit = (ui(self.controls[name][1].get()) for name in (icc.DEFINITION, icc.UNIT))
+        self.icc_summary.configure(text="\n".join((
+            tr("icc.summary.counts", **counts),
+            tr("icc.summary.order", names=" → ".join(self.icc_rater_order)),
+            tr("icc.summary.unit", definition=definition, unit=unit),
+        )))
 
     def new_monte_carlo_seed(self):
         import secrets
@@ -3858,21 +4032,32 @@ class AnalysisDialog(simpledialog.Dialog):
         deming_dialog.check_options(options, self.data)
 
     def lognormal_fields(self):
-        """Second, the hypothetical geometric mean and the pairing correlation depend on the design."""
         if self.method != LOGNORMAL or RATIO_DESIGN not in self.controls:
             return {}
-        return lognormal_visibility(self.controls[RATIO_DESIGN][1].get())
+        return lognormal_visibility(self.controls[RATIO_DESIGN][1].get(),
+                                    self.controls[lognormal_tests.INPUT][1].get())
 
     def show_lognormal_fields(self):
         visible = self.lognormal_fields()
         self.show_fields(visible)
         self._show_variance_note(visible)
+        if visible[lognormal_tests.FIRST_GROUP]:
+            options = {name: self.controls[name][1].get()
+                       for name in (RATIO_DESIGN, *lognormal_tests.GROUP_FIELDS)}
+            labels = lognormal_tests.group_choices(self.data, options)
+            self.field_rows[lognormal_tests.FIRST_GROUP][1].configure(values=labels)
+            first = self.controls[lognormal_tests.FIRST_GROUP][1]
+            if not first.get() and labels:
+                first.set(labels[0])
 
     def ttest_variance_fields(self):
-        """The variance check belongs only to Welch and Student. Hidden means omitted from the recipe."""
+        """Only show the graph and diagnostic options the design supports."""
         if self.method != "t-test" or VARIANCE_SHOW not in self.controls:
             return {}
-        return {VARIANCE_SHOW: self.controls["Design"][1].get() in ("Welch", "Student")}
+        design = self.controls["Design"][1].get()
+        sample_format = self.controls[ttest_options.INPUT][1].get()
+        return {**ttest_options.visibility(design, sample_format),
+                VARIANCE_SHOW: design in ("Welch", "Student"), TTEST_ESTIMATION: design == "Paired"}
 
     def show_ttest_variance(self):
         visible = self.ttest_variance_fields()
@@ -3971,7 +4156,8 @@ class AnalysisDialog(simpledialog.Dialog):
         if self.method != "Nonlinear regression":
             return {}
         active = self.controls[NL_BAND][1].get() != NL_BAND_NONE
-        return {NL_BAND_LEVEL: active, NL_BAND_DRAWING: active}
+        return {NL_BAND_LEVEL: active, NL_BAND_DRAWING: active,
+                REPORT_LOG_IC50: has_ic50(self.controls["Model"][1].get())}
 
     def linear_visibility(self):
         if self.method != "Linear regression":
@@ -4085,12 +4271,23 @@ class AnalysisDialog(simpledialog.Dialog):
                       **(meta_analysis_dialog.fields(self) if self.method == META_ANALYSIS else {}),
                       **self.summary_anova_fields(),
                       **self.one_way_fields(),
-                      **self.monte_carlo_fields(), **self.independent_roc_fields(), **self.power_fields(), **self.function_fields(),
+                      **self.monte_carlo_fields(), **self.independent_roc_fields(), **self.precision_recall_fields(),
+                      **self.icc_fields(), **self.power_fields(), **self.function_fields(),
                       **self.weighting_visibility(),
                       **self.band_fields(), **self.xy_error_fields(), **self.custom_fields(),
                       **self.global_custom_fields(), **self.robust_fields(), **self.competing_fields(),
                       **self.weibull_fields(), **self.rmst_fields(), **self.reference_visibility()}
+        if self.method == "Descriptive statistics":
+            visibility.update(summary_fields(self.controls[SUMMARY_FORMAT][1].get()))
         try:
+            if self.join is not None:
+                self.result = self.method, self.join.request()
+                return True
+            if self.reshape is not None:
+                options = self.reshape.request()
+                reshape.plan(self.data, options)
+                self.result = self.method, options
+                return True
             for name, (kind, control) in self.controls.items():
                 if name in inactive:
                     value = self._inactive_value(kind, control)
@@ -4112,6 +4309,8 @@ class AnalysisDialog(simpledialog.Dialog):
                     options[name] = value
                     continue
                 if ((self.method == INDEPENDENT_ROC and name in IROC_NUMBER_FIELDS)
+                        or (self.method == precision_recall.METHOD and name in precision_recall.NUMBER_FIELDS)
+                        or (self.method == icc.METHOD and name in icc.BOOTSTRAP_FIELDS)
                         or (self.method == POWER_METHOD and name in POWER_NUMBER_FIELDS)):
                     # Keep text until the engine validates and normalizes the named field.
                     options[name] = control.get()
@@ -4122,18 +4321,26 @@ class AnalysisDialog(simpledialog.Dialog):
                     continue
                 if self.method == FOREST_PLOT and name == "Study columns":
                     value = self.forest_columns()
+                elif self.method == icc.METHOD and name == icc.RATERS:
+                    value = self.icc_raters()
                 elif kind in (MULTIPLE, OPTIONAL_MULTIPLE):
                     value = (self.anova_factors() if self.method == "Multifactor ANOVA" and name == "Factors"
                              else [control.get(i) for i in control.curselection()])
-                    if kind == MULTIPLE and not value:
+                    if (kind == MULTIPLE and not value
+                            and self.method not in {kmeans_stability.METHOD, logistic_validation.METHOD}):
                         raise ValueError(f"Select at least one column for {name}.")
-                elif kind in (GROUP_ORDER, TREND_ORDER_KIND, DUNN_PAIR_LIST, PAIR_LIST, PROFILE_LIST, CURVE_LIST,
+                elif kind in (GROUP_ORDER, TREND_ORDER_KIND, DUNN_PAIR_LIST, PAIRWISE_PAIR_LIST, PAIR_LIST, PROFILE_LIST, CURVE_LIST,
                               SETS_LIST, MODEL_LIST, EQUATION_TEXT, PARAMETER_LIST, INITIAL_LIST,
                               GLOBAL_PARAMETER_LIST, GLOBAL_SERIES_LIST, CATEGORY_COLOR_LIST, TERM_LIST,
                               COMPETING_CODE_LIST, COMPETING_TIME_LIST, WEIBULL_TIME_LIST, ORDINAL_ORDER_KIND):
                     value = control.values()
                 else:
                     value = control.get()
+                    if (self.method in {kmeans_stability.METHOD, logistic_validation.METHOD}
+                            and type(kind) in (int, float)):
+                        # Each engine validates and normalizes its own numeric entries.
+                        options[name] = value
+                        continue
                     if self.method == "Linear regression" and name in (LINEAR_X_VALUE, LINEAR_Y_VALUE):
                         flag = LINEAR_Y_CI if name == LINEAR_X_VALUE else LINEAR_X_CI
                         value = check_linear_estimate_options({flag: True, name: decimal_comma(value)})[name]
@@ -4194,14 +4401,20 @@ class AnalysisDialog(simpledialog.Dialog):
                     elif kind is None and not value:
                         raise ValueError(f"Choose a column for {name}.")
                 options[name] = value
+            if self.method == "Descriptive statistics" and options.get(SUMMARY_FORMAT) == GEOMETRIC_REPORT:
+                summary_confidence(options)
             if self.method == "Scatter / confidence ellipse" and self.ellipse_group_styles:
                 options[ELLIPSE_GROUP_STYLES] = self.ellipse_group_styles
             if self.method == "Kaplan–Meier survival":
                 check_survival_options(self.data, options)
+            if self.method == "t-test":
+                ttest_options.preserve_direction(options, self.data)
+            if self.method == LOGNORMAL:
+                lognormal_tests.check_grouped(self.data, options)
             if self.method == HIERARCHY_GRAPH:
                 check_hierarchy_view(self.data, options)
             if self.method == "Hierarchical clustering":
-                check_leaf_options(self.data, options)
+                check_hierarchical_options(self.data, options)
             if self.method == kmeans_reports.MODEL_GRAPH:
                 kmeans_reports.check_model_plot(self.data, options)
             if self.method in kmeans_options.METHODS:
@@ -4215,6 +4428,10 @@ class AnalysisDialog(simpledialog.Dialog):
                     options[field] = request["max_iterations"]
                 else:
                     options.pop(kmeans_options.ALGORITHM, None)
+            if self.method == kmeans_stability.METHOD:
+                options = kmeans_stability.prepare(self.data, options).settings
+            if self.method == logistic_validation.METHOD:
+                options = logistic_validation.prepare(self.data, options).settings
             if self.method == NORMALITY:
                 check_normality_options(self.data, options)
             if self.method == SUMMARY_ANOVA:
@@ -4223,9 +4440,7 @@ class AnalysisDialog(simpledialog.Dialog):
                 check_summary_ttest(self.data, options)
             if self.method == "Multifactor ANOVA":
                 saved_terms = self.current[1] if self.current and self.current[0] == self.method else {}
-                for key in PLANNED_CONTRAST_KEYS:  # kept as saved: the classic dialog has no contrast editor
-                    if key in saved_terms:
-                        options[key] = deepcopy(saved_terms[key])
+                options.update(self.contrast_panel.values())
                 chosen_terms = check_anova_terms(options)
                 if (anova_sums_of_squares(options) == ANOVA_TYPE_III
                         and ANOVA_SUMS_OF_SQUARES not in saved_terms):
@@ -4238,13 +4453,15 @@ class AnalysisDialog(simpledialog.Dialog):
                 else:
                     check_anova_comparisons(options, options.get("Factors") or [], chosen_terms)
                 check_anova_options(options)
+                factors = options.get("Factors") or []
+                model = anova_active_factors(factors, chosen_terms) if chosen_terms is not None else factors
+                check_contrast_input(options, self.data, model)
                 validate_anova_diagnostics(options)
                 diagnostic_graph = anova_graph_choice(options)
                 if diagnostic_graph != "None":
                     count = _anova_row_count(
                         self.data, options.get("Response"),
-                        anova_active_factors(options.get("Factors") or [], chosen_terms) if chosen_terms is not None
-                        else options.get("Factors") or [])
+                        model)
                     if count is not None:
                         ensure_anova_graph_budget(count, diagnostic_graph)
             if self.method == "Area under curve":
@@ -4268,6 +4485,16 @@ class AnalysisDialog(simpledialog.Dialog):
                 # Columns, numbers and the bootstrap budget stay in the dialog; the calculation runs on the worker.
                 settings, _ = check_independent_roc(self.data, options)
                 options = independent_roc_options(options, settings)
+            if self.method == precision_recall.METHOD:
+                # Check the worksheet and budget here. Bootstrap sampling stays on the worker.
+                settings = precision_recall.check_options(self.data, options).settings
+                if settings.bootstrap:
+                    options[precision_recall.LEVEL] = settings.level
+                    options[precision_recall.REPLICATES] = settings.replicates
+                    options[precision_recall.SEED] = settings.seed
+            if self.method == icc.METHOD:
+                options = icc.normalized_options(options)
+                icc.check_options(self.data, options)
             if self.method == CLUSTER_SILHOUETTE:
                 # Roles, partition and budgets only: the distances run on the worker.
                 check_silhouette_options(self.data, options)
@@ -4282,17 +4509,26 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method in CORRELATION_METHODS:
                 # Budget and column checks stay in the dialog. Permutations run on the worker.
                 validate_correlation_request(self.method, self.data, options)
+            if self.method in regression_range.METHODS:
+                ranges = regression_range.normalize(options)
+                fit_data = regression_range.fitting_rows(self.data, options.get("X"), ranges)
             if self.method == "Linear regression":
                 if options.get("Band", BAND_NONE) != BAND_NONE or linear_estimates_requested(options):
                     linear_confidence_level(options)
                 check_linear_estimate_options(options)
             if self.method == "Nonlinear regression":
+                if options.get(REPORT_LOG_IC50) is False:
+                    options.pop(REPORT_LOG_IC50)
+                if options.get(MERGE_REPLICATES):
+                    replicate_groups(fit_data, options)
+                else:
+                    options.pop(MERGE_REPLICATES, None)
                 # Level, choices and weighting limits name their field and keep the dialog open.
                 check_band_options(options)
                 check_parameter_ci(options)
                 if options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE:
                     check_fit_quality_options(options)
-                validate_profile_data(self.data, options, classic_roles(self.method, options))
+                validate_profile_data(fit_data, options, classic_roles(self.method, options))
             forward_calibration = (self.method == "Interpolate a standard curve"
                                    and options.get(CALIBRATION_DIRECTION) == CALIBRATION_DIRECTIONS[1])
             if forward_calibration:
@@ -4384,8 +4620,8 @@ class AnalysisDialog(simpledialog.Dialog):
             linear_validation = (self.method == "Multiple regression" and options.get("Family") == "Linear"
                                  and not weighted_linear and any(key in options for key in linear_keys))
             logistic_keys = (LOGISTIC_DIAGNOSTICS, LOGISTIC_CUTOFF, LOGISTIC_PROFILES, LOGISTIC_CI)
-            logistic_validation = (self.method == "Multiple regression" and options.get("Family") == "Logistic"
-                                   and any(key in options for key in logistic_keys))
+            check_logistic_diagnostics = (self.method == "Multiple regression" and options.get("Family") == "Logistic"
+                                          and any(key in options for key in logistic_keys))
             pca_keys = (PCA_GRAPH, PCA_HORIZONTAL, PCA_VERTICAL, PCA_LABEL, PCA_SHOW_LABELS)
             pca_validation = self.method == "Principal component analysis" and any(key in options for key in pca_keys)
             if self.method == "Principal component analysis":
@@ -4415,7 +4651,7 @@ class AnalysisDialog(simpledialog.Dialog):
                 check_cox_exact_outputs(options)
             if (observed_weighting or fit_diagnostics or grouped_validation or dunn_validation or poisson_validation
                     or linear_validation
-                    or logistic_validation or pca_validation or self.method in RANK_METHODS
+                    or check_logistic_diagnostics or pca_validation or self.method in RANK_METHODS
                     or forward_calibration or (inverse_intervals and not nonlinear_inverse)
                     or self.method in PROCESSING_METHODS
                     or self.method in {PLOT_FUNCTION, TRANSPOSE_XY, POWER_METHOD}
@@ -4483,6 +4719,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = describe_competing_error(error, field)
             elif self.method == curve_pipeline.CURVE_METHOD and self.controls["Method"][1].get() == curve_pipeline.PIPELINE:
                 message = describe_curve_error(error, field)
+            elif self.method == "Kaplan–Meier survival" and field in PAIRWISE_FIELDS:
+                message = f"{ui(field)}: {ui(message)}"
             elif self.method == RMCORR:
                 message = describe_rmcorr_error(error, field)
             elif self.method == META_ANALYSIS:
@@ -4509,6 +4747,23 @@ class AnalysisDialog(simpledialog.Dialog):
                 message = translate_independent_roc_error(error)
                 label = ui(field) if field else ""
                 if field and field not in message and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == precision_recall.METHOD:
+                message = translate_precision_recall_error(error)
+                label = ui(field) if field else ""
+                if label and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == icc.METHOD:
+                message = translate_icc_error(error)
+                label = ui(field) if field else ""
+                if label and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == WORKSHEET_JOIN:
+                message = translate_join_error(error)
+            elif self.method == reshape.METHOD:
+                message = reshape_tk.format_error(error)
+                label = ui(field) if field else ""
+                if label and label not in message:
                     message = f"{label}: {message}"
             elif self.method == PAIRED_PROPORTIONS:
                 message = translate_paired_error(error)
@@ -4546,6 +4801,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = ui(field) if field else ""
                 if label and label not in message:
                     message = f"{label}: {message}"
+            elif self.method == kmeans_stability.METHOD:
+                message = translate_kmeans_stability_error(error)
+            elif self.method == logistic_validation.METHOD:
+                message = translate_logistic_validation_error(error)
             elif self.method in (NORMALITY, SUMMARY_ANOVA, SUMMARY_TTEST, HIERARCHY_GRAPH,
                                  "Hierarchical clustering", *kmeans_options.METHODS):
                 message = ui(message)
@@ -4576,6 +4835,16 @@ class AnalysisDialog(simpledialog.Dialog):
                     message = f"{label}: {message}"
             elif self.method == "Multifactor ANOVA" and (formatted := format_anova_error(error)):
                 message = formatted
+            elif self.method == "t-test":
+                message = translate_message(message, "ttest.error.")
+                label = tr(ttest_options.LABEL_KEYS[field]) if field in ttest_options.LABEL_KEYS else ui(field) if field else ""
+                if label and label not in message:
+                    message = f"{label}: {message}"
+            elif self.method == LOGNORMAL and options.get(lognormal_tests.INPUT) == lognormal_tests.GROUPED:
+                message = lognormal_tests.format_error(error)
+                label = tr(RATIO_LABEL_KEYS[field]) if field in RATIO_LABEL_KEYS else field
+                if label and label not in message:
+                    message = f"{label}: {message}"
             elif self.method == rm_sphericity.METHOD and (formatted := format_rm_error(error)):
                 message = formatted
             elif self.method == "One-way ANOVA" and (
@@ -4590,11 +4859,18 @@ class AnalysisDialog(simpledialog.Dialog):
                 label = ui(field) if field else ""
                 if label and field not in message and label not in message:
                     message = f"{label}: {message}"
+            elif self.method in regression_range.METHODS and field in regression_range.FIELDS:
+                message = f"{ui(field)}: {ui(message)}"
             elif field and field not in message:
                 message = f"{field}: {message}"
             messagebox.showerror(ui("Check parameters"), message, parent=self)
-            self.focus_field(field)
+            if isinstance(error, worksheet_join_engine.JoinKeyError):
+                self.focus_field(field, pair=error.pair)
+            else:
+                self.focus_field(field)
             return False
+        if options.get(TTEST_ESTIMATION) is False:
+            options.pop(TTEST_ESTIMATION)
         self.result = self.method, options
         return True
 
@@ -4649,7 +4925,7 @@ class PasteSpecialDialog(simpledialog.Dialog):
         return True
 
 
-class PrismPanelDialog(simpledialog.Dialog):
+class LegacyPanelDialog(simpledialog.Dialog):
     def __init__(self, parent, panels, edits, prepare):
         self.panels, self.edits, self.prepare = panels, edits, prepare
         super().__init__(parent, ui("Edit imported layout panel"))
@@ -4897,7 +5173,7 @@ class Run:
     @property
     def name(self):
         source_title = self.source.table if self.source is not None else self.title
-        return self.label or self.options.get(PRISM_TITLE) or f"{self.method} of {source_title}"
+        return self.label or self.options.get(LEGACY_TITLE) or f"{self.method} of {source_title}"
 
 
 def cox_exact_run(run):
@@ -4909,13 +5185,24 @@ def uses_optimal_leaf_order(method, options):
     return method == "Hierarchical clustering" and options.get(LEAF_ORDERING) == OPTIMAL_LEAF_ORDER
 
 
+def uses_hierarchy_diagnostics(method, options):
+    return (uses_optimal_leaf_order(method, options) or uses_hierarchy_silhouette(method, options)
+            or uses_hierarchy_gap(method, options))
+
+
+def uses_planned_contrasts(method, options):
+    return method == "Multifactor ANOVA" and planned_contrasts.active(options)
+
+
 def cancellable_run(method, options):
     """Identify analyses that expose cancellation during calculation."""
-    return (method == MONTE_CARLO_METHOD or extended_request(method, options)
-            or competing_cancellable(method, options) or kappa_cancellable(method, options) or icc_cancellable(method, options)
+    return (method in {MONTE_CARLO_METHOD, reshape.METHOD, WORKSHEET_JOIN,
+                       kmeans_stability.METHOD, logistic_validation.METHOD}
+            or extended_request(method, options)
+            or competing_cancellable(method, options) or kappa_cancellable(method, options) or icc.cancellable(method, options)
             or permutation_cancellable(method, options) or independent_roc_cancellable(method, options)
             or rmcorr_cancellable(method, options) or meta_cancellable(method, options)
-            or precision_recall.cancellable(method, options) or uses_optimal_leaf_order(method, options)
+            or precision_recall.cancellable(method, options) or uses_hierarchy_diagnostics(method, options)
             or (method == COX and cox_is_exact(options)))
 
 
@@ -4932,13 +5219,14 @@ class AnalysisRecovery:
     only: object = None
 
 
-class App(AnalysisChainMixin, FamilyWorkflowMixin):
+class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
     @staticmethod
     def make_chain_control():
         return CalculationControl()
 
-    def chain_analysis_dialog(self, frame, **options):
-        return AnalysisDialog(self.root, frame, **options)
+    def chain_analysis_dialog(self, frame, *, title, source=None, **options):
+        return AnalysisDialog(self.root, frame, join_left=title, join_sources=self.join_sources(title, source),
+                              **options)
 
     def __init__(self, root, *, standard_only=False):
         self.root = root
@@ -5355,13 +5643,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def sheet_sections(self):
         return (
             ("Data Tables", [(title, ("data", title)) for title, dataset in self.tables.items()
-                             if not stored_prism_view(dataset)], "New Data Table…", self.new_table),
+                             if not stored_legacy_view(dataset)], "New Data Table…", self.new_table),
             ("Info", [(sheet.title, ("info", uid)) for uid, sheet in self.info_sheets.items()],
              "New Info Sheet…", self.new_info),
             ("Results", [(run.name, ("result", i)) for i, run in enumerate(self.runs)
                          if run_view(run.method) == "result"], "New Analysis…", self.choose_analysis),
             ("Graphs", [(run.name, ("graph", i)) for i, run in enumerate(self.runs)
-                        if run.method in PRISM_GRAPH_METHODS
+                        if run.method in LEGACY_GRAPH_METHODS
                         or (run.method != SAVED_BINARY_LAYOUT and
                             (run.result.figure is not None if run.result
                              else run.method in GRAPH_METHODS or (run.method == NORMALITY and run.options.get(QQ_PLOT))
@@ -5370,6 +5658,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                              or (run.method == META_ANALYSIS and run.options.get(META_SHOW_GRAPH, True))
                              or (run.method == POWER_METHOD and run.options.get(POWER_SHOW_CURVE))
                              or (run.method == TOLERANCE and run.options.get(TOLERANCE_SHOW_GRAPH))
+                             or shows_paired_estimation(run.method, run.options)
                              or (run.method == MONTE_CARLO_METHOD
                                  and run.options.get(MONTE_CARLO_GRAPH, GRAPH_NONE) != GRAPH_NONE)
                              or (run.method == "Multifactor ANOVA"
@@ -5399,7 +5688,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         short = {"Global nonlinear regression": "Global fit",
                  "Mixed-effects model (REML)": "Mixed model"}.get(run.method)
         source_title = run.source.table if run.source is not None else run.title
-        return f"{short} · {source_title}" if short and not (run.label or run.options.get(PRISM_TITLE)) else name
+        return f"{short} · {source_title}" if short and not (run.label or run.options.get(LEGACY_TITLE)) else name
 
     def navigator_section(self, name, needle):
         node = f"section:{name}"
@@ -5727,12 +6016,12 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     return table_thumbnail(next(iter(result.tables.values())), display, index=True)
                 if result.figure is not None:
                     return figure_thumbnail(result.figure)
-            preview = run.options.get(PRISM_PREVIEW)
+            preview = run.options.get(LEGACY_PREVIEW)
             if preview is not None and sys.platform == "win32" and run.method in {SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT}:
                 layout = run.method == SAVED_BINARY_LAYOUT
                 if layout:
-                    preview = edited_layout_preview(preview, run.options.get(PRISM_EDITABLE_PANELS),
-                                                    run.options.get(PRISM_PANEL_EDITS), self.layout_panel_data(run))
+                    preview = edited_layout_preview(preview, run.options.get(LEGACY_EDITABLE_PANELS),
+                                                    run.options.get(LEGACY_PANEL_EDITS), self.layout_panel_data(run))
                 drawing = render_binary_graph(preview, layout=layout, crop=not layout, max_side=448)
                 return image_thumbnail(drawing)
         return None
@@ -5822,13 +6111,24 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 self.modern_workspace = ModernWorksheet(self.page, self, key)
                 self.modern_workspace.pack(fill="both", expand=True)
                 grid_parent = self.modern_workspace.grid_host
+            locks = set(dataset.locked_columns)
+            sources = dataset.source_indices
             self.current_grid = DataGrid(grid_parent, frame, self.edit_cell, self.copy_selection, self.paste_selection,
-                                         display, excluded=dataset.excluded, source_columns=len(dataset.raw.columns),
+                                         display, excluded=dataset.worksheet_excluded,
+                                         source_columns=len(dataset.raw.columns),
                                          table_format=dataset.table_format,
                                          address_widget=self.cell_address,
-                                         read_only_columns=dataset.locked_columns)
+                                         read_only_columns=[column for column, source in enumerate(sources)
+                                                            if source in locks],
+                                         calculated_columns=[column for column, source in enumerate(sources)
+                                                             if source is None])
             self.current_grid.pack(fill="both", expand=True)
             canvas = self.current_grid.canvas
+            if dataset.table_format == "multivariable":
+                canvas.bind("<KeyPress-equal>", self.enter_worksheet_formula)
+                self.calculated_column_popup = tk.Menu(canvas, tearoff=False)
+                self.calculated_column_popup.add_command(label=tr("worksheet.formula.freeze"))
+                canvas.bind("<Button-3>", self.calculated_column_menu)
             for sequence, command in (
                 ("<Control-z>", self.apply_worksheet_history),
                 ("<Control-y>", lambda: self.apply_worksheet_history(redo=True)),
@@ -5865,7 +6165,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             run = self.runs[key]
             self.active_data = run.title
             result = run.result
-            subtitle = run.options.get(PRISM_NOTES) or ui("Analysis results" if kind == "result" else "Graph")
+            subtitle = run.options.get(LEGACY_NOTES) or ui("Analysis results" if kind == "result" else "Graph")
             self._clear(run.name, subtitle)
             if run.source is not None:
                 source_bar = ttk.Frame(self.page)
@@ -5904,19 +6204,19 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             elif kind == "saved-layout":
                 bar = ttk.Frame(self.page)
                 bar.pack(fill="x", pady=(0, 5))
-                if run.options.get(PRISM_EDITABLE_PANELS):
-                    ttk.Button(bar, text=ui("Edit panel…"), command=lambda: self.edit_prism_panel(key)).pack(side="left")
+                if run.options.get(LEGACY_EDITABLE_PANELS):
+                    ttk.Button(bar, text=ui("Edit panel…"), command=lambda: self.edit_legacy_panel(key)).pack(side="left")
                 self.layout_panel_actions(run, bar)
-                if ZIP_LAYOUT not in run.options and (run.options.get(PRISM_PANEL_EDITS)
-                                                      or run.options.get(PRISM_PANEL_DATA)):
+                if ZIP_LAYOUT not in run.options and (run.options.get(LEGACY_PANEL_EDITS)
+                                                      or run.options.get(LEGACY_PANEL_DATA)):
                     ttk.Button(bar, text=tr("layout.export_current_emf"),
                                command=lambda: self.export_current_layout_emf(key)).pack(side="left", padx=(8, 0))
                     ttk.Label(self.page, text=tr("layout.export_original_emf")).pack(anchor="w", pady=(0, 5))
-                self.show_figure(result.figure)
+                self.show_figure(result.figure, export=self.export if imported_paper(run) is not None else None)
             else:
                 bar = ttk.Frame(self.page)
                 bar.pack(fill="x", pady=(0, 5))
-                if run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}:
+                if run.method in LEGACY_GRAPH_METHODS:
                     self.graph_view_actions(run, bar)
                 else:
                     shortcut = {"Kaplan–Meier survival": ("Graph settings…", SURVIVAL_CURVE),
@@ -5932,13 +6232,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     if shortcut:
                         ttk.Button(bar, text=ui(shortcut[0]), command=lambda field=shortcut[1]: self.edit_analysis(
                             initial_field=field)).pack(side="left", padx=(0, 6))
-                if run.method not in PRISM_GRAPH_METHODS and panel_axes(result.figure):
+                if run.method not in LEGACY_GRAPH_METHODS and panel_axes(result.figure):
                     ttk.Button(bar, text=tr("qq.panels.button"), command=self.edit_qq_panels
                                ).pack(side="left", padx=(0, 6))
-                if run.method not in PRISM_GRAPH_METHODS and pairwise_graph_problem(run.method, run.options) is None:
+                if run.method not in LEGACY_GRAPH_METHODS and pairwise_graph_problem(run.method, run.options) is None:
                     ttk.Button(bar, text=ui("Pairwise comparisons…"), command=self.pairwise_comparisons
                                ).pack(side="left", padx=(0, 6))
-                if run.method not in PRISM_GRAPH_METHODS:
+                if run.method not in LEGACY_GRAPH_METHODS:
                     ttk.Button(bar, text=tr("annotation.button"), command=self.edit_graph_annotations
                                ).pack(side="left", padx=(0, 6))
                     draw = ttk.Menubutton(bar, textvariable=self.shape_mode)
@@ -5959,7 +6259,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     draw.pack(side="left", padx=(0, 6))
                 from analisi.hierarchical_style import describe_hierarchical_artists
 
-                if run.method not in PRISM_GRAPH_METHODS and describe_hierarchical_artists(result.figure):
+                if run.method not in LEGACY_GRAPH_METHODS and describe_hierarchical_artists(result.figure):
                     self.hierarchical_style_button = ttk.Button(
                         bar, text=tr("hierarchy.style.button"), command=self.edit_hierarchical_style)
                     self.hierarchical_style_button.pack(side="left", padx=(0, 6))
@@ -5991,13 +6291,19 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         return HEAT_MAP_CATEGORY_COLORS if categories else HEAT_MAP_MAPPING
 
     def graph_view_actions(self, run, bar):
-        link = run.options.get(PRISM_GRAPH_LINK)
+        from analisi.legacy_binary_range import BINARY_XY_RANGE
+
+        if run.method == SAVED_XY and BINARY_XY_RANGE in run.options:
+            ttk.Button(bar, text=ui("Edit graph data"), command=lambda: self.show("data", run.title)).pack(
+                side="left", padx=5)
+            return
+        link = run.options.get(LEGACY_GRAPH_LINK)
         if not link:
             return
         editable = run.method == SAVED_EDITABLE_GRAPH
         target = SAVED_BINARY_GRAPH if editable else SAVED_EDITABLE_GRAPH
         related = next((i for i, other in enumerate(self.runs)
-                        if other.method == target and other.options.get(PRISM_GRAPH_LINK) == link), None)
+                        if other.method == target and other.options.get(LEGACY_GRAPH_LINK) == link), None)
         if related is None and not editable:
             return
         if related is not None:
@@ -6005,38 +6311,41 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                        command=lambda: self.open_graph_view(related)).pack(side="left")
         if editable:
             ttk.Button(bar, text=ui("Edit graph data"), command=lambda: self.show("data", run.title)).pack(side="left", padx=5)
-            if self.tables[run.title].table_format not in EDITABLE_PRISM_FIXED_VALUES and PRISM_PREVIEW not in run.options:
+            if self.tables[run.title].table_format not in EDITABLE_LEGACY_FIXED_VALUES and LEGACY_PREVIEW not in run.options:
                 ttk.Button(bar, text=ui("Format…"), command=self.format_graph).pack(side="left", padx=(0, 6))
 
     def layout_panel_graphs(self, run):
         return resolve_layout_panel_graphs(run, self.runs, self.tables)
 
     def layout_panel_data(self, run):
+        if not isinstance(run.options.get(LEGACY_PANEL_DATA), dict):
+            return None
         return {panel: (self.tables[graph.title].frame(mask_excluded=True),
                         panel_source_style(graph.method, graph.options))
                 for panel, graph in self.layout_panel_graphs(run).items()}
 
     def layout_panel_actions(self, run, bar):
-        graphs = self.layout_panel_graphs(run)
-        if not graphs or ZIP_LAYOUT in run.options:
+        entries = layout_panel_sources(run, self.layout_panel_graphs(run))
+        if not entries:
             return
-        panels = [p for p in run.options[PRISM_EDITABLE_PANELS] if p["id"] in graphs]
         choice = ttk.Combobox(bar, state="readonly", width=32,
-                              values=[f'{p["id"]} · {p["title"]}' for p in panels])
+                              values=[caption for caption, _ in entries])
         choice.current(0)
         choice.pack(side="left", padx=(8, 4))
         ttk.Button(bar, text=ui("Edit panel data…"), command=lambda: self.open_sheet(
-            ("data", graphs[panels[choice.current()]["id"]].title))).pack(side="left")
+            ("data", entries[choice.current()][1]))).pack(side="left")
 
     def open_graph_view(self, index):
         self.show("graph", index)
         if self.pending is None and self.runs[index].result is None:
             self.recalculate(index)
 
-    def show_figure(self, figure, run=None, *, fit_page=False):
+    def show_figure(self, figure, run=None, *, fit_page=False, export=None):
         container = ttk.Frame(self.page) if fit_page else self.page
         canvas = FigureCanvasTkAgg(figure, master=container)
-        if run is None:
+        if export is not None:
+            toolbar = ImportedPageToolbar(canvas, self.page, export)
+        elif run is None:
             toolbar = NavigationToolbar2Tk(canvas, self.page, pack_toolbar=False)
         else:
             toolbar = GraphToolbar(canvas, self.page, before_export=lambda: self.settle_graph_draft("exporting"))
@@ -6057,7 +6366,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             widget.pack(side="top", fill="both", expand=True)
         canvas.draw()
         self.graph_canvas, self.graph_toolbar = (canvas, toolbar) if run is not None else (None, None)
-        if run is not None and run.method not in PRISM_GRAPH_METHODS and figure.axes:
+        if run is not None and run.method not in LEGACY_GRAPH_METHODS and figure.axes:
             self.shape_controller = ShapeCanvas(
                 canvas, figure.axes[0], records=lambda: deepcopy((run.style or {}).get(SHAPES, [])),
                 commit=lambda records: self.commit_canvas_shapes(run, records), status=self.status.set,
@@ -6081,7 +6390,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if run.method == SAVED_BINARY_GRAPH:
             return "Use Open editable graph when available, or export the original drawing in its saved vector format."
         if run.method == SAVED_EDITABLE_GRAPH and (
-                self.tables[run.title].table_format in EDITABLE_PRISM_FIXED_VALUES or PRISM_PREVIEW in run.options):
+                self.tables[run.title].table_format in EDITABLE_LEGACY_FIXED_VALUES or LEGACY_PREVIEW in run.options):
             return "Use Edit graph data to change values in the recovered drawing."
         if self.pending is not None:
             return "Wait for the current calculation to finish."
@@ -6237,15 +6546,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if dataset is None:
             return
         row, column = self.current_grid.active_cell
-        if dataset.table_format in EDITABLE_PRISM_FIXED_VALUES:
+        if dataset.table_format in EDITABLE_LEGACY_FIXED_VALUES:
             self.error("Edit the numerical values directly in the recovered graph worksheet.")
             return
-        if (row >= len(dataset.raw) or column >= len(dataset.raw.columns)
-                or column in dataset.locked_columns):
+        indices = dataset.source_indices
+        if (row >= len(dataset.raw) or column >= len(indices) or (source := indices[column]) is None
+                or source in dataset.locked_columns):
             self.error("Select an existing source cell to exclude.")
             return
         before = self.worksheet_state(dataset)
-        dataset.excluded = dataset.excluded ^ {(row, column)}
+        dataset.excluded = dataset.excluded ^ {(row, source)}
         self.finish_worksheet_edit(dataset, before, "Change exclusions")
 
     def format_graph(self):
@@ -6298,7 +6608,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.error(problem)
             return
         run = self.runs[self.selected[1]]
-        if run.method in PRISM_GRAPH_METHODS:
+        if run.method in LEGACY_GRAPH_METHODS:
             self.error(tr("annotation.native"))
             return
         if not self.settle_graph_draft("editing annotations"):
@@ -6364,7 +6674,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def shape_context_available(self, run):
         return bool(self.selected and self.selected[0] == "graph"
                     and 0 <= self.selected[1] < len(self.runs) and self.runs[self.selected[1]] is run
-                    and run.method not in PRISM_GRAPH_METHODS and self.shape_controller is not None
+                    and run.method not in LEGACY_GRAPH_METHODS and self.shape_controller is not None
                     and self.pending is None and self.shape_controller.allowed())
 
     def shape_clipboard_action(self, action, *, run=None, shape_id=None):
@@ -6552,7 +6862,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.error(problem)
             return
         run = self.runs[self.selected[1]]
-        if run.method in PRISM_GRAPH_METHODS:
+        if run.method in LEGACY_GRAPH_METHODS:
             self.error(tr("shape.native"))
             return
         if not self.settle_graph_draft("editing shapes"):
@@ -6765,7 +7075,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.dirty = True
 
     def info_tables(self):
-        return [name for name, dataset in self.tables.items() if not stored_prism_view(dataset)]
+        return [name for name, dataset in self.tables.items() if not stored_legacy_view(dataset)]
 
     def new_info(self):
         if len(self.info_sheets) >= MAX_INFO_SHEETS:
@@ -6842,7 +7152,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     label=dataset.analysis_labels.get(index))
                 for index, (method, options) in enumerate(dataset.analyses)]
 
-    def _add_tables(self, tables, info_sheets=()):
+    def _add_tables(self, tables, info_sheets=(), *, initial_sheet=None):
         if not tables and not info_sheets:
             raise ValueError("No data tables were found.")
         if len(self.tables) + len(tables) > 256:
@@ -6863,12 +7173,15 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             warnings.extend(frame.attrs.get("import_warnings", []))
         self.dirty = True
         self.refresh_navigator()
-        self.show_imported_tables(reversed(titles))
+        if focus := initial_sheet_reference(initial_sheet, self.runs, run_view):
+            self.open_sheet(focus)
+        else:
+            self.show_imported_tables(titles if initial_sheet is not None else reversed(titles))
         if skipped:
             warnings.insert(0, tr("status.unsupported", names=", ".join(dict.fromkeys(skipped))))
         methods = [method for title in titles for method, _ in self.tables[title].analyses]
-        sources = sum(not stored_prism_view(self.tables[title])
-                      and self.tables[title].table_format != EDITABLE_PRISM_EMF for title in titles)
+        sources = sum(not stored_legacy_view(self.tables[title])
+                      and self.tables[title].table_format != EDITABLE_LEGACY_EMF for title in titles)
         summary = [tr("status.imported", count=sources)]
         if info_sheets:
             summary.append(tr("status.info_sheets", count=len(info_sheets)))
@@ -6880,9 +7193,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     def show_imported_tables(self, titles):
         titles = tuple(titles)
-        worksheets = [title for title in titles if not stored_prism_view(self.tables[title])]
+        worksheets = [title for title in titles if not stored_legacy_view(self.tables[title])]
         if worksheets:
-            source = next((title for title in worksheets if self.tables[title].table_format != EDITABLE_PRISM_EMF),
+            source = next((title for title in worksheets if self.tables[title].table_format != EDITABLE_LEGACY_EMF),
                           worksheets[0])
             self.show("data", source)
             return
@@ -6897,7 +7210,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         elif not self.tables:
             self.home()
 
-    def import_file(self, filename):
+    def import_file(self, filename, *, open_project=False):
         if self.current_info is not None:
             self.current_info.notes_changed()
         if Path(filename).suffix.lower() == ".alab":
@@ -6918,8 +7231,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.status.set(tr("status.opened", name=self.path.name))
         else:
             info_sheets = []
-            tables = load_tables(filename, restore_prism=True, info_sheets=info_sheets)
-            self._add_tables(tables, info_sheets)
+            initial_sheet = [] if open_project else None
+            tables = load_tables(filename, restore_legacy=True, info_sheets=info_sheets, initial_sheet=initial_sheet)
+            self._add_tables(tables, info_sheets, initial_sheet=initial_sheet)
 
     def refresh_project_tabs(self):
         active = self.projects[self.active_project]
@@ -7049,7 +7363,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             if key is None:
                 return False
         try:
-            self.import_file(path)
+            self.import_file(path, open_project=True)
         except Exception:
             if key is not None and self.switch_project(previous):
                 self.remove_project_tab(key)
@@ -7061,7 +7375,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
     def open_dialog(self, *, import_data=False):
         filename = filedialog.askopenfilename(filetypes=[
             (tr("prompt.data_files"), "*.alab *.csv *.tsv *.txt *.xlsx *.prism *.prismt *.pzt *.pzfx *.pzf *.xml"),
-            (tr("prompt.prism_files"), "*.prism *.prismt *.pzt *.pzfx *.pzf *.xml"), (tr("prompt.all_files"), "*.*")])
+            (tr("prompt.legacy_files"), "*.prism *.prismt *.pzt *.pzfx *.pzf *.xml"), (tr("prompt.all_files"), "*.*")])
         if filename:
             try:
                 self.open_document(filename, import_data=import_data)
@@ -7199,7 +7513,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.error("Wait for the current analysis to finish.")
             return None
         dataset = self.tables[self.active_data]
-        if stored_prism_view(dataset):
+        if stored_legacy_view(dataset):
             self.error("Select a source table or use Result as Data to create an editable table.")
             return None
         return dataset
@@ -7223,7 +7537,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if self.selected and self.selected[0] == "graph":
             run = self.runs[self.selected[1]]
             active = self.shape_controller is not None and self.shape_controller.mode is not None
-            if run.method not in PRISM_GRAPH_METHODS and (run.shape_history.changes or active):
+            if run.method not in LEGACY_GRAPH_METHODS and (run.shape_history.changes or active):
                 return run
         return None
 
@@ -7264,19 +7578,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         grid = self.current_grid if self.selected == ("data", title) else None
         state = grid.view_state() if grid is not None else None
         focused = grid is not None and self.root.focus_get() == grid.canvas
-        affected = [run for run in self.runs if run.title == title]
+        affected = [run for run in self.runs if run.title == title
+                    or (run.method == WORKSHEET_JOIN and worksheet_join_engine.right_title(run.options) == title)]
+        if any(isinstance(run.options.get(LEGACY_GRAPH_LINK), str) for run in affected):
+            affected.extend(linked_panel_readers(title, self.runs, self.tables))
         for run in affected:
             # refresh_calculations keeps the previous result when the edit cannot be calculated.
             # Clearing it first would snapshot None. Reference normalization, lognormal one-way
             # and false-discovery control restore that result.
             if not self._keeps_failed_result(run):
                 run.result = None
-        links = {link for run in affected if isinstance(link := run.options.get(PRISM_GRAPH_LINK), str)}
-        if links:
-            for run in self.runs:
-                if isinstance(panel_links := run.options.get(PRISM_PANEL_DATA), dict):
-                    if any(isinstance(link, str) and link in links for link in panel_links.values()):
-                        run.result = None
         self.dirty = True
         self.show("data", title)
         self.refresh_navigator()
@@ -7286,8 +7597,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if not affected:
             self.status.set(ui("Data updated."))
             return
-        frame = self.tables[title].frame(mask_excluded=True)
-        self.refresh_calculations([(run, frame) for run in affected])
+        frames = {name: self.tables[name].frame(mask_excluded=True) for name in {run.title for run in affected}}
+        self.refresh_calculations([(run, frames[run.title]) for run in affected])
 
     def refresh_calculations(self, affected):
         if not affected:
@@ -7303,6 +7614,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         # Comparison sources run before the graphs that read them, so each graph reuses the new result.
         affected = sorted(affected, key=lambda item: PAIRWISE_SECTION in item[0].options)
         snapshots = [self.pairwise_snapshot(run) for run, _ in affected]
+        joins = {id(run): self.join_data(run) for run, _ in affected if run.method == WORKSHEET_JOIN}
+        panels = {id(run): self.layout_panel_data(run) for run, _ in affected if LEGACY_PANEL_DATA in run.options}
         self.status.set(f"Updating {len(affected)} linked analysis result(s)…")
         control = CalculationControl() if any(cancellable_run(run.method, run.options) for run, _ in affected) else None
 
@@ -7316,17 +7629,24 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 if pairwise and pairwise.get("tables") is None and pairwise.get("key") in fresh:
                     pairwise = {**pairwise, "tables": fresh[pairwise["key"]]}
                 try:
+                    extras = {"join_data": joins[id(run)]} if id(run) in joins else {}
+                    if id(run) in panels:
+                        extras["layout_data"] = panels[id(run)]
                     result = self.compute(run, frame, self.prepared_result(prepared, run), control=control,
-                                          pairwise=pairwise)
+                                          pairwise=pairwise, **extras)
                     results.append((run, result, None))
                     fresh[run.title, run.slot] = result.tables
-                except MonteCarloCancelled:
+                except (MonteCarloCancelled, ChainCancelled):
                     results.append((run, None, None))
                 except Exception as error:
-                    if run.method == REFERENCE_NORMALIZATION or uses_optimal_leaf_order(run.method, run.options):
+                    if run.method == REFERENCE_NORMALIZATION or uses_hierarchy_diagnostics(run.method, run.options):
                         results.append((run, previous.get(id(run)), error))
-                    elif self._reopens_field_error(run) and isinstance(error, FieldError):
+                    elif (run.method in {WORKSHEET_JOIN, kmeans_stability.METHOD, logistic_validation.METHOD}
+                          or uses_planned_contrasts(run.method, run.options)
+                          or (self._reopens_field_error(run) and isinstance(error, FieldError))):
                         results.append((run, previous.get(id(run)), error))
+                    elif run.method == SAVED_BINARY_LAYOUT or LEGACY_PANEL_DATA in run.options:
+                        results.append((run, previous.get(id(run)), str(error)))
                     elif run.method == HEAT_MAP:
                         results.append((run, None, error))
                     else:
@@ -7335,6 +7655,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
         def check():
             if not self.pending.done():
+                if (len(affected) == 1
+                        and affected[0][0].method in {kmeans_stability.METHOD, logistic_validation.METHOD}):
+                    self.show_calculation_progress(affected[0][0].method)
                 self.root.after(60, check)
                 return
             future, self.pending = self.pending, None
@@ -7344,7 +7667,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             recovered = False
             for run, result, error in future.result():
                 if cancelled and cancellable_run(run.method, run.options):
-                    if run.method in {INDEPENDENT_ROC, precision_recall.METHOD} or uses_optimal_leaf_order(run.method, run.options):
+                    if (run.method in {INDEPENDENT_ROC, precision_recall.METHOD, icc.METHOD, reshape.METHOD,
+                                       WORKSHEET_JOIN, kmeans_stability.METHOD, logistic_validation.METHOD}
+                            or uses_hierarchy_diagnostics(run.method, run.options)):
                         run.result = previous.get(id(run))
                         run.calculation_error = "The update was cancelled." if run.result is not None else None
                     elif cox_exact_run(run) and previous.get(id(run)) is not None:
@@ -7365,6 +7690,18 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                         failures.append(translate_reference_error(error))
                     elif run.method == INDEPENDENT_ROC:
                         failures.append(translate_independent_roc_error(error))
+                    elif run.method == precision_recall.METHOD:
+                        failures.append(translate_precision_recall_error(error))
+                    elif run.method == icc.METHOD:
+                        failures.append(translate_icc_error(error))
+                    elif run.method == kmeans_stability.METHOD:
+                        failures.append(translate_kmeans_stability_error(error))
+                    elif run.method == logistic_validation.METHOD:
+                        failures.append(translate_logistic_validation_error(error))
+                    elif run.method == WORKSHEET_JOIN:
+                        failures.append(translate_join_error(error))
+                    elif run.method == reshape.METHOD:
+                        failures.append(reshape_tk.format_error(error))
                     elif run.method == HEAT_MAP and not isinstance(error, str):
                         failures.append(translate_heat_map_error(error))
                     elif run.method == ANCOVA and not isinstance(error, str):
@@ -7374,7 +7711,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.refresh_navigator()
             if self.modern_workspace is not None:
                 self.modern_workspace.refresh()
-            if self.selected and self.selected[0] in {"result", "graph", "layout"}:
+            if self.selected and self.selected[0] in RUN_VIEWS | {"layout"}:
                 if self.gallery is None:
                     self.show(*self.selected)
                 else:
@@ -7410,7 +7747,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if dataset is not None:
             before = self.worksheet_state(dataset)
             try:
-                paste_block(dataset, row, column, [[value]])
+                edit_cell_value(dataset, row, column, value)
             except (ValueError, TypeError, OverflowError) as error:
                 self.error(error)
             else:
@@ -7433,7 +7770,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         data = self.get_dataset()
         if data is None:
             return
-        if data.table_format in EDITABLE_PRISM_FIXED_VALUES:
+        if data.table_format in EDITABLE_LEGACY_FIXED_VALUES:
             self.error("This worksheet keeps the columns of the recovered graph.")
             return
         if len(data.raw.columns) >= MAX_COLUMNS:
@@ -7446,7 +7783,12 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if name and name.strip() and name.strip() not in data.frame():
             before = self.worksheet_state(data)
             candidate = data.raw.copy()
-            candidate[name.strip()] = np.nan
+            name = name.strip()
+            candidate[name] = np.nan
+            if data.column_order is not None:
+                order = data.column_order
+                position = order.index(data.raw.columns[-1]) + 1
+                data.column_order = (*order[:position], name, *order[position:])
             data.raw = candidate
             self.finish_worksheet_edit(data, before, "Add column")
         elif name:
@@ -7456,7 +7798,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         data = self.get_dataset()
         if data is None:
             return
-        if data.table_format in EDITABLE_PRISM_FIXED_VALUES:
+        if data.table_format in EDITABLE_LEGACY_FIXED_VALUES:
             self.error("Edit the recovered values directly in this worksheet.")
             return
         name = simpledialog.askstring(ui("Calculated column"), ui("New or existing calculated column name"),
@@ -7464,16 +7806,61 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if not name:
             return
         name = name.strip()
-        value = simpledialog.askstring("Formula", tr("worksheet.formula.examples"),
-                                        initialvalue=data.formulas.get(name, ""), parent=self.root)
-        if value:
+        dialog = WorksheetFormulaDialog(self.root, data, name=name)
+        if dialog.result is not None:
             before = self.worksheet_state(data)
             try:
-                data.set_formula(name, value)
+                data.set_formula(name, dialog.result)
             except (ValueError, TypeError) as error:
                 self.error(error)
             else:
                 self.finish_worksheet_edit(data, before, "Edit formula")
+
+    def enter_worksheet_formula(self, _event=None):
+        dataset = self.get_dataset()
+        cell = self.current_grid.active_cell if self.current_grid is not None else None
+        if dataset is not None and cell is not None and dataset.can_enter_formula(cell[1]):
+            column = cell[1]
+            dialog = WorksheetFormulaDialog(self.root, dataset, column)
+            if dialog.result is not None:
+                before = self.worksheet_state(dataset)
+                try:
+                    dataset.set_worksheet_formula(column, dialog.result, replace_values=dialog.replace_values)
+                except (ValueError, TypeError, OverflowError) as error:
+                    self.error(error)
+                else:
+                    self.finish_worksheet_edit(dataset, before, "Edit formula")
+            if self.current_grid is not None:
+                self.current_grid.canvas.focus_set()
+        return "break"
+
+    def calculated_column_menu(self, event):
+        grid = self.current_grid
+        if self.pending is not None or grid is None or not self.selected or self.selected[0] != "data":
+            return
+        data = self.tables[self.active_data]
+        _, column = grid.cell_at(event.x, event.y)
+        if not data.can_freeze_worksheet_formula(column):
+            return
+        menu = self.calculated_column_popup
+        menu.entryconfigure(0, command=lambda: self.freeze_worksheet_formula(column))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+        return "break"
+
+    def freeze_worksheet_formula(self, column):
+        data = self.get_dataset()
+        if data is None or not data.can_freeze_worksheet_formula(column):
+            return
+        before = self.worksheet_state(data)
+        try:
+            data.freeze_worksheet_formula(column)
+        except (ValueError, TypeError, OverflowError) as error:
+            self.error(error)
+        else:
+            self.finish_worksheet_edit(data, before, tr("worksheet.formula.freeze"))
 
     def standalone(self, method):
         if self.pending is not None:
@@ -7580,7 +7967,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                          "parts_of_whole": PARTS_GRAPH, "parts of whole": PARTS_GRAPH}.get(table_format.casefold())
         elif only is None and table_format.casefold() == "nested":
             preferred = preferred_nested_method(frame)
-        dialog = AnalysisDialog(self.root, frame, only=only, current=(preferred, {}) if preferred else None)
+        dialog = self.chain_analysis_dialog(frame, title=self.active_data, source=source, only=only,
+                                            current=(preferred, {}) if preferred else None)
         if dialog.result:
             self.submit_new_analysis(self.active_data, frame, dialog, only, source=source)
 
@@ -7613,10 +8001,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
     def _keeps_failed_result(self, run):
         """Keep the last good result when a later edit cannot be calculated."""
-        return (run.method == REFERENCE_NORMALIZATION or self._lognormal_one_way(run)
+        return (run.method in {REFERENCE_NORMALIZATION, SAVED_BINARY_LAYOUT} or LEGACY_PANEL_DATA in run.options
+                or self._lognormal_one_way(run)
+                or uses_planned_contrasts(run.method, run.options)
                 or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, RMST, INDEPENDENT_ROC, ANCOVA, RMCORR,
-                                  META_ANALYSIS, NB2, WEIBULL_AFT, ORDINAL_LOGIT)
-                or self._pca_regression(run) or uses_optimal_leaf_order(run.method, run.options)
+                                  META_ANALYSIS, NB2, WEIBULL_AFT, ORDINAL_LOGIT, precision_recall.METHOD, icc.METHOD,
+                                  reshape.METHOD, WORKSHEET_JOIN, kmeans_stability.METHOD, logistic_validation.METHOD)
+                or self._pca_regression(run) or uses_hierarchy_diagnostics(run.method, run.options)
                 or cox_exact_run(run) or self._cox_fit_diagnostics(run)
                 or (run.method in kmeans_options.METHODS
                     and run.options.get(kmeans_options.ALGORITHM) in kmeans_options.ITERATION_FIELDS)
@@ -7629,7 +8020,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         """Field errors reopen the dialog. Reference normalization keeps its own message path."""
         return (self._lognormal_one_way(run)
                 or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, RMST, INDEPENDENT_ROC, ANCOVA, RMCORR,
-                                  META_ANALYSIS, NB2, WEIBULL_AFT, ORDINAL_LOGIT)
+                                  META_ANALYSIS, NB2, WEIBULL_AFT, ORDINAL_LOGIT, precision_recall.METHOD, icc.METHOD,
+                                  reshape.METHOD)
                 or self._pca_regression(run)
                 or cox_exact_run(run) or self._cox_fit_diagnostics(run)
                 or run.method == COHEN_KAPPA
@@ -7647,7 +8039,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         if method in CORRELATION_METHODS or method in (
                 CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION, ROBUST_CURVE, COMPETING_RISKS, RMST, RMCORR, META_ANALYSIS, NB2, WEIBULL_AFT, ORDINAL_LOGIT,
                 "Multifactor ANOVA", ANCOVA,
-                REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, rm_sphericity.METHOD):
+                REFERENCE_NORMALIZATION, HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, rm_sphericity.METHOD, WORKSHEET_JOIN):
             # Rank, convergence, domain and layout field errors reopen the candidate dialog.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == MEAN_PERMUTATION:
@@ -7663,7 +8055,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "One-way ANOVA":
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
-        if method in (FDR_METHOD, VARIANCE_RATIO, INDEPENDENT_ROC):
+        if method in (FDR_METHOD, VARIANCE_RATIO, INDEPENDENT_ROC, precision_recall.METHOD, icc.METHOD,
+                      reshape.METHOD, kmeans_stability.METHOD, logistic_validation.METHOD):
             # A data edit can leave a sample with too few values or a bootstrap beyond its budget.
             return AnalysisRecovery(self.active_project, index, self.runs[index] if index is not None else None, only)
         if method == "Principal component analysis" and options.get(PCR_ENABLE) is True:
@@ -7708,6 +8101,12 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                    else ui(str(error)) if run.method in (SUMMARY_ANOVA, SUMMARY_TTEST)
                    else translate_heat_map_error(error) if run.method == HEAT_MAP
                    else translate_independent_roc_error(error) if run.method == INDEPENDENT_ROC
+                   else translate_precision_recall_error(error) if run.method == precision_recall.METHOD
+                   else translate_icc_error(error) if run.method == icc.METHOD
+                   else translate_join_error(error) if run.method == WORKSHEET_JOIN
+                   else reshape_tk.format_error(error) if run.method == reshape.METHOD
+                   else translate_logistic_validation_error(error) if run.method == logistic_validation.METHOD
+                   else translate_kmeans_stability_error(error) if run.method == kmeans_stability.METHOD
                    else ui(str(error)) if run.method in kmeans_options.METHODS
                    else translate_cox_exact_error(error) if cox_exact_run(run)
                    else cox_message(error) if run.method == COX else str(error))
@@ -7731,7 +8130,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else format_pca_error(error) if run.method == "Principal component analysis" else None)
         if formatted:
             message = formatted
-        elif run.method == "Interpolate a standard curve":
+        elif run.method in {"Interpolate a standard curve", WORKSHEET_JOIN}:
             pass
         elif error.field and error.field not in message:
             label = (tr("gfit.field." + error.field) if run.method == GLOBAL_CUSTOM_EQUATION
@@ -7739,14 +8138,19 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      and error.field in MLR_LABEL_KEYS
                      else field_caption_for_reference(error.field) if run.method == REFERENCE_NORMALIZATION
                      else ui(error.field) if run.method in (HEAT_MAP, SUMMARY_ANOVA, SUMMARY_TTEST, INDEPENDENT_ROC, COX,
-                                                             *kmeans_options.METHODS, *CORRELATION_METHODS)
+                                                             precision_recall.METHOD, icc.METHOD, reshape.METHOD,
+                                                             kmeans_stability.METHOD, logistic_validation.METHOD,
+                                                             *kmeans_options.METHODS,
+                                                             *CORRELATION_METHODS)
                      else error.field)
             if not label or label == "gfit.field." + error.field:
                 label = error.field
             if label not in message:
                 message = f"{label}: {message}"
-        dialog = AnalysisDialog(self.root, frame, current=(run.method, run.options), only=recovery.only,
-                                initial_field=error.field, error=message)
+        dialog = self.chain_analysis_dialog(frame, title=run.title, source=run.source,
+                                            current=(run.method, run.options), only=recovery.only,
+                                            initial_field=error.field, error=message,
+                                            initial_pair=getattr(error, "pair", 0))
         if not dialog.result:
             kept = "No analysis was added." if recovery.index is None else "The confirmed analysis is kept."
             self.status.set(f"Change discarded. {kept}")
@@ -7765,8 +8169,11 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return
         recovery = (self.weighting_recovery(run.method, run.options, index)
                     if run.method in {"Interpolate a standard curve", HEAT_MAP, FDR_METHOD, VARIANCE_RATIO,
-                                      INDEPENDENT_ROC, ANCOVA, rm_sphericity.METHOD}
-                    or self._pca_regression(run) or cox_exact_run(run) or self._cox_fit_diagnostics(run) else None)
+                                      INDEPENDENT_ROC, ANCOVA, rm_sphericity.METHOD, precision_recall.METHOD,
+                                      icc.METHOD, reshape.METHOD, WORKSHEET_JOIN, kmeans_stability.METHOD,
+                                      logistic_validation.METHOD}
+                    or self._pca_regression(run) or cox_exact_run(run) or self._cox_fit_diagnostics(run)
+                    or uses_planned_contrasts(run.method, run.options) else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
@@ -7775,26 +8182,17 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return
         index = self.selected[1]
         run = self.runs[index]
+        if run.method in {anova_comparison_plot.METHOD, anova_diagnostics.METHOD, anova_grouped_plot.METHOD}:
+            self.format_graph()
+            return
         if run.source is not None:
             if self.pending is not None:
                 self.error(tr('chain.wait'))
                 return
         elif self.get_dataset() is None:
             return
-        if run.method in PRISM_GRAPH_METHODS:
+        if run.method in LEGACY_GRAPH_METHODS:
             self.error(ui("Use Format Graph for an imported XY graph, or Export for its original preview."))
-            return
-        if run.method == RESHAPE_LONG_WIDE:
-            self.error(tr("reshape.classic"))
-            return
-        if run.method == WORKSHEET_JOIN:
-            self.error(tr("join.classic"))
-            return
-        if run.method == ICC_METHOD:
-            self.error(tr("icc.classic"))
-            return
-        if run.method == precision_recall.METHOD:
-            self.error(tr("precision.classic"))
             return
         try:
             frame = self.input_frame(run)
@@ -7802,8 +8200,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             self.error(error)
             return
         only = run.method if initial_field else None
-        dialog = AnalysisDialog(self.root, frame, current=(run.method, run.options),
-                                only=only, initial_field=initial_field)
+        dialog = self.chain_analysis_dialog(frame, title=run.title, source=run.source,
+                                            current=(run.method, run.options), only=only, initial_field=initial_field)
         if dialog.result:
             self.submit_edit(index, frame, dialog, only)
 
@@ -7811,9 +8209,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         run = self.runs[index]
         method, options = dialog.result
         if method == run.method:
-            for key in (PRISM_TITLE, PRISM_NOTES, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
-                        pca_overlays.SAVED_APPEARANCE, PCA_SAVED_DIRECTIONS, kmeans_archive.ARCHIVE,
-                        FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE):
+            for key in (LEGACY_TITLE, LEGACY_NOTES, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
+                        pca_overlays.SAVED_APPEARANCE, PCA_SAVED_DIRECTIONS, pca_parallel_archive.ARCHIVE,
+                        PCA_SAVED_VIEWPORT, kmeans_archive.ARCHIVE,
+                        FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE, anova_grouped_plot.PRIMARY):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Group") == run.options.get("Group") and "Group order" in run.options:
@@ -7882,7 +8281,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             return
         index = self.selected[1]
         run = self.runs[index]
-        problem = (pairwise_graph_problem(run.method, run.options) if run.method not in PRISM_GRAPH_METHODS
+        problem = (pairwise_graph_problem(run.method, run.options) if run.method not in LEGACY_GRAPH_METHODS
                    else "Pairwise comparisons are available on native box, violin and column graphs.")
         if problem:
             self.error(problem)
@@ -7991,18 +8390,21 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         return outcome.value
 
     @staticmethod
-    def compute(run, frame, result=None, control=None, layout_data=None, pairwise=None):
-        if run.method == WORKSHEET_JOIN:
-            # The join reads a second worksheet; the classic window keeps the recipe and leaves it to Qt.
-            raise ValueError(tr("join.classic"))
+    def compute(run, frame, result=None, control=None, layout_data=None, pairwise=None, *, join_data=None):
+        if isinstance(join_data, FieldError):
+            raise join_data
         if result is None:
             if run.method == MONTE_CARLO_METHOD and control is not None:
                 result = monte_carlo(frame, run.options, progress=control.report, cancel=control.cancel)
+            elif run.method == kmeans_stability.METHOD and control is not None:
+                result = kmeans_stability.analysis(frame, run.options, cancel=control.cancel, progress=control.report)
+            elif run.method == logistic_validation.METHOD and control is not None:
+                result = logistic_validation.analysis(frame, run.options, cancel=control.cancel, progress=control.report)
             elif run.method == XY_METHOD:
                 result = xy_series(frame, run.options, left_scale=(run.style or {}).get("yscale", "linear"))
             else:
                 result = analyse(run.method, frame, run.options, layout_data=layout_data,
-                                 cancel=control.cancel if control is not None else None)
+                                 cancel=control.cancel if control is not None else None, join_data=join_data)
         if result.figure is not None and run.style:
             try:
                 apply_style(result.figure, run.style)
@@ -8013,32 +8415,32 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         App.apply_pairwise(run, result, frame, pairwise)
         return result
 
-    def edit_prism_panel(self, index):
+    def edit_legacy_panel(self, index):
         if self.pending is not None:
             self.error("Wait for the current calculation before editing the layout.")
             return
         run = self.runs[index]
-        edits = run.options.get(PRISM_PANEL_EDITS, {})
+        edits = run.options.get(LEGACY_PANEL_EDITS, {})
 
         def prepare(changes):
             if changes == edits:
                 return None
             options = dict(run.options)
             if changes:
-                options[PRISM_PANEL_EDITS] = changes
+                options[LEGACY_PANEL_EDITS] = changes
             else:
-                options.pop(PRISM_PANEL_EDITS, None)
+                options.pop(LEGACY_PANEL_EDITS, None)
             candidate = Run(run.method, run.title, options, slot=run.slot, style=run.style)
             return candidate, self.compute(candidate, self.tables[run.title].frame(),
                                            layout_data=self.layout_panel_data(run))
 
-        dialog = PrismPanelDialog(self.root, run.options[PRISM_EDITABLE_PANELS], edits, prepare)
+        dialog = LegacyPanelDialog(self.root, run.options[LEGACY_EDITABLE_PANELS], edits, prepare)
         if dialog.result is not None:
             candidate, result = dialog.result
             self.add_result(candidate, result, index)
 
     def export_current_layout_emf(self, index):
-        from analisi.prism_layout_edit import export_edited_layout
+        from analisi.legacy_layout_edit import export_edited_layout
 
         run = self.runs[index]
         options = run.options
@@ -8047,8 +8449,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                                                 initialfile="layout-current.emf",
                                                 filetypes=[("EMF", "*.emf")])
             if path:
-                export_edited_layout(path, options[PRISM_PREVIEW], options.get(PRISM_EDITABLE_PANELS),
-                                     options.get(PRISM_PANEL_EDITS), self.layout_panel_data(run))
+                export_edited_layout(path, options[LEGACY_PREVIEW], options.get(LEGACY_EDITABLE_PANELS),
+                                     options.get(LEGACY_PANEL_EDITS), self.layout_panel_data(run))
                 self.status.set(tr("interface.exported", name=Path(path).name))
         except (OSError, ValueError, TypeError) as error:
             self.error(error)
@@ -8076,8 +8478,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
         parameter_profile = (run.method in ("Nonlinear regression", CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION)
                              and run.options.get(PARAM_CI_METHOD) == PARAM_CI_PROFILE)
         control = CalculationControl() if (parameter_profile or cancellable_run(run.method, run.options)) else None
-        layout_data = self.layout_panel_data(run) if isinstance(run.options.get(PRISM_PANEL_DATA), dict) else None
-        self.pending = self.worker.submit(self.compute, run, frame, None, control, layout_data, pairwise)
+        layout_data = self.layout_panel_data(run) if isinstance(run.options.get(LEGACY_PANEL_DATA), dict) else None
+        extra = {"join_data": self.join_data(run)} if run.method == WORKSHEET_JOIN else {}
+        self.pending = self.worker.submit(self.compute, run, frame, None, control, layout_data, pairwise, **extra)
         self.begin_calculation(control)
         self.update_worksheet_history_buttons()
         self.sync_inspector()
@@ -8098,9 +8501,12 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 raise MonteCarloCancelled
             reveal = index is None or (self.selected and self.selected[0] in RUN_VIEWS and self.selected[1] == index)
             self.add_result(run, future.result(), index, reveal=reveal)
-        except MonteCarloCancelled:
+        except (MonteCarloCancelled, ChainCancelled):
             # Nothing is recorded: a new study adds no recipe and an existing one keeps its last results.
-            noun = "analysis" if run.method in (COMPETING_RISKS, RMCORR, META_ANALYSIS, COX, COHEN_KAPPA, MEAN_PERMUTATION) else "study"
+            noun = ("analysis" if run.method in (COMPETING_RISKS, RMCORR, META_ANALYSIS, COX, COHEN_KAPPA,
+                                                 MEAN_PERMUTATION, reshape.METHOD, icc.METHOD, precision_recall.METHOD,
+                                                 WORKSHEET_JOIN, kmeans_stability.METHOD, logistic_validation.METHOD)
+                    else "study")
             if index is None:
                 detail = f"No {noun} was added."
             elif self.runs[index].result is not None:
@@ -8124,6 +8530,12 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else format_variance_ratio_error(error) or error if run.method == VARIANCE_RATIO
                      else describe_competing_error(error) if run.method == COMPETING_RISKS
                      else translate_independent_roc_error(error) if run.method == INDEPENDENT_ROC
+                     else translate_precision_recall_error(error) if run.method == precision_recall.METHOD
+                     else translate_icc_error(error) if run.method == icc.METHOD
+                     else translate_logistic_validation_error(error) if run.method == logistic_validation.METHOD
+                     else translate_kmeans_stability_error(error) if run.method == kmeans_stability.METHOD
+                     else translate_join_error(error) if run.method == WORKSHEET_JOIN
+                     else reshape_tk.format_error(error) if run.method == reshape.METHOD
                      else format_ancova_error(error) or error if run.method == ANCOVA
                      else describe_rmcorr_error(error) if run.method == RMCORR
                      else describe_meta_error(error) if run.method == META_ANALYSIS
@@ -8248,6 +8660,16 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                      else translate_kappa_error(run.calculation_error) if run.method == COHEN_KAPPA
                      else translate_competing_error(run.calculation_error) if run.method == COMPETING_RISKS
                      else translate_independent_roc_error(run.calculation_error) if run.method == INDEPENDENT_ROC
+                     else translate_precision_recall_error(run.calculation_error) if run.method == precision_recall.METHOD
+                     else translate_icc_error(run.calculation_error) if run.method == icc.METHOD
+                     else planned_contrasts.localized(run.calculation_error)
+                     if uses_planned_contrasts(run.method, run.options)
+                     else translate_logistic_validation_error(run.calculation_error)
+                     if run.method == logistic_validation.METHOD
+                     else translate_kmeans_stability_error(run.calculation_error)
+                     if run.method == kmeans_stability.METHOD
+                     else translate_join_error(run.calculation_error) if run.method == WORKSHEET_JOIN
+                     else reshape_tk.format_error(run.calculation_error) if run.method == reshape.METHOD
                      else translate_message(run.calculation_error, 'ancova.error.', {"field": ui})
                      if run.method == ANCOVA
                      else translate_meta_error(run.calculation_error) if run.method == META_ANALYSIS
@@ -8290,10 +8712,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             elif kind in {"graph", "layout", "saved-layout"}:
                 run = self.runs[key] if kind != "layout" else None
                 original = (run is not None and run.method in {SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT}
-                            and PRISM_PREVIEW in run.options)
+                            and LEGACY_PREVIEW in run.options)
                 editable_emf = (run is not None and run.method == SAVED_EDITABLE_GRAPH
-                                and (self.tables[run.title].table_format == EDITABLE_PRISM_EMF
-                                     or LIMIT_SOURCE in (run.options.get(PRISM_GRAPH_STYLE) or {})))
+                                and (self.tables[run.title].table_format == EDITABLE_LEGACY_EMF
+                                     or LIMIT_SOURCE in (run.options.get(LEGACY_GRAPH_STYLE) or {})))
                 figure = self.layout_figure if run is None else run.result.figure if run.result else None
                 filetypes = [("PNG image", "*.png"), ("SVG", "*.svg"), ("PDF", "*.pdf")] if figure else []
                 original_suffix = None
@@ -8301,7 +8723,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     original_suffix = ".emf"
                     filetypes.insert(0, (ui("Edited imported vector image"), "*.emf"))
                 elif original:
-                    preview = run.options[PRISM_PREVIEW]
+                    preview = run.options[LEGACY_PREVIEW]
                     preview_format = preview.get("format") if isinstance(preview, dict) else None
                     if preview_format in ("emf", "pdf"):
                         original_suffix = f".{preview_format}"
@@ -8310,18 +8732,18 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 if not filetypes:
                     raise ValueError("Open the graph or calculate the layout before exporting.")
                 edited_page = (run is not None and run.method == SAVED_BINARY_LAYOUT
-                               and (run.options.get(PRISM_PANEL_EDITS) or run.options.get(PRISM_PANEL_DATA)))
+                               and (run.options.get(LEGACY_PANEL_EDITS) or run.options.get(LEGACY_PANEL_DATA)))
                 path = filedialog.asksaveasfilename(defaultextension=".png" if edited_page else original_suffix or ".png",
                                                     filetypes=filetypes)
                 if path and original_suffix and Path(path).suffix.lower() == original_suffix:
-                    from analisi.prism_binary_graphs import validate_binary_graph
+                    from analisi.legacy_binary_graphs import validate_binary_graph
 
-                    preview = run.options[PRISM_PREVIEW]
+                    preview = run.options[LEGACY_PREVIEW]
                     if editable_emf:
-                        from analisi.prism_emf_edit import edit_emf_preview
+                        from analisi.legacy_emf_edit import edit_emf_preview
 
                         frame = self.tables[run.title].frame(mask_excluded=True)
-                        preview = edit_emf_preview(frame, run.options[PRISM_GRAPH_STYLE], preview)
+                        preview = edit_emf_preview(frame, run.options[LEGACY_GRAPH_STYLE], preview)
                     Path(path).write_bytes(validate_binary_graph(preview, layout=run.method == SAVED_BINARY_LAYOUT))
                 elif path and kind == "layout":
                     fmt = Path(path).suffix[1:].lower()
@@ -8330,7 +8752,12 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                     else:
                         self.layout_rendering(self.layouts[key]).savefig(path, dpi=300)
                 elif path and figure is not None:
-                    figure.savefig(path, dpi=300)
+                    if (paper := imported_paper(run)) is None:
+                        figure.savefig(path, dpi=300)
+                    else:
+                        from analisi.figure_export import export_figure
+
+                        export_figure(figure, path, {"format": Path(path).suffix[1:].lower()}, size_inches=paper)
                 elif path:
                     raise ValueError("Open the graph before exporting a rendered image.")
             else:
@@ -8371,7 +8798,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
         layout = self.layouts[key] if kind == "layout" else None
         layout_size = page_size(layout.columns, len(layout.panels), layout.paper) if layout is not None else None
-        dialog = FigureExportDialog(self.root, tuple(figure.get_size_inches()), raster_panels=kind == "saved-layout",
+        paper = imported_paper(run)
+        dialog = FigureExportDialog(self.root, paper or tuple(figure.get_size_inches()),
+                                    raster_panels=kind == "saved-layout" and paper is None,
                                     layout_size=layout_size)
         settings = dialog.result
         if settings is None:
@@ -8390,7 +8819,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
             elif layout is not None:
                 export_figure(self.layout_rendering(layout, transparent=settings["transparent"]), path, settings)
             else:
-                export_figure(figure, path, settings)
+                export_figure(figure, path, settings, size_inches=paper)
             self.status.set(tr("interface.exported", name=Path(path).name))
         except (OSError, ValueError, TypeError) as error:
             self.error(error)
@@ -8408,7 +8837,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
                 kind, key = ref
                 if kind == "graph":
                     run = self.runs[key]
-                    if run.method in PRISM_GRAPH_METHODS:
+                    if run.method in LEGACY_GRAPH_METHODS:
                         imported.append(name)
                     elif (not run.calculation_error and run.result is not None
                           and run.result.figure is not None and run.result.figure.axes):
@@ -8518,6 +8947,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin):
 
 
 def smoke(root, app, directory, legacy_reference=None):
+    from analisi.distribution_formulas_smoke import drive_formula_editor
     import json
     import time
     from types import SimpleNamespace
@@ -8821,10 +9251,10 @@ def smoke(root, app, directory, legacy_reference=None):
             "Mean through visit 2": "MEANIF(Response, Visit <= 2) OVER Cohort",
         }
         for name, recipe in recipes.items():
-            with patch.object(simpledialog, "askstring", side_effect=(name, recipe)) as prompts:
+            drive_formula_editor(root, recipe, errors)
+            with patch.object(simpledialog, "askstring", return_value=name):
                 app.add_formula()
-            assert prompts.call_args_list[0].args[0] == ui("Calculated column")
-            assert "ROWS UNBOUNDED PRECEDING" in prompts.call_args_list[1].args[1]
+            assert not errors, errors
 
         def assert_values(cumulative, means, first_score, first_total):
             data = app.tables[title].frame(mask_excluded=True)
@@ -8962,13 +9392,13 @@ def smoke(root, app, directory, legacy_reference=None):
         assert grid.view_state()[2:] == (x, y), (grid.view_state(), x, y)
         assert grid.frame.shape == (553, 13) and grid.frame.iat[552, 12] == 40
 
-    def check_preserved_prism_graphs(reference):
-        from analisi.prism_binary_graphs import validate_binary_graph
+    def check_preserved_legacy_graphs(reference):
+        from analisi.legacy_binary_graphs import validate_binary_graph
 
         def index(method, title, *, start=0, link=None):
             return next(i for i in range(start, len(app.runs))
                         if app.runs[i].method == method and app.runs[i].name == title
-                        and (link is None or app.runs[i].options.get(PRISM_GRAPH_LINK) == link))
+                        and (link is None or app.runs[i].options.get(LEGACY_GRAPH_LINK) == link))
 
         for filename, title, label, value, lengths, series, delta in (
             ("438.pzf", "Data 1", "pzf", "65", None, None, None),
@@ -8985,16 +9415,16 @@ def smoke(root, app, directory, legacy_reference=None):
             app.import_file(source)
             wait_for_calculation()
             original = app.runs[index(SAVED_BINARY_GRAPH, title, start=start)]
-            baseline = validate_binary_graph(original.options[PRISM_PREVIEW])
+            baseline = validate_binary_graph(original.options[LEGACY_PREVIEW])
             edited_title = f"{title} · Editable"
-            link = original.options[PRISM_GRAPH_LINK]
+            link = original.options[LEGACY_GRAPH_LINK]
             edited_index = index(SAVED_EDITABLE_GRAPH, edited_title, start=start, link=link)
             app.open_graph_view(edited_index)
             wait_for_calculation()
             edited = app.runs[edited_index]
-            assert original.options[PRISM_GRAPH_LINK] == edited.options[PRISM_GRAPH_LINK]
+            assert original.options[LEGACY_GRAPH_LINK] == edited.options[LEGACY_GRAPH_LINK]
             table = app.tables[edited.title]
-            assert table.table_format == EDITABLE_PRISM_EMF
+            assert table.table_format == EDITABLE_LEGACY_EMF
             before = np.asarray(edited.result.figure.axes[0].images[0].get_array()).copy()
             capture(root, f"window-{label}-preserved-before.png")
             app.show("data", edited.title)
@@ -9004,9 +9434,9 @@ def smoke(root, app, directory, legacy_reference=None):
             if lengths is None:
                 changes = {0: value}
             else:
-                assert edited.options[PRISM_GRAPH_STYLE]["series_lengths"] == lengths
+                assert edited.options[LEGACY_GRAPH_STYLE]["series_lengths"] == lengths
                 assert table.raw["Series"].drop_duplicates().tolist() == series
-                assert edited.options[PRISM_GRAPH_STYLE]["fixed_overlays"] == (2 if label == "pzf-multiseries" else 0)
+                assert edited.options[LEGACY_GRAPH_STYLE]["fixed_overlays"] == (2 if label == "pzf-multiseries" else 0)
                 rows = np.cumsum([0, *lengths[:-1]]) + 45
                 changes = {int(row): repr(float(table.raw.iat[row, 1]) + delta) for row in rows}
             for row, new_value in changes.items():
@@ -9027,7 +9457,7 @@ def smoke(root, app, directory, legacy_reference=None):
             with patch.object(filedialog, "asksaveasfilename", return_value=str(vector)):
                 app.export()
             assert vector.read_bytes() != baseline and len(vector.read_bytes()) == len(baseline)
-            assert validate_binary_graph(original.options[PRISM_PREVIEW]) == baseline
+            assert validate_binary_graph(original.options[LEGACY_PREVIEW]) == baseline
             # Also retain the actual rendered image when testing from a hidden SSH desktop.
             edited.result.figure.savefig(directory / f"{label}-edited.png", dpi=140)
             path = directory / f"{label}-preserved.alab"
@@ -9046,7 +9476,7 @@ def smoke(root, app, directory, legacy_reference=None):
             assert (directory / f"{label}-reopened.emf").read_bytes() == vector.read_bytes()
 
     def check_binary_views(reference):
-        from analisi.prism_binary_graphs import validate_binary_graph
+        from analisi.legacy_binary_graphs import validate_binary_graph
 
         def open_view(method, title):
             wait_for_calculation()
@@ -9078,19 +9508,19 @@ def smoke(root, app, directory, legacy_reference=None):
         assert thumbnail is not None and len(thumbnail.getcolors(100_000)) > 20
         assert app.runs[pending_graph].result is None
         graph = open_view(SAVED_BINARY_GRAPH, graph_title)
-        preview = validate_binary_graph(graph.options[PRISM_PREVIEW])
+        preview = validate_binary_graph(graph.options[LEGACY_PREVIEW])
         image = graph.result.figure.axes[0].images[0].get_array()
         assert np.ptp(np.asarray(image, dtype=float)) > 40
-        exported = directory / "original-prism-graph.emf"
+        exported = directory / "original-imported-graph.emf"
         with patch.object(filedialog, "asksaveasfilename", return_value=str(exported)):
             app.export()
         assert exported.read_bytes() == preview
         capture(root, "window-binary-graph.png")
         layout_title = "Layout-1"
         layout = open_view(SAVED_BINARY_LAYOUT, layout_title)
-        layout_preview = validate_binary_graph(layout.options[PRISM_PREVIEW], layout=True)
+        layout_preview = validate_binary_graph(layout.options[LEGACY_PREVIEW], layout=True)
         assert layout_preview in (reference / "Exponential.pzt").read_bytes()
-        exported = directory / "original-prism-layout.emf"
+        exported = directory / "original-imported-layout.emf"
         with patch.object(filedialog, "asksaveasfilename", return_value=str(exported)):
             app.export()
         assert exported.read_bytes() == layout_preview
@@ -9098,8 +9528,8 @@ def smoke(root, app, directory, legacy_reference=None):
             sample = reference / "Figure4-S4_final.pzf"
             app.import_file(sample)
             original_page = open_view(SAVED_BINARY_LAYOUT, "Figure S4")
-            assert validate_binary_graph(original_page.options[PRISM_PREVIEW], layout=True) in sample.read_bytes()
-            capture(root, "window-prism-layout.png")
+            assert validate_binary_graph(original_page.options[LEGACY_PREVIEW], layout=True) in sample.read_bytes()
+            capture(root, "window-imported-layout.png")
         if (reference / "Sinewaves.pzt").is_file():
             app.import_file(reference / "Sinewaves.pzt")
             sine = open_view(SAVED_BINARY_RESULT, "Sine wave")
@@ -9107,13 +9537,13 @@ def smoke(root, app, directory, legacy_reference=None):
             np.testing.assert_allclose(series["X"].iloc[[0, -1]].astype(float), [0, 10])
             original_sine = open_view(SAVED_BINARY_GRAPH, "Sine wave")
             editable = open_view(SAVED_EDITABLE_GRAPH, "Sine wave · Editable")
-            assert editable.options[PRISM_GRAPH_LINK] == original_sine.options[PRISM_GRAPH_LINK]
+            assert editable.options[LEGACY_GRAPH_LINK] == original_sine.options[LEGACY_GRAPH_LINK]
             axes = editable.result.figure.axes[0]
             limits = axes.get_xlim()
             x_ticks = [label.get_text() for label in axes.get_xticklabels()]
             data_line = axes.lines[-1]
             np.testing.assert_allclose(data_line.get_ydata(), np.sin(np.pi * np.arange(151) / 15), atol=2e-14)
-            capture(root, "window-editable-prism-graph.png")
+            capture(root, "window-editable-imported-graph.png")
 
             def edit_axis(dialog):
                 assert all(dialog.axis_fields["y"][field].get() == "" for field in ("min", "max"))
@@ -9142,9 +9572,9 @@ def smoke(root, app, directory, legacy_reference=None):
         assert app.save()
         app.import_file(app.path)
         graph = open_view(SAVED_BINARY_GRAPH, graph_title)
-        assert validate_binary_graph(graph.options[PRISM_PREVIEW]) == preview
+        assert validate_binary_graph(graph.options[LEGACY_PREVIEW]) == preview
         layout = open_view(SAVED_BINARY_LAYOUT, layout_title)
-        assert validate_binary_graph(layout.options[PRISM_PREVIEW], layout=True) == layout_preview
+        assert validate_binary_graph(layout.options[LEGACY_PREVIEW], layout=True) == layout_preview
         if (reference / "Sinewaves.pzt").is_file():
             editable = open_view(SAVED_EDITABLE_GRAPH, "Sine wave · Editable")
             assert editable.result.figure.axes[0].get_xlabel() == "Time (edited)"
@@ -9156,8 +9586,8 @@ def smoke(root, app, directory, legacy_reference=None):
 
         source = reference / "ec-proliferation.pzf"
         if source.is_file():
-            from analisi.prism_binary_bars import edit_bar_preview
-            from analisi.prism_restore import PRISM_GRAPH_STYLE
+            from analisi.legacy_binary_bars import edit_bar_preview
+            from analisi.legacy_restore import LEGACY_GRAPH_STYLE
 
             def rendered(run):
                 return np.asarray(run.result.figure.axes[0].images[0].get_array())
@@ -9170,13 +9600,13 @@ def smoke(root, app, directory, legacy_reference=None):
 
             def draw_data(run):
                 options = run.options
-                return edit_bar_preview(app.tables[run.title].raw, options[PRISM_GRAPH_STYLE], options[PRISM_PREVIEW])
+                return edit_bar_preview(app.tables[run.title].raw, options[LEGACY_GRAPH_STYLE], options[LEGACY_PREVIEW])
 
             app.import_file(source)
             original = open_view(SAVED_BINARY_GRAPH, "*C bFGF")
             editable = open_view(SAVED_EDITABLE_GRAPH, "*C bFGF · Editable")
-            assert original.options[PRISM_GRAPH_LINK] == editable.options[PRISM_GRAPH_LINK]
-            archived = original.options[PRISM_PREVIEW]
+            assert original.options[LEGACY_GRAPH_LINK] == editable.options[LEGACY_GRAPH_LINK]
+            archived = original.options[LEGACY_PREVIEW]
             assert draw_data(editable) == archived
             pixels = rendered(original)
             same_render(rendered(editable), pixels)
@@ -9202,7 +9632,7 @@ def smoke(root, app, directory, legacy_reference=None):
             assert draw_data(reopened) == edited_preview
             same_render(rendered(reopened), changed)
             original = open_view(SAVED_BINARY_GRAPH, "*C bFGF")
-            assert original.options[PRISM_PREVIEW] == archived
+            assert original.options[LEGACY_PREVIEW] == archived
             same_render(rendered(original), pixels)
 
             newer_profiles = ("*D VEGF",)
@@ -9214,7 +9644,7 @@ def smoke(root, app, directory, legacy_reference=None):
             for title in newer_profiles:
                 original = open_view(SAVED_BINARY_GRAPH, title)
                 editable = open_view(SAVED_EDITABLE_GRAPH, title + " · Editable")
-                original_preview = original.options[PRISM_PREVIEW]
+                original_preview = original.options[LEGACY_PREVIEW]
                 assert draw_data(editable) == original_preview
                 same_render(rendered(editable), rendered(original))
                 raw = app.tables[editable.title].raw
@@ -9232,14 +9662,14 @@ def smoke(root, app, directory, legacy_reference=None):
             app.import_file(app.path)
             for title, (before, after) in amended_profiles.items():
                 assert draw_data(open_view(SAVED_EDITABLE_GRAPH, title + " · Editable")) == after
-                assert open_view(SAVED_BINARY_GRAPH, title).options[PRISM_PREVIEW] == before
+                assert open_view(SAVED_BINARY_GRAPH, title).options[LEGACY_PREVIEW] == before
 
             directional_source = reference / "controlled-direction-bars.pzf"
             if directional_source.is_file():
                 title = "Directional error-bar QA"
                 app.import_file(directional_source)
                 original = open_view(SAVED_BINARY_GRAPH, title)
-                archived = original.options[PRISM_PREVIEW]
+                archived = original.options[LEGACY_PREVIEW]
                 pixels = rendered(original)
                 editable = open_view(SAVED_EDITABLE_GRAPH, title + " · Editable")
                 assert draw_data(editable) == archived
@@ -9266,10 +9696,10 @@ def smoke(root, app, directory, legacy_reference=None):
                 editable = open_view(SAVED_EDITABLE_GRAPH, title + " · Editable")
                 assert draw_data(editable) == amended
                 same_render(rendered(editable), changed)
-                assert open_view(SAVED_BINARY_GRAPH, title).options[PRISM_PREVIEW] == archived
+                assert open_view(SAVED_BINARY_GRAPH, title).options[LEGACY_PREVIEW] == archived
 
     def check_grouped_pzf(sample):
-        from analisi.prism_binary_graphs import validate_binary_graph
+        from analisi.legacy_binary_graphs import validate_binary_graph
 
         graph_title = "B. Grouped data for two stacks of bars"
         original_project = app.active_project
@@ -9295,7 +9725,7 @@ def smoke(root, app, directory, legacy_reference=None):
         app.open_sheet(("graph", graph))
         wait_for_calculation()
         run = app.runs[graph]
-        preview = validate_binary_graph(run.options[PRISM_PREVIEW])
+        preview = validate_binary_graph(run.options[LEGACY_PREVIEW])
         assert preview.startswith(b"%PDF-") and preview in sample.read_bytes()
         assert np.ptp(run.result.figure.axes[0].images[0].get_array()) > 40
         exported = directory / "original-grouped-graph.pdf"
@@ -9333,7 +9763,7 @@ def smoke(root, app, directory, legacy_reference=None):
                      if run.method == SAVED_BINARY_GRAPH and run.name == graph_title)
         app.open_sheet(("graph", graph))
         wait_for_calculation()
-        assert validate_binary_graph(app.runs[graph].options[PRISM_PREVIEW]) == preview
+        assert validate_binary_graph(app.runs[graph].options[LEGACY_PREVIEW]) == preview
         editable = next(index for index, run in enumerate(app.runs)
                         if run.method == SAVED_EDITABLE_GRAPH and run.name == graph_title + " · Editable")
         app.open_graph_view(editable)
@@ -9417,8 +9847,8 @@ def smoke(root, app, directory, legacy_reference=None):
         assert not app.worksheet_history.can_apply()
         pd.testing.assert_frame_equal(app.tables[title].raw, transposed, check_dtype=False)
 
-    def check_old_prism_xy(reference):
-        from analisi.prism_binary_graphs import validate_binary_graph
+    def check_old_legacy_xy(reference):
+        from analisi.legacy_binary_graphs import validate_binary_graph
 
         fixture = reference / "438.pzf"
         if not fixture.is_file():
@@ -9430,16 +9860,16 @@ def smoke(root, app, directory, legacy_reference=None):
         assert table.shape == (5, 7) and table.iloc[:2].isna().all().all()
         assert table.iloc[2].tolist() == [3, 33, 57, 67, 87, 89, 120]
         assert table.iat[3, 0] == 4 and table.iloc[3, 1:].isna().all()
-        capture(root, "window-old-prism-xy.png")
+        capture(root, "window-legacy-xy.png")
         wait_for_calculation()
         graph = next(index for index in range(start, len(app.runs)) if app.runs[index].method == SAVED_BINARY_GRAPH)
         app.open_sheet(("graph", graph))
         wait_for_calculation()
-        drawing = validate_binary_graph(app.runs[graph].options[PRISM_PREVIEW])
+        drawing = validate_binary_graph(app.runs[graph].options[LEGACY_PREVIEW])
         assert len(drawing) == 21476 and drawing in fixture.read_bytes()
         pixels = app.runs[graph].result.figure.axes[0].images[0].get_array()
         assert np.ptp(np.asarray(pixels, dtype=float)) > 100
-        capture(root, "window-old-prism-graph.png")
+        capture(root, "window-legacy-graph.png")
         # Exercise the actual command against a real imported, non-native drawing.
         # The native shapes editor must never open and the imported style must stay intact.
         before_shape_refusal = (deepcopy(app.runs[graph].style), app.dirty, app.selected)
@@ -9461,8 +9891,8 @@ def smoke(root, app, directory, legacy_reference=None):
             assert columns.table_format == "column" and not columns.excluded
             assert list(columns.raw.columns) == ["Cats", "dogs", "mice"]
             assert columns.raw["mice"].tolist() == [44, 55, 44, 66, 23, 45]
-            assert "Unavailable Prism graph previews (2)" in app.status.get()
-            capture(root, "window-old-prism-columns.png")
+            assert "Unavailable imported graph previews (2)" in app.status.get()
+            capture(root, "window-legacy-columns.png")
 
     def check_data_processing():
         from scipy.stats import binomtest
@@ -12010,7 +12440,7 @@ def smoke(root, app, directory, legacy_reference=None):
         root.update()
 
     def check_graph_inspector():
-        from analisi.prism_restore import SAVED_XY
+        from analisi.legacy_restore import SAVED_XY
 
         root.geometry("1024x768+0+0")
         rows = [{"X": x, "Y": y, "Dataset": index, "Series": name, "Geometry": "line"}
@@ -14534,7 +14964,7 @@ def smoke(root, app, directory, legacy_reference=None):
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "imported-shapes":
             # Requires an actual legacy fixture; never report a skipped import as a pass.
             assert legacy_reference is not None and (legacy_reference / "438.pzf").is_file()
-            check_old_prism_xy(legacy_reference)
+            check_old_legacy_xy(legacy_reference)
             assert (directory / "imported-shape-refusal.txt").is_file()
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
@@ -15093,7 +15523,7 @@ def smoke(root, app, directory, legacy_reference=None):
             root.after(1500, root.destroy)
             return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "pca-import":
-            from analisi.prism_pca_smoke import check_restored_pca
+            from analisi.legacy_pca_smoke import check_restored_pca
             check_restored_pca(root, app, directory, capture, wait_for_calculation)
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
@@ -15101,7 +15531,7 @@ def smoke(root, app, directory, legacy_reference=None):
             root.after(1500, root.destroy)
             return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "categorical-scatter-import":
-            from analisi.prism_mv_scatter_smoke import check_saved_scatter
+            from analisi.legacy_mv_scatter_smoke import check_saved_scatter
             check_saved_scatter(root, app, directory, capture, wait_for_calculation)
             assert not errors, errors
             (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
@@ -15351,8 +15781,8 @@ def smoke(root, app, directory, legacy_reference=None):
         app.import_file(path)
         app.tables["fixture"].set_formula("doubled", "=x*2")
         app.invalidate()
-        with patch.object(simpledialog, "askstring", side_effect=(
-                "Lower-range mean", "MEAN(y) WHERE x <= 2")):
+        drive_formula_editor(root, "MEAN(y) WHERE x <= 2", errors)
+        with patch.object(simpledialog, "askstring", return_value="Lower-range mean"):
             app.add_formula()
         assert app.tables["fixture"].frame()["Lower-range mean"].eq(4).all()
         app.edit_cell(0, 0, "1.5")
@@ -15670,12 +16100,12 @@ def smoke(root, app, directory, legacy_reference=None):
                 archive.writestr(path, json.dumps(record))
 
             write("document.json", {"sheets": {"data": ["sheet"], "graphs": ["graph"]}})
-            write("data/sheets/sheet/sheet.json", {"title": "Prism input", "table": {
+            write("data/sheets/sheet/sheet.json", {"title": "Imported data", "table": {
                 "uid": "table", "format": "xy", "dataFormat": "y_single", "xDataSet": "x", "dataSets": ["y"]}})
             write("data/sets/x.json", {"title": "Time"})
             write("data/sets/y.json", {"title": "Control"})
             archive.writestr("data/tables/table/data.csv", "1,4\n2,6\n3,7\n")
-            write("graphs/graph/sheet.json", {"title": "Original Prism XY", "inputDataSets": ["y"]})
+            write("graphs/graph/sheet.json", {"title": "Original imported XY", "inputDataSets": ["y"]})
         app.import_file(source)
         assert app.save()
         app.import_file(app.path)
@@ -15685,7 +16115,7 @@ def smoke(root, app, directory, legacy_reference=None):
         app.navigate()
         wait_for_calculation()
         restored_graph = app.runs[saved].result.figure.axes[0]
-        assert restored_graph.get_title() == "Original Prism XY"
+        assert restored_graph.get_title() == "Original imported XY"
         assert app.selected == ("graph", saved)
         np.testing.assert_equal(restored_graph.collections[0].get_offsets().data.tolist(), [[1, 4], [2, 6], [3, 7]])
         capture(root, "window-restored-xy.png")
@@ -15700,13 +16130,13 @@ def smoke(root, app, directory, legacy_reference=None):
             if (legacy_reference / "plos-s2.pzf").is_file():
                 check_binary_views(legacy_reference)
             if sys.platform == "win32":
-                check_preserved_prism_graphs(legacy_reference)
+                check_preserved_legacy_graphs(legacy_reference)
             grouped_sample = legacy_reference.parent / "Grouped-1944.pzf"
             if grouped_sample.is_file():
                 check_grouped_pzf(grouped_sample)
         check_info_workflow(legacy_reference)
         if legacy_reference is not None:
-            check_old_prism_xy(legacy_reference)
+            check_old_legacy_xy(legacy_reference)
         check_data_processing()
         check_hierarchical_workflow()
         check_confidence_overlays()
@@ -16050,9 +16480,9 @@ def smoke(root, app, directory, legacy_reference=None):
         check_family_workflow_smoke()
         check_cluster_silhouette_smoke()
         check_piecewise_equations_smoke()
-        from analisi.prism_mv_scatter_smoke import check_saved_scatter
+        from analisi.legacy_mv_scatter_smoke import check_saved_scatter
         check_saved_scatter(root, app, directory, capture, wait_for_calculation)
-        from analisi.prism_pca_smoke import check_restored_pca
+        from analisi.legacy_pca_smoke import check_restored_pca
         check_restored_pca(root, app, directory, capture, wait_for_calculation)
         from analisi.grouped_anova_smoke import check_linked_grouped_anova
         check_linked_grouped_anova(root, app, directory, capture, wait_for_calculation)

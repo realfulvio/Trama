@@ -13,7 +13,7 @@ from scipy import stats
 from .processing import FieldError
 from .reporting import Result, _plot, _report
 from .stats import complete, linear
-from . import linear_estimates
+from . import linear_estimates, regression_range
 
 RESIDUAL_DIAGNOSTICS = "Residual diagnostics"
 BAND = "Band"
@@ -32,6 +32,7 @@ LINEAR_OPTIONS = {
     LEVEL: 95.0,
     GRAPH: GRAPHS,
     **linear_estimates.OPTIONS,
+    regression_range.SHOW_OUTSIDE: False,
 }
 
 RESIDUALS_SHEET = "Residuals"
@@ -154,9 +155,9 @@ def _critical(level, df):
     return critical
 
 
-def band_table(fit, level, band):
+def band_table(fit, level, band, grid=None):
     """Pointwise limits at the sorted unique observed X values."""
-    xs = np.unique(fit.x)
+    xs = np.unique(fit.x) if grid is None else grid
     center = xs - fit.mean_x
     extra = 0.0 if band == BAND_MEAN else 1.0
     spread = extra + 1.0 / fit.n + center * center / fit.sxx
@@ -164,13 +165,14 @@ def band_table(fit, level, band):
     half = _critical(level, fit.df) * se
     # Intercept + slope·x, evaluated on centered X so a location shift stays harmless.
     fitted = float(np.mean(fit.y)) + float(fit.summary["Slope"]) * center
+    sampling = "observed X" if grid is None else "the curve coordinates"
     if band == BAND_MEAN:
         name = MEAN_BAND_SHEET
-        wording = (f"Pointwise {level:g}% confidence band for the mean at observed X "
+        wording = (f"Pointwise {level:g}% confidence band for the mean at {sampling} "
                    "(not simultaneous)")
     else:
         name = PREDICTION_BAND_SHEET
-        wording = (f"Pointwise {level:g}% prediction band for a new observation at observed X "
+        wording = (f"Pointwise {level:g}% prediction band for a new observation at {sampling} "
                    "(not simultaneous)")
     return name, pd.DataFrame({
         "X": xs,
@@ -181,16 +183,20 @@ def band_table(fit, level, band):
     })
 
 
-def _figure(fit, graph, x_name, y_name, limits):
+def _figure(fit, graph, x_name, y_name, limits, curve=None, observations=None):
     if graph == GRAPH_RESIDUALS:
         figure, axes = _plot("Residuals vs fitted", "Fitted Y", "Residual")
         axes.scatter(fit.fitted, fit.residual)
         axes.axhline(0, color="#667085", linewidth=1)
         return figure
     figure, axes = _plot("Linear regression", x_name, y_name)
-    axes.scatter(fit.x, fit.y)
-    domain = np.array([fit.x.min(), fit.x.max()])
-    axes.plot(domain, fit.summary["Intercept"] + fit.summary["Slope"] * domain, color=_LINE_COLOR)
+    x, y = (fit.x, fit.y) if observations is None else observations.T
+    axes.scatter(x, y)
+    if curve is None:
+        domain = np.array([fit.x.min(), fit.x.max()])
+        axes.plot(domain, fit.summary["Intercept"] + fit.summary["Slope"] * domain, color=_LINE_COLOR)
+    else:
+        axes.plot(curve["X"], curve["Predicted"], color=_LINE_COLOR)
     if limits is not None:
         axes.fill_between(limits["X"], limits["Lower"], limits["Upper"],
                           color=_LINE_COLOR, alpha=0.15, linewidth=0, zorder=0)
@@ -201,8 +207,10 @@ def linear_result(frame, options):
     """Sheets and one figure for Linear regression. The caller's frame is not modified."""
     x_name, y_name = options["X"], options["Y"]
     band, graph, diagnostics, level = _selection(options)
-    fit = _fit(frame, x_name, y_name)
+    ranges = regression_range.ranges(options)
+    fit = _fit(regression_range.fitting_rows(frame, x_name, ranges), x_name, y_name)
     summary = dict(fit.summary)
+    summary.update({field: ranges[field] for field in regression_range.FIT_FIELDS if field in ranges})
     tables = {}
     if diagnostics:
         residuals = residual_table(fit)
@@ -211,9 +219,24 @@ def linear_result(frame, options):
             summary[NOTE_KEY] = note
         tables[RESIDUALS_SHEET] = residuals
     limits = None
+    grid = regression_range.drawing_grid(fit.x, ranges)
+    curve = None
+    if grid is not None:
+        with np.errstate(over="ignore", invalid="ignore"):
+            predicted = fit.y.mean() + fit.summary["Slope"] * (grid - fit.mean_x)
+        curve = tables[regression_range.CURVE_SHEET] = regression_range.coordinate_table(grid, predicted, fit.x)
     if band != BAND_NONE:
-        sheet, limits = band_table(fit, level, band)
+        sheet, limits = band_table(fit, level, band, grid)
         tables[sheet] = limits
     if linear_estimates.requested(options):
         tables[linear_estimates.SHEET] = linear_estimates.estimate_table(fit, options, level)
-    return Result({"Regression": _report(summary), **tables}, _figure(fit, graph, x_name, y_name, limits))
+    observations = None
+    if graph == GRAPH_FIT and options.get(regression_range.SHOW_OUTSIDE) is True and any(
+            key in ranges for key in regression_range.FIT_FIELDS):
+        # A nonnumeric response outside the fit cannot contribute a plotted point.
+        xy = frame[[x_name, y_name]].apply(pd.to_numeric, errors="coerce")
+        values = xy.to_numpy(dtype=complex if np.iscomplexobj(xy.to_numpy()) else float, na_value=np.nan)
+        valid = np.isfinite(values).all(axis=1) & np.isreal(values).all(axis=1)
+        observations = values[valid].real
+    figure = _figure(fit, graph, x_name, y_name, limits, curve, observations)
+    return Result({"Regression": _report(summary), **tables}, figure)

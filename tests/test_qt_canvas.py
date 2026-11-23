@@ -395,6 +395,20 @@ class QtCanvasTests(unittest.TestCase):
         self.assertEqual({k: v for k, v in self.shapes[0].items() if k != "id"},
                          {k: v for k, v in original.items() if k != "id"})
 
+    def test_classic_toolbar_copies_and_pastes_the_selected_shape(self):
+        original, = self.shapes
+        self.tool("select")
+        self.click((.27, .23))
+        buttons = self.window.toolbar.buttons
+        self.assertTrue(buttons["copy"].isEnabled())
+        self.assertTrue(buttons["paste"].isEnabled())
+        buttons["copy"].click()
+        buttons["paste"].click()
+        self.assertEqual(self.errors, [])
+        self.assertEqual(len(self.shapes), 2)
+        self.assertEqual(self.shapes[0], original)
+        self.assertNotEqual(self.shapes[1]["id"], original["id"])
+
     def test_an_invalid_clipboard_changes_nothing(self):
         before = self.shapes
         self.tool("select")
@@ -542,7 +556,7 @@ class QtCanvasTests(unittest.TestCase):
         self.assertTrue(self.window.actions["shapes"].isEnabled())  # The numeric editor stays reachable.
 
     def test_an_imported_graph_is_out_of_scope(self):
-        from analisi.prism_restore import SAVED_XY
+        from analisi.legacy_restore import SAVED_XY
         self.graph.method = SAVED_XY
         self.addCleanup(setattr, self.graph, "method", "XY series")
         self.window.update_actions()
@@ -677,12 +691,12 @@ class QtCanvasTests(unittest.TestCase):
 
     def test_drawing_and_editing_shapes_have_distinct_entry_points(self):
         canvas = self.window.drawing.toolbar
-        ribbon = self.window.ribbon.widget(self.window.ribbon_pages["graph"])
+        commands = self.window.command_menus["Insert"]
         drawing = {self.window.actions[f"draw_{name}"] for name in ("select", "line", "arrow", "rectangle", "ellipse")}
-        self.assertTrue(drawing <= set(canvas.actions()))
-        self.assertFalse(drawing.intersection(ribbon.actions()))
-        self.assertNotIn(self.window.actions["draw"], ribbon.actions())
-        self.assertIn(self.window.actions["shapes"], ribbon.actions())
+        self.assertTrue(drawing <= set(self.window.actions["draw"].menu().actions()))
+        self.assertFalse(drawing.intersection(canvas.actions()))
+        self.assertFalse(drawing.intersection(commands.actions()))
+        self.assertIn(self.window.actions["shapes"], commands.actions())
 
     def test_zoom_or_pan_and_the_tools_do_not_run_together(self):
         tools = self.window.drawing.toolbar

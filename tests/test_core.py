@@ -23,7 +23,7 @@ class ImportTests(unittest.TestCase):
             self.assertEqual(frame["id"].tolist(), ["001", "1"])
             self.assertEqual(frame["value"].tolist(), [1.2, 3.4])
 
-    def test_prism_uses_metadata_and_has_no_header_row(self):
+    def test_legacy_uses_metadata_and_has_no_header_row(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "test.prism"
             with ZipFile(path, "w") as archive:

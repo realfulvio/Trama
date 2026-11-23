@@ -28,7 +28,7 @@ class ContingencyTests(unittest.TestCase):
         pd.testing.assert_series_equal(report["Tests"]["Value"], expected["Tests"]["Value"])
 
     def test_published_woolf_result_and_reversal(self):
-        # Original GraphPad odds-ratio guide gives 2.974 [1.787, 4.950].
+        # Published reference for the Woolf interval: 2.974 [1.787, 4.950].
         report = count_test([[688, 21], [650, 59]])
         effects = report["2 × 2 effects"]
         np.testing.assert_allclose(effects.loc["Odds ratio", ["Estimate", "Lower", "Upper"]].astype(float),

@@ -6,23 +6,31 @@ import numpy as np
 import pandas as pd
 from matplotlib.collections import LineCollection
 from matplotlib.figure import Figure
+from matplotlib.ticker import MaxNLocator
 from scipy.cluster.hierarchy import cophenet
-from scipy.spatial.distance import squareform
+from scipy.spatial.distance import pdist, squareform
 
 from .analysis_chain import RESULT_CONTEXT
 from .data import _headers
 from .field_error import FieldError
+from .hierarchical_gap import (GAP_DATA, GAP_OPTIONS, GAP_PLOT, check_gap_cancel, check_gap_settings,
+                               gap_data, wcss_by_cut)
 from .hierarchical_style import bind_matrix_labels, register_heatmap, register_tree, set_leaf_ticks
 from .leaf_order import (CHOICES as LEAF_ORDER_CHOICES, FIELD as LEAF_ORDERING, OPTIMAL, check_cancel, check_mode,
                          check_size, order_leaves)
+from .monte_carlo import MonteCarloCancelled
 from .reporting import Result
 from .stats import hierarchical
 
 
+DIRECTIONS = {"Rows": ("Row",), "Columns": ("Column",), "Rows and columns": ("Row", "Column")}
 CUT_MODES = ("Count", "Cut height", "No cut")
 SCALES = ("None", "Center", "Standardize")
+SILHOUETTE_DATA = "Silhouette data"
+SILHOUETTE_PLOT = "Silhouette plot"
+CLUSTERED_DATA_PLOT = "Clustered data plot"
 HIERARCHICAL_OPTIONS = {
-    "Direction": ("Rows", "Columns", "Rows and columns"),
+    "Direction": tuple(DIRECTIONS),
     "Scale columns": ("Standardize", "None", "Center"),
     "Scale rows": SCALES,
     "Linkage": ("average", "complete", "single", "ward", "weighted", "centroid", "median"),
@@ -30,7 +38,7 @@ HIERARCHICAL_OPTIONS = {
     LEAF_ORDERING: LEAF_ORDER_CHOICES,
     "Row cut": CUT_MODES, "Clusters": 2, "Row cut height": 1.0,
     "Column cut": CUT_MODES, "Column clusters": 2, "Column cut height": 1.0,
-    "Graph output": ("Dendrogram", "Heat map", "Elbow plot"),
+    "Graph output": ("Dendrogram", "Heat map", CLUSTERED_DATA_PLOT, "Elbow plot", SILHOUETTE_PLOT, GAP_PLOT),
     "Dendrogram orientation": ("Vertical", "Horizontal"),
     "Branch appearance": ("By cluster", "Single color"),
     "Branch width": 1.4, "Branch style": ("Solid", "Dashed", "Dotted"), "Branch opacity (%)": 100.0,
@@ -38,7 +46,9 @@ HIERARCHICAL_OPTIONS = {
     "First label": 1, "Label interval (0 = automatic)": 0,
     "Label angle": 0.0, "Show cut line": True,
     "Scaled data": False, "Distance matrix": False, "Merge map": False, "Cophenetic distances": False,
-    "Cophenetic correlation": False, "Elbow data": False, "Matrix format": ("Full", "Lower triangle"),
+    "Cophenetic correlation": False, "Elbow data": False, SILHOUETTE_DATA: False,
+    GAP_DATA: False, **GAP_OPTIONS,
+    "Matrix format": ("Full", "Lower triangle"),
 }
 HIERARCHICAL_TABS = {
     "Clusters": ("Row cut", "Clusters", "Row cut height", "Column cut", "Column clusters", "Column cut height"),
@@ -46,7 +56,7 @@ HIERARCHICAL_TABS = {
               "Branch width", "Branch style", "Branch opacity (%)", "First label",
               "Label interval (0 = automatic)", "Label angle", "Show cut line"),
     "Output": ("Scaled data", "Distance matrix", "Merge map", "Cophenetic distances",
-               "Cophenetic correlation", "Elbow data", "Matrix format"),
+               "Cophenetic correlation", "Elbow data", SILHOUETTE_DATA, GAP_DATA, *GAP_OPTIONS, "Matrix format"),
 }
 HIERARCHY_GRAPH = "Hierarchy graph"
 TREE_AXIS = "Hierarchy axis"
@@ -74,8 +84,14 @@ class _HierarchyView:
     names: dict[str, list[str]]
     heights: dict[str, float | None]
     scaled: pd.DataFrame
+    raw: pd.DataFrame
     row_names: list[str]
     column_names: list[str]
+    metric: str
+    silhouettes: dict[str, pd.DataFrame]
+    linkage: str
+    gap_options: dict[str, int]
+    gaps: dict[str, pd.DataFrame]
 
 
 @dataclass(frozen=True)
@@ -83,6 +99,20 @@ class AssignmentCoordinates:
     features: tuple[tuple[str, str], ...]
     observations: tuple[str, ...]
     group: str
+
+
+def uses_hierarchy_silhouette(method, options):
+    plot = options.get("Graph output") == SILHOUETTE_PLOT
+    if method == "Hierarchical clustering":
+        return plot or options.get(SILHOUETTE_DATA, False)
+    return method == HIERARCHY_GRAPH and plot
+
+
+def uses_hierarchy_gap(method, options):
+    plot = options.get("Graph output") == GAP_PLOT
+    if method == "Hierarchical clustering":
+        return plot or options.get(GAP_DATA, False)
+    return method == HIERARCHY_GRAPH and plot
 
 
 def hierarchy_view_available(frame):
@@ -100,6 +130,12 @@ def check_hierarchy_view(frame, options):
         axis = options.get(TREE_AXIS, ALL_TREES)
         if axis != ALL_TREES and not any(axis == key + "s" for key in view.trees):
             raise FieldError(TREE_AXIS, "Choose an axis fitted by the source hierarchy.")
+        if output == CLUSTERED_DATA_PLOT:
+            selected = view.trees.values() if axis == ALL_TREES else (view.trees[axis[:-1]],)
+            if not any(tree.labels is not None for tree in selected):
+                raise FieldError(TREE_AXIS, "Choose an axis with clusters defined by count or height.")
+    if output == GAP_PLOT:
+        check_gap_settings(view.gap_options)
     return view
 
 
@@ -317,41 +353,125 @@ def _merge_map(tree, names):
 
 
 def _elbow_data(tree, observations):
-    """Accumulate within-cluster squared deviations along the merge sequence."""
-    n, variables = observations.shape
-    centers = np.empty((2 * n - 1, variables))
-    sizes = np.ones(2 * n - 1, dtype=int)
-    costs = np.empty(n - 1)
-    total = 0.
-    with np.errstate(over="ignore", invalid="ignore"):
-        centers[:n] = observations - observations[0]
-        for node, (left, right, _, _) in enumerate(tree, n):
-            first, second = int(left), int(right)
-            a, b = sizes[first], sizes[second]
-            sizes[node] = a + b
-            delta = centers[second] - centers[first]
-            centers[node] = centers[first] + delta * (b / (a + b))
-            # The joined cluster adds the squared separation of its centers,
-            # weighted by their sample sizes, to the previous total.
-            weighted_delta = delta * np.sqrt(a * b / (a + b))
-            total += float(weighted_delta @ weighted_delta)
-            costs[node - n] = total
+    costs = wcss_by_cut(tree, observations)
     if not np.isfinite(costs).all():
         raise ValueError("Elbow data require finite within-cluster sums of squares.")
-    return pd.DataFrame({"Number of clusters": np.arange(1, n), "WCSS": costs[::-1]})
+    return pd.DataFrame({"Number of clusters": np.arange(1, len(observations)), "WCSS": costs})
 
 
-def _elbow_plot(reports):
+def _check_silhouette_cancelled(cancel):
+    if cancel is not None and cancel.is_set():
+        raise MonteCarloCancelled("Hierarchical silhouette cancelled.")
+
+
+def _silhouette_data(tree, distances, cancel):
+    """Update the per-observation means as each pair of clusters joins."""
+    _check_silhouette_cancelled(cancel)
+    n = len(tree) + 1
+    scores = np.full(n - 1, np.nan)  # With one cluster the nearest alternative is undefined.
+    if n > 2:
+        means = squareform(distances)
+        points = np.arange(n)
+        owner = points.copy()
+        nodes = points.copy()
+        slots = np.empty(2 * n - 1, dtype=int)
+        slots[:n] = points
+        sizes = np.ones(n, dtype=int)
+        for node, (left, right, _, _) in enumerate(tree[:-1], n):
+            k = 2 * n - node - 1
+            _check_silhouette_cancelled(cancel)
+            first, second = sorted((slots[int(left)], slots[int(right)]))
+            sizes[first] += sizes[second]
+            means[:, first] += (means[:, second] - means[:, first]) * (sizes[second] / sizes[first])
+            owner[owner == second] = first
+            # Reuse the removed cluster's slot so only the leading k columns are active.
+            if second != k:
+                means[:, second] = means[:, k]
+                sizes[second], nodes[second] = sizes[k], nodes[k]
+                slots[nodes[second]] = second
+                owner[owner == k] = second
+            nodes[first], slots[node] = node, first
+
+            own = means[points, owner]
+            means[points, owner] = np.inf
+            other = means[:, :k].min(axis=1)
+            means[points, owner] = own
+            members = sizes[owner]
+            # Form the ratio in local units before adjusting for the zero self-distance.
+            scale = np.maximum(own, other)
+            within = np.divide(own, scale, out=np.zeros(n), where=scale > 0)
+            within *= np.divide(members, members - 1, out=np.zeros(n), where=members > 1)
+            between = np.divide(other, scale, out=np.zeros(n), where=scale > 0)
+            denominator = np.maximum(within, between)
+            values = np.divide(between - within, denominator, out=np.zeros(n),
+                               where=(members > 1) & (denominator > 0))
+            scores[k - 1] = values.mean()
+    _check_silhouette_cancelled(cancel)
+    return pd.DataFrame({"Number of clusters": np.arange(1, n), "Mean silhouette": scores})
+
+
+def _cluster_count_plot(reports, output):
+    silhouette = output == SILHOUETTE_PLOT
+    gap = output == GAP_PLOT
+    metric = "Gap" if gap else "Mean silhouette" if silhouette else "WCSS"
     figure = Figure(figsize=(8.6 if len(reports) == 2 else 7.4, 4.8), layout="constrained")
     axes = figure.subplots(1, len(reports), squeeze=False).ravel()
     for ax, (axis, table) in zip(axes, reports.items(), strict=True):
-        ax.plot(table["Number of clusters"], table["WCSS"], marker="o", markersize=3)
-        ax.set(title=f"Elbow plot ({axis.lower()}s)", xlabel="Number of clusters", ylabel="WCSS")
+        counts = table["Number of clusters"]
+        if gap:
+            ax.errorbar(counts, table[metric], yerr=table["Gap SE"].to_numpy(), fmt="o-", markersize=3)
+            chosen = table.loc[table["Recommended"]]
+            if not chosen.empty:
+                ax.scatter(chosen["Number of clusters"], chosen[metric], color="#b65a39", zorder=4)
+                ax.axvline(chosen["Number of clusters"].iat[0], color="#b65a39", linewidth=0.8, zorder=0)
+        else:
+            ax.plot(counts, table[metric], marker="o", markersize=3)
+        ax.set(title=f"{output} ({axis.lower()}s)", xlabel="Number of clusters", ylabel=metric)
+        if silhouette or gap:
+            ax.set_xlim(0.8, max(1.2, len(table) + 0.2))
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1, prune="both"))
+        if silhouette:
+            ax.set_ylim(-1.05, 1.05)
+            ax.axhline(0, color="#637584", linewidth=0.8, zorder=0)
         ax.spines[["top", "right"]].set_visible(False)
     return figure
 
 
-def hierarchy_graph(frame, options):
+def _clustered_data_plot(trees, raw, row_names, column_names):
+    cuts = [(axis, tree.labels.to_numpy()) for axis, tree in trees.items() if tree.labels is not None]
+    figure = Figure(figsize=(8.6 if len(cuts) == 2 else 7.4, 4.8), layout="constrained")
+    axes = figure.subplots(1, len(cuts), squeeze=False).ravel()
+    for ax, (axis, groups) in zip(axes, cuts, strict=True):
+        points, features = (raw, column_names) if axis == "Row" else (raw.T, row_names)
+        x, y = ((points.iloc[:, 0], points.iloc[:, 1]) if len(features) > 1
+                else (groups, points.iloc[:, 0]))
+        x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+        cluster_ids = np.unique(groups)
+        if len(cluster_ids) <= 2 * len(PALETTE):
+            for index, group in enumerate(cluster_ids):
+                selected = groups == group
+                ax.scatter(x[selected], y[selected], s=25, color=PALETTE[index % len(PALETTE)],
+                           marker="o" if index < len(PALETTE) else "D", label=f"Cluster {group}")
+            if len(features) > 1:
+                ax.legend(title="Cluster", fontsize="small", ncols=2 if len(cluster_ids) > 8 else 1)
+        elif len(features) > 1:
+            points_artist = ax.scatter(x, y, c=groups, s=22, cmap="viridis")
+            scale = figure.colorbar(points_artist, ax=ax, label="Cluster", ticks=MaxNLocator(integer=True))
+            scale.solids.set_rasterized(False)
+        else:
+            ax.scatter(x, y, c=groups, s=22, cmap="viridis")
+
+        x_label, y_label = features[:2] if len(features) > 1 else ("Cluster", features[0])
+        ax.set(title=f"Clustered data ({axis.lower()}s)", xlabel=x_label, ylabel=y_label)
+        for label in (ax.xaxis.label, ax.yaxis.label):
+            label.set_parse_math(False)
+        if len(features) == 1:
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
+        ax.spines[["top", "right"]].set_visible(False)
+    return figure
+
+
+def hierarchy_graph(frame, options, *, cancel=None):
     view = check_hierarchy_view(frame, options)
     output = options.get("Graph output", "Dendrogram")
     if output == "Heat map":
@@ -359,11 +479,36 @@ def hierarchy_graph(frame, options):
                                     view.row_names, view.column_names))
     axis = options.get(TREE_AXIS, ALL_TREES)
     trees = view.trees if axis == ALL_TREES else {axis[:-1]: view.trees[axis[:-1]]}
+    if output == CLUSTERED_DATA_PLOT:
+        return Result({}, _clustered_data_plot(trees, view.raw, view.row_names, view.column_names))
     if output == "Elbow plot":
         values = view.scaled.to_numpy()
         reports = {key: _elbow_data(fit.tree, values if key == "Row" else values.T)
                    for key, fit in trees.items()}
-        return Result({}, _elbow_plot(reports))
+        return Result({}, _cluster_count_plot(reports, output))
+    if output == SILHOUETTE_PLOT:
+        values = view.scaled.to_numpy()
+        reports = {}
+        for key, fit in trees.items():
+            _check_silhouette_cancelled(cancel)
+            if key in view.silhouettes:
+                reports[key] = view.silhouettes[key]
+            else:
+                points = values if key == "Row" else values.T
+                reports[key] = _silhouette_data(fit.tree, pdist(points, metric=view.metric), cancel)
+        return Result({}, _cluster_count_plot(reports, output))
+    if output == GAP_PLOT:
+        settings = check_gap_settings(view.gap_options)
+        values = view.scaled.to_numpy()
+        reports = {}
+        for key, fit in trees.items():
+            check_gap_cancel(cancel)
+            if key in view.gaps:
+                reports[key] = view.gaps[key]
+            else:
+                points = values if key == "Row" else values.T
+                reports[key] = gap_data(fit.tree, points, view.metric, view.linkage, settings, cancel)
+        return Result({}, _cluster_count_plot(reports, output))
     return Result({}, _dendrograms(trees, view.names, view.heights, options))
 
 
@@ -416,20 +561,38 @@ def check_leaf_options(frame, options):
         check_size(len(variables))
 
 
+def _check_clustered_data_cut(options, axes):
+    if (options.get("Graph output") == CLUSTERED_DATA_PLOT
+            and all(options.get(f"{axis} cut", "Count") == "No cut" for axis in axes)):
+        raise FieldError("Graph output", "Define clusters by count or height to plot clustered data.")
+
+
+def check_hierarchical_options(frame, options):
+    check_leaf_options(frame, options)
+    _check_clustered_data_cut(options, DIRECTIONS.get(options.get("Direction", "Rows"), ()))
+    if uses_hierarchy_gap("Hierarchical clustering", options):
+        check_gap_settings(options)
+
+
 def hierarchical_result(frame, options, *, cancel=None):
     options = saved_hierarchical_options(options)
     direction = options.get("Direction", "Rows")
-    axes = {"Rows": ("Row",), "Columns": ("Column",), "Rows and columns": ("Row", "Column")}.get(direction)
+    axes = DIRECTIONS.get(direction)
     if axes is None:
         raise ValueError("Select rows, columns, or both for hierarchical clustering.")
+    _check_clustered_data_cut(options, axes)
     ordering = check_mode(options)
     variables = options["Variables"]
-    fits, heights, names, tables = {}, {}, {}, {}
+    metric = options.get("Distance", "euclidean")
+    method = options.get("Linkage", "average")
+    gap_options = {key: options.get(key, default) for key, default in GAP_OPTIONS.items()}
+    gap_settings = check_gap_settings(gap_options) if uses_hierarchy_gap("Hierarchical clustering", options) else None
+    fits, heights, tables = {}, {}, {}
     for axis in axes:
         check_cancel(cancel)
         count, height = _cut(options, axis)
-        fits[axis] = hierarchical(frame, variables, count, linkage=options.get("Linkage", "average"),
-                                  metric=options.get("Distance", "euclidean"),
+        fits[axis] = hierarchical(frame, variables, count, linkage=method,
+                                  metric=metric,
                                   column_scale=options.get("Scale columns", "None").lower(),
                                   row_scale=options.get("Scale rows", "None").lower(),
                                   axis=axis.lower() + "s", cut_height=height)
@@ -437,11 +600,12 @@ def hierarchical_result(frame, options, *, cancel=None):
         if ordering == OPTIMAL:
             check_size(len(fits[axis].tree) + 1)  # before any matrix of the ordering exists
     scale = next(iter(fits.values()))
+    raw = scale.data if "Row" in fits else scale.data.T
     row_names = _row_names(frame, scale, variables, options.get("Observation labels"))
     column_names = list(map(str, scale.scaled.columns))
     names = {axis: row_names if axis == "Row" else column_names for axis in fits}
     graph_output = options.get("Graph output", "Dendrogram")
-    elbow_reports = {}
+    elbow_reports, silhouettes, gaps = {}, {}, {}
     contexts = {}
     layouts, leaf_tables = _leaf_orders(fits, names, cancel) if ordering == OPTIMAL else ({}, {})
     check_cancel(cancel)
@@ -460,20 +624,33 @@ def hierarchical_result(frame, options, *, cancel=None):
                                                    tuple(names[axis]), label)
         tables[prefix + "Merges"] = pd.DataFrame(fit.tree, columns=["Node A", "Node B", "Distance", "Count"])
         tables.update({prefix + title: table for title, table in _diagnostics(fit, names[axis], options).items()})
+        scaled = fit.scaled.to_numpy()
+        observations = scaled if axis == "Row" else scaled.T
         if options.get("Elbow data", False) or graph_output == "Elbow plot":
-            scaled = fit.scaled.to_numpy()
-            observations = scaled if axis == "Row" else scaled.T
             elbow_reports[axis] = _elbow_data(fit.tree, observations)
             tables[prefix + "Elbow data"] = elbow_reports[axis]
+        if options.get(SILHOUETTE_DATA, False) or graph_output == SILHOUETTE_PLOT:
+            silhouettes[axis] = _silhouette_data(fit.tree, fit.distances, cancel)
+            tables[prefix + SILHOUETTE_DATA] = silhouettes[axis]
+        if gap_settings is not None:
+            gaps[axis] = gap_data(fit.tree, observations, metric, method, gap_settings, cancel)
+            tables[prefix + GAP_DATA] = gaps[axis]
     tables.update(leaf_tables)
     trees = {axis: _Tree(fit.tree, fit.labels, layouts.get(axis)) for axis, fit in fits.items()}
     if graph_output == "Heat map":
         figure = _heat_map(trees, heights, options, scale.scaled, row_names, column_names)
+    elif graph_output == CLUSTERED_DATA_PLOT:
+        figure = _clustered_data_plot(trees, raw, row_names, column_names)
     elif graph_output == "Elbow plot":
-        figure = _elbow_plot(elbow_reports)
+        figure = _cluster_count_plot(elbow_reports, graph_output)
+    elif graph_output == SILHOUETTE_PLOT:
+        figure = _cluster_count_plot(silhouettes, graph_output)
+    elif graph_output == GAP_PLOT:
+        figure = _cluster_count_plot(gaps, graph_output)
     else:
         figure = _dendrograms(trees, names, heights, options)
     check_cancel(cancel)
-    view = _HierarchyView(trees, names, heights, scale.scaled, row_names, column_names)
+    view = _HierarchyView(trees, names, heights, scale.scaled, raw, row_names, column_names, metric, silhouettes,
+                          method, gap_options, gaps)
     contexts.update({name: view for name in ("Merges", "Row Merges", "Column Merges") if name in tables})
     return Result(tables, figure, table_contexts=contexts)

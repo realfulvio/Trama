@@ -12,7 +12,7 @@ import tempfile
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
                                QFormLayout, QGridLayout, QGroupBox, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                               QMessageBox, QPlainTextEdit, QProgressDialog, QPushButton, QVBoxLayout, QApplication)
+                               QMessageBox, QPlainTextEdit, QProgressDialog, QPushButton, QApplication)
 
 from analisi._version import VERSION
 from analisi.i18n import LANGUAGE_NAMES, active_language
@@ -84,7 +84,7 @@ class ReportDialog(QDialog):
         self.setObjectName("reportDialog")
         self.setWindowTitle(text("title"))
         self.items, self.result = list(items), None
-        outer = QVBoxLayout(self)
+        outer = theme.scroll_body(self)
         form = QFormLayout()
         self.title = QLineEdit(title)
         self.title.setObjectName("reportTitle")
@@ -152,7 +152,7 @@ class ReportDialog(QDialog):
         self.box.button(QDialogButtonBox.StandardButton.Cancel).setText(text("cancel"))
         self.box.accepted.connect(self.accept)
         self.box.rejected.connect(self.reject)
-        outer.addWidget(self.box)
+        self.layout().addWidget(self.box)
 
         for item in self.items:
             row = QListWidgetItem()

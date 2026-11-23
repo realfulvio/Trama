@@ -75,7 +75,7 @@ def check_hierarchical_import(root, app, directory, kit):
         app.import_file(incoming)
         index = next(i for i, run in enumerate(app.runs) if run.method == "Hierarchical clustering")
         title = "Marker expression"
-        archived_name = next(name for name in app.tables if name.startswith("Prism result"))
+        archived_name = next(name for name in app.tables if name.startswith("Imported result · "))
         archived = app.tables[archived_name].raw.copy(deep=True)
         app.open_sheet(("graph", index))
         finish()

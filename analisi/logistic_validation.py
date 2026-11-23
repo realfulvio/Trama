@@ -140,7 +140,10 @@ def _get(options, name):
 def _whole(options, name, low, high):
     value = _get(options, name)
     if isinstance(value, str):
-        value = int(value) if _INTEGER.fullmatch(value) else None
+        try:
+            value = int(value) if _INTEGER.fullmatch(value) else None
+        except ValueError:
+            value = None
     elif isinstance(value, float) and value.is_integer():
         value = int(value)
     if isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral) or not low <= value <= high:
@@ -553,24 +556,28 @@ def confusion(y, probability, threshold):
 
 # ----- analysis ----------------------------------------------------------------------------------------------------
 
-def calculate(plan, cancel=None):
-    """Fit every fold in order on the calling thread, polling ``cancel`` before each fit.
+def calculate(plan, cancel=None, progress=None):
+    """Fit folds in order and report the completed count, polling ``cancel`` before each fit.
 
     The shared process pool is not used: on 20,000 rows × 10 folds it gave no gain over this loop and its folds
     can differ from the serial ones in the last bits (BLAS threading differs between the window process and the
     workers), which would break bit-identical results across settings. See the benchmark in the PR.
     """
     outcomes = []
+    if progress is not None:
+        progress(0, plan.folds)
     for fold in range(1, plan.folds + 1):
         check_cancel(cancel)
         outcomes.append(fit_fold(plan, fold))
+        if progress is not None:
+            progress(fold, plan.folds)
     check_cancel(cancel)
     return outcomes
 
 
-def analysis(frame, options, *, cancel=None):
+def analysis(frame, options, *, cancel=None, progress=None):
     plan = prepare(frame, options)
-    return build(plan, calculate(plan, cancel))
+    return build(plan, calculate(plan, cancel, progress))
 
 
 def build(plan, outcomes):

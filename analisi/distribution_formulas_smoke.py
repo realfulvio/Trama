@@ -20,6 +20,7 @@ import pandas as pd
 from . import i18n
 from .data import Dataset, load_tables, save_project
 from .graph_language_smoke import drive_mapped_dialog
+from .worksheet_formula_dialog import WorksheetFormulaDialog
 
 TITLE = "Distribution scores"
 UPPER, ROW_TAIL = "Upper tail", "Row tail"
@@ -45,41 +46,44 @@ def row_tail(z, tail):
     return np.nan
 
 
-def _walk(widget):
-    for child in widget.winfo_children():
-        yield child
-        yield from _walk(child)
-
-
-def answer_prompts(root, tools, answers, shots=()):
-    """Type each answer into the real askstring prompts that follow and press their OK button.
-
-    ``shots`` maps an answer position to a screenshot taken while that prompt shows the typed text.
-    The prompt texts are returned so the caller can check what the user saw.
-    """
-    seen = []
-
-    def fill(position):
-        def ready(dialog):
-            try:
-                seen.append(dialog.prompt)
-                dialog.entry.delete(0, "end")
-                dialog.entry.insert(0, answers[position])
+def drive_formula_editor(root, expression, errors, *, expected_error=None, before_accept=None):
+    """Fill the actual worksheet formula editor and verify the submitted result."""
+    def ready(dialog):
+        try:
+            dialog.expression.delete(0, "end")
+            dialog.expression.insert(0, expression)
+            if before_accept is not None:
                 dialog.update()
-                if position in shots:
-                    tools.capture(dialog, shots[position])
-                if position + 1 < len(answers):
-                    drive_mapped_dialog(root, simpledialog.Dialog, fill(position + 1), tools.errors)
-                button = next(widget for widget in _walk(dialog)
-                              if widget.winfo_class() in {"Button", "TButton"} and str(widget.cget("default")) == "active")
-                button.invoke()
-            except Exception as error:  # pragma: no cover - reported through the smoke's errors
-                tools.errors.append(f"Calculated column prompt: {error!r}")
+                before_accept(dialog)
+            dialog.ok()
+            if expected_error is None:
+                assert dialog.result is not None, dialog.problem.cget("text")
+            else:
+                assert dialog.result is None and expected_error in dialog.problem.cget("text")
                 dialog.cancel()
-        return ready
+        except Exception as error:
+            errors.append(f"Formula editor: {error!r}")
+            if dialog.winfo_exists():
+                dialog.cancel()
 
-    drive_mapped_dialog(root, simpledialog.Dialog, fill(0), tools.errors)
-    return seen
+    drive_mapped_dialog(root, WorksheetFormulaDialog, ready, errors)
+
+
+def answer_prompts(root, tools, name, expression, *, shot=None, expected_error=None):
+    """Enter a column name and then use the real formula editor."""
+    def ready(dialog):
+        try:
+            dialog.entry.delete(0, "end")
+            dialog.entry.insert(0, name)
+            capture = (lambda formula: tools.capture(formula, shot)) if shot else None
+            drive_formula_editor(root, expression, tools.errors, expected_error=expected_error, before_accept=capture)
+            dialog.ok()
+        except Exception as error:
+            tools.errors.append(f"Calculated column name: {error!r}")
+            if dialog.winfo_exists():
+                dialog.cancel()
+
+    drive_mapped_dialog(root, simpledialog.Dialog, ready, tools.errors)
 
 
 def check_distribution_formulas(root, app, directory, tools):
@@ -106,17 +110,16 @@ def _check(root, app, directory, tools, suffix, report):  # noqa: C901 - one lin
     root.update()
 
     # 1. A right-tail calculated column typed into the real prompts.
-    prompts = answer_prompts(root, tools, [UPPER, UPPER_FORMULA],
-                             shots={1: f"window-distribution-formula-prompt{suffix}.png"})
+    answer_prompts(root, tools, UPPER, UPPER_FORMULA, shot=f"window-distribution-formula-prompt{suffix}.png")
     app.add_formula()
     root.update()
     assert not errors, errors
-    assert len(prompts) == 2 and "NORMDIST(" in prompts[1], prompts
     data = app.tables[TITLE]
     assert data.formulas == {UPPER: UPPER_FORMULA}, data.formulas
     np.testing.assert_allclose(data.frame()[UPPER], [upper(z) for z in SCORES], rtol=1e-14)
-    with patch.object(simpledialog, "askstring", side_effect=(ROW_TAIL, "ZDIST(Score, Tail)")):
-        app.add_formula()
+    answer_prompts(root, tools, ROW_TAIL, "ZDIST(Score, Tail)")
+    app.add_formula()
+    assert not errors, errors
     row = data.frame()[ROW_TAIL].to_numpy()
     np.testing.assert_allclose(row[:5], [row_tail(z, t) for z, t in zip(SCORES[:5], TAILS[:5])], rtol=1e-14)
     assert np.isnan(row[5]), row
@@ -168,14 +171,13 @@ def _check(root, app, directory, tools, suffix, report):  # noqa: C901 - one lin
     before = dict(data.formulas)
     for wrong, message in (('NORMDIST(Score, 0, 1, "right", 2)', "NORMDIST takes 1 to 4 arguments"),
                            ('ZDIST(Score, "upper")', 'the tail must be "left", "right", "one" or "two"')):
-        answer_prompts(root, tools, [UPPER, wrong])
+        answer_prompts(root, tools, UPPER, wrong, expected_error=message)
         app.add_formula()
         root.update()
-        assert len(errors) == 1 and message in errors[0], errors
-        errors.clear()
+        assert not errors, errors
         assert data.formulas == before, data.formulas
-    answer_prompts(root, tools, [UPPER, 'NORMDIST(Score, 0, 1, " Right ")'],
-                   shots={1: f"window-distribution-formula-corrected{suffix}.png"})
+    answer_prompts(root, tools, UPPER, 'NORMDIST(Score, 0, 1, " Right ")',
+                   shot=f"window-distribution-formula-corrected{suffix}.png")
     app.add_formula()
     tools.wait_for_calculation()
     assert not errors, errors
@@ -244,12 +246,12 @@ def _check(root, app, directory, tools, suffix, report):  # noqa: C901 - one lin
     root.update()
     tools.capture(root, f"window-distribution-imported{suffix}.png")
     recipe = imported.formulas["Upper probability"]
-    shown = answer_prompts(root, tools, ["Upper probability", recipe.replace('"right"', '"two"')],
-                           shots={1: f"window-distribution-imported-edit{suffix}.png"})
+    answer_prompts(root, tools, "Upper probability", recipe.replace('"right"', '"two"'),
+                   shot=f"window-distribution-imported-edit{suffix}.png")
     app.add_formula()
     root.update()
     assert not errors, errors
-    assert '"two"' in imported.formulas["Upper probability"] and "NORMDIST" in shown[1]
+    assert '"two"' in imported.formulas["Upper probability"]
     app.edit_cell(2, 0, "-2")
     root.update()
     np.testing.assert_allclose(imported.frame()["Upper probability"], [1.0, 2 * upper(1), 2 * upper(2)],

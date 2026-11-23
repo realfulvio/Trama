@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from pandas.api.types import is_complex_dtype, is_float_dtype, is_numeric_dtype
 
+from . import fdr_control
 from .processing import FieldError
 
 
@@ -13,15 +14,40 @@ STATUS_POLICIES = ("Report an error", "Treat as missing")
 STATUS_DEFAULTS = {EVENT_CODE: "1", CENSOR_CODE: "0", OTHER_STATUS: STATUS_POLICIES[0]}
 
 PAIRWISE_CORRECTION = "Pairwise correction"
+PAIRWISE_SCOPE = "Pairwise scope"
 PAIRWISE_CONTROL = "Pairwise control group"
+PAIRWISE_PAIRS = "Selected survival pairs"
+PAIRWISE_PAIR_LIST = "Survival pair list"
 PAIRWISE_ADJUSTED = "Show adjusted pairwise p"
 PAIRWISE_ALPHA = "Pairwise alpha"
-PAIRWISE_METHODS = {"Holm": "holm", "Bonferroni": "bonferroni", "FDR": "fdr_bh", "Holm–Šídák": "holm-sidak"}
+PAIRWISE_FDR = fdr_control.LEVEL
+ALL_PAIRS, CONTROL_PAIRS, SELECTED_PAIRS = PAIRWISE_SCOPES = ("All pairs", "Versus control", "Selected pairs")
+UNADJUSTED = "Unadjusted"
+PAIRWISE_METHODS = {"Holm": "holm", "Bonferroni": "bonferroni", "FDR": "fdr_bh",
+                    "Holm–Šídák": "holm-sidak", "Šídák": "sidak"}
+PAIRWISE_CORRECTIONS = ("None", *PAIRWISE_METHODS, *fdr_control.FDR_METHODS, UNADJUSTED)
+PAIRWISE_FIELDS = (PAIRWISE_CORRECTION, PAIRWISE_SCOPE, PAIRWISE_CONTROL, PAIRWISE_PAIRS,
+                   PAIRWISE_ADJUSTED, PAIRWISE_ALPHA, PAIRWISE_FDR)
 
 
-def pairwise_fields(correction, adjusted):
+def pairwise_corrections(saved):
+    # The original FDR value keeps its pre-existing BH report. New analyses offer named FDR procedures.
+    return tuple(value for value in PAIRWISE_CORRECTIONS if value != "FDR" or saved.get(PAIRWISE_CORRECTION) == "FDR")
+
+
+def pairwise_scope(options):
+    """Infer the comparison family of projects saved before scope was explicit."""
+    return options.get(PAIRWISE_SCOPE, CONTROL_PAIRS if options.get(PAIRWISE_CONTROL) else ALL_PAIRS)
+
+
+def pairwise_fields(correction, scope, adjusted):
     active = correction != "None"
-    return {PAIRWISE_CONTROL: active, PAIRWISE_ADJUSTED: active, PAIRWISE_ALPHA: active and not adjusted}
+    fdr = correction in fdr_control.FDR_METHODS
+    return {PAIRWISE_SCOPE: active, PAIRWISE_CONTROL: active and scope == CONTROL_PAIRS,
+            PAIRWISE_PAIRS: active and scope == SELECTED_PAIRS,
+            PAIRWISE_ADJUSTED: active and not fdr and correction != UNADJUSTED,
+            PAIRWISE_ALPHA: active and not fdr and (not adjusted or correction == UNADJUSTED),
+            PAIRWISE_FDR: fdr}
 
 
 def _code(value, field, numeric):

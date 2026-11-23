@@ -7,8 +7,8 @@ from analisi.i18n import active_language
 
 _TEXT = {
     "qt.profile_name": ("Profile name", "Nome del profilo"),
-    "qt.classic": ("Open in Classic interface", "Apri nell’interfaccia Classica"),
-    "qt.classic_hint": ("Opens the project in the classic Trama window.", "Apre il progetto nella finestra Classica."),
+    "qt.classic": ("Open in Tk", "Apri in Tk"),
+    "qt.classic_hint": ("Opens the project in the Tk window.", "Apre il progetto nella finestra Tk."),
     "qt.classic_save": ("Save the project before opening it in the classic interface.",
                         "Salva il progetto prima di aprirlo nell’interfaccia Classica."),
     "qt.sheet_picker": ("Project sheet", "Foglio del progetto"),
@@ -58,6 +58,7 @@ _TEXT = {
     "qt.not_calculated": ("This analysis has not been calculated with the current data.",
                           "Questa analisi non è ancora stata calcolata con i dati attuali."),
     "qt.stale": ("These results are not current: {error}", "Questi risultati non sono aggiornati: {error}"),
+    "qt.fit_entire_page": ("Fit entire page", "Adatta pagina intera"),
     "qt.no_table": ("Open or create a data table first.", "Apri o crea prima una tabella dati."),
     "qt.read_only": ("This sheet keeps an imported view and cannot be edited.",
                      "Questo foglio conserva una vista importata e non si può modificare."),
@@ -121,6 +122,8 @@ _TEXT = {
                             "Il disegno sul grafico non è disponibile: {reason}"),
     "qt.clipboard_failed": ("The clipboard could not be written. The drawings were not changed.",
                             "Non è stato possibile scrivere negli appunti. I disegni non sono stati modificati."),
+    "qt.cell_clipboard_failed": ("The clipboard could not be written. The cells were not changed.",
+                                 "Non è stato possibile scrivere negli appunti. Le celle non sono state modificate."),
     "qt.inspector_draft": ("The Inspector has changes that are not applied. Apply them, discard them, or go back "
                            "to the graph?", "L'Inspector ha modifiche non applicate. Applicarle, scartarle o "
                            "tornare al grafico?"),

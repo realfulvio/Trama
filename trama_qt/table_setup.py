@@ -2,10 +2,12 @@
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
-                               QHBoxLayout, QLabel, QListWidget, QScrollArea, QSpinBox, QTableWidget,
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame,
+                               QHBoxLayout, QLabel, QListWidget, QPushButton, QScrollArea, QSpinBox, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
+from analisi._version import RELEASE_CHANNEL, VERSION
 from analisi.data import MAX_COLUMNS
 from analisi.i18n import tr
 from analisi.table_templates import GROUPED_FORMATS, TEMPLATES, XY_FORMATS, _blank_xy, format_label, template_detail
@@ -14,16 +16,42 @@ from . import theme
 
 
 class TableSetup(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, open_project=None, create_info=None):
         super().__init__(parent)
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
         self.types = QListWidget()
         self.types.setAccessibleName(tr("setup.new_data_table"))
         self.types.setMinimumWidth(145)
-        self.types.setMaximumWidth(185)
         self.types.addItems([format_label(template.kind) for template in TEMPLATES])
-        row.addWidget(self.types)
+        if open_project is not None:
+            panel = QFrame()
+            panel.setObjectName("setupSidebar")
+            panel.setFixedWidth(234)
+            sidebar = QVBoxLayout(panel)
+            sidebar.setContentsMargins(10, 12, 10, 10)
+            sidebar.setSpacing(6)
+            logo = QLabel()
+            pixmap = QPixmap(str(theme.ASSETS / "brand" / "trama-wordmark-panel.png"))
+            ratio = self.devicePixelRatioF()
+            pixmap = pixmap.scaledToWidth(round(212 * ratio), Qt.TransformationMode.SmoothTransformation)
+            pixmap.setDevicePixelRatio(ratio)
+            logo.setPixmap(pixmap)
+            logo.setAccessibleName("Trama")
+            sidebar.addWidget(logo)
+            sidebar.addWidget(QLabel(tr("setup.version", version=f"{VERSION} {RELEASE_CHANNEL}")))
+            sidebar.addWidget(QLabel(tr("setup.new_data_table")))
+            self.types.setObjectName("setupTypes")
+            sidebar.addWidget(self.types, 1)
+            sidebar.addWidget(QLabel(tr("setup.existing_project")))
+            for label, callback in (("open_file", open_project), ("new_project_info", create_info)):
+                button = QPushButton(tr(f"setup.{label}"))
+                button.clicked.connect(callback)
+                sidebar.addWidget(button)
+            row.addWidget(panel)
+        else:
+            self.types.setMaximumWidth(185)
+            row.addWidget(self.types)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)

@@ -26,6 +26,7 @@ LABEL = "Label column"
 SHOW_LABELS = "Show row labels"
 COLOR_GROUPS = "Color groups by"
 SAVED_DIRECTIONS = "PCA saved component directions"
+SAVED_VIEWPORT = "PCA saved score viewport"
 SCORES, LOADINGS, BIPLOT = "Scores", "Loadings", "Biplot"
 SCREE, PROPORTION = "Scree", "Proportion of variance"
 VIEWS = (SCORES, LOADINGS, BIPLOT, SCREE, PROPORTION)
@@ -242,18 +243,24 @@ def _observation_points(axes, coordinates, group_column, values, marker_colors):
 
 def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, variable_xy, row_labels,
             variable_names, show_rows, parallel=None, *, group_column=None, group_values=None, overlay=None,
-            marker_colors=None):
+            marker_colors=None, viewport=None):
     if view == SCREE:
         figure, axes = _plot("Scree", "Principal component", "Eigenvalue")
+        numbers = np.arange(1, len(eigenvalues) + 1)
         # The observed series stays unlabeled so its style key remains the historical line.
-        axes.plot(np.arange(1, len(eigenvalues) + 1), eigenvalues, marker="o")
+        axes.plot(numbers, eigenvalues, marker="o")
         if parallel is not None:
-            percentile, quantile = parallel
-            line, = axes.plot(np.arange(1, len(quantile) + 1), quantile, linestyle="--", marker="None",
-                              label=pca_retention.percentile_label(percentile))
+            line, = axes.plot(numbers, parallel.quantile, linestyle="--", marker="None",
+                              label=pca_retention.percentile_label(parallel.percentile))
             line.set_gid(pca_retention.REFERENCE_GID)
+            lower, upper = parallel.bounds
+            band = axes.fill_between(numbers, lower, upper, color=line.get_color(), alpha=.15,
+                                     label="Parallel percentile range")
+            band.set_gid("trama-pca-parallel-interval")
+            mean = axes.scatter(numbers, parallel.mean, color=line.get_color(), s=14, label="Parallel mean")
+            mean.set_gid("trama-pca-parallel-mean")
             axes.legend()
-        axes.set_xticks(np.arange(1, len(eigenvalues) + 1))
+        axes.set_xticks(numbers)
         return figure, None
     if view == PROPORTION:
         figure, axes = _plot("Proportion of variance", "Principal component", "Variance (%)")
@@ -268,8 +275,8 @@ def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, va
     titles = {SCORES: "Principal component scores", LOADINGS: "Principal component loadings",
               BIPLOT: "Principal component biplot"}
     figure, axes = _plot(titles[view], xlabel, ylabel)
-    axes.axhline(0, color="#d0d5dd", linewidth=.8, zorder=0)
-    axes.axvline(0, color="#d0d5dd", linewidth=.8, zorder=0)
+    zero_y = axes.axhline(0, color="#d0d5dd", linewidth=.8, zorder=0)
+    zero_x = axes.axvline(0, color="#d0d5dd", linewidth=.8, zorder=0)
     contours = None
     if view in POINT_VIEWS:
         point_groups = _observation_points(axes, row_xy, group_column, group_values, marker_colors or {})
@@ -285,7 +292,38 @@ def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, va
                           arrowprops={"arrowstyle": "->", "color": "#9a3412"}, zorder=2)
             _annotate(axes, x, y, name)
     axes.margins(.15)
+    if view == SCORES:
+        _apply_score_viewport(axes, viewport, [horizontal + 1, vertical + 1], (zero_x, zero_y))
     return figure, contours
+
+
+def _apply_score_viewport(axes, viewport, components, zero_lines):
+    if not isinstance(viewport, dict) or viewport.get("components") != components:
+        return
+    from .legacy_mv_scatter import apply_axes, fixed_axis_record
+    from matplotlib.colors import is_color_like
+
+    try:
+        style = {key: fixed_axis_record(viewport[key]) for key in ("x", "y")}
+        title = viewport["title"]
+        refs = [viewport[key].get("zero") for key in ("x", "y")]
+        if not isinstance(title, str) or not 1 <= len(title) <= 240 or "\n" in title or "\r" in title:
+            return
+        for ref in refs:
+            if ref is None:
+                continue
+            if (not isinstance(ref, dict) or not isinstance(ref.get("color"), str)
+                    or not is_color_like(ref["color"]) or type(ref.get("width")) not in (int, float)
+                    or not .2 <= ref["width"] <= 8):
+                return
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return
+    apply_axes(axes, style)
+    axes.set_title(title).set_parse_math(False)
+    for line, ref in zip(zero_lines, refs, strict=True):
+        line.set_visible(ref is not None)
+        if ref is not None:
+            line.set(color=ref["color"], linewidth=ref["width"], linestyle=":")
 
 
 def _settings(view, standardize, labels_omitted, saved_directions):
@@ -346,7 +384,7 @@ def pca_result(frame, options):
     retention = pca_retention.assess(frame, options, parts, eigenvectors, scores)
     parallel = None
     if view == SCREE and retention.quantile is not None:
-        parallel = (retention.percentile, retention.quantile)
+        parallel = retention
     if flat:
         table = pd.DataFrame({
             "PC": np.arange(1, len(names) + 1),
@@ -394,7 +432,8 @@ def pca_result(frame, options):
                                drawn_rows[:, [horizontal, vertical]], drawn_variables[:, [horizontal, vertical]],
                                labels, variables, drawn, parallel, group_column=group_column,
                                group_values=group_values, overlay=overlay,
-                               marker_colors=pca_overlays.saved_point_colors(options, group_column))
+                               marker_colors=pca_overlays.saved_point_colors(options, group_column),
+                               viewport=options.get(SAVED_VIEWPORT))
     tables = {"Explained variance": parts, "Eigenvectors": eigenvectors, "Scores": scores,
               COORDINATES: table, SETTINGS: settings}
     tables.update(retention.tables)

@@ -26,10 +26,11 @@ from scipy import stats
 from .field_error import FieldError
 from .i18n import tr, translate_message
 from .normality import ANDERSON, DAGOSTINO, DOMAINS, LILLIEFORS, SHAPIRO, _compute, _method_note
-from .reporting import _plot
+from .reporting import Result, _plot
 
 DIAGNOSTICS = "ANOVA residual diagnostics"
 ASSUMPTIONS = "ANOVA assumption tests"
+TEST_SET = "ANOVA assumption tests included"
 ALPHA = "ANOVA diagnostic alpha"
 GRAPH = "ANOVA diagnostic graph"
 QQ_LINE = "ANOVA Q–Q reference line"
@@ -38,6 +39,9 @@ GRAPH_RESIDUALS = "Residuals vs fitted"
 GRAPH_HOMO = "Homoscedasticity"
 GRAPH_QQ = "Normal Q–Q"
 GRAPHS = (GRAPH_NONE, GRAPH_RESIDUALS, GRAPH_HOMO, GRAPH_QQ)
+METHOD = "ANOVA diagnostic plot"
+ALL_TESTS, NORMALITY_TESTS, VARIANCE_TEST = "All assumption tests", "Normality tests only", "Variance test only"
+TEST_SETS = (ALL_TESTS, NORMALITY_TESTS, VARIANCE_TEST)
 SHEET = "ANOVA residual diagnostics"
 SUMMARY = "ANOVA diagnostic summary"
 ASSUMPTION_SHEET = "ANOVA assumptions"
@@ -48,12 +52,13 @@ MAX_POINTS = 60_000
 # 1 − h at or below this is treated as a perfect leverage point.
 _LEVERAGE_GAP = 1e-12
 _FLAT = 32 * np.finfo(float).eps
-OPTIONS = {DIAGNOSTICS: False, ASSUMPTIONS: False, ALPHA: 0.05, GRAPH: GRAPHS, QQ_LINE: True}
-TABS = {"Diagnostics": (DIAGNOSTICS, ASSUMPTIONS, ALPHA, GRAPH, QQ_LINE)}
+OPTIONS = {DIAGNOSTICS: False, ASSUMPTIONS: False, TEST_SET: TEST_SETS, ALPHA: 0.05, GRAPH: GRAPHS, QQ_LINE: True}
+TABS = {"Diagnostics": (DIAGNOSTICS, ASSUMPTIONS, TEST_SET, ALPHA, GRAPH, QQ_LINE)}
 LABEL_KEYS = {
     "Diagnostics": "anova.diag.tab",
     DIAGNOSTICS: "anova.diag.field.diagnostics",
     ASSUMPTIONS: "anova.diag.field.assumptions",
+    TEST_SET: "anova.diag.field.test_set",
     ALPHA: "anova.diag.field.alpha",
     GRAPH: "anova.diag.field.graph",
     QQ_LINE: "anova.diag.field.qq_line",
@@ -64,10 +69,15 @@ GRAPH_CHOICE_KEYS = {
     GRAPH_HOMO: "anova.diag.graph.homo",
     GRAPH_QQ: "anova.diag.graph.qq",
 }
+TEST_CHOICE_KEYS = {
+    ALL_TESTS: "anova.diag.tests.all",
+    NORMALITY_TESTS: "anova.diag.tests.normality",
+    VARIANCE_TEST: "anova.diag.tests.variance",
+}
 CAVEAT = (
     "Diagnostic p value for estimated residuals: the reference distribution does not correct "
-    "for the model projection matrix. The five rows are not independent tests and are not "
-    "adjusted for multiplicity."
+    "for the model projection matrix. When several tests are shown, their p values are "
+    "unadjusted and the tests are dependent."
 )
 SPEARMAN_NOTE = (
     "Two-sided Spearman correlation of the absolute residual with the fitted value. "
@@ -83,7 +93,7 @@ _SUMMARY_ROWS = ("N", "Model rank", "Residual df", "Residual SS", "Residual vari
 
 def visibility(assumptions, graph):
     """Alpha applies only to assumption tests. The Q–Q line applies only to that graph."""
-    return {ALPHA: bool(assumptions), QQ_LINE: graph == GRAPH_QQ}
+    return {TEST_SET: bool(assumptions), ALPHA: bool(assumptions), QQ_LINE: graph == GRAPH_QQ}
 
 
 def _flag(options, name, default=False):
@@ -125,6 +135,8 @@ def validate(options):
     if graph != GRAPH_NONE and not diagnostics:
         raise FieldError(GRAPH, "Turn on ANOVA residual diagnostics before choosing a diagnostic graph.")
     alpha = _alpha(options) if assumptions else None
+    if assumptions and options.get(TEST_SET, ALL_TESTS) not in TEST_SETS:
+        raise FieldError(TEST_SET, "Choose which assumption tests to include.")
     line = _flag(options, QQ_LINE, default=True) if graph == GRAPH_QQ else False
     return diagnostics, assumptions, alpha, graph, line
 
@@ -308,12 +320,15 @@ def _normality_row(test, residual, alpha):
     return _assumption_row(test, statistic, p, alpha, _decision(p, alpha), _reason(note, CAVEAT))
 
 
-def assumption_table(residual, fitted, alpha):
-    """Five rows in contract order. One undefined test does not remove the others."""
+def assumption_table(residual, fitted, alpha, tests=ALL_TESTS):
+    """Requested tests in contract order. One undefined test does not remove the others."""
     residual = np.asarray(residual, dtype=float)
     fitted = np.asarray(fitted, dtype=float)
-    rows = [_spearman_row(residual, fitted, alpha)]
-    rows.extend(_normality_row(test, residual, alpha) for test in (SHAPIRO, DAGOSTINO, ANDERSON, LILLIEFORS))
+    rows = []
+    if tests != NORMALITY_TESTS:
+        rows.append(_spearman_row(residual, fitted, alpha))
+    if tests != VARIANCE_TEST:
+        rows.extend(_normality_row(test, residual, alpha) for test in TESTS[1:])
     return pd.DataFrame(rows)
 
 
@@ -352,6 +367,22 @@ def _figure(graph, fitted, residual, theoretical=None, line=False):
     return figure
 
 
+def linked_plot(frame, options):
+    """Plot an existing multifactor ANOVA diagnostic table without fitting a second model."""
+    graph = graph_choice(options)
+    if graph == GRAPH_NONE or not set(_COLUMNS).issubset(frame) or frame.empty:
+        raise FieldError(GRAPH, "Select a diagnostic graph and its ANOVA residual table.")
+    ensure_graph_budget(len(frame), graph)
+    fitted = frame["Fitted"].to_numpy(dtype=float)
+    residual = frame["Residual"].to_numpy(dtype=float)
+    if graph == GRAPH_QQ:
+        coordinates = qq_coordinates(frame["Source row"], residual)
+        plot = _figure(graph, fitted, coordinates["Residual"], coordinates["Theoretical quantile"], True)
+    else:
+        plot = _figure(graph, fitted, residual)
+    return Result({}, plot)
+
+
 def build(options, index, observed, design, beta, sse, df):
     """Sheets and the optional figure for a fit the ANOVA has already accepted."""
     diagnostics, assumptions, alpha, graph, line = validate(options)
@@ -368,7 +399,7 @@ def build(options, index, observed, design, beta, sse, df):
         tables[SHEET] = rows.loc[:, list(_COLUMNS)]
         tables[SUMMARY] = summary.loc[list(_SUMMARY_ROWS)]
     if assumptions:
-        tables[ASSUMPTION_SHEET] = assumption_table(residual, fitted, alpha)
+        tables[ASSUMPTION_SHEET] = assumption_table(residual, fitted, alpha, options.get(TEST_SET, ALL_TESTS))
     figure = None
     if graph == GRAPH_QQ:
         coordinates = qq_coordinates(index, residual)

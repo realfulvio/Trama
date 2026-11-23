@@ -152,7 +152,11 @@ def _get(options, name):
 def _whole(options, name, low, high):
     value = _get(options, name)
     if isinstance(value, str):
-        value = int(value) if _INTEGER.fullmatch(value) else None
+        value = value.strip()
+        try:
+            value = int(value) if _INTEGER.fullmatch(value) else None
+        except ValueError:
+            value = None
     if isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral) or not low <= value <= high:
         raise FieldError(name, f"{name}: enter a whole number from {low} to {high}.")
     return int(value)

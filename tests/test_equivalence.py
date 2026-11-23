@@ -17,6 +17,7 @@ from analisi.equivalence import EQUIVALENT, NOT_DEMONSTRATED, UNAVAILABLE, tost_
 from analisi.equivalence_workbench import (DESIGNS, EQUIVALENCE, ONE_SAMPLE, OPTIONS, PAIRED, STUDENT, WELCH,
                                            equivalence_test, visibility)
 from analisi.field_error import FieldError
+from analisi.paired_graphs import TTEST_ESTIMATION
 from analisi.workbench import GROUPS, GRAPH_METHODS, METHODS, analyse
 from tests import equivalence_oracle as oracle
 
@@ -626,10 +627,11 @@ class LegacyUnchanged(unittest.TestCase):
                     self.assertEqual(got, expected, (name, sheet))
 
     def test_existing_recipes_and_menu_entries_are_untouched(self):
-        self.assertEqual(METHODS["t-test"], {"Design": ("Welch", "Student", "Paired", "One-sample"),
-                                             "Response": None, "Group": METHODS["t-test"]["Group"],
-                                             "Subject": METHODS["t-test"]["Subject"], "Null mean": 0.0,
-                                             "Show variance comparison": False})
+        legacy = {"Design": ("Welch", "Student", "Paired", "One-sample"),
+                  "Response": None, "Group": METHODS["t-test"]["Group"],
+                  "Subject": METHODS["t-test"]["Subject"], "Null mean": 0.0,
+                  "Show variance comparison": False, TTEST_ESTIMATION: False}
+        self.assertEqual({name: METHODS["t-test"][name] for name in legacy}, legacy)
         self.assertEqual(METHODS["Paired t-test (columns)"], {"First": None, "Second": None})
         self.assertEqual(GROUPS["Group Comparison"][:3], ("t-test", "Paired t-test (columns)", "Lognormal t-test"))
 

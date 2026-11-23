@@ -26,15 +26,17 @@ from .analysis_labels import validate_labels
 from .distribution_formulas import DISTRIBUTION_FUNCTIONS, argument_count_message
 from .formula_special import SPECIAL_FORMULA_FUNCTIONS
 from .formula_windows import WINDOW_CLAUSES, WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
+from .grid_headings import column_label
+from .legacy_project_metadata import LEGACY_METADATA_VERSION, saved_analysis, saved_name, uses_import_metadata
 
 MAX_ENTRY = 32 * 1024 * 1024
 MAX_CELLS = 2_000_000
 MAX_COLUMNS = 512
-EDITABLE_PRISM_XY = "Prism editable XY"
-EDITABLE_PRISM_COLUMNS = "Prism editable columns"
-EDITABLE_PRISM_STACKS = "Prism editable PDF stacks"
-EDITABLE_PRISM_EMF = "Prism editable EMF XY"
-EDITABLE_PRISM_FIXED_VALUES = {EDITABLE_PRISM_COLUMNS, EDITABLE_PRISM_STACKS, EDITABLE_PRISM_EMF}
+EDITABLE_LEGACY_XY = "Imported editable XY"
+EDITABLE_LEGACY_COLUMNS = "Imported editable columns"
+EDITABLE_LEGACY_STACKS = "Imported editable PDF stacks"
+EDITABLE_LEGACY_EMF = "Imported editable EMF XY"
+EDITABLE_LEGACY_FIXED_VALUES = {EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_STACKS, EDITABLE_LEGACY_EMF}
 
 
 def _member(archive, name):
@@ -105,12 +107,12 @@ def delimited_reader(handle, suffix, delimiter=None, *, strict=False):
     return csv.reader(handle, dialect, strict=strict)
 
 
-def load_tables(path, *, restore_prism=False, info_sheets=None):
+def load_tables(path, *, restore_legacy=False, info_sheets=None, initial_sheet=None):
     path = Path(path)
     if path.suffix.lower() in {".prism", ".prismt", ".pzt", ".pzf", ".pzfx", ".xml"}:
-        from .prism_import import load_prism
+        from .legacy_import import load_legacy
 
-        return load_prism(path, restore=restore_prism, info_sheets=info_sheets)
+        return load_legacy(path, restore=restore_legacy, info_sheets=info_sheets, initial_sheet=initial_sheet)
     if path.stat().st_size > MAX_ENTRY:
         raise ValueError("Input file exceeds 32 MiB.")
     if path.suffix.lower() == ".xlsx":
@@ -142,7 +144,7 @@ def load_tables(path, *, restore_prism=False, info_sheets=None):
                 workbook.close()
         return tables
     if path.suffix.lower() not in {".csv", ".tsv", ".txt"}:
-        raise ValueError("Choose a CSV, TSV, XLSX or supported Prism project.")
+        raise ValueError("Choose a CSV, TSV, XLSX or supported legacy project.")
     with path.open(encoding="utf-8-sig", newline="") as handle:
         reader = delimited_reader(handle, path.suffix.lower())
         return {path.stem: _table(next(reader, []), list(reader),
@@ -385,6 +387,32 @@ def _formula_operators(tokens):
         previous = (kind, value)
         result.append(previous)
     return result
+
+
+def _bind_worksheet_letters(expression, columns):
+    """Resolve worksheet letters once, alongside the existing name-based syntax."""
+    names = set(columns)
+    aliases = {column_label(index): name for index, name in enumerate(columns)}
+    source = expression.strip().removeprefix("=").strip()
+    try:
+        tokens = worksheet_logic_tokens(tokenize.generate_tokens(StringIO(source).readline))
+    except (SyntaxError, tokenize.TokenError) as error:
+        raise ValueError("Invalid formula syntax.") from error
+    result = []
+    previous = (None, "")
+    for index, (kind, value) in enumerate(tokens):
+        following = tokens[index + 1] if index + 1 < len(tokens) else None
+        letter = value.upper()
+        if (kind == tokenize.NAME and value not in names and letter in aliases
+                and following != (tokenize.OP, "(") and value not in SHEET_LOGIC
+                and not (letter == "BY" and previous[1].upper() == "ORDER")
+                and not (letter == "MOD" and _after_operand(previous))):
+            result.extend([(tokenize.NAME, "COL"), (tokenize.OP, "("),
+                           (tokenize.STRING, repr(aliases[letter])), (tokenize.OP, ")")])
+        else:
+            result.append((kind, value))
+        previous = (kind, value)
+    return "=" + tokenize.untokenize(result).strip() if result != tokens else expression
 
 
 def _worksheet_comparisons(tokens):
@@ -640,37 +668,66 @@ class Dataset:
     analysis_sources: dict[int, ResultSource] = field(default_factory=dict)
     # Literal sheet names per analysis slot. Display only: they never reach the statistical engine.
     analysis_labels: dict[int, str] = field(default_factory=dict)
+    column_order: tuple[str, ...] | None = None
+
+    @property
+    def columns(self):
+        return self.column_order if self.column_order is not None else (*self.raw.columns, *self.formulas)
+
+    @property
+    def source_indices(self):
+        """For each worksheet column, its raw index or None for a formula."""
+        if self.column_order is None:
+            return (*range(len(self.raw.columns)), *(None for _ in self.formulas))
+        indices = {name: index for index, name in enumerate(self.raw.columns)}
+        return tuple(indices.get(name) for name in self.column_order)
+
+    def source_span(self, left, stop):
+        indices = self.source_indices[left:stop]
+        if indices and len(indices) == stop - left and None not in indices:
+            return indices[0], indices[-1] + 1
+        return None
+
+    @property
+    def worksheet_excluded(self):
+        if not self.excluded or self.column_order is None:
+            return self.excluded
+        indices = {source: column for column, source in enumerate(self.source_indices)}
+        return {(row, indices[source]) for row, source in self.excluded}
 
     @property
     def locked_columns(self):
-        if self.table_format == EDITABLE_PRISM_STACKS:
+        if self.table_format == EDITABLE_LEGACY_STACKS:
             return (0,)
-        if self.table_format == EDITABLE_PRISM_COLUMNS:
+        if self.table_format == EDITABLE_LEGACY_COLUMNS:
             return tuple(index for index, name in enumerate(self.raw.columns) if name == "Group")
-        if self.table_format == EDITABLE_PRISM_EMF:
+        if self.table_format == EDITABLE_LEGACY_EMF:
             return tuple(index for index, name in enumerate(self.raw.columns) if name == "Series")
-        return (2, 3) if self.table_format == EDITABLE_PRISM_XY else ()
+        return (2, 3) if self.table_format == EDITABLE_LEGACY_XY else ()
 
     def __post_init__(self):
         self.excluded.update(tuple(value) for value in self.raw.attrs.get("excluded", []))
         self.table_format = self.raw.attrs.get("table_format", self.table_format)
         if not self.analyses:
-            self.analyses = list(self.raw.attrs.get("prism_recipes", []))
+            self.analyses = list(self.raw.attrs.get("legacy_recipes", []))
             if self.analyses and not self.graph_styles:
-                self.graph_styles = deepcopy(self.raw.attrs.get("prism_graph_styles", {}))
+                self.graph_styles = deepcopy(self.raw.attrs.get("legacy_graph_styles", {}))
             if self.analyses and not self.analysis_ids and not self.analysis_sources:
-                self.analysis_ids = dict(self.raw.attrs.get("prism_analysis_ids", {}))
-                self.analysis_sources = dict(self.raw.attrs.get("prism_analysis_sources", {}))
-        imported = self.raw.attrs.get("prism_formulas", {})
+                self.analysis_ids = dict(self.raw.attrs.get("legacy_analysis_ids", {}))
+                self.analysis_sources = dict(self.raw.attrs.get("legacy_analysis_sources", {}))
+        imported = self.raw.attrs.get("legacy_formulas", {})
         imported = {name: recipe for name, recipe in imported.items() if name in self.raw}
         if imported and not self.formulas:
+            imported_order = tuple(self.raw.columns)
             kept = [column for column, name in enumerate(self.raw) if name not in imported]
             indices = {original: new for new, original in enumerate(kept)}
             self.excluded = {(row, indices[col]) for row, col in self.excluded if col in indices}
             self.raw = self.raw.iloc[:, kept].copy()
-            self.raw.attrs.pop("prism_formulas")
+            self.raw.attrs.pop("legacy_formulas")
             self.raw.attrs.pop("excluded", None)
             self.formulas = imported
+            if imported_order != (*self.raw.columns, *self.formulas):
+                self.column_order = imported_order
 
     def frame(self, mask_excluded=False):
         computed = self.raw.copy()
@@ -686,11 +743,11 @@ class Dataset:
         order = formula_calculation_order(tuple(self.formulas.items()))
         for name in order:
             computed[name] = formula(computed, self.formulas[name], info=self.info)
-        if order != tuple(self.formulas):
-            computed = computed.loc[:, [*self.raw.columns, *self.formulas]]
         if not mask_excluded:
             for column in masked_columns:
                 computed.isetitem(column, self.raw.iloc[:, column])
+        if self.column_order is not None or order != tuple(self.formulas):
+            computed = computed.loc[:, list(self.columns)]
         return computed
 
     def set_formula(self, name, expression):
@@ -698,8 +755,81 @@ class Dataset:
             raise ValueError("Choose a new column name.")
         candidate = copy(self)
         candidate.formulas = {**self.formulas, name: seeded_formula(expression)}
+        if self.column_order is not None and name not in self.formulas:
+            candidate.column_order = (*self.column_order, name)
         candidate.frame()
-        self.formulas = candidate.formulas
+        self.formulas, self.column_order = candidate.formulas, candidate.column_order
+
+    def can_enter_formula(self, column):
+        return self.table_format == "multivariable" and 0 <= column < len(self.columns)
+
+    def column_has_values(self, column):
+        source = self.source_indices[column]
+        return source is not None and self.raw.iloc[:, source].notna().any()
+
+    def set_worksheet_formula(self, column, expression, *, replace_values=False):
+        """Create or edit a calculated variable at the selected worksheet position."""
+        if not self.can_enter_formula(column):
+            raise ValueError("Select a variable in a multiple-variables table.")
+        order = self.columns
+        name, source = order[column], self.source_indices[column]
+        expression = _bind_worksheet_letters(expression, order)
+        if source is None:
+            self.set_formula(name, expression)
+            return
+        if len(self.raw.columns) == 1:
+            raise ValueError("Keep at least one source column in a worksheet with formulas.")
+        if not replace_values and self.column_has_values(column):
+            raise ValueError("Confirm replacement of the existing values before creating a formula.")
+
+        candidate = copy(self)
+        candidate.raw = self.raw.drop(columns=name)
+        if "worksheet_roles" in candidate.raw.attrs:
+            roles = candidate.raw.attrs["worksheet_roles"]
+            groups = [[member for member in group if member != name] for group in roles["y"]]
+            candidate.raw.attrs["worksheet_roles"] = {
+                "x": [member for member in roles["x"] if member != name],
+                "y": [group for group in groups if group],
+            }
+        candidate.excluded = {(row, index - (index > source)) for row, index in self.excluded if index != source}
+        candidate.column_order = None
+        candidate.set_formula(name, expression)
+        candidate.formulas = {column_name: candidate.formulas[column_name] for column_name in order
+                              if column_name in candidate.formulas}
+        candidate.column_order = order if order != candidate.columns else None
+
+        self.raw, self.excluded = candidate.raw, candidate.excluded
+        self.formulas, self.column_order = candidate.formulas, candidate.column_order
+
+    def can_freeze_worksheet_formula(self, column):
+        return self.can_enter_formula(column) and self.columns[column] in self.formulas
+
+    def freeze_worksheet_formula(self, column):
+        """Replace a calculated column with its current values at the same position."""
+        if not self.can_freeze_worksheet_formula(column):
+            raise ValueError("Select a calculated column.")
+        order = self.columns
+        name = order[column]
+        width = len(self.raw.columns) + 1
+        if width > MAX_CELLS or len(self.raw) * width > MAX_CELLS:
+            raise ValueError("A project table exceeds the size limit.")
+
+        values = self.frame()[name]
+        position = sum(index is not None for index in self.source_indices[:column])
+        raw = self.raw.copy()
+        raw.insert(position, name, values)
+        formulas = {key: expression for key, expression in self.formulas.items() if key != name}
+        excluded = {(row, index + (index >= position)) for row, index in self.excluded}
+        self.raw, self.formulas, self.excluded = raw, formulas, excluded
+        self.column_order = order if order != (*raw.columns, *formulas) else None
+
+
+def _validated_column_order(order, source_columns, formulas):
+    if (not isinstance(order, list) or not all(isinstance(name, str) for name in order)
+            or [name for name in order if name not in formulas] != list(source_columns)
+            or [name for name in order if name in formulas] != list(formulas)):
+        raise ValueError("Invalid saved worksheet column order.")
+    return tuple(order)
 
 
 def _encode_cell(value):
@@ -733,11 +863,11 @@ def _project_column_kind(column):
 def _worksheet_roles(frame):
     if "worksheet_roles" in frame.attrs:
         return frame.attrs["worksheet_roles"]
-    if "prism_x" not in frame.attrs:
+    if "legacy_x" not in frame.attrs:
         return None
-    columns = frame.attrs.get("prism_columns", {})
-    x = [name for name in columns.get(frame.attrs["prism_x"], ()) if name in frame]
-    groups = [[name for name in columns.get(uid, ()) if name in frame] for uid in frame.attrs.get("prism_y", ())]
+    columns = frame.attrs.get("legacy_columns", {})
+    x = [name for name in columns.get(frame.attrs["legacy_x"], ()) if name in frame]
+    groups = [[name for name in columns.get(uid, ()) if name in frame] for uid in frame.attrs.get("legacy_y", ())]
     return {"x": x, "y": [group for group in groups if group]}
 
 
@@ -829,6 +959,8 @@ def project_document(tables, *, layouts=(), info_sheets=None):
         data["info_sheets"] = records
     contexts = info_contexts(info_sheets)
     for title, dataset in tables.items():
+        if uses_import_metadata(dataset.table_format, dataset.analyses):
+            data["version"] = LEGACY_METADATA_VERSION
         raw = dataset.raw
         if not 1 <= len(raw.columns) <= MAX_CELLS or raw.size > MAX_CELLS:
             raise ValueError("A project table exceeds the size limit.")
@@ -850,6 +982,8 @@ def project_document(tables, *, layouts=(), info_sheets=None):
         }
         if order != tuple(dataset.formulas):
             record["formula_order"] = list(dataset.formulas)
+        if dataset.column_order is not None:
+            record["column_order"] = list(dataset.column_order)
         if dataset.analysis_ids:
             record["analysis_ids"] = dataset.analysis_ids
         if dataset.analysis_sources:
@@ -899,7 +1033,8 @@ def load_workspace(path, *, include_info=False):
     if path.stat().st_size > MAX_ENTRY:
         raise ValueError("Project file exceeds 32 MiB.")
     obj = json.loads(path.read_text(encoding="utf-8-sig"))
-    if obj["version"] not in (1, 2, 3) or len(obj["tables"]) > 256:
+    version = obj["version"]
+    if version not in (1, 2, 3, LEGACY_METADATA_VERSION) or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
     if (not isinstance(stored_info, list) or len(stored_info) > MAX_INFO_SHEETS
@@ -919,7 +1054,10 @@ def load_workspace(path, *, include_info=False):
             if type(row) is not int or type(col) is not int or not (0 <= row < len(data.raw) and 0 <= col < len(data.raw.columns)):
                 raise ValueError("Invalid excluded cell position.")
             data.excluded.add((row, col))
-        data.table_format = table.get("table_format", "multivariable")
+        table_format = table.get("table_format", "multivariable")
+        if not isinstance(table_format, str):
+            raise ValueError("Invalid saved table format.")
+        data.table_format = saved_name(table_format)
         if "worksheet_roles" in table:
             data.raw.attrs["worksheet_roles"] = _validated_worksheet_roles(table["worksheet_roles"], data.raw.columns)
         for name, expression in table["formulas"]:
@@ -930,16 +1068,18 @@ def load_workspace(path, *, include_info=False):
                     or not all(isinstance(name, str) for name in order) or set(order) != data.formulas.keys()):
                 raise ValueError("Invalid saved formula column order.")
             data.formulas = {name: data.formulas[name] for name in order}
+        if "column_order" in table:
+            data.column_order = _validated_column_order(table["column_order"], data.raw.columns, data.formulas)
         entries = table.get("analyses", [])
-        limit = MAX_ANALYSIS_NODES if obj["version"] == 3 else 256
+        limit = MAX_ANALYSIS_NODES if version >= 3 else 256
         if len(entries) > limit or any(not isinstance(method, str) or not isinstance(options, dict)
                                     for method, options in entries):
             raise ValueError("Invalid saved analysis settings.")
-        data.analyses = [(method, options) for method, options in entries]
+        data.analyses = [saved_analysis(method, options) for method, options in entries]
         data.analysis_ids = _analysis_slots(table.get("analysis_ids", {}), len(entries))
         sources = _analysis_slots(table.get("analysis_sources", {}), len(entries))
-        if sources and obj["version"] != 3:
-            raise ValueError("Linked analyses require project format version 3.")
+        if sources and version < 3:
+            raise ValueError("Linked analyses require project format version 3 or later.")
         data.analysis_labels = validate_labels(_analysis_slots(table.get("analysis_labels", {}), len(entries)),
                                                len(entries)) if "analysis_labels" in table else {}
         try:

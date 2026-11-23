@@ -1,0 +1,421 @@
+import json
+from math import sqrt
+from pathlib import Path
+from struct import pack, pack_into
+from tempfile import TemporaryDirectory
+import unittest
+from zipfile import ZipFile
+
+from analisi.data import Dataset, load_project, load_tables, save_project
+from analisi.legacy_restore import LEGACY_NOTES, SAVED_BINARY_LAYOUT, SAVED_XY
+from analisi.legacy_zip_xy import ZIP_SPARSE_XY
+from analisi.workbench import analyse
+from test_legacy_binary_editable import _group
+from test_legacy_binary_graphs import _record
+
+
+def _graph(markers, fen_id=8, saved_presentation=False, *, source_id=14, datasets=(205, 206),
+           replicates=False, saved_extents=None):
+    graph = _record(0x14, pack("<2i", 1, source_id))
+    graph += _record(0x15, pack("<3i", 2, 21, 20))
+    selector = -2 if replicates else -1
+    graph += _record(0x16, pack("<H6i", 2, datasets[0], selector, selector, datasets[1], selector, selector))
+    for uid, limits, tick in ((1, (0, 4), 1), (2, (0, 6), 2), (3, (0, 6), 2)):
+        low, high = limits
+        axis, scale = bytearray(60), bytearray(134)
+        pack_into("<2d", axis, 16, low, high)
+        pack_into("<H", axis, 42, 1200)
+        pack_into("<H", axis, 48, 30 + uid)
+        pack_into("<H", axis, 54, uid)
+        pack_into("<H3d", scale, 0, uid, low, high, (high - low) / 1200)
+        pack_into("<d", scale, 54, tick)
+        graph += _record(0x17, axis) + _group(0x8025, scale)
+    objects = b""
+    for key, uid, color in markers:
+        header = bytearray(144)
+        error = int(replicates)
+        pack_into("<8H", header, 0, key, 0, uid, 1, 2, error, error, 2)
+        pack_into("<4H", header, 58, 14 if replicates else 8, 3, 8, 0)
+        if saved_extents is not None:
+            pack_into("<4d", header, 26, *saved_extents[uid])
+        header[68:71] = bytes.fromhex(color)
+        objects += _group(0x8020, pack("<H", 9) + bytes(28), _group(0x8028, header))
+    if saved_presentation:
+        chart = bytearray(48)
+        pack_into("<4h", chart, 0, 100, 200, 1300, 1400)
+        pack_into("<H", chart, 32, 30)
+        graph += _record(0x13, chart)
+        background = pack("<H4h", 10, 40, 120, 1390, 1500) + bytes(20)
+        objects += _group(0x8020, background, b"")
+        for identity, hidden, caption in ((30, True, b"Saved title"), (31, False, b"Elapsed $ hours"),
+                                          (32, True, b"Source units"), (33, True, b"Right axis")):
+            flags = 0x200 if hidden else 0
+            header = pack("<H", 2) + bytes(26) + pack("<H", flags)
+            text = _record(0x102C, caption)
+            text += _record(0x102D, pack("<HHIHIHI", 1, 2, 0, 1, 12, 10, 65001))
+            objects += _group(0x8020, header, _group(0x902B, pack("<H", identity) + bytes(16), text))
+        for key, _, _ in markers:
+            header = pack("<H", 14) + bytes(26) + pack("<H", 0x202)
+            legend = _record(0x9D, pack("<3i", 1, 203, key) + bytes(492))
+            legend += _record(0x209D, pack("<IfI", 2, 8, key))
+            objects += _group(0x8020, header, legend)
+    graph += _group(0x8018, bytes(12), objects)
+    return b"PCFFGRA4" + _group(0x8001, bytes(12), _group(0x8012, pack("<H", fen_id), graph))
+
+
+def _layout(graph_id=9, arrow_direction=0, saved_presentation=False):
+    dimensions = pack("<2i", 850, 1100) + bytes(292)
+    references = pack("<H", 2)
+    references += b"".join(pack("<IH6s", uid, 65535, bytes(6)) for uid in (8, 9))
+    objects = b""
+    for uid, bounds in ((8, (300, 400, 4000, 1800)), (graph_id, (500, 2200, 4200, 3600))):
+        panel = pack("<H", 11) + bytes(16) + pack("<4h", *bounds) + bytes(4)
+        link = _record(0x2F, pack("<H", uid))
+        if saved_presentation:
+            link += _record(0x30, pack("<2H", 1398, 1428))
+        objects += _group(0x8020, panel, link)
+    line = pack("<H", 3) + bytes(28)
+    points = b"".join(_record(0xD9, pack("<iii8s", 2, x, y, bytes(8)))
+                      for x, y in ((3900, 1750), (600, 2300)))
+    stroke = bytearray(26)
+    stroke[4:7] = bytes.fromhex("236789")
+    pack_into("<3H", stroke, 8, arrow_direction, 1, 0)
+    pack_into("<f", stroke, 22, 6)
+    endpoint_group = _group(0x80D8, pack("<I", 2) + bytes(28), points)
+    objects += _group(0x8020, line, _record(0x23, stroke) + endpoint_group)
+    scene = _group(0x8018, pack("<3I", 11, 3, 0), objects)
+    layout = _record(0xA, dimensions) + _record(0x37, references) + scene
+    units = _record(0xA1, pack("<i", 600) + bytes(100))
+    return b"PCFFGRA4" + _group(0x8001, bytes(12), units + _group(0x8035, pack("<H", 0), layout))
+
+
+def _write(project, *, bad_link=False, layout_link=None, arrow_direction=0, saved_presentation=False,
+           second_source=False, replicates=False, saved_extents=None, opening=None):
+    table = {"format": "xy", "dataFormat": "y_replicates" if replicates else "y_single", "uid": "raw",
+             "xDataSet": "x", "dataSets": ["first", "second"]}
+    if replicates:
+        table["replicatesCount"] = 2
+    members = {
+        "document.json": {"sheets": {"data": ["source"], "graphs": ["chart"], "info": []}},
+        "data/sheets/source/sheet.json": {"uid": "source", "fenID": 14, "title": "Signals", "table": table},
+        "data/tables/raw/content.json": {"numberOfColumns": 5 if replicates else 3, "numberOfRows": 3},
+        "data/sets/x.json": {"title": "Time", "dataType": "real", "fenID": 204},
+        "data/sets/first.json": {"title": "A", "dataType": "real", "fenID": 205},
+        "data/sets/second.json": {"title": "B", "dataType": "real", "fenID": 206},
+        "graphs/chart/sheet.json": {"uid": "chart", "fenID": 8, "title": "Signals by date",
+                                    "inputDataSets": ["first", "second"]},
+    }
+    if opening is not None:
+        members["document.json"]["uiSettings"] = opening
+        members["document.json"]["sheets"]["info"] = ["notes"]
+        members["info/notes/sheet.json"] = {"@class": "InfoSheet", "uid": "notes", "title": "Notes"}
+    if layout_link is not None:
+        sheets = members["document.json"]["sheets"]
+        sheets["graphs"].append("detail")
+        sheets["layouts"] = ["page"]
+        chart = members["graphs/chart/sheet.json"]
+        members["graphs/detail/sheet.json"] = {**chart, "uid": "detail", "fenID": 9, "title": "Detailed signals"}
+        members["layouts/page/sheet.json"] = {"uid": "page", "fenID": 0, "title": "Results page",
+                                              "linkedGraphSheets": ["chart", "detail"], "mediaCollection": []}
+    detail_datasets = (205, 206)
+    if second_source:
+        members["document.json"]["sheets"]["data"].append("separate")
+        members["data/sheets/separate/sheet.json"] = {
+            "uid": "separate", "fenID": 15, "title": "Independent signals",
+            "table": {**table, "uid": "other", "xDataSet": "time-2", "dataSets": ["first-2", "second-2"]},
+        }
+        members["data/tables/other/content.json"] = members["data/tables/raw/content.json"]
+        for uid, title, fen_id in (("time-2", "Time", 214), ("first-2", "A", 215), ("second-2", "B", 216)):
+            members[f"data/sets/{uid}.json"] = {"title": title, "dataType": "real", "fenID": fen_id}
+        members["graphs/detail/sheet.json"]["inputDataSets"] = ["first-2", "second-2"]
+        detail_datasets = (215, 216)
+    with ZipFile(project, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, json.dumps(data))
+        csv = "1,3,4,2,\n2,,,1,2\n3,5,,3,2\n" if replicates else "1,3,\n2,,\n3,5,\n"
+        archive.writestr("data/tables/raw/data.csv", csv)
+        archive.writestr("graphs/chart/data.bin", _graph([(20, 205, "22aaff"),
+                                                         (21, 207 if bad_link else 206, "ff0088")],
+                                                        saved_presentation=saved_presentation,
+                                                        replicates=replicates, saved_extents=saved_extents))
+        if second_source:
+            archive.writestr("data/tables/other/data.csv", "1,2,\n2,,\n3,6,\n")
+        if layout_link is not None:
+            detail = _graph([(20, detail_datasets[0], "22aaff"), (21, detail_datasets[1], "ff0088")], fen_id=9,
+                            saved_presentation=saved_presentation, source_id=15 if second_source else 14,
+                            datasets=detail_datasets)
+            archive.writestr("graphs/detail/data.bin", detail)
+            archive.writestr("layouts/page/data.bin", _layout(layout_link, arrow_direction, saved_presentation))
+
+
+class LegacyZipSparseXYTests(unittest.TestCase):
+    def test_opening_sheet_references_use_the_imported_identities_and_recipe_slots(self):
+        examples = (
+            ("Data", "data", "separate", ("data", "Independent signals")),
+            ("Graph", "graph", "detail", ("run", ("Independent signals", 0))),
+            ("Layout", "layout", "page", ("run", ("Signals", 1))),
+            ("Info", "info", "notes", ("info", None)),
+            ("Data", "data", "unknown", None),
+            ("Data", "graph", "detail", None),
+        )
+        for kind, key, uid, expected in examples:
+            with self.subTest(kind=kind, key=key, uid=uid), TemporaryDirectory() as scratch:
+                path = Path(scratch) / "focused.pzt"
+                focused = {"viewMode": "sheet", "currentSheetType": kind, "currentSheets": {key: uid}}
+                _write(path, layout_link=9, second_source=True, opening=focused)
+                initial_sheet, info_sheets = [], []
+                tables = load_tables(path, restore_legacy=True, info_sheets=info_sheets, initial_sheet=initial_sheet)
+                self.assertEqual(list(tables), ["Signals", "Independent signals"])
+                if expected == ("info", None):
+                    expected = "info", info_sheets[0].uid
+                self.assertEqual(initial_sheet, [expected] if expected else [])
+                if kind == "Layout":
+                    title, slot = initial_sheet[0][1]
+                    method, _ = Dataset(tables[title]).analyses[slot]
+                    self.assertEqual(method, SAVED_BINARY_LAYOUT)
+
+    def test_missing_layout_view_does_not_change_opening_to_an_unrelated_recipe(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "missing-layout.pzt"
+            focused = {"viewMode": "sheet", "currentSheetType": "Layout", "currentSheets": {"layout": "page"}}
+            _write(path, layout_link=99, opening=focused)
+            initial_sheet = []
+            tables = load_tables(path, restore_legacy=True, initial_sheet=initial_sheet)
+            self.assertFalse(initial_sheet)
+            self.assertEqual(len(Dataset(tables["Signals"]).analyses), 2)
+
+    def test_confirmed_cached_extents_restore_sample_sd_and_recalculate_after_exclusion(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "replicates.pzt"
+            deviation = sqrt(.5)
+            _write(path, replicates=True, saved_extents={
+                205: (1., 3., 3.5 - deviation, 5.),
+                206: (1., 3., 1.5 - deviation, 2.5 + deviation),
+            })
+            data = Dataset(load_tables(path, restore_legacy=True)["Signals"])
+            method, options = data.analyses[0]
+            self.assertTrue(options[ZIP_SPARSE_XY]["sample_sd"])
+            report = analyse(method, data.frame(mask_excluded=True), options)
+            axes, = report.figure.axes
+            self.assertEqual(len(axes.containers), 2)
+            a = report.tables["Saved XY coordinates"].query("Series == 'A'")
+            self.assertEqual(a["Y"].tolist(), [3.5, 5.])
+            self.assertAlmostEqual(a["Y minus"].iloc[0], deviation)
+            self.assertAlmostEqual(a["Y plus"].iloc[0], deviation)
+            self.assertTrue(a["Y plus"].isna().iloc[1])
+            data.excluded.add((0, data.raw.columns.get_loc("A [1]")))
+            out = Path(scratch) / "reopened.alab"
+            save_project(out, {"Signals": data})
+            saved = load_project(out)["Signals"]
+            method, options = saved.analyses[0]
+            report = analyse(method, saved.frame(mask_excluded=True), options)
+            a = report.tables["Saved XY coordinates"].query("Series == 'A'")
+            self.assertEqual(a["Y"].tolist(), [4., 5.])
+            self.assertTrue(a[["Y minus", "Y plus"]].isna().all().all())
+
+    def test_replicates_share_one_series_and_recalculate_from_the_original_sheet(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "replicates.pzt"
+            _write(path, replicates=True, saved_presentation=True)
+            tables = load_tables(path, restore_legacy=True)
+            self.assertEqual(list(tables), ["Signals"])
+            data = Dataset(tables["Signals"])
+            method, options = data.analyses[0]
+            self.assertEqual(method, SAVED_XY)
+            self.assertIn("shown individually", options[LEGACY_NOTES])
+            self.assertIn(ZIP_SPARSE_XY, options)
+            self.assertNotIn("sample_sd", options[ZIP_SPARSE_XY])
+            result = analyse(method, data.frame(mask_excluded=True), options)
+            axes, = result.figure.axes
+            self.assertEqual(axes.get_xlim(), (0, 4))
+            self.assertEqual(axes.get_ylim(), (0, 6))
+            self.assertEqual(axes.get_xlabel(), "Elapsed $ hours")
+            points = result.tables["Saved XY coordinates"]
+            self.assertEqual(points.groupby("Series")["Y"].apply(list).to_dict(),
+                             {"A": [3., 4., 5.], "B": [2., 1., 2., 3., 2.]})
+            data.raw.loc[0, "A [1]"] = 7.
+            result = analyse(method, data.frame(mask_excluded=True), options)
+            self.assertEqual(result.tables["Saved XY coordinates"].query("Series == 'A'")["Y"].tolist(),
+                             [7., 4., 5.])
+            self.assertEqual(result.figure.axes[0].get_xlim(), (0, 4))
+
+    def test_replicates_with_an_unmatched_dataset_keep_the_snapshot(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "replicates.pzt"
+            _write(path, replicates=True, bad_link=True)
+            tables = load_tables(path, restore_legacy=True)
+            self.assertEqual(list(tables), ["Signals", "Imported graph · Signals by date"])
+            self.assertFalse(Dataset(tables["Signals"]).analyses)
+
+    def test_saved_labels_and_marker_presentation_apply_to_graph_and_layout(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "saved-style.pzt"
+            _write(path, layout_link=9, saved_presentation=True)
+            table = Dataset(load_tables(path, restore_legacy=True)["Signals"])
+            for method, settings in (table.analyses[0], table.analyses[2]):
+                figure = analyse(method, table.frame(mask_excluded=True), settings).figure
+                for axes in figure.axes:
+                    self.assertEqual(axes.get_title(), "")
+                    self.assertEqual(axes.get_xlabel(), "Elapsed $ hours")
+                    self.assertEqual(axes.get_ylabel(), "")
+                    self.assertIsNone(axes.get_legend())
+                    self.assertEqual([line.get_marker() for line in axes.lines], ["v"])
+                    self.assertEqual([line.get_markersize() for line in axes.lines], [8])
+                    if method == SAVED_BINARY_LAYOUT:
+                        x, y, width, height = axes.get_position().bounds
+                        self.assertAlmostEqual(x, 84 / 1398)
+                        self.assertAlmostEqual(y, 124 / 1428)
+                        self.assertAlmostEqual(width, 1200 / 1398)
+                        self.assertAlmostEqual(height, 1200 / 1428)
+
+    def test_initially_empty_series_remains_linked_to_its_original_column(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "test.pzt"
+            _write(path)
+            tables = load_tables(path, restore_legacy=True)
+            self.assertEqual(list(tables), ["Signals"])
+            data = Dataset(tables["Signals"])
+            method, options = data.analyses[0]
+            report = analyse(method, data.frame(mask_excluded=True), options)
+            self.assertEqual(report.tables["Saved XY coordinates"]["Y"].tolist(), [3, 5])
+            self.assertEqual(report.figure.axes[0].get_xlim(), (0, 4))
+            self.assertEqual(report.figure.axes[0].get_ylim(), (0, 6))
+            data.raw.loc[1, "B"] = 4
+            data.excluded.add((0, 1))
+            out = Path(scratch) / "roundtrip.alab"
+            save_project(out, {"Signals": data})
+            restored = load_project(out)["Signals"]
+            method, options = restored.analyses[0]
+            report = analyse(method, restored.frame(mask_excluded=True), options)
+            points = report.tables["Saved XY coordinates"]
+            self.assertEqual(points["Series"].tolist(), ["B", "A"])
+            self.assertEqual(points["Y"].tolist(), [4, 5])
+            self.assertEqual([line.get_color() for line in report.figure.axes[0].lines], ["#ff0088", "#22aaff"])
+
+    def test_rejects_a_binary_series_that_does_not_match_the_document(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "invalid.pzt"
+            _write(path, bad_link=True)
+            data = Dataset(load_tables(path, restore_legacy=True)["Signals"])
+            self.assertFalse(data.analyses)
+
+    def test_positioned_layout_round_trips_and_redraws_panels_from_the_edited_table(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "positioned.pzt"
+            _write(path, layout_link=9)
+            tables = load_tables(path, restore_legacy=True)
+            self.assertEqual(list(tables), ["Signals"])
+            dataset = Dataset(tables["Signals"])
+            method, options = dataset.analyses[2]
+            self.assertEqual(method, SAVED_BINARY_LAYOUT)
+            figure = analyse(method, dataset.frame(mask_excluded=True), options).figure
+            self.assertEqual(tuple(figure.get_size_inches()), (8.5, 11.0))
+            self.assertEqual([axes.get_title() for axes in figure.axes], ["Signals by date", "Detailed signals"])
+            self.assertAlmostEqual(figure.subfigs[0].bbox.x0 / figure.bbox.width, 300 / 5100)
+            self.assertAlmostEqual(figure.subfigs[1].bbox.x0 / figure.bbox.width, 500 / 5100)
+            self.assertAlmostEqual(figure.subfigs[1].bbox.y1 / figure.bbox.height, 1 - 2200 / 6600)
+            line, = figure.artists
+            self.assertEqual(tuple(line.get_xdata()), (3900 / 5100, 600 / 5100))
+            self.assertEqual(tuple(line.get_ydata()), (1 - 1750 / 6600, 1 - 2300 / 6600))
+            self.assertEqual(line.get_color(), "#236789")
+
+            dataset.raw.loc[1, "B"] = 4
+            saved = Path(scratch) / "positioned.alab"
+            save_project(saved, {"Signals": dataset})
+            restored = load_project(saved)["Signals"]
+            method, options = restored.analyses[2]
+            figure = analyse(method, restored.frame(mask_excluded=True), options).figure
+            self.assertEqual([axes.lines[0].get_ydata().tolist() for axes in figure.axes], [[4], [4]])
+            svg = Path(scratch) / "positioned.svg"
+            figure.savefig(svg)
+            self.assertNotIn("<image", svg.read_text(encoding="utf-8"))
+
+    def test_layout_with_two_sources_recalculates_following_each_original_sheet(self):
+        from analisi.family_workflow import duplicate_family
+        from analisi.legacy_restore import layout_panel_sources
+        from trama_qt.project import Project
+
+        def samples(run):
+            return [axes.lines[0].get_ydata().tolist() for axes in run.result.figure.axes]
+
+        def refresh(project, seeds):
+            job = project.plan_refresh(seeds)
+            self.assertFalse(project.apply_refresh(job, project.run_refresh(job)))
+
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "independent.pzt"
+            _write(path, layout_link=9, second_source=True)
+            project = Project()
+            project.load(path)
+            layout, = [run for run in project.runs if run.method == SAVED_BINARY_LAYOUT]
+            self.assertEqual([graph.title for graph in project.layout_panel_graphs(layout).values()],
+                             ["Signals", "Independent signals"])
+            refresh(project, [layout])
+            self.assertEqual(samples(layout), [[3, 5], [2, 6]])
+            self.assertEqual(layout_panel_sources(layout, project.layout_panel_graphs(layout)),
+                             [("1 · Signals by date", "Signals"), ("2 · Detailed signals", "Independent signals")])
+
+            project.tables["Independent signals"].raw.loc[0, "A"] = 4
+            refresh(project, project.table_runs("Independent signals"))
+            self.assertEqual(samples(layout), [[3, 5], [4, 6]])
+            project.tables["Signals"].excluded.add((0, 1))
+            refresh(project, project.table_runs("Signals"))
+            self.assertEqual(samples(layout), [[5], [4, 6]])
+
+            saved = Path(scratch) / "independent.alab"
+            project.save(saved)
+            restored = Project()
+            restored.load(saved)
+            page, = [run for run in restored.runs if run.method == SAVED_BINARY_LAYOUT]
+            refresh(restored, [page])
+            self.assertEqual(samples(page), [[5], [4, 6]])
+
+            family = duplicate_family(restored.tables, (), (), ("saved-layout", page.reference), name="Copy")
+            self.assertEqual(len(family.tables), 2)
+            copied = Path(scratch) / "copy.alab"
+            save_project(copied, family.tables)
+            separate = Project()
+            separate.load(copied)
+            copy, = [run for run in separate.runs if run.method == SAVED_BINARY_LAYOUT]
+            refresh(separate, [copy])
+            self.assertEqual(samples(copy), [[5], [4, 6]])
+
+            restored.add_tables(load_tables(path, restore_legacy=True))
+            pages = [run for run in restored.runs if run.method == SAVED_BINARY_LAYOUT]
+            self.assertEqual([[graph.title for graph in restored.layout_panel_graphs(run).values()] for run in pages],
+                             [["Signals", "Independent signals"], ["Signals (2)", "Independent signals (2)"]])
+            restored.runs = [run for run in restored.runs
+                             if (run.method, run.title) != (SAVED_XY, "Independent signals")]
+            job = restored.plan_refresh([page])
+            errors = restored.apply_refresh(job, restored.run_refresh(job))
+            self.assertRegex(errors[0], "Panel 2.*source")
+            self.assertEqual(samples(page), [[5], [4, 6]])
+            self.assertEqual(layout_panel_sources(page, restored.layout_panel_graphs(page)),
+                             [("1 · Signals by date", "Signals")])
+
+    def test_layout_arrows_keep_the_saved_direction_at_each_endpoint(self):
+        from matplotlib.patches import Polygon
+
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "arrows.pzt"
+            for direction, expected in ((1, ((600, 2300),)),
+                                        (2, ((3900, 1750),)),
+                                        (3, ((3900, 1750), (600, 2300)))):
+                with self.subTest(direction=direction):
+                    _write(path, layout_link=9, arrow_direction=direction)
+                    dataset = Dataset(load_tables(path, restore_legacy=True)["Signals"])
+                    method, options = dataset.analyses[2]
+                    figure = analyse(method, dataset.frame(mask_excluded=True), options).figure
+                    heads = [artist for artist in figure.artists if isinstance(artist, Polygon)]
+                    self.assertEqual(len(heads), len(expected))
+                    for head, (x, y) in zip(heads, expected, strict=True):
+                        self.assertAlmostEqual(head.get_xy()[0][0], x / 5100)
+                        self.assertAlmostEqual(head.get_xy()[0][1], 1 - y / 6600)
+
+    def test_layout_with_a_missing_panel_keeps_the_two_viewable_graphs(self):
+        with TemporaryDirectory() as scratch:
+            path = Path(scratch) / "invalid-panel.pzt"
+            _write(path, layout_link=10)
+            frame = load_tables(path, restore_legacy=True)["Signals"]
+            self.assertEqual(len(Dataset(frame).analyses), 2)
+            self.assertIn("Layout unavailable for Results page.", " ".join(frame.attrs.get("import_warnings", ())))

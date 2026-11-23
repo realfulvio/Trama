@@ -174,10 +174,10 @@ class WriteTests(TemplateTestCase):
         self.assertEqual(tables["Analisi α"].graph_styles[2]["shapes"], [SHAPE])  # The source keeps them.
 
     def test_out_of_scope_items_are_refused_with_their_place(self):
-        from analisi.prism_restore import PRISM_GRAPH_LINK, SAVED_BINARY_GRAPH
+        from analisi.legacy_restore import LEGACY_GRAPH_LINK, SAVED_BINARY_GRAPH
         tables = deepcopy(self.tables)
         tables["Controllo"].analyses.append((SAVED_BINARY_GRAPH, {}))
-        tables["Analisi α"].analyses[3] = ("Linear regression", {"X": "X", "Y": "Y", PRISM_GRAPH_LINK: "x:1"})
+        tables["Analisi α"].analyses[3] = ("Linear regression", {"X": "X", "Y": "Y", LEGACY_GRAPH_LINK: "x:1"})
         tables["Analisi α"].analyses.append(("Linear regression", {"X": "X", "Y": "Missing"}))
         layouts = [*self.layouts, Layout("Imported", 1, [("Controllo", 1)])]
         plan = plan_template(tables, layouts)
@@ -191,7 +191,7 @@ class WriteTests(TemplateTestCase):
     def test_broken_links_and_imported_tables_are_refused(self):
         tables = deepcopy(self.tables)
         tables["Analisi α"].analysis_sources[3] = ResultSource("12345678-1234-4234-8234-123456789012", "Gone")
-        tables["Controllo"].table_format = "Prism editable XY"
+        tables["Controllo"].table_format = "Imported editable XY"
         layouts = [Layout("Broken", 1, [("Controllo", 9)])]
         found = {(problem.code, problem.place) for problem in plan_template(tables, layouts).problems}
         self.assertIn(("broken-source", ("analysis", "Analisi α", 3)), found)
@@ -258,7 +258,7 @@ class ReadTests(TemplateTestCase):
                      "missing-column")
         self.refused(target, changed(lambda c: c["tables"][0]["analyses"][2].update(
             style={"shapes": [SHAPE]})), "type")
-        self.refused(target, changed(lambda c: c["tables"][0].update(format="Prism editable XY")), "imported-table")
+        self.refused(target, changed(lambda c: c["tables"][0].update(format="Imported editable XY")), "imported-table")
         self.refused(target, changed(lambda c: c["tables"].append(deepcopy(c["tables"][1]))), "duplicate-table")
         self.refused(target, changed(lambda c: c.update(tables=[])))
 

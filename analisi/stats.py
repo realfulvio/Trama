@@ -14,6 +14,7 @@ from statsmodels.duration.survfunc import survdiff
 from statsmodels.stats.multitest import multipletests
 
 from .curve_models import MODELS, NESTED_MODELS
+from .field_error import FieldError
 from .fit_weights import (INFERENCE_WEIGHTS, INVERSE_VARIANCE, NONLINEAR_WEIGHTINGS, UNWEIGHTED, iterate_weights,
                           observed_scales, uses_fitted_y, uses_observed_y)
 
@@ -36,8 +37,38 @@ def complete(frame, numbers, labels=()):
     return data.dropna()
 
 
-def _geometric_summary(values):
-    empty = {"Geometric mean": np.nan, "Geometric 95% CI low": np.nan, "Geometric 95% CI high": np.nan}
+SUMMARY_FORMAT = "Summary format"
+GEOMETRIC_REPORT = "Geometric summary"
+FULL_REPORT = "Full summary"
+GEOMETRIC_MEAN = "Geometric mean and 95% CI"
+SUMMARY_CONFIDENCE = "Confidence level (%)"
+SUMMARY_SUM = "Include sum"
+
+
+def summary_fields(report):
+    geometric = report == GEOMETRIC_REPORT
+    return {GEOMETRIC_MEAN: not geometric, SUMMARY_CONFIDENCE: geometric, SUMMARY_SUM: geometric}
+
+
+def summary_confidence(options):
+    level = options.get(SUMMARY_CONFIDENCE, 95.)
+    if type(level) not in (int, float) or not 0 < level < 100:
+        raise FieldError(SUMMARY_CONFIDENCE, "Choose a confidence level strictly between 0 and 100.")
+    return float(level)
+
+
+def geometric_interval_fields(level):
+    caption = str(level).removesuffix(".0")
+    return f"Geometric {caption}% CI low", f"Geometric {caption}% CI high"
+
+
+def geometric_summary(values, *, level=95., spread=False):
+    caption = str(level).removesuffix(".0")
+    low_key, high_key = geometric_interval_fields(level)
+    empty = {"Geometric mean": np.nan}
+    if spread:
+        empty["Geometric SD"] = np.nan
+    empty.update({low_key: np.nan, high_key: np.nan})
     if (values <= 0).any():
         if (values == 0).any() and (values < 0).any():
             note = "Geometric mean requires positive values (column contains zero and negative values)."
@@ -53,41 +84,57 @@ def _geometric_summary(values):
     if not (np.isfinite(gmean) and gmean > 0):
         return {**empty, "Geometric note": "Geometric mean cannot be represented as a positive finite number."}
     n = len(values)
+    summary = {**empty, "Geometric mean": gmean}
     if n < 2:
-        return {**empty, "Geometric mean": gmean,
-                "Geometric note": "At least two positive observations are required for the 95% confidence interval."}
+        return {**summary,
+                "Geometric note": f"At least two positive observations are required for the {caption}% confidence interval."}
     if np.ptp(values) == 0:
-        return {"Geometric mean": gmean, "Geometric 95% CI low": gmean,
-                "Geometric 95% CI high": gmean, "Geometric note": ""}
+        if spread:
+            summary["Geometric SD"] = 1.
+        return {**summary, low_key: gmean, high_key: gmean, "Geometric note": ""}
+    note = ""
     with np.errstate(over="ignore", under="ignore", invalid="ignore"):
         sd_log = float(logs.std(ddof=1))
-        margin = float(stats.t.ppf(.975, n - 1)) * sd_log / np.sqrt(n)
+        if spread:
+            gsd = np.exp(sd_log)
+            if np.isfinite(gsd):
+                summary["Geometric SD"] = float(gsd)
+            else:
+                note = "Geometric SD cannot be represented as a finite number."
+        critical = stats.t.isf((100 - level) / 200, n - 1) if spread else stats.t.ppf(.975, n - 1)
+        margin = float(critical) * sd_log / np.sqrt(n)
         low = float(np.exp(mean_log - margin))
         high = float(np.exp(mean_log + margin))
     if not (np.isfinite(low) and np.isfinite(high) and low > 0 and high > 0):
-        return {**empty, "Geometric mean": gmean,
-                "Geometric note": "The 95% confidence interval limits cannot be represented as positive finite numbers."}
-    return {"Geometric mean": gmean, "Geometric 95% CI low": low,
-            "Geometric 95% CI high": high, "Geometric note": ""}
+        return {**summary, "Geometric note":
+                f"The {caption}% confidence interval limits cannot be represented as positive finite numbers."}
+    return {**summary, low_key: low, high_key: high, "Geometric note": note}
 
 
-def describe(frame, columns, *, geometric=False):
+def describe(frame, columns, *, geometric=False, geometric_report=False, level=95., total=True):
     rows = []
     for name in columns:
         values = complete(frame, [name])[name]
         if values.empty:
             raise ValueError(f'Column "{name}" has no observations.')
-        row = {"Column": name, "N": len(values), "Missing": len(frame) - len(values),
-               "Mean": values.mean(), "SD": values.std(), "SEM": values.sem(),
-               "Median": values.median(), "Q1": values.quantile(.25),
-               "Q3": values.quantile(.75), "Min": values.min(), "Max": values.max()}
-        if geometric:
-            row.update(_geometric_summary(values.to_numpy(dtype=float)))
+        row = {"Column": name, "N": len(values)}
+        if geometric_report:
+            if total:
+                row["Sum"] = values.sum()
+            row.update(geometric_summary(values.to_numpy(dtype=float), level=level, spread=True))
+        else:
+            row.update({"Missing": len(frame) - len(values),
+                        "Mean": values.mean(), "SD": values.std(), "SEM": values.sem(),
+                        "Median": values.median(), "Q1": values.quantile(.25),
+                        "Q3": values.quantile(.75), "Min": values.min(), "Max": values.max()})
+        if geometric and not geometric_report:
+            row.update(geometric_summary(values.to_numpy(dtype=float)))
         rows.append(row)
     return pd.DataFrame(rows).set_index("Column")
 
 
-def t_test(frame, response, group=None, mode="welch", subject=None, order=None, null=0.0):
+def t_test(frame, response, group=None, mode="welch", subject=None, order=None, null=0.0, *,
+           return_samples=False, level=95., alternative="two-sided", reverse=False, detailed=False):
     if mode not in {"paired", "welch", "student", "one-sample"}:
         raise ValueError("Unknown t-test design.")
     if mode != "one-sample" and not group:
@@ -109,7 +156,11 @@ def t_test(frame, response, group=None, mode="welch", subject=None, order=None, 
             a, b = wide[groups[0]], wide[groups[1]]
         else:
             a, b = (data.loc[data[group] == label, response] for label in groups)
-    return _t_test_samples(a, b, mode, groups, null)
+    if reverse and b is not None:
+        a, b = b, a
+        groups = groups[::-1]
+    summary = _t_test_samples(a, b, mode, groups, null, level=level, alternative=alternative, detailed=detailed)
+    return (summary, a, b) if return_samples else summary
 
 
 def paired_t_test(frame, first, second):
@@ -117,7 +168,23 @@ def paired_t_test(frame, first, second):
     return _t_test_samples(pairs[first], pairs[second], "paired", (first, second), 0.0)
 
 
-def _t_test_samples(a, b, mode, groups, null):
+def t_test_columns(frame, first, second, mode, subject=None, *, level=95., alternative="two-sided", detailed=False):
+    """Compare two response columns with pairwise or independent handling of missing data."""
+    if mode not in {"paired", "welch", "student"}:
+        raise ValueError("Choose a two-sample t-test design.")
+    if mode == "paired":
+        pairs = complete(frame, [first, second], [subject])
+        if not pairs[subject].is_unique:
+            raise FieldError("Subject", "A subject has more than one complete pair.")
+        a, b = pairs[first], pairs[second]
+    else:
+        a, b = (complete(frame, [name])[name] for name in (first, second))
+    summary = _t_test_samples(a, b, mode, (first, second), 0.,
+                              level=level, alternative=alternative, detailed=detailed)
+    return summary, a, b
+
+
+def _t_test_samples(a, b, mode, groups, null, *, level=95., alternative="two-sided", detailed=False):
     if len(a) < 2 or (b is not None and len(b) < 2):
         raise ValueError("At least two observations in each sample or two matched pairs are required.")
     if mode in {"one-sample", "paired"}:
@@ -133,13 +200,30 @@ def _t_test_samples(a, b, mode, groups, null):
         pooled = np.sqrt(((len(a) - 1) * a.var() + (len(b) - 1) * b.var())
                          / (len(a) + len(b) - 2))
         effect = (a.mean() - b.mean()) / pooled
-    interval = result.confidence_interval()
-    return {"First": groups[0], "Second / null": groups[1], "N first": len(a),
+    interval = result.confidence_interval(confidence_level=level / 100)
+    low, high = ci_columns(level)
+    p = result.pvalue
+    if alternative == "greater":
+        p = stats.t.sf(result.statistic, result.df)
+    elif alternative == "less":
+        p = stats.t.cdf(result.statistic, result.df)
+    summary = {"First": groups[0], "Second / null": groups[1], "N first": len(a),
             "N second": len(b) if b is not None else None, "Mean first": a.mean(),
             "Mean second": b.mean() if b is not None else null,
             "Difference": a.mean() - (b.mean() if b is not None else null),
-            "t": result.statistic, "df": result.df, "p": result.pvalue,
-            "CI 95% low": interval.low, "CI 95% high": interval.high, "Cohen's d": effect}
+            "t": result.statistic, "df": result.df, "p": p,
+            low: interval.low, high: interval.high, "Cohen's d": effect}
+    if alternative != "two-sided":
+        summary["Alternative"] = "First − second > 0" if alternative == "greater" else "First − second < 0"
+    if detailed and mode == "paired":
+        r = pairing_p = np.nan
+        if len(a) >= 3 and a.nunique() > 1 and b.nunique() > 1:
+            r, pairing_p = stats.pearsonr(a, b, alternative="greater")
+        scaled_t = result.statistic / np.hypot(result.statistic, np.sqrt(result.df))
+        summary.update({"SD of differences": differences.std(), "SE of differences": differences.sem(),
+                        "R² from t": scaled_t**2, "Hedges' g": effect * (1 - 3 / (4 * result.df - 1)),
+                        "Pairing Pearson r": r, "Pairing p (positive association)": pairing_p})
+    return summary
 
 
 def _linear_rescale(value, numerator, denominator=1.):

@@ -165,8 +165,8 @@ class DunnettT3Tests(unittest.TestCase):
             np.testing.assert_allclose(row[["p", "Adjusted p", "CI low", "CI high"]].to_numpy(float),
                                        [p, p, row["Difference"] - half, row["Difference"] + half], rtol=1e-9)
 
-    def test_reproduces_published_graphpad_dunnett_t3_table(self):
-        # FAQ 2221 publishes rounded mean differences, standard errors and Welch df.
+    def test_reproduces_published_dunnett_t3_table(self):
+        # The reference table reports rounded differences, standard errors and Welch df.
         _, adjusted, low, high = dunnett_t3(np.array([-35.87, 35.78]), np.array([11.69, 5.484]),
                                              np.array([7.492, 5.438]), 95)
         np.testing.assert_array_equal(np.round(adjusted, 4), [.0344, .0024])

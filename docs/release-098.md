@@ -1,8 +1,8 @@
 # Trama 0.98.0 beta
 
-Estrai il portabile Windows x64. **Trama.exe** e **Trama - Tk.cmd** aprono
-l’interfaccia Classica. **Trama - Qt.cmd** apre l’interfaccia PySide6/Qt.
-I due avvii usano lo stesso motore statistico e lo stesso formato di progetto.
+I due avvii condividono il motore statistico e il formato di progetto
+`.alab`. Per avviare la Classica in Tk o in PySide6/Qt, segui la
+[guida rapida del portabile](getting-started.md).
 
 - **Dendrogrammi e K-means.** L’[ordinamento ottimale delle foglie](leaf-ordering.md)
   è disponibile per il clustering gerarchico. I grafici collegati delle
