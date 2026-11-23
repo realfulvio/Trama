@@ -50,7 +50,7 @@ def main():
                  "nonlinear-parameter-intervals.md", "custom-parameter-profiles.md", "global-custom-parameter-profiles.md", "global-custom-070.md", "lognormal-tests-070.md", "equivalence-tost-071.md", "pca-selection-070.md",
                  "weighted-multiple-regression-070.md", "anova-diagnostics-070.md", "variance-assumptions-070.md",
                  "heatmap-colors-072.md", "robust-curve-073.md", "reference-normalization.md",
-                 "nonlinear-inverse-intervals-073.md", "heatmap-layout.md", "correlation-details.md", "spearman-exact-extended.md", "lognormality.md", "summary-anova.md", "qq-panels.md", "lognormal-anova.md", "summary-ttest.md"):
+                 "nonlinear-inverse-intervals-073.md", "pade-calibration.md", "heatmap-layout.md", "correlation-details.md", "spearman-exact-extended.md", "lognormality.md", "summary-anova.md", "qq-panels.md", "lognormal-anova.md", "summary-ttest.md"):
         (bundle / "docs").mkdir(exist_ok=True)
         if (root / "docs" / name).is_file():
             shutil.copy2(root / "docs" / name, bundle / "docs" / name)

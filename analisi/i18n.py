@@ -3224,6 +3224,56 @@ _IT.update({
     "calib.inverse_nonlinear.field.direction": "Direzione",
 })
 
+# Rational Padé (1,1) standard curve. Error texts match the engine strings.
+_EN.update({
+    "calib.pade.note": (
+        "Normalized abscissa z = (X − X min) / (X max − X min); "
+        "Y = (A0 + A1·z) / (1 + B1·z). Point estimates only."),
+    "calib.pade.intervals": "Intervals are not available for {model}. Choose None.",
+    "calib.pade.forward_models": (
+        "Y from X supports the Linear curve, One-phase decay, "
+        "the variable-slope 4PL models and Padé (1,1)."),
+    "calib.pade.min_standards": "Padé (1,1) requires at least four observations and three distinct X values.",
+    "calib.pade.x_interval": "The calibration standards do not define an X interval.",
+    "calib.pade.constant_y": "Response values have zero variation.",
+    "calib.pade.distinct_xy": "Select distinct columns for X and Y.",
+    "calib.pade.unknown_x": "Choose a column of unknown X values.",
+    "calib.pade.empty_unknown_x": "Enter one or more unknown X values.",
+    "calib.pade.empty_unknown_y": "Enter one or more unknown response values.",
+    "calib.pade.non_finite_x": "The calibration standards contain non-finite X values.",
+    "calib.pade.non_finite_y": "The calibration standards contain non-finite Y values.",
+    "calib.pade.y_range": "Response values exceed the numerical range.",
+    "calib.pade.unestimable": "Could not estimate a finite Padé (1,1) calibration curve.",
+    "calib.pade.denom": "Padé (1,1) denominator constraint could not be satisfied.",
+    "calib.pade.pole": "Padé (1,1) denominator approaches zero inside the calibration domain.",
+    "calib.pade.nonnumeric": 'Column "{column}" contains non-numeric or infinite data.',
+    "calib.pade.field.unknown_x": "Unknown X",
+})
+_IT.update({
+    "calib.pade.note": (
+        "Ascissa normalizzata z = (X − X min) / (X max − X min); "
+        "Y = (A0 + A1·z) / (1 + B1·z). Solo stime puntuali."),
+    "calib.pade.intervals": "Gli intervalli non sono disponibili per {model}. Scegli Nessuno.",
+    "calib.pade.forward_models": (
+        "Y da X supporta la curva Lineare, One-phase decay, "
+        "i modelli 4PL a pendenza variabile e Padé (1,1)."),
+    "calib.pade.min_standards": "Padé (1,1) richiede almeno quattro osservazioni e tre valori distinti di X.",
+    "calib.pade.x_interval": "Gli standard di calibrazione non definiscono un intervallo di X.",
+    "calib.pade.constant_y": "I valori di risposta hanno variazione nulla.",
+    "calib.pade.distinct_xy": "Scegli colonne distinte per X e Y.",
+    "calib.pade.unknown_x": "Scegli una colonna di X incognite.",
+    "calib.pade.empty_unknown_x": "Inserisci uno o più valori incogniti di X.",
+    "calib.pade.empty_unknown_y": "Inserisci uno o più valori di risposta incogniti.",
+    "calib.pade.non_finite_x": "Gli standard di calibrazione contengono valori X non finiti.",
+    "calib.pade.non_finite_y": "Gli standard di calibrazione contengono valori Y non finiti.",
+    "calib.pade.y_range": "I valori di risposta superano l’intervallo numerico.",
+    "calib.pade.unestimable": "Impossibile stimare una curva di calibrazione Padé (1,1) finita.",
+    "calib.pade.denom": "Impossibile soddisfare il vincolo sul denominatore di Padé (1,1).",
+    "calib.pade.pole": "Il denominatore di Padé (1,1) si avvicina a zero nell’intervallo di calibrazione.",
+    "calib.pade.nonnumeric": 'La colonna "{column}" contiene dati non numerici o infiniti.',
+    "calib.pade.field.unknown_x": "X incognite",
+})
+
 # ANCOVA with adjusted means. The "ancova.error." entries match the English text raised by the engine.
 _EN.update({
     'ancova.error.unique': 'Worksheet column names must be unique.',
