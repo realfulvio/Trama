@@ -8,6 +8,7 @@ import pandas as pd
 
 from . import ui_theme
 from .grid_headings import column_label, heading_bands as _heading_bands
+from .worksheet_appearance import text_on_background
 
 
 _HEADER_TITLE = "#ffffff"
@@ -16,16 +17,22 @@ _ROW_TITLE = "#fbfcfd"
 
 class DataGrid(ttk.Frame):
     def __init__(self, parent, frame, edit, copy_cells, paste_cells, display, *, excluded, source_columns,
-                 table_format=None, read_only_columns=(), address_widget=None, calculated_columns=None):
+                 table_format=None, read_only_columns=(), address_widget=None, calculated_columns=None,
+                 appearance=("", None), zoom=100, backgrounds=None, result_widths=None, formatters=None, row_offset=0):
         super().__init__(parent)
         self.frame = frame
         self.edit = edit
         self.display = display
         self.excluded = excluded
+        self.backgrounds = backgrounds or {}
+        self.result = result_widths is not None
+        self.result_widths = result_widths
+        self.formatters = formatters
+        self.row_offset = row_offset
         self.calculated_columns = frozenset(range(source_columns, len(frame.columns))
                                             if calculated_columns is None else calculated_columns)
         self.read_only_columns = frozenset(read_only_columns)
-        self.rows = self.minimum_rows = max(20, len(frame) + 1)
+        self.rows = self.minimum_rows = max(1, len(frame)) if self.result else max(20, len(frame) + 1)
         self.columns = len(frame.columns)
         self.cursor = ""
         self.format_name = {"xy": "XY", "column": "Col", "grouped": "Grp",
@@ -36,36 +43,20 @@ class DataGrid(ttk.Frame):
         self.drag_job = None
         self.drag_position = None
 
-        family = ui_theme.family()
-        self.font = font.Font(self, family=family, size=10)
-        self.excluded_font = font.Font(self, family=family, size=10, slant="italic")
-        self.heading_font = font.Font(self, family=family, size=10)
-        self.label_font = font.Font(self, family=family, size=9)
-        self.label_bold = font.Font(self, family=family, size=9, weight="bold")
-        self.group_font = font.Font(self, family=family, size=9, weight="bold")
+        self.font = font.Font(self)
+        self.excluded_font = font.Font(self, slant="italic")
+        self.heading_font = font.Font(self)
+        self.label_font = font.Font(self)
+        self.label_bold = font.Font(self, weight="bold")
+        self.group_font = font.Font(self, weight="bold")
         self.stripe = ui_theme.px(3)
         self.mark = ui_theme.px(6)
-        self.row_height = self.font.metrics("linespace") + (7 if ui_theme.is_modern() else 4)
-        self.band_height = self.label_font.metrics("linespace") + 5
-        self.gutter = max(36, self.label_font.measure(str(self.rows)) + 16)
         names = [f"ƒx   {name}" if col in self.calculated_columns else str(name)
                  for col, name in enumerate(frame.columns)]
         self.bands, self.roles = _heading_bands(frame, names, source_columns, table_format,
                                                 calculated=self.calculated_columns)
         self.row_titles = bool(self.bands and self.bands[0][2] == "Row titles")
-        self.header_height = self.band_height + self.row_height
-        if self.roles:
-            self.header_height += self.band_height
-        widths = []
-        for first, stop, band, title in self.bands:
-            span = stop - first
-            title_width = (self.heading_font.measure(title) + 16 + span - 1) // span
-            band_width = (self.group_font.measure(band) + 14 + span - 1) // span
-            minimum = 73 if span > 1 else 92 if self.roles else 105
-            if self.row_titles and first == 0:
-                minimum = 76
-            widths.append(max(minimum, min(248, max(title_width, band_width))))
-        self.edges = list(accumulate(widths, initial=self.gutter))
+        self._size_cells(appearance, zoom)
         self.numeric = [pd.api.types.is_numeric_dtype(dtype) for dtype in frame.dtypes]
 
         self.canvas = tk.Canvas(self, background="#ffffff", highlightthickness=0, takefocus=True,
@@ -95,7 +86,7 @@ class DataGrid(ttk.Frame):
         self.canvas.bind("<Button-4>", lambda _: self.wheel_rows(-3))
         self.canvas.bind("<Button-5>", lambda _: self.wheel_rows(3))
         self.canvas.bind("<Control-c>", lambda _: copy_cells())
-        self.canvas.bind("<Control-v>", lambda _: paste_cells())
+        self.canvas.bind("<Control-v>", lambda _: paste_cells() if paste_cells is not None else "break")
         self.canvas.bind("<Control-a>", lambda _: self.select_all())
         self.canvas.bind("<Shift-space>", lambda _: self.select_rows(self.selection[0], self.selection[2]))
         self.canvas.bind("<Control-space>", lambda _: self.select_columns(self.selection[1], self.selection[3]))
@@ -107,6 +98,46 @@ class DataGrid(ttk.Frame):
         self.canvas.bind("<Shift-Tab>", lambda _: self.move(0, -1))
         self.canvas.bind("<ISO_Left_Tab>", lambda _: self.move(0, -1))
         self.canvas.bind("<Return>", lambda _: self.move(1, 0))
+
+    def _size_cells(self, appearance, zoom):
+        family, size = appearance
+        scale = (size or 10) * zoom / 1000
+        points = max(1, round(10 * scale))
+        smaller = max(1, round(9 * scale))
+        for face in (self.font, self.excluded_font, self.heading_font):
+            face.configure(family=family or ui_theme.family(), size=points)
+        for face in (self.label_font, self.label_bold, self.group_font):
+            face.configure(family=family or ui_theme.family(), size=smaller)
+        self.row_height = self.font.metrics("linespace") + (7 if ui_theme.is_modern() else 4)
+        self.band_height = 0 if self.result else self.label_font.metrics("linespace") + 5
+        self.gutter = 0 if self.result else max(36, self.label_font.measure(str(self.rows)) + 16)
+        self.header_height = self.row_height + self.band_height * (2 if self.roles else 1)
+        widths = []
+        if self.result:
+            widths = [max(1, round(width * scale)) for width in self.result_widths]
+        else:
+            for first, stop, band, title in self.bands:
+                span = stop - first
+                title_width = (self.heading_font.measure(title) + 16 + span - 1) // span
+                band_width = (self.group_font.measure(band) + 14 + span - 1) // span
+                minimum = 76 if self.row_titles and first == 0 else 73 if span > 1 else 92 if self.roles else 105
+                widths.append(max(round(minimum * scale), min(round(248 * scale), max(title_width, band_width))))
+        self.edges = list(accumulate(widths, initial=self.gutter))
+
+    def set_appearance(self, appearance, zoom):
+        state = self.view_state()
+        old_height = self.row_height
+        self._size_cells(appearance, zoom)
+        self.canvas.configure(yscrollincrement=self.row_height)
+        if self.editor is not None:
+            self.editor.configure(font=self.font)
+        self.resize(None)
+        anchor, head, x, y = state
+        self.restore((anchor, head, x, y * self.row_height / old_height))
+
+    def cell_text(self, row, column):
+        formatter = self.formatters[column] if self.formatters else self.display
+        return formatter(self.frame.iat[row, column])
 
     @property
     def active_cell(self):
@@ -141,7 +172,8 @@ class DataGrid(ttk.Frame):
 
     def resize(self, _event):
         visible_rows = max(0, self.canvas.winfo_height() - self.header_height)
-        self.rows = max(self.minimum_rows, (visible_rows + self.row_height - 1) // self.row_height)
+        if not self.result:
+            self.rows = max(self.minimum_rows, (visible_rows + self.row_height - 1) // self.row_height)
         self.canvas.configure(scrollregion=(0, 0, *self.extent()))
         self.position_editor()
         self.queue_draw()
@@ -204,11 +236,15 @@ class DataGrid(ttk.Frame):
                 active = (row, col) == self.anchor
                 selected = top_row <= row <= bottom_row and left_column <= col <= right_column
                 locked = col in self.calculated_columns or col in self.read_only_columns
-                fill = ui_theme.DISABLED_FILL if locked else _ROW_TITLE if self.row_titles and col == 0 else "#ffffff"
-                box(x1, y1, x2, y2, ui_theme.SELECTED_CELL if selected and not active else fill)
+                color = self.backgrounds.get((row + self.row_offset, col))
+                if self.result:
+                    fill = "#f1f6fc" if (row + self.row_offset) % 2 else "#ffffff"
+                else:
+                    fill = ui_theme.DISABLED_FILL if locked else _ROW_TITLE if self.row_titles and col == 0 else "#ffffff"
+                box(x1, y1, x2, y2, color or (ui_theme.SELECTED_CELL if selected and not active else fill))
                 value = ""
                 if row < len(self.frame):
-                    value = self.display(self.frame.iat[row, col])
+                    value = self.cell_text(row, col)
                     excluded = (row, col) in self.excluded
                     if excluded:
                         value = "* " + value
@@ -221,7 +257,8 @@ class DataGrid(ttk.Frame):
                         face = self.excluded_font if excluded else self.font
                         label(x2 - 5 if numeric else x1 + 5, (y1 + y2) / 2,
                               self.clip(value, x2 - x1 - 10, face), face,
-                              anchor="e" if numeric else "w", color=ui_theme.EXCLUDED if excluded else ui_theme.TEXT)
+                              anchor="e" if numeric else "w",
+                              color=text_on_background(color) if color else ui_theme.EXCLUDED if excluded else ui_theme.TEXT)
                 if self.row_titles and col == 0 and not value:
                     label(x1 + 5, (y1 + y2) / 2, "Title", self.label_font, anchor="w", color="#526477")
 
@@ -255,13 +292,13 @@ class DataGrid(ttk.Frame):
             x1, x2 = self.edges[first], self.edges[stop]
             center = (x1 + x2) / 2
             selected = first <= right_column and stop > left_column
-            box(x1, y, x2, band_bottom, ui_theme.SELECTED_HEADING if selected else ui_theme.group_heading_fill(band), ui_theme.GROUP_LINE)
-            stripe = self.series_color(band)
-            if stripe:
-                # The colour a Y group takes in the default graph, as a stripe on its heading.
-                c.create_rectangle(x1 + 1, y + 1, x2, y + 1 + self.stripe, fill=stripe, outline="")
-            label(center, y + self.band_height / 2 + (self.stripe // 2 if stripe else 0),
-                  self.clip(band, x2 - x1 - 12, self.group_font), self.group_font, color=ui_theme.TEXT)
+            if not self.result:
+                box(x1, y, x2, band_bottom, ui_theme.SELECTED_HEADING if selected else ui_theme.group_heading_fill(band), ui_theme.GROUP_LINE)
+                stripe = self.series_color(band)
+                if stripe:
+                    c.create_rectangle(x1 + 1, y + 1, x2, y + 1 + self.stripe, fill=stripe, outline="")
+                label(center, y + self.band_height / 2 + (self.stripe // 2 if stripe else 0),
+                      self.clip(band, x2 - x1 - 12, self.group_font), self.group_font, color=ui_theme.TEXT)
             box(x1, band_bottom, x2, title_bottom, ui_theme.SELECTED_HEADING if selected else _HEADER_TITLE, ui_theme.GROUP_LINE)
             label(center, band_bottom + self.row_height / 2,
                   self.clip(title, x2 - x1 - 12, self.heading_font), self.heading_font)
@@ -278,24 +315,25 @@ class DataGrid(ttk.Frame):
                     c.create_rectangle(x1 + 1, header_bottom - self.stripe, x2, header_bottom - 1,
                                        fill=ui_theme.ACCENT, outline="")
 
-        box(x, y, x + self.gutter, bottom, ui_theme.HEADING, ui_theme.GROUP_LINE)
-        for row in range(first_row, stop_row):
-            y1 = self.header_height + row * self.row_height
-            chosen = top_row <= row <= bottom_row
-            box(x, y1, x + self.gutter, y1 + self.row_height, ui_theme.SELECTED_HEADING if chosen else ui_theme.HEADING)
-            if chosen:
-                c.create_rectangle(x + self.gutter - self.stripe, y1 + 1, x + self.gutter - 1, y1 + self.row_height,
-                                   fill=ui_theme.ACCENT, outline="")
-            face = self.label_bold if chosen else self.label_font
-            label(x + self.gutter / 2 - 1, y1 + self.row_height / 2, str(row + 1), face,
-                  color=ui_theme.TEXT if chosen else ui_theme.MUTED)
-        box(x, y, x + self.gutter, header_bottom, ui_theme.HEADING, ui_theme.GROUP_LINE)
-        label(x + self.gutter / 2, y + self.band_height / 2, self.format_name, self.group_font, color=ui_theme.MUTED)
-        c.create_polygon(x + self.gutter - 5, header_bottom - 5, x + self.gutter - 13, header_bottom - 5,
-                         x + self.gutter - 5, header_bottom - 13, fill="#8796a7")
+        if self.gutter:
+            box(x, y, x + self.gutter, bottom, ui_theme.HEADING, ui_theme.GROUP_LINE)
+            for row in range(first_row, stop_row):
+                y1 = self.header_height + row * self.row_height
+                chosen = top_row <= row <= bottom_row
+                box(x, y1, x + self.gutter, y1 + self.row_height, ui_theme.SELECTED_HEADING if chosen else ui_theme.HEADING)
+                if chosen:
+                    c.create_rectangle(x + self.gutter - self.stripe, y1 + 1, x + self.gutter - 1, y1 + self.row_height,
+                                       fill=ui_theme.ACCENT, outline="")
+                face = self.label_bold if chosen else self.label_font
+                label(x + self.gutter / 2 - 1, y1 + self.row_height / 2, str(row + 1), face,
+                      color=ui_theme.TEXT if chosen else ui_theme.MUTED)
+            box(x, y, x + self.gutter, header_bottom, ui_theme.HEADING, ui_theme.GROUP_LINE)
+            label(x + self.gutter / 2, y + self.band_height / 2, self.format_name, self.group_font, color=ui_theme.MUTED)
+            c.create_polygon(x + self.gutter - 5, header_bottom - 5, x + self.gutter - 13, header_bottom - 5,
+                             x + self.gutter - 5, header_bottom - 13, fill="#8796a7")
 
-        start = f"{column_label(left_column)}{top_row + 1}"
-        end = f"{column_label(right_column)}{bottom_row + 1}"
+        start = f"{column_label(left_column)}{top_row + self.row_offset + 1}"
+        end = f"{column_label(right_column)}{bottom_row + self.row_offset + 1}"
         self.address.configure(text=start if start == end else
                                f"{start}:{end}   ·   {bottom_row - top_row + 1} × {right_column - left_column + 1}")
 
@@ -439,7 +477,7 @@ class DataGrid(ttk.Frame):
             return "break"
         self.end_drag(None)
         self.reveal((row, col))
-        self.editor = ttk.Entry(self.canvas)
+        self.editor = ttk.Entry(self.canvas, font=self.font)
         if row < len(self.frame):
             value = self.frame.iat[row, col]
             self.editor.insert(0, "" if pd.isna(value) else str(value))

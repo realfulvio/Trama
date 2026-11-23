@@ -23,10 +23,12 @@ import pandas as pd
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
 from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, valid_analysis_id
 from .analysis_labels import validate_labels
+from .category_order import CATEGORY_ORDER_VERSION, WORKSHEET_ORDERS, keep_source_columns, validated_orders
 from .distribution_formulas import DISTRIBUTION_FUNCTIONS, argument_count_message
 from .formula_special import SPECIAL_FORMULA_FUNCTIONS
 from .formula_windows import WINDOW_CLAUSES, WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
 from .grid_headings import column_label
+from .worksheet_appearance import background_records, paint_cells, read_backgrounds
 from .legacy_project_metadata import LEGACY_METADATA_VERSION, saved_analysis, saved_name, uses_import_metadata
 
 MAX_ENTRY = 32 * 1024 * 1024
@@ -670,6 +672,28 @@ class Dataset:
     analysis_labels: dict[int, str] = field(default_factory=dict)
     column_order: tuple[str, ...] | None = None
 
+    cell_backgrounds: dict[tuple[int, str], str] = field(default_factory=dict)
+    result_backgrounds: dict[int, dict[str, dict[tuple[int, int], str]]] = field(default_factory=dict)
+
+    @property
+    def displayed_backgrounds(self):
+        positions = {name: index for index, name in enumerate(self.columns)}
+        return {(row, positions[name]): color for (row, name), color in self.cell_backgrounds.items()}
+
+    def set_background(self, box, color):
+        columns = self.columns
+        self.cell_backgrounds = paint_cells(self.cell_backgrounds, box, (len(self.raw), len(columns)), color, columns)
+
+    def set_result_background(self, slot, name, box, shape, color):
+        sheets = self.result_backgrounds.get(slot, {})
+        current = sheets.get(name, {})
+        changed = paint_cells(current, box, shape, color)
+        if changed is current:
+            return
+        sheets = {**sheets, name: changed} if changed else {key: value for key, value in sheets.items() if key != name}
+        self.result_backgrounds = ({**self.result_backgrounds, slot: sheets} if sheets else
+                                   {key: value for key, value in self.result_backgrounds.items() if key != slot})
+
     @property
     def columns(self):
         return self.column_order if self.column_order is not None else (*self.raw.columns, *self.formulas)
@@ -723,6 +747,7 @@ class Dataset:
             indices = {original: new for new, original in enumerate(kept)}
             self.excluded = {(row, indices[col]) for row, col in self.excluded if col in indices}
             self.raw = self.raw.iloc[:, kept].copy()
+            keep_source_columns(self.raw)
             self.raw.attrs.pop("legacy_formulas")
             self.raw.attrs.pop("excluded", None)
             self.formulas = imported
@@ -784,6 +809,7 @@ class Dataset:
 
         candidate = copy(self)
         candidate.raw = self.raw.drop(columns=name)
+        keep_source_columns(candidate.raw)
         if "worksheet_roles" in candidate.raw.attrs:
             roles = candidate.raw.attrs["worksheet_roles"]
             groups = [[member for member in group if member != name] for group in roles["y"]]
@@ -960,7 +986,7 @@ def project_document(tables, *, layouts=(), info_sheets=None):
     contexts = info_contexts(info_sheets)
     for title, dataset in tables.items():
         if uses_import_metadata(dataset.table_format, dataset.analyses):
-            data["version"] = LEGACY_METADATA_VERSION
+            data["version"] = max(data["version"], LEGACY_METADATA_VERSION)
         raw = dataset.raw
         if not 1 <= len(raw.columns) <= MAX_CELLS or raw.size > MAX_CELLS:
             raise ValueError("A project table exceeds the size limit.")
@@ -980,6 +1006,13 @@ def project_document(tables, *, layouts=(), info_sheets=None):
             "table_format": dataset.table_format,
             "graph_styles": dataset.graph_styles,
         }
+        if dataset.cell_backgrounds:
+            record["cell_backgrounds"] = background_records(dataset.cell_backgrounds)
+        if dataset.result_backgrounds:
+            record["result_backgrounds"] = {
+                slot: {name: background_records(colors) for name, colors in sorted(sheets.items())}
+                for slot, sheets in sorted(dataset.result_backgrounds.items())
+            }
         if order != tuple(dataset.formulas):
             record["formula_order"] = list(dataset.formulas)
         if dataset.column_order is not None:
@@ -990,6 +1023,9 @@ def project_document(tables, *, layouts=(), info_sheets=None):
             record["analysis_sources"] = {slot: asdict(source) for slot, source in dataset.analysis_sources.items()}
         if dataset.analysis_labels:
             record["analysis_labels"] = dict(sorted(dataset.analysis_labels.items()))
+        if orders := raw.attrs.get(WORKSHEET_ORDERS):
+            record[WORKSHEET_ORDERS] = validated_orders(orders, raw.columns)
+            data["version"] = CATEGORY_ORDER_VERSION
         roles = _worksheet_roles(raw)
         if roles is not None:
             record["worksheet_roles"] = _validated_worksheet_roles(roles, raw.columns)
@@ -1034,7 +1070,7 @@ def load_workspace(path, *, include_info=False):
         raise ValueError("Project file exceeds 32 MiB.")
     obj = json.loads(path.read_text(encoding="utf-8-sig"))
     version = obj["version"]
-    if version not in (1, 2, 3, LEGACY_METADATA_VERSION) or len(obj["tables"]) > 256:
+    if version not in (1, 2, 3, LEGACY_METADATA_VERSION, CATEGORY_ORDER_VERSION) or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
     if (not isinstance(stored_info, list) or len(stored_info) > MAX_INFO_SHEETS
@@ -1060,6 +1096,10 @@ def load_workspace(path, *, include_info=False):
         data.table_format = saved_name(table_format)
         if "worksheet_roles" in table:
             data.raw.attrs["worksheet_roles"] = _validated_worksheet_roles(table["worksheet_roles"], data.raw.columns)
+        if WORKSHEET_ORDERS in table:
+            if version < CATEGORY_ORDER_VERSION:
+                raise ValueError("Worksheet category orders require project format version 5 or later.")
+            data.raw.attrs[WORKSHEET_ORDERS] = validated_orders(table[WORKSHEET_ORDERS], data.raw.columns)
         for name, expression in table["formulas"]:
             data.set_formula(name, expression)
         if "formula_order" in table:
@@ -1070,12 +1110,20 @@ def load_workspace(path, *, include_info=False):
             data.formulas = {name: data.formulas[name] for name in order}
         if "column_order" in table:
             data.column_order = _validated_column_order(table["column_order"], data.raw.columns, data.formulas)
+        if "cell_backgrounds" in table:
+            data.cell_backgrounds = read_backgrounds(table["cell_backgrounds"], len(data.raw), set(data.columns))
         entries = table.get("analyses", [])
         limit = MAX_ANALYSIS_NODES if version >= 3 else 256
         if len(entries) > limit or any(not isinstance(method, str) or not isinstance(options, dict)
                                     for method, options in entries):
             raise ValueError("Invalid saved analysis settings.")
         data.analyses = [saved_analysis(method, options) for method, options in entries]
+        for slot, colored in _analysis_slots(table.get("result_backgrounds", {}), len(entries)).items():
+            if not isinstance(colored, dict):
+                raise ValueError("Invalid saved result backgrounds.")
+            data.result_backgrounds[slot] = {
+                name: read_backgrounds(colors, MAX_CELLS, range(MAX_CELLS)) for name, colors in colored.items()
+            }
         data.analysis_ids = _analysis_slots(table.get("analysis_ids", {}), len(entries))
         sources = _analysis_slots(table.get("analysis_sources", {}), len(entries))
         if sources and version < 3:

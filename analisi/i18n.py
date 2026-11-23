@@ -100,6 +100,12 @@ _EN = {
     "command.analyze_data": "Analyze data…", "command.change_parameters": "Change parameters…",
     "command.load_example": "Load example", "command.format_graph": "Format graph…",
     "command.edit_layout": "Edit layout…", "command.info_properties": "Info sheet properties…",
+    "command.category_order": "Category order…",
+    "worksheet_order.note": "Set the display order for grouped distributions and scatter plots.",
+    "worksheet_order.reset": "Use automatic order",
+    "worksheet_order.select": "Select a cell in a source column.",
+    "worksheet_order.limit": "Use a column with up to {limit} distinct levels and shorter labels.",
+    "worksheet_order.empty": "The selected column needs at least two distinct values.",
     # Family.
     "command.source_table": "Source data table", "command.family_gallery": "Family gallery",
     "command.linked_info": "Linked Info sheet", "command.analysis_results": "Analysis results",
@@ -414,6 +420,12 @@ _IT = {
     "command.analyze_data": "Analizza dati…", "command.change_parameters": "Cambia parametri…",
     "command.load_example": "Carica esempio", "command.format_graph": "Formatta grafico…",
     "command.edit_layout": "Modifica layout…", "command.info_properties": "Proprietà foglio Info…",
+    "command.category_order": "Ordine categorie…",
+    "worksheet_order.note": "Imposta l’ordine nei grafici a distribuzioni raggruppate e a dispersione.",
+    "worksheet_order.reset": "Ordine automatico",
+    "worksheet_order.select": "Seleziona una cella in una colonna sorgente.",
+    "worksheet_order.limit": "Usa una colonna con al massimo {limit} categorie distinte ed etichette più brevi.",
+    "worksheet_order.empty": "La colonna selezionata richiede almeno due valori distinti.",
     "command.source_table": "Tabella dati di origine", "command.family_gallery": "Galleria famiglia",
     "command.linked_info": "Foglio Info collegato", "command.analysis_results": "Risultati analisi",
     "command.family_results": "Risultati della famiglia",
@@ -3599,6 +3611,23 @@ _SURVIVAL_UI = {
 }
 _EN.update({f"survival.ui.{key}": en for key, (en, _) in _SURVIVAL_UI.items()})
 _IT.update({f"survival.ui.{key}": it for key, (_, it) in _SURVIVAL_UI.items()})
+
+# Worksheet appearance shared by both desktop frontends.
+_WORKSHEET_APPEARANCE = {
+    "command.table_font": ("Table font…", "Carattere delle tabelle…"),
+    "command.cell_background": ("Cell background color…", "Colore sfondo celle…"),
+    "command.clear_cell_background": ("Clear cell backgrounds", "Rimuovi sfondo celle"),
+    "command.sheet_zoom_in": ("Zoom in on table", "Ingrandisci tabella"),
+    "command.sheet_zoom_out": ("Zoom out on table", "Riduci tabella"),
+    "command.sheet_zoom_reset": ("Reset table zoom", "Ripristina zoom tabella"),
+    "worksheet.font_family": ("Font", "Carattere"),
+    "worksheet.font_size": ("Size (pt)", "Dimensione (pt)"),
+    "worksheet.font_default": ("System default", "Predefinito di sistema"),
+    "worksheet.zoom_status": ("Table zoom {percent}%", "Zoom tabella {percent}%"),
+}
+_EN.update({key: en for key, (en, _) in _WORKSHEET_APPEARANCE.items()})
+_IT.update({key: it for key, (_, it) in _WORKSHEET_APPEARANCE.items()})
+
 _UI_PREFIXES = ("menu.", "command.", "ribbon.", "bar.", "nav.", "ttest.field.", "survival.ui.")
 KEY_BY_LABEL = {}
 for _key, _text in _EN.items():
@@ -3627,28 +3656,30 @@ def config_path(environ=None, platform=None):
     return config_dir(environ, platform) / PREFERENCES_FILE
 
 
-def load_language(path):
-    """Read the preferred language; anything missing, unreadable or unknown means English."""
+def load_preferences(path):
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeError):
-        return DEFAULT_LANGUAGE
-    if not isinstance(data, dict):
-        return DEFAULT_LANGUAGE
-    return canonical(data.get("language"))
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def load_language(path):
+    """Read the preferred language; anything missing, unreadable or unknown means English."""
+    return canonical(load_preferences(path).get("language"))
 
 
 def save_language(path, locale):
     """Write the preference atomically, keeping other settings already in the file."""
     if not isinstance(locale, str) or locale not in CATALOGS:
         raise ValueError(f"Unsupported language: {locale!r}")
+    return save_preferences(path, language=locale)
+
+
+def save_preferences(path, **changes):
     path = Path(path)
-    try:
-        current = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, UnicodeError):
-        current = {}
-    data = current if isinstance(current, dict) else {}
-    data["language"] = locale
+    data = load_preferences(path)
+    data.update(changes)
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary = tempfile.mkstemp(prefix=".preferences-", suffix=".tmp", dir=path.parent)
     try:

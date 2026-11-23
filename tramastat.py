@@ -195,6 +195,7 @@ from analisi.pairwise_graph import (LETTERS as COMPACT_LETTERS, SECTION as PAIRW
                                     pairwise_warning, sync_letters_table,
                                     read_section as read_pairwise, source_problem as pairwise_source_problem)
 from analisi.fit_weights import INVERSE_VARIANCE, NOTE_KEYS, UNWEIGHTED, uses_fitted_y, uses_observed_y
+from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
 from analisi.i18n import config_path, load_language, set_language, tr, translate_message, ui, fixed_choice_keys
 from analisi.language_dialog import LanguageDialog
 from analisi import parallel
@@ -213,8 +214,8 @@ from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_DATA
 from analisi.legacy_restore import (LEGACY_GRAPH_LINK, LEGACY_GRAPH_STYLE,
                                    LEGACY_NOTES, LEGACY_PREVIEW, LEGACY_TITLE, SAVED_BINARY_GRAPH,
                                    SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY,
-                                   initial_sheet_reference, layout_panel_sources, linked_panel_readers, panel_source_style,
-                                   resolve_layout_panel_graphs)
+                                   initial_sheet_reference, layout_panel_sources, linked_curve_view, linked_panel_readers,
+                                   paired_graph_index, panel_source_style, resolve_layout_panel_graphs)
 from analisi.legacy_zip_layout import ZIP_LAYOUT, imported_paper
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY, curve_series_labels
 from analisi.repeated_workbench import INPUT_FIELDS, check_global_weighting
@@ -697,25 +698,25 @@ def safe_csv(path, frame, index=False):
 
 
 class Grid(ttk.Frame):
-    def __init__(self, parent, frame, *, fit_cells=False, threshold_column=None):
+    """Paged, read-only result cells with the same selection as a data worksheet."""
+
+    def __init__(self, parent, frame, *, fit_cells=False, threshold_column=None,
+                 backgrounds=None, appearance=("", None), zoom=100):
         super().__init__(parent)
         self.frame = frame
         self.fit_cells = fit_cells
         self.threshold_column = threshold_column
+        self.backgrounds = backgrounds or {}
+        self.appearance = appearance
+        self.zoom = zoom
         self.page = 0
         self.page_size = 500
-        self.tree = ttk.Treeview(self, show="tree headings", selectmode="browse")
-        vert = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
-        hori = ttk.Scrollbar(self, orient="horizontal", command=self.tree.xview)
-        self.tree.configure(yscrollcommand=vert.set, xscrollcommand=hori.set)
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        vert.grid(row=0, column=1, sticky="ns")
-        hori.grid(row=1, column=0, sticky="ew")
+        self.cells = None
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
         if len(frame) > self.page_size:
             pager = ttk.Frame(self)
-            pager.grid(row=2, column=0, sticky="ew")
+            pager.grid(row=1, column=0, sticky="ew")
             self.previous = ttk.Button(pager, text=ui("Previous rows"), command=lambda: self.move(-1))
             self.previous.pack(side="left")
             self.next = ttk.Button(pager, text=ui("Next rows"), command=lambda: self.move(1))
@@ -725,43 +726,65 @@ class Grid(ttk.Frame):
         self.refresh()
 
     def move(self, delta):
-        self.page += delta
-        self.refresh()
-        self.tree.yview_moveto(0)
+        if 0 <= self.page + delta <= max(0, (len(self.frame) - 1) // self.page_size):
+            self.page += delta
+            self.refresh()
 
     def refresh(self):
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        ids = [f"col{i}" for i in range(len(self.frame.columns))]
-        self.tree["columns"] = ids
+        if self.cells is not None:
+            self.cells.destroy()
         index_title = str(self.frame.index.name or "Row")
-        self.tree.heading("#0", text=index_title)
         index_width = 57
         if self.frame.index.dtype.kind not in {"i", "u"}:
             lengths = [len(index_title), *(len(display(value)) for value in self.frame.index[:100])]
             index_width = max(115, min(330, max(lengths) * 8 + 24))
-        self.tree.column("#0", width=index_width, stretch=False)
+        widths = [index_width]
         formatters = [threshold_text if name == self.threshold_column else display for name in self.frame.columns]
-        for i, (key, name) in enumerate(zip(ids, self.frame.columns)):
-            self.tree.heading(key, text=str(name), anchor="w")
+        for index, name in enumerate(self.frame.columns):
             width = max(104, min(250, len(str(name)) * 8 + 26))
-            numeric = pd.api.types.is_numeric_dtype(self.frame.dtypes.iat[i])
+            numeric = pd.api.types.is_numeric_dtype(self.frame.dtypes.iat[index])
             if self.fit_cells or not numeric or name == self.threshold_column:
-                lengths = (len(formatters[i](value)) for value in self.frame.iloc[:100, i])
+                lengths = (len(formatters[index](value)) for value in self.frame.iloc[:100, index])
                 width = max(width, min(360, max(lengths, default=0) * 7 + 26))
-            anchor = "e" if numeric else "w"
-            self.tree.column(key, width=width, stretch=False, anchor=anchor)
+            widths.append(width)
         start = self.page * self.page_size
         page = self.frame.iloc[start:start + self.page_size]
-        for offset, row in enumerate(page.itertuples(index=True, name=None), start):
-            self.tree.insert("", "end", iid=str(offset), text=display(row[0]),
-                             values=tuple(formatter(value) for formatter, value in zip(formatters, row[1:], strict=True)),
-                             tags=("stripe",) if offset % 2 else ())
-        self.tree.tag_configure("stripe", background="#f1f6fc")
+        index = pd.Series(page.index.tolist(), name=index_title, dtype=object)
+        shown = pd.concat([index, page.reset_index(drop=True)], axis=1)
+        self.cells = DataGrid(self, shown, None, self.copy, None, display, excluded=(),
+                              source_columns=len(shown.columns), read_only_columns=range(len(shown.columns)),
+                              appearance=self.appearance, zoom=self.zoom, backgrounds=self.backgrounds,
+                              result_widths=widths, formatters=[display, *formatters], row_offset=start)
+        self.cells.grid(row=0, column=0, sticky="nsew")
         if hasattr(self, "position"):
-            self.position.configure(text=tr("interface.rows_position", first=start + 1, last=start + len(page), total=len(self.frame)))
+            self.position.configure(text=tr("interface.rows_position", first=start + 1,
+                                             last=start + len(page), total=len(self.frame)))
             self.previous.configure(state="normal" if self.page else "disabled")
             self.next.configure(state="normal" if start + len(page) < len(self.frame) else "disabled")
+
+    def selection(self):
+        top, left, bottom, right = self.cells.selection
+        start = self.cells.row_offset
+        return top + start, left, bottom + start, right
+
+    def copy(self):
+        top, left, bottom, right = self.cells.selection
+        lines = ["\t".join(self.cells.cell_text(row, column) for column in range(left, right + 1))
+                 for row in range(top, min(bottom + 1, len(self.cells.frame)))]
+        if lines:
+            self.clipboard_clear()
+            self.clipboard_append("\n".join(lines))
+        return "break"
+
+    def set_appearance(self, appearance, zoom):
+        self.appearance = appearance
+        self.zoom = zoom
+        self.cells.set_appearance(appearance, zoom)
+
+    def set_backgrounds(self, backgrounds):
+        self.backgrounds = backgrounds
+        self.cells.backgrounds = backgrounds
+        self.cells.queue_draw()
 
 
 class GraphToolbar(NavigationToolbar2Tk):
@@ -5288,6 +5311,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
 
     def _build(self):
         ui_theme.configure(self.root, "standard" if self.standard_only else load_theme(config_path()))
+        self.table_font = font_preference(config_path())
+        self.table_zoom = 100
         if ui_theme.is_modern():
             self.combined_navigator = False
 
@@ -5311,7 +5336,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                      ("Show or hide Data + Results", self.toggle_combined_navigator),
                      ("Sheet gallery", self.toggle_gallery),
                      ("Previous sheet", lambda: self.step_history(-1)),
-                     ("Next sheet", lambda: self.step_history(1))],
+                     ("Next sheet", lambda: self.step_history(1)),
+                     ("Zoom in on table", lambda: self.zoom_table(1)),
+                     ("Zoom out on table", lambda: self.zoom_table(-1)),
+                     ("Reset table zoom", lambda: self.zoom_table(0))],
             "Insert": [("New table…", self.new_table), ("New Info sheet…", self.new_info), ("Add row", self.add_row),
                        ("Add column…", self.add_column), ("Calculated column…", self.add_formula),
                        ("New graph…", self.new_graph), ("Pairwise Comparisons…", self.pairwise_comparisons),
@@ -5323,6 +5351,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                         ("Source analysis", self.source_analysis), ("Change input result…", self.change_input_result),
                         ("Load example", self.example)],
             "Change": [("Format graph…", self.format_graph), ("Edit layout…", lambda: self.new_layout(edit=True)),
+                       ("Category order…", self.edit_category_order),
+                       ("Cell background color…", self.change_cell_background),
+                       ("Clear cell backgrounds", lambda: self.change_cell_background(clear=True)),
                        ("Info sheet properties…", self.info_properties)],
             "Arrange": [("Arrange drawing objects…", self.arrange_graph_shapes), ("New layout…", self.new_layout),
                         ("Edit layout…", lambda: self.new_layout(edit=True))],
@@ -5343,7 +5374,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                           "Paste Transpose": "Ctrl+Shift+T", "Clear selected cells": "Delete"}
         file_shortcuts = {"New project": "Ctrl+Shift+N", "New table": "Ctrl+N", "Open…": "Ctrl+O",
                           "Save project": "Ctrl+S", "Close project": "Ctrl+W"}
-        shortcuts = {"Edit": edit_shortcuts, "File": file_shortcuts}
+        shortcuts = {"Edit": edit_shortcuts, "File": file_shortcuts,
+                     "View": {"Zoom in on table": "Ctrl+=", "Zoom out on table": "Ctrl+-",
+                              "Reset table zoom": "Ctrl+0"}}
         self.menu_entries = {}  # (English menu, English label) -> (popup, index): labels may be translated
         menus = {}
         for title, entries in commands.items():
@@ -5363,6 +5396,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
             self.menu_entries["Settings", "Theme…"] = settings, settings.index("end")
         settings.add_command(label=ui("Language…"), command=self.choose_language)
         settings.add_command(label=tr("processes.command"), command=self.choose_processes)
+        settings.add_command(label=tr("command.table_font"), command=self.choose_table_font)
         menu.add_cascade(label=tr("theme.settings"), menu=settings)
         menus["Settings"] = settings
         self.root.config(menu=menu)
@@ -5376,6 +5410,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
         self.root.bind("<Control-o>", lambda _: self.open_dialog())
         self.root.bind("<Control-s>", lambda _: self.save())
         self.root.bind("<Control-e>", lambda _: self.toggle_exclusion())
+        for key, step in (("equal", 1), ("minus", -1), ("0", 0)):
+            self.root.bind(f"<Control-{key}>", lambda _, step=step: self.zoom_table(step))
         self.root.bind("<Alt-Left>", lambda _: self.step_history(-1))
         self.root.bind("<Alt-Right>", lambda _: self.step_history(1))
         self.root.bind("<Control-Prior>", lambda _: self.step_history(-1))
@@ -6118,6 +6154,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                                          source_columns=len(dataset.raw.columns),
                                          table_format=dataset.table_format,
                                          address_widget=self.cell_address,
+                                         appearance=self.table_font, zoom=self.table_zoom,
+                                         backgrounds=dataset.displayed_backgrounds,
                                          read_only_columns=[column for column, source in enumerate(sources)
                                                             if source in locks],
                                          calculated_columns=[column for column, source in enumerate(sources)
@@ -6198,8 +6236,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                 self.result_tabs.pack(fill="both", expand=True)
                 for title, frame in result.tables.items():
                     threshold_column = "Threshold" if run.method == "ROC curve" and title == "Diagnostic thresholds" else None
+                    backgrounds = self.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})
                     grid = Grid(self.result_tabs, frame, fit_cells=run.method == SAVED_BINARY_RESULT,
-                                threshold_column=threshold_column)
+                                threshold_column=threshold_column, backgrounds=backgrounds,
+                                appearance=self.table_font, zoom=self.table_zoom)
                     self.result_tabs.add(grid, text=title)
             elif kind == "saved-layout":
                 bar = ttk.Frame(self.page)
@@ -6293,23 +6333,13 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
     def graph_view_actions(self, run, bar):
         from analisi.legacy_binary_range import BINARY_XY_RANGE
 
-        if run.method == SAVED_XY and BINARY_XY_RANGE in run.options:
+        if (run.method == SAVED_XY and BINARY_XY_RANGE in run.options) or linked_curve_view(run):
             ttk.Button(bar, text=ui("Edit graph data"), command=lambda: self.show("data", run.title)).pack(
                 side="left", padx=5)
-            return
-        link = run.options.get(LEGACY_GRAPH_LINK)
-        if not link:
-            return
-        editable = run.method == SAVED_EDITABLE_GRAPH
-        target = SAVED_BINARY_GRAPH if editable else SAVED_EDITABLE_GRAPH
-        related = next((i for i, other in enumerate(self.runs)
-                        if other.method == target and other.options.get(LEGACY_GRAPH_LINK) == link), None)
-        if related is None and not editable:
-            return
-        if related is not None:
-            ttk.Button(bar, text=ui("View original" if editable else "Open editable graph"),
-                       command=lambda: self.open_graph_view(related)).pack(side="left")
-        if editable:
+        if (related := paired_graph_index(run, self.runs)) is not None:
+            label = "Open editable graph" if run.method == SAVED_BINARY_GRAPH else "View original"
+            ttk.Button(bar, text=ui(label), command=lambda: self.open_graph_view(related)).pack(side="left")
+        if run.method == SAVED_EDITABLE_GRAPH and run.options.get(LEGACY_GRAPH_LINK):
             ttk.Button(bar, text=ui("Edit graph data"), command=lambda: self.show("data", run.title)).pack(side="left", padx=5)
             if self.tables[run.title].table_format not in EDITABLE_LEGACY_FIXED_VALUES and LEGACY_PREVIEW not in run.options:
                 ttk.Button(bar, text=ui("Format…"), command=self.format_graph).pack(side="left", padx=(0, 6))
@@ -7564,9 +7594,22 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
             return "break"
         if change is not None:
             self.active_data = change.title
-            self.invalidate()
+            if change.before.data_changed(change.after):
+                self.invalidate()
+            else:
+                self.dirty = True
+                kind, key = self.selected or ("data", change.title)
+                if kind == "result" and self.runs[key].title == change.title:
+                    self._refresh_result_backgrounds(self.runs[key])
+                elif (kind, key) == ("data", change.title):
+                    self.current_grid.backgrounds = self.tables[key].displayed_backgrounds
+                    self.current_grid.queue_draw()
+                else:
+                    self.show("data", change.title)
+                self.refresh_project_tabs()
+                self.update_worksheet_history_buttons()
             state = change.after if redo else change.before
-            if state.view is not None:
+            if state.view is not None and self.current_grid is not None:
                 self.current_grid.update_idletasks()
                 self.current_grid.restore(state.view, focus=True)
             if self.pending is None:
@@ -7815,6 +7858,32 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                 self.error(error)
             else:
                 self.finish_worksheet_edit(data, before, "Edit formula")
+
+    def edit_category_order(self):
+        from analisi.category_order import OrderDraft, set_order
+        from analisi.category_order_dialog import CategoryOrderDialog
+
+        dataset = self.get_dataset()
+        if dataset is None:
+            return
+        cell = self.current_grid.active_cell if self.current_grid is not None else None
+        if cell is None or not 0 <= cell[1] < len(dataset.columns) or dataset.source_indices[cell[1]] is None:
+            self.error(tr("worksheet_order.select"))
+            return
+        column = dataset.columns[cell[1]]
+        try:
+            draft = OrderDraft(dataset, column)
+        except ValueError as error:
+            self.error(error)
+            return
+        if len(draft.levels) < 2 and not draft.saved:
+            self.error(tr("worksheet_order.empty"))
+            return
+        dialog = CategoryOrderDialog(self.root, column, draft)
+        if dialog.result is not None:
+            before = self.worksheet_state(dataset)
+            set_order(dataset, column, dialog.result)
+            self.finish_worksheet_edit(dataset, before, tr("command.category_order").removesuffix("…"))
 
     def enter_worksheet_formula(self, _event=None):
         dataset = self.get_dataset()
@@ -8901,6 +8970,88 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
 
     def error(self, error):
         messagebox.showerror("Trama", str(error), parent=self.root)
+
+    def _active_table_view(self):
+        if self.gallery is not None or not self.selected or not self.ribbon.winfo_manager():
+            return None
+        if self.selected[0] == "data":
+            return self.current_grid
+        if self.selected[0] == "result":
+            tabs = getattr(self, "result_tabs", None)
+            if tabs is not None and tabs.winfo_exists() and tabs.select():
+                return tabs.nametowidget(tabs.select())
+        return None
+
+    def _resize_tables(self):
+        view = self._active_table_view()
+        if isinstance(view, Grid):
+            for tab in self.result_tabs.tabs():
+                self.result_tabs.nametowidget(tab).set_appearance(self.table_font, self.table_zoom)
+        elif view is not None:
+            view.set_appearance(self.table_font, self.table_zoom)
+
+    def choose_table_font(self):
+        from analisi.worksheet_font_dialog import TableFontDialog
+
+        dialog = TableFontDialog(self.root, self.table_font)
+        if dialog.result is not None:
+            try:
+                save_font_preference(config_path(), *dialog.result)
+            except OSError as error:
+                self.error(error)
+                return
+            self.table_font = dialog.result
+            self._resize_tables()
+
+    def zoom_table(self, step):
+        if self._active_table_view() is not None:
+            self.table_zoom = zoom_step(self.table_zoom, step)
+            self._resize_tables()
+            self.status.set(tr("worksheet.zoom_status", percent=self.table_zoom))
+            return "break"
+
+    def _refresh_result_backgrounds(self, run):
+        tabs = getattr(self, "result_tabs", None)
+        if run.result is None or tabs is None or not tabs.winfo_exists():
+            return
+        sheets = self.tables[run.title].result_backgrounds.get(run.slot, {})
+        for tab, name in zip(tabs.tabs(), run.result.tables):
+            tabs.nametowidget(tab).set_backgrounds(sheets.get(name, {}))
+
+    def change_cell_background(self, *, clear=False):
+        view = self._active_table_view()
+        if view is None or self.pending is not None:
+            return
+        result = isinstance(view, Grid)
+        if result:
+            run = self.runs[self.selected[1]]
+            title = run.title
+            name = tuple(run.result.tables)[self.result_tabs.index("current")]
+            box, colors = view.selection(), view.backgrounds
+        else:
+            title = self.selected[1]
+            box, colors = view.selection, view.backgrounds
+        dataset = self.tables[title]
+        before = self.worksheet_state(dataset)
+        color = None
+        if not clear:
+            _, color = colorchooser.askcolor(color=colors.get(box[:2], "#ffe385"), parent=self.root,
+                                              title=tr("command.cell_background").rstrip("…"))
+            if not color:
+                return
+        if result:
+            dataset.set_result_background(run.slot, name, box, (len(view.frame), len(view.frame.columns) + 1), color)
+        else:
+            dataset.set_background(box, color)
+        if self.worksheet_history.record(title, "Cell background", before, self.worksheet_state(dataset)):
+            self.dirty = True
+            if result:
+                self._refresh_result_backgrounds(run)
+            else:
+                view.backgrounds = dataset.displayed_backgrounds
+                view.queue_draw()
+            self.refresh_project_tabs()
+            self.update_worksheet_history_buttons()
 
     def choose_theme(self):
         dialog = ThemeDialog(self.root, config_path(), error=self.error)
@@ -10670,7 +10821,7 @@ def smoke(root, app, directory, legacy_reference=None):
                                    [2.973772893772894, 1.78673703018007, 4.94942740558030])
         app.result_tabs.select(list(tables).index("2 × 2 effects"))
         effects_grid = app.result_tabs.nametowidget(app.result_tabs.select())
-        assert int(effects_grid.tree.column("#0", "width")) >= 200
+        assert (effects_grid.cells.edges[1] - effects_grid.cells.edges[0]) >= 200
         app.search_placeholder = True
         app.search_input.set("Search sheets…")
         capture(root, "window-contingency-effects.png")
@@ -10717,7 +10868,7 @@ def smoke(root, app, directory, legacy_reference=None):
         assert test["p"] == 1 / 7 and test["Fixed-margin tables"] == 8
         app.result_tabs.select(list(run.result.tables).index("Tests"))
         result_grid = app.result_tabs.nametowidget(app.result_tabs.select())
-        assert int(result_grid.tree.column("col0", "width")) > 104
+        assert (result_grid.cells.edges[2] - result_grid.cells.edges[1]) > 104
         capture(root, "window-fisher-exact-rxc.png")
         assert app.save()
         app.import_file(path)
@@ -13321,8 +13472,8 @@ def smoke(root, app, directory, legacy_reference=None):
         assert app.result_tabs.tab(app.result_tabs.select(), "text") == "Interpolated values"
         grid = app.result_tabs.nametowidget(app.result_tabs.select())
         seen = False
-        for item in grid.tree.get_children():
-            values = grid.tree.item(item, "values")
+        for row in range(len(grid.cells.frame)):
+            values = tuple(grid.cells.cell_text(row, column) for column in range(1, grid.cells.columns))
             if "Out of range" in values:
                 assert values[3] == ""
                 seen = True
@@ -13390,8 +13541,8 @@ def smoke(root, app, directory, legacy_reference=None):
         assert app.result_tabs.tab(app.result_tabs.select(), "text") == "Interpolated values"
         grid = app.result_tabs.nametowidget(app.result_tabs.select())
         seen = False
-        for item in grid.tree.get_children():
-            values = grid.tree.item(item, "values")
+        for row in range(len(grid.cells.frame)):
+            values = tuple(grid.cells.cell_text(row, column) for column in range(1, grid.cells.columns))
             if "Out of range" in values:
                 assert values[3] == ""
                 seen = True

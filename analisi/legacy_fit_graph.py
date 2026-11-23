@@ -14,6 +14,7 @@ FIT_GRAPH = "Imported fitted graph"
 FIT_GRAPH_POINTS = "Fit graph coordinates"
 FIT_GRAPH_SPEC = "Imported fit graph sampling"
 FIT_GRAPH_TICKS = "Imported fit concentration ticks"
+FIT_GRAPH_OBSERVATIONS = "Imported fit observations visible"
 FIT_INTERVAL_BAND = "Imported parameter interval band"
 LOG_DOSE_MODEL = "Stimulation (standard slope, log10 X)"
 MAX_SAMPLES = 2000

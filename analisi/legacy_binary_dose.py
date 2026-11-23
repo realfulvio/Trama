@@ -1,13 +1,19 @@
-"""Restore single-series dose fits and their min/max normalization from PCFFGRA4 projects."""
+"""Restore single-series dose fits, normalization and linked curves from PCFFGRA4 projects."""
 from hashlib import sha256
-from struct import error as StructError, pack, unpack
+from struct import Struct, error as StructError, pack, unpack, unpack_from
+
+import numpy as np
 
 from pandas.api.types import is_numeric_dtype
 
-from .legacy_binary_editable import _one, _subgroups
+from . import regression_range as rr
+from .legacy_binary import _DATASET, _record_once
+from .legacy_binary_editable import _axis_config, _id_array, _one, _project_records, _require, _subgroups
 from .legacy_binary_results import _column_ids, _title
-from .legacy_restore import LEGACY_NOTES, LEGACY_TITLE, _append_linked_recipe
+from .legacy_fit_graph import FIT_GRAPH, FIT_GRAPH_OBSERVATIONS, FIT_GRAPH_POINTS, FIT_GRAPH_SPEC
+from .legacy_restore import LEGACY_GRAPH_LINK, LEGACY_NOTES, LEGACY_TITLE, SAVED_XY, _append_linked_recipe
 from .legacy_xml_binding import indexed_analyses
+from .presentation import validated_style
 from .reference_normalization import INDEPENDENT, KEEP, MAXIMUM, METHOD, MINIMUM, NORMALIZED, PERCENTAGES, RAW
 
 
@@ -35,9 +41,13 @@ _NORMALIZATIONS = {
     "11a6a5f92e1e06d0ccd3b39278046970dd922142635b33e6d3aa3fa511141f84",
     "d1cdccc48615e7d72dddd3368637a8eed01f4af74fdb57e2b0be5a7acadc595d",
 }
+_BIPHASIC_PROFILES = {
+    "dc3fc420ab207688d846606d6fcd2bb88f699bd509932f43a537acc3f89e16aa": "Biphasic dose-response (concentration X)",
+    "af7eed14d291c937bddb125ddcc1cd9fc65964b4e4aab734463f5dacee7510e6": "Biphasic dose-response (log10 X)",
+}
 
 
-def _model(records, settings):
+def _model(records, settings, profiles):
     (header, contents), = _subgroups(records, 0x8047)
     fingerprint = sha256(settings)
     fingerprint.update(pack("<I", len(header)))
@@ -48,10 +58,37 @@ def _model(records, settings):
             fingerprint.update(pack("<H", parent))
         fingerprint.update(pack("<HI", tag, len(data)))
         fingerprint.update(data)
-    return _PROFILES.get(fingerprint.hexdigest())
+    return profiles.get(fingerprint.hexdigest())
 
 
-def restore_dose_recipes(data, sources, sheets, snapshots, pending):
+def early_biphasic_inputs(data, companions, indexed):
+    """Resolve matching analysis companions carrying the worksheet and column selection."""
+    try:
+        _, analyses = indexed_analyses(data)
+    except (ValueError, StructError):
+        return {}
+    found = {}
+    for uid, _, kind, records in analyses:
+        if kind[:2] != (0, 0) or kind[3:] != (1, 255, 1, 65535, 0) or not companions.get(uid):
+            continue
+        companion, _ = companions[uid]
+        try:
+            if _one(records, 0x3B) != bytes(4) or _one(records, 0x3D) != bytes(2):
+                continue
+            if any(_one(records, tag) != _record_once(companion, tag) for tag in (9, 0x3A, 0x3C, 0x46)):
+                continue
+            count, sheet = unpack("<2i", _record_once(companion, 0x3B))
+            if count != 1 or sheet not in indexed:
+                continue
+            model = _model(records, _one(records, 0x46), _BIPHASIC_PROFILES)
+            if model:
+                found[uid] = sheet, model, _record_once(companion, 0x3D)
+        except (ValueError, StructError):
+            continue
+    return found
+
+
+def restore_dose_recipes(data, sources, sheets, snapshots, pending, *, curves=None, early_inputs=None):
     """Attach native recipes only where the input, output and saved column selection agree."""
     try:
         indexed, analyses = indexed_analyses(data)
@@ -59,8 +96,12 @@ def restore_dose_recipes(data, sources, sheets, snapshots, pending):
         return set()
     normalized = {}
     restored = set()
+    early_inputs = early_inputs or {}
     # Normalizations may follow the models that consume them in the project index.
     for uid, sheet, kind, records in sorted(analyses, key=lambda a: a[2][0] != 4):
+        early = early_inputs.get(uid)
+        if early:
+            sheet, early_model, selection = early
         if uid not in pending or sheets.get(sheet) is None:
             continue
         parent = normalized.get(sheet)
@@ -70,7 +111,7 @@ def restore_dose_recipes(data, sources, sheets, snapshots, pending):
             continue
         x, y = frame.columns
         try:
-            count, column, first, last = unpack("<H3i", _one(records, 0x3D))
+            count, column, first, last = unpack("<H3i", selection if early else _one(records, 0x3D))
             if (count != 1 or (column,) != _column_ids(sheets[sheet][0]) or first != last
                     or first < 0 or (parent is None and first != 0)):
                 continue
@@ -95,12 +136,14 @@ def restore_dose_recipes(data, sources, sheets, snapshots, pending):
                     "Zero reference": MINIMUM, "One reference": MAXIMUM, "Units": PERCENTAGES,
                     "Reference values in output": KEEP, "Graph results": False,
                 }))
-            elif kind == (0, 5, uid, 1, 255, 1, 65535, 0):
+            elif early or kind == (0, 5, uid, 1, 255, 1, 65535, 0):
                 slots, first_slot, report, curve, *rest = unpack("<10i", outputs)
+                if early and rest[0] >= 0 and snapshots.get(rest[0]) == (uid, sheet, 3):
+                    rest = rest[1:]
                 if (slots != 9 or first_slot != -1 or set(rest) != {-1} or curve < 0 or curve == report
                         or snapshots.get(report) != (uid, sheet, 1)):
                     continue
-                model = _model(records, settings)
+                model = early_model if early else _model(records, settings, _PROFILES)
                 if not model or model.startswith("Normalized ") != (parent is not None):
                     continue
                 options = {
@@ -108,13 +151,107 @@ def restore_dose_recipes(data, sources, sheets, snapshots, pending):
                     "Runs test": True, LEGACY_NOTES: "Refits the dose response from the linked observations. "
                                                    "The saved result tables retain the original estimates.",
                 }
+                slot = len(recipes)
                 if parent:
-                    _append_linked_recipe(frame, parent[1], NORMALIZED, "Nonlinear regression", options)
+                    if not _append_linked_recipe(frame, parent[1], NORMALIZED, "Nonlinear regression", options):
+                        continue
                 else:
                     frame.attrs.setdefault("legacy_recipes", []).append(("Nonlinear regression", options))
+                if curves is not None and snapshots.get(curve) == (uid, sheet, 2):
+                    columns = _column_ids(sheets[curve][0])
+                    if len(columns) == 1 and (link := _dataset_link(sheets[curve], columns[0], 40)) is not None:
+                        if early:
+                            # The companion layout numbers the drawing slots from zero.
+                            link = link[0], link[1] - 1, link[2] - 1
+                        observations = _dataset_link(sheets[sheet], column, 8) if parent else (column, 0, 0)
+                        owner = (curve, sheet, observations, frame, slot)
+                        curves[link] = None if link in curves else owner
             else:
                 continue
             restored.add(uid)
         except (ValueError, StructError, TypeError, KeyError):
             continue
     return restored
+
+
+_GRAPH_SERIES = Struct("<3i")
+_DISABLED_SERIES = (-1, -4, -4)
+
+
+def _dataset_link(sheet, column, expected_role):
+    """Translate a validated result dataset to its three drawing identifiers."""
+    identifiers = {}
+    response = None
+    for header, _ in sheet[1]:
+        dataset, _, drawing_id, _, _, _, _, kind, role, _, _, linked_x, _, _, _ = _DATASET.unpack(header)
+        if role == 4:
+            identifiers[dataset] = drawing_id
+        if dataset == column and (kind, role) == (1, expected_role):
+            response = drawing_id, linked_x
+    if response is not None and response[1] in identifiers:
+        return column, response[0], identifiers[response[1]]
+    return None
+
+
+def _graph_curve(graph, curves):
+    sheet_ids = set(_id_array(_one(graph, 0x14)))
+    order = _id_array(_one(graph, 0x15))
+    payload = _one(graph, 0x16)
+    _require(len(set(order)) == len(order) and len(payload) == 2 + len(order) * _GRAPH_SERIES.size
+             and unpack_from("<H", payload)[0] == len(order))
+    links = [link for link in _GRAPH_SERIES.iter_unpack(payload[2:]) if link != _DISABLED_SERIES]
+    curve_link, = (link for link in links if curves.get(link) is not None)
+    curve, sheet, observations, source, slot = curves[curve_link]
+    extra = [link for link in links if link != curve_link]
+    _require(curve in sheet_ids and (not extra or extra == [observations] and sheet in sheet_ids)
+             and sheet_ids <= {curve, sheet})
+    return curve, source, slot, bool(extra)
+
+
+def _sample_settings(frame, options):
+    values = frame.to_numpy(dtype=float)
+    _require(values.shape[1] == 2 and 2 <= len(values) <= rr.MAX_POINTS and np.isfinite(values).all())
+    x = values[:, 0]
+    _require(x[0] < x[-1])
+    _require(np.allclose(x, np.linspace(x[0], x[-1], len(x)), rtol=0,
+                         atol=8 * np.finfo(float).eps * max(abs(x[0]), abs(x[-1]))))
+    return rr.ranges({**options, rr.CURVE_MIN: float(x[0]), rr.CURVE_MAX: float(x[-1]), rr.CURVE_POINTS: len(x)})
+
+
+def restore_dose_graphs(data, graphs, links, curves, result_frames):
+    """Attach an editable graph to each verified fitted-curve output referenced by the drawing."""
+    try:
+        _, _, records, _ = _project_records(data, ())
+    except (ValueError, StructError):
+        return
+    for graph in graphs:
+        uid = graph["id"]
+        if uid not in links or not records.get(uid):
+            continue
+        try:
+            curve, source, slot, show_points = _graph_curve(records[uid], curves)
+            options = source.attrs["legacy_recipes"][slot][1]
+            grid = _sample_settings(result_frames[curve], options)
+            axes = _axis_config(records[uid], viewport_only=True)
+            style = {"axis": {}, "legend": "hidden"}
+            for dim, axis in zip("xy", axes, strict=True):
+                low, high = axis["bounds"]
+                scale = axis["scale"]
+                style[dim + "scale"] = scale
+                if scale == "log":
+                    low, high = 10. ** low, 10. ** high
+                style["axis"][dim] = {"min": low, "max": high}
+            style = validated_style(style)
+        except (KeyError, TypeError, ValueError, StructError, OverflowError):
+            continue
+        x, y = options["X"], options["Y"]
+        child = len(source.attrs["legacy_recipes"])
+        if _append_linked_recipe(source, slot, FIT_GRAPH_POINTS, SAVED_XY, {
+            LEGACY_TITLE: graph["title"][:150] + " · Linked",
+            LEGACY_NOTES: "Curve recalculated from the linked fit. The archived drawing remains available.",
+            LEGACY_GRAPH_LINK: links[uid], FIT_GRAPH: True, FIT_GRAPH_OBSERVATIONS: show_points,
+            "X label": x, "Y label": y,
+        }):
+            options.update(grid)
+            options[FIT_GRAPH_SPEC] = {"x": x, "y": y, "samples": grid[rr.CURVE_POINTS], "series": [y], "grouped": False}
+            source.attrs.setdefault("legacy_graph_styles", {})[child] = style

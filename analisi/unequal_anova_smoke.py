@@ -102,9 +102,9 @@ def check_unequal_anova(h):
     h.capture(root, "window-unequal-anova-tamhane.png")
     # Scroll to the simultaneous intervals on the right of the comparisons sheet.
     grid = app.result_tabs.nametowidget(app.result_tabs.select())
-    grid.tree.xview_moveto(1)
+    grid.cells.canvas.xview_moveto(1)
     h.capture(root, "window-unequal-anova-tamhane-ci.png")
-    grid.tree.xview_moveto(0)
+    grid.cells.canvas.xview_moveto(0)
 
     for sheet, name in ((0, "unequal-anova-omnibus.csv"), (1, "unequal-anova-tamhane.csv")):
         target = directory / name

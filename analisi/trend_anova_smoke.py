@@ -271,7 +271,7 @@ def _check(root, app, directory, capture, drive, pick, wait, messagebox, filedia
     assert "analysis.trend" not in english_metrics["Note"]
     _show_trend(app, index)
     grid = app.result_tabs.nametowidget(app.result_tabs.select())
-    grid.tree.see(grid.tree.get_children()[-1])
+    grid.cells.reveal((len(grid.cells.frame) - 1, 0))
     capture(root, "09-results-en.png")
     csv_path = directory / "linear-trend.csv"
     with patch.object(filedialog, "asksaveasfilename", return_value=str(csv_path)):

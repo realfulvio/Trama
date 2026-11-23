@@ -1016,6 +1016,37 @@ class QtShellTests(unittest.TestCase):
         pd.testing.assert_frame_equal(restored.result.tables[mp.DRAWS_SHEET],
                                       sampled.result.tables[mp.DRAWS_SHEET], check_exact=True)
 
+    def test_change_category_order_in_the_classic_menu(self):
+        from unittest.mock import patch
+
+        from analisi.category_order import WORKSHEET_ORDERS
+        from trama_qt.category_order import CategoryOrderDialog
+        from trama_qt.classic_bar import MENUS
+
+        window = self.window
+        title, = window.project.add_tables({"Samples": pd.DataFrame({"Group": ["A", "B", "A"]})})
+        window.open_sheet(("data", title))
+        window.sheet.setCurrentIndex(window.sheet.model().index(0, 0))
+        data = window.project.tables[title]
+        self.assertIn("category_order", dict(MENUS)["Change"])
+        action = window.actions["category_order"]
+        self.assertTrue(action.isEnabled())
+
+        def move(dialog, result):
+            dialog.down.click()
+            self.assertEqual(dialog.levels.item(0).text(), "B")
+            return result
+
+        accepted, rejected = CategoryOrderDialog.DialogCode.Accepted, CategoryOrderDialog.DialogCode.Rejected
+        with patch.object(CategoryOrderDialog, "exec", lambda dialog: move(dialog, rejected)):
+            action.trigger()
+        self.assertNotIn(WORKSHEET_ORDERS, data.raw.attrs)
+        with patch.object(CategoryOrderDialog, "exec", lambda dialog: move(dialog, accepted)):
+            action.trigger()
+        self.assertEqual(data.raw.attrs[WORKSHEET_ORDERS]["Group"], ["str:B", "str:A"])
+        window.actions["undo"].trigger()
+        self.assertNotIn(WORKSHEET_ORDERS, data.raw.attrs)
+
     def test_paper_preview_scales_the_text_with_the_page(self):
         from matplotlib.figure import Figure
         from trama_qt.window import Page

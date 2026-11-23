@@ -2,11 +2,14 @@
 import unittest
 from hashlib import sha256
 from struct import pack
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pandas as pd
 
 from analisi import legacy_binary_dose as dose
+from analisi.legacy_fit_graph import FIT_GRAPH_OBSERVATIONS, FIT_GRAPH_POINTS, FIT_GRAPH_SPEC
+from analisi.legacy_restore import LEGACY_GRAPH_LINK, SAVED_BINARY_GRAPH, SAVED_XY, paired_graph_index
 from analisi.reference_normalization import METHOD, NORMALIZED
 
 
@@ -82,3 +85,63 @@ class BinaryDoseFitTests(unittest.TestCase):
     def test_unreadable_index_preserves_other_imports(self):
         with patch.object(dose, "indexed_analyses", side_effect=ValueError("no valid index")):
             self.assertEqual(dose.restore_dose_recipes(b"", {}, {}, {}, {7}), set())
+
+    def test_graph_uses_the_linked_output_even_when_fit_titles_are_identical(self):
+        self.restore()
+        graph = [
+            record(0x14, pack("<3i", 2, 3, 10)),
+            record(0x15, pack("<3i", 2, 44, 45)),
+            record(0x16, pack("<H6i", 2, 50, 0, 0, 91, 23, 24)),
+        ]
+        curves = {(91, 23, 24): (10, 3, (50, 0, 0), self.frame, 2),
+                  (92, 23, 24): (7, 5, None, self.frame, 1)}
+        axis = {"bounds": [0., 2.], "scale": "linear"}
+        samples = pd.DataFrame({"X": [1., 1.5, 2.], "Fit": [8., 7., 6.]})
+        with patch.object(dose, "_project_records", return_value=({}, "", {16: graph}, {})), \
+                patch.object(dose, "_axis_config", return_value=[axis, axis]):
+            dose.restore_dose_graphs(b"", [{"id": 16, "title": "Fit"}], {16: "saved:16"}, curves, {10: samples})
+        recipes = self.frame.attrs["legacy_recipes"]
+        method, options = recipes[-1]
+        self.assertEqual(method, SAVED_XY)
+        self.assertTrue(options[FIT_GRAPH_OBSERVATIONS])
+        self.assertEqual(options[LEGACY_GRAPH_LINK], "saved:16")
+        self.assertNotIn(FIT_GRAPH_SPEC, recipes[1][1])
+        self.assertEqual(recipes[2][1]["Curve points"], 3)
+        reference = self.frame.attrs["legacy_analysis_sources"][3]
+        self.assertEqual((reference.analysis_id, reference.table),
+                         (self.frame.attrs["legacy_analysis_ids"][2], FIT_GRAPH_POINTS))
+        original = SimpleNamespace(method=SAVED_BINARY_GRAPH, options={LEGACY_GRAPH_LINK: "saved:16"})
+        child = SimpleNamespace(method=method, options=options)
+        self.assertEqual(paired_graph_index(original, [original, child]), 1)
+        self.assertEqual(paired_graph_index(child, [original, child]), 0)
+        self.assertIsNone(paired_graph_index(original, [original, child, child]))
+
+    def test_drawing_link_rejects_another_worksheet_or_curve(self):
+        for sheets, links in (((3, 7), (50, 0, 0, 91, 23, 24)),
+                              ((3, 10), (51, 0, 0, 91, 23, 24)),
+                              ((3, 10), (50, 0, 0, 91, 23, 25))):
+            with self.subTest(sheets=sheets, links=links):
+                graph = [record(0x14, pack("<3i", 2, *sheets)),
+                         record(0x15, pack("<3i", 2, 44, 45)),
+                         record(0x16, pack("<H6i", 2, *links))]
+                curves = {(91, 23, 24): (10, 3, (50, 0, 0), self.frame, 2)}
+                with self.assertRaises(ValueError):
+                    dose._graph_curve(graph, curves)
+
+    def test_early_input_requires_the_companion_of_the_same_analysis(self):
+        uid = 9
+        kind = (0, 0, 2, 1, 255, 1, 65535, 0)
+        descriptor = pack("<8H", *kind)
+        records = [item for item in self.inputs[1][3] if item[0] != 0x3D]
+        records += [record(0x3A, descriptor), record(0x3B, bytes(4)), record(0x3D, bytes(2))]
+        companion = [(tag, payload) for tag, nesting, payload in records
+                     if not nesting and tag in (9, 0x3A, 0x3C, 0x46)]
+        selection = pack("<H3i", 1, 50, 0, 0)
+        companion += [(0x3B, pack("<2i", 1, 3)), (0x3D, selection)]
+        source = ({3}, [(uid, 0, kind, records)])
+        with patch.object(dose, "indexed_analyses", return_value=source), \
+                patch.object(dose, "_BIPHASIC_PROFILES", dose._PROFILES):
+            found = dose.early_biphasic_inputs(b"", {uid: (companion, [])}, {3})
+            self.assertEqual(found[uid], (3, "Inhibition (standard slope)", selection))
+            different = [(tag, b"other\0" if tag == 9 else payload) for tag, payload in companion]
+            self.assertEqual(dose.early_biphasic_inputs(b"", {uid: (different, [])}, {3}), {})

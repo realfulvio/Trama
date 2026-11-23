@@ -23,6 +23,7 @@ from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
+from analisi.category_order import keep_source_columns
 from analisi.i18n import tr, ui
 from analisi.info import info_contexts, validate_info_sheets
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY
@@ -881,11 +882,30 @@ class Project(WorksheetJoinSources):
         before = WorksheetState.capture(dataset)
         dataset.raw, dataset.formulas, dataset.excluded = candidate.raw, candidate.formulas, candidate.excluded
         dataset.column_order = candidate.column_order
+        dataset.cell_backgrounds = candidate.cell_backgrounds
         after = WorksheetState.capture(dataset)
         if not self.history.record(title, label, before, after):
             return None
         self.dirty = True
         return self.table_runs(title)
+
+    def set_table_background(self, title, box, color):
+        dataset = self.tables[title]
+        before = WorksheetState.capture(dataset)
+        dataset.set_background(box, color)
+        return self._record_background(title, dataset, before)
+
+    def set_result_background(self, title, slot, name, box, shape, color):
+        dataset = self.tables[title]
+        before = WorksheetState.capture(dataset)
+        dataset.set_result_background(slot, name, box, shape, color)
+        return self._record_background(title, dataset, before)
+
+    def _record_background(self, title, dataset, before):
+        if self.history.record(title, "Cell background", before, WorksheetState.capture(dataset)):
+            self.dirty = True
+            return True
+        return False
 
     def table_runs(self, title):
         affected = self.readers([title])
@@ -911,6 +931,9 @@ class Project(WorksheetJoinSources):
             frame = grown.iloc[order].reset_index(drop=True)
             frame.attrs = dict(raw.attrs)
             dataset.excluded = {(row + count if row >= at else row, column) for row, column in dataset.excluded}
+            if dataset.cell_backgrounds:
+                dataset.cell_backgrounds = {(row + count if row >= at else row, name): color
+                                            for (row, name), color in dataset.cell_backgrounds.items()}
             dataset.raw = frame
         return self.edit(title, "Insert rows", change)
 
@@ -924,6 +947,9 @@ class Project(WorksheetJoinSources):
             frame.attrs = dict(raw.attrs)
             mapping = {old: new for new, old in enumerate(keep)}
             dataset.excluded = {(mapping[row], column) for row, column in dataset.excluded if row in mapping}
+            if dataset.cell_backgrounds:
+                dataset.cell_backgrounds = {(mapping[row], name): color
+                                            for (row, name), color in dataset.cell_backgrounds.items() if row in mapping}
             dataset.raw = frame
         return self.edit(title, "Delete rows", change)
 
@@ -960,12 +986,16 @@ class Project(WorksheetJoinSources):
             names = raw.columns[sorted(sources)]
             frame = raw.drop(columns=names)
             frame.attrs = dict(raw.attrs)
+            keep_source_columns(frame)
             keep = [index for index in range(len(raw.columns)) if index not in sources]
             mapping = {old: new for new, old in enumerate(keep)}
             dataset.excluded = {(row, mapping[column]) for row, column in dataset.excluded if column in mapping}
             if dataset.column_order is not None:
                 dataset.column_order = tuple(name for name in dataset.column_order if name not in names)
             dataset.raw = frame
+            if dataset.cell_backgrounds:
+                dataset.cell_backgrounds = {cell: color for cell, color in dataset.cell_backgrounds.items()
+                                            if cell[1] not in names}
         return self.edit(title, "Delete columns", change)
 
     def rename_column(self, title, column, name):
@@ -980,10 +1010,14 @@ class Project(WorksheetJoinSources):
                 raise ValueError("Choose a new column name.")
             frame = raw.rename(columns={previous: name_})
             frame.attrs = dict(raw.attrs)
+            keep_source_columns(frame, {previous: name_})
             if dataset.column_order is not None:
                 order = dataset.column_order
                 dataset.column_order = (*order[:column], name_, *order[column + 1:])
             dataset.raw = frame
+            if previous != name_ and dataset.cell_backgrounds:
+                dataset.cell_backgrounds = {(row, name_ if key == previous else key): color
+                                            for (row, key), color in dataset.cell_backgrounds.items()}
         return self.edit(title, "Rename column", change)
 
     def set_formula(self, title, name, expression):
@@ -1008,7 +1042,7 @@ class Project(WorksheetJoinSources):
         if change is None:
             return None, None
         self.dirty = True
-        return change.title, self.table_runs(change.title)
+        return change.title, self.table_runs(change.title) if change.before.data_changed(change.after) else []
 
 
 def _persist_links(runs, tables):

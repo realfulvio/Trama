@@ -19,6 +19,7 @@ import pandas as pd
 
 from . import distribution_graphs as base
 from .category_graphs import COLORS, MAX_POINTS, PLACEMENTS, _spread
+from .category_order import ranks
 from .graph_legend import LEGEND_OPTIONS_KEY, apply_legend_options, typed_group_token
 from .presentation import LEGEND_LOCATIONS, GraphGroup, register_groups
 from .processing import FieldError, _column
@@ -77,8 +78,8 @@ def _text(value):
     return str(value.item() if isinstance(value, np.generic) else value)
 
 
-def _levels(column, rows):
-    """Levels in order of first appearance among ``rows``; 1, 1.0, "1" and True stay different levels."""
+def _levels(column, rows, priority):
+    """Use worksheet order when set and keep 1, 1.0, "1" and True separate."""
     values = column.to_numpy(dtype=object)[rows]
     index, found = {}, []
     codes = np.empty(len(rows), dtype=np.intp)
@@ -89,6 +90,10 @@ def _levels(column, rows):
             code = index[token] = len(found)
             found.append(_Level(token, value, _text(value)))
         codes[position] = code
+    if priority:
+        order = sorted(range(len(found)), key=lambda index_: priority.get(found[index_].token, len(priority)))
+        found = [found[index_] for index_ in order]
+        codes = np.argsort(order)[codes]
     return found, codes, values
 
 
@@ -220,11 +225,11 @@ def grouped_distributions(frame, options):
     if style == base.VIOLIN and len(rows) * base.GRID_POINTS > base.MAX_KDE_EVALUATIONS:
         raise FieldError("Response", "Select fewer observations for the density estimate.")
 
-    categories, category_codes, category_values = _levels(frame[category], rows)
+    categories, category_codes, category_values = _levels(frame[category], rows, ranks(frame, category))
     if split is None:
         series_levels, series_codes, series_values = [], np.zeros(len(rows), dtype=np.intp), None
     else:
-        series_levels, series_codes, series_values = _levels(frame[split], rows)
+        series_levels, series_codes, series_values = _levels(frame[split], rows, ranks(frame, split))
     series_count = max(len(series_levels), 1)
     if len(categories) * series_count > MAX_CELLS:
         field = "Split by" if split is not None and len(categories) <= MAX_CELLS else "Category"

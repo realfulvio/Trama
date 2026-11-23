@@ -2,10 +2,11 @@
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, QTimer
-from PySide6.QtGui import QBrush, QFont
+from PySide6.QtGui import QBrush, QColor, QFont
 
 from analisi.data import EDITABLE_LEGACY_FIXED_VALUES, EDITABLE_LEGACY_XY
 from analisi.grid_headings import column_label, heading_bands
+from analisi.worksheet_appearance import text_on_background
 
 from . import theme
 
@@ -67,6 +68,11 @@ class WorksheetModel(QAbstractTableModel):
             self.dataChanged.emit(self.index(0, 0), self.index(self.rowCount() - 1, self.columnCount() - 1))
             self.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, self.columnCount() - 1)
 
+    def refresh_backgrounds(self):
+        if self.rowCount() and self.columnCount():
+            roles = [Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.ForegroundRole]
+            self.dataChanged.emit(self.index(0, 0), self.index(self.rowCount() - 1, self.columnCount() - 1), roles)
+
     def _shape(self, frame):
         rows = len(frame) + (SPARE_ROWS if self.grows_rows() else 0)
         columns = len(frame.columns) + (1 if self.grows_columns() else 0)
@@ -104,13 +110,18 @@ class WorksheetModel(QAbstractTableModel):
             horizontal = Qt.AlignmentFlag.AlignRight if numeric else Qt.AlignmentFlag.AlignLeft
             return int(horizontal | Qt.AlignmentFlag.AlignVCenter)
         excluded = (row, column) in self.excluded
+        background = self.dataset.cell_backgrounds.get((row, self.frame.columns[column])) if inside else None
         if role == Qt.ItemDataRole.ForegroundRole:
+            if background:
+                return QBrush(QColor(text_on_background(background)))
             if excluded:
                 return QBrush(theme.color("error"))
             if column in self.calculated or column >= len(self.frame.columns):
                 return QBrush(theme.color("accent_dark"))
             return None
         if role == Qt.ItemDataRole.BackgroundRole:
+            if background:
+                return QBrush(QColor(background))
             if column in self.calculated:
                 return QBrush(theme.color("panel2"))
             if not inside:
@@ -171,12 +182,13 @@ class WorksheetModel(QAbstractTableModel):
 class FrameModel(QAbstractTableModel):
     """A read-only result table; the row labels become the first column, as in the classic grid."""
 
-    def __init__(self, frame, formatters=None, parent=None):
+    def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None):
         super().__init__(parent)
         self.frame = frame
         self.index_title = str(frame.index.name or "Row") if not isinstance(frame.index, pd.MultiIndex) \
             else " / ".join(str(name or "") for name in frame.index.names) or "Row"
         self.formatters = formatters or {}
+        self.backgrounds = backgrounds or {}
         self.numeric = [_numeric(frame.iloc[:, index]) for index in range(len(frame.columns))]
 
     def rowCount(self, parent=QModelIndex()):
@@ -200,6 +212,11 @@ class FrameModel(QAbstractTableModel):
             numeric = column > 0 and self.numeric[column - 1]
             horizontal = Qt.AlignmentFlag.AlignRight if numeric else Qt.AlignmentFlag.AlignLeft
             return int(horizontal | Qt.AlignmentFlag.AlignVCenter)
+        background = self.backgrounds.get((row, column))
+        if background and role == Qt.ItemDataRole.BackgroundRole:
+            return QBrush(QColor(background))
+        if background and role == Qt.ItemDataRole.ForegroundRole:
+            return QBrush(QColor(text_on_background(background)))
         if role == Qt.ItemDataRole.BackgroundRole and row % 2:
             return QBrush(theme.color("panel2"))
         if role == Qt.ItemDataRole.ForegroundRole and column == 0:
