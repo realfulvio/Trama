@@ -26,6 +26,7 @@ class WorksheetPreview(QSplitter):
         self.area = None
         self.canvas = None
         self.run = self.result = None
+        self._style = None
         self.graphs = ()
         self.grid = QSplitter(Qt.Orientation.Vertical)
         self.grid.addWidget(sheet)
@@ -116,9 +117,10 @@ class WorksheetPreview(QSplitter):
         index = self.choice.currentIndex()
         run = self.project.runs[graphs[index][0]] if 0 <= index < len(graphs) else None
         result = run.result if run is not None else None
-        if run is not self.run or result is not self.result:
+        style = deepcopy(run.style) if run is not None else None
+        if run is not self.run or result is not self.result or style != self._style:
             self.release()
-            self.run, self.result = run, result
+            self.run, self.result, self._style = run, result, style
             if result is not None and result.figure is not None:
                 self._draw(result.figure)
         self._format(self.format_box.isChecked())
@@ -223,7 +225,7 @@ class WorksheetPreview(QSplitter):
             self.window.dispose_inspector()
 
     def release(self):
-        self.run = self.result = None
+        self.run = self.result = self._style = None
         if self.canvas is None:
             return
         self._close_inspector()
