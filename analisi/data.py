@@ -1168,9 +1168,9 @@ def load_workspace(path, *, include_info=False):
         for slot, formatted in _analysis_slots(table.get("result_number_formats", {}), len(entries)).items():
             if not isinstance(formatted, dict):
                 raise ValueError("Invalid saved result number formats.")
-            sheets = {name: read_position_formats(formats, MAX_CELLS) for name, formats in formatted.items()}
-            if sheets := {name: formats for name, formats in sheets.items() if formats}:
-                data.result_number_formats[slot] = sheets
+            read = {name: read_position_formats(formats, MAX_CELLS) for name, formats in formatted.items()}
+            if read := {name: formats for name, formats in read.items() if formats}:
+                data.result_number_formats[slot] = read
         data.analysis_ids = _analysis_slots(table.get("analysis_ids", {}), len(entries))
         sources = _analysis_slots(table.get("analysis_sources", {}), len(entries))
         if sources and version < 3:
