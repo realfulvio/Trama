@@ -27,6 +27,7 @@ def main():
                  "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "qt-report.md", "worksheet-join.md", "qt-recovery.md", "qt-analysis-templates.md",
                  "qt-excel-workbook.md", "cluster-silhouette-092.md", "paired-proportions.md", "power-from-summary.md",
                  "tolerance-intervals-093.md", "weibull-aft.md", "ordinal-logit.md", "restricted-mean-survival.md", "cohen-kappa.md", "mean-permutation-test.md", "xy-mixed-series.md",
+                 "survival-simultaneous-bands.md",
                  "release-099.md", "release-098.md", "release-097.md", "release-094.md",
                  "release-093.md", "validation-093.md",
                  "release-092.md", "validation-092.md", "release-091.md", "validation-091.md",
