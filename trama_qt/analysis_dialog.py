@@ -55,6 +55,7 @@ from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
 from . import rm_sphericity_dialog as sphericity_options
 from . import icc as icc_binding
+from . import ecdf_graph as ecdf_binding
 from . import precision_recall as precision_options
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
@@ -189,6 +190,7 @@ class AnalysisDialog(QDialog):
         self.repeated = None  # Bland–Altman for repeated pairs (trama_qt.bland_altman_repeated)
         self.sphericity = None  # Repeated measures ANOVA sphericity correction (trama_qt.rm_sphericity_dialog)
         self.icc = None  # Intraclass correlation (trama_qt.icc)
+        self.ecdf = None  # Empirical cumulative distribution (trama_qt.ecdf_graph)
         self.precision = None  # Precision–recall curve (trama_qt.precision_recall)
         self.calibration = None  # Standard-curve calibration (trama_qt.standard_curve)
         self.reshape = None  # Reshape long and wide editor (trama_qt.reshape_long_wide)
@@ -260,6 +262,8 @@ class AnalysisDialog(QDialog):
             self.banner.setText(self.sphericity.message(error, error_field))
         if error and self.icc is not None:  # engine errors reopen here; word them in the active language
             self.banner.setText(self.icc.message(error))
+        if error and self.ecdf is not None:
+            self.banner.setText(self.ecdf.message(error))
         if error and self.precision is not None:
             self.banner.setText(self.precision.message(error))
         if error and self.calibration is not None:
@@ -347,6 +351,7 @@ class AnalysisDialog(QDialog):
         self.repeated = None
         self.sphericity = None
         self.icc = None
+        self.ecdf = None
         self.precision = None
         self.calibration = None
         self.reshape = None
@@ -481,6 +486,8 @@ class AnalysisDialog(QDialog):
             if permutation_method:
                 variable = label in mean_permutation.DATA_FIELDS
             if self.method == "t-test" and label in ("Design", ttest_options.INPUT):
+                variable = True
+            if self.method == ecdf_binding.METHOD and label == ecdf_binding.INPUT:
                 variable = True
             form = (power_forms.get(label) or pages.get(global_fit.page_of(self.method, label))
                     or (variables if variable else options))
@@ -721,6 +728,7 @@ class AnalysisDialog(QDialog):
         self.repeated = repeated_agreement.attach(self)
         self.sphericity = sphericity_options.attach(self)
         self.icc = icc_binding.attach(self, saved)
+        self.ecdf = ecdf_binding.attach(self, saved)
         self.precision = precision_options.attach(self)
         self.calibration = calibration_options.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
@@ -1011,6 +1019,8 @@ class AnalysisDialog(QDialog):
                 options[ellipse_groups.GROUP_STYLES] = deepcopy(self.ellipse_groups.styles)
         if self.icc is not None:
             options = self.icc.ordered(options)  # raters in the order they were ticked
+        if self.ecdf is not None:
+            options = self.ecdf.ordered(options)  # series in the order they were ticked
         return self.anova.canonical(options) if self.anova is not None else options
 
     def accept(self):
@@ -1039,6 +1049,8 @@ class AnalysisDialog(QDialog):
                 self.sphericity.check(options)  # the design check of the corrections; the fit stays on the worker
             if self.icc is not None:
                 self.icc.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
+            if self.ecdf is not None:
+                self.ecdf.check(options)  # recipe and worksheet checks before the worker starts
             if self.precision is not None:
                 self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.method == mean_permutation.METHOD:
@@ -1123,6 +1135,8 @@ class AnalysisDialog(QDialog):
             return self.sphericity.message(error, field)
         if self.icc is not None:  # Intraclass correlation: engine messages in the active language
             return self.icc.message(error)
+        if self.ecdf is not None:
+            return self.ecdf.message(error)
         if self.precision is not None:  # Precision–recall curve: engine messages in the active language
             return self.precision.message(error)
         if self.method == calibration_options.METHOD:
