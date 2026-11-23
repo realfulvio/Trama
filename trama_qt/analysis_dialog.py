@@ -57,6 +57,7 @@ from . import icc as icc_binding
 from . import precision_recall as precision_options
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
+from . import standard_curve as calibration_options
 from . import worksheet_join as join_editor
 from . import kappa_options, ordinal_options, permutation_options, rmst_options, survival_pairs, weibull_options
 from .function_curves import FunctionCurves
@@ -188,6 +189,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = None  # Repeated measures ANOVA sphericity correction (trama_qt.rm_sphericity_dialog)
         self.icc = None  # Intraclass correlation (trama_qt.icc)
         self.precision = None  # Precision–recall curve (trama_qt.precision_recall)
+        self.calibration = None  # Standard-curve calibration (trama_qt.standard_curve)
         self.reshape = None  # Reshape long and wide editor (trama_qt.reshape_long_wide)
         method = current[0] if current and current[0] in METHODS else None
         self.method = method or self._first_method()
@@ -259,6 +261,8 @@ class AnalysisDialog(QDialog):
             self.banner.setText(self.icc.message(error))
         if error and self.precision is not None:
             self.banner.setText(self.precision.message(error))
+        if error and self.calibration is not None:
+            self.banner.setText(self.calibration.message(error))
         if error_field:
             if self.anova is not None and error:  # engine errors reopen here; word them in the active language
                 self.banner.setText(self.anova.message(FieldError(error_field, str(error))))
@@ -343,6 +347,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = None
         self.icc = None
         self.precision = None
+        self.calibration = None
         self.reshape = None
         self.join = None
         pages, scrolls = {}, {}
@@ -712,6 +717,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = sphericity_options.attach(self)
         self.icc = icc_binding.attach(self, saved)
         self.precision = precision_options.attach(self)
+        self.calibration = calibration_options.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
         select_editor.attach(self, pages, saved)
         if self.method == extraction.EXTRACT_REARRANGE:
@@ -999,6 +1005,8 @@ class AnalysisDialog(QDialog):
                 self.icc.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.precision is not None:
                 self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
+            if self.calibration is not None:
+                self.calibration.check(options)  # standard-curve checks; the fit stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
             if self.method == XY_METHOD:
@@ -1079,6 +1087,8 @@ class AnalysisDialog(QDialog):
             return self.icc.message(error)
         if self.precision is not None:  # Precision–recall curve: engine messages in the active language
             return self.precision.message(error)
+        if self.method == calibration_options.METHOD:
+            return calibration_options.translate_error(error)
         if self.method == reshape_editor.METHOD:
             return reshape_editor.message(error)
         if self.method == SELECT_TRANSFORM:
