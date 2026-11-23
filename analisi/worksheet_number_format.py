@@ -9,6 +9,7 @@ tables (position 0 is the row-title column, which keeps its style).
 """
 from collections.abc import Mapping
 from dataclasses import dataclass
+from itertools import chain
 import math
 
 import numpy as np
@@ -348,12 +349,11 @@ def format_target(columns, box, formats, *, active=None, value_at=None, rows=0):
     spec = spec or next((item for item in current if item is not None), None) or {"mode": AUTOMATIC}
     value, sample = SAMPLE_VALUE, True
     if value_at is not None:
-        candidates = []
-        if active is not None and active[1] in {column.position for column in changing} and 0 <= active[0] < rows:
-            candidates.append(active)
         first, last = max(0, top), min(rows - 1, bottom, max(0, top) + _PREVIEW_SCAN - 1)
-        candidates.extend((row, column.position) for column in changing for row in range(first, last + 1))
-        for row, position in candidates:
+        candidates = ((row, column.position) for column in changing for row in range(first, last + 1))
+        if active is not None and active[1] in {column.position for column in changing} and 0 <= active[0] < rows:
+            candidates = chain([active], candidates)
+        for row, position in candidates:  # Lazy: the first number ends the scan.
             number = number_value(value_at(row, position))
             if number is not None:
                 value, sample = value_at(row, position), False

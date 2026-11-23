@@ -614,7 +614,13 @@ def _worksheet_preview_scenario(smoke, window):
     smoke.shot(window, "worksheet-linked-graph")
 
 
-SCENARIOS = {"qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario}
+def _number_format_scenario(smoke, window):
+    from .number_format_smoke import run as number_format
+    number_format(smoke, window, timings=smoke.language == LANGUAGES[0])
+
+
+SCENARIOS = {"qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
+             "qt-number-format": _number_format_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

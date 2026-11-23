@@ -14995,6 +14995,15 @@ def smoke(root, app, directory, legacy_reference=None):
             app.worker.shutdown(wait=False)
             root.after(1500, root.destroy)
             return
+        if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "number-format":
+            # Change → Number format… alone: TRAMASTAT_SMOKE_ONLY=number-format python tramastat.py --smoke DIR
+            from analisi.worksheet_number_format_smoke import check_number_format
+            check_number_format(root, app, directory, SimpleNamespace(errors=errors))
+            assert not errors, errors
+            (directory / "status.txt").write_text("PASS\n", encoding="utf-8")
+            app.worker.shutdown(wait=False)
+            root.after(1500, root.destroy)
+            return
         if os.environ.get("TRAMASTAT_SMOKE_ONLY") == "cox":
             # The Cox check alone: TRAMASTAT_SMOKE_ONLY=cox python tramastat.py --smoke DIR
             check_cox_outputs()

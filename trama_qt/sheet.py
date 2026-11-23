@@ -56,15 +56,16 @@ def set_table_appearance(view, preference, zoom):
 
 def selection_box(view):
     """The rectangle around the selected cells as (top, left, bottom, right), or the current cell."""
-    indexes = view.selectionModel().selectedIndexes() if view.selectionModel() else []
-    if not indexes:
+    # The selection ranges, not every selected index: a whole 50 000 × 20 sheet stays instant.
+    ranges = [item for item in view.selectionModel().selection() if not item.isEmpty()] \
+        if view.selectionModel() else []
+    if not ranges:
         current = view.currentIndex()
         if not current.isValid():
             return None
         return current.row(), current.column(), current.row(), current.column()
-    rows = [index.row() for index in indexes]
-    columns = [index.column() for index in indexes]
-    return min(rows), min(columns), max(rows), max(columns)
+    return (min(item.top() for item in ranges), min(item.left() for item in ranges),
+            max(item.bottom() for item in ranges), max(item.right() for item in ranges))
 
 
 class WorksheetHeading(QHeaderView):
