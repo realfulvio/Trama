@@ -97,6 +97,8 @@ Formattazione di assi, serie, gruppi e legende; Inspector con anteprima; confron
 
 [Tacche aggiuntive, linee e fasce sugli assi](axis-guides.md) supportano assi numerici primari lineari o logaritmici, etichette letterali e anteprima modificabile. Le etichette sul bordo opposto possono sovrapporsi a quelle di un secondo asse Y: la guida descrive il limite.
 
+Gli [assi secondari sincronizzati](linked-axes.md) mostrano la stessa coordinata in un’altra unità (moltiplicatore e scostamento) sul bordo superiore o destro dei grafici XY, di regressione e di sopravvivenza e sull’asse dei valori di Column e Grouped. Seguono spostamento, zoom e inversione dell’asse principale, non cambiano dati né calcoli e restano vettoriali nell’esportazione.
+
 Layout fino a 12 pannelli; export PNG, TIFF, SVG, PDF e PDF multipagina. Le porzioni vettoriali compatibili restano vettoriali negli export nativi; una heat map rasterizzata o una vista importata non diventa automaticamente un disegno nativo.
 
 ## Interoperabilità e verifiche
