@@ -15,13 +15,16 @@ class WorksheetState:
     column_order: tuple | None = None
     cell_backgrounds: dict | None = None
     result_backgrounds: dict | None = None
+    number_formats: dict | None = None
+    result_number_formats: dict | None = None
 
     @classmethod
     def capture(cls, dataset, view=None):
         # Worksheet editing replaces these objects on commit. Retaining them
         # preserves exact cell types, metadata and exclusion flags.
         return cls(dataset.raw, dataset.formulas, dataset.excluded, view, dataset.column_order,
-                   dataset.cell_backgrounds, dataset.result_backgrounds)
+                   dataset.cell_backgrounds, dataset.result_backgrounds,
+                   dataset.number_formats, dataset.result_number_formats)
 
     def data_changed(self, other):
         return (self.raw is not other.raw or self.formulas is not other.formulas
@@ -29,7 +32,9 @@ class WorksheetState:
 
     def changed(self, other):
         return (self.data_changed(other) or self.cell_backgrounds is not other.cell_backgrounds
-                or self.result_backgrounds is not other.result_backgrounds)
+                or self.result_backgrounds is not other.result_backgrounds
+                or self.number_formats is not other.number_formats
+                or self.result_number_formats is not other.result_number_formats)
 
     def restore(self, dataset):
         candidate = copy(dataset)
@@ -42,6 +47,8 @@ class WorksheetState:
         dataset.column_order = self.column_order
         dataset.cell_backgrounds = self.cell_backgrounds if self.cell_backgrounds is not None else {}
         dataset.result_backgrounds = self.result_backgrounds if self.result_backgrounds is not None else {}
+        dataset.number_formats = self.number_formats if self.number_formats is not None else {}
+        dataset.result_number_formats = self.result_number_formats if self.result_number_formats is not None else {}
 
 
 @dataclass(frozen=True, eq=False)
@@ -93,6 +100,11 @@ class WorksheetHistory:
                 for sheets in (state.result_backgrounds or {}).values():
                     for cells in sheets.values():
                         backgrounds[id(cells)] = len(cells) * 112
+                if state.number_formats:
+                    backgrounds[id(state.number_formats)] = len(state.number_formats) * 160
+                for sheets in (state.result_number_formats or {}).values():
+                    for formats in sheets.values():
+                        backgrounds[id(formats)] = len(formats) * 160
             self.frame_sizes = sizes
             if len(self.changes) == 1 or (len(self.changes) <= 24 and
                                          sum(sizes.values()) + sum(exclusions.values()) + sum(backgrounds.values()) <= self.memory_budget):

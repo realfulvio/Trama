@@ -585,7 +585,10 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph):
             analysis_sources={}, analysis_labels=labels, column_order=dataset.column_order,
             cell_backgrounds=dataset.cell_backgrounds.copy(),
             result_backgrounds={mapping[slot]: deepcopy(sheets) for slot, sheets in dataset.result_backgrounds.items()
-                                if slot in mapping})
+                                if slot in mapping},
+            number_formats=deepcopy(dataset.number_formats),
+            result_number_formats={mapping[slot]: deepcopy(sheets)
+                                   for slot, sheets in dataset.result_number_formats.items() if slot in mapping})
         # Sources are rebuilt from identities of the copies, so they can only refer to the copies.
         built[title].analysis_sources.update(sources)
 

@@ -9,6 +9,7 @@ import pandas as pd
 from . import ui_theme
 from .grid_headings import column_label, heading_bands as _heading_bands
 from .worksheet_appearance import text_on_background
+from .worksheet_number_format import Renderer
 
 
 _HEADER_TITLE = "#ffffff"
@@ -18,7 +19,8 @@ _ROW_TITLE = "#fbfcfd"
 class DataGrid(ttk.Frame):
     def __init__(self, parent, frame, edit, copy_cells, paste_cells, display, *, excluded, source_columns,
                  table_format=None, read_only_columns=(), address_widget=None, calculated_columns=None,
-                 appearance=("", None), zoom=100, backgrounds=None, result_widths=None, formatters=None, row_offset=0):
+                 appearance=("", None), zoom=100, backgrounds=None, result_widths=None, formatters=None, row_offset=0,
+                 number_formats=None, method_columns=()):
         super().__init__(parent)
         self.frame = frame
         self.edit = edit
@@ -28,6 +30,8 @@ class DataGrid(ttk.Frame):
         self.result = result_widths is not None
         self.result_widths = result_widths
         self.formatters = formatters
+        self.number_formats = Renderer(number_formats)
+        self.method_columns = frozenset(method_columns)  # Formatted by the analysis: no number format.
         self.row_offset = row_offset
         self.calculated_columns = frozenset(range(source_columns, len(frame.columns))
                                             if calculated_columns is None else calculated_columns)
@@ -136,8 +140,21 @@ class DataGrid(ttk.Frame):
         self.restore((anchor, head, x, y * self.row_height / old_height))
 
     def cell_text(self, row, column):
+        """The text without a number format: what Copy writes."""
         formatter = self.formatters[column] if self.formatters else self.display
         return formatter(self.frame.iat[row, column])
+
+    def shown_text(self, row, column):
+        """The text drawn in the cell: the column's number format, or the usual renderer."""
+        if self.number_formats and column not in self.method_columns:
+            text = self.number_formats.text(column, self.frame.iat[row, column])
+            if text is not None:
+                return text
+        return self.cell_text(row, column)
+
+    def set_number_formats(self, number_formats):
+        self.number_formats = Renderer(number_formats)
+        self.queue_draw()
 
     @property
     def active_cell(self):
@@ -244,7 +261,7 @@ class DataGrid(ttk.Frame):
                 box(x1, y1, x2, y2, color or (ui_theme.SELECTED_CELL if selected and not active else fill))
                 value = ""
                 if row < len(self.frame):
-                    value = self.cell_text(row, col)
+                    value = self.shown_text(row, col)
                     excluded = (row, col) in self.excluded
                     if excluded:
                         value = "* " + value

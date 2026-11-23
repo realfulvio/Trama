@@ -3628,6 +3628,54 @@ _WORKSHEET_APPEARANCE = {
 _EN.update({key: en for key, (en, _) in _WORKSHEET_APPEARANCE.items()})
 _IT.update({key: it for key, (_, it) in _WORKSHEET_APPEARANCE.items()})
 
+# Change → Number format… on worksheets and result tables (display only).
+_WORKSHEET_NUMBER_FORMAT = {
+    "command.number_format": ("Number format…", "Formato numerico…"),
+    "number_format.title": ("Number format", "Formato numerico"),
+    "number_format.mode": ("Show numbers as", "Mostra i numeri con"),
+    "number_format.mode_automatic": ("Automatic", "Automatico"),
+    "number_format.mode_fixed": ("Fixed decimals", "Decimali fissi"),
+    "number_format.mode_significant": ("Significant digits", "Cifre significative"),
+    "number_format.mode_scientific": ("Scientific notation", "Notazione scientifica"),
+    "number_format.digits_automatic": ("Digits", "Cifre"),
+    "number_format.digits_fixed": ("Decimal places (0–12)", "Cifre decimali (0–12)"),
+    "number_format.digits_significant": ("Significant digits (1–15)", "Cifre significative (1–15)"),
+    "number_format.digits_scientific": ("Decimals in the mantissa (0–12)", "Decimali della mantissa (0–12)"),
+    "number_format.automatic_note": ("As before: up to 10 significant digits.",
+                                     "Come prima: fino a 10 cifre significative."),
+    "number_format.changing": ("Columns that change: {columns}", "Colonne che cambiano: {columns}"),
+    "number_format.unchanged": ("Unchanged: {reasons}", "Restano invariate: {reasons}"),
+    "number_format.reason_text": ("{columns} (text)", "{columns} (testo)"),
+    "number_format.reason_row_titles": ("{columns} (row titles)", "{columns} (titoli di riga)"),
+    "number_format.reason_codes": ("{columns} (whole numbers and status codes)", "{columns} (interi e codici di stato)"),
+    "number_format.reason_counts": ("{columns} (contingency counts)", "{columns} (conteggi di contingenza)"),
+    "number_format.reason_method": ("{columns} (format set by the analysis)", "{columns} (formato scelto dall’analisi)"),
+    "number_format.more": ("{names} and {count} more", "{names} e altre {count}"),
+    "number_format.preview": ("Preview", "Anteprima"),
+    "number_format.stored": ("Stored value", "Valore memorizzato"),
+    "number_format.shown": ("Shown as", "Mostrato come"),
+    "number_format.sample": ("The selection holds no number: the preview uses an example.",
+                             "La selezione non contiene numeri: l’anteprima usa un esempio."),
+    "number_format.display_only": ("Only the display changes: formulas, analyses, editing, copy and export keep "
+                                   "every stored digit.",
+                                   "Cambia solo la visualizzazione: formule, analisi, modifica, copia ed export "
+                                   "conservano tutte le cifre memorizzate."),
+    "number_format.apply": ("OK", "Conferma"),
+    "number_format.reset": ("Reset", "Ripristina"),
+    "number_format.reset_tip": ("Return these columns to Automatic", "Riporta queste colonne ad Automatico"),
+    "number_format.cancel": ("Cancel", "Annulla"),
+    "number_format.no_sheet_columns": ("This sheet has no numeric columns to format.",
+                                       "Questo foglio non ha colonne numeriche da formattare."),
+    "number_format.no_selected_columns": ("The selection holds no numeric column. Select cells in a column of numbers.",
+                                          "La selezione non contiene colonne numeriche. Seleziona celle in una "
+                                          "colonna di numeri."),
+    "number_format.contingency": ("Contingency tables keep their whole counts: the number format does not apply.",
+                                  "Le tabelle di contingenza mostrano i conteggi interi: il formato numerico non "
+                                  "si applica."),
+}
+_EN.update({key: en for key, (en, _) in _WORKSHEET_NUMBER_FORMAT.items()})
+_IT.update({key: it for key, (_, it) in _WORKSHEET_NUMBER_FORMAT.items()})
+
 _UI_PREFIXES = ("menu.", "command.", "ribbon.", "bar.", "nav.", "ttest.field.", "survival.ui.")
 KEY_BY_LABEL = {}
 for _key, _text in _EN.items():

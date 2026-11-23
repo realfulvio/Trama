@@ -382,15 +382,16 @@ class WorksheetView(QTableView):
         menu.addSeparator()
         menu.addAction(self.host.actions["cell_background"])
         menu.addAction(self.host.actions["clear_cell_background"])
+        menu.addAction(self.host.actions["number_format"])
         menu.exec(self.viewport().mapToGlobal(position))
 
 
 class FrameView(QTableView):
     """A result table with copy (tab-separated, decimal point as in the classic grid)."""
 
-    def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None):
+    def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None, number_formats=None):
         super().__init__(parent)
-        self.setModel(FrameModel(frame, formatters, self, backgrounds=backgrounds))
+        self.setModel(FrameModel(frame, formatters, self, backgrounds=backgrounds, number_formats=number_formats))
         _setup(self)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ContiguousSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -407,6 +408,14 @@ class FrameView(QTableView):
         model.backgrounds = backgrounds
         if model.rowCount():
             model.dataChanged.emit(model.index(0, 0), model.index(model.rowCount() - 1, model.columnCount() - 1))
+
+    def set_number_formats(self, number_formats):
+        """Display only; the columns are fitted again to the new texts, the selection and scrolling stay."""
+        model = self.model()
+        if model.formats.formats == dict(number_formats or {}):
+            return
+        model.set_number_formats(number_formats)
+        self._fit_columns()
 
     def _fit_columns(self):
         model = self.model()
@@ -429,7 +438,8 @@ class FrameView(QTableView):
             lines.append("\t".join(str(model.headerData(column, Qt.Orientation.Horizontal) or "")
                                    for column in range(left, right + 1)))
         for row in range(top, bottom + 1):
-            lines.append("\t".join(model.data(model.index(row, column)) or "" for column in range(left, right + 1)))
+            # The stored numbers, not the number format on screen.
+            lines.append("\t".join(model.plain_text(row, column) or "" for column in range(left, right + 1)))
         QGuiApplication.clipboard().setText("\n".join(lines) + "\n")
 
 

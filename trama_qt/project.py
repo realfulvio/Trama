@@ -268,6 +268,7 @@ class Project(WorksheetJoinSources):
         self.revision = 0  # Grows at every change (each ``dirty = True``): recovery copies follow it.
         self.dirty = False
         self.history = WorksheetHistory()
+        self.undo_changed_data = True  # Set by ``undo``: False after undoing colours or number formats only.
         # Recovery copies (trama_qt/recovery.py): one key for the life of this project, a sequence of generations,
         # the original the copy refers to and the state that original had when it was opened or saved.
         self.recovery_key = uuid4().hex
@@ -883,6 +884,7 @@ class Project(WorksheetJoinSources):
         dataset.raw, dataset.formulas, dataset.excluded = candidate.raw, candidate.formulas, candidate.excluded
         dataset.column_order = candidate.column_order
         dataset.cell_backgrounds = candidate.cell_backgrounds
+        dataset.number_formats = candidate.number_formats
         after = WorksheetState.capture(dataset)
         if not self.history.record(title, label, before, after):
             return None
@@ -901,11 +903,24 @@ class Project(WorksheetJoinSources):
         dataset.set_result_background(slot, name, box, shape, color)
         return self._record_background(title, dataset, before)
 
-    def _record_background(self, title, dataset, before):
-        if self.history.record(title, "Cell background", before, WorksheetState.capture(dataset)):
+    def _record_background(self, title, dataset, before, label="Cell background"):
+        if self.history.record(title, label, before, WorksheetState.capture(dataset)):
             self.dirty = True
             return True
         return False
+
+    def set_table_number_format(self, title, names, spec):
+        """Display-only: no analysis is recalculated. One undoable step; False when nothing changed."""
+        dataset = self.tables[title]
+        before = WorksheetState.capture(dataset)
+        dataset.set_number_format(names, spec)
+        return self._record_background(title, dataset, before, "Number format")
+
+    def set_result_number_format(self, title, slot, name, positions, spec):
+        dataset = self.tables[title]
+        before = WorksheetState.capture(dataset)
+        dataset.set_result_number_format(slot, name, positions, spec)
+        return self._record_background(title, dataset, before, "Number format")
 
     def table_runs(self, title):
         affected = self.readers([title])
@@ -996,6 +1011,9 @@ class Project(WorksheetJoinSources):
             if dataset.cell_backgrounds:
                 dataset.cell_backgrounds = {cell: color for cell, color in dataset.cell_backgrounds.items()
                                             if cell[1] not in names}
+            if any(name in dataset.number_formats for name in names):
+                dataset.number_formats = {name: spec for name, spec in dataset.number_formats.items()
+                                          if name not in names}
         return self.edit(title, "Delete columns", change)
 
     def rename_column(self, title, column, name):
@@ -1018,6 +1036,9 @@ class Project(WorksheetJoinSources):
             if previous != name_ and dataset.cell_backgrounds:
                 dataset.cell_backgrounds = {(row, name_ if key == previous else key): color
                                             for (row, key), color in dataset.cell_backgrounds.items()}
+            if previous != name_ and previous in dataset.number_formats:
+                dataset.number_formats = {name_ if key == previous else key: spec
+                                          for key, spec in dataset.number_formats.items()}
         return self.edit(title, "Rename column", change)
 
     def set_formula(self, title, name, expression):
@@ -1042,7 +1063,9 @@ class Project(WorksheetJoinSources):
         if change is None:
             return None, None
         self.dirty = True
-        return change.title, self.table_runs(change.title) if change.before.data_changed(change.after) else []
+        # False for colours and number formats: the window can refresh the open grid in place.
+        self.undo_changed_data = change.before.data_changed(change.after)
+        return change.title, self.table_runs(change.title) if self.undo_changed_data else []
 
 
 def _persist_links(runs, tables):

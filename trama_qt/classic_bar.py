@@ -24,7 +24,7 @@ MENUS = (
     ("Analyze", ("analyze", "change", "recalculate", "analyze_result", "source_analysis", "change_input",
                  "use_result", "|", "descriptive", "ttest", "anova", "correlation", "correlation_matrix",
                  "linear", "nonlinear", "survival", "contingency", "load_example")),
-    ("Change", ("change", "format_graph", "graph_style_presets", "plot_margins", "edit_layout", "category_order", "cell_background", "clear_cell_background", "|",
+    ("Change", ("change", "format_graph", "graph_style_presets", "plot_margins", "edit_layout", "category_order", "cell_background", "clear_cell_background", "number_format", "|",
                 "info_properties", "info_up", "info_down", "remove_info")),
     ("Arrange", ("arrange_shapes", "new_layout", "edit_layout")),
     ("Family", ("family_data", "family_info", "family_results", "family_graphs", "family_gallery", "|",

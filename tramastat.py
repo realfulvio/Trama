@@ -701,12 +701,13 @@ class Grid(ttk.Frame):
     """Paged, read-only result cells with the same selection as a data worksheet."""
 
     def __init__(self, parent, frame, *, fit_cells=False, threshold_column=None,
-                 backgrounds=None, appearance=("", None), zoom=100):
+                 backgrounds=None, appearance=("", None), zoom=100, number_formats=None):
         super().__init__(parent)
         self.frame = frame
         self.fit_cells = fit_cells
         self.threshold_column = threshold_column
         self.backgrounds = backgrounds or {}
+        self.number_formats = dict(number_formats or {})
         self.appearance = appearance
         self.zoom = zoom
         self.page = 0
@@ -754,7 +755,8 @@ class Grid(ttk.Frame):
         self.cells = DataGrid(self, shown, None, self.copy, None, display, excluded=(),
                               source_columns=len(shown.columns), read_only_columns=range(len(shown.columns)),
                               appearance=self.appearance, zoom=self.zoom, backgrounds=self.backgrounds,
-                              result_widths=widths, formatters=[display, *formatters], row_offset=start)
+                              result_widths=widths, formatters=[display, *formatters], row_offset=start,
+                              number_formats=self.number_formats, method_columns=self.method_positions())
         self.cells.grid(row=0, column=0, sticky="nsew")
         if hasattr(self, "position"):
             self.position.configure(text=tr("interface.rows_position", first=start + 1,
@@ -766,6 +768,14 @@ class Grid(ttk.Frame):
         top, left, bottom, right = self.cells.selection
         start = self.cells.row_offset
         return top + start, left, bottom + start, right
+
+    def method_positions(self):
+        """Grid columns whose format the analysis chose (ROC thresholds): they take no number format."""
+        return {position for position, name in enumerate(self.frame.columns, 1) if name == self.threshold_column}
+
+    def set_number_formats(self, number_formats):
+        self.number_formats = dict(number_formats or {})
+        self.cells.set_number_formats(self.number_formats)
 
     def copy(self):
         top, left, bottom, right = self.cells.selection
@@ -5354,6 +5364,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                        ("Category order…", self.edit_category_order),
                        ("Cell background color…", self.change_cell_background),
                        ("Clear cell backgrounds", lambda: self.change_cell_background(clear=True)),
+                       ("Number format…", self.change_number_format),
                        ("Info sheet properties…", self.info_properties)],
             "Arrange": [("Arrange drawing objects…", self.arrange_graph_shapes), ("New layout…", self.new_layout),
                         ("Edit layout…", lambda: self.new_layout(edit=True))],
@@ -6156,6 +6167,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                                          address_widget=self.cell_address,
                                          appearance=self.table_font, zoom=self.table_zoom,
                                          backgrounds=dataset.displayed_backgrounds,
+                                         number_formats=dataset.displayed_number_formats,
                                          read_only_columns=[column for column, source in enumerate(sources)
                                                             if source in locks],
                                          calculated_columns=[column for column, source in enumerate(sources)
@@ -6237,9 +6249,10 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                 for title, frame in result.tables.items():
                     threshold_column = "Threshold" if run.method == "ROC curve" and title == "Diagnostic thresholds" else None
                     backgrounds = self.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})
+                    number_formats = self.tables[run.title].result_number_formats.get(run.slot, {}).get(title, {})
                     grid = Grid(self.result_tabs, frame, fit_cells=run.method == SAVED_BINARY_RESULT,
                                 threshold_column=threshold_column, backgrounds=backgrounds,
-                                appearance=self.table_font, zoom=self.table_zoom)
+                                appearance=self.table_font, zoom=self.table_zoom, number_formats=number_formats)
                     self.result_tabs.add(grid, text=title)
             elif kind == "saved-layout":
                 bar = ttk.Frame(self.page)
@@ -7603,6 +7616,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
                     self._refresh_result_backgrounds(self.runs[key])
                 elif (kind, key) == ("data", change.title):
                     self.current_grid.backgrounds = self.tables[key].displayed_backgrounds
+                    self.current_grid.set_number_formats(self.tables[key].displayed_number_formats)
                     self.current_grid.queue_draw()
                 else:
                     self.show("data", change.title)
@@ -9015,8 +9029,11 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
         if run.result is None or tabs is None or not tabs.winfo_exists():
             return
         sheets = self.tables[run.title].result_backgrounds.get(run.slot, {})
+        formats = self.tables[run.title].result_number_formats.get(run.slot, {})
         for tab, name in zip(tabs.tabs(), run.result.tables):
-            tabs.nametowidget(tab).set_backgrounds(sheets.get(name, {}))
+            grid = tabs.nametowidget(tab)
+            grid.set_backgrounds(sheets.get(name, {}))
+            grid.set_number_formats(formats.get(name, {}))
 
     def change_cell_background(self, *, clear=False):
         view = self._active_table_view()
@@ -9050,6 +9067,53 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, WorksheetJoinSources):
             else:
                 view.backgrounds = dataset.displayed_backgrounds
                 view.queue_draw()
+            self.refresh_project_tabs()
+            self.update_worksheet_history_buttons()
+
+    def change_number_format(self):
+        """Change → Number format…: what the selected numeric columns show; the stored values do not change."""
+        from analisi.worksheet_number_format import format_target, result_columns, worksheet_columns
+        from analisi.worksheet_number_format_dialog import NumberFormatDialog
+
+        view = self._active_table_view()
+        if view is None or self.pending is not None:
+            return
+        result = isinstance(view, Grid)
+        grid = view.cells if result else view
+        frame = grid.frame
+        if result:
+            run = self.runs[self.selected[1]]
+            title = run.title
+            name = tuple(run.result.tables)[self.result_tabs.index("current")]
+            columns = result_columns(view.frame, frame.columns[0],
+                                     {view.threshold_column} if view.threshold_column else ())
+            formats = view.number_formats
+        else:
+            title = self.selected[1]
+            columns = worksheet_columns(self.tables[title], frame)
+            formats = self.tables[title].displayed_number_formats
+        dataset = self.tables[title]
+        try:
+            target = format_target(columns, grid.selection, formats, active=grid.active_cell,
+                                   value_at=lambda row, position: frame.iat[row, position], rows=len(frame))
+        except ValueError as error:
+            self.error(error)
+            return
+        dialog = NumberFormatDialog(self.root, target)
+        if dialog.choice is None:
+            return
+        _, spec = dialog.choice
+        before = self.worksheet_state(dataset)
+        if result:
+            dataset.set_result_number_format(run.slot, name, target.keys, spec)
+        else:
+            dataset.set_number_format([frame.columns[position] for position in target.keys], spec)
+        if self.worksheet_history.record(title, "Number format", before, self.worksheet_state(dataset)):
+            self.dirty = True
+            if result:
+                self._refresh_result_backgrounds(run)
+            else:
+                view.set_number_formats(dataset.displayed_number_formats)
             self.refresh_project_tabs()
             self.update_worksheet_history_buttons()
 

@@ -515,6 +515,7 @@ class MainWindow(QMainWindow):
         a("table_font", tr("command.table_font"), self.choose_table_font)
         a("cell_background", tr("command.cell_background"), self.change_cell_background)
         a("clear_cell_background", tr("command.clear_cell_background"), lambda: self.change_cell_background(clear=True))
+        a("number_format", tr("command.number_format"), self.change_number_format, icon="hash")
         for key, step, shortcut in (("sheet_zoom_in", 1, "Ctrl+="), ("sheet_zoom_out", -1, "Ctrl+-"),
                                     ("sheet_zoom_reset", 0, "Ctrl+0")):
             a(key, tr(f"command.{key}"), lambda step=step: self.zoom_table(step), shortcut=shortcut)
@@ -811,7 +812,7 @@ class MainWindow(QMainWindow):
         has_table = (data and self.sheet is not None) or (kind == "result" and self.result_tabs is not None)
         for key in ("sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset"):
             self.actions[key].setEnabled(has_table)
-        for key in ("cell_background", "clear_cell_background"):
+        for key in ("cell_background", "clear_cell_background", "number_format"):
             self.actions[key].setEnabled(has_table and idle)
         graph_clipboard = kind == "graph" and self.drawing.problem() is None
         self.actions["copy"].setEnabled(data or graph_clipboard)
@@ -1342,9 +1343,61 @@ class MainWindow(QMainWindow):
     def _refresh_result_backgrounds(self, run):
         if self.result_tabs is None or run.result is None:
             return
-        sheets = self.project.tables[run.title].result_backgrounds.get(run.slot, {})
+        dataset = self.project.tables[run.title]
+        sheets = dataset.result_backgrounds.get(run.slot, {})
+        formats = dataset.result_number_formats.get(run.slot, {})
         for index, name in enumerate(run.result.tables):
-            self.result_tabs.widget(index).set_backgrounds(sheets.get(name, {}))
+            view = self.result_tabs.widget(index)
+            view.set_backgrounds(sheets.get(name, {}))
+            view.set_number_formats(formats.get(name, {}))
+
+    def change_number_format(self):
+        """Change → Number format…: what the selected numeric columns show; the stored values do not change."""
+        from analisi.worksheet_number_format import format_target, result_columns, worksheet_columns
+        from .worksheet_number_format import NumberFormatDialog
+        if self.busy() or self.gallery is not None:
+            return
+        result = self.result_tabs is not None
+        view = self.result_tabs.currentWidget() if result else self.sheet
+        if view is None or (box := selection_box(view)) is None:
+            return
+        model = view.model()
+        frame = model.frame
+        current = view.currentIndex()
+        active = (current.row(), current.column()) if current.isValid() else None
+        if result:
+            run = self.project.runs[self.selected[1]]
+            title, name = run.title, tuple(run.result.tables)[self.result_tabs.currentIndex()]
+            columns = result_columns(frame, model.index_title, set(model.formatters))
+            formats = self.project.tables[title].result_number_formats.get(run.slot, {}).get(name, {})
+            value_at = lambda row, position: frame.iat[row, position - 1]
+        else:
+            title = self.selected[1]
+            dataset = self.project.tables[title]
+            columns = worksheet_columns(dataset, frame)
+            formats = dataset.displayed_number_formats
+            value_at = lambda row, position: frame.iat[row, position]
+        try:
+            target = format_target(columns, box, formats, active=active, value_at=value_at, rows=len(frame))
+        except ValueError as error:
+            self.error(error)
+            return
+        dialog = NumberFormatDialog(self, target)
+        try:
+            if dialog.exec() != dialog.DialogCode.Accepted or dialog.choice is None:
+                return
+            _, spec = dialog.choice
+        finally:
+            dialog.deleteLater()
+        if result:
+            if self.project.set_result_number_format(title, run.slot, name, target.keys, spec):
+                self._refresh_result_backgrounds(run)
+        else:
+            names = [frame.columns[position] for position in target.keys]
+            if self.project.set_table_number_format(title, names, spec):
+                self.sheet.model().refresh_formats()
+        self.update_title()
+        self.update_actions()
 
     def change_cell_background(self, *, clear=False):
         if self.busy() or self.gallery is not None:
@@ -1692,7 +1745,8 @@ class MainWindow(QMainWindow):
                 formatters = ({"Threshold": threshold_text} if threshold_text and run.method == "ROC curve"
                               and title == "Diagnostic thresholds" else None)
                 backgrounds = self.project.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})
-                view = FrameView(frame, formatters, backgrounds=backgrounds)
+                number_formats = self.project.tables[run.title].result_number_formats.get(run.slot, {}).get(title, {})
+                view = FrameView(frame, formatters, backgrounds=backgrounds, number_formats=number_formats)
                 if self.table_font != ("", None) or self.table_zoom != 100:
                     set_table_appearance(view, self.table_font, self.table_zoom)
                 self.result_tabs.addTab(view, str(title))
@@ -1941,6 +1995,15 @@ class MainWindow(QMainWindow):
                 self.update_title()
                 self.update_actions()
                 return
+        if (not affected and not self.project.undo_changed_data and self.selected == ("data", title)
+                and self.sheet is not None):
+            # Colours and number formats only: the grid keeps its selection, current cell and scrolling.
+            model = self.sheet.model()
+            model.refresh_backgrounds()
+            model.refresh_formats()
+            self.update_title()
+            self.update_actions()
+            return
         self.show_sheet("data", title)
         if affected:
             self.refresh_runs(affected)

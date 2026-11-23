@@ -29,6 +29,8 @@ from .formula_special import SPECIAL_FORMULA_FUNCTIONS
 from .formula_windows import WINDOW_CLAUSES, WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
 from .grid_headings import column_label
 from .worksheet_appearance import background_records, paint_cells, read_backgrounds
+from .worksheet_number_format import (assign_formats, column_records, position_records, read_column_formats,
+                                      read_position_formats)
 from .legacy_project_metadata import LEGACY_METADATA_VERSION, saved_analysis, saved_name, uses_import_metadata
 
 MAX_ENTRY = 32 * 1024 * 1024
@@ -674,6 +676,10 @@ class Dataset:
 
     cell_backgrounds: dict[tuple[int, str], str] = field(default_factory=dict)
     result_backgrounds: dict[int, dict[str, dict[tuple[int, int], str]]] = field(default_factory=dict)
+    # Display-only number formats: per column name on the data, per analysis slot, result sheet and column
+    # position on the results. Replaced, never mutated, so undo snapshots and recovery copies can share them.
+    number_formats: dict[str, dict] = field(default_factory=dict)
+    result_number_formats: dict[int, dict[str, dict[int, dict]]] = field(default_factory=dict)
 
     @property
     def displayed_backgrounds(self):
@@ -683,6 +689,32 @@ class Dataset:
     def set_background(self, box, color):
         columns = self.columns
         self.cell_backgrounds = paint_cells(self.cell_backgrounds, box, (len(self.raw), len(columns)), color, columns)
+
+    @property
+    def displayed_number_formats(self):
+        """Worksheet position → format, for the grids."""
+        if not self.number_formats:
+            return {}
+        positions = {name: index for index, name in enumerate(self.columns)}
+        return {positions[name]: spec for name, spec in self.number_formats.items() if name in positions}
+
+    def set_number_format(self, names, spec):
+        """Show the named columns with ``spec``; ``None`` or Automatic restores the usual display."""
+        columns = set(self.columns)
+        if any(name not in columns for name in names):
+            raise ValueError("A number format references an unknown column.")
+        self.number_formats = assign_formats(self.number_formats, names, spec)
+
+    def set_result_number_format(self, slot, name, positions, spec):
+        sheets = self.result_number_formats.get(slot, {})
+        current = sheets.get(name, {})
+        changed = assign_formats(current, positions, spec)
+        if changed is current:
+            return
+        sheets = {**sheets, name: changed} if changed else {key: value for key, value in sheets.items() if key != name}
+        self.result_number_formats = ({**self.result_number_formats, slot: sheets} if sheets else
+                                      {key: value for key, value in self.result_number_formats.items()
+                                       if key != slot})
 
     def set_result_background(self, slot, name, box, shape, color):
         sheets = self.result_backgrounds.get(slot, {})
@@ -1013,6 +1045,13 @@ def project_document(tables, *, layouts=(), info_sheets=None):
                 slot: {name: background_records(colors) for name, colors in sorted(sheets.items())}
                 for slot, sheets in sorted(dataset.result_backgrounds.items())
             }
+        if formats := column_records(dataset.number_formats, dataset.columns):
+            record["number_formats"] = formats
+        if dataset.result_number_formats:
+            record["result_number_formats"] = {
+                slot: {name: position_records(formats) for name, formats in sorted(sheets.items())}
+                for slot, sheets in sorted(dataset.result_number_formats.items())
+            }
         if order != tuple(dataset.formulas):
             record["formula_order"] = list(dataset.formulas)
         if dataset.column_order is not None:
@@ -1112,6 +1151,8 @@ def load_workspace(path, *, include_info=False):
             data.column_order = _validated_column_order(table["column_order"], data.raw.columns, data.formulas)
         if "cell_backgrounds" in table:
             data.cell_backgrounds = read_backgrounds(table["cell_backgrounds"], len(data.raw), set(data.columns))
+        if "number_formats" in table:
+            data.number_formats = read_column_formats(table["number_formats"], set(data.columns))
         entries = table.get("analyses", [])
         limit = MAX_ANALYSIS_NODES if version >= 3 else 256
         if len(entries) > limit or any(not isinstance(method, str) or not isinstance(options, dict)
@@ -1124,6 +1165,12 @@ def load_workspace(path, *, include_info=False):
             data.result_backgrounds[slot] = {
                 name: read_backgrounds(colors, MAX_CELLS, range(MAX_CELLS)) for name, colors in colored.items()
             }
+        for slot, formatted in _analysis_slots(table.get("result_number_formats", {}), len(entries)).items():
+            if not isinstance(formatted, dict):
+                raise ValueError("Invalid saved result number formats.")
+            sheets = {name: read_position_formats(formats, MAX_CELLS) for name, formats in formatted.items()}
+            if sheets := {name: formats for name, formats in sheets.items() if formats}:
+                data.result_number_formats[slot] = sheets
         data.analysis_ids = _analysis_slots(table.get("analysis_ids", {}), len(entries))
         sources = _analysis_slots(table.get("analysis_sources", {}), len(entries))
         if sources and version < 3:
