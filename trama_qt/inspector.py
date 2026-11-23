@@ -8,11 +8,12 @@ in the draft untouched.
 from copy import deepcopy
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel,
                                QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from analisi.axis_breaks import AXIS_BREAKS
 from analisi.hierarchical_style import describe_hierarchical_artists
+from analisi.linked_axes import LINKED_AXES, linked_axes_status, supported_dimensions
 from analisi.i18n import tr, translate_message
 from analisi.presentation import (LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES, active_series_fields, apply_style,
                                   axis_has_numeric_ticks, capture_defaults, graph_groups, graph_series,
@@ -27,13 +28,21 @@ CAPTIONS = {key: "graph.inspector." + key
             for key in ("label", "color", "line_style", "width", "marker", "marker_size", "marker_color")}
 TEXT_FIELDS = {"title": 0, "xlabel": 1, "ylabel": 2}
 NUMBER_FIELDS = {"width", "marker_size"}
-SECTION_KEYS = {"data": ("series",), "axes": ("xlabel", "ylabel", "xscale", "yscale", AXIS_BREAKS),
+SECTION_KEYS = {"data": ("series",), "axes": ("xlabel", "ylabel", "xscale", "yscale", AXIS_BREAKS, LINKED_AXES),
                 "page": ("title", "grid", "legend")}
 PREVIEW_DELAY_MS = 350
 
 
 class FieldProblem(ValueError):
     pass
+
+
+def _translated(error):
+    """An engine message in the active language: graph messages first, then the linked-axes ones."""
+    from .linked_axes import translate_linked_error
+
+    text = translate_message(error)
+    return text if text != str(error) else translate_linked_error(error)
 
 
 def _number(text, what):
@@ -244,7 +253,53 @@ class GraphInspector(QFrame):
             hint.setObjectName("muted")
             hint.setWordWrap(True)
             form.addRow(hint)
+        self._linked_controls(form)
         self._finish(form, "axes")
+
+    def _linked_controls(self, form):
+        """Secondary axes: shown when the graph can link at least one axis."""
+        self.linked_widgets = []
+        if not supported_dimensions(self.axes):
+            return
+        self.linked_button = QPushButton(tr("linked_axes.button"))
+        self.linked_button.clicked.connect(self.edit_linked)
+        self.linked_summary = QLabel()
+        self.linked_note = QLabel()
+        for label in (self.linked_summary, self.linked_note):
+            label.setObjectName("muted")
+            label.setWordWrap(True)
+        for widget in (self.linked_button, self.linked_summary, self.linked_note):
+            form.addRow(widget)
+            self.linked_widgets.append(widget)
+
+    def _refresh_linked(self):
+        if not self.linked_widgets:
+            return
+        from .linked_axes import available_conflicts, conflict_note, linked_summary
+
+        conflicts = available_conflicts(self.axes)
+        record = self.draft.get(LINKED_AXES) or {}
+        self.linked_summary.setText(linked_summary(record))
+        self.linked_note.setText(linked_axes_status(self.figure, self.draft) or conflict_note(conflicts))
+        self.linked_button.setEnabled(len(conflicts) < 2 or bool(record))
+
+    def edit_linked(self):
+        from .linked_axes import LinkedAxesDialog, available_conflicts
+
+        self._flush()
+        scales = {dimension: getattr(self.axes, dimension + "axis").get_scale() for dimension in ("x", "y")}
+        dialog = LinkedAxesDialog(self, self.axes, self.draft.get(LINKED_AXES) or {},
+                                  conflicts=available_conflicts(self.axes), scales=scales)
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        candidate = deepcopy(self.draft)
+        if dialog.result:
+            candidate[LINKED_AXES] = dialog.result
+        else:
+            candidate.pop(LINKED_AXES, None)
+        if candidate != self.draft:
+            self._preview(candidate)
+        self._refresh_linked()
 
     def _page_section(self):
         form = self._section("page", tr("graph.inspector.page"))
@@ -322,6 +377,7 @@ class GraphInspector(QFrame):
             self._loading = loading
 
     def _refresh_states(self):
+        self._refresh_linked()
         for dimension in ("x", "y"):
             numeric = axis_has_numeric_ticks(self.axes, dimension)
             zero = dimension in zero_baseline_axes(self.axes)
@@ -385,7 +441,7 @@ class GraphInspector(QFrame):
             self._write(candidate, source)
             validate_graph_style(self.axes, candidate)
         except ValueError as error:
-            self._flag(source, translate_message(error))
+            self._flag(source, _translated(error))
             return
         self._flag(source, None)
         if candidate != self.draft:
@@ -397,10 +453,11 @@ class GraphInspector(QFrame):
         except ValueError as error:
             apply_style(self.figure, self.draft)
             self.canvas.draw_idle()
-            self.show_status(translate_message(error), error=True)
+            self.show_status(_translated(error), error=True)
             return False
         self.draft = candidate
         self.show_status("")
+        self._refresh_linked()
         self.canvas.draw_idle()
         return True
 
@@ -556,7 +613,7 @@ class GraphInspector(QFrame):
             apply_style(self.figure, self.draft)
             self._commit(deepcopy(self.draft))
         except ValueError as error:
-            self.show_status(translate_message(error), error=True)
+            self.show_status(_translated(error), error=True)
             return False
         self.show_status(tr("graph.inspector.applied"))
         self.canvas.draw_idle()

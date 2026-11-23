@@ -18,6 +18,7 @@ from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
 from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCancelled, ResultSource,
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
+from analisi.linked_axes import linked_axes_status
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, MAX_ENTRY, Dataset,
                           info_references, load_tables, load_workspace, project_document, save_project)
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
@@ -132,6 +133,12 @@ def breaks_warning(figure, style):
     return tr("axis_breaks.status.ignored", reason=reason)
 
 
+def graph_warning(figure, style):
+    """The notes about saved style sections that the graph cannot draw right now (breaks, linked axes)."""
+    notes = [note for note in (breaks_warning(figure, style), linked_axes_status(figure, style)) if note]
+    return " ".join(notes) or None
+
+
 def _attach_pairwise(result, frame, pairwise, method):
     if "message" in pairwise:
         attach_pairwise(result.figure, (), None, message=pairwise["message"])
@@ -173,7 +180,7 @@ def compute(run, frame, control=None, layout_data=None, pairwise=None, *, result
         except ValueError as error:
             result.style_warning = str(error)
         else:
-            result.style_warning = breaks_warning(result.figure, run.style)
+            result.style_warning = graph_warning(result.figure, run.style)
     if pairwise is None or result.figure is None or not result.figure.axes:
         sync_letters_table(result)
     else:
@@ -836,7 +843,7 @@ class Project(WorksheetJoinSources):
         if record_shapes:
             self.record_shapes(run, style)
         run.style = style
-        run.result.style_warning = breaks_warning(run.result.figure, style)
+        run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
         self.dirty = True
@@ -850,7 +857,7 @@ class Project(WorksheetJoinSources):
             apply_style(run.result.figure, style)
         self.record_shapes(run, style)
         run.style = style
-        run.result.style_warning = breaks_warning(run.result.figure, style)
+        run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
         self.dirty = True

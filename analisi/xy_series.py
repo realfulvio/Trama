@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 
 from .axis_breaks import mark_supported
+from .linked_axes import mark_linked_axes
 from .processing import FieldError
 from .reporting import Result, _plot
 
@@ -334,6 +335,7 @@ def xy_series(frame, options, left_scale="linear"):
     left_title = ", ".join(left_names) if left_names else "Y"
     figure, axes = _plot(XY_METHOD, x_name, left_title)
     mark_supported(axes)
+    mark_linked_axes(axes, "x", "y")
     if _is_log(left_scale):
         axes.set_yscale("log")
     right = None

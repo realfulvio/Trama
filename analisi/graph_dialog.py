@@ -6,6 +6,7 @@ from tkinter import colorchooser, messagebox, simpledialog, ttk
 from matplotlib.colors import to_hex
 
 from .axis_breaks import AXIS_BREAKS, SUPPORT_ATTR, AxisBreakError, axis_breaks_reason
+from .linked_axes import LINKED_AXES
 from .axis_guides import AXIS_BANDS, AXIS_GUIDES
 from .graph_annotations import ANNOTATIONS
 from .graph_legend import LEGEND_OPTIONS_KEY
@@ -743,7 +744,8 @@ class GraphFormatDialog(simpledialog.Dialog):
     def _read_style(self):
         style = {key: variable.get() for key, variable in self.inputs.items()
                  if key != "accent" or variable.get().strip()}
-        for key in ("groups", ANNOTATIONS, SHAPES, PANEL_KEY):
+        # Linked secondary axes have no Tk editor: the saved record travels through Format Graph unchanged.
+        for key in ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, LINKED_AXES):
             if self.style.get(key):
                 style[key] = deepcopy(self.style[key])
         section = self._hierarchical_section()

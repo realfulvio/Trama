@@ -19,6 +19,7 @@ from analisi.graph_annotations import ANNOTATIONS
 from analisi.graph_legend import LEGEND_OPTIONS_KEY
 from analisi.graph_shapes import SHAPES
 from analisi.hierarchical_style import describe_hierarchical_artists
+from analisi.linked_axes import LINKED_AXES, linked_axes_reasons
 from analisi.i18n import active_language, tr, translate_message
 from analisi.presentation import (FONT_FAMILIES, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
                                   active_series_fields, apply_style, axis_has_numeric_ticks, graph_series,
@@ -133,6 +134,7 @@ class GraphFormatDialog(QDialog):
         self.xy_side = dict(options.get("Series side") or {})
         self.series_index = -1
         self.axis_breaks = deepcopy(style.get(AXIS_BREAKS) or {})
+        self.linked_axes = deepcopy(style.get(LINKED_AXES) or {})
 
         outer = QVBoxLayout(self)
         self.banner = QLabel()
@@ -315,8 +317,74 @@ class GraphFormatDialog(QDialog):
             grid.addWidget(self.breaks_note, 1, 0, 1, 2)
             grid.setColumnStretch(1, 1)
             layout.addWidget(box)
+        self._linked_box(layout)
         self._break_states()
         layout.addStretch(1)
+
+    def _linked_box(self, layout):
+        box = QGroupBox(tr("linked_axes.title"))
+        grid = QGridLayout(box)
+        self.linked_button = QPushButton(tr("linked_axes.button"))
+        self.linked_button.clicked.connect(self.edit_linked)
+        grid.addWidget(self.linked_button, 0, 0)
+        self.linked_summary = QLabel()
+        grid.addWidget(self.linked_summary, 0, 1)
+        self.linked_note = QLabel()
+        self.linked_note.setObjectName("muted")
+        self.linked_note.setWordWrap(True)
+        grid.addWidget(self.linked_note, 1, 0, 1, 2)
+        grid.setColumnStretch(1, 1)
+        layout.addWidget(box)
+        for choice in self.scales.values():
+            choice.currentIndexChanged.connect(lambda _=0: self._linked_states())
+        self._linked_states()
+
+    def _scale_values(self):
+        return {dimension: choice.value() for dimension, choice in self.scales.items()}
+
+    def _linked_conflicts(self):
+        """The axes that cannot take a linked axis with the scales, breaks and series sides chosen in this dialog."""
+        from .linked_axes import available_conflicts
+
+        right = None
+        if self.xy is not None:
+            self._store_series()
+            columns = self.xy["options"].get("Y columns") or ()
+            right = any(self.xy_side.get(column) == "Right" for column in columns)
+        return available_conflicts(self.axes, scales=self._scale_values(), breaks=bool(self.axis_breaks),
+                                   right=right)
+
+    def _linked_states(self):
+        from .linked_axes import conflict_note, linked_summary
+
+        conflicts = self._linked_conflicts()
+        self.linked_summary.setText(linked_summary(self.linked_axes))
+        self.linked_note.setText(conflict_note(conflicts))
+        self.linked_button.setEnabled(len(conflicts) < 2 or bool(self.linked_axes))
+
+    def edit_linked(self):
+        from .linked_axes import LinkedAxesDialog
+
+        dialog = LinkedAxesDialog(self, self.axes, self.linked_axes, conflicts=self._linked_conflicts(),
+                                  scales=self._scale_values())
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.result is not None:
+            self.linked_axes = dialog.result
+            self._linked_states()
+
+    def _check_linked(self, style, figure=None):
+        """Linked axes chosen here must show on the graph; saved ones that cannot show stay, with the note."""
+        record, saved = style.get(LINKED_AXES) or {}, self.style.get(LINKED_AXES) or {}
+        changed = [dimension for dimension, item in record.items() if item != saved.get(dimension)]
+        if not changed:
+            return
+        if figure is not None:
+            reasons = linked_axes_reasons(figure)
+        else:
+            reasons = {dimension: message for dimension, message in self._linked_conflicts().items()}
+        for dimension in changed:
+            if dimension in reasons:
+                self.tabs.setCurrentIndex(1)
+                raise ValueError(reasons[dimension])
 
     def _break_states(self):
         """The limits and the scale of an axis with breaks come from its segments, so those fields rest."""
@@ -547,6 +615,8 @@ class GraphFormatDialog(QDialog):
                 style[key] = deepcopy(self.style[key])
         if self.axis_breaks:
             style[AXIS_BREAKS] = deepcopy(self.axis_breaks)
+        if self.linked_axes:
+            style[LINKED_AXES] = deepcopy(self.linked_axes)
         if self.legend_options:
             style[LEGEND_OPTIONS_KEY] = deepcopy(self.legend_options)
         for key, records in self.guide_records.items():
@@ -681,11 +751,13 @@ class GraphFormatDialog(QDialog):
         if not isinstance(error, str):
             from .axis_breaks import translate_breaks_error
             from .axis_guides import translate_guide_error
+            from .linked_axes import translate_linked_error
 
             from .legend import translate_legend_error
 
             for translate in (translate_message, lambda value: translate_message(value, "xy.error."),
-                              translate_legend_error, translate_guide_error, translate_breaks_error):
+                              translate_legend_error, translate_guide_error, translate_breaks_error,
+                              translate_linked_error):
                 text = translate(error)
                 if text != str(error):
                     break
@@ -698,6 +770,7 @@ class GraphFormatDialog(QDialog):
             style = self.read_style()
             if self.xy is None:
                 validate_graph_style(self.axes, style)
+                self._check_linked(style)
             else:
                 if "ylabel" not in self.style and style["ylabel"] == self.axes.get_ylabel():
                     style.pop("ylabel")
@@ -710,6 +783,7 @@ class GraphFormatDialog(QDialog):
 
                         self.tabs.setCurrentIndex(1)
                         raise ValueError(translate_breaks_error(ValueError(reason)))
+                self._check_linked(style, self.xy_result.figure)
         except ValueError as error:
             self.show_error(error)
             return

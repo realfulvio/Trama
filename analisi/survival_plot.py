@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .analysis_chain import RESULT_CONTEXT
+from .linked_axes import style_without_linked_y
 from .processing import FieldError
 from .reporting import Result, _plot
 from .stats import _critical_value, ci_columns
@@ -229,4 +230,5 @@ def style_after_parameter_change(style, before, after):
         updated["axis"] = axes
     if refs:
         updated["reference_lines"] = refs
-    return updated
+    # The Y quantity changed (probability, percent, cumulative events): a unit set for the old one no longer holds.
+    return style_without_linked_y(updated)
