@@ -103,6 +103,20 @@ class SavedXSequenceTests(unittest.TestCase):
         with self.assertRaisesRegex(_UnsupportedSheet, "title formatting"):
             _x_sequence(records.items(), 4)
 
+    def test_formatted_sequence_requires_the_recognized_curve_profile(self):
+        records = {
+            0x10: struct.pack("<HI2Id2Id", 1, 2, 5, 0, -.5, 1, 0xb7, .125),
+            0x90: b"\0\0",
+            0xF3: struct.pack("<12I", 2, 16, 16, 2, 0, 5, 0xffffffff, 0x7fffffff,
+                              0, 1, 0xffffffff, 0x7fffffff),
+        }
+        with self.assertRaises(_UnsupportedSheet):
+            _x_sequence(records.items(), 3)
+        self.assertEqual(_x_sequence(records.items(), 3, formatted_curve=True), [-.5, -.375, -.25])
+        records[0xF3] = bytes(len(records[0xF3]))
+        with self.assertRaises(_UnsupportedSheet):
+            _x_sequence(records.items(), 3, formatted_curve=True)
+
 
 class LegacyBinaryResultTests(unittest.TestCase):
     def restore(self, raw, *, frame=None):

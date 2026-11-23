@@ -23,7 +23,7 @@ _ANALYSIS_TAGS = {9, 0x3B, 0x3C, 0x3D, 0x3F, 0x46}
 _SHEET_TAGS = {9, 0x0D, 0x8E}
 _DATASET_TAGS = {9, 0x10, 0x11, 0x64, 0x90, 0xB6, 0xD5, 0xF3}
 _EXPLICIT_NUMERIC = {(1, 1, 0x00100000), (1, 1, 0x28001800)}
-_GENERATED_X = {(1, 4, 0x20001000), (1, 4, 0x20001002)}
+_GENERATED_X = {(1, 4, 0x20001000), (1, 4, 0x20001002), (1, 4, 0x20001800)}
 _FRACTION_OF_TOTAL_VIEW = (1, 1, 0x00140400)
 _DECIMAL = re.compile(r"[+-]?\d{1,24}(?:\.\d{1,24})?(?:[Ee][+-]?\d{1,3})?")
 
@@ -177,7 +177,7 @@ def _view_kind(records, slot):
     return kinds[0] if len(kinds) == 1 else None
 
 
-def _x_sequence(records, rows, *, source_free=False):
+def _x_sequence(records, rows, *, source_free=False, formatted_curve=False):
     # Sequence records use two single- or double-precision slots for origin and step.
     # The latter has a zero status in this layout even when its step is active.
     contents = _record_once(records, 0x10)
@@ -188,8 +188,7 @@ def _x_sequence(records, rows, *, source_free=False):
     attributes_short = Struct("<6I").pack(1, 16, 4, 2, 0, 0)
     attributes_long = Struct("<12I").pack(2, 16, 16, 2, 0, 1, 0, 0, 0, 0, 0, 0)
     if (precision not in (0, 1) or count != 2 or len(contents) != 6 + 2 * _NUMERIC_CELL[precision].size
-            or _record_once(records, 0x90) != (b"\1\0" if source_free else b"\0\0")
-            or not (attributes == attributes_long or precision == 0 and attributes == attributes_short)):
+            or _record_once(records, 0x90) != (b"\1\0" if source_free else b"\0\0")):
         raise _UnsupportedSheet("Unrecognized saved X sequence")
     title_runs = _record_once(records, 0x64, required=False)
     if title_runs is not None:
@@ -198,14 +197,20 @@ def _x_sequence(records, rows, *, source_free=False):
         if not formatting or title_runs != formatting + b"\0":
             raise _UnsupportedSheet("Unrecognized saved X title formatting")
     (first, first_style, start), (second, second_style, step) = _NUMERIC_CELL[precision].iter_unpack(contents[6:])
-    if ((first, first_style, second, second_style) != (1, 0, 0, 0) or not isfinite(start)
-            or not isfinite(step) or step <= 0 or not isfinite(start + (rows - 1) * step)):
+    standard = ((first, first_style, second, second_style) == (1, 0, 0, 0)
+                and (attributes == attributes_long or precision == 0 and attributes == attributes_short))
+    formatted = (formatted_curve and precision == 1 and first in (1, 5) and first_style == 0
+                 and second == 1 and second_style <= 255
+                 and attributes == Struct("<12I").pack(2, 16, 16, 2, 0, first, 0xFFFFFFFF, 0x7FFFFFFF,
+                                                        0, 1, 0xFFFFFFFF, 0x7FFFFFFF))
+    if (not (standard or formatted) or not isfinite(start) or not isfinite(step)
+            or step <= 0 or not isfinite(start + (rows - 1) * step)):
         raise _UnsupportedSheet("Invalid saved X sequence")
     return [start + index * step for index in range(rows)]
 
 
 def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remaining_cells, fonts,
-                       *, source_free=False):
+                       *, source_free=False, formatted_curve=False):
     if unpack_from("<i", layout)[0] != -1 or len(datasets) > MAX_COLUMNS:
         return None
     x_uid = None
@@ -235,7 +240,7 @@ def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remain
     if len(fields) * height > remaining_cells:
         raise _UnsupportedSheet("Saved curve exceeds the size limit")
     x_records = fields[x_uid][2]
-    columns = [_x_sequence(x_records, height, source_free=source_free)]
+    columns = [_x_sequence(x_records, height, source_free=source_free, formatted_curve=formatted_curve)]
     headers = []
     for position, uid in enumerate((x_uid, *y_uids)):
         _, rows, records = fields[uid]
@@ -363,9 +368,12 @@ def _fraction_source(records, companion, indexed):
     return (source_id,)
 
 
-def restore_binary_results(data, sources, tables, cells, fonts):
+def restore_binary_results(data, sources, tables, cells, fonts, *, dose_curves=None):
     """Add verified snapshots and attach matching native recipes to the original source grids."""
     analyses, sheets, indexed, analysis_ids, companions = _read_groups(data)
+    from .legacy_binary_dose import early_biphasic_inputs, restore_dose_recipes
+
+    early_inputs = early_biphasic_inputs(data, companions, indexed) if companions else {}
     unavailable = set()
     snapshots = {}
     may_have_dose_fits = False
@@ -387,6 +395,8 @@ def restore_binary_results(data, sources, tables, cells, fonts):
             if not 0 <= source_count <= 256 or len(inputs) != 4 + source_count * 4 or len(outputs) != 4 + slots * 4:
                 raise _UnsupportedSheet("Invalid saved-result links")
             source_ids = unpack_from(f"<{source_count}i", inputs, 4)
+            if analysis_id in early_inputs:
+                source_ids = (early_inputs[analysis_id][0],)
             result_ids = {slot: uid for slot, uid in enumerate(unpack_from(f"<{slots}i", outputs, 4)) if uid != -1}
             if (len(set(result_ids.values())) != len(result_ids)
                     or any(not 0 <= uid <= 65535 for uid in result_ids.values())
@@ -419,7 +429,7 @@ def restore_binary_results(data, sources, tables, cells, fonts):
                     frame = _sheet_frame(sheet_id, metadata, datasets, MAX_CELLS - cells, fonts, analysis_id=analysis_id)
                 elif mode == _PLAIN and view_kind in _GENERATED_X:
                     frame = _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout,
-                                               MAX_CELLS - cells, fonts)
+                                               MAX_CELLS - cells, fonts, formatted_curve=analysis_id in early_inputs)
                 else:
                     continue
                 if frame is None:
@@ -460,9 +470,10 @@ def restore_binary_results(data, sources, tables, cells, fonts):
             unavailable.add(analysis_id)
             may_have_dose_fits |= any(tag == 0x46 and len(payload) == 1348
                                       and payload[:4] == b"\x00\x21\x80\x00" for tag, payload in records)
-    if may_have_dose_fits:
-        from .legacy_binary_dose import restore_dose_recipes
-        unavailable.difference_update(restore_dose_recipes(data, sources, sheets, snapshots, unavailable))
+    if may_have_dose_fits or early_inputs:
+        restored = restore_dose_recipes(data, sources, sheets, snapshots, unavailable, curves=dose_curves,
+                                        early_inputs=early_inputs)
+        unavailable.difference_update(restored)
     if tables and (unavailable or unreadable):
         warnings = []
         if unreadable:

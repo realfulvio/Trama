@@ -17,19 +17,20 @@ MENUS = (
               "clear_cells", "|", "exclude", "delete_rows", "language")),
     ("View", ("navigator", "find_sheet", "combined_navigator", "gallery", "previous_sheet", "next_sheet", "|",
               "worksheet_preview", "analysis_graph", "analysis_tables", "inspector", "|",
+              "sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset", "|",
               "theme_system", "theme_light", "theme_dark")),
     ("Insert", ("new_table", "new_info", "insert_row", "insert_column", "formula", "|",
                 "new_graph", "new_layout", "pairwise", "compact_letters", "annotations", "shapes")),
     ("Analyze", ("analyze", "change", "recalculate", "analyze_result", "source_analysis", "change_input",
                  "use_result", "|", "descriptive", "ttest", "anova", "correlation", "correlation_matrix",
                  "linear", "nonlinear", "survival", "contingency", "load_example")),
-    ("Change", ("change", "format_graph", "graph_style_presets", "plot_margins", "edit_layout", "|",
+    ("Change", ("change", "format_graph", "graph_style_presets", "plot_margins", "edit_layout", "category_order", "cell_background", "clear_cell_background", "number_format", "|",
                 "info_properties", "info_up", "info_down", "remove_info")),
     ("Arrange", ("arrange_shapes", "new_layout", "edit_layout")),
     ("Family", ("family_data", "family_info", "family_results", "family_graphs", "family_gallery", "|",
                 "duplicate_family", "save_family")),
     ("Tools", ("power", "simulate", "monte_carlo", "transpose_xy", "plot_function", "|", "search")),
-    ("Settings", ("language", "processes", "recovery_settings")),
+    ("Settings", ("language", "table_font", "processes", "recovery_settings")),
 )
 
 # Group, first row, second row, tall button, and the density at which short captions fit.

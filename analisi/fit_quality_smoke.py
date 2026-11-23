@@ -173,9 +173,8 @@ def _check(root, app, directory, capture, drive, pick, select, wait, messagebox,
         tabs.select(selected)
         tabs.update_idletasks()
         grid = tabs.nametowidget(selected)
-        children = grid.tree.get_children()
-        if children:
-            grid.tree.see(children[-1])
+        if len(grid.cells.frame):
+            grid.cells.reveal((len(grid.cells.frame) - 1, 0))
 
     # 1. Defaults stay off and add no diagnostic sheet or residual panel.
     load("legacy", LEGACY)

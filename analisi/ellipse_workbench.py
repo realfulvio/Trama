@@ -8,6 +8,7 @@ from matplotlib.patches import Polygon
 from scipy.spatial import ConvexHull, QhullError
 
 from . import stats as engine
+from .category_order import preferred_levels, ranks
 from .graph_legend import typed_group_token
 from .presentation import LINE_STYLES, MARKERS
 from .processing import FieldError
@@ -233,7 +234,8 @@ def draw_confidence_overlays(axes, frame, options, point_colors, *, allow_unavai
     if group:
         complete_groups = dict(iter(data.groupby(group, sort=False, observed=True)))
         empty = data.iloc[:0]
-        groups = [(label, complete_groups.get(label, empty)) for label in frame[group].dropna().unique()]
+        levels = preferred_levels(frame[group].dropna().unique(), ranks(frame, group))
+        groups = [(label, complete_groups.get(label, empty)) for label in levels]
     palette = rcParams["axes.prop_cycle"].by_key().get("color") or [DEFAULT_COLOR]
     separate_legend = grouping == SEPARATE_GROUP and group != point_group
     palette_offset = len(point_colors) if separate_legend else 0

@@ -258,8 +258,8 @@ def check_rm_two_way_sphericity(root, app, directory, kit):
     def displayed(grid, column):
         """Text shown in one column of a result sheet, by row label."""
         position = list(grid.frame.columns).index(column)
-        return {grid.tree.item(item, "text"): grid.tree.item(item, "values")[position]
-                for item in grid.tree.get_children()}
+        return {grid.cells.cell_text(row, 0): grid.cells.cell_text(row, position + 1)
+                for row in range(len(grid.cells.frame))}
 
     def check_two_way(run, *, corrected):
         """SS, F, error strata, epsilon and p of the run against plain numpy sums and the frozen epsilons."""
@@ -479,10 +479,10 @@ def check_rm_two_way_sphericity(root, app, directory, kit):
         np.testing.assert_allclose(reopened.result.tables[SHEET]["GG ε"].to_numpy(), first_epsilon, rtol=1e-12)
         grid = result_grid(index, "ANOVA")
         capture(root, f"window-rm-sphericity-reopened-{start}.png")
-        grid.tree.xview_moveto(1)       # the corrected degrees of freedom sit to the right of F at 1024 × 768
+        grid.cells.canvas.xview_moveto(1)       # the corrected degrees of freedom sit to the right of F at 1024 × 768
         root.update()
         capture(root, f"window-rm-sphericity-reopened-df-{start}.png")
-        grid.tree.xview_moveto(0)
+        grid.cells.canvas.xview_moveto(0)
 
         # --- Use Result as Data copies the Sphericity sheet, equal to its CSV.
         result_grid(index, SHEET)
