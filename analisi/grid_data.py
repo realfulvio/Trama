@@ -12,6 +12,7 @@ import pandas as pd
 
 from .data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, EDITABLE_LEGACY_XY,
                    MAX_CELLS, MAX_COLUMNS, MAX_ENTRY, _table, decimal_comma)
+from .variable_types import VARIABLE_TYPES
 
 
 def clipboard_rows(text, *, max_columns=MAX_COLUMNS, transpose=False):
@@ -155,7 +156,7 @@ def paste_block(dataset, top, left, rows):
         series = candidate[name].copy()
         try:
             if pd.api.types.is_numeric_dtype(series) and not pd.api.types.is_bool_dtype(series):
-                if series.notna().any():
+                if series.notna().any() or raw.attrs.get(VARIABLE_TYPES, {}).get(name) == "numeric":
                     if not hasattr(series.dtype, "numpy_dtype"):
                         series = series.astype("Float64") if pd.api.types.is_float_dtype(series) else series.convert_dtypes()
                     series, parsed = _numeric_values(series, values)

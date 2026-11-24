@@ -20,14 +20,15 @@ from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCanc
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
 from analisi.linked_axes import linked_axes_status
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, MAX_ENTRY, Dataset,
-                          info_references, load_tables, load_workspace, project_document, save_project)
+                          formula_column_references, info_references, load_tables, load_workspace, project_document, save_project)
 from analisi.ecdf_graph import METHOD as ECDF_GRAPH, style_after_parameter_change as ecdf_style
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.interaction_plot import METHOD as INTERACTION_PLOT, style_after_parameter_change as interaction_style
 from analisi.raincloud_plot import METHOD as RAINCLOUD_PLOT, style_after_parameter_change as raincloud_style
 from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
-from analisi.category_order import keep_source_columns
+from analisi.category_order import WORKSHEET_ORDERS, keep_source_columns
+from analisi.variable_types import TYPES, VARIABLE_TYPES, convert_type
 from analisi.i18n import tr, ui
 from analisi.info import info_contexts, validate_info_sheets
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY
@@ -216,7 +217,9 @@ def result_as_table(frame):
         else:
             frame = frame.set_axis(pd.Index([str(value) if isinstance(value, tuple) else value for value in labels],
                                             name=names[0], tupleize_cols=False)).reset_index()
-    return frame.rename(columns=str)
+    result = frame.rename(columns=str)
+    result.attrs.pop(VARIABLE_TYPES, None)
+    return result
 
 
 @dataclass
@@ -1259,6 +1262,73 @@ class Project(WorksheetJoinSources):
                 dataset.number_formats = {name_ if key == previous else key: spec
                                           for key, spec in dataset.number_formats.items()}
         return self.edit(title, "Rename column", change)
+
+    def change_variables(self, title, changes):
+        """Apply source names and explicit variable types as a single worksheet edit."""
+        dataset = self.editable(title)
+        if dataset.table_format != "multivariable":
+            raise ValueError(tr("variables.error.worksheet"))
+        raw = dataset.raw
+        current = raw.attrs.get(VARIABLE_TYPES, {})
+        changes = {name: (label if label == name else label.strip(), kind)
+                   for name, (label, kind) in changes.items()}
+        if any(name not in raw or kind not in (*TYPES, "auto") for name, (_, kind) in changes.items()):
+            raise ValueError(tr("variables.error.worksheet"))
+        names = {name: changes.get(name, (name, None))[0] for name in raw}
+        if (any(not label or len(label) > 160 for name, label in names.items() if label != name)
+                or len(set(names.values()) | dataset.formulas.keys()) != len(names) + len(dataset.formulas)):
+            raise ValueError(tr("variables.error.names"))
+        rename = {name: label for name, label in names.items() if label != name}
+        kinds = {name: kind for name, (_, kind) in changes.items() if kind != current.get(name, "auto")}
+        if not (rename or kinds):
+            return None
+
+        def uses_name(value, name):
+            if isinstance(value, str):
+                return value == name
+            if isinstance(value, dict):
+                return name in value or any(uses_name(item, name) for item in value.values())
+            if isinstance(value, (tuple, list)):
+                return any(uses_name(item, name) for item in value)
+            return False
+
+        if rename:
+            referenced = set().union(*(formula_column_references(expr) for expr in dataset.formulas.values()))
+            readers = self.readers([title])
+            for name in rename:
+                if name in referenced or any(uses_name(run.options, name) for run in readers):
+                    raise ValueError(tr("variables.error.reference", name=name))
+
+        def change(candidate):
+            frame = raw.rename(columns=rename)
+            keep_source_columns(frame, rename)
+            if rename and (roles := raw.attrs.get("worksheet_roles")) is not None:
+                frame.attrs["worksheet_roles"] = {"x": [names[name] for name in roles["x"]],
+                                                   "y": [[names[name] for name in group] for group in roles["y"]]}
+            types = dict(frame.attrs.get(VARIABLE_TYPES, {}))
+            orders = dict(frame.attrs.get(WORKSHEET_ORDERS, {}))
+            for source, kind in kinds.items():
+                name = names[source]
+                frame[name] = convert_type(raw[source], kind)
+                if kind == "auto":
+                    types.pop(name, None)
+                else:
+                    types[name] = kind
+                if frame[name].dtype != raw[source].dtype:
+                    orders.pop(name, None)
+            for key, values in ((VARIABLE_TYPES, types), (WORKSHEET_ORDERS, orders)):
+                if values:
+                    frame.attrs[key] = values
+                else:
+                    frame.attrs.pop(key, None)
+            candidate.raw = frame
+            if candidate.column_order is not None:
+                candidate.column_order = tuple(names.get(name, name) for name in candidate.column_order)
+            candidate.cell_backgrounds = {(row, names.get(name, name)): color
+                                          for (row, name), color in candidate.cell_backgrounds.items()}
+            candidate.number_formats = {names.get(name, name): spec for name, spec in candidate.number_formats.items()}
+
+        return self.edit(title, tr("variables.title"), change)
 
     def set_formula(self, title, name, expression):
         """Add a calculated column, or change the expression of an existing one."""

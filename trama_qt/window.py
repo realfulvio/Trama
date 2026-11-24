@@ -451,6 +451,9 @@ class MainWindow(QMainWindow):
         a("new_table", tr("command.new_table"), self.choose_table, icon="table", shortcut="Ctrl+N")
         self.actions["new_table"].setShortcuts([QKeySequence("Ctrl+N"), QKeySequence("Ctrl+T")])
         a("category_order", tr("command.category_order"), self.edit_category_order, icon="arrow-up-down")
+        a("variable_properties", tr("command.variable_properties"), self.edit_variable_properties,
+          icon="sliders-horizontal")
+        a("delete_columns", qt("qt.delete_columns"), self.delete_columns, icon="trash-2")
         a("new_info", tr("command.new_info"), self.new_info, icon="info")
         a("info_properties", tr("command.info_properties"), self.info_properties, icon="sliders-horizontal")
         from .info_editor import t as info_text
@@ -761,6 +764,8 @@ class MainWindow(QMainWindow):
     def _workspace_clipboard(self, operation):
         if self.selected and self.selected[0] == "graph":
             self.drawing.clipboard_action(operation)
+        elif operation == "copy" and self.result_tabs is not None:
+            self.result_tabs.currentWidget().copy()
         else:
             self._sheet_call(operation)
 
@@ -827,15 +832,17 @@ class MainWindow(QMainWindow):
         self.actions["next_sheet"].setEnabled(idle and self._sheet_history_target(1) is not None)
         self.actions["combined_navigator"].setChecked(self.sessions.active.combined_navigator)
         for key in ("cut", "paste_special", "paste_transpose", "clear_cells", "insert_row",
-                    "insert_column", "delete_rows", "exclude", "formula", "category_order"):
+                    "insert_column", "delete_rows", "delete_columns", "exclude", "formula", "category_order"):
             self.actions[key].setEnabled(editable and idle)
+        self.actions["variable_properties"].setEnabled(
+            editable and idle and self.project.tables[self.selected[1]].table_format == "multivariable")
         has_table = (data and self.sheet is not None) or (kind == "result" and self.result_tabs is not None)
         for key in ("sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset"):
             self.actions[key].setEnabled(has_table)
         for key in ("cell_background", "clear_cell_background", "number_format"):
             self.actions[key].setEnabled(has_table and idle)
         graph_clipboard = kind == "graph" and self.drawing.problem() is None
-        self.actions["copy"].setEnabled(data or graph_clipboard)
+        self.actions["copy"].setEnabled(has_table or graph_clipboard)
         self.actions["paste"].setEnabled((editable and idle) or graph_clipboard)
         for key in ("duplicate_family", "save_family", "family_data", "family_info", "family_results",
                     "family_graphs", "family_gallery"):
@@ -1641,7 +1648,6 @@ class MainWindow(QMainWindow):
                 fit.setCheckable(True)
                 fit.toggled.connect(preview.set_fit_page)
             tools.addAction(self.actions["plot_margins"])
-            tools.addAction(self.actions["export"])
             page.add(tools, 0)
         if run is not None:
             self.drawing.attach(page, canvas, tools if toolbar else None, run)
@@ -1945,6 +1951,25 @@ class MainWindow(QMainWindow):
         columns = list(range(left, right + 1))
         if columns:
             self._apply_edit(title, lambda: self.project.delete_columns(title, columns))
+
+    def edit_variable_properties(self, column=None):
+        from .variables import VariablesDialog
+
+        if not self.prepare_project_change(self.edit_variable_properties):
+            return
+        title = self._active_table()
+        if title is None or not self.actions["variable_properties"].isEnabled():
+            return
+        if column is None:
+            column = self.sheet.currentIndex().column() if self.sheet is not None else -1
+        project = self.project
+        dialog = VariablesDialog(self, project.tables[title],
+                                 lambda changes: project.change_variables(title, changes), column=column)
+        try:
+            if dialog.exec() == VariablesDialog.DialogCode.Accepted:
+                self._apply_edit(title, lambda: dialog.affected)
+        finally:
+            dialog.deleteLater()
 
     def edit_category_order(self):
         from analisi.category_order import OrderDraft, set_order
@@ -2879,7 +2904,7 @@ class MainWindow(QMainWindow):
 
     def duplicate_family(self):
         from analisi.family_workflow import duplicate_family
-        from .family import FamilyDialog, family_describer, family_error_text
+        from .family import FamilyDialog, family_blank_choices, family_describer, family_error_text
         selected = self._family_start()
         if selected is None:
             return
@@ -2896,21 +2921,27 @@ class MainWindow(QMainWindow):
         if error is not None and error.field != "name":
             self.error(family_error_text(error))
             return
-        dialog = FamilyDialog(self, "duplicate", kind, describe, initial=initial)
+        dialog = FamilyDialog(self, "duplicate", kind, describe, initial=initial,
+                              blank_choices=family_blank_choices(self.project, selected))
         if dialog.exec() != FamilyDialog.DialogCode.Accepted or dialog.result is None:
             return
         name, include = dialog.result
+        blanks = dialog.blanks()
         project, control = self.project, CalculationControl()
         tables, layouts, infos = project.tables, project.layouts, tuple(project.info_sheets.values())
 
         def finish(bundle):
             focus = project.apply_family(bundle)
+            if focus[0] != "data":
+                cleared = next((title for title in bundle.plan.tables if blanks.columns(tables[title])), None)
+                if cleared is not None:
+                    focus = ("data", bundle.table_names[cleared])
             self.open_sheet(focus)
             self.status(tr("family.duplicated", tables=len(bundle.tables), analyses=bundle.analysis_count,
                            layouts=len(bundle.layouts), infos=len(bundle.infos)))
 
         self._family_job(lambda: duplicate_family(tables, layouts, infos, selected, name=name, include_layouts=include,
-                                                  cancel=control.cancel),
+                                                  cancel=control.cancel, blanks=blanks),
                          control, running=tr("family.copying"), cancelled=tr("family.cancelled"),
                          failed="family.failed", finish=finish, discard_when_cancelled=True)
 

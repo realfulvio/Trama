@@ -69,16 +69,18 @@ def set_order(dataset, name, tokens):
 
 def keep_source_columns(frame, rename=None):
     """Carry preferences only for source columns that survived an edit."""
-    stored = frame.attrs.get(WORKSHEET_ORDERS)
-    if not stored:
-        return
+    from .variable_types import VARIABLE_TYPES
+
     rename = rename or {}
-    kept = {rename.get(name, name): order for name, order in stored.items()
-            if rename.get(name, name) in frame.columns}
-    if kept:
-        frame.attrs[WORKSHEET_ORDERS] = kept
-    else:
-        frame.attrs.pop(WORKSHEET_ORDERS, None)
+    for key in (WORKSHEET_ORDERS, VARIABLE_TYPES):
+        stored = frame.attrs.get(key)
+        if stored:
+            kept = {rename.get(name, name): value for name, value in stored.items()
+                    if rename.get(name, name) in frame.columns}
+            if kept:
+                frame.attrs[key] = kept
+            else:
+                frame.attrs.pop(key, None)
 
 
 class OrderDraft:
