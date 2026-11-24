@@ -1,0 +1,16 @@
+Dose,Group,Response
+Low,Control $,2
+Low,Control $,4
+Low,Control $,6
+Low,Treatment,6
+Low,Treatment,10
+Mid,Control $,5
+Mid,Control $,7
+Mid,Treatment,
+High,Control $,9
+High,Treatment,12
+High,Treatment,12
+Low,Control $,inf
+High,Treatment,bad
+,Control $,32
+High,,40
