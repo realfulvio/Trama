@@ -29,7 +29,7 @@ from analisi.replicate_fit import MERGE_REPLICATES, replicate_groups
 from analisi.hierarchical_gap import GAP_DATA, GAP_OPTIONS, GAP_PLOT
 from analisi.hierarchical_workbench import (HIERARCHICAL_TABS, HIERARCHY_GRAPH, check_hierarchical_options,
                                            check_hierarchy_view, saved_hierarchical_options)
-from analisi import kmeans_options, kmeans_reports, mean_permutation
+from analisi import kmeans_options, kmeans_reports, mean_permutation, yuen
 from analisi import mean_permutation_options as permutation_text
 from analisi import nonlinear_calibration as calibration
 from analisi import ordinal_logit as ordinal
@@ -359,6 +359,7 @@ class AnalysisDialog(QDialog):
         rmst_method = self.method == rmst.METHOD
         kappa_method = self.method == kappa.METHOD
         permutation_method = self.method == mean_permutation.METHOD
+        yuen_method = self.method == yuen.METHOD
         page_specs = (("variables", ui("Design")), ("options", ui("Effect")), ("curve", ui("Curve"))) if power_method else (
             ("variables", qt("qt.variables")), *global_fit.pages(self.method),
             *global_catalog.pages(self.method), *select_editor.pages(self.method),
@@ -390,6 +391,9 @@ class AnalysisDialog(QDialog):
         if permutation_method:
             page_specs = (("variables", tr(mean_permutation.TAB_KEYS["Data"])),
                           ("options", tr(mean_permutation.TAB_KEYS["Test"])))
+        if yuen_method:
+            page_specs = (("variables", tr(yuen.TAB_KEYS["Data"])),
+                          ("options", tr(yuen.TAB_KEYS["Test"])))
         for key, name in page_specs:
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
@@ -428,6 +432,8 @@ class AnalysisDialog(QDialog):
             labels, captions = kappa_form.LABEL_KEYS, kappa_form.CHOICE_KEYS
         if permutation_method:
             labels, captions = mean_permutation.LABEL_KEYS, mean_permutation.CHOICE_KEYS
+        if yuen_method:
+            labels, captions = yuen.LABEL_KEYS, yuen.CHOICE_KEYS
         if self.method == "t-test":
             labels, captions = ttest_options.LABEL_KEYS, ttest_options.CHOICE_KEYS
         if lognormal_method:
@@ -480,6 +486,8 @@ class AnalysisDialog(QDialog):
                 variable = label in kappa_form.RATING_FIELDS
             if permutation_method:
                 variable = label in mean_permutation.DATA_FIELDS
+            if yuen_method:
+                variable = label in yuen.DATA_FIELDS
             if self.method == "t-test" and label in ("Design", ttest_options.INPUT):
                 variable = True
             form = (power_forms.get(label) or pages.get(global_fit.page_of(self.method, label))
@@ -557,6 +565,8 @@ class AnalysisDialog(QDialog):
                 text = "" if value is None else str(value)
                 if rmst_method and label in rmst_form.NUMBER_FIELDS and type(value) in (int, float):
                     text = rmst_dialog.shown_number(value)
+                if yuen_method and label in yuen.NUMBER_FIELDS and type(value) in (int, float) and not isinstance(value, bool):
+                    text = yuen.shown_number(value)
                 widget = QLineEdit(text)
             elif kind == plot_function.CURVE_LIST:
                 model = self.controls[plot_function.MODEL][1]
@@ -604,7 +614,7 @@ class AnalysisDialog(QDialog):
                                          (ordinal_method and label == ordinal.RESPONSE)) and categorical:
                         default = categorical[category_position % len(categorical)]
                         category_position += 1
-                    elif self.method == "t-test" and label in (ttest_options.FIRST, ttest_options.SECOND) and numeric:
+                    elif self.method in ("t-test", yuen.METHOD) and label in (ttest_options.FIRST, ttest_options.SECOND) and numeric:
                         default = numeric[min(int(label == ttest_options.SECOND), len(numeric) - 1)]
                     elif kind is None and numeric:
                         default = numeric[numeric_position % len(numeric)]
@@ -700,6 +710,19 @@ class AnalysisDialog(QDialog):
             design.currentIndexChanged.connect(show_ttest_fields)
             layout.currentIndexChanged.connect(show_ttest_fields)
             show_ttest_fields()
+        if yuen_method:
+            note = QLabel(tr("yuen.note"))
+            note.setWordWrap(True)
+            options.addRow(note)
+            sample_format = self.controls[yuen.INPUT][1]
+
+            def show_yuen_fields():
+                self._set_field_visibility(yuen.visibility(sample_format.currentData()))
+                if self.error_field in self.hidden:
+                    self.clear_field_error(self.error_field)
+
+            sample_format.currentIndexChanged.connect(show_yuen_fields)
+            show_yuen_fields()
         if lognormal_method:
             for name in (lognormal_tests.DESIGN, lognormal_tests.INPUT, *lognormal_tests.GROUP_FIELDS):
                 self.controls[name][1].currentIndexChanged.connect(self._show_lognormal_fields)
@@ -1043,6 +1066,10 @@ class AnalysisDialog(QDialog):
                 self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            if self.method == yuen.METHOD:
+                if options.get(yuen.INPUT) == yuen.GROUPED and yuen.GROUP_ORDER in self._saved():
+                    options[yuen.GROUP_ORDER] = self._saved()[yuen.GROUP_ORDER]
+                yuen.check_options(self.data, options)
             if self.method == "Interpolate a standard curve":
                 calibration.check_calibration_options(self.data, options)
             if self.method == XY_METHOD:
@@ -1163,6 +1190,8 @@ class AnalysisDialog(QDialog):
             return kappa_text.describe_error(error, field)
         if self.method == mean_permutation.METHOD:
             return permutation_text.describe_error(error, field)
+        if self.method == yuen.METHOD:
+            return yuen.describe_error(error, field)
         if self.method == XY_METHOD:
             return translate_message(error, "xy.error.")
         return str(error)

@@ -5738,3 +5738,12 @@ from .linked_axes_text import EN as _LINKED_EN, IT as _LINKED_IT  # noqa: E402
 
 _EN.update(_LINKED_EN)
 _IT.update(_LINKED_IT)
+
+# Yuen's trimmed-mean test (analisi.yuen): captions, the dialog note and the exact engine messages.
+from .yuen_text import EN as _YUEN_EN, IT as _YUEN_IT  # noqa: E402
+
+_EN.update(_YUEN_EN)
+_IT.update(_YUEN_IT)
+for _key, _text in _YUEN_EN.items():
+    if _key == "yuen.method" or _key.startswith(("yuen.field.", "yuen.tab.")):
+        KEY_BY_LABEL.setdefault(_text, _key)

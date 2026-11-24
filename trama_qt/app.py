@@ -79,6 +79,9 @@ def main(argv=None):
         elif only == "qt-pade-calibration":
             from .pade_calibration_smoke import PadeSmoke
             status = "PASS" if PadeSmoke(folder).run() == 0 else "FAIL"
+        elif only == "qt-yuen-trimmed-means":
+            from .yuen_smoke import YuenSmoke
+            status = "PASS" if YuenSmoke(folder).run() == 0 else "FAIL"
         elif only == "qt-linked-axes":
             from .linked_axes_smoke import run
             status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
