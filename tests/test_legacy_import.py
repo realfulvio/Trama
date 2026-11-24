@@ -25,6 +25,10 @@ def write_archive(path, table, sets, text, dimensions=None):
                 {"numberOfRows": rows, "numberOfColumns": cols, "version": 1}))
 
 
+def xml_document(contents):
+    return '<GraphPadPrismFile xmlns="http://graphpad.com/prism/Prism.htm">' + contents + '</GraphPadPrismFile>'
+
+
 class LegacyImportTests(unittest.TestCase):
     def setUp(self):
         workspace = TemporaryDirectory()
@@ -39,6 +43,33 @@ class LegacyImportTests(unittest.TestCase):
         frame = load_tables(source)["Experiment"]
         self.assertEqual(list(frame), ["Time", "Time [Error]", "Signal [Mean]", "Signal [SD]", "Signal [N]"])
         self.assertEqual(frame.iloc[0].tolist(), [1, .1, 3, .5, 4])
+
+    def test_xml_multiple_variables_preserves_declared_types_on_round_trip(self):
+        source = self.path / "variables.pzfx"
+        source.write_text(xml_document(
+            '<Table ID="T" TableType="OneWay" ExtTableType="MultipleVariables" XFormat="none">'
+            '<Title>Measures</Title>'
+            '<YColumn MVType="Manual|Continues"><Title>Distance</Title>'
+            '<Subcolumn><d>1.5</d><d>2</d></Subcolumn></YColumn>'
+            '<YColumn MVType="Manual|Categorical"><Title>Batch</Title>'
+            '<Subcolumn><d>001</d><d>002</d></Subcolumn></YColumn>'
+            '<YColumn MVType="Auto|Continues"><Title>Count</Title>'
+            '<Subcolumn><d>10</d><d>20</d></Subcolumn></YColumn></Table>'), encoding="utf-8")
+        data = Dataset(load_tables(source)["Measures"])
+        self.assertEqual(data.table_format, "multivariable")
+        self.assertEqual(data.raw["Batch"].tolist(), ["001", "002"])
+        self.assertEqual(data.raw["Distance"].tolist(), [1.5, 2.0])
+        self.assertEqual(data.raw.attrs["variable_types"], {"Distance": "numeric", "Batch": "categorical"})
+
+        native = self.path / "roundtrip.alab"
+        save_project(native, {"Measures": data})
+        saved = json.loads(native.read_text(encoding="utf-8"))
+        saved["tables"][0]["table_format"] = "MultipleVariables"
+        native.write_text(json.dumps(saved), encoding="utf-8")
+        reopened = load_project(native)["Measures"]
+        self.assertEqual(reopened.table_format, "multivariable")
+        self.assertEqual(reopened.raw.attrs["variable_types"], data.raw.attrs["variable_types"])
+        self.assertEqual(reopened.raw["Batch"].tolist(), ["001", "002"])
 
     def test_native_recipe_recalculates_and_survives_saving_with_forward_references(self):
         source = self.path / "formulas.prism"
@@ -178,6 +209,7 @@ class LegacyImportTests(unittest.TestCase):
                       ",Dose,999,999,999,999,999,999\n", (3, 8))
         data = Dataset(load_tables(source)["Experiment"])
         self.assertEqual(list(data.formulas), list(formulas))
+        self.assertEqual(data.raw.attrs["variable_types"], {"Signal": "numeric", "Label": "categorical"})
         np.testing.assert_allclose(data.frame().loc[:, list(formulas)],
                                    [[3, np.sqrt(2), 1, 2, 2, 4]] * 3)
         data.raw.loc[0, "Signal"] = 6.
@@ -185,6 +217,7 @@ class LegacyImportTests(unittest.TestCase):
         save_project(native, {"Experiment": data})
         reopened = load_project(native)["Experiment"]
         self.assertEqual(reopened.formulas, data.formulas)
+        self.assertEqual(reopened.raw.attrs["variable_types"], data.raw.attrs["variable_types"])
         np.testing.assert_allclose(reopened.frame().loc[:, list(formulas)],
                                    [[5, np.sqrt(2), 1, 2, 2, 6]] * 3)
 
@@ -299,13 +332,13 @@ class LegacyImportTests(unittest.TestCase):
         source = self.path / "example.xml"
         source.write_text(
             '<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform">'
-            '<GraphPadPrismFile xmlns="http://graphpad.com/prism/Prism.htm"><TableSequence><Ref ID="B"/>'
+            + xml_document('<TableSequence><Ref ID="B"/>'
             '<Ref ID="A"/></TableSequence><Table ID="A"><YColumn><Subcolumn><d>8</d></Subcolumn></YColumn></Table>'
             '<Table ID="B" XFormat="date" YFormat="upper-lower-limits" TableType="XY"><Title>Dates</Title>'
             '<XColumn><Subcolumn><d>12</d></Subcolumn></XColumn><XAdvancedColumn><Subcolumn>'
             '<d>2-Jan-2022</d></Subcolumn></XAdvancedColumn><YColumn><Title>Signal</Title>'
             '<Subcolumn><d Excluded="1">5</d></Subcolumn><Subcolumn><d>7</d></Subcolumn>'
-            '<Subcolumn><d>2</d></Subcolumn></YColumn></Table></GraphPadPrismFile>'
+            '<Subcolumn><d>2</d></Subcolumn></YColumn></Table>') +
             '<xsl:template match="/"><xsl:value-of select="document(\'file:///no-read\')"/></xsl:template>'
             '</xsl:stylesheet>', encoding="utf-8")
         tables = load_tables(source)

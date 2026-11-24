@@ -651,7 +651,12 @@ def _batch_figure_styles_scenario(smoke, window):
     check_batch_styles(smoke, window)
 
 
-SCENARIOS = {"qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
+def _worksheet_properties_scenario(smoke, window):
+    from .worksheet_properties_smoke import run as worksheet_properties
+    worksheet_properties(smoke, window)
+
+
+SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
              "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
              "qt-batch-figure-styles": _batch_figure_styles_scenario}
 

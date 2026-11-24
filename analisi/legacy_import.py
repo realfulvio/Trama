@@ -10,6 +10,7 @@ from xml.etree import ElementTree as ET
 from zipfile import BadZipFile, ZipFile, is_zipfile
 
 import numpy as np
+from pandas.api.types import is_numeric_dtype
 
 from .category_order import WORKSHEET_ORDERS
 from .data import (COLUMN_FORMULA_FUNCTIONS, ELEMENTWISE_FORMULA_FUNCTIONS, MAX_CELLS, MAX_COLUMNS, MAX_ENTRY,
@@ -17,6 +18,8 @@ from .data import (COLUMN_FORMULA_FUNCTIONS, ELEMENTWISE_FORMULA_FUNCTIONS, MAX_
 from .formula_windows import CONDITIONAL_CALLS, WINDOW_CALLS, WINDOW_CLAUSES, WINDOW_KEYWORDS
 from .graph_legend import MAX_LEGEND_KEY_LENGTH, typed_group_token
 from .info import InfoSheet, MAX_INFO_FIELDS, MAX_INFO_SHEETS
+from .legacy_project_metadata import saved_table_format
+from .variable_types import VARIABLE_TYPES
 
 _LEGACY_NS = "{http://graphpad.com/prism/Prism.htm}"
 _XSLT_NS = "{http://www.w3.org/1999/XSL/Transform}"
@@ -166,6 +169,22 @@ def _category_order(metadata):
     return labels if len(set(labels)) == len(labels) and all(labels) else ()
 
 
+_VARIABLE_KINDS = {"continuous": "numeric", "continues": "numeric", "numeric": "numeric",
+                   "categorical": "categorical", "text": "text", "label": "text"}
+
+
+def _with_variable_types(frame, declared):
+    """Retain recognized source types only when the imported values match them."""
+    types = {}
+    for position, source in declared.items():
+        name = frame.columns[position]
+        kind = _VARIABLE_KINDS.get(source) if isinstance(source, str) else None
+        if kind is not None and (kind == "numeric") == is_numeric_dtype(frame[name]):
+            types[name] = kind
+    if types:
+        frame.attrs[VARIABLE_TYPES] = types
+
+
 def _zip_table(archive, names, table, remaining_cells, *, result=False):
     fmt = table.get("format")
     mode = table.get("dataFormat")
@@ -271,6 +290,7 @@ def _zip_table(archive, names, table, remaining_cells, *, result=False):
         raise ValueError("Legacy CSV row count differs from its table metadata.")
     frame = _table(headers, rows, kinds)
     frame.attrs["table_format"] = fmt
+    _with_variable_types(frame, {index: kinds[index] for index in variables})
     frame.attrs["legacy_columns"] = {uid: list(frame.columns[region]) for uid, region in slices.items()}
     frame.attrs["legacy_x"] = table.get("xDataSet")
     frame.attrs["legacy_y"] = ids
@@ -433,7 +453,7 @@ def _xml_column(table, column, ns, role, fallback):
         labels = ("Value", "Error")
     if labels is not None and len(subs) != len(labels):
         raise ValueError(f"{title}: summary subcolumns do not match the declared format.")
-    mv_type = column.get("MVType", "").split("|")[-1].lower()
+    mv_type = column.get("MVType", "").rpartition("|")[2].lower()
     text = (role in {"RowTitlesColumn", "XAdvancedColumn"} or mv_type in {"label", "categorical", "text"}
             or (role == "YColumn" and yformat == "text") or (role == "XColumn" and xformat == "text"))
     result = []
@@ -449,7 +469,8 @@ def _xml_column(table, column, ns, role, fallback):
             values.append(_xml_text(cell))
             if cell.get("Excluded", "").lower() in {"1", "true", "yes"}:
                 excluded.append(index)
-        result.append((name, "text" if text else None, values, excluded))
+        kind = "text" if text else _VARIABLE_KINDS.get(mv_type)
+        result.append((name, kind, values, excluded))
     return result
 
 
@@ -497,7 +518,8 @@ def _legacy_xml(path, info_sheets=None, *, restore=False):
         if table.get("TableType") == "Result":
             continue
         columns, x_spans, y_spans = [], [], []
-        table_format = table.get("ExtTableType") or table.get("TableType", "column")
+        declared = {}
+        table_format = saved_table_format(table.get("ExtTableType") or table.get("TableType", "column"))
         xformat = table.get("XFormat")
         for column in table:
             role = column.tag.removeprefix(ns)
@@ -511,6 +533,10 @@ def _legacy_xml(path, info_sheets=None, *, restore=False):
                 continue
             start = len(columns)
             columns.extend(_xml_column(table, column, ns, role, fallback))
+            if table_format == "multivariable" and role == "YColumn" and len(columns) == start + 1:
+                mode, _, kind = column.get("MVType", "").partition("|")
+                if mode.casefold() == "manual":
+                    declared[start] = kind.lower()
             if role == "XColumn" and len(columns) > start:
                 x_spans.append((start, len(columns)))
             if role == "YColumn" and len(columns) > start:
@@ -525,6 +551,7 @@ def _legacy_xml(path, info_sheets=None, *, restore=False):
         frame = _table(names, [list(row) for row in zip_longest(*values)], kinds, decimal_mark=",")
         frame.attrs["excluded"] = sorted((row, col) for col, rows in enumerate(excluded) for row in rows)
         frame.attrs["table_format"] = table_format
+        _with_variable_types(frame, declared)
         if table_format.casefold() == "nested":
             frame.attrs["worksheet_roles"] = {"x": [], "y": [frame.columns[a:b].tolist() for a, b, _ in y_spans]}
         _store_table(tables, title, frame)

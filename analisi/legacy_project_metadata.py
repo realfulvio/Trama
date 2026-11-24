@@ -91,6 +91,12 @@ def saved_name(value):
     return _RETIRED_NAMES.get(sha256(value.encode()).hexdigest(), value)
 
 
+def saved_table_format(value):
+    """Normalize the earlier XML name used by multiple-variables worksheets."""
+    name = saved_name(value)
+    return "multivariable" if name.casefold() == "multiplevariables" else name
+
+
 def saved_analysis(method, options):
     translated = {}
     for key, value in options.items():

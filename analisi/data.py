@@ -32,7 +32,7 @@ from .grid_headings import column_label
 from .worksheet_appearance import background_records, paint_cells, read_backgrounds
 from .worksheet_number_format import (assign_formats, column_records, position_records, read_column_formats,
                                       read_position_formats)
-from .legacy_project_metadata import LEGACY_METADATA_VERSION, saved_analysis, saved_name, uses_import_metadata
+from .legacy_project_metadata import LEGACY_METADATA_VERSION, saved_analysis, saved_table_format, uses_import_metadata
 
 MAX_ENTRY = 32 * 1024 * 1024
 MAX_CELLS = 2_000_000
@@ -766,7 +766,7 @@ class Dataset:
 
     def __post_init__(self):
         self.excluded.update(tuple(value) for value in self.raw.attrs.get("excluded", []))
-        self.table_format = self.raw.attrs.get("table_format", self.table_format)
+        self.table_format = saved_table_format(self.raw.attrs.get("table_format", self.table_format))
         if not self.analyses:
             self.analyses = list(self.raw.attrs.get("legacy_recipes", []))
             if self.analyses and not self.graph_styles:
@@ -1137,7 +1137,7 @@ def load_workspace(path, *, include_info=False):
         table_format = table.get("table_format", "multivariable")
         if not isinstance(table_format, str):
             raise ValueError("Invalid saved table format.")
-        data.table_format = saved_name(table_format)
+        data.table_format = saved_table_format(table_format)
         if VARIABLE_TYPES in table:
             data.raw.attrs[VARIABLE_TYPES] = validated_types(table[VARIABLE_TYPES], data.raw.columns)
         if "worksheet_roles" in table:
