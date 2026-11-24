@@ -56,6 +56,7 @@ from . import bland_altman_repeated as repeated_agreement
 from . import rm_sphericity_dialog as sphericity_options
 from . import icc as icc_binding
 from . import precision_recall as precision_options
+from . import pareto_plot as pareto_binding
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
 from . import standard_curve as calibration_options
@@ -190,6 +191,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = None  # Repeated measures ANOVA sphericity correction (trama_qt.rm_sphericity_dialog)
         self.icc = None  # Intraclass correlation (trama_qt.icc)
         self.precision = None  # Precision–recall curve (trama_qt.precision_recall)
+        self.pareto = None  # Pareto plot (trama_qt.pareto_plot)
         self.calibration = None  # Standard-curve calibration (trama_qt.standard_curve)
         self.reshape = None  # Reshape long and wide editor (trama_qt.reshape_long_wide)
         method = current[0] if current and current[0] in METHODS else None
@@ -262,6 +264,8 @@ class AnalysisDialog(QDialog):
             self.banner.setText(self.icc.message(error))
         if error and self.precision is not None:
             self.banner.setText(self.precision.message(error))
+        if error and self.pareto is not None:
+            self.banner.setText(self.pareto.message(error))
         if error and self.calibration is not None:
             self.banner.setText(self.calibration.message(error))
         if error_field:
@@ -348,6 +352,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = None
         self.icc = None
         self.precision = None
+        self.pareto = None
         self.calibration = None
         self.reshape = None
         self.join = None
@@ -722,6 +727,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = sphericity_options.attach(self)
         self.icc = icc_binding.attach(self, saved)
         self.precision = precision_options.attach(self)
+        self.pareto = pareto_binding.attach(self, saved)
         self.calibration = calibration_options.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
         select_editor.attach(self, pages, saved)
@@ -1011,6 +1017,8 @@ class AnalysisDialog(QDialog):
                 options[ellipse_groups.GROUP_STYLES] = deepcopy(self.ellipse_groups.styles)
         if self.icc is not None:
             options = self.icc.ordered(options)  # raters in the order they were ticked
+        if self.pareto is not None:
+            options = self.pareto.canonical(options)
         return self.anova.canonical(options) if self.anova is not None else options
 
     def accept(self):
@@ -1041,6 +1049,8 @@ class AnalysisDialog(QDialog):
                 self.icc.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.precision is not None:
                 self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
+            if self.pareto is not None:
+                self.pareto.check(options)
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
             if self.method == "Interpolate a standard curve":
@@ -1125,6 +1135,8 @@ class AnalysisDialog(QDialog):
             return self.icc.message(error)
         if self.precision is not None:  # Precision–recall curve: engine messages in the active language
             return self.precision.message(error)
+        if self.pareto is not None:
+            return self.pareto.message(error)
         if self.method == calibration_options.METHOD:
             return calibration_options.translate_error(error)
         if self.method == reshape_editor.METHOD:

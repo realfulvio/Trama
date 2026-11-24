@@ -1509,3 +1509,10 @@ from .precision_recall_catalog import MESSAGES as _PRECISION_RECALL_MESSAGES  # 
 
 CAPTIONS.update(_PRECISION_RECALL_CAPTIONS)
 MESSAGES.update(_PRECISION_RECALL_MESSAGES)
+
+# Pareto plot: captions and engine messages live in their own section.
+from .pareto_plot_catalog import CAPTIONS as _PARETO_CAPTIONS  # noqa: E402
+from .pareto_plot_catalog import MESSAGES as _PARETO_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_PARETO_CAPTIONS)
+MESSAGES.update(_PARETO_MESSAGES)

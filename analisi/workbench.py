@@ -107,6 +107,7 @@ from .paired_proportions import OPTIONS as PAIRED_PROPORTIONS_OPTIONS, PAIRED_PR
 from .nested import METHODS as NESTED_METHODS, NESTED_ANOVA, NESTED_T, nested_analysis
 from .select_transform import SELECT_OPTIONS, SELECT_TRANSFORM, select_transform
 from .parts_of_whole import GOODNESS_OF_FIT, GOODNESS_OPTIONS, PARTS_GRAPH, PARTS_OPTIONS, goodness_of_fit, parts_graph
+from .pareto_plot import METHOD as PARETO_PLOT, OPTIONS as PARETO_PLOT_OPTIONS, pareto_plot
 from .reporting import Result, _plot, _report
 from .xy_series import XY_METHOD, xy_series
 from .processing import FieldError
@@ -294,6 +295,7 @@ METHODS = {
     CONTINGENCY: CONTINGENCY_OPTIONS,
     PAIRED_PROPORTIONS: PAIRED_PROPORTIONS_OPTIONS,
     PARTS_GRAPH: PARTS_OPTIONS,
+    PARETO_PLOT: PARETO_PLOT_OPTIONS,
     GOODNESS_OF_FIT: GOODNESS_OPTIONS,
     "Linear regression": {"X": None, "Y": None, **LINEAR_OPTIONS, **dict.fromkeys(regression_range.FIELDS, TEXT)},
     COMPARE_LINES: COMPARE_LINES_OPTIONS,
@@ -431,7 +433,7 @@ GROUPS = {
     "Clustering": ("K-means clustering", "K-means model selection", KMEANS_STABILITY, kmeans_reports.MODEL_GRAPH, "Hierarchical clustering",
                    HIERARCHY_GRAPH, CLUSTER_SILHOUETTE),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
-                 PARTS_GRAPH, "Box / violin plot", GROUPED_DISTRIBUTIONS, BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
+                 PARTS_GRAPH, PARETO_PLOT, "Box / violin plot", GROUPED_DISTRIBUTIONS, BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
     "Study Design and Simulation": ("Power and sample size", "Simulate data", MONTE_CARLO),
 }
 
@@ -1459,6 +1461,8 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return paired_proportions(frame, o)
     if method == PARTS_GRAPH:
         return parts_graph(frame, o)
+    if method == PARETO_PLOT:
+        return pareto_plot(frame, o)
     if method == GOODNESS_OF_FIT:
         return goodness_of_fit(frame, o)
     if method == "Linear regression":
