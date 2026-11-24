@@ -20,7 +20,13 @@ from analisi.anova_terms import TERM_LIST
 from analisi import curve_pipeline, curve_pipeline_dialog, lognormal_tests, regression_range, ttest_options
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
-from analisi import cluster_silhouette, cohen_kappa as kappa, cox_exact, cox_outputs
+from analisi import (
+    cluster_silhouette,
+    cohen_kappa as kappa,
+    cox_exact,
+    cox_outputs,
+    raincloud_plot_catalog,
+)
 from analisi import cohen_kappa_options as kappa_text, cohen_kappa_workbench as kappa_form
 from analisi import extract_rearrange as extraction
 from analisi.field_error import FieldError
@@ -56,6 +62,7 @@ from . import bland_altman_repeated as repeated_agreement
 from . import rm_sphericity_dialog as sphericity_options
 from . import icc as icc_binding
 from . import precision_recall as precision_options
+from . import raincloud_plot as raincloud_binding
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
 from . import standard_curve as calibration_options
@@ -348,6 +355,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = None
         self.icc = None
         self.precision = None
+        self.raincloud = None
         self.calibration = None
         self.reshape = None
         self.join = None
@@ -434,6 +442,8 @@ class AnalysisDialog(QDialog):
             labels, captions = lognormal_tests.LABEL_KEYS, lognormal_tests.CHOICE_KEYS
             for page, title in (("variables", "Data"), ("options", "Test and graph")):
                 self.tabs.setTabText(self.tabs.indexOf(scrolls[page]), tr(lognormal_tests.TAB_KEYS[title]))
+        if self.method == raincloud_binding.METHOD:
+            captions = raincloud_plot_catalog.CHOICE_KEYS
         if self.method == CUSTOM_EQUATION and not saved:
             saved = {"Equation": DEFAULT_EQUATION, "Parameters": [dict(record) for record in EXAMPLE_PARAMETERS]}
         elif self.method == global_fit.GLOBAL_CUSTOM_EQUATION and not saved:
@@ -722,6 +732,7 @@ class AnalysisDialog(QDialog):
         self.sphericity = sphericity_options.attach(self)
         self.icc = icc_binding.attach(self, saved)
         self.precision = precision_options.attach(self)
+        self.raincloud = raincloud_binding.attach(self, saved)
         self.calibration = calibration_options.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
         select_editor.attach(self, pages, saved)
@@ -1041,6 +1052,8 @@ class AnalysisDialog(QDialog):
                 self.icc.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.precision is not None:
                 self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
+            if self.raincloud is not None:
+                self.raincloud.check(options)
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
             if self.method == "Interpolate a standard curve":
@@ -1125,6 +1138,8 @@ class AnalysisDialog(QDialog):
             return self.icc.message(error)
         if self.precision is not None:  # Precision–recall curve: engine messages in the active language
             return self.precision.message(error)
+        if self.raincloud is not None:
+            return self.raincloud.message(error)
         if self.method == calibration_options.METHOD:
             return calibration_options.translate_error(error)
         if self.method == reshape_editor.METHOD:

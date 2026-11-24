@@ -1496,3 +1496,10 @@ from .precision_recall_catalog import MESSAGES as _PRECISION_RECALL_MESSAGES  # 
 
 CAPTIONS.update(_PRECISION_RECALL_CAPTIONS)
 MESSAGES.update(_PRECISION_RECALL_MESSAGES)
+
+# Raincloud plot: captions and engine messages live in their own section.
+from .raincloud_plot_catalog import CAPTIONS as _RAINCLOUD_CAPTIONS  # noqa: E402
+from .raincloud_plot_catalog import MESSAGES as _RAINCLOUD_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_RAINCLOUD_CAPTIONS)
+MESSAGES.update(_RAINCLOUD_MESSAGES)
