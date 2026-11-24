@@ -157,17 +157,25 @@ class SheetCommands:
         self.tables = {name if key == title else key: dataset for key, dataset in self.tables.items()}
         self.info_sheets = {uid: replace(sheet, table=name) if sheet.table == title else sheet
                             for uid, sheet in self.info_sheets.items()}
-        self.layouts = [replace(layout, panels=[(name if owner == title else owner, slot)
-                                                for owner, slot in layout.panels]) if
-                        any(owner == title for owner, _ in layout.panels) else layout for layout in self.layouts]
+        def rename_panel_sources(layout):
+            panels = [(name if owner == title else owner, slot) for owner, slot in layout.panels]
+            return replace(layout, panels=panels) if panels != layout.panels else layout
+
+        self.layouts = [rename_panel_sources(layout) for layout in self.layouts]
         for run in self.runs:
             if run.title == title:
                 run.title = name
             if run.method == worksheet_join.METHOD and worksheet_join.right_title(run.options) == title:
                 run.options = {**run.options, worksheet_join.RIGHT_SHEET: name}
                 self.tables[run.title].analyses[run.slot] = run.method, run.options
-        self.history.changes = [replace(change, title=name) if isinstance(change, WorksheetChange)
-                                and change.title == title else change for change in self.history.changes]
+        from .project import LayoutChange
+
+        for index, change in enumerate(self.history.changes):
+            if isinstance(change, WorksheetChange) and change.title == title:
+                self.history.changes[index] = replace(change, title=name)
+            elif isinstance(change, LayoutChange):
+                self.history.changes[index] = replace(change, before=rename_panel_sources(change.before),
+                                                      after=rename_panel_sources(change.after))
         records = self.sheet_metadata.get("sheets", {})
         if (state := records.pop(f"data:{title}", None)) is not None:
             records[f"data:{name}"] = state
@@ -296,7 +304,13 @@ class SheetCommands:
         elif kind == "info":
             stale = self.update_info_sheets({uid: sheet for uid, sheet in self.info_sheets.items() if uid != key})
         elif kind == "layout":
+            from .project import LayoutChange
+
             del self.layouts[key]
+            self._remove_history(lambda edit: isinstance(edit, LayoutChange) and edit.index == key)
+            self.history.changes = [replace(edit, index=edit.index - 1)
+                                    if isinstance(edit, LayoutChange) and edit.index > key else edit
+                                    for edit in self.history.changes]
             records.pop(project_key, None)
             for index in range(key, len(self.layouts)):
                 state = records.pop(f"layout:{index + 1}", None)
@@ -339,9 +353,21 @@ class SheetCommands:
             if section and section["slot"] > slot:
                 run.options = {**run.options, PAIRWISE_SECTION: {**section, "slot": section["slot"] - 1}}
                 dataset.analyses[run.slot] = run.method, run.options
-        self.layouts = [replace(layout, panels=[(title, index - (title == removed.title and index > slot))
-                                                for title, index in layout.panels]) if
-                        any(title == removed.title and index > slot for title, index in layout.panels)
-                        else layout for layout in self.layouts]
-        self._remove_history(lambda edit: edit.title == removed.title if isinstance(edit, WorksheetChange)
-                             else removed.uid in edit.before)
+        from .project import LayoutChange, StyleBatchChange
+
+        def shift_panels(layout):
+            panels = [(title, index - (title == removed.title and index > slot)) for title, index in layout.panels]
+            return replace(layout, panels=panels) if panels != layout.panels else layout
+
+        def refers_to_deleted_sheet(edit):
+            if isinstance(edit, WorksheetChange):
+                return edit.title == removed.title
+            if isinstance(edit, StyleBatchChange):
+                return removed.uid in edit.before
+            return isinstance(edit, LayoutChange) and any(
+                removed.reference in layout.panels for layout in (edit.before, edit.after))
+
+        self.layouts = [shift_panels(layout) for layout in self.layouts]
+        self._remove_history(refers_to_deleted_sheet)
+        self.history.changes = [replace(edit, before=shift_panels(edit.before), after=shift_panels(edit.after))
+                                if isinstance(edit, LayoutChange) else edit for edit in self.history.changes]

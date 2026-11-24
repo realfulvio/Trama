@@ -1493,7 +1493,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             return not self.sheet_locked(("data", change.title))
         if isinstance(change, StyleBatchChange):
             return self.sheet_metadata.get("frozen_runs", {}).keys().isdisjoint(change.before)
-        return False
+        return isinstance(change, LayoutChange)
 
     def undo(self, *, redo=False):
         self.undo_style_uids = ()
