@@ -85,6 +85,9 @@ def main(argv=None):
         elif only == "qt-survival-bands":
             from .survival_bands_smoke import run
             status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
+        elif only == "qt-mcnemar-power":
+            from .mcnemar_power_smoke import run  # Paired-proportion power only: EN/IT, light and dark.
+            status = run(folder)
         else:
             from .smoke import SCENARIOS, run
             if scenario is not None and scenario not in SCENARIOS:

@@ -36,7 +36,7 @@ from .bubble import BUBBLE, OPTIONS as BUBBLE_OPTIONS, bubble_plot
 from . import bland_altman_repeated as ba_repeated
 from .cluster_silhouette import METHOD as CLUSTER_SILHOUETTE, OPTIONS as SILHOUETTE_OPTIONS, cluster_silhouette
 from . import icc
-from . import precision_recall
+from . import mcnemar_power, precision_recall
 from .compare_lines import COMPARE_LINES, OPTIONS as COMPARE_LINES_OPTIONS, compare_lines
 from .contingency import CONTINGENCY, CONTINGENCY_OPTIONS, contingency
 from .distribution_graphs import BOX_VIOLIN, OPTIONS as BOX_VIOLIN_OPTIONS, box_violin
@@ -432,7 +432,7 @@ GROUPS = {
                    HIERARCHY_GRAPH, CLUSTER_SILHOUETTE),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
                  PARTS_GRAPH, "Box / violin plot", GROUPED_DISTRIBUTIONS, BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
-    "Study Design and Simulation": ("Power and sample size", "Simulate data", MONTE_CARLO),
+    "Study Design and Simulation": ("Power and sample size", mcnemar_power.METHOD, "Simulate data", MONTE_CARLO),
 }
 
 # These analyses create a graph when calculated. Keep their Graphs entry
@@ -1583,4 +1583,6 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return _distribution(method, frame, o)
     if method == REFERENCE_NORMALIZATION:
         return normalize_to_references(frame, o)
+    if method == mcnemar_power.METHOD:
+        return mcnemar_power.analysis(frame, o, cancel=cancel)
     return extra_analysis(method, frame, o)

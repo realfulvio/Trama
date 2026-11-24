@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboB
                                QProgressBar, QPushButton, QScrollArea, QSplitter, QTabBar, QTabWidget, QToolBar,
                                QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mean_permutation, parallel, power_plan, rmst
+from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power, mean_permutation, parallel, power_plan, rmst
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
@@ -468,6 +468,8 @@ class MainWindow(QMainWindow):
         a("analyze", tr("ribbon.analyze"), self.analyze, icon="sigma", shortcut="Ctrl+Shift+A")
         a("power", tr("command.power"), lambda: self.analyze(method=power_plan.METHOD, only=power_plan.METHOD),
           icon="chart-line")
+        a("paired_power", tr("command.paired_power"),
+          lambda: self.analyze(method=mcnemar_power.METHOD, only=mcnemar_power.METHOD), icon="chart-line")
         a("simulate", tr("command.simulate"), self.simulate_data, icon="table-2")
         a("monte_carlo", tr("command.monte_carlo"), lambda: self.analyze(method=MONTE_CARLO, only=MONTE_CARLO),
           icon="sigma")
@@ -870,7 +872,8 @@ class MainWindow(QMainWindow):
         for key in ("analyze", "new_graph", "descriptive", "ttest", "anova", "correlation", "linear", "nonlinear",
                     "survival", "contingency", "correlation_matrix", "monte_carlo", "transpose_xy"):
             self.actions[key].setEnabled(has_data and idle)
-        for key in ("power", "simulate", "plot_function", "paste_table", "load_example", "new_table", "new_info"):
+        for key in ("power", "paired_power", "simulate", "plot_function", "paste_table", "load_example",
+                    "new_table", "new_info"):
             self.actions[key].setEnabled(idle)
         shape_run = self.drawing.history_run()  # On a graph with drawing steps, Undo/Redo belong to that graph.
         history = shape_run.shape_history if shape_run is not None else self.project.history
@@ -989,6 +992,7 @@ class MainWindow(QMainWindow):
         graphs = [(index, run) for index, run in enumerate(project.runs)
                   if run_view(run.method) == "graph" or (run.method not in ANALYSIS_GRAPH_OPTIONS and run.method in GRAPH_METHODS)
                   or (run.result is None and run.method == power_plan.METHOD and run.options.get(power_plan.SHOW_CURVE))
+                  or (run.result is None and run.method == mcnemar_power.METHOD and run.options.get(mcnemar_power.GRAPH))
                   or (run.result is None and run.method == TOLERANCE and run.options.get(TOLERANCE_GRAPH))
                   or (run.result is None and shows_paired_estimation(run.method, run.options))
                   or (run.result is None and run.method in ANALYSIS_GRAPH_OPTIONS
@@ -2101,7 +2105,8 @@ class MainWindow(QMainWindow):
     def analyze(self, method=None, only=None):
         if self.busy():
             return
-        title, frame = self._analysis_input(allow_empty=method in {power_plan.METHOD, PLOT_FUNCTION})
+        title, frame = self._analysis_input(allow_empty=method in {power_plan.METHOD, mcnemar_power.METHOD,
+                                                                  PLOT_FUNCTION})
         if frame is None:
             return
         current = (method, {}) if method else None
@@ -2132,7 +2137,12 @@ class MainWindow(QMainWindow):
         method, options = dialog.result
         try:
             if title is None:
-                name = tr("power.sheet") if method == power_plan.METHOD else method_label(method)
+                if method == power_plan.METHOD:
+                    name = tr("power.sheet")
+                elif method == mcnemar_power.METHOD:
+                    name = tr("mcnemar.power.sheet")
+                else:
+                    name = method_label(method)
                 candidate = Run(method, self.project.unique_title(name), options)
             else:
                 candidate = self.project.candidate(title, method, options, index=index,

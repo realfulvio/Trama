@@ -44,6 +44,8 @@ Il [test binomiale esatto](exact-binomial.md) confronta due conteggi osservati c
 
 **Analizza → Potenza e numerosità…** pianifica uno studio con t a un campione, t appaiato, t indipendente (con allocazione esatta A:B) o ANOVA a una via bilanciata, partendo dalle medie e dalle SD attese oppure da un effetto standardizzato. Cerca la numerosità minima o calcola la potenza e può disegnare la curva di potenza come grafico nativo. [Conversione, allocazione e assunzioni](power-from-summary.md).
 
+**Strumenti → Potenza per proporzioni appaiate…** (nel catalogo: **Disegno degli studi e simulazione**) calcola la potenza esatta del test di McNemar bilaterale e la prima numerosità di coppie che la raggiunge, anche da un progetto vuoto. Non modifica la potenza per medie e SD. [Disegno, limiti e contratto](mcnemar-power.md).
+
 ## Regressioni, curve e calibrazione
 
 - Regressione lineare, confronto fra rette, Deming, regressioni multiple OLS (anche pesate con pesi fissi gaussiani: 1/|Y|, 1/Y², 1/|Y|^K, 1/SD² o colonna di pesi), logistiche e Poisson con esposizione e diagnostica. [Validazione fuori campione del modello logistico binario](logistic-validation.md): validazione incrociata a K fold stratificata o con colonna di fold, Brier, log loss, AUC ROC, precisione media, matrice di confusione e calibrazione per classi. [Regressione binomiale negativa (NB2)](nb2-regression.md) per conteggi sovradispersi: esposizione, predittori categorici, α stimata per massima verosimiglianza o fissa, IRR con intervalli di Wald e residui di Pearson.

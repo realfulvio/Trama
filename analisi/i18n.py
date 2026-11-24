@@ -4953,12 +4953,18 @@ _IT.update(_RMST_IT)
 # rendering boundaries. No widget hooks touch user titles, columns or data.
 from .interface_catalog import CAPTIONS as _INTERFACE_CAPTIONS, MESSAGES as _INTERFACE_MESSAGES
 from .power_plan_text import CAPTIONS as _POWER_CAPTIONS, EN as _POWER_EN, IT as _POWER_IT
+from .mcnemar_power_text import CAPTIONS as _MCNEMAR_POWER_CAPTIONS, EN as _MCNEMAR_POWER_EN, IT as _MCNEMAR_POWER_IT
 
 # Power and sample size planning (0.93): dialog captions that no other control already translates, notes, messages.
 for _english, _italian in _POWER_CAPTIONS.items():
     _INTERFACE_CAPTIONS.setdefault(_english, _italian)
 _EN.update(_POWER_EN)
 _IT.update(_POWER_IT)
+# Exact McNemar power: the method name and the percent fields. Goal, Design and Curve already have captions.
+for _english, _italian in _MCNEMAR_POWER_CAPTIONS.items():
+    _INTERFACE_CAPTIONS.setdefault(_english, _italian)
+_EN.update(_MCNEMAR_POWER_EN)
+_IT.update(_MCNEMAR_POWER_IT)
 
 for _key, (_english, _italian) in _INTERFACE_MESSAGES.items():
     _EN[_key], _IT[_key] = _english, _italian

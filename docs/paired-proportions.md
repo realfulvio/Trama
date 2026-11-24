@@ -63,7 +63,9 @@ The graph has four bars: unchanged negative, gain, loss and unchanged positive, 
 
 ## Not included
 
-Stuart–Maxwell and Bowker tests for tables larger than 2 × 2, McNemar confidence intervals for the difference of proportions (Newcombe, Wald), exact sample size and power, repeated binary measurements on more than two occasions (Cochran's Q), and matched case-control designs with more than one control. Pairs where the outcome is not binary have to be recoded before the analysis.
+Stuart–Maxwell and Bowker tests for tables larger than 2 × 2, McNemar confidence intervals for the difference of proportions (Newcombe, Wald), repeated binary measurements on more than two occasions (Cochran's Q), and matched case-control designs with more than one control. Pairs where the outcome is not binary have to be recoded before the analysis.
+
+Exact sample size and power for this conditional test are a separate plan, opened before any pairs are collected: [Power for paired proportions](mcnemar-power.md). It does not read a paired-proportions result, and this test does not change.
 
 ## References
 
