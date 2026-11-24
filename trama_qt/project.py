@@ -21,6 +21,7 @@ from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
 from analisi.linked_axes import linked_axes_status
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, MAX_ENTRY, Dataset,
                           info_references, load_tables, load_workspace, project_document, save_project)
+from analisi.ecdf_graph import METHOD as ECDF_GRAPH, style_after_parameter_change as ecdf_style
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
@@ -691,6 +692,8 @@ class Project(WorksheetJoinSources):
         style = run.style
         if method == run.method == FREQUENCY:
             style = frequency_style(style, run.options, options)
+        elif method == run.method == ECDF_GRAPH:
+            style = ecdf_style(style, run.options, options)
         elif method == run.method == "Kaplan–Meier survival":
             style = survival_style(style, run.options, options)
         elif method == run.method == XY_METHOD:

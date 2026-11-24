@@ -40,6 +40,7 @@ from . import precision_recall
 from .compare_lines import COMPARE_LINES, OPTIONS as COMPARE_LINES_OPTIONS, compare_lines
 from .contingency import CONTINGENCY, CONTINGENCY_OPTIONS, contingency
 from .distribution_graphs import BOX_VIOLIN, OPTIONS as BOX_VIOLIN_OPTIONS, box_violin
+from .ecdf_graph import METHOD as ECDF_GRAPH, OPTIONS as ECDF_GRAPH_OPTIONS, ecdf_graph
 from .grouped_distributions import (GROUPED_DISTRIBUTIONS, OPTIONS as GROUPED_DISTRIBUTIONS_OPTIONS,
                                     grouped_distributions)
 from .correlation_details import (COMPARE_INDEPENDENT, CONTROL_OPTIONS, CORRELATE_CONTROL, INDEPENDENT_OPTIONS,
@@ -384,6 +385,7 @@ METHODS = {
     FREQUENCY: FREQUENCY_OPTIONS,
     BOX_VIOLIN: BOX_VIOLIN_OPTIONS,
     GROUPED_DISTRIBUTIONS: GROUPED_DISTRIBUTIONS_OPTIONS,
+    ECDF_GRAPH: ECDF_GRAPH_OPTIONS,
     BUBBLE: BUBBLE_OPTIONS,
     ba_repeated.METHOD: ba_repeated.OPTIONS,
     icc.METHOD: {icc.RATERS: MULTIPLE, **icc.OPTIONS},
@@ -431,7 +433,8 @@ GROUPS = {
     "Clustering": ("K-means clustering", "K-means model selection", KMEANS_STABILITY, kmeans_reports.MODEL_GRAPH, "Hierarchical clustering",
                    HIERARCHY_GRAPH, CLUSTER_SILHOUETTE),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
-                 PARTS_GRAPH, "Box / violin plot", GROUPED_DISTRIBUTIONS, BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
+                 PARTS_GRAPH, "Box / violin plot", GROUPED_DISTRIBUTIONS, ECDF_GRAPH, BUBBLE, BEFORE_AFTER,
+                 TRAJECTORIES, FOREST_PLOT),
     "Study Design and Simulation": ("Power and sample size", "Simulate data", MONTE_CARLO),
 }
 
@@ -1275,6 +1278,7 @@ LINKED_AXES_METHODS = {
     "Linear regression": ("x", "y"), COMPARE_LINES: ("x", "y"), "Deming regression": ("x", "y"),
     "Nonlinear regression": ("x", "y"), ROBUST_CURVE: ("x", "y"), CUSTOM_EQUATION: ("x", "y"),
     GLOBAL_CUSTOM_EQUATION: ("x", "y"), SPLINE_FIT: ("x", "y"), "Kaplan–Meier survival": ("x", "y"),
+    ECDF_GRAPH: ("x", "y"),
     COLUMN_GRAPH: ("y",), GROUPED_GRAPH: ("y",),
 }
 
@@ -1559,6 +1563,8 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return box_violin(frame, o)
     if method == GROUPED_DISTRIBUTIONS:
         return grouped_distributions(frame, o)
+    if method == ECDF_GRAPH:
+        return ecdf_graph(frame, o)
     if method == BEFORE_AFTER:
         return before_after(frame, o)
     if method == TRAJECTORIES:

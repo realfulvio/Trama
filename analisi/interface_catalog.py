@@ -1496,3 +1496,10 @@ from .precision_recall_catalog import MESSAGES as _PRECISION_RECALL_MESSAGES  # 
 
 CAPTIONS.update(_PRECISION_RECALL_CAPTIONS)
 MESSAGES.update(_PRECISION_RECALL_MESSAGES)
+
+# Empirical cumulative distribution: captions and engine messages live in their own section.
+from .ecdf_catalog import CAPTIONS as _ECDF_CAPTIONS  # noqa: E402
+from .ecdf_catalog import MESSAGES as _ECDF_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_ECDF_CAPTIONS)
+MESSAGES.update(_ECDF_MESSAGES)
