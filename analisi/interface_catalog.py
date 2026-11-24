@@ -103,6 +103,7 @@ Permutation test for mean difference|Test di permutazione per la differenza tra 
 Lower margin|Margine inferiore
 Upper margin|Margine superiore
 Wilcoxon signed-rank|Test dei ranghi con segno di Wilcoxon
+Mood median test|Test delle mediane di Mood
 Correlation|Correlazione
 Correlation matrix|Matrice di correlazione
 Multiple tests (one per row)|Test multipli (uno per riga)
