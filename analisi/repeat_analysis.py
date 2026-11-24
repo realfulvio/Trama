@@ -679,14 +679,17 @@ def fit_style(figure, style):
 
     if not style or figure is None or not figure.axes:
         return None, False
+    from .point_style import POINTS
+
     style = deepcopy(style)
     axes = figure.axes[0]
-    reduced = False
+    # The formatting of a single point belongs to one row of one worksheet: another sheet has other rows.
+    reduced = style.pop(POINTS, None) is not None
     series = style.get("series")
     if isinstance(series, dict) and series:
         keys = {item.key for item in graph_series(axes)}
         kept = {key: options for key, options in series.items() if key in keys}
-        reduced = len(kept) != len(series)
+        reduced = reduced or len(kept) != len(series)
         if kept:
             style["series"] = kept
         else:

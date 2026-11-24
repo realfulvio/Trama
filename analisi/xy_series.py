@@ -30,6 +30,7 @@ import pandas as pd
 
 from .axis_breaks import mark_supported
 from .linked_axes import mark_linked_axes
+from .point_style import attach_points
 from .processing import FieldError
 from .reporting import Result, _plot
 
@@ -380,6 +381,9 @@ def xy_series(frame, options, left_scale="linear"):
                                    label=_legend_label(column) or "_")
             artist.set_gid(_GID + column)
             order.append(artist.get_gid())
+            # One vertex per worksheet row, so a single point can be formatted and found again.
+            attach_points(artist, np.arange(1, len(frame) + 1), x_values, y_values, (x_name, column), len(frame),
+                          drawn=mask)
         if mask.any() and _legend_label(column):
             handles.append(artist)
         for position, keep in enumerate(mask):
