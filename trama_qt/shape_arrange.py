@@ -74,13 +74,14 @@ class ArrangeShapesDialog(QDialog):
                          if record.get("group") and record.get("locked")}
         selected = set(selected)
         for index, record in enumerate(self.records, 1):
-            description = list(describe_shape(record))
+            description = []
             group = record.get("group")
             if group:
                 number = group_numbers.setdefault(group, len(group_numbers) + 1)
                 description.append(tr("shape.objects.group_number", number=number))
             if record.get("locked") or group in locked_groups:
                 description.append(tr("shape.objects.locked_label"))
+            description.extend(describe_shape(record))
             item = QListWidgetItem(f"{index}. " + " · ".join(description), self.shapes)
             item.setData(Qt.ItemDataRole.UserRole, record["id"])
             item.setToolTip(item.text())
