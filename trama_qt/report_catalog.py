@@ -21,7 +21,7 @@ from analisi.legacy_project_metadata import is_import_option
 from analisi.legacy_zip_layout import ZIP_LAYOUT
 from analisi.report_bundle import LAYOUT_METHOD
 
-from .project import LEGACY_GRAPH_METHODS, SAVED_VIEWS
+from .project import LEGACY_GRAPH_METHODS, SAVED_VIEWS, run_view
 
 TABLE, FIGURE = "table", "figure"
 # Recipe keys that only describe where an imported drawing came from or a cached copy of it.
@@ -123,14 +123,16 @@ def candidates(project):
     """Every result table and graph of every analysis, then every layout, in the order of the navigator."""
     items = []
     for index, run in enumerate(project.runs):
-        name, method, signature = run.name, run.method, _signature(run)
+        name, method, signature = project.sheet_title(("result", index)), run.method, _signature(run)
+        table_hidden = project.sheet_state(("result", index)).get("hidden")
         options = recipe(run.options)
         result = run.result
         if result is None:
-            items.append(Item(("run", index), TABLE, name, method, options, text("pending"), signature))
+            if not table_hidden:
+                items.append(Item(("run", index), TABLE, name, method, options, text("pending"), signature))
             continue
         problem = text("error", reason=run.calculation_error) if run.calculation_error else ""
-        tables = list((getattr(result, "tables", None) or {}).items())
+        tables = [] if table_hidden else list((getattr(result, "tables", None) or {}).items())
         for table, _frame in tables:
             label = name if len(tables) == 1 else f"{name} · {table}"
             items.append(Item(("table", index, table), TABLE, label, method, options, problem, signature))
@@ -143,7 +145,10 @@ def candidates(project):
             else:
                 reason = problem
             if not tables or figure is not None:
-                items.append(Item(("graph", index), FIGURE, name, method, options, reason, signature))
+                kind = "saved-layout" if run_view(method) == "saved-layout" else "graph"
+                if not project.sheet_state((kind, index)).get("hidden"):
+                    items.append(Item(("graph", index), FIGURE, project.sheet_title((kind, index)),
+                                      method, options, reason, signature))
     by_reference = {run.reference: (index, run) for index, run in enumerate(project.runs)}
     for index, layout in enumerate(project.layouts):
         panels = [by_reference.get(reference) for reference in layout.panels]

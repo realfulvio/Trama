@@ -40,6 +40,15 @@ def family_ref(project, ref):
     if kind == "layout" and type(key) is int and 0 <= key < len(project.layouts):
         return "layout", key
     if kind == "info" and key in project.info_sheets:
+        note = project.info_sheets[key]
+        if note.worksheet:
+            owner, identifier = note.worksheet.split(":", 1)
+            if owner == "layout":
+                return family_ref(project, (owner, int(identifier)))
+            if owner in {"graph", "result", "saved-layout"}:
+                for index, run in enumerate(project.runs):
+                    if run.uid == identifier:
+                        return family_ref(project, (owner, index))
         return "info", key
     return None
 

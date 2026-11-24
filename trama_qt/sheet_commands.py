@@ -1,5 +1,5 @@
 """Project operations addressed to an individual sheet in the navigator."""
-from copy import deepcopy
+from copy import copy, deepcopy
 from dataclasses import replace
 from uuid import uuid4
 
@@ -53,7 +53,27 @@ class SheetCommands:
     def set_sheet_frozen(self, ref, frozen):
         kind, key = ref
         if kind == "data":
-            self.set_sheet_state(ref, locked=True if frozen else None)
+            if self.sheet_locked(ref) == frozen:
+                return []
+            dataset = self.tables[key]
+            if frozen:
+                names = {name for formula in dataset.formulas.values() for name in info_references(formula)}
+                constants = {name: dataset.info[name] for name in names if name in dataset.info}
+                self.set_sheet_state(ref, locked=True, info=constants if names else None)
+                if names:
+                    dataset.info = constants
+            else:
+                contexts = info_contexts(self.info_sheets.values())
+                context = contexts.get(key, contexts[None])
+                changed = dataset.info != context
+                if changed and dataset.formulas:
+                    candidate = copy(dataset)
+                    candidate.info = context
+                    candidate.frame()
+                self.set_sheet_state(ref, locked=None, info=None)
+                dataset.info = context
+                if changed:
+                    return self.readers([key])
             return []
         if kind not in RUN_KINDS:
             return []
@@ -169,6 +189,8 @@ class SheetCommands:
             references = {field for formula in twin.formulas.values() for field in info_references(formula)}
             constants = [(field, value) for sheet in self.info_sheets.values() if sheet.table == key
                          and sheet.use_constants for field, value in sheet.fields if field.strip().casefold() in references]
+            if self.sheet_locked(ref) and references:
+                constants = [(field, value) for field, value in twin.info.items() if value is not None]
             sheets = self.info_sheets
             if constants:
                 if len(sheets) >= 500:

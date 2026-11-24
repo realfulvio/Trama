@@ -511,9 +511,6 @@ class MainWindow(QMainWindow):
         a("info_properties", tr("command.info_properties"), self.info_properties, icon="sliders-horizontal")
         from .info_editor import t as info_text
 
-        a("info_up", info_text("Move sheet up"), lambda: self.move_info(-1), icon="chevron-up")
-        a("info_down", info_text("Move sheet down"), lambda: self.move_info(1), icon="chevron-down")
-        a("remove_info", info_text("Delete Info sheet…"), self.remove_info, icon="trash-2")
         for key, label, kind, icon in (("family_data", "source_table", "data", "table"),
                                         ("family_info", "linked_info", "info", "info"),
                                         ("family_results", "family_results", "result", "sigma"),
@@ -916,13 +913,7 @@ class MainWindow(QMainWindow):
         for key in ("duplicate_family", "save_family", "family_data", "family_info", "family_results",
                     "family_graphs", "family_gallery"):
             self.actions[key].setEnabled(kind is not None and idle)
-        info = kind == "info" and idle
-        info_keys = list(self.project.info_sheets) if info else []
-        info_index = info_keys.index(self.selected[1]) if info else -1
-        self.actions["info_properties"].setEnabled(info)
-        self.actions["remove_info"].setEnabled(info)
-        self.actions["info_up"].setEnabled(info and info_index > 0)
-        self.actions["info_down"].setEnabled(info and info_index + 1 < len(info_keys))
+        self.actions["info_properties"].setEnabled(kind == "info" and idle)
         changeable = kind in {"result", "graph"} and not locked and not _saved_recipe(self.project.runs[self.selected[1]])
         self.actions["change"].setEnabled(changeable and idle)
         type_problem = self.project.graph_type_problem(self.project.runs[self.selected[1]]) if kind == "graph" else None
@@ -1873,31 +1864,9 @@ class MainWindow(QMainWindow):
         if self.info_editor.commit(title=title, table=table, use_constants=dialog.use_constants.isChecked()):
             self.show_sheet("info", sheet.uid)
 
-    def move_info(self, step):
-        if self.selected and self.selected[0] == "info":
-            self.flush_info()
-            self.project.move_info(self.selected[1], step)
-            self.refresh()
-
     def remove_info(self):
-        if self.busy() or not self.selected or self.selected[0] != "info":
-            return
-        uid = self.selected[1]
-        sheet = self.project.info_sheets[uid]
-        from .info_editor import t
-        answer = QMessageBox.question(self, t("Delete Info sheet…").rstrip("…"), ui(f'Delete "{sheet.title}"?'))
-        if answer != QMessageBox.StandardButton.Yes:
-            return
-        self.flush_info()
-        try:
-            stale = self.project.update_info_sheets({key: value for key, value in self.project.info_sheets.items()
-                                                     if key != uid})
-        except (ValueError, OverflowError) as error:
-            self.error(error)
-            return
-        self.info_editor = None
-        self.show_home() if not self.project.tables else self.show_sheet("data", next(iter(self.project.tables)))
-        self.refresh_runs([run for run in stale if run.result is not None])
+        if self.selected and self.selected[0] == "info":
+            self._worksheet_command(self.selected, "delete")
 
     def _canvas(self, page, figure, *, toolbar=True, run=None, paper=None, imported_layout=False):
         canvas = FigureCanvasQTAgg(figure) if paper is None else PaperCanvas(figure, paper)

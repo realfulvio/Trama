@@ -31,7 +31,7 @@ MENUS = (
     ("Change", ("change", "change_graph_type", "format_graph", "graph_style_presets", "batch_figure_styles",
                 "plot_margins", "edit_layout", "variable_properties", "category_order", "cell_background",
                 "clear_cell_background", "number_format", "|",
-                "info_properties", "info_up", "info_down", "remove_info")),
+                "info_properties")),
     ("Arrange", ("arrange_shapes", "new_layout", "edit_layout")),
     ("Family", ("family_data", "family_info", "family_results", "family_graphs", "family_gallery", "|",
                 "duplicate_family", "save_family")),

@@ -1151,8 +1151,10 @@ def load_workspace(path, *, include_info=False):
     result.sheet_metadata = validate_sheet_metadata(obj.get("sheet_metadata", {}))
     for table in obj["tables"]:
         rows = [[_decode_cell(value) for value in row] for row in table["rows"]]
-        data = Dataset(_table(table["columns"], rows, table["kinds"], max_columns=MAX_CELLS),
-                       info=contexts.get(table["title"], contexts[None]))
+        title = table["title"]
+        state = result.sheet_metadata.get("sheets", {}).get(f"data:{title}", {})
+        info = state.get("info", contexts.get(title, contexts[None]))
+        data = Dataset(_table(table["columns"], rows, table["kinds"], max_columns=MAX_CELLS), info=info)
         for row, col in table.get("excluded", []):
             if type(row) is not int or type(col) is not int or not (0 <= row < len(data.raw) and 0 <= col < len(data.raw.columns)):
                 raise ValueError("Invalid excluded cell position.")

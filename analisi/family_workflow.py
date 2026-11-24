@@ -301,13 +301,25 @@ def plan_family(tables, layouts, infos, selected, *, include_layouts=True, expor
             if graph.is_saved_layout(node) and node not in seeds:
                 shared += sum(1 for source in graph.panel_sources(node, strict=False) if source not in members)
 
-    local = tuple(sheet.uid for sheet in infos if sheet.table in slots)
-    global_sheets = [sheet for sheet in infos if sheet.table is None]
+    region_ids = {tables[title].analysis_ids.get(slot) for title, slot in members}
+    owners = {("layout", str(index)) for index in chosen}
+    owners.update((kind, identifier) for identifier in region_ids if identifier is not None
+                  for kind in ("graph", "result", "saved-layout"))
+    local = {sheet.uid for sheet in infos if sheet.table in slots}
+    # A note may be attached to a graph, a result, a layout or another Info sheet.
+    for _ in range(len(infos)):
+        owners.update(("info", uid) for uid in local)
+        attached = {sheet.uid for sheet in infos if sheet.worksheet and tuple(sheet.worksheet.split(":", 1)) in owners}
+        if attached <= local:
+            break
+        local.update(attached)
+    local = tuple(sheet.uid for sheet in infos if sheet.uid in local)
+    global_sheets = [sheet for sheet in infos if sheet.table is None and sheet.worksheet is None]
     snapshot = False
     if export:
         shared_uids = tuple(_needed_global_infos(tables, infos, slots))
     else:
-        snapshot = len(infos) == 1 and infos[0].table is None and set(slots) == set(tables)
+        snapshot = len(infos) == 1 and len(global_sheets) == 1 and set(slots) == set(tables)
         shared_uids = () if snapshot else tuple(sheet.uid for sheet in global_sheets)
     return FamilyPlan(kind, key, export, include_layouts, start, tuple(included), slots, tuple(chosen), local,
                       shared_uids, snapshot, shared, via_info, frozenset(members))
@@ -317,7 +329,7 @@ def _needed_global_infos(tables, infos, slots):
     """Global Info sheets that define a constant read by a formula of an included table."""
     local = {}
     for sheet in infos:
-        if sheet.table is not None:
+        if sheet.table is not None and sheet.use_constants:
             local.setdefault(sheet.table, set()).update(label.strip().casefold() for label, _ in sheet.fields)
     needed = set()
     for title in slots:
@@ -326,7 +338,7 @@ def _needed_global_infos(tables, infos, slots):
                 needed.update(info_references(expression) - local.get(title, set()))
             except (SyntaxError, ValueError):
                 continue
-    return [sheet.uid for sheet in infos if sheet.table is None
+    return [sheet.uid for sheet in infos if sheet.table is None and sheet.use_constants
             and any(label.strip().casefold() in needed for label, _ in sheet.fields)]
 
 
@@ -633,21 +645,35 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph, bla
         panels = [refs.get(tuple(panel), tuple(panel)) for panel in source.panels]
         name = new_names.layout_names[index] if new_names else source.name
         layout_refs[index] = len(out_layouts)
-        out_layouts.append(Layout(name, source.columns, panels, source.paper, source.background))
+        out_layouts.append(replace(source, name=name, panels=panels))
 
     by_uid = {sheet.uid: sheet for sheet in infos}
     out_infos, info_ids, snapshot_ids = [], {}, {}
     used_uids = {sheet.uid for sheet in infos}
     for uid in plan.infos:
-        sheet = by_uid[uid]
         if renew:
             new_uid = uuid4().hex
             while new_uid in used_uids:
                 new_uid = uuid4().hex
             used_uids.add(new_uid)
-            sheet = replace(sheet, title=new_names.info_titles[uid], table=table_names[sheet.table], uid=new_uid)
-        info_ids[uid] = sheet.uid
-        out_infos.append(sheet)
+            info_ids[uid] = new_uid
+        else:
+            info_ids[uid] = uid
+    for uid in plan.infos:
+        sheet = by_uid[uid]
+        worksheet = sheet.worksheet
+        if worksheet is not None:
+            kind, identifier = worksheet.split(":", 1)
+            if kind == "layout":
+                destination = layout_refs.get(int(identifier))
+            elif kind == "info":
+                destination = info_ids.get(identifier)
+            else:
+                destination = identities.get(graph.by_id.get(identifier))
+            worksheet = f"{kind}:{destination}" if destination is not None else None
+        title = new_names.info_titles[uid] if renew else sheet.title
+        out_infos.append(replace(sheet, title=title, table=table_names.get(sheet.table), uid=info_ids[uid],
+                                 worksheet=worksheet))
     if renew and plan.snapshot:
         shared = infos[0]
         for title in plan.tables:

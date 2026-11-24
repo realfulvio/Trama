@@ -538,6 +538,8 @@ class Project(WorksheetJoinSources, SheetCommands):
         scoped = info_contexts(sheets.values())
         contexts, stale = {}, []
         for title, dataset in self.tables.items():
+            if self.sheet_locked(("data", title)):
+                continue
             context = scoped.get(title, scoped[None])
             if context == dataset.info:
                 continue
@@ -582,7 +584,13 @@ class Project(WorksheetJoinSources, SheetCommands):
                 self.runs.extend(self.runs_for(title, dataset))
             self.layouts.extend(bundle.layouts)
             if bundle.infos:
-                self.update_info_sheets({**self.info_sheets, **{sheet.uid: sheet for sheet in bundle.infos}})
+                additions = {}
+                for sheet in bundle.infos:
+                    if sheet.worksheet and sheet.worksheet.startswith("layout:"):
+                        _, index = sheet.worksheet.split(":", 1)
+                        sheet = replace(sheet, worksheet=f"layout:{layouts_before + int(index)}")
+                    additions[sheet.uid] = sheet
+                self.update_info_sheets(self.info_sheets | additions)
             self.dirty = True
         except Exception:
             for title in bundle.tables:
@@ -965,7 +973,9 @@ class Project(WorksheetJoinSources, SheetCommands):
 
     # -- layouts --------------------------------------------------------------------------------------
     def layout_candidates(self, current=None):
-        return [run for run in self.runs if (run.result is not None and run.result.figure is not None)
+        return [run for index, run in enumerate(self.runs)
+                if (not self.sheet_state(("graph", index)).get("hidden")
+                    and run.result is not None and run.result.figure is not None)
                 or (current is not None and run.reference in current.panels)]
 
     def put_layout(self, layout, key=None):

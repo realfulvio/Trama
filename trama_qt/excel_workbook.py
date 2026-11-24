@@ -518,15 +518,19 @@ def export_items(project):
         if len(project.tables[item.key[1]].raw) + 1 > MAX_EXCEL_ROWS:
             item.reason = t("Too many rows for an Excel sheet.")
     for index, run in enumerate(project.runs):
+        ref = ("result", index)
+        if project.sheet_state(ref).get("hidden"):
+            continue
+        title = project.sheet_title(ref)
         tables = getattr(run.result, "tables", None) if run.result is not None else None
         if tables:
             reason = t("Not current: {error}").format(error=run.calculation_error) if run.calculation_error else None
-            items.extend(ExportItem(("result", index, name), f"{run.name} · {name}", "result", reason)
+            items.extend(ExportItem(("result", index, name), f"{title} · {name}", "result", reason)
                          for name in tables)
         elif run.result is None and preferred_view(run, None) == "result":  # An analysis without results: listed.
             reason = (t("Not current: {error}").format(error=run.calculation_error) if run.calculation_error
                       else t("Not calculated with the current data."))
-            items.append(ExportItem(("result", index, None), run.name, "result", reason))
+            items.append(ExportItem(("result", index, None), title, "result", reason))
     return items
 
 

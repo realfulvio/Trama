@@ -97,8 +97,10 @@ def _fill_snapshot(document, page, pdf, plan):
             width, height = original.get_size()
         finally:
             original.close()
-        matrix = raw.FS_MATRIX(plan["width_mm"] * PT / MM / width, 0, 0,
-                               plan["height_mm"] * PT / MM / height, 0, 0)
+        target_width, target_height = (plan[key] * PT / MM for key in ("width_mm", "height_mm"))
+        scale = min(target_width / width, target_height / height)
+        matrix = raw.FS_MATRIX(scale, 0, 0, scale, (target_width - width * scale) / 2,
+                               (target_height - height * scale) / 2)
         _place_form(document, page, source, matrix)
     if not raw.FPDFPage_GenerateContent(page):
         raise ValueError("Could not write the frozen PDF.")

@@ -63,7 +63,7 @@ def figure_sheet(project, ref):
             project.export_layout(layout, path)
         else:
             run = project.runs[key]
-            title = run.name
+            title = project.sheet_title(ref)
             if run.calculation_error:
                 raise ValueError(tr("reference.stale_export"))
             figure = run.result.figure if run.result is not None else None

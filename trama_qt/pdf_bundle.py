@@ -35,15 +35,18 @@ def bundle_sheets(project, graph_refs, imported_methods):
     entries, stale, imported = [], [], []
     for index in graph_refs:
         run = project.runs[index]
+        if project.sheet_state(("graph", index)).get("hidden"):
+            continue
+        name = project.sheet_title(("graph", index))
         if run.method in imported_methods:
-            imported.append(run.name)
+            imported.append(name)
         elif (not run.calculation_error and run.result is not None and run.result.figure is not None
               and run.result.figure.axes):
             figure = run.result.figure
-            entries.append(BundleEntry(("graph", index), "Graph", run.name, tuple(figure.get_size_inches()),
+            entries.append(BundleEntry(("graph", index), "Graph", name, tuple(figure.get_size_inches()),
                                        _raster(figure)))
         else:
-            stale.append(run.name)
+            stale.append(name)
     for index, layout in enumerate(project.layouts):
         runs = project.layout_runs(layout)
         if runs and all(run.result and run.result.figure and not run.calculation_error for run in runs):

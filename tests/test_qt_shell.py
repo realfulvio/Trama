@@ -3421,10 +3421,10 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.menuBar().actions()[-1].text(), tr("theme.settings"))
         for menu, names in {
             "File": ("exit", "open", "save", "export_batch", "export_report", "new_from_template", "import_excel"),
-            "Edit": ("paste_special", "paste_transpose", "paste_table", "clear_cells"),
+            "Edit": ("paste_special", "paste_transpose", "paste_table", "clear_cells", "sheet_delete"),
             "Insert": ("new_table", "new_info", "annotations", "shapes"),
             "Analyze": ("correlation_matrix", "load_example", "source_analysis", "recalculate"),
-            "Change": ("info_properties", "remove_info", "format_graph", "graph_style_presets"),
+            "Change": ("info_properties", "format_graph", "graph_style_presets"),
             "Arrange": ("arrange_shapes", "edit_layout"),
             "Family": ("family_data", "family_info", "family_results", "family_graphs", "family_gallery"),
             "Tools": ("power", "simulate", "monte_carlo", "transpose_xy", "plot_function"),
@@ -3460,9 +3460,9 @@ class QtShellTests(unittest.TestCase):
         props = window.actions["info_properties"]
         self.assertTrue(props.isEnabled())
         self.assertIn(props, window.command_menus["Change"].actions())
-        self.assertTrue(window.actions["remove_info"].isEnabled())
-        self.assertFalse(window.actions["info_up"].isEnabled())
-        self.assertFalse(window.actions["info_down"].isEnabled())
+        self.assertTrue(window.actions["sheet_delete"].isEnabled())
+        self.assertFalse(window.actions["sheet_move_up"].isEnabled())
+        self.assertFalse(window.actions["sheet_move_down"].isEnabled())
 
         window.open_sheet(("data", title))
         run = self.run_method("XY series", {"X": "X", "Y columns": ["Control"]})

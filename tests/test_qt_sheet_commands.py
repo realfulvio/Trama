@@ -98,6 +98,49 @@ class ProjectSheetOperations(unittest.TestCase):
         self.assertFalse(copied.use_constants)
         self.assertEqual(p.tables["Measurements"].info["factor"], "2")
 
+    def test_frozen_formula_keeps_the_info_value_across_save(self):
+        from dataclasses import replace
+
+        p = self.project
+        note = InfoSheet("Calibration", fields=(("Factor", "2"),), table="Measurements")
+        p.update_info_sheets({note.uid: note})
+        p.set_formula("Measurements", "Adjusted", '=Y * INFO("Factor")')
+        target = ("data", "Measurements")
+        p.set_sheet_frozen(target, True)
+        p.change_info(replace(note, fields=(("Factor", "3"),)))
+        path = self.folder / "frozen-formula.alab"
+        p.save(path)
+        reopened = Project()
+        reopened.load(path)
+        self.assertEqual(list(reopened.tables["Measurements"].frame()["Adjusted"]), [4, 8, 12])
+        reopened.set_sheet_frozen(target, False)
+        self.assertEqual(list(reopened.tables["Measurements"].frame()["Adjusted"]), [6, 12, 18])
+
+    def test_note_attachments_follow_their_graph_and_layout_on_family_copy(self):
+        from analisi.family_workflow import duplicate_family
+
+        p = self.project
+        graph = p.candidate("Measurements", "Linear regression", {})
+        p.add_result(graph, result_graph())
+        p.put_layout(Layout("Figures", 1, [graph.reference], panel_size="both"))
+        notes = [
+            InfoSheet("Graph remark", notes="First", floating=True, use_constants=False,
+                      worksheet=p.sheet_key(("graph", 0))),
+            InfoSheet("Layout remark", notes="Second", floating=True, use_constants=False,
+                      worksheet=p.sheet_key(("layout", 0))),
+        ]
+        p.update_info_sheets({note.uid: note for note in notes})
+        p.sync_links(persist=True)
+        bundle = duplicate_family(p.tables, p.layouts, p.info_sheets.values(), ("graph", graph.reference),
+                                  name="Measurements copy")
+        self.assertEqual({note.notes for note in bundle.infos}, {"First", "Second"})
+        copied = p.apply_family(bundle)
+        graph_note = next(note for note in p.info_sheets.values() if note.notes == "First" and note.uid != notes[0].uid)
+        self.assertEqual(graph_note.worksheet, p.sheet_key(copied))
+        self.assertEqual(p.layouts[-1].panel_size, "both")
+        layout_note = next(note for note in p.info_sheets.values() if note.notes == "Second" and note.uid != notes[1].uid)
+        self.assertEqual(layout_note.worksheet, p.sheet_key(("layout", 1)))
+
     def test_persistent_name_highlight_order_lock_and_cached_output(self):
         p = self.project
         first = p.candidate("Measurements", "Linear regression", {})

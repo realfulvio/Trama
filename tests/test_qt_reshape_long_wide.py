@@ -153,7 +153,11 @@ class ReshapeEditorTests(unittest.TestCase):
         self.assertEqual(dialog.options()["Name column"], "Visit")  # nothing was lost
         dialog.reshape.ids.set_values(["Sample $", "Rep"])
         self.assertTrue(dialog.reshape.timer.isActive())  # the debounced preview of the edit
-        QTest.qWait(400)
+        for _ in range(150):
+            if not dialog.reshape.timer.isActive():
+                break
+            QTest.qWait(20)
+        self.assertFalse(dialog.reshape.timer.isActive())
         self.assertFalse(dialog.banner.isVisible())  # a fixed recipe clears the stale error
         dialog.accept()
         self.assertEqual(dialog.result, (METHOD, WIDEN))

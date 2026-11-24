@@ -24,10 +24,15 @@ def validate_sheet_metadata(raw):
         kind, separator, identifier = key.partition(":")
         if not separator or kind not in KINDS or not identifier or not isinstance(record, dict):
             raise ValueError("Invalid worksheet state.")
-        if set(record) - {"name", "highlight", "position", "hidden", "locked"}:
+        if set(record) - {"name", "highlight", "position", "hidden", "locked", "info"}:
             raise ValueError("Invalid worksheet state.")
         if "name" in record:
             validate_sheet_title(record["name"])
+        if "info" in record:
+            info = record["info"]
+            if (kind != "data" or record.get("locked") is not True or not isinstance(info, dict)
+                    or any(value is not None and not isinstance(value, str) for value in info.values())):
+                raise ValueError("Invalid frozen worksheet constants.")
         if ("highlight" in record and record["highlight"] not in HIGHLIGHTS
                 or "position" in record and (type(record["position"]) is not int or record["position"] < 0)
                 or any(flag in record and type(record[flag]) is not bool for flag in ("hidden", "locked"))):

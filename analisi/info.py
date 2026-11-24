@@ -85,7 +85,8 @@ class InfoSheet:
             if not isinstance(self.worksheet, str):
                 raise ValueError("Invalid linked worksheet.")
             kind, separator, identifier = self.worksheet.partition(":")
-            if not (separator and identifier and self.floating and kind in KINDS - {"data"}):
+            if (not separator or not identifier or not self.floating or kind not in KINDS - {"data"}
+                    or kind == "layout" and not identifier.isdecimal()):
                 raise ValueError("Invalid linked worksheet.")
         if not _text(self.notes, MAX_INFO_NOTES):
             raise ValueError("Info notes exceed the size limit or contain invalid text.")

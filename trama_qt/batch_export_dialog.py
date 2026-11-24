@@ -96,8 +96,9 @@ def navigator_graphs(project):
 
     from .project import run_view
     return [index for index, run in enumerate(project.runs)
-            if run_view(run.method) == "graph" or run.method in GRAPH_METHODS
-            or (run.result is not None and run.result.figure is not None and run_view(run.method) == "result")]
+            if not project.sheet_state(("graph", index)).get("hidden")
+            and (run_view(run.method) == "graph" or run.method in GRAPH_METHODS
+                 or (run.result is not None and run.result.figure is not None and run_view(run.method) == "result"))]
 
 
 def batch_rows(project, imported_methods):
@@ -109,21 +110,23 @@ def batch_rows(project, imported_methods):
     for index in graphs:
         run = project.runs[index]
         entry = ready.get(("graph", index))
+        name = project.sheet_title(("graph", index))
         if entry is not None:
-            raw.append(("Graph", run.name, entry.ref, entry.size, ""))
+            raw.append(("Graph", name, entry.ref, entry.size, ""))
         elif run.method in imported_methods:
-            raw.append(("Graph", run.name, ("graph", index), None, text("imported")))
+            raw.append(("Graph", name, ("graph", index), None, text("imported")))
         elif run.calculation_error:
-            raw.append(("Graph", run.name, ("graph", index), None, text("failed", error=run.calculation_error)))
+            raw.append(("Graph", name, ("graph", index), None, text("failed", error=run.calculation_error)))
         else:
-            raw.append(("Graph", run.name, ("graph", index), None, text("not_calculated")))
+            raw.append(("Graph", name, ("graph", index), None, text("not_calculated")))
     for index, layout in enumerate(project.layouts):
         entry = ready.get(("layout", index))
         raw.append(("Layout", layout.name, ("layout", index), entry.size if entry else None,
                     "" if entry else text("panels")))
     for index, run in enumerate(project.runs):
-        if run_view(run.method) == "saved-layout":
-            raw.append(("Layout", run.name, ("saved-layout", index), None, text("imported")))
+        ref = ("saved-layout", index)
+        if run_view(run.method) == "saved-layout" and not project.sheet_state(ref).get("hidden"):
+            raw.append(("Layout", project.sheet_title(ref), ref, None, text("imported")))
     rows, counts = [], {}
     for kind, name, ref, size, reason in raw:
         label = f"{text('graph') if kind == 'Graph' else text('layout')} · {name}"
