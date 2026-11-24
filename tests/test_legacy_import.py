@@ -71,6 +71,67 @@ class LegacyImportTests(unittest.TestCase):
         self.assertEqual(reopened.raw.attrs["variable_types"], data.raw.attrs["variable_types"])
         self.assertEqual(reopened.raw["Batch"].tolist(), ["001", "002"])
 
+    def test_xml_worksheet_notes_follow_the_imported_table_and_keep_emphasis(self):
+        from analisi.info import NOTE_BOLD, NOTE_ITALIC
+        from trama_qt.project import Project
+
+        path = self.path / "notes.pzfx"
+        path.write_text(xml_document(
+            '<Info ID="I"><Title>Protocol</Title><Notes>Use <I>µm</I></Notes></Info>'
+            '<Table ID="T" TableType="OneWay"><Title>Measures</Title>'
+            '<YColumn><Title>Distance</Title><Subcolumn><d>1.5</d></Subcolumn></YColumn>'
+            '<FloatingNote>Read <Font><B>α<I>β</I></B></Font> before running.</FloatingNote>'
+            '<FloatingNote/><FloatingNote>Second note.</FloatingNote></Table>'), encoding="utf-8")
+        project = Project()
+        self.assertEqual(project.load(path), ["Measures"])
+        self.assertEqual(project.load(path), ["Measures (2)"])
+        first, head, detail, _, copied_head, copied_detail = project.info_sheets.values()
+        self.assertEqual((first.table, first.notes, first.note_styles), (None, "Use µm", ((4, 6, NOTE_ITALIC),)))
+        self.assertEqual(head.notes, "Read αβ before running.")
+        self.assertEqual(head.note_styles, ((5, 6, NOTE_BOLD), (6, 7, NOTE_BOLD | NOTE_ITALIC)))
+        self.assertEqual(detail.notes, "Second note.")
+        self.assertEqual([head.table, detail.table, copied_head.table, copied_detail.table],
+                         ["Measures", "Measures", "Measures (2)", "Measures (2)"])
+        path = self.path / "notes.alab"
+        project.save(path)
+        reopened = Project()
+        reopened.load(path)
+        self.assertEqual(list(reopened.info_sheets.values()), list(project.info_sheets.values()))
+
+    def test_zip_worksheet_notes_keep_order_and_text_when_styles_are_invalid(self):
+        from analisi.info import NOTE_BOLD, NOTE_UNDERLINE
+        from trama_qt.project import Project
+
+        path = self.path / "notes.pzt"
+        ids = ["second", "excluded", "first", "missing"]
+        table = {"uid": "table", "format": "column", "dataFormat": "y_single", "dataSets": ["a"]}
+        with ZipFile(path, "w") as archive:
+            archive.writestr("document.json", json.dumps({"sheets": {"data": ["sheet"]}}))
+            archive.writestr("data/sheets/sheet/sheet.json", json.dumps({
+                "title": "Experiment", "floatingNotes": ids, "table": table,
+            }))
+            archive.writestr("data/tables/table/data.csv", "1")
+            archive.writestr("data/sets/a.json", '{"title":"Signal"}')
+            notes = [
+                ("first", "Unstyled warning", "100~200", False),
+                ("second", "Read α", "0~3", False),
+                ("excluded", "Old tool message", "0~2", True),
+            ]
+            for uid, text, span, compatibility in notes:
+                archive.writestr(f"data/sheets/sheet/floating_notes/{uid}.json", json.dumps({
+                    "@class": "FloatingNote", "uid": uid, "isCompatibilityNote": compatibility,
+                    "text": {"string": text, "formatting": [
+                        {"range": span, "attributes": {"fontWeight": "bold", "underline": True}},
+                    ]},
+                }))
+        project = Project()
+        project.load(path)
+        second, first = project.info_sheets.values()
+        self.assertEqual((second.notes, first.notes), ("Read α", "Unstyled warning"))
+        self.assertEqual(second.note_styles, ((0, 4, NOTE_BOLD | NOTE_UNDERLINE),))
+        self.assertEqual(first.note_styles, ())
+        self.assertEqual((first.table, second.table), ("Experiment", "Experiment"))
+
     def test_native_recipe_recalculates_and_survives_saving_with_forward_references(self):
         source = self.path / "formulas.prism"
         table = {"uid": "table", "format": "multivariable", "dataFormat": "y_single", "dataSets": ["x", "a", "b"]}

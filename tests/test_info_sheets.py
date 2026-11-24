@@ -9,7 +9,7 @@ from zipfile import ZipFile
 import pandas as pd
 
 from analisi.data import Dataset, info_references, load_project, load_tables, load_workspace, save_project
-from analisi.info import InfoSheet, info_contexts
+from analisi.info import NOTE_BOLD, InfoSheet, info_contexts
 from analisi.info_widget import InfoEditor
 from test_legacy_binary import document, group, record
 
@@ -159,20 +159,22 @@ class InfoSheetTests(unittest.TestCase):
             self.assertEqual(result[1].fields, (("Experiment ID", "007"),))
             self.assertEqual(result[1].notes, "Readout μM\nSecond line")
 
-    def test_zip_info_reads_rich_string_text_without_importing_formatting(self):
+    def test_zip_info_recovers_text_and_supported_emphasis(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "fixture.prism"
             with ZipFile(path, "w") as archive:
                 archive.writestr("document.json", json.dumps({"sheets": {"info": ["first"]}}))
                 archive.writestr("info/first/sheet.json", json.dumps({
                     "@class": "InfoSheet", "uid": "first", "title": "Project info",
-                    "notesText": {"string": "Temperature 37 °C", "formatting": []},
+                    "notesText": {"string": "Temperature 37 °C",
+                                  "formatting": [{"range": "0~10", "attributes": {"fontWeight": "bold"}}]},
                     "constants": [{"name": "Experiment Date", "value": {"string": "1/25/2026", "version": 1}}],
                 }))
             result = []
             self.assertEqual(load_tables(path, info_sheets=result), {})
             self.assertEqual(result[0].fields, (("Experiment Date", "1/25/2026"),))
             self.assertEqual(result[0].notes, "Temperature 37 °C")
+            self.assertEqual(result[0].note_styles, ((0, 11, NOTE_BOLD),))
 
     def test_pzf_info_order_and_internal_backing_id_is_not_a_user_link(self):
         def binary_sheet(uid, title, value):

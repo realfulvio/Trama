@@ -5,7 +5,7 @@ functions (``analyse``, ``load_workspace``, ``save_project``, the analysis-chain
 that the Qt interface never imports Tk.
 """
 from copy import copy, deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import json
 import os
 from pathlib import Path
@@ -30,7 +30,8 @@ from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_blo
 from analisi.category_order import WORKSHEET_ORDERS, keep_source_columns
 from analisi.variable_types import TYPES, VARIABLE_TYPES, convert_type
 from analisi.i18n import tr, ui
-from analisi.info import info_contexts, validate_info_sheets
+from analisi.info import InfoSheet, info_contexts, validate_info_sheets
+from analisi.legacy_notes import WORKSHEET_NOTES
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY
 from analisi.plot_function import OBSERVATION_COLUMNS
 from analisi.pca_graphs import SAVED_DIRECTIONS as PCA_SAVED_DIRECTIONS, SAVED_VIEWPORT as PCA_SAVED_VIEWPORT
@@ -405,9 +406,10 @@ class Project(WorksheetJoinSources):
     def is_empty(self):
         return not self.tables and not self.info_sheets and not self.dirty and self.path is None
 
-    def unique_title(self, title):
+    def unique_title(self, title, *, occupied=None):
+        occupied = self.tables if occupied is None else occupied
         proposed, number = title, 2
-        while proposed in self.tables:
+        while proposed in occupied:
             proposed = f"{title} ({number})"
             number += 1
         return proposed
@@ -446,22 +448,34 @@ class Project(WorksheetJoinSources):
             raise ValueError("No data tables were found.")
         if len(self.tables) + len(tables) > MAX_TABLES:
             raise ValueError("A project supports up to 256 data tables.")
-        if info_sheets:
-            sheets = {**self.info_sheets, **{sheet.uid: sheet for sheet in info_sheets}}
-            validate_info_sheets(tuple(sheets.values()), {**self.tables, **dict.fromkeys(tables)})
-            self.info_sheets = sheets
-        contexts = info_contexts(self.info_sheets.values())
-        titles = []
-        first_run = len(self.runs)
+        occupied, names = set(self.tables), {}
+        for name in tables:
+            title = self.unique_title(name, occupied=occupied)
+            names[name] = title
+            occupied.add(title)
+        incoming = [replace(sheet, table=names[sheet.table]) if sheet.table in names else sheet
+                    for sheet in info_sheets]
         for name, frame in tables.items():
-            title = self.unique_title(name)
-            titles.append(title)
-            dataset = self.tables[title] = Dataset(frame.reset_index(drop=True),
-                                                   info=contexts.get(title, contexts[None]))
-            self.runs.extend(self.runs_for(title, dataset))
-        self._add_imported_layouts(self.runs[first_run:])
+            title = names[name]
+            for number, (text, styles) in enumerate(frame.attrs.get(WORKSHEET_NOTES, ()), 1):
+                note_title = tr("worksheet.imported_note", name=title[:122], number=number)
+                incoming.append(InfoSheet(note_title, notes=text, table=title, note_styles=styles))
+        sheets = {**self.info_sheets, **{sheet.uid: sheet for sheet in incoming}}
+        validate_info_sheets(tuple(sheets.values()), occupied)
+        contexts = info_contexts(sheets.values())
+        datasets, imported_runs = {}, []
+        for name, frame in tables.items():
+            title = names[name]
+            source = frame.reset_index(drop=True)
+            source.attrs.pop(WORKSHEET_NOTES, None)
+            dataset = datasets[title] = Dataset(source, info=contexts.get(title, contexts[None]))
+            imported_runs.extend(self.runs_for(title, dataset))
+        self.info_sheets = sheets
+        self.tables.update(datasets)
+        self.runs.extend(imported_runs)
+        self._add_imported_layouts(imported_runs)
         self.dirty = True
-        return titles
+        return list(datasets)
 
     def _add_imported_layouts(self, runs):
         """Create editable pages only when every panel has a unique native graph in this import."""

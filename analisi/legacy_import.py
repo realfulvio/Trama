@@ -18,6 +18,7 @@ from .data import (COLUMN_FORMULA_FUNCTIONS, ELEMENTWISE_FORMULA_FUNCTIONS, MAX_
 from .formula_windows import CONDITIONAL_CALLS, WINDOW_CALLS, WINDOW_CLAUSES, WINDOW_KEYWORDS
 from .graph_legend import MAX_LEGEND_KEY_LENGTH, typed_group_token
 from .info import InfoSheet, MAX_INFO_FIELDS, MAX_INFO_SHEETS
+from .legacy_notes import WORKSHEET_NOTES, archive_note, xml_note
 from .legacy_project_metadata import saved_table_format
 from .variable_types import VARIABLE_TYPES
 
@@ -317,6 +318,29 @@ def _zip_info_text(value):
     return value
 
 
+def _zip_worksheet_notes(archive, sheet_id, ids):
+    if not isinstance(ids, list) or len(ids) > MAX_INFO_SHEETS:
+        return ()
+    notes, seen = [], set()
+    for entry in ids:
+        try:
+            uid = _identifier(entry)
+            if uid in seen:
+                continue
+            seen.add(uid)
+            note = _json_object(archive, f"data/sheets/{sheet_id}/floating_notes/{uid}.json")
+            if note.get("@class") != "FloatingNote" or note.get("uid") != uid:
+                continue
+            if note.get("isCompatibilityNote") is True or (note.get("isAuto") is True and note.get("isReadOnly") is True):
+                continue
+            text, styles = archive_note(note.get("text"))
+            if text.strip():
+                notes.append((text, styles))
+        except (KeyError, ValueError):
+            continue
+    return tuple(notes)
+
+
 def _zip_info(archive, ids, target, skipped, *, focused=None):
     if not isinstance(ids, list) or len(ids) > MAX_INFO_SHEETS:
         raise ValueError("Invalid legacy Info sheet list or too many sheets.")
@@ -337,7 +361,8 @@ def _zip_info(archive, ids, target, skipped, *, focused=None):
             if not isinstance(fields, list) or len(fields) > MAX_INFO_FIELDS:
                 raise ValueError("Invalid legacy Info constant list.")
             pairs = [(_zip_info_text(row["name"]), _zip_info_text(row["value"])) for row in fields]
-            imported = InfoSheet(title, tuple(pairs), _zip_info_text(sheet.get("notesText", "")))
+            notes, styles = archive_note(sheet.get("notesText", ""))
+            imported = InfoSheet(title, tuple(pairs), notes, note_styles=styles)
             target.append(imported)
             if uid == focused:
                 selected = imported.uid
@@ -401,6 +426,8 @@ def _legacy_zip(path, restore=False, info_sheets=None, initial_sheet=None):
                 if frame is None:
                     skipped.append(title)
                     continue
+                if restore and (notes := _zip_worksheet_notes(archive, uid, sheet.get("floatingNotes", []))):
+                    frame.attrs[WORKSHEET_NOTES] = notes
                 cells += frame.size
                 name = _store_table(tables, title, frame)
                 sources[uid] = frame
@@ -488,10 +515,24 @@ def _xml_info(root, ns, target, skipped):
             if len(fields) > MAX_INFO_FIELDS:
                 raise ValueError("Legacy Info sheet contains too many constants.")
             pairs = tuple((_xml_text(row.find(ns + "Name")), _xml_text(row.find(ns + "Value"))) for row in fields)
-            notes = _xml_text(element.find(ns + "Notes"))
-            target.append(InfoSheet(title, pairs, notes))
+            notes, styles = xml_note(element.find(ns + "Notes"))
+            target.append(InfoSheet(title, pairs, notes, note_styles=styles))
         except ValueError:
             skipped.append(title)
+
+
+def _xml_worksheet_notes(table, ns):
+    notes = []
+    for element in table.iterfind(ns + "FloatingNote"):
+        if len(notes) == MAX_INFO_SHEETS:
+            break
+        try:
+            text, styles = xml_note(element)
+        except ValueError:
+            continue
+        if text.strip():
+            notes.append((text, styles))
+    return tuple(notes)
 
 
 def _legacy_xml(path, info_sheets=None, *, restore=False):
@@ -552,6 +593,8 @@ def _legacy_xml(path, info_sheets=None, *, restore=False):
         frame.attrs["excluded"] = sorted((row, col) for col, rows in enumerate(excluded) for row in rows)
         frame.attrs["table_format"] = table_format
         _with_variable_types(frame, declared)
+        if restore and (notes := _xml_worksheet_notes(table, ns)):
+            frame.attrs[WORKSHEET_NOTES] = notes
         if table_format.casefold() == "nested":
             frame.attrs["worksheet_roles"] = {"x": [], "y": [frame.columns[a:b].tolist() for a, b, _ in y_spans]}
         _store_table(tables, title, frame)
