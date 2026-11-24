@@ -1,4 +1,5 @@
 """Restore single-series dose fits, normalization and linked curves from PCFFGRA4 projects."""
+from dataclasses import dataclass
 from hashlib import sha256
 from struct import Struct, error as StructError, pack, unpack, unpack_from
 
@@ -12,9 +13,13 @@ from . import regression_range as rr, stats
 from .legacy_binary import _DATASET, _record_once
 from .legacy_binary_editable import _axis_config, _id_array, _one, _project_records, _require, _scene, _subgroups
 from .legacy_binary_results import _column_ids, _title
+from .legacy_emf_edit import _drawing_series
 from .legacy_fit_graph import FIT_GRAPH, FIT_GRAPH_OBSERVATIONS, FIT_GRAPH_POINTS, FIT_GRAPH_SPEC
 from .legacy_restore import LEGACY_GRAPH_LINK, LEGACY_NOTES, LEGACY_TITLE, SAVED_XY, _append_linked_recipe
 from .legacy_xml_binding import indexed_analyses
+from .nonlinear_calibration import (DIRECTIONS, DIRECTION, MAX_PADE_DRAWING_POINTS, MISSING_X_ONLY, PADE_DRAWING,
+                                    PADE_MODEL, UNKNOWN_RESPONSES)
+from .pade_calibration import evaluate_z, fit_pade
 from .presentation import validated_style
 from .probability_scale import PROBABILITY_SCALES
 from .reference_normalization import INDEPENDENT, KEEP, MAXIMUM, METHOD, MINIMUM, NORMALIZED, PERCENTAGES, RAW
@@ -48,14 +53,19 @@ _BIPHASIC_PROFILES = {
     "dc3fc420ab207688d846606d6fcd2bb88f699bd509932f43a537acc3f89e16aa": "Biphasic dose-response (concentration X)",
     "af7eed14d291c937bddb125ddcc1cd9fc65964b4e4aab734463f5dacee7510e6": "Biphasic dose-response (log10 X)",
 }
+_ASYMMETRIC_LOG = "Asymmetric dose-response (log10 X)"
+_EARLY_CALIBRATION_PROFILES = {
+    "37cf55fca02daac48c82457ba8487da566846f59de46b53895a68e2c0887092d": _ASYMMETRIC_LOG,
+}
 _CALIBRATION_POLYNOMIALS = {
     "7db973bdf5567b217bc1c9b5bd49297cf4cc86803e1aaf888e0c9aa9dd9185c4": "Polynomial (order 2)",
     "a1fbe90d9874e4694a062fb09305c78f6f5143d4838fcca50f3aca9a0159a512": "Polynomial (order 3)",
 }
 _CALIBRATION_PROFILES = {
     **_CALIBRATION_POLYNOMIALS,
+    "9d079d63d97d397bd383354e6899f1d863acc7dbc0f04ccd46153dcb11a479b7": PADE_MODEL,
     "b08e5e2f3ed686173631fc329a4a41d51315f3c6a5427bbf49f7f16bb0451142": "Stimulation (variable slope, log10 X)",
-    "fc0d53b1d95f29c2642811d8ae9b4f352087d40f89ba252d2d81f9ee39aff5d1": "Asymmetric dose-response (log10 X)",
+    "fc0d53b1d95f29c2642811d8ae9b4f352087d40f89ba252d2d81f9ee39aff5d1": _ASYMMETRIC_LOG,
 }
 
 
@@ -133,7 +143,7 @@ def classic_fit_models(data):
 
 def early_fit_inputs(data, companions, indexed, *, profiles=None):
     """Resolve matching analysis companions carrying the worksheet and column selection."""
-    profiles = _BIPHASIC_PROFILES | (profiles or {})
+    profiles = _BIPHASIC_PROFILES | _EARLY_CALIBRATION_PROFILES | (profiles or {})
     try:
         _, analyses = indexed_analyses(data)
     except (ValueError, StructError):
@@ -179,12 +189,15 @@ def restore_dose_recipes(data, sources, sheets, snapshots, pending, *, curves=No
     for uid, sheet, kind, records in sorted(analyses, key=lambda a: a[2][0] != 4):
         early = early_inputs.get(uid)
         classic, calibration = classic_models.get(uid, (None, False))
+        if classic == PADE_MODEL:
+            continue
         if classic == "Classic two-phase decay":
             # The fast rate is not identified by the saved observations.
             continue
         if early:
             sheet, early_model, selection = early
-            if early_model not in _BIPHASIC_PROFILES.values():
+            calibration = early_model in _EARLY_CALIBRATION_PROFILES.values()
+            if not calibration and early_model not in _BIPHASIC_PROFILES.values():
                 continue
         if uid not in pending or sheets.get(sheet) is None:
             continue
@@ -294,7 +307,6 @@ def _dataset_link(sheet, column, expected_role):
 
 
 def _graph_curve(graph, curves, *, verify_series=False):
-    sheet_ids = set(_id_array(_one(graph, 0x14)))
     order = _id_array(_one(graph, 0x15))
     payload = _one(graph, 0x16)
     _require(len(set(order)) == len(order) and len(payload) == 2 + len(order) * _GRAPH_SERIES.size
@@ -303,8 +315,15 @@ def _graph_curve(graph, curves, *, verify_series=False):
     curve_link, = (link for link in links if curves.get(link) is not None)
     curve, sheet, observations, source, slot = curves[curve_link]
     extra = [link for link in links if link != curve_link]
-    detached = (verify_series and source.attrs["legacy_recipes"][slot][1]["Model"]
-                in _CALIBRATION_POLYNOMIALS.values())
+    model = source.attrs["legacy_recipes"][slot][1]["Model"] if verify_series else None
+    member_ids = _one(graph, 0x14)
+    if model == _ASYMMETRIC_LOG and member_ids == pack("<4i", 3, sheet, curve, -2):
+        # This profile carries an extra marker with no dataset or series slot.
+        _require(extra == [observations])
+        sheet_ids = {sheet, curve}
+    else:
+        sheet_ids = set(_id_array(member_ids))
+    detached = model in _CALIBRATION_POLYNOMIALS.values()
     _require(curve in sheet_ids and (not extra or extra == [observations] and (sheet in sheet_ids or detached))
              and sheet_ids <= {curve, sheet})
     return curve, source, slot, curve_link[0], observations[0] if extra else None
@@ -313,7 +332,11 @@ def _graph_curve(graph, curves, *, verify_series=False):
 def _sample_settings(frame, options):
     values = frame.to_numpy(dtype=float)
     _require(values.shape[1] == 2 and 2 <= len(values) <= rr.MAX_POINTS and np.isfinite(values).all())
-    x = values[:, 0]
+    return _drawing_settings(values[:, 0], options)
+
+
+def _drawing_settings(x, options):
+    _require(2 <= len(x) <= rr.MAX_POINTS and np.isfinite(x).all())
     _require(x[0] < x[-1])
     _require(np.allclose(x, np.linspace(x[0], x[-1], len(x)), rtol=0,
                          atol=8 * np.finfo(float).eps * max(abs(x[0]), abs(x[-1]))))
@@ -386,6 +409,111 @@ def _calibration_labels(graph, encoding, axes, curve_id, observed_id, samples, s
     return {dim + "label": texts[axis["title"]] for dim, axis in zip("xy", axes) if axis["title"] in texts}
 
 
+@dataclass(frozen=True)
+class PadeCandidate:
+    analysis: int
+    worksheet: int
+    curve: int
+    observed: tuple[int, int, int]
+    fitted: tuple[int, int, int]
+    x: str
+    y: str
+
+
+def pade_candidates(data, sources, sheets, snapshots, classic_models, pending):
+    models = {uid for uid in pending if classic_models.get(uid) == (PADE_MODEL, True)}
+    if not models:
+        return {}
+    try:
+        _, analyses = indexed_analyses(data)
+    except (ValueError, StructError):
+        return {}
+    candidates = {}
+    for uid, sheet, _, records in analyses:
+        if uid not in models:
+            continue
+        try:
+            frame = sources[sheet]
+            roles = frame.attrs["worksheet_roles"]
+            x, = roles["x"]
+            (y,), = roles["y"]
+            _require(frame.attrs["table_format"] == "xy" and 4 <= len(frame) <= 128 and frame.columns.is_unique
+                     and is_numeric_dtype(frame[x]) and is_numeric_dtype(frame[y])
+                     and (frame[x].isna() & frame[y].notna()).any())
+            _require(unpack("<2i", _one(records, 0x3B)) == (1, sheet))
+            count, column, first, last = unpack("<H3i", _one(records, 0x3D))
+            _require((count, first, last) == (1, 0, 0) and _column_ids(sheets[sheet][0]) == (column,))
+            slots, first_slot, report, curve, *rest = unpack("<10i", _one(records, 0x3C))
+            _require(slots == 9 and first_slot == -1 and set(rest) == {-1}
+                     and snapshots.get(report) == (uid, sheet, 1) and snapshots.get(curve) == (uid, sheet, 2))
+            output, = _column_ids(sheets[curve][0])
+            fitted = _dataset_link(sheets[curve], output, 40)
+            _require(fitted is not None)
+            key = sheet, curve
+            candidates[key] = None if key in candidates else PadeCandidate(uid, sheet, curve, (column, 0, 0), fitted,
+                                                                           x, y)
+        except (ValueError, StructError, TypeError, KeyError):
+            continue
+    return candidates
+
+
+def restore_pade_graphs(data, graphs, links, candidates, result_frames, sources):
+    if not candidates:
+        return set(), set()
+    try:
+        _, _, records, _ = _project_records(data, ())
+    except (ValueError, StructError):
+        return set(), set()
+    restored, analyses = set(), set()
+    for graph in graphs:
+        uid = graph["id"]
+        try:
+            scene = records[uid]
+            first, second = _id_array(_one(scene, 0x14))
+            candidate, = (candidates[key] for key in ((first, second), (second, first)) if candidates.get(key))
+            source = sources[candidate.worksheet]
+            recipes = source.attrs.get("legacy_recipes", [])
+            _require(candidate.analysis not in analyses and len(recipes) < 256 and uid in links)
+            samples = result_frames[candidate.curve]
+            _require(2 <= len(samples) <= MAX_PADE_DRAWING_POINTS)
+            grid = _sample_settings(samples, {})
+            saved_x, saved_y = samples.to_numpy(dtype=float).T
+            fitted = fit_pade(source, candidate.x, candidate.y)
+            predicted = evaluate_z(fitted.coefficients, (saved_x - fitted.x_min) / fitted.x_scale)
+            _require(np.allclose(saved_y, predicted, rtol=2e-6, atol=1e-8))
+            payload = _one(scene, 0x16)
+            _require(len(payload) == 2 + 2 * _GRAPH_SERIES.size and unpack_from("<H", payload)[0] == 2
+                     and set(_GRAPH_SERIES.iter_unpack(payload[2:])) == {candidate.observed, candidate.fitted})
+            axes = _axis_config(scene, viewport_only=True)
+            _require(len(axes) == 2 and all(axis["scale"] == "linear" for axis in axes))
+            observed = stats.complete(source, [candidate.x, candidate.y]).to_numpy(dtype=float)
+            series = _drawing_series(scene, 0, (0x08, 0x88))
+            _require(len(series) == 2 and
+                     {(dataset, unpack_from("<H", style, 58)[0]) for dataset, _, style in series}
+                     == {(candidate.observed[0], 0x08), (candidate.fitted[0], 0x88)})
+            cache = {dataset: values.reshape(-1, 2) for dataset, values, _ in series}
+            expected = {candidate.observed[0]: observed, candidate.fitted[0]: np.column_stack((saved_x, predicted))}
+            _require(cache.keys() == expected.keys() and all(
+                _matching_grid(cache[dataset], coords, axes, high_anchored=True) for dataset, coords in expected.items()))
+            style = validated_style({"axis": {dim: {"min": axis["bounds"][0], "max": axis["bounds"][1]}
+                                              for dim, axis in zip("xy", axes, strict=True)}})
+        except (KeyError, TypeError, ValueError, StructError, OverflowError):
+            continue
+        options = {
+            LEGACY_TITLE: graph["title"][:150] + " · Linked",
+            LEGACY_NOTES: "Recalculates the saved calibration from the linked standards and unknown responses.",
+            LEGACY_GRAPH_LINK: links[uid], DIRECTION: DIRECTIONS[0], "Curve": "Nonlinear", "Model": PADE_MODEL,
+            "X": candidate.x, "Y": candidate.y, UNKNOWN_RESPONSES: candidate.y, MISSING_X_ONLY: True,
+            PADE_DRAWING: {"x": candidate.x, "y": candidate.y, "min": grid[rr.CURVE_MIN],
+                           "max": grid[rr.CURVE_MAX], "points": grid[rr.CURVE_POINTS]},
+        }
+        source.attrs.setdefault("legacy_graph_styles", {})[len(recipes)] = style
+        source.attrs.setdefault("legacy_recipes", []).append(("Interpolate a standard curve", options))
+        restored.add(uid)
+        analyses.add(candidate.analysis)
+    return restored, analyses
+
+
 def restore_dose_graphs(data, graphs, links, curves, result_frames, *, classic_curves=None, verify_series=False):
     """Attach an editable graph to each verified fitted-curve output referenced by the drawing."""
     try:
@@ -413,11 +541,16 @@ def restore_dose_graphs(data, graphs, links, curves, result_frames, *, classic_c
                     labels = _calibration_labels(records[uid], encoding, axes, curve_id, observed_id, samples, source,
                                                  options)
                     model = options["Model"]
-                    if model in _CALIBRATION_POLYNOMIALS.values():
+                    if model in _CALIBRATION_POLYNOMIALS.values() or model == _ASYMMETRIC_LOG:
                         fit = stats.nonlinear(source, options["X"], options["Y"], model)["All"]
                         x_values, expected = samples.to_numpy(dtype=float).T
                         predicted = stats.MODELS[model].equation(x_values, *fit.parameters["Estimate"])
-                        _require(np.allclose(predicted, expected, rtol=1e-6, atol=1e-6))
+                        tolerance = 1e-6
+                        if model == _ASYMMETRIC_LOG:
+                            # Allow solver roundoff relative to the response scale,
+                            # including around the crossing where Y is close to zero.
+                            tolerance *= max(1., np.max(np.abs(expected)))
+                        _require(np.allclose(predicted, expected, rtol=1e-6, atol=tolerance))
             options = source.attrs["legacy_recipes"][slot][1]
             grid = _sample_settings(samples, options)
             style = {"axis": {}, "legend": "hidden", **labels}

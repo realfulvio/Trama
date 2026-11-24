@@ -22,6 +22,21 @@ def _function(equation, parameters):
 
 
 class LegacySimulationTests(unittest.TestCase):
+    def test_cell_death_simulations_respect_the_saved_response_units(self):
+        x = np.arange(4, dtype=float)
+        fraction = 1. - np.exp(-(.2 * x + .1 * x**2))
+        for equation, parameters, scale, unit in (
+            ("Y=100-[100*exp(-1*(A*X+B*X^2))]", {"A": .2, "B": .1}, 100., "percent"),
+            ("Y=Y0*[1-exp(-1*(A*X+B*X^2))]", {"Y0": 10000., "A": .2, "B": .1}, 10000., "counts"),
+        ):
+            with self.subTest(unit=unit):
+                saved = pd.DataFrame({"X": x, "Response": scale * fraction})
+                options = _simulation_options(_function(equation, parameters), saved)
+                self.assertEqual(options[plotting.MODEL], f"Linear-quadratic cell death ({unit})")
+                result = plotting.plot_function(saved[["X"]], options)
+                np.testing.assert_allclose(result.tables[plotting.VALUES]["Response"], scale * fraction)
+                self.assertEqual(result.tables[plotting.VALUES].at[0, "Response"], 0.)
+
     def test_fractional_death_keeps_zero_on_the_table_and_observations_on_the_plot(self):
         x = np.arange(4, dtype=float)
         values = -np.expm1(-x * (.08514 + .1029 * x))

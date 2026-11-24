@@ -5,6 +5,7 @@ from matplotlib.colors import is_color_like
 import numpy as np
 import pandas as pd
 
+from .i18n import ui
 from .stats import MODELS, complete
 from . import regression_range as rr
 from .replicate_fit import MERGE_REPLICATES, stack_replicates
@@ -18,6 +19,45 @@ FIT_GRAPH_OBSERVATIONS = "Imported fit observations visible"
 FIT_INTERVAL_BAND = "Imported parameter interval band"
 LOG_DOSE_MODEL = "Stimulation (standard slope, log10 X)"
 MAX_SAMPLES = 2000
+
+
+def absolute_fit_overlay(model, spec):
+    """Validate the saved reference points before adding them to a live fit."""
+    logarithmic = model == "Absolute IC50 (log10 X)"
+    if not logarithmic and model != "Absolute IC50 (concentration X)":
+        return None
+    points = spec.get("control overlay")
+    colors = tuple(spec.get(key) for key in ("control color", "response color", "curve color"))
+    if (not isinstance(points, list) or not 1 <= len(points) <= 64
+            or any(not isinstance(point, list) or len(point) != 2 or
+                   any(type(v) not in (int, float) or not -1e100 < v < 1e100 for v in point)
+                   for point in points)
+            or not all(isinstance(color, str) and len(color) == 7 and color.startswith("#")
+                       and is_color_like(color) for color in colors)):
+        return None
+    coords = np.array(points, dtype=float)
+    if not logarithmic and np.any(coords[:, 0] <= 0):
+        return None
+    return coords, colors
+
+
+def draw_absolute_fit_midpoints(axes, fit, model, color):
+    """Show the current absolute and relative midpoint on the fitted line."""
+    top_excess, bottom_gap, absolute, steepness, baseline = fit.parameters["Estimate"]
+    half_top = top_excess / 2
+    shift = (np.log(bottom_gap) - np.log(half_top)) / steepness
+    log_x = model == "Absolute IC50 (log10 X)"
+    with np.errstate(over="ignore", under="ignore"):
+        relative = absolute + shift / np.log(10.) if log_x else np.exp(np.log(absolute) + shift)
+    bottom = baseline + half_top - bottom_gap
+    x = fit.curve[:, 0]
+    for pos, response, offset, align, title in (
+            (absolute, baseline + half_top, 12, "left", "Absolute IC50"),
+            (relative, bottom + (half_top + bottom_gap) / 2, -12, "right", "Relative IC50")):
+        if x[0] <= pos <= x[-1] and np.isfinite(response):
+            axes.annotate(ui(title), (pos, response), xytext=(offset, 24), textcoords="offset points",
+                          ha=align, color=color, fontsize="small", annotation_clip=True,
+                          arrowprops={"arrowstyle": "-", "color": color, "linewidth": .8})
 
 
 def draw_fit_interval_band(axes, spec, parameters, level):

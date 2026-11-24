@@ -129,10 +129,13 @@ class PadeCalibrationDialogTests(unittest.TestCase):
         self.assertIn(cal.UNCERTAINTY, dialog.hidden)
         self.assertIn(cal.LEVEL, dialog.hidden)
         self.assertIn(cal.COUNT, dialog.hidden)
+        self.assertNotIn(cal.MISSING_X_ONLY, dialog.hidden)
+        dialog.controls[cal.MISSING_X_ONLY][1].setChecked(True)
         dialog.accept()
         self.assertIsNotNone(dialog.result)
         _, options = dialog.result
         self.assertEqual(options["Model"], MODEL)
+        self.assertTrue(options[cal.MISSING_X_ONLY])
         self.assertNotIn(cal.UNCERTAINTY, options)
 
         # Switching back to 5PL restores its own uncertainty settings.
@@ -145,6 +148,7 @@ class PadeCalibrationDialogTests(unittest.TestCase):
         _fill(dialog2, Model=MODEL)
         self.assertEqual(dialog2.controls[cal.UNCERTAINTY][1].currentData(), "None")
         self.assertIn(cal.UNCERTAINTY, dialog2.hidden)
+        self.assertIn(cal.MISSING_X_ONLY, dialog2.hidden)
         _fill(dialog2, Model=cal.CONCENTRATION_5PL)
         self.assertNotIn(cal.UNCERTAINTY, dialog2.hidden)
         self.assertEqual(dialog2.controls[cal.UNCERTAINTY][1].currentData(), "None")

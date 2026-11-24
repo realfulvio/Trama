@@ -148,7 +148,7 @@ class LegacyGlobalFitTests(unittest.TestCase):
     def restore(self):
         candidates = legacy.global_candidates(b"", {1: self.source}, self.sheets, self.snapshots, {3})
         return legacy.restore_global_graphs(b"", [{"id": 7, "title": "Synthetic binding"}],
-                                            {7: "example:7"}, candidates, {5: self.curve})
+                                            {7: "example:7"}, candidates, {5: self.curve}, {1: self.source})
 
     def test_graph_recovers_joint_fit_and_exact_drawing_range(self):
         self.assertEqual(self.restore(), ({7}, {3}))

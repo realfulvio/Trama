@@ -8,7 +8,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from .curve_models import MODEL_GROUPS, MODELS
+from .curve_models import CELL_DEATH_MODELS, MODEL_GROUPS, MODELS
 from .processing import FieldError
 from .reporting import Result, _plot, _report
 
@@ -339,7 +339,7 @@ def plot_function(frame, o):
         tables[INTEGRAL] = _sheet(x, names, [integral(x, y) for y in values])
     figure, axes = _plot(model, "X", "Y")
     axes._tramastat_log_x_omit_zero = spec.domain == "nonnegative"
-    axes._tramastat_log_y_omit_zero = model == "Linear-quadratic fractional cell death"
+    axes._tramastat_log_y_omit_zero = model in CELL_DEATH_MODELS
     if OBSERVATION_COLUMNS in o:
         _draw_observations(axes, frame, o[OBSERVATION_COLUMNS])
     for name, y in zip(names, values):

@@ -46,6 +46,30 @@ def _run(frame, direction, query_col, **overrides):
 
 
 class PadeCalibrationEngineTests(unittest.TestCase):
+    def test_missing_x_queries_keep_row_identity_and_use_the_observed_domain(self):
+        x = np.arange(10., 31., 5.)
+        y = _pade_y((x - 10.) / 20., 2., 12., 2.)
+        frame = _frame(zip(x, y, strict=True), "Y", [3., 4.], row_titles=[""] * 5 + ["A", "B"],
+                       index=[9, 8, 7, 6, 5, 9, 9])
+        options = {
+            cal.MISSING_X_ONLY: True,
+            cal.PADE_DRAWING: {"x": "X", "y": "Y", "min": 8., "max": 30., "points": 1000},
+        }
+        result = _run(frame, "X from Y", "Y", **options)
+        values = result.tables[cal.INTERPOLATED]
+        self.assertEqual(values["Source row"].tolist(), [9, 9])
+        self.assertEqual(values["Row title"].tolist(), ["A", "B"])
+        np.testing.assert_allclose(values["Interpolated X"], [10. + 20. / 6., 20.])
+        self.assertEqual(values["Domain low"].tolist(), [10., 10.])
+        self.assertEqual(values["Domain high"].tolist(), [30., 30.])
+        line = result.figure.axes[0].lines[0].get_xdata()
+        self.assertEqual((len(line), line[0], line[-1]), (1000, 8., 30.))
+
+        options[cal.PADE_DRAWING]["min"] = -5.
+        fallback = _run(frame, "X from Y", "Y", **options)
+        self.assertEqual(fallback.figure.axes[0].lines[0].get_xdata()[0], 10.)
+        pd.testing.assert_frame_equal(fallback.tables[cal.INTERPOLATED], values)
+
     def test_increasing_exact_forward_and_inverse_with_endpoints_and_row_titles(self):
         # True model: A0 = 2, A1 = 12, B1 = 2 on [10, 30]
         xs = np.linspace(10.0, 30.0, 9)

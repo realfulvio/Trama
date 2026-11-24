@@ -30,9 +30,9 @@ from analisi.legacy_binary_range import BINARY_XY_RANGE
 from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_EDITS
 from analisi.legacy_fit_graph import FIT_GRAPH
 from analisi.legacy_mv_scatter import CLUSTERED_SCATTER
-from analisi.legacy_restore import (LEGACY_PREVIEW, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_EDITABLE_GRAPH,
-                                   SAVED_XY, initial_sheet_reference, layout_panel_sources, linked_curve_view,
-                                   paired_graph_index)
+from analisi.legacy_restore import (LEGACY_PREVIEW, SAVED_AXES, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
+                                   SAVED_EDITABLE_GRAPH, SAVED_XY, initial_sheet_reference, layout_panel_sources,
+                                   linked_curve_view, paired_graph_index)
 from analisi.legacy_zip_layout import ZIP_LAYOUT, imported_paper
 from analisi.legacy_zip_column import ZIP_COLUMN
 from analisi.legacy_xml_xy import XML_ERROR_BARS
@@ -86,7 +86,7 @@ ANALYSIS_GRAPH_OPTIONS = {
 }
 GRAPHING = tuple(GROUPS.get("Graphing", ())) + (PLOT_FUNCTION,)
 SOURCE_XY = {BINARY_XY_RANGE, XML_ERROR_BARS, XML_BINDING_XY, XML_GENERATED_XY, XML_QC, ZIP_SPARSE_XY, ZIP_COLUMN,
-             CLUSTERED_SCATTER, FIT_GRAPH, SURVIVAL_GRAPH}
+             CLUSTERED_SCATTER, FIT_GRAPH, SAVED_AXES, SURVIVAL_GRAPH}
 
 
 def _saved_recipe(run):
@@ -134,11 +134,18 @@ def safe_csv(path, frame, index=False):
 def export_graph(figure, path, settings=None, *, size_inches=None):
     """A graph at its own size, 300 dpi for images unless ``settings`` say otherwise, verified before it
     replaces the file."""
-    from analisi.figure_export import export_figure
+    from analisi.figure_export import MAX_MM, MM, export_figure
     if settings is None:
         suffix = Path(path).suffix.lower()
         fmt = {".svg": "svg", ".pdf": "pdf", ".tif": "tiff", ".tiff": "tiff"}.get(suffix, "png")
         settings = {"format": fmt, "dpi": 300} if fmt in {"png", "tiff"} else {"format": fmt}
+        if size_inches is None:
+            width, height = figure.get_size_inches()
+            longest_mm = max(width, height) * MM
+            if longest_mm > MAX_MM:
+                # The interactive canvas can grow past the export limit on a wide display.
+                scale = MAX_MM / longest_mm
+                size_inches = (width * scale, height * scale)
     export_figure(figure, path, settings, size_inches=size_inches)
 
 
@@ -1712,7 +1719,8 @@ class MainWindow(QMainWindow):
         subtitle = run.notes or (tr("command.analysis_results") if kind == "result" else tr("ribbon.graph"))
         page = Page(run.name, subtitle)
         result = run.result
-        if kind == "graph" and (run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH} or linked_curve_view(run)):
+        if kind == "graph" and (run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH} or linked_curve_view(run)
+                                or (run.method == SAVED_XY and SAVED_AXES in run.options)):
             self._imported_graph_actions(page, run)
         elif kind == "graph" and run.method == SAVED_XY and not SOURCE_XY.isdisjoint(run.options):
             button = page.button(ui("Edit graph data"), lambda: self.open_sheet(("data", run.title)),

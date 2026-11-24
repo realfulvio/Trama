@@ -48,6 +48,7 @@ Se le ascisse vengono traslate di $10^9$ ($X \in [1\,000\,000\,010;\; 1\,000\,00
   - Richieste nell’immagine della curva (compresi gli estremi esatti o equivalenti entro arrotondamento numerico): stato `In range`.
   - Richieste fuori dal codominio della curva: valore vuoto e stato `Out of range`.
   - Curva numericamente piatta o concentrazione irrappresentabile con la precisione dei dati: valore vuoto e stato `Not identifiable`.
+  - Attiva **Solo righe senza X** quando standard e campioni incogniti condividono la stessa colonna Y. Le righe con X presente restano disponibili per il fit e vengono escluse dall’elenco delle richieste.
 - **Solo stime puntuali**: in questa consegna `Padé (1,1)` non calcola bande né intervalli inversi (`Mean response` o `Prediction` vengono rifiutati con errore sul campo `Uncertainty`). Eventuali valori salvati e inattivi di `Confidence level (%)` e `Replicate count column` non hanno effetto quando `Uncertainty = None`. Nel dialogo Qt, passando da un modello con intervalli a `Padé (1,1)`, `Uncertainty` ritorna automaticamente a `None`.
 
 ## Risultati, grafico ed esportazioni
@@ -55,3 +56,5 @@ Se le ascisse vengono traslate di $10^9$ ($X \in [1\,000\,000\,010;\; 1\,000\,00
 - `Calibration parameters`: righe `A0`, `A1`, `B1` con colonna `Estimate`.
 - `Fit diagnostics`: modello, `N`, `Distinct X`, gradi di libertà residui `df`, `Residual SS (Y)`, `Residual SD`, `R²`, `X origin (X min)`, `X scale (X max - X min)` e `Minimum denominator`.
 - **Grafico e progetto**: osservazioni degli standard, curva campionata su un massimo di 300 ascisse distinte e finite nell’intervallo $[X_{\min}, X_{\max}]$ e punti interpolati o previsti disponibili. Il progetto `.alab` si salva, riapre e ricalcola in Classica Qt con esportazione CSV e SVG vettoriale.
+
+Quando Trama riconosce e verifica un fit Padé in un progetto PZT, **Apri grafico modificabile** collega la calibrazione al foglio importato. Il grafico usa l’intervallo salvato finché la curva rimane definita su tutto quell’intervallo. Le stime X da Y restano limitate al dominio degli standard correnti.

@@ -141,6 +141,24 @@ class BinaryDoseFitTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     dose._graph_curve(graph, curves)
 
+    def test_asymmetric_graph_allows_only_the_verified_extra_marker(self):
+        self.restore()
+        options = self.frame.attrs["legacy_recipes"][2][1]
+        options["Model"] = dose._ASYMMETRIC_LOG
+        curves = {(91, 23, 24): (10, 3, (50, 0, 0), self.frame, 2)}
+        order = record(0x15, pack("<3i", 2, 44, 45))
+        series = record(0x16, pack("<H6i", 2, 50, 0, 0, 91, 23, 24))
+        members = record(0x14, pack("<4i", 3, 3, 10, -2))
+        self.assertEqual(dose._graph_curve([members, order, series], curves, verify_series=True),
+                         (10, self.frame, 2, 91, 50))
+        for invalid in ((3, 10, -1), (7, 10, -2), (3, 7, -2)):
+            with self.subTest(member_ids=invalid), self.assertRaises(ValueError):
+                dose._graph_curve([record(0x14, pack("<4i", 3, *invalid)), order, series],
+                                  curves, verify_series=True)
+        options["Model"] = "One-phase decay"
+        with self.assertRaises(ValueError):
+            dose._graph_curve([members, order, series], curves, verify_series=True)
+
     def test_calibration_graph_requires_both_caches_with_the_saved_drawing_origin(self):
         self.restore()
         graph = [

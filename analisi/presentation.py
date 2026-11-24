@@ -612,7 +612,8 @@ def validate_graph_style(axes, style):
         if scale == "log" and dimension + "scale" in style:
             low, high = axis.get_data_interval()
             omit_zero = getattr(axes, f"_tramastat_log_{dimension}_omit_zero", False) and low == 0 < high
-            if (low <= 0 or high <= 0) and not omit_zero:
+            # Empty axes report (inf, -inf). Their explicit limits are checked above.
+            if low <= high and (low <= 0 or high <= 0) and not omit_zero:
                 raise ValueError("A logarithmic axis requires strictly positive data.")
         if scale == "log" and any(ref["value"] <= 0 for ref in refs):
             raise ValueError("A reference on a logarithmic axis must be strictly positive.")

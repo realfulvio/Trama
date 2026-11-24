@@ -57,15 +57,32 @@ Trama legge strutture supportate di **PZFX**, progetti XML/ZIP compatibili e dei
 - **Limiti XY nei progetti binari:** per il sottotipo compatibile con limiti espliciti, la tabella recupera le subcolonne Centro, Superiore e Inferiore, conservando valori vuoti e limiti invertiti. Se punti e barre coincidono con la geometria salvata, la copia modificabile espone le distanze visibili sopra e sotto ogni punto. Un lato assente resta vuoto. Assi, annotazioni e banda ombreggiata mantengono la presentazione salvata. Quando la geometria corrisponde alle subcolonne del foglio XY originale, il grafico si aggiorna da quel foglio. I progetti già salvati con un foglio di coordinate dedicato continuano a usarlo.
 - **Fascia XY collegata:** nei progetti binari in cui tabella, coordinate salvate e poligono della fascia coincidono, Trama aggiunge un grafico vettoriale nativo. Modifica i limiti nel foglio XY per aggiornare la fascia e gli estremi delle barre. Il grafico riprende la scala e i limiti degli assi. Le annotazioni originali si consultano nelle viste del disegno salvato.
 - **Layout:** recupero di viste e pannelli nei sottotipi supportati. In Qt, **Modifica pannello…** cambia posizione e dimensioni nelle unità originali. **Modifica dati del pannello…** apre il foglio collegato e ogni modifica aggiorna la vista del layout. Non ogni pannello, oggetto o collegamento originale può essere convertito in elemento nativo.
+- **Layout a griglia con grafici collegati nei PZT binari.** In Qt, quando
+  i pannelli formano una griglia completa e ogni grafico si può ricalcolare,
+  sotto **Layout** compare anche una copia modificabile. Riprende l'ordine
+  delle righe e delle colonne, usa la spaziatura dei layout di Trama e si
+  aggiorna dai grafici collegati. La vista importata resta consultabile
+  separatamente. La copia si salva in `.alab` e si esporta in PDF o SVG vettoriale.
 - **Saturazione e Scatchard nei progetti XML:** nei progetti compatibili Trama ripristina il fit a un sito, la trasformazione Scatchard e il layout a due pannelli. Modificare le osservazioni aggiorna la curva e i punti. La retta riprende le intercette dal suo foglio indipendente. Il layout conserva dimensioni della pagina e posizioni dei pannelli. Le note di testo semplice del grafico mantengono testo e posizione. I valori scritti nella nota restano quelli originali quando ricalcoli il fit. Il carattere delle note viene adattato allo stile di Trama.
 - **Intervallo del logEC50 nei PZT XML.** Nel grafico dose-risposta a pendenza fissa compatibile, la fascia riprende i limiti dell'intervallo dal fit corrente. Modificare o escludere un'osservazione aggiorna curva e fascia. Il legame resta nel progetto `.alab`. Il grafico usa gli assi nativi di Trama e la fascia compare quando entrambi i limiti sono finiti.
 - **Curve dose-risposta nei PZT binari.** Per i fit riconosciuti a una serie, il grafico collegato usa il campionamento e i limiti salvati. Le osservazioni compaiono quando il grafico le richiama. Modificare il foglio ricalcola il fit, con la normalizzazione dove prevista, e aggiorna la curva. Il collegamento si conserva in `.alab` e la figura si esporta in SVG vettoriale. La vista archiviata resta disponibile.
 - **Curve standard 4PL e 5PL nei PZT binari.** I profili a una serie con X in log10 si ricollegano al loro fit quando le serie del grafico corrispondono alle coordinate salvate. La vista modificabile riprende la griglia della curva e i limiti degli assi. Dal grafico di origine, **Apri grafico modificabile** consente di raggiungere il foglio dati e aggiornare la regressione.
 - **Simulazioni 4PL e 5PL nei PZT binari.** Nei due profili a una serie con X in concentrazione, **Apri grafico modificabile** apre una vista nativa di **Traccia una funzione**. **Cambia parametri…** modifica i coefficienti e il foglio collegato contiene i valori X della griglia. Il punto a concentrazione zero è disponibile nella tabella e si omette dalla vista logaritmica.
 - **Curve bifasiche in PZT precedenti.** Nei due profili a una serie con X in concentrazione o log10, l'importazione ripristina il collegamento al foglio selezionato e il grafico ricalcolabile. Sono mantenuti anche il referto e la curva salvati.
+- **Decadimento a due fasi con K2 indeterminato nei PZT binari.** Nel profilo
+  verificato il grafico modificabile usa il valore approssimativo salvato di K2
+  come riferimento fisso. La stima e l'intervallo di K1 dipendono da quel valore.
+  Per cambiare il riferimento, apri **Cambia parametri…** e modifica il valore
+  fisso di K2. Il referto, la tabella e il grafico originali restano consultabili.
 - **Dose-risposta a pendenza variabile nei PZT ZIP.** Per il profilo verificato dopo una trasformazione log10, Trama usa le repliche individuali e stima una curva indipendente per serie con intervalli di profilo. Il grafico collegato mostra le osservazioni, conserva i limiti degli assi supportati e campiona le curve fino al limite osservato di ogni serie. Modificare i dati ricalcola la catena, che resta collegata nel progetto `.alab`.
 - **Fascia di controllo nei grafici a colonne PZT.** Nel profilo compatibile il grafico riprende media ± deviazione standard campionaria dal foglio di statistiche descrittive. Trama conserva i colori assegnati alle posizioni del foglio originale e usa simboli nativi. La relazione con il risultato resta nel progetto `.alab`.
 - **Riepiloghi geometrici nei PZT ZIP.** Le ricette compatibili per colonne senza sottocolonne di repliche si riaprono in **Statistica descrittiva → Riepilogo geometrico**. Trama ricalcola numerosità, somma se richiesta, media e deviazione standard geometriche e l'intervallo di confidenza al livello salvato. L'intervallo è calcolato sui logaritmi e riportato sulla scala dei dati.
+- **Grafici di sopravvivenza e morte cellulare nei PZT binari.** Trama può
+  ricostruire i profili lineari-quadratici anche senza anteprima salvata,
+  quando osservazioni, curva e coordinate del disegno concordano. Conserva
+  le unità della risposta (frazione, percentuale o conteggio) e gli assi
+  lineari o logaritmici. Puoi cambiare i coefficienti in **Traccia una funzione**
+  e modificare le osservazioni dal foglio collegato.
 - **Simulazioni di legame competitivo nei PZT binari.** I profili a un sito con log Ki o log IC50 si aprono in **Traccia una funzione** quando i parametri e la griglia riproducono tutti i punti del disegno archiviato. Se il grafico conserva una configurazione diversa, Trama la mantiene distinta dalla tabella dei risultati salvati. L'originale resta consultabile e la nuova curva si aggiorna quando modifichi i parametri o le ascisse.
 - **Competizione omologa con più serie.** Nei PZT binari compatibili, la simulazione riapre una griglia X comune con parametri modificabili per ciascuna serie. La legenda conserva le etichette salvate. La concentrazione usata nel calcolo viene dal coefficiente numerico di ciascuna serie.
 - **Competizione a due siti e deplezione.** Trama conserva i fogli di risultato delle simulazioni PZT compatibili con griglia regolare. Le curve log Ki e log IC50 a due siti e la competizione a un sito con deplezione si aprono come funzioni modificabili quando serie, coefficienti e coordinate salvate concordano. Le voci di serie prive di punti restano fuori dalla nuova figura.
@@ -75,6 +92,15 @@ Trama legge strutture supportate di **PZFX**, progetti XML/ZIP compatibili e dei
   Per la deplezione con X in concentrazione, la figura mantiene la griglia
   logaritmica e la tabella originale conserva le ascisse lineari.
   Le ricette e i collegamenti ai disegni salvati restano disponibili in `.alab`.
+- **Agonista pieno e parziale nei PZT binari.** I due profili verificati, con X
+  in concentrazione o log10, riaprono una regressione globale sui dati di origine.
+  Basale, risposta massima del sistema e pendenza sono condivise. La serie
+  dell'agonista pieno stima il logEC50. Quella parziale stima logKA e logTau.
+  Il grafico traccia ciascuna curva nell'intervallo osservato per quella serie,
+  e la tabella archiviata conserva anche le sue celle vuote. Per cambiare
+  i ruoli in una ricetta, imposta **Partial agonist** a 0 per la serie piena e
+  a 1 per la serie parziale nei vincoli per serie. Nella serie piena tieni
+  **Log Tau** fisso a 0. [Modello operativo di Black e Leff](https://pubmed.ncbi.nlm.nih.gov/6141562/).
 - **Spostamento EC50 di Gaddum–Schild.** Nei quattro profili PZT verificati,
   **Apri grafico modificabile** collega il fit globale alle cinque serie
   originali, comprese le risposte mancanti. Trama recupera la concentrazione

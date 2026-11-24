@@ -41,16 +41,17 @@ from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attac
                                     graph_problem as pairwise_graph_problem, read_section as read_pairwise,
                                     source_problem as pairwise_source_problem, sync_letters_table)
 from analisi.parallel_analyses import precompute as precompute_analyses
-from analisi.presentation import apply_style, compose_layout
+from analisi.presentation import Layout, apply_style, compose_layout
 from analisi.legacy_emf_edit import LIMIT_SOURCE
 from analisi.stats import FIXED_COEFFICIENTS, STARTING_COEFFICIENTS, STARTING_COEFFICIENTS_BY_SERIES
 from analisi.legacy_fit_graph import FIT_GRAPH_SPEC, FIT_INTERVAL_BAND
+from analisi.nonlinear_calibration import PADE_DRAWING
 from analisi.legacy_xml_qc import QC_REFERENCE
 from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_DATA, LEGACY_PANEL_EDITS
 from analisi.legacy_restore import (LEGACY_GRAPH_LINK,
-                                   LEGACY_GRAPH_STYLE, LEGACY_NOTES, LEGACY_PREVIEW, LEGACY_TITLE,
+                                   LEGACY_GRAPH_STYLE, LEGACY_LAYOUT_GRID, LEGACY_NOTES, LEGACY_PREVIEW, LEGACY_TITLE,
                                    SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT, SAVED_BINARY_RESULT,
-                                   SAVED_EDITABLE_GRAPH, SAVED_XY, linked_panel_readers, panel_source_style,
+                                   SAVED_EDITABLE_GRAPH, SAVED_XY, linked_curve_view, linked_panel_readers, panel_source_style,
                                    resolve_layout_panel_graphs)
 from analisi.legacy_xml_binding import SCATCHARD
 from analisi.shape_interaction import ShapeHistory
@@ -363,14 +364,41 @@ class Project(WorksheetJoinSources):
             self.info_sheets = sheets
         contexts = info_contexts(self.info_sheets.values())
         titles = []
+        first_run = len(self.runs)
         for name, frame in tables.items():
             title = self.unique_title(name)
             titles.append(title)
             dataset = self.tables[title] = Dataset(frame.reset_index(drop=True),
                                                    info=contexts.get(title, contexts[None]))
             self.runs.extend(self.runs_for(title, dataset))
+        self._add_imported_layouts(self.runs[first_run:])
         self.dirty = True
         return titles
+
+    def _add_imported_layouts(self, runs):
+        """Create editable pages only when every panel has a unique native graph in this import."""
+        graphs = {}
+        for run in runs:
+            if linked_curve_view(run) and isinstance(link := run.options.get(LEGACY_GRAPH_LINK), str):
+                graphs[link] = None if link in graphs else run.reference
+        names = {layout.name for layout in self.layouts}
+        for run in runs:
+            if len(self.layouts) >= 128:
+                break
+            grid = run.options.get(LEGACY_LAYOUT_GRID) if run.method == SAVED_BINARY_LAYOUT else None
+            if not isinstance(grid, dict):
+                continue
+            columns, links = grid.get("columns"), grid.get("links")
+            if (type(columns) is not int or not 1 <= columns <= 4 or not isinstance(links, list)
+                    or not 1 <= len(links) <= 12 or len(links) % columns
+                    or any(not isinstance(link, str) or graphs.get(link) is None for link in links)):
+                continue
+            base = f"{run.name[:130]} · {tr('layout.imported_editable')}"
+            name, number = base, 2
+            while name in names:
+                name, number = f"{base} ({number})", number + 1
+            self.layouts.append(Layout(name, columns, [graphs[link] for link in links]))
+            names.add(name)
 
     def update_info_sheets(self, sheets):
         """Replace the Info sheets. Returns the runs to recalculate: those of tables whose formulas read a
@@ -673,7 +701,7 @@ class Project(WorksheetJoinSources):
         if method == run.method:
             for key in (LEGACY_TITLE, LEGACY_NOTES, LEGACY_GRAPH_LINK, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
                         PCA_OVERLAY_APPEARANCE, PCA_SAVED_DIRECTIONS, PCA_SAVED_VIEWPORT, PCA_PARALLEL_ARCHIVE,
-                        KMEANS_ARCHIVE, FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE,
+                        KMEANS_ARCHIVE, FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, PADE_DRAWING, SURVIVAL_GRAPH, QC_REFERENCE,
                         anova_grouped_plot.PRIMARY, OBSERVATION_COLUMNS):
                 if key in run.options:
                     options[key] = run.options[key]

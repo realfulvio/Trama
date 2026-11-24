@@ -460,7 +460,7 @@ def _comparison(reduced, full, n, scale):
 
 def global_nonlinear(frame, x, y, model, group, *, shared=(), fixed=None, bounds=None, initial=None,
                      weighting="Unweighted", sigma=None, compare=False, compare_local=(),
-                     intervals="symmetric", series_constraints=None, curve_grid=None):
+                     intervals="symmetric", series_constraints=None, curve_grid=None, clip_curve_to_data=False):
     """Fit one objective over all complete rows in the selected groups.
 
     Supply shared parameter names, common fixed values and optional common
@@ -479,6 +479,7 @@ def global_nonlinear(frame, x, y, model, group, *, shared=(), fixed=None, bounds
     parameters, respectively. The additional sharing test requires the selected
     parameters to be free in every series. An optional drawing grid supplies
     common X coordinates for the curves and bands without affecting the fit.
+    Set clip_curve_to_data to keep each series within its own observed range.
     """
     if model not in MODELS:
         raise ValueError("Select a supported regression model.")
@@ -611,16 +612,19 @@ def global_nonlinear(frame, x, y, model, group, *, shared=(), fixed=None, bounds
         x_values, y_values, scales, parameters = xs[i], ys[i], sds[i], solved.estimates[i]
         predicted = spec.equation(x_values, *parameters)
         predictions.append(predicted)
-        if curve_grid is not None:
-            grid = curve_grid
-        elif spec.log_grid and np.any(x_values > 0):
-            smallest_positive = x_values[x_values > 0].min()
-            if x_values.min() == 0:
-                grid = np.r_[0., np.geomspace(smallest_positive, x_values.max(), 299)]
+        grid = curve_grid
+        if grid is not None and clip_curve_to_data:
+            within = grid[(grid >= x_values.min()) & (grid <= x_values.max())]
+            grid = within if len(within) >= 2 else None
+        if grid is None:
+            if spec.log_grid and np.any(x_values > 0):
+                smallest_positive = x_values[x_values > 0].min()
+                if x_values.min() == 0:
+                    grid = np.r_[0., np.geomspace(smallest_positive, x_values.max(), 299)]
+                else:
+                    grid = np.geomspace(smallest_positive, x_values.max(), 300)
             else:
-                grid = np.geomspace(smallest_positive, x_values.max(), 300)
-        else:
-            grid = np.linspace(x_values.min(), x_values.max(), 300)
+                grid = np.linspace(x_values.min(), x_values.max(), 300)
         fitted = spec.equation(grid, *parameters)
         if not np.isfinite(fitted).all():
             raise ValueError(f"{label}: fitted curve exceeds the numerical range.")

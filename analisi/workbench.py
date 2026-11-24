@@ -124,7 +124,7 @@ from .survival_plot import (ERROR_BARS, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS,
                             draw_survival_graph, linked_survival_graph, survival_graph_settings)
 from .legacy_restore import (MAX_LAYOUT_PANEL_DATA, LEGACY_GRAPH_STYLE, LEGACY_LAYOUT_PANELS, LEGACY_PREVIEW,
                             LEGACY_RESULT_SHEET, LEGACY_TITLE, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
-                            SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY)
+                            SAVED_AXES, SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY)
 
 GEOMETRIC_MEAN = engine.GEOMETRIC_MEAN
 ANOVA_EFFECTS, ANOVA_ALPHA, ANOVA_MODEL_FIT = "Effect sizes", "Alpha", "Model fit"
@@ -1125,6 +1125,19 @@ def _imported_xy(frame, options, layout_data=None):
     from .legacy_zip_column import ZIP_COLUMN, render_aligned_column
     from .legacy_zip_xy import ZIP_SPARSE_XY, render_sparse_xy
 
+    if SAVED_AXES in options:
+        from .presentation import validated_style
+
+        base = validated_style(options[SAVED_AXES])
+        figure, axes = _plot(base.get("title", ""), base.get("xlabel", ""), base.get("ylabel", ""))
+        for label in (axes.title, axes.xaxis.label, axes.yaxis.label):
+            label.set_parse_math(False)
+        for dim in "xy":
+            getattr(axes, f"set_{dim}scale")(base.get(dim + "scale", "linear"))
+            limits = base.get("axis", {}).get(dim, {})
+            if "min" in limits:
+                getattr(axes, f"set_{dim}lim")(limits["min"], limits["max"])
+        return Result({}, figure)
     if options.get(SURVIVAL_GRAPH) is True:
         return linked_survival_graph(frame, options.get(LEGACY_TITLE, "Kaplan–Meier survival"),
                                      options.get(SURVIVAL_SERIES, []))

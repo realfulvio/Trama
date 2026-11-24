@@ -38,6 +38,8 @@ class StandardCurveBinding:
 
         for name in WATCHED:
             dialog.controls[name][1].currentIndexChanged.connect(self._on_choice_changed)
+        dialog.controls[cal.MISSING_X_ONLY][1].toggled.connect(
+            lambda _: dialog.clear_field_error(cal.UNKNOWN_RESPONSES))
         for name in ("X", "Y", cal.UNKNOWN_RESPONSES, cal.UNKNOWN_X, cal.LEVEL, cal.COUNT):
             kind, widget = dialog.controls[name]
             signal = widget.textChanged if type(kind) in (int, float) else widget.currentIndexChanged
@@ -66,7 +68,7 @@ class StandardCurveBinding:
         model = self._value("Model")
         uncertainty = self._value(cal.UNCERTAINTY) or cal.UNCERTAINTIES[0]
 
-        visibility = cal.calibration_visibility(direction, curve, uncertainty, model)
+        visibility = cal.calibration_visibility(direction, curve, uncertainty, model, pade_rows=True)
         if not visibility[cal.UNCERTAINTY]:
             if interactive:
                 # Switching from an interval-capable model to a point-only model (e.g. Padé (1,1))

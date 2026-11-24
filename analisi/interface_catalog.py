@@ -598,6 +598,7 @@ Peaks|Picchi
 Minimum height (%)|Altezza minima (%)
 Minimum width|Larghezza minima
 Unknown responses|Risposte incognite
+Only rows without X|Solo righe senza X
 Unknown X|X incognite
 Replicate count column|Colonna del numero di repliche
 Duplicate X|X duplicate
@@ -880,6 +881,15 @@ Y from X|Y da X
 Nonlinear|Non lineare
 Asymmetric dose-response (concentration X)|Dose-risposta asimmetrica 5PL (concentrazione X)
 Asymmetric dose-response (log10 X)|Dose-risposta asimmetrica 5PL (log10 X)
+Two-phase decay with fixed K2|Decadimento a due fasi con K2 fissato
+Linear-quadratic cell survival|Sopravvivenza cellulare lineare-quadratica (frazione)
+Linear-quadratic cell survival (percent)|Sopravvivenza cellulare lineare-quadratica (percentuale)
+Linear-quadratic cell survival (counts)|Sopravvivenza cellulare lineare-quadratica (conteggio)
+Linear-quadratic fractional cell death|Morte cellulare lineare-quadratica (frazione)
+Linear-quadratic cell death (percent)|Morte cellulare lineare-quadratica (percentuale)
+Linear-quadratic cell death (counts)|Morte cellulare lineare-quadratica (conteggio)
+Operational model (full and partial) (concentration X)|Modello operativo per agonisti pieni e parziali (concentrazione X)
+Operational model (full and partial) (log10 X)|Modello operativo per agonisti pieni e parziali (log10 X)
 Mean response|Risposta media
 Prediction|Previsione
 Point-to-point|Da punto a punto
@@ -948,6 +958,9 @@ Pairwise comparisons…|Confronti a coppie…
 View original|Mostra originale
 Open editable graph|Apri grafico modificabile
 Edit graph data|Modifica dati del grafico
+Saved controls|Controlli salvati
+Absolute IC50|IC50 assoluta
+Relative IC50|IC50 relativa
 Format…|Formato…
 Edit panel data…|Modifica dati del pannello…
 New column|Nuova colonna

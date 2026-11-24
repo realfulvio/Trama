@@ -1,10 +1,14 @@
 from struct import pack, pack_into
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
-from analisi.legacy_binary_editable import read_editable_graphs, render_editable_graph
+from analisi.legacy_binary_editable import _empty_axes, read_editable_graphs, render_editable_graph
 from analisi.legacy_binary_graphs import read_binary_graphs
+from analisi.legacy_restore import SAVED_AXES, SAVED_XY
+from analisi.presentation import apply_style
+from analisi.workbench import analyse
 from test_legacy_binary_graphs import _emf, _project, _record
 
 
@@ -90,6 +94,40 @@ def _binary_xy(dataset=17, *, log_x=False, annotation=False, second_curve=False,
 
 
 class EditableLegacyGraphTests(unittest.TestCase):
+    def test_empty_axes_keep_logarithmic_limits_without_creating_data(self):
+        blank = [(0x13, (), bytes(48)), (0x14, (), pack("<2i", 1, -2)),
+                 (0x15, (), bytes(4)), (0x16, (), bytes(2))]
+        configs = [{"scale": "log", "bounds": [0., 1.], "title": 1, "custom_ticks": []},
+                   {"scale": "linear", "bounds": [0., 150.], "title": 2, "custom_ticks": []}]
+        texts = {0: "Empty template", 1: "Dose", 2: "Response"}
+        with patch("analisi.legacy_binary_editable._axis_config", return_value=configs), \
+                patch("analisi.legacy_binary_editable._scene", return_value=(texts, [], texts[0], {})) as scene:
+            frame, style = _empty_axes(blank, "utf-8")
+            scene.return_value = texts, [], texts[0], {7: (39, [(1., 2.)])}
+            with self.assertRaises(ValueError):
+                _empty_axes(blank, "utf-8")
+            scene.return_value = texts, [], texts[0], {}
+            with self.assertRaises(ValueError):
+                _empty_axes([*blank[:1], (0x14, (), pack("<2i", 1, 8)), *blank[2:]], "utf-8")
+
+        self.assertTrue(frame.empty)
+        self.assertEqual(style.pop("kind"), "empty_axes")
+        # Let the renderer import the real parser after restoring the patches.
+        result = analyse(SAVED_XY, frame, {SAVED_AXES: style})
+        apply_style(result.figure, style)
+        axes, = result.figure.axes
+        self.assertEqual(axes.get_xscale(), "log")
+        self.assertEqual(axes.get_ylim(), (0., 150.))
+        self.assertEqual(axes.get_xlim(), (1., 10.))
+        self.assertEqual(axes.get_title(), "Empty template")
+        self.assertFalse(result.tables)
+        self.assertFalse(axes.get_lines())
+        apply_style(result.figure, {"xscale": "linear", "axis": {"x": {"min": 0., "max": 8.}}})
+        self.assertEqual(axes.get_xlim(), (0., 8.))
+        apply_style(result.figure, {})
+        self.assertEqual(axes.get_xscale(), "log")
+        self.assertEqual(axes.get_xlim(), (1., 10.))
+
     def test_graph_binds_saved_ids_and_uses_the_corroborated_pen(self):
         frame = pd.DataFrame({"Time": [0.0, 1.0, 2.0], "Response": [0.0, 1.0, 0.0]})
         points, style = read_editable_graphs(_binary_xy(), {8: frame}, {}, 12)[6]

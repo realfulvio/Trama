@@ -69,6 +69,7 @@ EXTRA_METHODS = {
                                     calibration.UNKNOWN_X: None,
                                     calibration.DIRECTION: calibration.DIRECTIONS,
                                     "Curve": CURVES, "Model": INVERSE_MODELS,
+                                    calibration.MISSING_X_ONLY: False,
                                     calibration.UNCERTAINTY: calibration.UNCERTAINTIES,
                                     calibration.LEVEL: calibration.DEFAULT_LEVEL,
                                     # Empty means k = 1, the 0.53.0 prediction limits.
@@ -390,7 +391,9 @@ def _standard_curve(frame, o):
         return Result(predicted.tables, _prediction_figure(frame, o, predicted))
     curve, model, uncertainty, level, count = calibration.inverse_options(o)
     calibrated = interpolate_standard_curve(frame, o["X"], o["Y"], o["Unknown responses"], curve, model,
-                                            uncertainty, level, count)
+                                            uncertainty, level, count,
+                                            missing_x_only=o.get(calibration.MISSING_X_ONLY) is True,
+                                            saved_drawing=o.get(calibration.PADE_DRAWING))
     return Result(calibrated.tables, _calibration_figure(frame, o, calibrated))
 
 

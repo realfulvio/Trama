@@ -66,6 +66,15 @@ class BinaryGraphTests(unittest.TestCase):
         self.assertEqual([validate_binary_graph(graph["preview"]) for graph in graphs], [second, first])
         self.assertEqual(skipped, ["missing"])
 
+    def test_scene_candidates_include_only_genuinely_missing_previews(self):
+        data = _project([4, 8, 9], _graph(8, b"missing"), _graph(4, b"valid", _emf()),
+                        _graph(9, b"bad", b"malformed"))
+        graphs, skipped = read_binary_graphs(data, include_without_preview=True)
+        self.assertEqual(graphs[0]["id"], 4)
+        self.assertIn("preview", graphs[0])
+        self.assertEqual(graphs[1:], [{"id": 8, "title": "missing"}])
+        self.assertEqual(skipped, ["bad"])
+
     def test_legacy_pdf_preview_fallback_retains_original_vector_bytes(self):
         figure = Figure(figsize=(2, 1))
         figure.add_subplot().plot([0, 1], [1, 0], linewidth=4)

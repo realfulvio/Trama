@@ -1258,6 +1258,26 @@ class QtShellTests(unittest.TestCase):
             self.assertIs(figure.canvas, canvas)
             self.assertTrue((self.folder / "graph.svg").read_text(encoding="utf-8").lstrip().startswith("<?xml"))
 
+    def test_quick_export_fits_a_wide_canvas_to_the_size_limit(self):
+        from xml.etree import ElementTree
+
+        from matplotlib.figure import Figure
+        from trama_qt.window import export_graph
+
+        figure = Figure(figsize=(22.88, 10.86))
+        figure.add_subplot().plot([1, 2], [3, 5])
+        canvas = figure.canvas
+        destination = self.folder / "wide.svg"
+
+        export_graph(figure, destination)
+
+        attributes = ElementTree.parse(destination).getroot().attrib
+        width, height = (float(attributes[axis].removesuffix("pt")) for axis in ("width", "height"))
+        self.assertAlmostEqual(width * 25.4 / 72, 500.0, places=5)
+        self.assertAlmostEqual(width / height, 22.88 / 10.86, places=6)
+        self.assertEqual(tuple(figure.get_size_inches()), (22.88, 10.86))
+        self.assertIs(figure.canvas, canvas)
+
     def format_with(self, run, change):
         from trama_qt.graph_format import GraphFormatDialog
         style, xy = self.window.project.format_inputs(run)

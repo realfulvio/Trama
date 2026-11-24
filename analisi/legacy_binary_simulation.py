@@ -5,6 +5,7 @@ from struct import error as StructError, unpack
 import numpy as np
 
 from . import plot_function as plotting
+from .curve_models import CELL_DEATH_MODELS
 from .legacy_binary_dose import _GRAPH_SERIES, _dataset_link, _matching_grid
 from .legacy_binary_editable import (_axis_config, _id_array, _one, _project_records, _require, _scene,
                                       _series_columns, _subgroups)
@@ -28,10 +29,14 @@ _ALLOSTERIC_ENZYME = "Allosteric sigmoidal enzyme kinetics"
 _DISSOCIATION = "One-phase binding dissociation"
 _RESAMPLED = {_SPECIFIC_BINDING, _TOTAL_BINDING, _DISSOCIATION}
 _SIMULATION_FLAGS = (0, 251, 0, 65535, 0)
+_SURVIVAL_FRACTION = "Linear-quadratic cell survival"
 _SURVIVAL_PERCENT = "Linear-quadratic cell survival (percent)"
 _SURVIVAL_COUNT = "Linear-quadratic cell survival (counts)"
-_FRACTIONAL_DEATH = "Linear-quadratic fractional cell death"
-_OVERLAID_SURVIVAL = {8: _SURVIVAL_PERCENT, 9: _SURVIVAL_COUNT, 10: _FRACTIONAL_DEATH}
+_FRACTIONAL_DEATH, _PERCENT_DEATH, _DEATH_COUNT = CELL_DEATH_MODELS
+_OVERLAID_SURVIVAL = {
+    7: _SURVIVAL_FRACTION, 8: _SURVIVAL_PERCENT, 9: _SURVIVAL_COUNT,
+    10: _FRACTIONAL_DEATH, 11: _PERCENT_DEATH, 12: _DEATH_COUNT,
+}
 _FORMATTED_PROFILES = {
     0: (_DISSOCIATION, (1, 251, 0, 65535, 0)),
     3: (_DEPLETION, (0, 127, 1, 65535, 0)),
@@ -44,6 +49,12 @@ _FORMATTED_PROFILES = {
     23: (_TWO_SITE_IC50, (0, 127, 1, 65535, 0)),
 }
 _NAMED_EQUATIONS = {
+    "a9d69436efab589f74b9fbf5aa684f0128337d902e0b221fb83caeb79f5e3a4a": (
+        _SURVIVAL_FRACTION, {"A": "Alpha", "B": "Beta"}),
+    "4e8caee4af91b9edc5e3db19a53728182bf9346190c4ca1b962e598810857931": (
+        _PERCENT_DEATH, {"A": "Alpha", "B": "Beta"}),
+    "a5e440302261ace33d0fffd3b50bc9b43377c3a4c527035af55b853127c30ea1": (
+        _DEATH_COUNT, {"Y0": "Initial count", "A": "Alpha", "B": "Beta"}),
     "b5b18e04c865ba28d6ebb3910ac1516c8a71e2bb57306d7805170ce55db7be8c": (
         _SURVIVAL_PERCENT, {"A": "Alpha", "B": "Beta"}),
     "dd77561ff0fe7bf8c066222bd823cefaa880bacb0da26f3cb332442c8ead932b": (
@@ -209,7 +220,7 @@ def _restore_overlaid_survival(graph, encoding, source_uid, source, raw, samples
     links = _one(graph, 0x16)
     _require(len(links) == 2 + 2 * _GRAPH_SERIES.size and unpack("<H", links[:2]) == (2,))
     curve_id, y_revision, x_revision = expected[0]
-    delta = int(model == _FRACTIONAL_DEATH)
+    delta = int(model in CELL_DEATH_MODELS)
     curve_link = curve_id, y_revision - delta, x_revision - delta
     observed_link = _dataset_link((None, [(header, None) for tag, _, header in raw if tag == 0x800F]),
                                   source_id, 8)
@@ -272,7 +283,15 @@ def read_simulation_graphs(data, result_frames, graph_ids, remaining_cells, *, o
         if graph_id not in graph_ids or not graph:
             continue
         try:
-            members = _id_array(_one(graph, 0x14))
+            member_data = _one(graph, 0x14)
+            # Some fractional survival graphs reserve a final slot without a data set.
+            has_empty_slot = len(member_data) == 16 and unpack("<i", member_data[-4:]) == (-2,)
+            if has_empty_slot:
+                count, first, second, _ = unpack("<4i", member_data)
+                _require(count == 3 and min(first, second) >= 0)
+                members = [first, second]
+            else:
+                members = _id_array(member_data)
             sheet, = (uid for uid in members if uid in candidates)
             samples = candidates[sheet]
             _require(1 <= len(members) <= 2 and 3 <= len(samples) <= plotting.MAX_EVALUATIONS)
@@ -280,6 +299,7 @@ def read_simulation_graphs(data, result_frames, graph_ids, remaining_cells, *, o
             _require(analysis in (listed or ()) and generators[analysis] is not None)
             records = generators[analysis]
             kind = unpack("<8H", _one(records, 0x3A))
+            _require(not has_empty_slot or kind == (15, 255, 7, *_SIMULATION_FLAGS))
             formatted_asymmetric = kind == (15, 0, 14, *_SIMULATION_FLAGS)
             profile, flags = (_FORMATTED_PROFILES.get(kind[2], (None, _SIMULATION_FLAGS))
                               if kind[:2] == (15, 0) else (None, _SIMULATION_FLAGS))

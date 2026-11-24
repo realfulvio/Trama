@@ -23,6 +23,7 @@ from .pca_overlays import KIND as PCA_OVERLAY, SAVED_APPEARANCE as PCA_OVERLAY_A
 from .pca_parallel_archive import ARCHIVE as PCA_PARALLEL_ARCHIVE
 from .legacy_import import _identifier, _json_object, _store_table, _zip_table
 from .legacy_fit_graph import FIT_GRAPH, FIT_GRAPH_POINTS, FIT_GRAPH_SPEC, FIT_GRAPH_TICKS, fit_graph_spec, saved_samples
+from .nonlinear_calibration import PADE_DRAWING
 from .stats import STARTING_COEFFICIENTS_BY_SERIES
 from .legacy_pca_view import saved_component_directions, saved_parallel_reference, saved_score_overlay
 from .legacy_recipes import restore_log_dose_fit, restore_recipe, saved_anova_diagnostics, saved_anova_primary_factor
@@ -31,6 +32,7 @@ from .replicate_fit import MERGE_REPLICATES
 from .survival_plot import CI_BARS, SURVIVAL_GRAPH, SURVIVAL_SERIES, SURVIVAL_SUMMARY, UNCERTAINTY
 
 SAVED_XY = "Imported XY graph"
+SAVED_AXES = "Imported empty axes"
 SAVED_BINARY_GRAPH = "Imported archived graph"
 SAVED_BINARY_LAYOUT = "Imported archived layout"
 SAVED_EDITABLE_GRAPH = "Imported editable graph"
@@ -40,6 +42,7 @@ BINARY_LAYOUT_COLLECTION = "Imported layout collection"
 LEGACY_GRAPH_LINK = "Legacy original graph link"
 LEGACY_GRAPH_STYLE = "Legacy original graph style"
 LEGACY_LAYOUT_PANELS = "Legacy layout panels"
+LEGACY_LAYOUT_GRID = "Legacy layout grid"
 MAX_LAYOUT_PANEL_DATA = 2 * 1024 * 1024
 LEGACY_PREVIEW = "Legacy graph preview"
 LEGACY_RESULT_SHEET = "Legacy result sheet"
@@ -63,6 +66,7 @@ def initial_sheet_reference(initial_sheet, runs, run_view):
 def linked_curve_view(run):
     return bool(run.options.get(LEGACY_GRAPH_LINK)) and (
         run.method == PLOT_FUNCTION or (run.method == SAVED_XY and run.options.get(FIT_GRAPH) is True)
+        or (run.method == "Interpolate a standard curve" and PADE_DRAWING in run.options)
         or (run.method == "Global nonlinear regression" and FIT_GRAPH_SPEC in run.options)
         or (run.method == "Nonlinear regression" and STARTING_COEFFICIENTS_BY_SERIES in run.options
             and FIT_GRAPH_SPEC in run.options))
@@ -78,7 +82,8 @@ def paired_graph_index(run, runs):
         if other.options.get(LEGACY_GRAPH_LINK) != link:
             continue
         if run.method == SAVED_BINARY_GRAPH:
-            if other.method == SAVED_EDITABLE_GRAPH or linked_curve_view(other):
+            if (other.method == SAVED_EDITABLE_GRAPH or linked_curve_view(other)
+                    or (other.method == SAVED_XY and SAVED_AXES in other.options)):
                 matches.append(index)
         elif other.method == SAVED_BINARY_GRAPH:
             matches.append(index)
@@ -1358,7 +1363,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells, *, focused=No
 
 
 def restore_binary_views(data, sources, tables, cells, fonts, document_title):
-    from .legacy_binary_dose import restore_dose_graphs
+    from .legacy_binary_dose import restore_dose_graphs, restore_pade_graphs
     from .legacy_binary_editable import read_editable_graphs
     from .legacy_binary_global import restore_global_graphs
     from .legacy_binary_graphs import read_binary_graphs
@@ -1372,11 +1377,12 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
 
     source_names = set(tables)
     dose_curves, classic_curves, calibration_curves, global_curves = {}, {}, {}, {}
+    pade_curves = {}
     unavailable_results = set()
     cells = restore_binary_results(
         data, sources, tables, cells, fonts, dose_curves=dose_curves, classic_curves=classic_curves,
         calibration_curves=calibration_curves, global_curves=global_curves,
-        pending_analyses=unavailable_results)
+        pade_curves=pade_curves, pending_analyses=unavailable_results)
     for title, frame in tables.items():
         if title not in source_names:
             saved = frame.attrs["legacy_binary_result"]
@@ -1388,12 +1394,14 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
                 "Legacy result provenance": saved,
             })]
     try:
-        graphs, unavailable = read_binary_graphs(data)
+        records, unavailable = read_binary_graphs(data, include_without_preview=True)
     except ValueError as error:
-        graphs, unavailable = [], [str(error)]
+        records, unavailable = [], [str(error)]
+    graphs = [graph for graph in records if "preview" in graph]
+    without_preview = {graph["id"]: graph["title"] for graph in records if "preview" not in graph}
+    import_id = uuid4().hex
+    graph_links = {graph["id"]: f'{import_id}:{graph["id"]}' for graph in records}
     if graphs and len(tables) < 256 and cells < MAX_CELLS:
-        import_id = uuid4().hex
-        graph_links = {graph["id"]: f'{import_id}:{graph["id"]}' for graph in graphs}
         views = [(SAVED_BINARY_GRAPH, {
             LEGACY_TITLE: graph["title"],
             LEGACY_NOTES: ("Original drawing from the source project. Export as "
@@ -1401,19 +1409,15 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
             LEGACY_PREVIEW: graph["preview"],
             LEGACY_GRAPH_LINK: graph_links[graph["id"]],
         }) for graph in graphs]
-        _store_collection(tables, document_title, "graphs", BINARY_GRAPH_COLLECTION, views)
+        graph_carrier = _store_collection(tables, document_title, "graphs", BINARY_GRAPH_COLLECTION, views)
         cells += 1
     elif graphs:
         graphs = []
         unavailable += ["The project has reached its table or cell limit."]
-    if tables and unavailable:
-        count = len(unavailable)
-        first = next(iter(tables.values()))
-        first.attrs.setdefault("import_warnings", []).append(
-            f"Unavailable imported graph previews ({count}) · " + ", ".join(unavailable[:4]))
-    cells, layouts = _restore_binary_layouts(data, document_title, graphs, tables, cells, read_binary_layouts)
+    cells, layouts = _restore_binary_layouts(data, document_title, graphs, graph_links,
+                                             tables, cells, read_binary_layouts)
     restored_graphs = set()
-    if graphs:
+    if graphs or without_preview:
         result_frames = {frame.attrs["legacy_binary_result"]["sheet_id"]: frame for frame in tables.values()
                          if "legacy_binary_result" in frame.attrs}
         if classic_curves:
@@ -1423,10 +1427,15 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
             restored_graphs.update(restore_dose_graphs(
                 data, [graph for graph in graphs if graph["id"] not in restored_graphs], graph_links,
                 calibration_curves, result_frames, verify_series=True))
-        restored_global, recovered = restore_global_graphs(data, graphs, graph_links, global_curves, result_frames)
+        restored_global, recovered = restore_global_graphs(data, graphs, graph_links, global_curves, result_frames,
+                                                           sources)
         restored_graphs.update(restored_global)
         unavailable_results.difference_update(recovered)
+        restored_pade, recovered = restore_pade_graphs(data, graphs, graph_links, pade_curves, result_frames, sources)
+        restored_graphs.update(restored_pade)
+        unavailable_results.difference_update(recovered)
         titles = {graph["id"]: graph["title"] for graph in graphs if graph["id"] not in restored_graphs}
+        titles.update(without_preview)
         for uid, analysis, frame, options, style in read_simulation_graphs(
                 data, result_frames, titles, MAX_CELLS - cells, observations=sources):
             observed = OBSERVATION_COLUMNS in options
@@ -1438,13 +1447,23 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
                 cells += frame.size
             recipes = frame.attrs.setdefault("legacy_recipes", [])
             frame.attrs.setdefault("legacy_graph_styles", {})[len(recipes)] = style
+            note = ("Edit the original observations or equation parameters to redraw the graph." if observed
+                    else "Edit the equation parameters or the saved X values to redraw the curve.")
+            if uid in without_preview:
+                note = "Reconstructed from the saved data and plot settings. " + note
+                del without_preview[uid]
             recipes.append((PLOT_FUNCTION, {
                 **options, LEGACY_TITLE: titles[uid][:150] + " · Linked", LEGACY_GRAPH_LINK: graph_links[uid],
-                LEGACY_NOTES: ("Edit the original observations or equation parameters to redraw the graph." if observed
-                               else "Edit the equation parameters or the saved X values to redraw the curve."),
+                LEGACY_NOTES: note,
             }))
             restored_graphs.add(uid)
             unavailable_results.discard(analysis)
+    unavailable.extend(without_preview.values())
+    if tables and unavailable:
+        count = len(unavailable)
+        first = next(iter(tables.values()))
+        first.attrs.setdefault("import_warnings", []).append(
+            f"Unavailable imported graph previews ({count}) · " + ", ".join(unavailable[:4]))
     report_saved_result_warnings(tables, unavailable_results)
     if graphs and len(tables) < 256 and cells < MAX_CELLS:
         try:
@@ -1461,6 +1480,18 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
                 continue
             frame, style = editable[uid]
             kind = style.get("kind")
+            if kind == "empty_axes":
+                recipes = graph_carrier.attrs["legacy_recipes"]
+                if len(recipes) < 256:
+                    appearance = {key: value for key, value in style.items() if key != "kind"}
+                    graph_carrier.attrs.setdefault("legacy_graph_styles", {})[len(recipes)] = appearance
+                    recipes.append((SAVED_XY, {
+                        LEGACY_TITLE: graph["title"][:150] + " · Editable",
+                        LEGACY_NOTES: "This saved graph contains only axes. Use Format Graph to edit them.",
+                        LEGACY_GRAPH_LINK: graph_links[uid], SAVED_AXES: appearance,
+                    }))
+                    restored_graphs.add(uid)
+                continue
             binding = style.get(LIMIT_SOURCE)
             shaded_range = style.pop(BINARY_XY_RANGE, None)
             if binding is None and (len(tables) >= 256 or cells + frame.size > MAX_CELLS):
@@ -1524,9 +1555,11 @@ def _store_collection(tables, title, label, table_format, views):
     carrier = pd.DataFrame({"Imported project": [title]})
     carrier.attrs.update(table_format=table_format, legacy_recipes=views)
     _store_table(tables, f"Imported {label} · {title}", carrier)
+    return carrier
 
 
-def _restore_binary_layouts(data, title, graphs, tables, cells, reader):
+def _restore_binary_layouts(data, title, graphs, graph_links, tables, cells, reader):
+    from .legacy_binary_layouts import grid_panel_order
     from .legacy_layout_edit import LEGACY_EDITABLE_PANELS, editable_panels
 
     try:
@@ -1565,6 +1598,10 @@ def _restore_binary_layouts(data, title, graphs, tables, cells, reader):
         else:
             unavailable.append(layout["title"])
             continue
+        if layout["placements_complete"] and (grid := grid_panel_order(layout["placements"])):
+            columns, panels = grid
+            if all(uid in graph_links for uid in panels):
+                options[LEGACY_LAYOUT_GRID] = {"columns": columns, "links": [graph_links[uid] for uid in panels]}
         views.append((SAVED_BINARY_LAYOUT, options))
     if views and len(tables) < 256 and cells < MAX_CELLS:
         _store_collection(tables, title, "layouts", BINARY_LAYOUT_COLLECTION, views)

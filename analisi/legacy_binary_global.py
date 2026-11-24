@@ -7,12 +7,13 @@ from pandas import DataFrame
 from scipy.special import ndtr
 
 from . import regression_range as rr
-from .legacy_binary_dose import _GRAPH_SERIES, _dataset_link, _matching_grid, _model, _sample_settings
+from .curve_models import CONDITIONAL_DECAY
+from .legacy_binary_dose import _GRAPH_SERIES, _dataset_link, _drawing_settings, _matching_grid, _model, _sample_settings
 from .legacy_binary_editable import (
     _axis_config, _id_array, _one, _project_records, _require, _scene, _series_columns, _subgroups,
 )
-from .legacy_binary_results import _column_ids, _read_groups
-from .legacy_emf_edit import _xy_group_links
+from .legacy_binary_results import _column_ids, _matches_display, _read_groups
+from .legacy_emf_edit import _drawing_series, _xy_group_links
 from .legacy_fit_graph import FIT_GRAPH_SPEC
 from .legacy_restore import LEGACY_GRAPH_LINK, LEGACY_NOTES, LEGACY_TITLE
 from .legacy_xml_binding import indexed_analyses
@@ -49,6 +50,7 @@ _PROBABILITY_AXES = {_CUMULATIVE_PERCENT: PERCENT_SCALE, _CUMULATIVE_FRACTION: F
 _INDEPENDENT_CURVE_ONLY = _LOG_LINE_AXES.keys() | _PROBABILITY_AXES.keys()
 _SEMILOG_CALIBRATION = "7072c5954ac350b00bc2d2ff8af23742715539d23d04c43dc36141e91cd407b8"
 _CURVE_ONLY_PROFILES = {
+    "ec7d62ee3622e63da2511d82b9c0213d9790378fdafc9a9d1c04317879cd6de9": CONDITIONAL_DECAY,
     "70793d39c59909c1092fdcd69ce7b1755da2d81afc0d4c14566e7b1acc4dc21a": _CUMULATIVE_PERCENT,
     "585492a071b986d7ef7d47533e5aace47c908f8dd35e92e9602668016e109747": _CUMULATIVE_FRACTION,
     _SEMILOG_CALIBRATION: "Semilog line (log X)",
@@ -64,6 +66,12 @@ _CURVE_ONLY_PROFILES = {
 _CURVE_ONLY_MODELS = set(_CURVE_ONLY_PROFILES.values())
 _DEPLETION_X = "Operational model (depletion) (concentration X)"
 _DEPLETION_LOG_X = "Operational model (depletion) (log10 X)"
+_PARTIAL_X = "Operational model (full and partial) (concentration X)"
+_PARTIAL_LOG_X = "Operational model (full and partial) (log10 X)"
+_PARTIAL_MODELS = {_PARTIAL_X, _PARTIAL_LOG_X}
+_ABSOLUTE_X = "Absolute IC50 (concentration X)"
+_ABSOLUTE_LOG_X = "Absolute IC50 (log10 X)"
+_ABSOLUTE_MODELS = {_ABSOLUTE_X, _ABSOLUTE_LOG_X}
 _BELL_X = "Bell-shaped dose-response with signed slopes (concentration X)"
 _BELL_LOG_X = "Bell-shaped dose-response with signed slopes (log10 X)"
 _BELL_MODELS = {_BELL_X, _BELL_LOG_X}
@@ -80,15 +88,19 @@ _ALLOSTERIC_X = "Allosteric EC50 shift (concentration X)"
 _ALLOSTERIC_LOG_X = "Allosteric EC50 shift (log10 X)"
 _ALLOSTERIC_MODELS = {_ALLOSTERIC_X, _ALLOSTERIC_LOG_X}
 _DOSE_SERIES_MODELS = _SCHILD_MODELS | _ALLOSTERIC_MODELS
-_SPARSE_MODELS = _SHIFT_MODELS | _DOSE_SERIES_MODELS
-_LOG_DRAWING_MODELS = {_DEPLETION_X, _BELL_X, _EC_X, _SHIFT_X, _SCHILD_X, _ALLOSTERIC_X}
+_SPARSE_MODELS = _SHIFT_MODELS | _DOSE_SERIES_MODELS | _PARTIAL_MODELS
+_LOG_DRAWING_MODELS = {_DEPLETION_X, _PARTIAL_X, _BELL_X, _EC_X, _SHIFT_X, _SCHILD_X, _ALLOSTERIC_X}
 _FIXED_SCHILD_PROFILES = {
     "ade9befbcd7f193903381e7d5b4cd7208c156a4bcaf9cd680ab00011c525ae06": _SCHILD_X,
     "b21b59994f1bb9f7876511f1b4e1872ae0f84ae1322d00e8478af99b45563b59": _SCHILD_LOG_X,
 }
 EARLY_GLOBAL_PROFILES = {
+    "1f6d35e18528795d36ec35789dc02c8a4d82877232b9aeab1b8d6c9f16c3dc34": _ABSOLUTE_X,
+    "3eb6ef5ff373378fcf3eb007fc3d4a19412137bffef7100c79e461209f966090": _ABSOLUTE_LOG_X,
     "051a64eca3df3bcb1596b6760f6cee23bf4304167209df7fafc1581116a2babb": _DEPLETION_X,
     "4ba3139b04a84f5cd0da662be8a8bbb680e54d692d9ace9052162f52e3cb3146": _DEPLETION_LOG_X,
+    "6cd60c5fd2db09d92ce1387ea2de1f3fbfab968fbd8d326b5193299d5c6745da": _PARTIAL_X,
+    "5cfdeeba3288705dfcf6e9dd96f90f965f31f761e094ddaeb97c3385a67732bd": _PARTIAL_LOG_X,
     "7a8566026b70236ebf0da2e865bb71aa7f9fa575a513f2ddb6739ac7638cf24c": _BELL_X,
     "87def584540d7750875d3e803a0ed2e2538830717828c29698058fa6d2ec131b": _BELL_LOG_X,
     "e1ed3184c0cea3c8e7dd137a4033f46964f9adf591eefa1a1f79be9808fe978b": _EC_X,
@@ -190,7 +202,7 @@ def _candidate(analysis, records, sources, sheets, snapshots, early):
             elif curve_only in _SUMMARY_INHIBITION:
                 profile = (_SUMMARY_INHIBITION[curve_only][0], 1)
             else:
-                profile = (analysis, int(curve_only == _ASSOCIATION_MULTIPLE))
+                profile = (analysis, int(curve_only in (_ASSOCIATION_MULTIPLE, CONDITIONAL_DECAY)))
             _require(kind[2:4] == profile)
             return _curve_only_candidate(analysis, records, sources, sheets, snapshots, curve_only)
         _require(kind[:2] == (0, 5) and kind[3:] == (1, 127, 1, 65535, 65535))
@@ -200,11 +212,14 @@ def _candidate(analysis, records, sources, sheets, snapshots, early):
         _require(count == 1)
         selected = _one(records, 0x3D)
     frame = sources[source]
-    responses = 5 if model in _DOSE_SERIES_MODELS else 1 if model in _EC_MODELS else 2
+    absolute = model in _ABSOLUTE_MODELS
+    responses = 5 if model in _DOSE_SERIES_MODELS else 1 if absolute or model in _EC_MODELS else 2
+    repeats = 3 if absolute else 1
     _require(frame.attrs.get("table_format") == "xy" and 3 <= len(frame) <= 250_000
-             and len(frame.columns) == responses + 1 and frame.columns.is_unique)
+             and len(frame.columns) == responses * repeats + 1 and frame.columns.is_unique)
     x, *response = frame.columns
-    _require(frame.attrs.get("worksheet_roles") == {"x": [x], "y": [[name] for name in response]})
+    role_columns = [response] if absolute else [[name] for name in response]
+    _require(frame.attrs.get("worksheet_roles") == {"x": [x], "y": role_columns})
 
     count, unused, report, curve, *rest = unpack("<10i", _one(records, 0x3C))
     if early and rest[0] >= 0:
@@ -216,7 +231,13 @@ def _candidate(analysis, records, sources, sheets, snapshots, early):
              and snapshots.get(curve) == (analysis, source, 2))
     _require(len(selected) == 2 + responses * _GRAPH_SERIES.size and unpack_from("<H", selected)[0] == responses)
     observed = tuple(_GRAPH_SERIES.iter_unpack(selected[2:]))
-    _require(tuple(link[0] for link in observed) == _column_ids(sheets[source][0]))
+    if absolute:
+        dataset, drawing, axis = observed[0]
+        _, groups = _xy_group_links(frame, [(tag, (), data) for tag, data in sheets[source][0]], link_size=48)
+        _require(drawing == axis == 0 and groups == {dataset: (repeats, response)}
+                 and len({_series_name(name, True) for name in response}) == 1)
+    else:
+        _require(tuple(link[0] for link in observed) == _column_ids(sheets[source][0]))
     fitted = tuple(_dataset_link(sheets[curve], column, 40) for column in _column_ids(sheets[curve][0]))
     _require(len(fitted) == responses and all(fitted))
     if early:
@@ -224,6 +245,13 @@ def _candidate(analysis, records, sources, sheets, snapshots, early):
         fitted = tuple((dataset, y - 1, axis - 1) for dataset, y, axis in fitted)
         if model in _BELL_MODELS:
             scope = {MERGE_REPLICATES: True, "Grouping variables": []}
+        elif absolute:
+            scope = {
+                MERGE_REPLICATES: True,
+                "Parameter intervals": "Profile likelihood",
+                LEGACY_NOTES: "Refits the original measurement replicates with the saved fixed coefficients. "
+                              "The plotted control observations are a saved reference.",
+            }
         elif model in _EC_MODELS:
             scope = {}
         elif model in _SHIFT_MODELS:
@@ -247,6 +275,15 @@ def _candidate(analysis, records, sources, sheets, snapshots, early):
             scope = {
                 "Shared parameters": ["Top", "Hill slope", *(prefix + name for name in ("EC50", "KB", "Alpha"))],
                 LEGACY_NOTES: "Refits the original observations. The paired original retains the saved arrow.",
+            }
+        elif model in _PARTIAL_MODELS:
+            full, partial = response
+            scope = {
+                "Shared parameters": ["Basal", "Effect max", "Transducer slope"],
+                "Series constraints": [
+                    {"series": full, "parameters": {"Partial agonist": {"fixed": 0.}, "Log Tau": {"fixed": 0.}}},
+                    {"series": partial, "parameters": {"Partial agonist": {"fixed": 1.}}},
+                ],
             }
         else:
             affinity = "KA" if model == _DEPLETION_X else "Log KA"
@@ -359,6 +396,18 @@ def _saved_fixed_values(report, name, count):
     return values
 
 
+def _conditional_decay_parameters(report):
+    """Keep the saved approximate rate as an explicit assumption, with no inference for it."""
+    _require(report.shape[1] == 2 and len(report) > 2 and report.iat[0, 1] == "Ambiguous")
+    rates = [str(value).strip()[1:].strip() for label, value in report.itertuples(index=False, name=None)
+             if str(label).strip() == "K2" and str(value).strip().startswith("~")]
+    rate, = map(float, rates)
+    _require(np.isfinite(rate) and rate > 0)
+    fixed = {name: _saved_fixed_values(report, saved, 1)[0]
+             for name, saved in (("Plateau", "Plateau"), ("Span 1", "Span1"), ("Span 2", "Span2"))}
+    return {**fixed, "K2": rate}
+
+
 def _verify_drawing(candidate, samples, scene, axes, grid, *, logarithmic, starts=None, fixed=None):
     """Verify estimates against both the saved result table and the drawing."""
     from .curve_models import MODELS
@@ -382,6 +431,12 @@ def _verify_drawing(candidate, samples, scene, axes, grid, *, logarithmic, start
         frame = stack_replicates(candidate.frame, opts)
         fits = nonlinear(frame, "X", "Response", model, "Series", series_start=starts)
     x = np.geomspace(minimum, maximum, points) if logarithmic else samples[:, 0]
+    if model == CONDITIONAL_DECAY:
+        # The saved table extrapolates to X=0. The drawing samples the observations' extent.
+        low, high = map(float, (frame["X"].min(), frame["X"].max()))
+        _require(minimum <= low < high <= maximum)
+        grid = {**grid, rr.CURVE_MIN: low, rr.CURVE_MAX: high}
+        x = np.linspace(low, high, points)
     names = dict.fromkeys(_series_name(name, opts.get(MERGE_REPLICATES, False)) for name in opts["Y columns"])
     for position, (series, (dataset, _, _)) in enumerate(zip(names, candidate.fitted, strict=True), 1):
         estimates = fits[series].parameters["Estimate"]
@@ -407,6 +462,42 @@ def _matching_observations(cache, values, axes):
     visible = present[:length]
     return bool(np.all(cache[~visible] == -1) and
                 _matching_grid(cache[visible], values[present], axes, high_anchored=True))
+
+
+def _verify_partial_drawing(candidate, samples, cache, axes, logarithmic):
+    from .curve_models import MODELS
+    from .global_fit import global_nonlinear
+    from .repeated_input import curve_input, decode_series_constraints
+
+    options = candidate.options
+    model = options["Model"]
+    x = samples[:, 0]
+    _require(len(candidate.frame) <= 128 and 2 <= len(x) <= rr.MAX_POINTS and np.isfinite(x).all()
+             and not np.isinf(samples).any())
+    frame, _, _, _ = curve_input(candidate.frame, options)
+    fits = global_nonlinear(
+        frame, "X", "Response", model, "Series", shared=options["Shared parameters"],
+        series_constraints=decode_series_constraints(options["Series constraints"]),
+    ).groups
+    span = frame["X"].min(), frame["X"].max(), len(x)
+    linear_x = np.linspace(*span)
+    # Older result tables can store rounded decimal endpoints while the
+    # original worksheet keeps single-precision input values.
+    _require(np.allclose(x, linear_x, rtol=2e-7, atol=1e-15) and (not logarithmic or span[0] > 0))
+    grid = _drawing_settings(linear_x, options)
+    plotted_x = np.geomspace(*span) if logarithmic else linear_x
+    for column, (label, (dataset, _, _)) in enumerate(zip(options["Y columns"], candidate.fitted, strict=True), 1):
+        fit = fits[label]
+        minimum, maximum = fit.data["X"].min(), fit.data["X"].max()
+        observed = (linear_x >= minimum) & (linear_x <= maximum)
+        _require(observed.sum() >= 2 and np.array_equal(observed, np.isfinite(samples[:, column])))
+        equation = MODELS[model].equation
+        estimates = fit.parameters["Estimate"]
+        _require(np.allclose(equation(x[observed], *estimates), samples[observed, column], rtol=6e-6, atol=1e-5))
+        inside = (plotted_x >= minimum) & (plotted_x <= maximum)
+        plotted = np.where(inside, equation(plotted_x, *estimates), np.nan)
+        _require(_matching_observations(cache[dataset], np.column_stack((plotted_x, plotted)), axes))
+    return {**grid, "spacing": "log" if logarithmic else "linear", "clip to series": True}
 
 
 def _curve_only_graph(candidate, source_records, curve, report, graph, encoding, *, starts=None, invisible=None):
@@ -443,6 +534,12 @@ def _curve_only_graph(candidate, source_records, curve, report, graph, encoding,
             "Refits the original replicates. The editable graph uses up to 2,000 points. "
             "The original graph and its 10,000-point result table remain available."
         )})
+    elif model == CONDITIONAL_DECAY:
+        fixed = _conditional_decay_parameters(report)
+        candidate = replace(candidate, options={**candidate.options, LEGACY_NOTES: (
+            "The original report could not identify K2. This fit starts with K2 fixed at the saved reference. "
+            "K1 and its intervals are conditional on that reference."
+        )})
     elif model not in _INDEPENDENT_CURVE_ONLY:
         _require(report.columns[1:1 + count].tolist() == names)
         parameter = "Et" if model == _KCAT else "Hotnm"
@@ -476,7 +573,11 @@ def _curve_only_graph(candidate, source_records, curve, report, graph, encoding,
                 keys.append(key)
         empty_keys = tuple(keys)
         _require(len(empty_keys) == 1)
-    _require(saved == set(candidate.fitted) | ({invisible[0]} if invisible else set()))
+    if model == CONDITIONAL_DECAY:
+        # The graph numbers local drawing slots separately from the result table.
+        _require(len(saved) == 1 and {item[0] for item in saved} == {item[0] for item in candidate.fitted})
+    else:
+        _require(saved == set(candidate.fitted) | ({invisible[0]} if invisible else set()))
     texts, _, _, scene = _scene(graph, encoding, empty_series=empty_keys, empty_drawing=0x88,
                                curve_drawing=0x80 if model == _MORRISON else 0x88,
                                annotated=model == _NONCOMPETITIVE)
@@ -526,7 +627,7 @@ def _graph_binding(candidate, source_records, curve, graph, encoding, *, starts=
     samples = curve.to_numpy(dtype=float, na_value=np.nan)
     model = candidate.options["Model"]
     sparse = model in _SPARSE_MODELS
-    _require(np.isfinite(samples).all() and np.isfinite(data[:, 0]).all()
+    _require((model in _PARTIAL_MODELS or np.isfinite(samples).all()) and np.isfinite(data[:, 0]).all()
              and (not np.isinf(data).any() if sparse else np.isfinite(data).all()))
     columns = _series_columns(source, source_records, frame, -1)
     raw_headers = [(payload, ()) for tag, _, payload in source_records if tag == 0x800F]
@@ -570,14 +671,17 @@ def _graph_binding(candidate, source_records, curve, graph, encoding, *, starts=
     cached = dict(scene.values())
     _require(all(_matching_observations(cached[dataset], expected[dataset], axes)
                  for dataset, _, _ in observed))
-    grid = _sample_settings(curve.iloc[:, :2], candidate.options)
-    if starts is not None or fixed is not None or sparse:
-        grid = _verify_drawing(candidate, samples, cached, axes, grid, logarithmic=logarithmic,
-                               starts=starts, fixed=fixed)
-    elif not all(_matching_grid(cached[dataset], expected[dataset], axes, high_anchored=True)
-                 for dataset, _, _ in candidate.fitted):
-        _require(model == _DEPLETION_X)
-        grid = _verify_drawing(candidate, samples, cached, axes, grid, logarithmic=True)
+    if model in _PARTIAL_MODELS:
+        grid = _verify_partial_drawing(candidate, samples, cached, axes, logarithmic)
+    else:
+        grid = _sample_settings(curve.iloc[:, :2], candidate.options)
+        if starts is not None or fixed is not None or sparse:
+            grid = _verify_drawing(candidate, samples, cached, axes, grid, logarithmic=logarithmic,
+                                   starts=starts, fixed=fixed)
+        elif not all(_matching_grid(cached[dataset], expected[dataset], axes, high_anchored=True)
+                     for dataset, _, _ in candidate.fitted):
+            _require(model == _DEPLETION_X)
+            grid = _verify_drawing(candidate, samples, cached, axes, grid, logarithmic=True)
     style = {"axis": {}}
     if curve_only:
         style["legend"] = "hidden"
@@ -608,12 +712,85 @@ def _invisible_probability_overlay(result, sheet):
     return link, len(result)
 
 
-def restore_global_graphs(data, graphs, graph_links, candidates, result_frames):
+def _absolute_graph(candidate, control, control_records, curve, report, graph):
+    """Corroborate the fixed reference levels and all three saved series."""
+    x, groups = _xy_group_links(control, control_records, link_size=72)
+    (control_id, (repeats, names)), = groups.items()
+    _require(control.attrs.get("table_format") == "xy" and control.columns.is_unique
+             and len(control) == 2 and len(control.columns) == 6 and repeats == len(names) == 5)
+    controls = control[[x, *names]].to_numpy(dtype=float)
+    measurements = candidate.frame.to_numpy(dtype=float, na_value=np.nan)
+    _require(np.isfinite(controls).all() and np.isfinite(measurements).all() and len(measurements) <= 128)
+
+    top, baseline = controls[:, 1:].mean(axis=1)
+    _require(np.isfinite(top - baseline) and top > baseline and len(report.columns) == 2)
+    rows = list(report.fillna("").itertuples(index=False, name=None))
+    constraint_index, = (i for i, row in enumerate(rows) if row[0] == "Constraints")
+    _require(constraint_index > 3 and rows[1][0] == "Best-fit values")
+    for (name, value), (label, fitted), (fixed_label, setting) in zip(
+            (("Top", top), ("Baseline", baseline)), rows[2:4], rows[constraint_index + 1:constraint_index + 3],
+            strict=True):
+        prefix = name + " = "
+        _require(str(label).strip() == str(fixed_label).strip() == name
+                 and str(fitted).startswith("=") and str(setting).startswith(prefix)
+                 and _matches_display(value, str(fitted)[1:].strip())
+                 and np.isclose(float(str(setting)[len(prefix):]), value, rtol=1e-12, atol=1e-12))
+    fixed = {"Top above baseline": float(top - baseline), "Baseline": float(baseline)}
+
+    observed, = candidate.observed
+    fitted, = candidate.fitted
+    links = _one(graph, 0x16)
+    _require(len(links) == 2 + 3 * _GRAPH_SERIES.size and unpack_from("<H", links)[0] == 3
+             and set(_GRAPH_SERIES.iter_unpack(links[2:])) == {observed, fitted, (control_id, 0, 0)})
+    scene = {uid: (coords.reshape(-1, 2), attributes)
+             for uid, coords, attributes in _drawing_series(graph, 0, (0x88, 0x18, 0x1C))}
+    _require(set(scene) == {observed[0], fitted[0], control_id})
+    axes = _axis_config(graph, viewport_only=True)
+    logarithmic = candidate.options["Model"] == _ABSOLUTE_X
+    _require([axis["scale"] for axis in axes] == ["log" if logarithmic else "linear", "linear"])
+    points = {}
+    for dataset, frame in ((observed[0], measurements), (control_id, controls)):
+        values = np.column_stack((np.repeat(frame[:, 0], frame.shape[1] - 1), frame[:, 1:].ravel()))
+        cache, attributes = scene[dataset]
+        _require(unpack_from("<H", attributes, 58)[0] in (0x18, 0x1C)
+                 and _matching_grid(cache, values, axes, high_anchored=True))
+        points[dataset] = values
+    _require(unpack_from("<H", scene[fitted[0]][1], 58)[0] == 0x88)
+    grid = _sample_settings(curve, candidate.options)
+    grid = _verify_drawing(candidate, curve.to_numpy(dtype=float), {fitted[0]: scene[fitted[0]][0]},
+                           axes, grid, logarithmic=logarithmic, fixed=fixed)
+    grid["control overlay"] = points[control_id].tolist()
+    grid["control color"] = "#" + bytes(scene[control_id][1][68:71]).hex()
+    grid["response color"] = "#" + bytes(scene[observed[0]][1][68:71]).hex()
+    grid["curve color"] = "#" + bytes(scene[fitted[0]][1][68:71]).hex()
+    style = {"axis": {}}
+    for dim, axis in zip("xy", axes, strict=True):
+        lower, upper = axis["bounds"]
+        if axis["scale"] == "log":
+            lower, upper = 10. ** lower, 10. ** upper
+        elif dim == "x":
+            # Keep control markers fully visible when their center is on the
+            # edge of the archived plotting area.
+            inset = (upper - lower) * .015
+            if controls[:, 0].min() <= lower:
+                lower -= inset
+            if controls[:, 0].max() >= upper:
+                upper += inset
+        style[dim + "scale"] = axis["scale"]
+        style["axis"][dim] = {"min": lower, "max": upper}
+    if not logarithmic:
+        style["xlabel"] = "log(Concentration)"
+    return grid, validated_style(style), fixed
+
+
+def restore_global_graphs(data, graphs, graph_links, candidates, result_frames, source_frames):
     """Attach a fit only when every saved series and its ownership can be verified."""
     if not any(candidates.values()):
         return set(), set()
     try:
         table_ids = {source for source, _ in candidates}
+        if any(c and c.options["Model"] in _ABSOLUTE_MODELS for c in candidates.values()):
+            table_ids.update(source_frames)
         _, encoding, records, sources = _project_records(data, table_ids)
         fractions = {candidate.curve_sheet: candidate for candidate in candidates.values()
                      if candidate and candidate.options["Model"] == _CUMULATIVE_FRACTION}
@@ -625,10 +802,14 @@ def restore_global_graphs(data, graphs, graph_links, candidates, result_frames):
         uid = graph["id"]
         try:
             members = _id_array(_one(records[uid], 0x14))
-            _require(len(members) == len(set(members)) in (1, 2))
+            _require(len(members) == len(set(members)) in (1, 2, 3))
             curve_only = len(members) == 1
             invisible = None
-            if not curve_only and (fraction := fractions.get(members[0])) and members[1] in result_frames:
+            if len(members) == 3:
+                matches = [candidates[source, curve] for source in members for curve in members
+                           if candidates.get((source, curve))
+                           and candidates[source, curve].options["Model"] in _ABSOLUTE_MODELS]
+            elif not curve_only and (fraction := fractions.get(members[0])) and members[1] in result_frames:
                 overlay = members[1]
                 invisible = _invisible_probability_overlay(result_frames[overlay], sheets[overlay])
                 matches = [fraction]
@@ -663,7 +844,13 @@ def restore_global_graphs(data, graphs, graph_links, candidates, result_frames):
                 if model in _ALLOSTERIC_MODELS:
                     _require(set(_saved_fixed_values(report, "Bottom", len(response))) == {0.0})
                     fixed = {"Bottom": 0.0}
-            if model in _CURVE_ONLY_MODELS:
+            if model in _ABSOLUTE_MODELS:
+                control, = set(members) - {candidate.source_sheet, candidate.curve_sheet}
+                grid, style, fixed = _absolute_graph(
+                    candidate, source_frames[control], sources[control], result_frames[candidate.curve_sheet],
+                    result_frames[candidate.report_sheet], records[uid],
+                )
+            elif model in _CURVE_ONLY_MODELS:
                 _require(curve_only)
                 candidate, fixed, grid, style = _curve_only_graph(
                     candidate, sources[candidate.source_sheet], result_frames[candidate.curve_sheet],
@@ -683,6 +870,11 @@ def restore_global_graphs(data, graphs, graph_links, candidates, result_frames):
                        }}
             if fixed is not None:
                 options["Fixed parameters"] = fixed
+            if grid.get("clip to series") is True:
+                options[FIT_GRAPH_SPEC]["clip to series"] = True
+            if model in _ABSOLUTE_MODELS:
+                options[FIT_GRAPH_SPEC].update({name: grid[name] for name in
+                                                ("control overlay", "control color", "response color", "curve color")})
             if curve_only:
                 options[FIT_GRAPH_SPEC]["observations"] = False
             method = _METHOD

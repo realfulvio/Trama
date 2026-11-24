@@ -76,6 +76,9 @@ DIRECTION = "Direction"
 DIRECTIONS = ("X from Y", "Y from X")
 UNKNOWN_X = "Unknown X"
 UNKNOWN_RESPONSES = "Unknown responses"
+MISSING_X_ONLY = "Only rows without X"
+PADE_DRAWING = "Imported Padé drawing range"
+MAX_PADE_DRAWING_POINTS = 2000
 FORWARD_INTERVAL_MODELS = ("One-phase decay", *_SIGMOID_MODELS)
 FORWARD_MODELS = (*FORWARD_INTERVAL_MODELS, PADE_MODEL)
 _FORWARD_MODEL_ERROR = "Y from X supports the Linear curve, One-phase decay, 4PL, 5PL and Padé (1,1)."
@@ -121,7 +124,7 @@ class StandardCurve:
 
 
 def interpolate_standard_curve(frame, x, y, query, curve="Linear", model=None, uncertainty="None", level=None,
-                               count=None):
+                               count=None, *, missing_x_only=False, saved_drawing=None):
     """Interpolate unknown responses, or keep the existing linear calibration.
 
     Mean response or Prediction adds inverse intervals for the Linear curve and for One-phase decay
@@ -151,6 +154,8 @@ def interpolate_standard_curve(frame, x, y, query, curve="Linear", model=None, u
         model = INVERSE_MODELS[0]
     if model not in INVERSE_MODELS:
         raise ValueError("Select a supported calibration model.")
+    if model == PADE_MODEL:
+        return _pade_inverse_curve(frame, x, y, query, missing_x_only=missing_x_only, saved_drawing=saved_drawing)
     checked = None
     counts = None
     if uncertainty != UNCERTAINTIES[0]:
@@ -328,35 +333,55 @@ def check_calibration_options(frame, options):
     calibration_choice_error(frame, x, y, options.get("Curve"), options.get("Model"))
 
 
-def _pade_inverse_curve(frame, x, y, query):
+def _pade_drawing(fitted, saved, x, y):
+    """Keep archived plot sampling separate from the interpolation domain."""
+    if not isinstance(saved, dict) or (saved.get("x"), saved.get("y")) != (x, y):
+        return fitted.curve.copy()
+    low, high, count = (saved.get(key) for key in ("min", "max", "points"))
+    if (type(count) is not int or not 2 <= count <= MAX_PADE_DRAWING_POINTS
+            or any(type(value) not in (int, float) or not -1e100 < value < 1e100 for value in (low, high))
+            or not low < high or low >= fitted.x_max or high <= fitted.x_min):
+        return fitted.curve.copy()
+    grid = np.linspace(low, high, count)
+    with np.errstate(over="ignore", invalid="ignore"):
+        try:
+            response = pade.evaluate_z(fitted.coefficients, (grid - fitted.x_min) / fitted.x_scale)
+        except ValueError:
+            # A change in the standards can put a pole inside the saved display range.
+            return fitted.curve.copy()
+    return np.column_stack((grid, response))
+
+
+def _pade_inverse_curve(frame, x, y, query, *, missing_x_only=False, saved_drawing=None):
     fitted = pade.fit_pade(frame, x, y)
-    samples = complete(frame, [query])[query]
+    query_data = frame.reset_index(drop=True)
+    if missing_x_only is True:
+        query_data = query_data.loc[query_data[x].isna()]
+    samples = complete(query_data, [query])[query]
     if samples.empty:
         raise FieldError(UNKNOWN_RESPONSES, "Enter one or more unknown response values.")
     title_column = _row_title_column(frame, x, y)
-    positions = _query_positions(frame, query) if title_column is not None else None
     columns = ["Source row", "Response", "Interpolated X", "Status", "Domain low", "Domain high"]
     if title_column is not None:
         columns.insert(1, "Row title")
     responses = samples.to_numpy(dtype=float)
     solved, statuses = pade.invert_pade(fitted, responses)
     rows = []
-    for offset, index in enumerate(samples.index):
-        record = {"Source row": index, "Response": float(responses[offset]), "Interpolated X": float(solved[offset]),
+    for offset, position in enumerate(samples.index):
+        record = {"Source row": frame.index[position], "Response": float(responses[offset]),
+                  "Interpolated X": float(solved[offset]),
                   "Status": statuses[offset], "Domain low": fitted.x_min, "Domain high": fitted.x_max}
         if title_column is not None:
-            record["Row title"] = frame[title_column].iloc[int(positions[offset])]
+            record["Row title"] = frame[title_column].iloc[position]
         rows.append(record)
     estimates = pd.DataFrame(rows, columns=columns)
     tables = {"Interpolated values": estimates, "Calibration parameters": fitted.parameters.copy(),
               "Fit diagnostics": _report(dict(fitted.diagnostics))}
-    return StandardCurve(tables, curve=np.array(fitted.curve, copy=True), model=PADE_MODEL)
+    return StandardCurve(tables, curve=_pade_drawing(fitted, saved_drawing, x, y), model=PADE_MODEL)
 
 
 def _nonlinear_curve(frame, x, y, query, model, uncertainty="None", level=None, counts=None):
     # Unknown responses stay out of the fit.
-    if model == PADE_MODEL:
-        return _pade_inverse_curve(frame, x, y, query)
     if model in _SIGMOID_MODELS:
         calibration_choice_error(frame, x, y, "Nonlinear", model)
     fit = nonlinear(frame, x, y, model)["All"]
@@ -691,7 +716,7 @@ def _nonlinear_intervals(fit, x, y, model, theta, estimates, uncertainty, level,
     return table, found
 
 
-def calibration_visibility(direction, curve, uncertainty, model=None):
+def calibration_visibility(direction, curve, uncertainty, model=None, *, pade_rows=False):
     """Fields that matter for the current choices. Hidden values never reach the calculation.
 
     Intervals exist for Linear and supported nonlinear models in Y from X, for the inverse Linear
@@ -702,9 +727,12 @@ def calibration_visibility(direction, curve, uncertainty, model=None):
     forward_intervals = forward and (curve == "Linear" or model is None or model in FORWARD_INTERVAL_MODELS)
     inverse_nonlinear = not forward and curve == "Nonlinear" and model in INVERSE_INTERVAL_MODELS
     intervals = forward_intervals or (not forward and curve == "Linear") or inverse_nonlinear
-    return {UNKNOWN_RESPONSES: not forward, UNKNOWN_X: forward, "Model": curve == "Nonlinear",
-            UNCERTAINTY: intervals, LEVEL: intervals and uncertainty in UNCERTAINTIES[1:],
-            COUNT: intervals and uncertainty == UNCERTAINTIES[2]}
+    fields = {UNKNOWN_RESPONSES: not forward, UNKNOWN_X: forward, "Model": curve == "Nonlinear",
+              UNCERTAINTY: intervals, LEVEL: intervals and uncertainty in UNCERTAINTIES[1:],
+              COUNT: intervals and uncertainty == UNCERTAINTIES[2]}
+    if pade_rows:
+        fields[MISSING_X_ONLY] = not forward and curve == "Nonlinear" and model == PADE_MODEL
+    return fields
 
 
 def inverse_options(options):

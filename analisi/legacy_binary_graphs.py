@@ -373,8 +373,8 @@ def _stored_pdf_preview(payload, remaining):
     return {"format": "pdf", "data": b64encode(payload).decode("ascii")}
 
 
-def read_binary_graphs(data):
-    """Return indexed graph previews in the saved navigator order, plus skipped titles."""
+def read_binary_graphs(data, *, include_without_preview=False):
+    """Read indexed previews in navigator order, optionally including scenes without a preview."""
     from .legacy_binary import _records
 
     indexed, current = None, None
@@ -407,6 +407,9 @@ def read_binary_graphs(data):
             if not group or not group.get(9):
                 raise ValueError("Missing legacy binary graph title.")
             title = _read_title(group[9], encoding) or title
+            if include_without_preview and 0x5E not in group and 0xF00 not in group:
+                graphs.append({"id": uid, "title": title})
+                continue
             remaining = MAX_BINARY_GRAPH_TOTAL - total
             try:
                 preview = _stored_emf_preview(group.get(0x5E), remaining)

@@ -4,7 +4,7 @@ from decimal import Decimal
 from itertools import zip_longest
 from math import isfinite
 import re
-from struct import Struct, unpack_from
+from struct import Struct, pack, unpack_from
 
 from scipy import stats
 
@@ -228,9 +228,11 @@ def _formatted_simulation_values(records, rows):
 
 def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remaining_cells, fonts,
                        *, source_free=False, formatted_curve=False, formatted_simulation=False):
-    if unpack_from("<i", layout)[0] != -1 or len(datasets) > MAX_COLUMNS:
+    row_title_id, = unpack_from("<i", layout)
+    if len(datasets) > MAX_COLUMNS or (row_title_id != -1 and not formatted_curve):
         return None
     x_uid = None
+    title_x = None
     fields = {}
     for header, records in datasets:
         if len(header) != _DATASET.size:
@@ -241,6 +243,14 @@ def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remain
         if (uid < 0 or uid in fields or analysis != analysis_id or owner != sheet_id
                 or storage != _RESULT_STORAGE or repeats != 1 or count != rows or rows < 0):
             raise _UnsupportedSheet("Invalid curve data set ownership or dimensions")
+        if uid == row_title_id:
+            if (title_x is not None or (kind, role, form, rows) != (2, 256, _TEXT_MODE, 0)
+                    or _record_once(records, 9) != b"\0" or _record_once(records, 0x10) != bytes(6)
+                    or _record_once(records, 0xB6) != pack("<2I", 0, uid)
+                    or any(tag not in (9, 0x10, 0x90, 0xB6, 0xF3) for tag, _ in records)):
+                raise _UnsupportedSheet("Unrecognized empty curve row-title field")
+            title_x = linked_x
+            continue
         if ((kind, role, form) == (4, 4, 11)
                 and rows in ((0, 1) if source_free or formatted_simulation else (0,)) and x_uid is None):
             x_uid = uid
@@ -250,9 +260,11 @@ def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remain
     y_uids = _column_ids(metadata, MAX_COLUMNS - 1)
     if x_uid is None or not y_uids or set(fields) != {x_uid, *y_uids} or x_uid in y_uids:
         raise _UnsupportedSheet("Unrecognized saved curve column order")
-    height = fields[y_uids[0]][1]
-    if any(linked_x != x_uid or rows != height for uid, (linked_x, rows, _) in fields.items() if uid != x_uid):
+    if row_title_id != -1 and title_x != x_uid:
+        raise _UnsupportedSheet("Invalid saved curve row-title link")
+    if any(fields[uid][0] != x_uid for uid in y_uids):
         raise _UnsupportedSheet("Saved curve series do not share the same X sequence")
+    height = max(fields[uid][1] for uid in y_uids)
     if not height:
         return None
     if len(fields) * height > remaining_cells:
@@ -277,7 +289,9 @@ def _sequence_snapshot(sheet_id, analysis_id, metadata, datasets, layout, remain
         headers.append(title or (f"Y{position}" if position else "X"))
         if position:
             columns.append(read_values(records, rows))
-    return _table(headers, [list(row) for row in zip(*columns, strict=True)])
+    # A shorter series uses a prefix of the common X sequence. Missing cells
+    # inside that prefix remain missing as well.
+    return _table(headers, [list(row) for row in zip_longest(*columns)])
 
 
 def _matches_display(value, saved, extra=0):
@@ -401,7 +415,7 @@ def report_saved_result_warnings(tables, unavailable, unreadable=0):
 
 
 def restore_binary_results(data, sources, tables, cells, fonts, *, dose_curves=None, classic_curves=None,
-                           calibration_curves=None, global_curves=None, pending_analyses=None):
+                           calibration_curves=None, global_curves=None, pade_curves=None, pending_analyses=None):
     """Add verified snapshots and attach matching native recipes to the original source grids."""
     analyses, sheets, indexed, analysis_ids, companions = _read_groups(data)
     from .legacy_binary_dose import classic_fit_models, early_fit_inputs, restore_dose_recipes
@@ -525,6 +539,10 @@ def restore_binary_results(data, sources, tables, cells, fonts, *, dose_curves=N
         from .legacy_binary_global import global_candidates
 
         global_curves.update(global_candidates(data, sources, sheets, snapshots, unavailable, early_inputs=early_inputs))
+    if pade_curves is not None and unavailable:
+        from .legacy_binary_dose import pade_candidates
+
+        pade_curves.update(pade_candidates(data, sources, sheets, snapshots, classic_models, unavailable))
     if pending_analyses is not None:
         pending_analyses.update(unavailable)
         unavailable = ()

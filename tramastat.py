@@ -230,6 +230,7 @@ from analisi.row_tests import (RAW as ROW_TEST_RAW, ROW_TESTS, TESTS as ROW_TEST
 from analisi.nonlinear_calibration import (INVERSE_INTERVAL_MODELS, INVERSE_MODELS, check_calibration_options,
                                            model_field_key as calibration_model_field_key)
 from analisi.nonlinear_calibration import (DIRECTION as CALIBRATION_DIRECTION, DIRECTIONS as CALIBRATION_DIRECTIONS,
+                                           MISSING_X_ONLY, PADE_DRAWING,
                                            UNCERTAINTY as CALIBRATION_UNCERTAINTY,
                                            calibration_visibility as standard_curve_visibility)
 from analisi.normality import (NORMALITY, QQ_PLOT, QQ_VARIABLE, check_options as check_normality_options,
@@ -4210,7 +4211,7 @@ class AnalysisDialog(simpledialog.Dialog):
             return {}
         return standard_curve_visibility(*(self.controls[name][1].get()
                                            for name in (CALIBRATION_DIRECTION, "Curve", CALIBRATION_UNCERTAINTY)),
-                                         model=self.controls["Model"][1].get())
+                                         model=self.controls["Model"][1].get(), pade_rows=True)
 
     def show_calibration_fields(self):
         """Show interval fields for the current model, and the inverse-interval note only when it applies."""
@@ -8314,7 +8315,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, RepeatAnalysisMixin, Workshee
             for key in (LEGACY_TITLE, LEGACY_NOTES, LEGACY_GRAPH_LINK, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
                         pca_overlays.SAVED_APPEARANCE, PCA_SAVED_DIRECTIONS, pca_parallel_archive.ARCHIVE,
                         PCA_SAVED_VIEWPORT, kmeans_archive.ARCHIVE,
-                        FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, SURVIVAL_GRAPH, QC_REFERENCE, anova_grouped_plot.PRIMARY):
+                        FIT_GRAPH_SPEC, FIT_INTERVAL_BAND, PADE_DRAWING, SURVIVAL_GRAPH, QC_REFERENCE,
+                        anova_grouped_plot.PRIMARY):
                 if key in run.options:
                     options[key] = run.options[key]
             if options.get("Model") == run.options.get("Model"):
@@ -13482,7 +13484,7 @@ def smoke(root, app, directory, legacy_reference=None):
             dialog.controls["Curve"][1].set("Linear")
             visible = dialog.calibration_visibility()
             if visible != {"Unknown responses": True, "Unknown X": False, "Model": False, "Uncertainty": True,
-                           "Confidence level (%)": False, "Replicate count column": False}:
+                           "Confidence level (%)": False, "Replicate count column": False, MISSING_X_ONLY: False}:
                 raise AssertionError(f"Model stayed visible for a linear curve: {visible!r}")
 
         drive_dialog(AnalysisDialog, choose)

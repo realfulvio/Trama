@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.stats import f, t
 
 from analisi import stats as engine
-from analisi.curve_models import MODELS
+from analisi.curve_models import CONDITIONAL_DECAY, MODELS
 from analisi.global_fit import global_nonlinear
 
 
@@ -28,6 +28,20 @@ def fit(frame, model=MODEL, **options):
 
 
 class GlobalFitTests(unittest.TestCase):
+    def test_conditional_decay_fits_one_curve_with_a_declared_reference_rate(self):
+        x = np.arange(1., 14., 2.)
+        fixed = {"Plateau": 20., "Span 1": 90., "Span 2": 90., "K2": 800.}
+        y = MODELS[CONDITIONAL_DECAY].equation(x, 20., 90., 90., .6, 800.) + .001 * np.cos(x)
+        frame = pd.DataFrame({"x": x, "y": y, "group": "A"})
+        with self.assertRaisesRegex(ValueError, "requires a fixed K2"):
+            fit(frame, CONDITIONAL_DECAY)
+        result = fit(frame, CONDITIONAL_DECAY, fixed=fixed)
+        parameters = result.groups["A"].parameters
+        self.assertAlmostEqual(parameters.at["K1", "Estimate"], .6, delta=.0001)
+        self.assertEqual(parameters.at["K2", "Estimate"], 800.)
+        self.assertTrue(np.isnan(parameters.at["K2", "SE"]))
+        self.assertEqual(result.diagnostics["df"], len(x) - 1)
+
     def test_large_global_design_is_rejected_before_allocating_dense_jacobian(self):
         frame = pd.DataFrame({"x": np.tile([1., 2., 3.], 101), "y": np.tile([2., 3., 4.], 101),
                               "group": np.repeat(np.arange(101), 3)})
@@ -120,6 +134,36 @@ class GlobalFitTests(unittest.TestCase):
                 self.assertEqual(joint.groups["Control"].parameters.at["EC50 ratio", "Estimate"], 1.)
                 self.assertAlmostEqual(joint.groups["Treatment"].parameters.at["EC50 ratio", "Estimate"],
                                        4., delta=.002)
+
+    def test_operational_fit_shares_the_system_parameters_and_clips_each_curve(self):
+        full = np.geomspace(.04, 90., 24)
+        partial = np.geomspace(.4, 200., 20)
+        frame = pd.concat([
+            pd.DataFrame({"x": full, "y": 2 + 60 / (1 + (1.3 / full) ** 1.4), "group": "Full"}),
+            pd.DataFrame({"x": partial, "y": 2 + 60 / (1 + ((1 + 4.2 / partial) / .56) ** 1.4),
+                          "group": "Partial"}),
+        ], ignore_index=True)
+        constraints = {
+            "Full": {"Partial agonist": {"fixed": 0.}, "Log Tau": {"fixed": 0.}},
+            "Partial": {"Partial agonist": {"fixed": 1.}},
+        }
+        for suffix, transform in (("concentration X", np.asarray), ("log10 X", np.log10)):
+            with self.subTest(scale=suffix):
+                grid = transform(np.geomspace(.04, 200., 300))
+                model = f"Operational model (full and partial) ({suffix})"
+                joint = fit(frame.assign(x=transform(frame.x)), model,
+                            shared=("Basal", "Effect max", "Transducer slope"),
+                            series_constraints=constraints, curve_grid=grid, clip_curve_to_data=True)
+                self.assertEqual(joint.diagnostics["df"], len(frame) - 6)
+                self.assertAlmostEqual(joint.groups["Full"].parameters.at["Log EC50 or KA", "Estimate"],
+                                       np.log10(1.3), places=5)
+                self.assertAlmostEqual(joint.groups["Partial"].parameters.at["Log EC50 or KA", "Estimate"],
+                                       np.log10(4.2), places=5)
+                self.assertAlmostEqual(joint.groups["Partial"].parameters.at["Log Tau", "Estimate"],
+                                       np.log10(.56), places=5)
+                for group in joint.groups.values():
+                    x = group.data.x
+                    np.testing.assert_array_equal(group.curve[:, 0], grid[(grid >= x.min()) & (grid <= x.max())])
 
     def test_missing_rows_preserve_duplicate_input_labels_and_weight_alignment(self):
         frame = saturation_frame()

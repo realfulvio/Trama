@@ -4,7 +4,7 @@ import unittest
 import pandas as pd
 
 from analisi.legacy_binary import _UnsupportedSheet
-from analisi.legacy_binary_results import _x_sequence, restore_binary_results
+from analisi.legacy_binary_results import _read_groups, _sequence_snapshot, _x_sequence, restore_binary_results
 from test_legacy_binary import dataset, document, group, record, sheet
 
 
@@ -54,7 +54,8 @@ def fixture(labels, values, *, malformed=False, overlapping=False, flags=7, link
     return result_document(analysis, src, result, analysis_ids=analysis_ids)
 
 
-def numeric_fixture(*, step=None, analysis_id=3, fraction_source=None, source_free=False, generated_flags=None):
+def numeric_fixture(*, step=None, analysis_id=3, fraction_source=None, source_free=False, generated_flags=None,
+                    shorter=False):
     flags = 0x00100000 if step is None else 0x20001000
     if fraction_source is not None:
         flags = 0x00140400
@@ -85,13 +86,38 @@ def numeric_fixture(*, step=None, analysis_id=3, fraction_source=None, source_fr
                    record(0x10, struct.pack("<HIIIdIId", 1, 2, 1, 0, 1.0, 0, 0, step)),
                    record(0x90, bytes(2)),
                    record(0xf3, struct.pack("<12I", 2, 16, 16, 2, 0, 1, 0, 0, 0, 0, 0, 0)))
+    extra = ()
+    if shorter:
+        second = bytearray(dataset(22, 7, 40, b"Second Y", [(1, 5), (1, 6)], precision=1))
+        struct.pack_into("<i", second, 6 + 12, analysis_id)
+        struct.pack_into("<i", second, 6 + 20, 102)
+        struct.pack_into("<i", second, 6 + 44, 20)
+        extra = (record(0xd, struct.pack("<3I", 1, 22, 1) + bytes(12)), bytes(second))
     result = group(8, struct.pack("<H", 7), record(9, b"Saved numbers\0"),
                    record(0x8e, struct.pack("<9i", -1, 0, 0, 0, 10, 0, -1, -1, -2)),
-                   record(0xd, struct.pack("<3I", 0, 21, 1) + bytes(12)), bytes(ys), bytes(xs))
+                   record(0xd, struct.pack("<3I", 0, 21, 1) + bytes(12)), bytes(ys), bytes(xs), *extra)
     return result_document(analysis, sheet(0, b"Measurements"), result)
 
 
 class SavedXSequenceTests(unittest.TestCase):
+    def test_formatted_sequence_ignores_only_a_verified_empty_row_title(self):
+        metadata, datasets = _read_groups(numeric_fixture(step=.5))[1][7]
+        layout = struct.pack("<9i", 30, 0, 0, 0, 10, 0, -1, -1, -2)
+        fields = [30, 0, 0, 3, 7, 102, -1, 2, 256, 12, 1, 20, 0, 0, 0]
+        records = [(9, b"\0"), (0x10, bytes(6)), (0xB6, struct.pack("<2I", 0, 30))]
+        title = struct.pack("<15i", *fields), records
+
+        def read(field):
+            return _sequence_snapshot(7, 3, metadata, [*datasets, field], layout, 100, {}, formatted_curve=True)
+
+        self.assertEqual(read(title).columns.tolist(), ["X", "Y"])
+        self.assertIsNone(_sequence_snapshot(7, 3, metadata, [*datasets, title], layout, 100, {}))
+        with self.assertRaises(_UnsupportedSheet):
+            read((title[0], records + [(0x11, b"Not empty")]))
+        fields[11] = 31
+        with self.assertRaises(_UnsupportedSheet):
+            read((struct.pack("<15i", *fields), records))
+
     def test_single_precision_axis_with_corroborated_title_runs(self):
         records = {
             0x10: struct.pack("<HI2If2If", 0, 2, 1, 0, -9., 0, 0, .25),
@@ -142,6 +168,14 @@ class LegacyBinaryResultTests(unittest.TestCase):
         tables = {"Measurements": frame}
         restore_binary_results(raw, {0: frame}, tables, frame.size, {0: b"Arial"})
         return tables
+
+    def test_shorter_saved_curve_series_keeps_the_shared_x_and_empty_cells(self):
+        snapshot = self.restore(numeric_fixture(step=.5, shorter=True))["Imported result · Saved numbers"]
+        self.assertEqual(list(snapshot.columns), ["X", "Y", "Second Y"])
+        self.assertEqual(list(snapshot["X"]), [1., 1.5, 2.])
+        self.assertTrue(pd.isna(snapshot.at[1, "Y"]))
+        self.assertEqual(snapshot["Second Y"].dropna().to_list(), [5., 6.])
+        self.assertTrue(pd.isna(snapshot.at[2, "Second Y"]))
 
     def test_preserves_saved_text_and_explicit_analysis_links(self):
         raw = fixture([b"  R\xb2\0\x04\x01\x01", None, b"P value", b"N"],

@@ -8,7 +8,8 @@ from matplotlib.colors import is_color_like
 
 from .curve_models import MODELS
 from . import regression_range as rr
-from .legacy_fit_graph import FIT_GRAPH_SPEC
+from .i18n import ui
+from .legacy_fit_graph import FIT_GRAPH_SPEC, absolute_fit_overlay, draw_absolute_fit_midpoints
 from .fit_weights import GLOBAL_WEIGHTINGS, observed_scales, uses_observed_y
 from .repeated_input import SAVED_REPLICATE_DISPLAY, _series_name, curve_input, decode_series_constraints, mixed_input
 from .reporting import Result, _plot, _report
@@ -147,6 +148,7 @@ def global_analysis(frame, options):
     kwargs = {"intervals": intervals} if intervals != "symmetric" else {}
     saved_grid = options.get(FIT_GRAPH_SPEC)
     draw_observations = True
+    overlay = None
     if (isinstance(saved_grid, dict) and saved_grid.get("model") == model and saved_grid.get("x") == options.get("X")
             and saved_grid.get("series") == options.get("Y columns") and options.get("Input format") == "Wide XY"
             and options.get("X values", "As entered") == "As entered"
@@ -154,10 +156,14 @@ def global_analysis(frame, options):
         settings = rr.ranges({key: saved_grid[key] for key in rr.CURVE_FIELDS} | {"Model": model})
         if all(key in settings for key in rr.CURVE_FIELDS):
             draw_observations = saved_grid.get("observations") is not False
+            if draw_observations:
+                overlay = absolute_fit_overlay(model, saved_grid)
             if saved_grid.get("spacing") == "log" and settings[rr.CURVE_MIN] > 0:
                 kwargs["curve_grid"] = np.geomspace(*(settings[key] for key in rr.CURVE_FIELDS))
             else:
                 kwargs["curve_grid"] = rr.drawing_grid(data["X"], settings)
+            if saved_grid.get("clip to series") is True:
+                kwargs["clip_curve_to_data"] = True
     constraints = decode_series_constraints(options.get("Series constraints", []))
     fits = global_nonlinear(
         data, "X", "Response", model, "Series",
@@ -190,6 +196,9 @@ def global_analysis(frame, options):
     figure, axes = _plot(f"Global fit · {model}", xlabel, ylabel)
     mark_supported(axes)
     mark_linked_axes(axes, "x", "y")
+    if overlay is not None:
+        controls, (control_color, response_color, curve_color) = overlay
+        axes.scatter(*controls.T, color=control_color, label=ui("Saved controls"), s=18, gid="saved-control-points")
     positive = True
     residuals, predictions, by_series = [], [], []
     for label, fit in fits.groups.items():
@@ -198,11 +207,14 @@ def global_analysis(frame, options):
         if draw_observations:
             color = _plot_saved_replicates(axes, frame, options, label)
             if color is None:
-                dots = axes.scatter(fit.data["X"], fit.data["Response"], label=name, s=18)
-                color = dots.get_facecolor()[0]
+                dots = axes.scatter(fit.data["X"], fit.data["Response"], label=name, s=18,
+                                    color=response_color if overlay is not None else None)
+                color = curve_color if overlay is not None else dots.get_facecolor()[0]
                 curve_label = None
         x, predicted = fit.curve.T
         line, = axes.plot(x, predicted, color=color, label=curve_label)
+        if overlay is not None:
+            draw_absolute_fit_midpoints(axes, fit, model, line.get_color())
         positive = positive and bool(np.all(x > 0))
         values = pd.DataFrame({"Series": label, "X": x, "Predicted": predicted})
         if fit.band is not None:

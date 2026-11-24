@@ -2,7 +2,7 @@
 
 from collections import Counter, defaultdict
 from math import isclose, isfinite
-from struct import Struct, error as StructError, unpack_from
+from struct import Struct, error as StructError, pack, unpack_from
 
 import numpy as np
 import pandas as pd
@@ -319,6 +319,30 @@ def _scene(graph, encoding, *, observation_ids=(), empty_series=(), empty_drawin
     return texts, custom, texts.get(chart_title, ""), series
 
 
+def _empty_axes(graph, encoding):
+    """Recognize saved axes with neither a source worksheet nor any plotted series."""
+    from .presentation import validated_style
+
+    _require(_one(graph, 0x14) == pack("<2i", 1, -2)
+             and _one(graph, 0x15) == bytes(4) and _one(graph, 0x16) == bytes(2))
+    texts, custom, title, scene = _scene(graph, encoding)
+    configs = _axis_config(graph, viewport_only=True)
+    chart_title, = unpack_from("<H", _one(graph, 0x13), 32)
+    axis_labels = {config["title"] for config in configs}
+    _require(not (scene or custom or any(config["custom_ticks"] for config in configs))
+             and all(not label or uid in axis_labels or uid == chart_title for uid, label in texts.items()))
+    style = {"title": title, "axis": {}}
+    for dim, config in zip("xy", configs, strict=True):
+        scale = config["scale"]
+        low, high = config["bounds"]
+        if scale == "log":
+            low, high = 10. ** low, 10. ** high
+        style[dim + "label"] = texts.get(config["title"], "")
+        style[dim + "scale"] = scale
+        style["axis"][dim] = {"min": low, "max": high}
+    return pd.DataFrame(), {"kind": "empty_axes", **validated_style(style)}
+
+
 def _value(pixel, start, config):
     raw = config["bounds"][0] + (pixel - start) * config["unit"]
     # The picture coordinates are integers. The saved scale gives the original
@@ -530,6 +554,7 @@ def read_editable_graphs(data, sources, result_frames, remaining_cells, *, cache
     for uid in indexed:
         if uid not in skip and (graph := graphs.get(uid)):
             readers = (
+                (_empty_axes, (graph, encoding)),
                 (read_emf_curve, (graph, owners, remaining_cells, True)),
                 (_editable, (graph, encoding, owners, remaining_cells)),
                 (read_bar_graph, (graph, sources, tables, remaining_cells)),

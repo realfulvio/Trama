@@ -68,6 +68,24 @@ def _placements(group, indexed_graphs):
     return positions, not group_count and len(positions) == count and seen == references
 
 
+def grid_panel_order(placements):
+    """Recognize pages that the native layout editor can represent as a row-major grid."""
+    if not 1 <= len(placements) <= 12 or any(panel["graph_id"] is None for panel in placements):
+        return None
+    cells = {(top, left): (panel["graph_id"], right, bottom)
+             for panel in placements for left, top, right, bottom in (panel["bounds"],)}
+    rows = sorted({top for top, _ in cells})
+    columns = sorted({left for _, left in cells})
+    if len(cells) != len(placements) or len(columns) > 4 or len(rows) * len(columns) != len(cells):
+        return None
+    next_column = dict(zip(columns, columns[1:]))
+    next_row = dict(zip(rows, rows[1:]))
+    if any(right > next_column.get(left, right) or bottom > next_row.get(top, bottom)
+           for (top, left), (_, right, bottom) in cells.items()):
+        return None
+    return len(columns), [cells[top, left][0] for top in rows for left in columns]
+
+
 def read_binary_layouts(data):
     """Return indexed layouts and the titles of missing or unreadable sheets."""
     indexed, group, objects = None, None, None

@@ -3,7 +3,7 @@ from struct import pack, pack_into
 import unittest
 
 from analisi.legacy_binary_graphs import validate_binary_graph
-from analisi.legacy_binary_layouts import read_binary_layouts
+from analisi.legacy_binary_layouts import grid_panel_order, read_binary_layouts
 from test_legacy_binary_graphs import _emf, _record
 
 
@@ -58,6 +58,18 @@ def _draw_image(*, object_id=1, source_width=120, width=100, attributes=0xFFFFFF
 
 
 class BinaryLayoutTests(unittest.TestCase):
+    def test_native_layout_requires_a_complete_grid_without_overlaps(self):
+        panels = [
+            {"graph_id": 7, "bounds": [110, 110, 200, 190]},
+            {"graph_id": 9, "bounds": [0, 0, 95, 92]},
+            {"graph_id": 3, "bounds": [0, 110, 98, 195]},
+            {"graph_id": 5, "bounds": [110, 0, 204, 100]},
+        ]
+        self.assertEqual(grid_panel_order(panels), (2, [9, 5, 3, 7]))
+        self.assertIsNone(grid_panel_order(panels[:-1]))
+        self.assertIsNone(grid_panel_order(panels[:3] + [{**panels[3], "graph_id": None}]))
+        self.assertIsNone(grid_panel_order(panels[:3] + [{**panels[3], "bounds": [110, 0, 204, 111]}]))
+
     def test_index_controls_order_and_binds_original_emf_to_own_layout(self):
         first = _emf()
         second = _emf(pack("<II4i", 43, 24, 5, 6, 14, 22))

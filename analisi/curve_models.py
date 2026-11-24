@@ -529,6 +529,18 @@ def _cell_survival_count_initial(x, y):
     return initial, *_linear_quadratic_initial(x, y / initial)
 
 
+def _cell_death_count_initial(x, y):
+    initial = max(float(np.max(y)), 1.)
+    return initial, *_linear_quadratic_initial(x, 1. - y / initial)
+
+
+CELL_DEATH_MODELS = (
+    "Linear-quadratic fractional cell death",
+    "Linear-quadratic cell death (percent)",
+    "Linear-quadratic cell death (counts)",
+)
+
+
 _OTHER = {
     "Boltzmann sigmoid": _spec(lambda x, low, high, midpoint, dx: _logistic(x, low, high, midpoint, 1 / dx),
                                 "Bottom|Top|V50|dV", lambda x, y: (*_logistic_initial(x, y)[:3], np.ptp(x) / 4),
@@ -545,9 +557,16 @@ _OTHER = {
     "Linear-quadratic cell survival (counts)": _spec(
         lambda x, y0, a, b: y0 * _linear_quadratic(x, a, b), "Initial count|Alpha|Beta",
         _cell_survival_count_initial, nonnegative=("Initial count", "Alpha", "Beta"), domain="nonnegative"),
-    "Linear-quadratic fractional cell death": _spec(
+    CELL_DEATH_MODELS[0]: _spec(
         _fractional_cell_death, "Alpha|Beta", lambda x, y: _linear_quadratic_initial(x, 1. - y),
         nonnegative=("Alpha", "Beta"), domain="nonnegative"),
+    CELL_DEATH_MODELS[1]: _spec(
+        lambda x, a, b: 100. * _fractional_cell_death(x, a, b), "Alpha|Beta",
+        lambda x, y: _linear_quadratic_initial(x, 1. - y / 100.),
+        nonnegative=("Alpha", "Beta"), domain="nonnegative"),
+    CELL_DEATH_MODELS[2]: _spec(
+        lambda x, y0, a, b: y0 * _fractional_cell_death(x, a, b), "Initial count|Alpha|Beta",
+        _cell_death_count_initial, nonnegative=("Initial count", "Alpha", "Beta"), domain="nonnegative"),
 }
 
 
@@ -689,6 +708,22 @@ def _dose_models(logarithmic):
         low, high, mid = initial(x, y)
         return low, high + .2 * (high - low), mid, 0. if logarithmic else 1., 1.
 
+    def full_and_partial(x, basal, effectmax, slope, log_midpoint, log_tau, partial):
+        if partial not in (0., 1.):
+            raise ValueError("Set Partial agonist to 0 for a full agonist or 1 for a partial agonist.")
+        if logarithmic:
+            shifted = (x - log_midpoint) * _LN10
+        else:
+            with np.errstate(divide="ignore"):
+                shifted = np.log(x) - log_midpoint * _LN10
+        stimulus = log_tau * _LN10 - np.logaddexp(0., -shifted) if partial else shifted
+        return basal + (effectmax - basal) * expit(slope * stimulus)
+
+    def full_and_partial_initial(x, y):
+        low, high, midpoint = initial(x, y)
+        log_midpoint = midpoint if logarithmic else np.log10(midpoint)
+        return low, high, 1., log_midpoint, 0., 0.
+
     def absolute_ic50(x, top_excess, bottom_gap, ic50, steepness, baseline):
         # Gaps keep the midpoint between the curve's asymptotes throughout
         # optimization. The midpoint is relative to the control baseline.
@@ -744,6 +779,10 @@ def _dose_models(logarithmic):
         f"Operational model (depletion){qualifier}": _spec(
             operational, f"Basal|Effect max|{ka}|{tau}|Transducer slope", operational_initial,
             positive=("Transducer slope",) if logarithmic else (ka, tau, "Transducer slope"), **options),
+        f"Operational model (full and partial){qualifier}": _spec(
+            full_and_partial, "Basal|Effect max|Transducer slope|Log EC50 or KA|Log Tau|Partial agonist",
+            full_and_partial_initial, positive=("Transducer slope",), fixed=("Partial agonist",),
+            shared=("Basal", "Effect max", "Transducer slope"), limits={"Partial agonist": (0., 1.)}, **options),
         f"Absolute IC50{qualifier}": _spec(
             absolute_ic50, f"Top above baseline|Half-response above bottom|{absolute}|Hill steepness|Baseline",
             absolute_ic50_initial, fixed=("Baseline",),
@@ -1031,6 +1070,13 @@ def _classic_decay_initial(x, y):
     return plateau, span, span, 8 * rate, rate
 
 
+CONDITIONAL_DECAY = "Two-phase decay with fixed K2"
+
+
+def _classic_two_phase_decay(x, plateau, a, b, k1, k2):
+    return plateau + a * np.exp(-k1 * x) + b * np.exp(-k2 * x)
+
+
 def _classic_sine_initial(x, y):
     amplitude, wavelength, phase = _sine_initial(x, y, baseline=True)
     return np.mean(y), amplitude, 2 * np.pi / wavelength, phase
@@ -1043,8 +1089,11 @@ def _classic_gaussian_initial(x, y):
 
 _CLASSIC = {
     "Classic two-phase decay": _spec(
-        lambda x, plateau, a, b, k1, k2: plateau + a * np.exp(-k1 * x) + b * np.exp(-k2 * x),
+        _classic_two_phase_decay,
         "Plateau|Span 1|Span 2|K1|K2", _classic_decay_initial, positive=("K1", "K2"), domain="nonnegative"),
+    CONDITIONAL_DECAY: _spec(
+        _classic_two_phase_decay, "Plateau|Span 1|Span 2|K1|K2", _classic_decay_initial,
+        positive=("K1", "K2"), domain="nonnegative", fixed=("K2",)),
     "Classic one-phase association": _spec(
         lambda x, ymax, rate: _association(x, 0., ymax, rate), "Y max|Rate",
         lambda x, y: _association_initial(x, y)[1:], positive=("Rate",), domain="nonnegative"),
