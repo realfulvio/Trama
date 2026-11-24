@@ -106,6 +106,12 @@ def main(argv=None):
         elif only == "qt-mcnemar-power":
             from .mcnemar_power_smoke import run  # Paired-proportion power only: EN/IT, light and dark.
             status = run(folder)
+        elif only == "qt-category-levels":
+            from .category_levels_smoke import run_smoke
+            screen = app.primaryScreen().availableGeometry()
+            sizes = tuple(dict.fromkeys((min(width, screen.width()), min(height, screen.height()))
+                                        for width, height in ((1024, 768), (1600, 1000))))
+            status = "PASS" if run_smoke(folder, sizes=sizes) == 0 else "FAIL"
         elif only == "qt-pareto-plot":
             from .pareto_plot_smoke import run
             status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
