@@ -288,6 +288,14 @@ class StyleBatchChange:
 
 
 @dataclass(frozen=True)
+class LayoutChange:
+    index: int
+    before: Layout
+    after: Layout
+    seq: int
+
+
+@dataclass(frozen=True)
 class BatchStyleOutcome:
     """Outcome of applying a figure style preset to a selection of graphs."""
     preset_name: str
@@ -297,7 +305,7 @@ class BatchStyleOutcome:
 
 
 class ProjectHistory(WorksheetHistory):
-    """Project-wide undo/redo history supporting worksheet edits and multi-graph style batches."""
+    """Project undo/redo for worksheet edits, figure style batches and layout edits."""
 
     def __init__(self, *, memory_budget=96 * 1024 * 1024):
         self._seq = 0
@@ -324,6 +332,12 @@ class ProjectHistory(WorksheetHistory):
         self._trim()
         self.position = len(self.changes)
         return True
+
+    def record_layout(self, index, before, after):
+        del self.changes[self.position:]
+        self.changes.append(LayoutChange(index, deepcopy(before), deepcopy(after), self.next_seq()))
+        self._trim()
+        self.position = len(self.changes)
 
     def _trim(self):
         while True:
@@ -373,6 +387,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         self.history = ProjectHistory()
         self.undo_changed_data = True  # Set by ``undo``: False after undoing colours or number formats only.
         self.undo_style_uids = ()  # Set by ``undo``: affected run UIDs after undoing/redoing a style batch.
+        self.undo_layout_index = None
         # Recovery copies (trama_qt/recovery.py): one key for the life of this project, a sequence of generations,
         # the original the copy refers to and the state that original had when it was opened or saved.
         self.recovery_key = uuid4().hex
@@ -713,7 +728,8 @@ class Project(WorksheetJoinSources, SheetCommands):
         if not all(run is not None and run.result is not None and run.result.figure is not None for run in runs):
             return None
         return compose_layout(layout.name, layout.columns, tuple(run.result.figure for run in runs),
-                              paper=layout.paper, background=layout.background)
+                              paper=layout.paper, background=layout.background, panel_size=layout.panel_size,
+                              axis_alignment=layout.axis_alignment)
 
     def layout_runs(self, layout):
         by_reference = {run.reference: run for run in self.runs}
@@ -899,6 +915,10 @@ class Project(WorksheetJoinSources, SheetCommands):
             self.layouts.append(layout)
             key = len(self.layouts) - 1
         else:
+            current = self.layouts[key]
+            if current == layout:
+                return key
+            self.history.record_layout(key, current, layout)
             self.layouts[key] = layout
         self.dirty = True
         return key
@@ -944,7 +964,7 @@ class Project(WorksheetJoinSources, SheetCommands):
     def layout_pdf_page(self, layout):
         from analisi.layout_pdf import PdfLayoutPage
         return PdfLayoutPage(layout.name, layout.columns, self.layout_panel_figures(layout), layout.paper,
-                             layout.background)
+                             layout.background, layout.panel_size, layout.axis_alignment)
 
     def export_layout(self, layout, path, settings=None):
         """PDF and SVG keep the panels vector; PNG and TIFF render the page (300 dpi unless ``settings`` say).
@@ -963,11 +983,13 @@ class Project(WorksheetJoinSources, SheetCommands):
         elif fmt == "svg":
             from analisi.layout_svg import export_layout_svg
             export_layout_svg(layout.name, layout.columns, self.layout_panel_figures(layout), path, settings,
-                              paper=layout.paper, background=layout.background)
+                              paper=layout.paper, background=layout.background, panel_size=layout.panel_size,
+                              axis_alignment=layout.axis_alignment)
         else:
             background = WHITE if settings.get("transparent") else layout.background
             figure = compose_layout(layout.name, layout.columns, self.layout_panel_figures(layout),
-                                    paper=layout.paper, background=background)
+                                    paper=layout.paper, background=background, panel_size=layout.panel_size,
+                                    axis_alignment=layout.axis_alignment)
             export_figure(figure, path, settings)
 
     def export_pdf_pages(self, refs, path, settings, names):
@@ -1405,9 +1427,19 @@ class Project(WorksheetJoinSources, SheetCommands):
 
     def undo(self, *, redo=False):
         self.undo_style_uids = ()
+        self.undo_layout_index = None
         change = self.history.next_change(redo=redo)
         if change is None or not self.can_apply_history(change):
             return None, None
+        if isinstance(change, LayoutChange):
+            expected, target = (change.before, change.after) if redo else (change.after, change.before)
+            if change.index >= len(self.layouts) or self.layouts[change.index] != expected:
+                raise ValueError(tr("layout.undo_unavailable"))
+            self.layouts[change.index] = deepcopy(target)
+            self.history.position += 1 if redo else -1
+            self.dirty = True
+            self.undo_layout_index = change.index
+            return None, []
         if isinstance(change, StyleBatchChange):
             by_uid = {run.uid: run for run in self.runs}
             target_styles = change.after if redo else change.before

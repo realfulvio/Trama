@@ -37,8 +37,9 @@ from .linked_axes import (LINKED_AXES, apply_linked_axes, clear_linked_axes, log
 from .graph_legend import (LEGEND_OPTIONS_KEY, apply_legend_options, is_non_native_figure,
                            restore_legend_snapshots, validate_legend_options)
 from .graph_shapes import SHAPES, draw_shapes, validate_shapes
-from .layout_geometry import (AUTO_PAPER, LABEL_PAD, LABEL_SIZE, PAPER_SIZES, PT, WHITE, layout_frame, page_ink,
-                              page_size, panel_boxes)
+from .layout_geometry import (AUTO_PAPER, AXIS_ALIGNMENTS, LABEL_PAD, LABEL_SIZE, PANEL_SIZES, PAPER_SIZES, PT, WHITE,
+                              layout_frame, page_ink, page_size)
+from .layout_panels import plan_panels
 
 
 @dataclass
@@ -48,6 +49,8 @@ class Layout:
     panels: list[tuple[str, int]]
     paper: str = AUTO_PAPER
     background: str = WHITE
+    panel_size: str = "original"
+    axis_alignment: str = "none"
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name.strip() or len(self.name) > 160:
@@ -61,6 +64,8 @@ class Layout:
             raise ValueError("Choose a layout paper size.")
         if not isinstance(self.background, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", self.background):
             raise ValueError("Use a six-digit hex colour for the layout background.")
+        if self.panel_size not in PANEL_SIZES or self.axis_alignment not in AXIS_ALIGNMENTS:
+            raise ValueError("Invalid layout panel arrangement.")
 
 
 SCALES = ("linear", "log", *PROBABILITY_SCALES)
@@ -1137,22 +1142,25 @@ def apply_style(figure, style):
         apply_hierarchical_style(figure, style.get("hierarchical", {}))
 
 
-def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHITE):
-    Layout(title, columns, [("panel", i) for i in range(len(figures))], paper, background)
+def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHITE, panel_size="original",
+                   axis_alignment="none"):
+    Layout(title, columns, [("panel", i) for i in range(len(figures))], paper, background,
+           panel_size, axis_alignment)
     page_width, page_height = size = page_size(columns, len(figures), paper)
-    sizes = [graph.get_size_inches() for graph in figures]
-    boxes = panel_boxes(columns, sizes, paper)
+    placements = plan_panels(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment)
+    boxes = [placement.box for placement in placements]
     figure = layout_frame(title, size, boxes, background=background, panel_letters=False)
     ink = page_ink(background)
-    for i, (graph, (w, h), (x, y, scale)) in enumerate(zip(figures, sizes, boxes, strict=True)):
-        # Render each original axis with its own ticks, legend and plot type.
-        with BytesIO() as buffer:
+    for i, placement in enumerate(placements):
+        w, h = placement.size
+        x, y, scale = placement.box
+        with placement.render() as graph, BytesIO() as buffer:
             graph.savefig(buffer, format="png", dpi=150)
             buffer.seek(0)
             pixels = imread(buffer)
         panel = figure.add_axes((x / page_width, 1 - (y + h * scale) / page_height,
                                  w * scale / page_width, h * scale / page_height))
-        panel.imshow(pixels)
+        panel.imshow(pixels, aspect=None if (panel_size, axis_alignment) == ("original", "none") else "auto")
         panel.set_axis_off()
         panel.set_title(chr(ord("A") + i), loc="left", y=1, pad=LABEL_PAD * PT,
                         fontsize=LABEL_SIZE, fontweight="bold", color=ink)

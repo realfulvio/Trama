@@ -8,6 +8,8 @@ from .figure_export import MM
 
 AUTO_PAPER = "Automatic"
 WHITE = "#ffffff"
+PANEL_SIZES = ("original", "width", "height", "both")
+AXIS_ALIGNMENTS = ("none", "x", "y", "both")
 PAPER_SIZES = {
     AUTO_PAPER: None,
     "A4 portrait": (210 / MM, 297 / MM),
@@ -27,16 +29,23 @@ def page_size(columns, count, paper=AUTO_PAPER):
     return PAPER_SIZES[paper] or (CELL_W * columns, CELL_H * ceil(count / columns) + TITLE_H)
 
 
-def panel_boxes(columns, sizes, paper=AUTO_PAPER):
+def panel_boxes(columns, sizes, paper=AUTO_PAPER, *, panel_size="original"):
     """Place each source figure in its cell as (left, top, scale) in page inches."""
     page_width, page_height = page_size(columns, len(sizes), paper)
     cell_width = page_width / columns
     cell_height = (page_height - TITLE_H) / ceil(len(sizes) / columns)
     width, height = cell_width - 2 * PAD, cell_height - LABEL_H - PAD
+    if panel_size == "width":
+        common_width = min(width, height / max(h / w for w, h in sizes))
+        scales = [common_width / w for w, _ in sizes]
+    elif panel_size == "height":
+        common_height = min(height, width / max(w / h for w, h in sizes))
+        scales = [common_height / h for _, h in sizes]
+    else:
+        scales = [min(width / w, height / h) for w, h in sizes]
     boxes = []
-    for index, (w, h) in enumerate(sizes):
+    for index, ((w, h), scale) in enumerate(zip(sizes, scales, strict=True)):
         row, column = divmod(index, columns)
-        scale = min(width / w, height / h)
         x = column * cell_width + PAD + (width - w * scale) / 2
         y = TITLE_H + row * cell_height + LABEL_H + (height - h * scale) / 2
         boxes.append((x, y, scale))

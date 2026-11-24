@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QComboBox, QDial
                                QVBoxLayout)
 
 from analisi.i18n import tr, ui
-from analisi.layout_geometry import AUTO_PAPER, PAPER_SIZES, WHITE
+from analisi.layout_geometry import AUTO_PAPER, AXIS_ALIGNMENTS, PANEL_SIZES, PAPER_SIZES, WHITE
 from analisi.presentation import Layout
 from analisi.legacy_layout_edit import edited_layout_preview
 
@@ -31,6 +31,7 @@ class LayoutDialog(QDialog):
         outer = QVBoxLayout(self)
         page = QGroupBox(tr("layout.page"))
         form = QFormLayout(page)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self.name = QLineEdit(current.name if current else "Figure 1")
         form.addRow(tr("layout.name"), self.name)
         self.paper = QComboBox()
@@ -58,6 +59,10 @@ class LayoutDialog(QDialog):
         row.addWidget(choose)
         row.addStretch(1)
         form.addRow(tr("layout.background"), row)
+        self.panel_size = self.arrangement_choice(
+            form, "panel_size", PANEL_SIZES, current.panel_size if current else "original")
+        self.axis_alignment = self.arrangement_choice(
+            form, "axis_alignment", AXIS_ALIGNMENTS, current.axis_alignment if current else "none")
         outer.addWidget(page)
 
         panels = QGridLayout()
@@ -100,6 +105,19 @@ class LayoutDialog(QDialog):
         self._swatch()
         self.fill_panels()
         fit_dialog(self, 720, 520)
+
+    def arrangement_choice(self, form, key, values, current):
+        label = tr(f"layout.{key}")
+        choice = QComboBox()
+        choice.setAccessibleName(label)
+        choice.setToolTip(tr(f"layout.{key}.tip"))
+        choice.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        choice.setMinimumContentsLength(12)
+        for value in values:
+            choice.addItem(tr(f"layout.{key}.{value}"), value)
+        choice.setCurrentIndex(choice.findData(current))
+        form.addRow(label, choice)
+        return choice
 
     def _swatch(self, *_):
         color = QColor(self.background.text().strip())
@@ -153,7 +171,8 @@ class LayoutDialog(QDialog):
         try:
             self.result = Layout(self.name.text().strip(), int(self.columns.currentText()),
                                  [self.runs[i].reference for i in self.order], self.paper.currentData(),
-                                 self.background.text().strip())
+                                 self.background.text().strip(), self.panel_size.currentData(),
+                                 self.axis_alignment.currentData())
         except ValueError as error:
             self.show_problem(str(error))
             return

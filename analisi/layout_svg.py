@@ -21,7 +21,8 @@ import matplotlib as mpl
 from matplotlib.figure import Figure
 
 from .figure_export import DEFAULT_DPI, MM, check_destination, plan_export
-from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size, panel_boxes
+from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
+from .layout_panels import plan_panels
 from .presentation import Layout
 
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -101,7 +102,8 @@ def _verify(path, plan, images):
         raise ValueError("The SVG lost or gained embedded images.")
 
 
-def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAPER, background=WHITE):
+def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAPER, background=WHITE,
+                      panel_size="original", axis_alignment="none"):
     """Write the layout ``title`` with ``figures`` (panel order) to ``path`` as a vector SVG.
 
     ``settings`` are those of File → Export with options… with format ``svg``: ``width_mm``
@@ -113,7 +115,8 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
         figures = list(figures)
     except TypeError:
         raise ValueError("Pass the layout panels as a sequence of figures.") from None
-    Layout(title, columns, [("panel", index) for index in range(len(figures))], paper, background)
+    Layout(title, columns, [("panel", index) for index in range(len(figures))], paper, background,
+           panel_size, axis_alignment)
     for index, figure in enumerate(figures):
         if not isinstance(figure, Figure):
             raise ValueError(f"Panel {chr(ord('A') + index)} has no figure to export.")
@@ -126,12 +129,15 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
     rc = {"svg.fonttype": "none" if plan["svg_text"] == "text" else "path", "svg.image_inline": True}
 
     # Every panel is rendered first: a failure leaves the destination untouched.
-    sizes = [tuple(float(v) for v in figure.get_size_inches()) for figure in figures]
-    panels = [_render_svg(figure, plan, rc) for figure in figures]
+    placements = plan_panels(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment)
+    panels = []
+    for placement in placements:
+        with placement.render() as figure:
+            panels.append(_render_svg(figure, plan, rc))
 
     # The page itself (background, title and panel letters) comes from Matplotlib too, so the
     # Text/Paths choice and the fonts are the same as in the panels.
-    boxes = panel_boxes(columns, sizes, paper)
+    boxes = [placement.box for placement in placements]
     frame = layout_frame(title, (width_in, height_in), boxes,
                          background=WHITE if plan["transparent"] else background)
     page, page_children = _children(_render_svg(frame, plan, rc))
@@ -147,7 +153,9 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
     page.set("viewBox", f"0 0 {width_in * PT:.4f} {height_in * PT:.4f}")
     images = 0
     defs = ET.SubElement(page, SVG + "defs")
-    for index, (document, (w, h), (x, y, scale)) in enumerate(zip(panels, sizes, boxes), start=1):
+    for index, (document, placement) in enumerate(zip(panels, placements, strict=True), start=1):
+        w, h = placement.size
+        x, y, scale = placement.box
         panel, children = _children(document)
         _prefix_ids(panel, f"panel{index}-")
         images += len(panel.findall(".//" + SVG + "image"))

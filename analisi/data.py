@@ -1010,7 +1010,15 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
     for dataset in tables.values():
         validate_labels(dataset.analysis_labels, len(dataset.analyses))
     linked = any(dataset.analysis_sources or len(dataset.analyses) > 256 for dataset in tables.values())
-    data = {"version": 3 if linked else 2, "tables": [], "layouts": [asdict(layout) for layout in layouts]}
+    layout_records = []
+    for layout in layouts:
+        record = asdict(layout)
+        if record.get("panel_size") == "original":
+            del record["panel_size"]
+        if record.get("axis_alignment") == "none":
+            del record["axis_alignment"]
+        layout_records.append(record)
+    data = {"version": 3 if linked else 2, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
     if sheet_metadata:
@@ -1218,7 +1226,8 @@ def load_workspace(path, *, include_info=False):
     for record in stored_layouts:
         panels = [tuple(ref) for ref in record["panels"]]
         layout = Layout(record["name"], record["columns"], panels,
-                        record.get("paper", AUTO_PAPER), record.get("background", WHITE))
+                        record.get("paper", AUTO_PAPER), record.get("background", WHITE),
+                        record.get("panel_size", "original"), record.get("axis_alignment", "none"))
         if any(title not in result or index >= len(result[title].analyses) for title, index in panels):
             raise ValueError("Layout references an unknown analysis.")
         layouts.append(layout)

@@ -59,7 +59,7 @@ _TABLE_KEYS = {"name", "format", "columns", "roles", "formulas", "analyses", "co
 _COLUMN_KEYS = {"name", "kind"}
 _ANALYSIS_KEYS = {"id", "method", "options", "source", "label", "style"}
 _SOURCE_KEYS = {"id", "table"}
-_LAYOUT_KEYS = {"name", "columns", "panels", "paper", "background"}
+_LAYOUT_KEYS = {"name", "columns", "panels", "paper", "background", "panel_size", "axis_alignment"}
 
 
 class TemplateError(ValueError):
@@ -127,6 +127,8 @@ class LayoutSpec:
     panels: tuple                 # local analysis ids
     paper: str = AUTO_PAPER
     background: str = WHITE
+    panel_size: str = "original"
+    axis_alignment: str = "none"
 
 
 @dataclass(frozen=True)
@@ -395,7 +397,7 @@ def plan_template(tables, layouts=(), info_sheets=None, *, cancel=None):
             panels.append(local[reference])
         else:
             layout_specs.append(LayoutSpec(layout.name, layout.columns, tuple(panels), layout.paper,
-                                           layout.background))
+                                           layout.background, layout.panel_size, layout.axis_alignment))
     template = None if problems else AnalysisTemplate(tuple(specs), tuple(layout_specs))
     return TemplatePlan(template, tuple(problems), tuple(omissions), rows)
 
@@ -423,8 +425,15 @@ def template_payload(template):
             analyses.append(item)
         record["analyses"] = analyses
         tables.append(record)
-    layouts = [{"name": layout.name, "columns": layout.columns, "panels": list(layout.panels),
-                "paper": layout.paper, "background": layout.background} for layout in template.layouts]
+    layouts = []
+    for layout in template.layouts:
+        record = {"name": layout.name, "columns": layout.columns, "panels": list(layout.panels),
+                  "paper": layout.paper, "background": layout.background}
+        if layout.panel_size != "original":
+            record["panel_size"] = layout.panel_size
+        if layout.axis_alignment != "none":
+            record["axis_alignment"] = layout.axis_alignment
+        layouts.append(record)
     return {"schema": SCHEMA, "kind": KIND, "tables": tables, "layouts": layouts}
 
 
@@ -597,12 +606,13 @@ def _parse_layouts(records, ids):
         if any(not isinstance(panel, str) or panel not in ids for panel in panels):
             _fail("missing-reference", f"A panel of layout {position} refers to a missing analysis.", field="file")
         try:
-            Layout(record["name"], record["columns"], [ids[panel] for panel in panels],
-                   record.get("paper", AUTO_PAPER), record.get("background", WHITE))
+            layout = Layout(record["name"], record["columns"], [ids[panel] for panel in panels],
+                            record.get("paper", AUTO_PAPER), record.get("background", WHITE),
+                            record.get("panel_size", "original"), record.get("axis_alignment", "none"))
         except (ValueError, TypeError) as error:
             _fail("type", f"Layout {position}: {error}", field="file")
-        layouts.append(LayoutSpec(record["name"], record["columns"], tuple(panels),
-                                  record.get("paper", AUTO_PAPER), record.get("background", WHITE)))
+        layouts.append(LayoutSpec(layout.name, layout.columns, tuple(panels), layout.paper, layout.background,
+                                  layout.panel_size, layout.axis_alignment))
     return layouts
 
 
@@ -821,7 +831,7 @@ def instantiate_template(template, sources, mapping, *, avoid=(), cancel=None):
     _cancelled(cancel)
     validate_analysis_links(tables)
     layouts = [Layout(layout.name, layout.columns, [where[panel] for panel in layout.panels], layout.paper,
-                      layout.background) for layout in template.layouts]
+                      layout.background, layout.panel_size, layout.axis_alignment) for layout in template.layouts]
     return tables, layouts
 
 

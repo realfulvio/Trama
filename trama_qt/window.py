@@ -2315,7 +2315,7 @@ class MainWindow(QMainWindow):
 
     def _history_target(self, *, redo=False):
         """Return ``('shape', run)`` or ``('project', None)`` for Undo/Redo, or ``None`` if unavailable."""
-        from .project import StyleBatchChange
+        from .project import LayoutChange, StyleBatchChange
 
         shape_run = self.drawing.history_run()
         proj_change = self.project.history.next_change(redo=redo)
@@ -2324,7 +2324,7 @@ class MainWindow(QMainWindow):
         if shape_run is not None:
             shape_hist = shape_run.shape_history
             shape_can = shape_hist.can_apply(redo=redo)
-            if isinstance(proj_change, StyleBatchChange):
+            if isinstance(proj_change, (LayoutChange, StyleBatchChange)):
                 if not shape_can:
                     return ("project", None)
                 seqs = getattr(shape_hist, "_trama_seqs", ())
@@ -2352,14 +2352,17 @@ class MainWindow(QMainWindow):
         if source == "shape":
             self.drawing.apply_history(shape_run, redo=redo)
             return
-        from .project import StyleBatchChange
-        if isinstance(self.project.history.next_change(redo=redo), StyleBatchChange):
+        from .project import LayoutChange, StyleBatchChange
+        if isinstance(self.project.history.next_change(redo=redo), (LayoutChange, StyleBatchChange)):
             if not self.settle_graph_draft():
                 return
         try:
             title, affected = self.project.undo(redo=redo)
         except (ValueError, TypeError, OverflowError) as error:
             self.error(error)
+            return
+        if self.project.undo_layout_index is not None:
+            self.open_sheet(("layout", self.project.undo_layout_index))
             return
         if self.project.undo_style_uids:
             from .batch_figure_styles_dialog import t as batch_style_text

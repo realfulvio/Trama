@@ -2753,6 +2753,71 @@ class QtShellTests(unittest.TestCase):
         import pypdfium2 as pdfium
         self.assertEqual(len(pdfium.PdfDocument(str(self.folder / "bundle.pdf"))), 2)
 
+    def test_layout_panel_arrangement_undo_and_exports(self):
+        from unittest.mock import patch
+        from analisi.presentation import Layout
+        from trama_qt.gallery_catalog import describe
+        from trama_qt.gallery_thumbs import render
+        from trama_qt.layout_dialog import LayoutDialog
+
+        window = self.window
+        self.open_example()
+        first = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        window.show_sheet("data", "groups")
+        second = self.run_method("Box / violin plot", {"Variables": ["Control", "Treated"]})
+        second.result.figure.set_size_inches(4, 6, forward=False)
+        original = Layout("Panel layout", 2, [first.reference, second.reference, second.reference, first.reference])
+        ref = ("layout", window.project.put_layout(original))
+        window.open_sheet(ref)
+        self.wait()
+        before = describe(window.project, ref).sig
+
+        def edit(dialog):
+            dialog.resize(480, 490)
+            dialog.show()
+            self.app.processEvents()
+            for field, mode in ((dialog.panel_size, "both"), (dialog.axis_alignment, "both")):
+                self.assertTrue(field.isVisible())
+                self.assertLessEqual(field.mapTo(dialog, field.rect().bottomRight()).x(), dialog.width())
+                field.setCurrentIndex(field.findData(mode))
+            dialog.accept()
+            self.assertIsNotNone(dialog.result)
+            return LayoutDialog.DialogCode.Accepted
+
+        with patch.object(LayoutDialog, "exec", edit):
+            window.actions["edit_layout"].trigger()
+        layout = window.project.layouts[0]
+        self.assertEqual((layout.panel_size, layout.axis_alignment), ("both", "both"))
+        entry = describe(window.project, ref)
+        self.assertNotEqual(entry.sig, before)
+        thumbnail = render(entry, window.project, (160, 120))
+        while True:
+            try:
+                next(thumbnail)
+            except StopIteration as finished:
+                self.assertFalse(finished.value.isNull())
+                break
+
+        figure = window.layout_figure
+        self.assertEqual(len(figure.axes), 4)
+        self.assertEqual(len({tuple(round(value, 8) for value in axis.get_position().size) for axis in figure.axes}), 1)
+        window.actions["undo"].trigger()
+        self.assertEqual(window.project.layouts[0], original)
+        window.actions["redo"].trigger()
+        self.assertEqual(window.project.layouts[0], layout)
+
+        path = self.folder / "arranged.alab"
+        window.project.save(path)
+        self.reopen(path)
+        window.open_sheet(ref)
+        self.wait()
+        self.assertEqual(window.project.layouts[0], layout)
+        for kind in ("svg", "pdf", "png", "tiff"):
+            target = self.folder / f"arranged.{kind}"
+            window.project.export_layout(layout, target)
+            self.assertGreater(target.stat().st_size, 1000)
+        self.assertNotIn("<image", (self.folder / "arranged.svg").read_text(encoding="utf-8"))
+
     def test_keep_calculated_values_targets_the_clicked_heading_and_supports_undo(self):
         from PySide6.QtCore import QPoint, QTimer
         from PySide6.QtWidgets import QMenu

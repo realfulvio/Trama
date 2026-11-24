@@ -107,7 +107,8 @@ def figure_image(figure, width, height):
 def render(entry, project, box):
     """Draw the card of ``entry`` inside ``box`` (device pixels). A generator: it yields after each figure so
     that a layout of many panels never blocks the window, and returns the image."""
-    from analisi.layout_geometry import page_size, panel_boxes
+    from analisi.layout_geometry import page_size
+    from analisi.layout_panels import panel_plan_steps
     _require_gui_thread()
     kind, key = entry.ref
     box_w, box_h = box
@@ -118,15 +119,18 @@ def render(entry, project, box):
     figures = [run.result.figure for run in project.layout_runs(layout)]
     page_w, page_h = page_size(layout.columns, len(figures), layout.paper)
     scale = min(box_w / page_w, box_h / page_h)  # Pixels per inch of the page: the page keeps its shape.
-    sizes = [figure.get_size_inches() for figure in figures]
+    placements = yield from panel_plan_steps(layout.columns, figures, layout.paper, panel_size=layout.panel_size,
+                                             axis_alignment=layout.axis_alignment)
     page = QImage(max(1, round(page_w * scale)), max(1, round(page_h * scale)),
                   QImage.Format.Format_ARGB32_Premultiplied)
     page.fill(QColor(layout.background))
     painter = QPainter(page)
     try:
-        for figure, (w, h), (x, y, fit) in zip(figures, sizes, panel_boxes(layout.columns, sizes, layout.paper),
-                                              strict=True):
-            tile = figure_image(figure, max(1, round(w * fit * scale)), max(1, round(h * fit * scale)))
+        for placement in placements:
+            w, h = placement.size
+            x, y, fit = placement.box
+            with placement.render() as figure:
+                tile = figure_image(figure, max(1, round(w * fit * scale)), max(1, round(h * fit * scale)))
             painter.drawImage(QRectF(x * scale, y * scale, w * fit * scale, h * fit * scale), tile)
             yield
     finally:

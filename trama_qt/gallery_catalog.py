@@ -80,7 +80,8 @@ def describe(project, ref):
         elif kind == "layout":
             layout = project.layouts[key]
             runs, name, expected = project.layout_runs(layout), layout.name, len(layout.panels)
-            extra = (layout.columns, tuple(layout.panels), layout.paper, layout.background)
+            extra = (layout.columns, tuple(layout.panels), layout.paper, layout.background,
+                     layout.panel_size, layout.axis_alignment)
         else:
             return None
     except (IndexError, TypeError):
