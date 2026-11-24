@@ -95,7 +95,7 @@ Le [serie XY miste](xy-mixed-series.md) combinano punti, linee, gradini e barre 
 
 Grafici XY con più serie e due assi Y, barre d'errore anche asimmetriche, Column e Grouped, pile e pile al 100%, punti individuali, box e violini (anche raggruppati per categoria e serie), prima/dopo e traiettorie, forest plot, bubble plot e grafici di composizione.
 
-Formattazione di assi, serie, gruppi e legende; Inspector con anteprima; confronti statistici collegati al grafico, parentesi, stelle e lettere nei metodi supportati. Annotazioni e forme native, selezione e disposizione degli oggetti, tratteggi, frecce, riempimenti e colori distinti.
+Formattazione di assi, serie, gruppi e legende; Inspector con anteprima, anche per formattare un singolo punto delle serie XY e dei grafici a dispersione ([docs/point-style.md](point-style.md)); confronti statistici collegati al grafico, parentesi, stelle e lettere nei metodi supportati. Annotazioni e forme native, selezione e disposizione degli oggetti, tratteggi, frecce, riempimenti e colori distinti.
 
 [Tacche aggiuntive, linee e fasce sugli assi](axis-guides.md) supportano assi numerici primari lineari o logaritmici, etichette letterali e anteprima modificabile. Le etichette sul bordo opposto possono sovrapporsi a quelle di un secondo asse Y: la guida descrive il limite.
 

@@ -1,0 +1,54 @@
+{
+  "data": [
+    {
+      "X": 1,
+      "Y": 2,
+      "Group": "C"
+    },
+    {
+      "X": 1,
+      "Y": 2,
+      "Group": "C"
+    },
+    {
+      "X": 2,
+      "Y": 4,
+      "Group": "C"
+    },
+    {
+      "X": 3,
+      "Y": null,
+      "Group": "C"
+    },
+    {
+      "X": 4,
+      "Y": 5,
+      "Group": "T"
+    }
+  ],
+  "stylesheet": {
+    "source_row_1_based": 2,
+    "color": "#ac4320",
+    "marker": "square",
+    "size_pt": 9
+  },
+  "expected": {
+    "styled_rows_1_based": [
+      2
+    ],
+    "original_legend": [
+      "C",
+      "T"
+    ],
+    "observations": 4
+  },
+  "after_ambiguous_insertion": {
+    "insert_at_1_based": 1,
+    "data": {
+      "X": 1,
+      "Y": 2,
+      "Group": "C"
+    },
+    "required": "Lo stile non deve essere assegnato silenziosamente a un'altra riga."
+  }
+}
