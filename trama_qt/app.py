@@ -85,6 +85,9 @@ def main(argv=None):
         elif only == "qt-survival-bands":
             from .survival_bands_smoke import run
             status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
+        elif only == "qt-interaction-plot":
+            from .interaction_plot_smoke import run
+            status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
         else:
             from .smoke import SCENARIOS, run
             if scenario is not None and scenario not in SCENARIOS:
