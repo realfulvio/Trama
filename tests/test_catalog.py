@@ -99,6 +99,7 @@ class CatalogTests(unittest.TestCase):
             "Histogram": {"Response": "x", "Bins": 4},
             "Box / violin plot": {"Response": "y", "Group": "Group", "Style": "Violin"},
             "Grouped distribution plot": {"Response": "y", "Category": "Group", "Split by": "Factor", "Style": "Violin"},
+            "Raincloud plot": {"Response": "y", "Group": "Group", "Orientation": "Vertical"},
             "Bubble plot": {"X": "x", "Y": "y", "Size": "z", "Group": "Group", "Label": "Factor"},
             "Before/after": {"Pairs": [{"Before": "x", "After": "y", "Title": ""}], "Subject": "Subject"},
             "Subject trajectories": {"Input": "Separate columns", "X": "x", "Y columns": ["y", "z"]},

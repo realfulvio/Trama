@@ -22,6 +22,7 @@ from analisi.linked_axes import linked_axes_status
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, MAX_ENTRY, Dataset,
                           info_references, load_tables, load_workspace, project_document, save_project)
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
+from analisi.raincloud_plot import METHOD as RAINCLOUD_PLOT, style_after_parameter_change as raincloud_style
 from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
 from analisi.category_order import keep_source_columns
@@ -691,6 +692,8 @@ class Project(WorksheetJoinSources):
         style = run.style
         if method == run.method == FREQUENCY:
             style = frequency_style(style, run.options, options)
+        elif method == run.method == RAINCLOUD_PLOT:
+            style = raincloud_style(style, run.options, options)
         elif method == run.method == "Kaplan–Meier survival":
             style = survival_style(style, run.options, options)
         elif method == run.method == XY_METHOD:
