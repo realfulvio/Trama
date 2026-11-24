@@ -100,6 +100,7 @@ Variance ratio|Rapporto tra le varianze
 SD ratio|Rapporto tra le DS
 Equivalence test (TOST)|Test di equivalenza (TOST)
 Permutation test for mean difference|Test di permutazione per la differenza tra medie
+Yuen's test for trimmed means|Test di Yuen per medie troncate
 Lower margin|Margine inferiore
 Upper margin|Margine superiore
 Wilcoxon signed-rank|Test dei ranghi con segno di Wilcoxon

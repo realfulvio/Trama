@@ -68,6 +68,7 @@ from .linear_diagnostics import LINEAR_OPTIONS, linear_result
 from .cohen_kappa_workbench import COHEN_KAPPA, OPTIONS as COHEN_KAPPA_OPTIONS, cohen_kappa
 from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, equivalence_test
 from .mean_permutation import METHOD as MEAN_PERMUTATION, OPTIONS as MEAN_PERMUTATION_OPTIONS, permutation_test
+from .yuen import METHOD as YUEN, OPTIONS as YUEN_OPTIONS, yuen_test
 from .competing_risks_workbench import (COMPETING_RISKS, OPTIONS as COMPETING_RISKS_OPTIONS,
                                         competing_risks)
 from .cox_exact import METHOD as COX_REGRESSION, cox_exact_result, is_exact as is_cox_exact
@@ -273,6 +274,7 @@ METHODS = {
                      "Graph": ("None", "Variance ratio", "SD ratio")},
     EQUIVALENCE: EQUIVALENCE_OPTIONS,
     MEAN_PERMUTATION: MEAN_PERMUTATION_OPTIONS,
+    YUEN: YUEN_OPTIONS,
     COHEN_KAPPA: COHEN_KAPPA_OPTIONS,
     COMPETING_RISKS: COMPETING_RISKS_OPTIONS,
     WEIBULL_AFT: WEIBULL_AFT_OPTIONS,
@@ -421,7 +423,7 @@ GROUPS = {
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
                               "Interpolate a standard curve", SPLINE_FIT,
                               "Smooth / differentiate / integrate", PLOT_FUNCTION, ORDINAL_LOGIT),
-    "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, MEAN_PERMUTATION, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
+    "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, MEAN_PERMUTATION, YUEN, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
                          "Multifactor ANOVA", grouped_anova.METHOD, ANCOVA, "Contingency table", PAIRED_PROPORTIONS, COHEN_KAPPA,
@@ -1390,6 +1392,8 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return equivalence_test(frame, o)
     if method == MEAN_PERMUTATION:
         return permutation_test(frame, o, cancel=cancel)
+    if method == YUEN:
+        return yuen_test(frame, o)
     if method == COHEN_KAPPA:
         return cohen_kappa(frame, o, cancel=cancel)
     if method == COMPETING_RISKS:
