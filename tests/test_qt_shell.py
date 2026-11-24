@@ -3283,6 +3283,7 @@ class QtShellTests(unittest.TestCase):
         window.actions["load_example"].trigger()
         self.assertTrue(chooser.selection()[1])
         window.create_worksheet(*chooser.selection())
+        self.app.processEvents()
         _, title = window.selected
         self.assertTrue(window.toolbar.isVisible())
         self.assertTrue(window.nav_card.isVisible())
@@ -3308,7 +3309,7 @@ class QtShellTests(unittest.TestCase):
         for key in ("edit_layout", "export", "recalculate"):
             self.assertTrue(window.actions[key].isEnabled(), key)
 
-    def test_classic_shortcuts_match_tk_for_exclusion_export_and_sheet_history(self):
+    def test_classic_shortcuts_for_exclusion_export_and_sheet_history(self):
         from unittest.mock import patch
         from PySide6.QtTest import QTest
         from PySide6.QtWidgets import QFileDialog
