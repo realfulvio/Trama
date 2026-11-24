@@ -24,6 +24,7 @@ from .anova_diagnostics import validate as validate_anova_diagnostics
 from . import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
 from .anova_ss import CHOICES as SS_CHOICES, KEY as SUMS_OF_SQUARES, SHEETS as ANOVA_SHEETS
 from .anova_ss import sums_of_squares as anova_sums_of_squares
+from . import anova_marginal_means as marginal_means
 from . import anova_planned_contrasts as planned_contrasts
 from .anova_terms import (CHOICES as TERM_CHOICES, MODEL_TERMS, SHEET as MODEL_TERMS_SHEET, TERM_LIST, TERM_SELECTION,
                           active_factors as anova_active_factors, check_comparison_controls as check_anova_comparisons,
@@ -339,7 +340,12 @@ METHODS = {
                          planned_contrasts.FACTORS: planned_contrasts.FACTOR_LIST,
                          planned_contrasts.CONTRASTS: planned_contrasts.CONTRAST_LIST,
                          planned_contrasts.CORRECTION: planned_contrasts.CORRECTIONS,
-                         planned_contrasts.ALPHA: planned_contrasts.DEFAULT_ALPHA},
+                         planned_contrasts.ALPHA: planned_contrasts.DEFAULT_ALPHA,
+                         # Estimated marginal means: read only when the switch is true.
+                         marginal_means.ENABLED: marginal_means.PANEL,
+                         marginal_means.FACTORS: marginal_means.FACTOR_LIST,
+                         marginal_means.OVERALL: False,
+                         marginal_means.CONFIDENCE: marginal_means.DEFAULT_CONFIDENCE},
     "Kaplan–Meier survival": {"Time": None, "Event columns": MULTIPLE, "Grouping variables": OPTIONAL_MULTIPLE,
                               PAIRWISE_CORRECTION: PAIRWISE_CORRECTIONS,
                               PAIRWISE_SCOPE: PAIRWISE_SCOPES, PAIRWISE_CONTROL: GROUP_CHOICE,
@@ -547,6 +553,11 @@ def _anova(frame, o):
     planned = planned_contrasts.check_request(o, model_factors)
     if planned is not None:
         planned_contrasts.check_categories(frame, y, model_factors)
+    # Estimated marginal means: absent or false leaves every sheet as it was.
+    # Factors, confidence and the reference-grid limit are checked before the fit.
+    marginal = marginal_means.check_options(o, model_factors)
+    if marginal is not None:
+        marginal_means.check_data(marginal, frame, y, model_factors)
     graph = anova_graph_choice(o)
     if graph != "None":
         count = _anova_row_count(frame, y, anova_active_factors(factors, terms) if terms is not None else factors)
@@ -576,6 +587,8 @@ def _anova(frame, o):
         raise ValueError("Choose which factor or cells to compare.")
     if planned is not None:  # the same fit: design, coefficients, residual SS and df of the table above
         tables.update(planned_contrasts.tables(planned, model_factors, data, design, beta, error, df))
+    if marginal is not None:  # same design, coefficients, MSE and df; the model is not fitted again
+        tables.update(marginal_means.tables(marginal, model_factors, data, design, beta, error, df))
     primary = o.get(anova_grouped_plot.PRIMARY)
     if len(model_factors) > 1 and primary in model_factors:
         try:

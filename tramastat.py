@@ -473,6 +473,7 @@ from analisi.anova_diagnostics import (ALPHA as ANOVA_DIAG_ALPHA, ASSUMPTIONS as
 from analisi.anova_ss import KEY as ANOVA_SUMS_OF_SQUARES, TYPE_III as ANOVA_TYPE_III
 from analisi.anova_ss import sums_of_squares as anova_sums_of_squares
 from analisi.anova_ss_dialog import SumsOfSquaresPanel
+from analisi import anova_marginal_means as marginal_means
 from analisi import anova_planned_contrasts as planned_contrasts
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, lognormal_tests, ttest_options
 from analisi.anova_contrast_editor import check_contrast_input, contrast_context
@@ -1665,6 +1666,8 @@ class AnalysisDialog(simpledialog.Dialog):
         for label, kind in METHODS[self.method].items():
             if self.method == "Multifactor ANOVA" and label in planned_contrasts.KEYS:
                 continue  # The planned-contrast editor owns these four fields.
+            if self.method == "Multifactor ANOVA" and label in marginal_means.KEYS:
+                continue  # Qt owns estimated marginal means; a saved recipe is copied back below.
             use_vars = (kind in (MULTIPLE, OPTIONAL_MULTIPLE, OPTIONAL, None) or label == "Input format"
                         or (self.method == "t-test" and label in ("Design", ttest_options.INPUT))) and label not in {
                 "Comparison factor", "Condition on factors",
@@ -4474,6 +4477,9 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == "Multifactor ANOVA":
                 saved_terms = self.current[1] if self.current and self.current[0] == self.method else {}
                 options.update(self.contrast_panel.values())
+                for key in marginal_means.KEYS:
+                    if key in saved_terms and key not in options:
+                        options[key] = deepcopy(saved_terms[key])
                 chosen_terms = check_anova_terms(options)
                 if (anova_sums_of_squares(options) == ANOVA_TYPE_III
                         and ANOVA_SUMS_OF_SQUARES not in saved_terms):
@@ -5214,6 +5220,18 @@ def uses_hierarchy_diagnostics(method, options):
 
 def uses_planned_contrasts(method, options):
     return method == "Multifactor ANOVA" and planned_contrasts.active(options)
+
+
+def _anova_recipe_error(run):
+    """Translate a marginal-mean or planned-contrast error, leaving any other sentence as it is."""
+    text = run.calculation_error
+    if marginal_means.active(run.options):
+        translated = marginal_means.localized(text)
+        if translated != text:
+            return translated
+    if uses_planned_contrasts(run.method, run.options):
+        return planned_contrasts.localized(text)
+    return text
 
 
 def cancellable_run(method, options):
@@ -7720,6 +7738,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, RepeatAnalysisMixin, Workshee
                         results.append((run, previous.get(id(run)), error))
                     elif (run.method in {WORKSHEET_JOIN, kmeans_stability.METHOD, logistic_validation.METHOD}
                           or uses_planned_contrasts(run.method, run.options)
+                          or marginal_means.active(run.options)
                           or (self._reopens_field_error(run) and isinstance(error, FieldError))):
                         results.append((run, previous.get(id(run)), error))
                     elif run.method == SAVED_BINARY_LAYOUT or LEGACY_PANEL_DATA in run.options:
@@ -8107,6 +8126,7 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, RepeatAnalysisMixin, Workshee
         return (run.method in {REFERENCE_NORMALIZATION, SAVED_BINARY_LAYOUT} or LEGACY_PANEL_DATA in run.options
                 or self._lognormal_one_way(run)
                 or uses_planned_contrasts(run.method, run.options)
+                or marginal_means.active(run.options)
                 or run.method in (FDR_METHOD, VARIANCE_RATIO, COMPETING_RISKS, RMST, INDEPENDENT_ROC, ANCOVA, RMCORR,
                                   META_ANALYSIS, NB2, WEIBULL_AFT, ORDINAL_LOGIT, precision_recall.METHOD, icc.METHOD,
                                   reshape.METHOD, WORKSHEET_JOIN, kmeans_stability.METHOD, logistic_validation.METHOD)
@@ -8276,7 +8296,8 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, RepeatAnalysisMixin, Workshee
                                       icc.METHOD, reshape.METHOD, WORKSHEET_JOIN, kmeans_stability.METHOD,
                                       logistic_validation.METHOD}
                     or self._pca_regression(run) or cox_exact_run(run) or self._cox_fit_diagnostics(run)
-                    or uses_planned_contrasts(run.method, run.options) else None)
+                    or uses_planned_contrasts(run.method, run.options)
+                    or marginal_means.active(run.options) else None)
         self.start_analysis(run, self.tables[run.title].frame(mask_excluded=True), index, recovery=recovery)
 
     def edit_analysis(self, *, initial_field=None):
@@ -8770,8 +8791,9 @@ class App(AnalysisChainMixin, FamilyWorkflowMixin, RepeatAnalysisMixin, Workshee
                      else translate_independent_roc_error(run.calculation_error) if run.method == INDEPENDENT_ROC
                      else translate_precision_recall_error(run.calculation_error) if run.method == precision_recall.METHOD
                      else translate_icc_error(run.calculation_error) if run.method == icc.METHOD
-                     else planned_contrasts.localized(run.calculation_error)
-                     if uses_planned_contrasts(run.method, run.options)
+                     else _anova_recipe_error(run)
+                     if (marginal_means.active(run.options)
+                         or uses_planned_contrasts(run.method, run.options))
                      else translate_logistic_validation_error(run.calculation_error)
                      if run.method == logistic_validation.METHOD
                      else translate_kmeans_stability_error(run.calculation_error)
