@@ -183,12 +183,13 @@ class ParameterTable(QTableWidget):
 
 class AnalysisDialog(QDialog):
     def __init__(self, parent, frame, *, current=None, only=None, error=None, error_field=None,
-                 join_sources=None, join_left=None, xy_left_scale="linear"):
+                 join_sources=None, join_left=None, xy_left_scale="linear", graph_type_source=None):
         super().__init__(parent)
         # Join worksheets by key: the other data sheets with their columns, and the title of the left one.
         self.join_sources, self.join_left = join_sources, join_left
         self.join = None
-        self.setWindowTitle(qt("qt.analysis_title"))
+        self.graph_type_source = graph_type_source
+        self.setWindowTitle(qt("qt.graph_type_title" if graph_type_source else "qt.analysis_title"))
         self.data = frame
         self.xy_left_scale = xy_left_scale
         self.current = current
@@ -221,11 +222,12 @@ class AnalysisDialog(QDialog):
         picker = QWidget()
         picker_layout = QVBoxLayout(picker)
         picker_layout.setContentsMargins(0, 0, 8, 0)
-        caption = QLabel(qt("qt.find_analysis"))
+        find_method = qt("qt.find_graph_type" if graph_type_source else "qt.find_analysis")
+        caption = QLabel(find_method)
         caption.setObjectName("sectionTitle")
         picker_layout.addWidget(caption)
         self.query = QLineEdit()
-        self.query.setPlaceholderText(qt("qt.find_analysis"))
+        self.query.setPlaceholderText(find_method)
         self.query.setClearButtonEnabled(True)
         self.query.textChanged.connect(self.fill_methods)
         picker_layout.addWidget(self.query)
@@ -260,7 +262,8 @@ class AnalysisDialog(QDialog):
         splitter.setSizes([280, 640])
 
         buttons = QDialogButtonBox()
-        self.run_button = buttons.addButton(qt("qt.run"), QDialogButtonBox.ButtonRole.AcceptRole)
+        run_label = qt("qt.apply_graph_type" if graph_type_source else "qt.run")
+        self.run_button = buttons.addButton(run_label, QDialogButtonBox.ButtonRole.AcceptRole)
         self.run_button.setDefault(True)
         buttons.addButton(qt("qt.cancel"), QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(self.accept)
@@ -351,7 +354,13 @@ class AnalysisDialog(QDialog):
     # -- fields ----------------------------------------------------------------------------------
     def _saved(self):
         if not self.current or self.current[0] != self.method:
-            return {}
+            if self.graph_type_source is None:
+                return {}
+            source_method, options = self.graph_type_source
+            source_fields = METHODS[source_method]
+            return {field: options[field] for field, kind in METHODS[self.method].items()
+                    if kind in VARIABLE_KINDS and field in options and field in source_fields
+                    and source_fields[field] == kind}
         saved = dict(self.current[1])
         if self.method in kmeans_options.METHODS:
             saved = kmeans_options.saved_scaling(saved)
@@ -1272,7 +1281,9 @@ class AnalysisDialog(QDialog):
             if self.method == "Interpolate a standard curve":
                 calibration.check_calibration_options(self.data, options)
             if self.method == XY_METHOD:
-                check_xy_options(self.data, retain_recipe_options(options, self._saved()), self.xy_left_scale)
+                converted = self.graph_type_source is not None and self.graph_type_source[0] != self.method
+                check_xy_options(self.data, retain_recipe_options(options, self._saved()),
+                                 "linear" if converted else self.xy_left_scale)
             if self.method == SELECT_TRANSFORM:
                 check_select_transform(self.data, options)
             if self.method == extraction.EXTRACT_REARRANGE:

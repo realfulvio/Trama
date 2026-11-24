@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
+from weakref import WeakKeyDictionary
 
 from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
@@ -17,6 +18,7 @@ from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power,
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
+from analisi.axis_breaks import AXIS_BREAKS
 from analisi.field_error import FieldError
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, translate_message, ui
 from analisi.correlation_matrix import CORRELATION_MATRIX
@@ -43,7 +45,7 @@ from analisi.text_import import TEXT_SUFFIXES
 from analisi.ordinal_logit import GRAPH as ORDINAL_GRAPH, ORDINAL_LOGIT
 from analisi.tolerance_intervals import SHOW_GRAPH as TOLERANCE_GRAPH, TOLERANCE
 from analisi.weibull_aft import METHOD as WEIBULL_AFT, SHOW_GRAPH as WEIBULL_GRAPH
-from analisi.workbench import GRAPH_METHODS, GROUPS
+from analisi.workbench import GRAPH_METHODS
 from analisi.sheet_metadata import HIGHLIGHTS, RUN_KINDS, validate_sheet_title
 from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
 from analisi.paired_graphs import shows_paired_estimation
@@ -59,8 +61,9 @@ from .report_dialog import text as report_text
 from .result_tabs import ResultTabs
 from .models import WorksheetModel, column_label
 from .recovery import RecoveryDialog, RecoverySettingsDialog, r as recovery_text
-from .project import (DATA_SUFFIXES, OPEN_FILTER, LEGACY_GRAPH_METHODS, PROJECT_SUFFIXES, SAVED_VIEWS,
-                      CalculationControl, Project, Run, compute, result_as_table, run_view, stored_legacy_view)
+from .project import (DATA_SUFFIXES, GRAPHING, GRAPH_TYPE_METHODS, LEGACY_GRAPH_METHODS, OPEN_FILTER, PROJECT_SUFFIXES,
+                      SAVED_VIEWS, CalculationControl, Project, Run, compute, result_as_table, run_view,
+                      stored_legacy_view)
 from .sessions import MAX_PROJECT_TABS, Sessions
 from .templates import sync_actions as sync_template_actions, t as template_text
 from analisi.repeat_analysis_text import t as repeat_text
@@ -84,7 +87,6 @@ ANALYSIS_GRAPH_OPTIONS = {
     kappa.METHOD: (kappa.SHOW_GRAPH, kappa.DEFAULTS[kappa.SHOW_GRAPH]),
     mean_permutation.METHOD: (mean_permutation.SHOW_GRAPH, mean_permutation.OPTIONS[mean_permutation.SHOW_GRAPH]),
 }
-GRAPHING = tuple(GROUPS.get("Graphing", ())) + (PLOT_FUNCTION,)
 SOURCE_XY = {BINARY_XY_RANGE, XML_ERROR_BARS, XML_BINDING_XY, XML_GENERATED_XY, XML_QC, ZIP_SPARSE_XY, ZIP_COLUMN,
              CLUSTERED_SCATTER, FIT_GRAPH, SAVED_AXES, SURVIVAL_GRAPH}
 
@@ -238,6 +240,47 @@ class PlotNavigation(NavigationToolbar2QT):
 
     toolitems = tuple(item for item in NavigationToolbar2QT.toolitems
                       if item[3] in {"home", "back", "forward", "pan", "zoom"})
+    _fit_views = WeakKeyDictionary()
+
+    def __init__(self, canvas, parent):
+        super().__init__(canvas, parent)
+        self._first_draw = canvas.mpl_connect("draw_event", self._store_first_view)
+
+    def _store_first_view(self, _event):
+        self.canvas.mpl_disconnect(self._first_draw)
+        self._remember_fit_view()
+
+    def _remember_fit_view(self):
+        # The same graph figure can be reopened in a new Qt canvas. Keep its original bounds until its
+        # axis settings change, so a zoomed figure still has a full view to return to.
+        figure = self.canvas.figure
+        keys = ("axis", "xscale", "yscale", AXIS_BREAKS)
+        signature = tuple((id(ax), *(getattr(ax, "_tramastat_style", {}).get(key) for key in keys))
+                          for ax in figure.axes)
+        entry = self._fit_views.get(figure)
+        if entry is None or entry[0] != signature:
+            self.update()
+            self.push_current()
+            self._fit_views[figure] = (signature, self._nav_stack())
+        elif self._nav_stack() is None:
+            self._nav_stack.push(entry[1])
+            self.set_history_buttons()
+
+    def home(self, *args):
+        self._remember_fit_view()
+        super().home(*args)
+
+    def configure_fit(self, *, layout, preview):
+        if isinstance(preview, ImportedPaperPreview):
+            self.fit_action = self.addAction(qt("qt.fit_entire_page"))
+            self.fit_action.setCheckable(True)
+            self.fit_action.toggled.connect(preview.set_fit_page)
+            self.fit_action.triggered.connect(lambda checked: self.home() if checked else None)
+        else:
+            self.fit_action = self._actions["home"]
+            label = qt("qt.fit_entire_page" if layout else "qt.fit_graph")
+            self.fit_action.setText(label)
+            self.fit_action.setToolTip(label)
 
 
 class Page(QWidget):
@@ -492,6 +535,7 @@ class MainWindow(QMainWindow):
         a("new_graph", tr("command.new_graph"), self.new_graph, icon="chart-line", shortcut="Ctrl+G")
         a("change", tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal",
           shortcut="Ctrl+P")
+        a("change_graph_type", qt("qt.change_graph_type"), self.change_graph_type, icon="chart-column")
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
         from .graph_style_preset_dialog import t as preset_text
         a("graph_style_presets", preset_text("action"), self.graph_style_presets, icon="sparkles")
@@ -510,6 +554,8 @@ class MainWindow(QMainWindow):
         a("use_result", qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
         a("analysis_graph", qt("qt.show_analysis_graph"), lambda: self.switch_run_view("graph"), icon="chart-line")
         a("analysis_tables", tr("command.analysis_results"), lambda: self.switch_run_view("result"), icon="sigma")
+        a("fit_graph", qt("qt.fit_graph"), self.fit_preview, icon="house")
+        a("fit_layout_page", qt("qt.fit_entire_page"), self.fit_preview, icon="layout-grid")
         a("plot_margins", qt("qt.plot_margins"), self.adjust_plot_margins, icon="sliders-horizontal")
         a("analyze_result", tr("chain.analyze_result"), self.analyze_result_table, icon="git-compare")
         a("source_analysis", tr("chain.source_analysis"), self.source_analysis, icon="chevron-up")
@@ -871,6 +917,10 @@ class MainWindow(QMainWindow):
         self.actions["info_down"].setEnabled(info and info_index + 1 < len(info_keys))
         changeable = kind in {"result", "graph"} and not locked and not _saved_recipe(self.project.runs[self.selected[1]])
         self.actions["change"].setEnabled(changeable and idle)
+        type_problem = self.project.graph_type_problem(self.project.runs[self.selected[1]]) if kind == "graph" else None
+        change_type = self.actions["change_graph_type"]
+        change_type.setEnabled(kind == "graph" and idle and type_problem is None)
+        change_type.setToolTip(type_problem or change_type.text())
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
         self.actions["graph_style_presets"].setEnabled(graph and idle)
@@ -899,7 +949,14 @@ class MainWindow(QMainWindow):
         self.actions["analysis_tables"].setEnabled(idle and kind == "graph" and (
             (run_view(run.method) == "result" or XML_GENERATED_XY in run.options)
             and not self.project.sheet_state(("result", self.selected[1])).get("hidden")))
-        self.actions["plot_margins"].setEnabled(idle and not locked and self.gallery is None and self.plot_tools is not None)
+        plot = idle and self.gallery is None and self.plot_tools is not None
+        layout_plot = plot and kind in {"layout", "saved-layout"}
+        self.actions["fit_graph"].setEnabled(plot and kind == "graph")
+        fit_page = self.actions["fit_layout_page"]
+        fit_page.setEnabled(layout_plot)
+        fit_page.setCheckable(layout_plot and self.plot_tools.fit_action.isCheckable())
+        fit_page.setChecked(layout_plot and self.plot_tools.fit_action.isChecked())
+        self.actions["plot_margins"].setEnabled(plot and not locked)
         chained = kind in {"result", "graph"} and self.project.runs[self.selected[1]].source is not None
         self.actions["analyze_result"].setEnabled(kind == "result" and idle)
         self.actions["source_analysis"].setEnabled(chained)
@@ -1355,6 +1412,8 @@ class MainWindow(QMainWindow):
                     if not _saved_recipe(run):
                         commands.extend(("change", "repeat_analysis"))
                     commands.append("recalculate")
+                    if kind == "graph" and self.project.graph_type_problem(run) is None:
+                        commands.append("change_graph_type")
                 if kind == "result":
                     commands.extend(("analyze_result", "change_input") if not self.project.frozen(run)
                                     else ("analyze_result",))
@@ -1846,10 +1905,9 @@ class MainWindow(QMainWindow):
         page.add(row, 1)
         if toolbar:
             tools.addSeparator()
-            if imported_layout:
-                fit = tools.addAction(qt("qt.fit_entire_page"))
-                fit.setCheckable(True)
-                fit.toggled.connect(preview.set_fit_page)
+            tools.configure_fit(layout=paper is not None and run is None, preview=preview)
+            if tools.fit_action.isCheckable():
+                tools.fit_action.toggled.connect(self.actions["fit_layout_page"].setChecked)
             tools.addAction(self.actions["plot_margins"])
             page.add(tools, 0)
         if run is not None:
@@ -1858,6 +1916,10 @@ class MainWindow(QMainWindow):
             self._open_inspector(run, canvas, line)
         canvas.draw_idle()
         return canvas
+
+    def fit_preview(self):
+        if self.plot_tools is not None and self.gallery is None and not self.busy():
+            self.plot_tools.fit_action.trigger()
 
     def adjust_plot_margins(self):
         if self.plot_tools is not None and self.gallery is None and not self.busy():
@@ -2052,8 +2114,10 @@ class MainWindow(QMainWindow):
             if warning:
                 page.notice(warning)
             paper = imported_paper(run)
-            self._canvas(page, result.figure, run=run if kind == "graph" else None, paper=paper,
-                         imported_layout=kind == "saved-layout" and paper is not None)
+            saved_layout = kind == "saved-layout"
+            self._canvas(page, result.figure, run=run if kind == "graph" else None,
+                         paper=paper if paper is not None or not saved_layout else result.figure.get_size_inches(),
+                         imported_layout=saved_layout and paper is not None)
         else:
             page.notice(qt("qt.not_calculated"))
             page.layout_.addStretch(1)
@@ -2493,17 +2557,19 @@ class MainWindow(QMainWindow):
             self._ask(None, pd.DataFrame(), current=("Simulate data", {}), only="Simulate data")
 
     def new_graph(self):
-        self.analyze(only=[name for name in GRAPHING])
+        self.analyze(only=GRAPHING)
 
     def _ask(self, title, frame, *, current=None, only=None, index=None, error=None, error_field=None, source=_KEEP,
-             initial_field=None):
+             initial_field=None, graph_type=False):
         """Ask for the parameters, then calculate. ``source`` sets the result an analysis reads (a new link, or
         Change input result…); by default a new analysis reads its data table and an edit keeps its input."""
-        reads = (self.project.runs[index].source if index is not None else None) if source is _KEEP else source
-        style = self.project.runs[index].style if index is not None else None
+        run = self.project.runs[index] if index is not None else None
+        reads = (run.source if run is not None else None) if source is _KEEP else source
+        style = run.style if run is not None else None
+        graph_type_source = (run.method, run.options) if graph_type else None
         dialog = AnalysisDialog(self, frame, current=current, only=only, error=error, error_field=error_field,
                                 join_sources=self.project.join_sources(title, reads), join_left=title,
-                                xy_left_scale=(style or {}).get("yscale", "linear"))
+                                xy_left_scale=(style or {}).get("yscale", "linear"), graph_type_source=graph_type_source)
         if initial_field and error_field is None:
             dialog.focus_field(initial_field)
         if dialog.exec() != AnalysisDialog.DialogCode.Accepted or dialog.result is None:
@@ -2519,7 +2585,7 @@ class MainWindow(QMainWindow):
                     name = method_label(method)
                 candidate = Run(method, self.project.unique_title(name), options)
             else:
-                candidate = self.project.candidate(title, method, options, index=index,
+                candidate = self.project.candidate(title, method, options, index=index, graph_type=graph_type,
                                                    source=None if source is _KEEP else source)
             if index is not None and source is not _KEEP and candidate.source != source:
                 candidate.source = source
@@ -2527,7 +2593,26 @@ class MainWindow(QMainWindow):
         except ValueError as error_:
             self.error(error_)
             return
-        self.calculate_candidate(candidate, frame, index, only=only, create_table=title is None)
+        self.calculate_candidate(candidate, frame, index, only=only, create_table=title is None, graph_type=graph_type)
+
+    def change_graph_type(self):
+        if self.busy() or self.gallery is not None or not self.selected or self.selected[0] != "graph":
+            return
+        index = self.selected[1]
+        run = self.project.runs[index]
+        problem = self.project.graph_type_problem(run)
+        if problem:
+            self.error(problem)
+            return
+        if not self.settle_graph_draft():
+            return
+        try:
+            frame = self.project.input_frame(run)
+        except ValueError as error:
+            self.error(error)
+            return
+        self._ask(run.title, frame, current=(run.method, run.options), only=GRAPH_TYPE_METHODS, index=index,
+                  graph_type=True)
 
     def change_parameters(self):
         if self.busy() or not self.selected or self.selected[0] not in {"result", "graph"}:
@@ -2906,7 +2991,7 @@ class MainWindow(QMainWindow):
         self.show_sheet(*self.selected)
         self.status(tr(applied))
 
-    def calculate_candidate(self, candidate, frame, index, *, only=None, create_table=False):
+    def calculate_candidate(self, candidate, frame, index, *, only=None, create_table=False, graph_type=False):
         pairwise = self.project.pairwise_snapshot(candidate)
         layout_data = self.project.layout_panel_data(candidate)
         join_data = self.project.join_data(candidate)  # read here: the worker never looks a sheet up
@@ -2929,7 +3014,7 @@ class MainWindow(QMainWindow):
                 field = error.field if isinstance(error, FieldError) else None
                 self._ask(None if create_table else candidate.title, frame,
                           current=(candidate.method, candidate.options), only=only,
-                          index=index, error=str(error), error_field=field, source=candidate.source)
+                          index=index, error=str(error), error_field=field, source=candidate.source, graph_type=graph_type)
                 return
             if create_table:
                 tables = ({name: result_as_table(table) for name, table in result.tables.items()}
@@ -2943,7 +3028,12 @@ class MainWindow(QMainWindow):
                     self.show_sheet("data", titles[0])
                     self.status(qt("qt.complete", method=method_label(candidate.method)))
                     return
-            new_index, dependents = self.project.add_result(candidate, result, index)
+            try:
+                new_index, dependents = self.project.add_result(candidate, result, index, graph_type=graph_type)
+            except ValueError as error:
+                self.status(qt("qt.failed"))
+                self.error(error)
+                return
             message = qt("qt.complete", method=method_label(candidate.method))
             if result.style_warning:
                 message += f" {result.style_warning}"

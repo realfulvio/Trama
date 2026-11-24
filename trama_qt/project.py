@@ -25,6 +25,7 @@ from analisi.ecdf_graph import METHOD as ECDF_GRAPH, style_after_parameter_chang
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.interaction_plot import METHOD as INTERACTION_PLOT, style_after_parameter_change as interaction_style
 from analisi.raincloud_plot import METHOD as RAINCLOUD_PLOT, style_after_parameter_change as raincloud_style
+from analisi.graph_annotations import ANNOTATIONS
 from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
 from analisi.category_order import WORKSHEET_ORDERS, keep_source_columns
@@ -33,7 +34,7 @@ from analisi.i18n import tr, ui
 from analisi.info import InfoSheet, info_contexts, validate_info_sheets
 from analisi.legacy_notes import WORKSHEET_NOTES
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY
-from analisi.plot_function import OBSERVATION_COLUMNS
+from analisi.plot_function import OBSERVATION_COLUMNS, PLOT_FUNCTION
 from analisi.pca_graphs import SAVED_DIRECTIONS as PCA_SAVED_DIRECTIONS, SAVED_VIEWPORT as PCA_SAVED_VIEWPORT
 from analisi.pca_overlays import SAVED_APPEARANCE as PCA_OVERLAY_APPEARANCE
 from analisi.pca_parallel_archive import ARCHIVE as PCA_PARALLEL_ARCHIVE
@@ -63,15 +64,15 @@ from analisi.shape_interaction import ShapeHistory
 from analisi.select_transform import SELECT_TRANSFORM, seeded_transform_options
 from analisi.survival_plot import style_after_parameter_change as survival_style
 from analisi.survival_plot import SURVIVAL_GRAPH
-from analisi.workbench import analyse
+from analisi.workbench import GROUPS, analyse
 from analisi import worksheet_join
 from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
 from analisi.worksheet_history import WorksheetChange, WorksheetHistory, WorksheetState
-from .graph_style_presets import plan_preset_batch
 from .sheet_commands import SheetCommands
-from .strings import qt
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
+from .graph_style_presets import TRANSFERABLE, plan_preset_batch
+from .strings import qt
 
 PROJECT_SUFFIXES = {".alab", ".prism", ".prismt", ".pzf", ".pzt", ".pzfx", ".xml"}
 DATA_SUFFIXES = {".csv", ".tsv", ".txt", ".xlsx"}
@@ -80,6 +81,8 @@ LEGACY_GRAPH_METHODS = {SAVED_XY, SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH}
 SAVED_VIEWS = {SAVED_BINARY_GRAPH, SAVED_BINARY_RESULT, SAVED_BINARY_LAYOUT, SAVED_EDITABLE_GRAPH, SCATCHARD}
 HIERARCHY_GRAPH = "Hierarchy graph"
 MAX_TABLES = 256
+GRAPHING = (*GROUPS["Graphing"], PLOT_FUNCTION)
+GRAPH_TYPE_METHODS = (*GRAPHING, "Histogram", FREQUENCY)
 
 
 def run_view(method):
@@ -828,7 +831,19 @@ class Project(WorksheetJoinSources, SheetCommands):
                 live[identifier].calculation_error = message if live[identifier].result is not None else None
 
     # -- analyses -------------------------------------------------------------------------------
-    def candidate(self, title, method, options, *, index=None, source=None):
+    def graph_type_problem(self, run):
+        """Only native graphs with an editable recipe can be converted in place."""
+        if self.frozen(run):
+            return qt("qt.sheet_frozen_notice")
+        dataset = self.tables.get(run.title)
+        if (dataset is None or stored_legacy_view(dataset) or run.method in LEGACY_GRAPH_METHODS
+                or LEGACY_GRAPH_LINK in run.options or LEGACY_PREVIEW in run.options):
+            return qt("qt.graph_type_read_only")
+        if run.method not in GRAPH_TYPE_METHODS or run.slot < 0:
+            return qt("qt.graph_type_requires_graph_recipe")
+        return None
+
+    def candidate(self, title, method, options, *, index=None, source=None, graph_type=False):
         """The Run a dialog asks for: a new analysis, or the edit of ``runs[index]`` keeping its identity."""
         if method == SELECT_TRANSFORM:
             options = seeded_transform_options(options)
@@ -843,6 +858,13 @@ class Project(WorksheetJoinSources, SheetCommands):
         if self.frozen(run):
             raise ValueError(qt("qt.sheet_frozen_notice"))
         options = dict(options)
+        converted = graph_type and method != run.method
+        if graph_type:
+            problem = self.graph_type_problem(run)
+            if problem:
+                raise ValueError(problem)
+            if method not in GRAPH_TYPE_METHODS:
+                raise ValueError(qt("qt.graph_type_requires_graph_recipe"))
         if method == run.method:
             for key in (LEGACY_TITLE, LEGACY_NOTES, LEGACY_GRAPH_LINK, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
                         PCA_OVERLAY_APPEARANCE, PCA_SAVED_DIRECTIONS, PCA_SAVED_VIEWPORT, PCA_PARALLEL_ARCHIVE,
@@ -859,10 +881,22 @@ class Project(WorksheetJoinSources, SheetCommands):
             if method == XY_METHOD:
                 options = retain_recipe_options(options, run.options)
                 options["Series color"] = assign_colors(options.get("Y columns") or [], options.get("Series color"))
-        if method != run.method and any(run.reference in layout.panels for layout in self.layouts):
+        if method != run.method and not converted and any(run.reference in layout.panels for layout in self.layouts):
             raise ValueError("Change parameters for this method or create a new analysis for the layout.")
         style = run.style
-        if method == run.method == FREQUENCY:
+        if converted:
+            for key in (LEGACY_TITLE, LEGACY_NOTES, PAIRWISE_SECTION):
+                if key in run.options:
+                    options[key] = deepcopy(run.options[key])
+            # Only keep drawings in plot fractions. Data coordinates and axis formatting belong to the old type.
+            previous_style = style or {}
+            style = {key: deepcopy(previous_style[key]) for key in (*TRANSFERABLE, "title") if key in previous_style}
+            for key in (ANNOTATIONS, SHAPES):
+                records = [record for record in previous_style.get(key, ()) if record["units"] == "axes"]
+                if records:
+                    style[key] = deepcopy(records)
+            style = style or None
+        elif method == run.method == FREQUENCY:
             style = frequency_style(style, run.options, options)
         elif method == run.method == ECDF_GRAPH:
             style = ecdf_style(style, run.options, options)
@@ -880,10 +914,15 @@ class Project(WorksheetJoinSources, SheetCommands):
             self.analysis_graph(replacement=(index, candidate))
         return candidate
 
-    def add_result(self, run, result, index=None):
+    def add_result(self, run, result, index=None, *, graph_type=False):
         """Confirm a calculated candidate. Returns its index and the analyses that read it."""
+        previous = self.runs[index] if index is not None else None
+        converted = graph_type and previous is not None and run.method != previous.method
+        if converted:
+            self._check_graph_type_result(previous, result)
         run.result, run.calculation_error = result, None
-        recipes = self.tables[run.title].analyses
+        dataset = self.tables[run.title]
+        recipes = dataset.analyses
         dependents = []
         if index is None:
             run.slot = len(recipes)
@@ -891,17 +930,38 @@ class Project(WorksheetJoinSources, SheetCommands):
             recipes.append((run.method, run.options))
             index = len(self.runs) - 1
         else:
-            previous = self.runs[index]
-            if previous.uid == run.uid:
+            if previous.uid == run.uid and not converted:
                 run.shape_history = previous.shape_history  # Same graph, same drawings: keep its Undo steps.
             self.runs[index] = run
             recipes[run.slot] = run.method, run.options
+            if converted:
+                dataset.analysis_ids[run.slot] = run.uid
+                if run.style is None:
+                    dataset.graph_styles.pop(run.slot, None)
+                else:
+                    dataset.graph_styles[run.slot] = run.style
             dependents = [other for other in self.runs if other is not run and (
                 (other.source is not None and other.source.analysis_id == previous.uid)
                 or (read_pairwise(other.options)[0] or {}).get("slot") == run.slot and other.title == run.title)]
         self.dirty = True
         self.sync_links(persist=True)
         return index, dependents
+
+    def _check_graph_type_result(self, previous, result):
+        """Keep the original graph until the new figure and any linked result tables are usable."""
+        if result.figure is None:
+            raise ValueError(qt("qt.graph_type_missing_figure"))
+        tables = {run.source.table for run in self.runs
+                  if run.source is not None and run.source.analysis_id == previous.uid}
+        for table in sorted(tables):
+            message = qt("qt.graph_type_linked_result", name=table)
+            try:
+                columns = result_frame(result, table).columns
+                before = result_frame(previous.result, table).columns if previous.result is not None else ()
+            except ValueError as error:
+                raise ValueError(message) from error
+            if not set(before).issubset(columns):
+                raise ValueError(message)
 
     # -- layouts --------------------------------------------------------------------------------------
     def layout_candidates(self, current=None):
