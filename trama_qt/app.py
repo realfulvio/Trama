@@ -79,11 +79,35 @@ def main(argv=None):
         elif only == "qt-pade-calibration":
             from .pade_calibration_smoke import PadeSmoke
             status = "PASS" if PadeSmoke(folder).run() == 0 else "FAIL"
+        elif only == "qt-yuen-trimmed-means":
+            from .yuen_smoke import YuenSmoke
+            status = "PASS" if YuenSmoke(folder).run() == 0 else "FAIL"
+        elif only == "qt-brunner-munzel":
+            from .brunner_munzel_smoke import BrunnerMunzelSmoke
+            status = "PASS" if BrunnerMunzelSmoke(folder).run() == 0 else "FAIL"
+        elif only == "qt-mood-median":
+            from .mood_median_smoke import MoodMedianSmoke
+            status = "PASS" if MoodMedianSmoke(folder).run() == 0 else "FAIL"
         elif only == "qt-linked-axes":
             from .linked_axes_smoke import run
             status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
         elif only == "qt-survival-bands":
             from .survival_bands_smoke import run
+            status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
+        elif only == "qt-ecdf-graph":
+            from .ecdf_graph_smoke import run
+            status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
+        elif only == "qt-interaction-plot":
+            from .interaction_plot_smoke import run
+            status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
+        elif only == "qt-raincloud-plot":
+            from .raincloud_plot_smoke import run
+            status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
+        elif only == "qt-mcnemar-power":
+            from .mcnemar_power_smoke import run  # Paired-proportion power only: EN/IT, light and dark.
+            status = run(folder)
+        elif only == "qt-pareto-plot":
+            from .pareto_plot_smoke import run
             status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
         else:
             from .smoke import SCENARIOS, run

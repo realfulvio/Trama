@@ -4955,12 +4955,18 @@ _IT.update(_RMST_IT)
 # rendering boundaries. No widget hooks touch user titles, columns or data.
 from .interface_catalog import CAPTIONS as _INTERFACE_CAPTIONS, MESSAGES as _INTERFACE_MESSAGES
 from .power_plan_text import CAPTIONS as _POWER_CAPTIONS, EN as _POWER_EN, IT as _POWER_IT
+from .mcnemar_power_text import CAPTIONS as _MCNEMAR_POWER_CAPTIONS, EN as _MCNEMAR_POWER_EN, IT as _MCNEMAR_POWER_IT
 
 # Power and sample size planning (0.93): dialog captions that no other control already translates, notes, messages.
 for _english, _italian in _POWER_CAPTIONS.items():
     _INTERFACE_CAPTIONS.setdefault(_english, _italian)
 _EN.update(_POWER_EN)
 _IT.update(_POWER_IT)
+# Exact McNemar power: the method name and the percent fields. Goal, Design and Curve already have captions.
+for _english, _italian in _MCNEMAR_POWER_CAPTIONS.items():
+    _INTERFACE_CAPTIONS.setdefault(_english, _italian)
+_EN.update(_MCNEMAR_POWER_EN)
+_IT.update(_MCNEMAR_POWER_IT)
 
 for _key, (_english, _italian) in _INTERFACE_MESSAGES.items():
     _EN[_key], _IT[_key] = _english, _italian
@@ -5740,3 +5746,30 @@ from .linked_axes_text import EN as _LINKED_EN, IT as _LINKED_IT  # noqa: E402
 
 _EN.update(_LINKED_EN)
 _IT.update(_LINKED_IT)
+
+# Yuen's trimmed-mean test (analisi.yuen): captions, the dialog note and the exact engine messages.
+from .yuen_text import EN as _YUEN_EN, IT as _YUEN_IT  # noqa: E402
+
+_EN.update(_YUEN_EN)
+_IT.update(_YUEN_IT)
+for _key, _text in _YUEN_EN.items():
+    if _key == "yuen.method" or _key.startswith(("yuen.field.", "yuen.tab.")):
+        KEY_BY_LABEL.setdefault(_text, _key)
+
+# Brunner–Munzel test (analisi.brunner_munzel): captions, the dialog note and the exact engine messages.
+from .brunner_munzel_text import EN as _BM_EN, IT as _BM_IT  # noqa: E402
+
+_EN.update(_BM_EN)
+_IT.update(_BM_IT)
+for _key, _text in _BM_EN.items():
+    if _key == "bm.method" or _key.startswith(("bm.field.", "bm.tab.", "bm.choice.")):
+        KEY_BY_LABEL.setdefault(_text, _key)
+
+# Mood median test (analisi.mood_median): captions, the dialog note and the exact engine messages.
+from .mood_median_text import EN as _MOOD_EN, IT as _MOOD_IT  # noqa: E402
+
+_EN.update(_MOOD_EN)
+_IT.update(_MOOD_IT)
+for _key, _text in _MOOD_EN.items():
+    if _key == "mood.method" or _key.startswith(("mood.field.", "mood.tab.", "mood.choice.")):
+        KEY_BY_LABEL.setdefault(_text, _key)

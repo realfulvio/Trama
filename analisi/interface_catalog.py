@@ -100,9 +100,12 @@ Variance ratio|Rapporto tra le varianze
 SD ratio|Rapporto tra le DS
 Equivalence test (TOST)|Test di equivalenza (TOST)
 Permutation test for mean difference|Test di permutazione per la differenza tra medie
+Yuen's test for trimmed means|Test di Yuen per medie troncate
+Brunner–Munzel test|Test di Brunner–Munzel
 Lower margin|Margine inferiore
 Upper margin|Margine superiore
 Wilcoxon signed-rank|Test dei ranghi con segno di Wilcoxon
+Mood median test|Test delle mediane di Mood
 Correlation|Correlazione
 Correlation matrix|Matrice di correlazione
 Multiple tests (one per row)|Test multipli (uno per riga)
@@ -1509,3 +1512,31 @@ from .precision_recall_catalog import MESSAGES as _PRECISION_RECALL_MESSAGES  # 
 
 CAPTIONS.update(_PRECISION_RECALL_CAPTIONS)
 MESSAGES.update(_PRECISION_RECALL_MESSAGES)
+
+# Empirical cumulative distribution: captions and engine messages live in their own section.
+from .ecdf_catalog import CAPTIONS as _ECDF_CAPTIONS  # noqa: E402
+from .ecdf_catalog import MESSAGES as _ECDF_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_ECDF_CAPTIONS)
+MESSAGES.update(_ECDF_MESSAGES)
+
+# Two-factor interaction plot: captions and engine messages live in their own section.
+from .interaction_plot_catalog import CAPTIONS as _INTERACTION_PLOT_CAPTIONS  # noqa: E402
+from .interaction_plot_catalog import MESSAGES as _INTERACTION_PLOT_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_INTERACTION_PLOT_CAPTIONS)
+MESSAGES.update(_INTERACTION_PLOT_MESSAGES)
+
+# Raincloud plot: captions and engine messages live in their own section.
+from .raincloud_plot_catalog import CAPTIONS as _RAINCLOUD_CAPTIONS  # noqa: E402
+from .raincloud_plot_catalog import MESSAGES as _RAINCLOUD_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_RAINCLOUD_CAPTIONS)
+MESSAGES.update(_RAINCLOUD_MESSAGES)
+
+# Pareto plot: captions and engine messages live in their own section.
+from .pareto_plot_catalog import CAPTIONS as _PARETO_CAPTIONS  # noqa: E402
+from .pareto_plot_catalog import MESSAGES as _PARETO_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_PARETO_CAPTIONS)
+MESSAGES.update(_PARETO_MESSAGES)

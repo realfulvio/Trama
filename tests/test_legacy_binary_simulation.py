@@ -1,11 +1,13 @@
 import unittest
-from struct import pack
+from struct import pack, pack_into
 
 import numpy as np
 import pandas as pd
 
 from analisi import plot_function as plotting
-from analisi.legacy_binary_simulation import _competition_drawing_grid, _simulation_options, _matches_drawing
+from analisi.legacy_binary_simulation import (
+    _competition_drawing_grid, _matches_drawing, _simulation_grid, _simulation_options,
+)
 from analisi.presentation import apply_style
 
 
@@ -22,6 +24,45 @@ def _function(equation, parameters):
 
 
 class LegacySimulationTests(unittest.TestCase):
+    def test_gaussian_uses_declared_grid_after_verifying_encoded_step(self):
+        low, high, segments = -3., 3., 150
+        exact = np.linspace(low, high, segments + 1)
+        rounded = low + np.arange(segments + 1) * float(np.float32((high - low) / segments))
+        response = 10. * np.exp(-.5 * exact**2)
+        frame = pd.DataFrame({"X": rounded, "Y": response})
+        records = _function("Y=Amplitude*exp(-0.5*((X-Mean)/SD)^2)",
+                            {"Amplitude": 10., "Mean": 0., "SD": 1.})
+        settings = bytearray(1348)
+        pack_into("<3d", settings, 1100, segments, low, high)
+        records.append((0x46, (), bytes(settings)))
+
+        options = _simulation_options(records, frame)
+        self.assertEqual(options[plotting.MODEL], "Gaussian")
+        grid = _simulation_grid(records, rounded, "Gaussian")
+        np.testing.assert_array_equal(grid, exact)
+        np.testing.assert_array_equal(frame["X"], rounded)
+        frame.at[30, "X"] += .001
+        with self.assertRaises(ValueError):
+            _simulation_options(records, frame)
+
+    def test_damped_wave_reuses_saved_parameters_and_checks_every_point(self):
+        x = np.linspace(0., 8., 65)
+        amplitude, wavelength, phase, decay = 3., 2., .4, .25
+        response = amplitude * np.exp(-decay * x) * np.sin(2 * np.pi * x / wavelength + phase)
+        frame = pd.DataFrame({"X": x, "Response": response})
+        records = _function("Y=Amplitude*exp(-K*X)*sin((2*pi*X/Wavelength)+PhaseShift)",
+                            {"Amplitude": amplitude, "K": decay, "Wavelength": wavelength, "PhaseShift": phase})
+
+        options = _simulation_options(records, frame)
+        self.assertEqual(options[plotting.MODEL], "Damped sine wave")
+        self.assertEqual(options[plotting.CURVES][0]["parameters"],
+                         {"Amplitude": amplitude, "Wavelength": wavelength, "Phase shift": phase, "Rate": decay})
+        result = plotting.plot_function(frame[["X"]], options)
+        np.testing.assert_allclose(result.tables[plotting.VALUES]["Response"], response, atol=1e-14)
+        frame.at[30, "Response"] += .001
+        with self.assertRaises(ValueError):
+            _simulation_options(records, frame)
+
     def test_cell_death_simulations_respect_the_saved_response_units(self):
         x = np.arange(4, dtype=float)
         fraction = 1. - np.exp(-(.2 * x + .1 * x**2))

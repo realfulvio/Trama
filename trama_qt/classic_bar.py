@@ -1,8 +1,9 @@
 """The Classica menu and compact two-row toolbar, backed by the window's Qt actions."""
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QSizePolicy, QToolButton, QVBoxLayout, QWidget
 from itertools import zip_longest
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QMenu, QSizePolicy, QToolButton, QVBoxLayout, QWidget
 
 from analisi.i18n import tr, ui
 
@@ -24,12 +25,12 @@ MENUS = (
     ("Analyze", ("analyze", "change", "recalculate", "analyze_result", "source_analysis", "change_input",
                  "repeat_analysis", "use_result", "|", "descriptive", "ttest", "anova", "correlation", "correlation_matrix",
                  "linear", "nonlinear", "survival", "contingency", "load_example")),
-    ("Change", ("change", "format_graph", "graph_style_presets", "plot_margins", "edit_layout", "category_order", "cell_background", "clear_cell_background", "number_format", "|",
+    ("Change", ("change", "format_graph", "graph_style_presets", "batch_figure_styles", "plot_margins", "edit_layout", "category_order", "cell_background", "clear_cell_background", "number_format", "|",
                 "info_properties", "info_up", "info_down", "remove_info")),
     ("Arrange", ("arrange_shapes", "new_layout", "edit_layout")),
     ("Family", ("family_data", "family_info", "family_results", "family_graphs", "family_gallery", "|",
                 "duplicate_family", "save_family")),
-    ("Tools", ("power", "simulate", "monte_carlo", "transpose_xy", "plot_function", "|", "search")),
+    ("Tools", ("power", "paired_power", "simulate", "monte_carlo", "transpose_xy", "plot_function", "|", "search")),
     ("Settings", ("language", "table_font", "processes", "recovery_settings")),
 )
 
@@ -90,6 +91,7 @@ class ClassicToolbar(QFrame):
         layout.setContentsMargins(5, 2, 5, 1)
         layout.setSpacing(3)
         for index, (title, first, second, lead, threshold) in enumerate(GROUPS):
+            divider = None
             if index:
                 divider = QFrame()
                 divider.setFrameShape(QFrame.Shape.VLine)
@@ -130,8 +132,17 @@ class ClassicToolbar(QFrame):
             label.setObjectName("classicGroup")
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             column.addWidget(label)
-            self.groups.append((label, lead_button, rows, row.spacing(), grid.spacing()))
+            menu = QMenu(label.text(), self)
+            for key in ((lead,) if lead else ()) + first + second:
+                menu.addAction(actions[key])
+            self.groups.append((group, divider, menu, label, lead_button, tuple(zip_longest(*rows))))
             layout.addWidget(group)
+        self.overflow = QToolButton()
+        self.overflow.setText(tr("theme.more"))
+        self.overflow.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.overflow.setMenu(QMenu(self.overflow))
+        layout.addWidget(self.overflow)
+        self.overflow.hide()
         layout.addStretch()
         self._set_density(0)
 
@@ -163,22 +174,52 @@ class ClassicToolbar(QFrame):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if event.oldSize().width() != event.size().width():
+            self._fit()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._fit()
+
+    def _fit(self):
+        count = len(self.groups)
         for density in (3, 2, 1, 0):
             self._set_density(density)
-            if self._content_width() <= event.size().width():
+            if self._content_width(count) <= self.width():
                 break
+        if density == 0:
+            while count and self._content_width(count) > self.width():
+                count -= 1
 
-    def _content_width(self):
+        menu = self.overflow.menu()
+        menu.clear()
+        for index, (group, divider, group_menu, *_sizes) in enumerate(self.groups):
+            visible = index < count
+            group.setVisible(visible)
+            if divider is not None:
+                divider.setVisible(visible)
+            if not visible:
+                menu.addMenu(group_menu)
+            else:
+                # Refresh the group's size hint before laying out the toolbar.
+                group.layout().activate()
+                group.updateGeometry()
+        self.overflow.setVisible(count < len(self.groups))
+        self.layout().invalidate()
+        self.layout().activate()
+
+    def _content_width(self, count):
         layout = self.layout()
         margins = layout.contentsMargins()
         width = margins.left() + margins.right()
-        separators = len(self.groups) - 1
-        width += separators + layout.spacing() * (len(self.groups) + separators)
-        for label, lead, rows, lead_gap, column_gap in self.groups:
-            columns = list(zip_longest(*rows))
-            grid = sum(max(button.width() for button in column if button is not None) for column in columns)
-            grid += column_gap * max(0, len(columns) - 1)
+        for _group, divider, _menu, label, lead, columns in self.groups[:count]:
+            grid = sum(max(button.minimumWidth() for button in column if button is not None) for column in columns)
+            grid += max(0, len(columns) - 1)  # Grid spacing.
             if lead is not None:
-                grid += lead.sizeHint().width() + lead_gap
-            width += max(label.sizeHint().width(), grid)
+                grid += lead.minimumWidth() + 2
+            width += max(label.sizeHint().width(), grid) + layout.spacing()
+            if divider is not None:
+                width += divider.sizeHint().width() + layout.spacing()
+        if count < len(self.groups):
+            width += self.overflow.sizeHint().width() + layout.spacing()
         return width

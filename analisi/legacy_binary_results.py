@@ -429,7 +429,9 @@ def restore_binary_results(data, sources, tables, cells, fonts, *, dose_curves=N
         tag == 0x46 and len(payload) == 1348 for entry in analyses.values() if entry
         for tag, payload in entry[0]
     )
-    classic_models = classic_fit_models(data) if has_model_settings else {}
+    report_polynomials = set()
+    classic_models = classic_fit_models(data, report_polynomials=report_polynomials) if has_model_settings else {}
+    polynomial_reports = dict.fromkeys(report_polynomials)
     unavailable = set()
     snapshots = {}
     may_have_dose_fits = False
@@ -506,7 +508,13 @@ def restore_binary_results(data, sources, tables, cells, fonts, *, dose_curves=N
                 "analysis_id": analysis_id, "sheet_id": sheet_id, "source_ids": list(source_ids),
                 "analysis_title": analysis_title, "sheet_title": title,
             }
-            _store_table(tables, f"Imported result · {title}", frame)
+            table_title = f"Imported result · {title}"
+            if analysis_id in polynomial_reports:
+                if mode == _TEXT_MODE and slot == 1:
+                    polynomial_reports[analysis_id] = frame
+                elif slot == 2 and view_kind in _CLASSIC_GENERATED_X:
+                    table_title += f" · {classic_models[analysis_id][0]}"
+            _store_table(tables, table_title, frame)
             cells += frame.size
             saved = True
             if sheet_id in snapshots or len(source_ids) != 1:
@@ -533,7 +541,8 @@ def restore_binary_results(data, sources, tables, cells, fonts, *, dose_curves=N
     if may_have_dose_fits or early_inputs or classic_models:
         restored = restore_dose_recipes(data, sources, sheets, snapshots, unavailable, curves=dose_curves,
                                         early_inputs=early_inputs, classic_models=classic_models,
-                                        classic_curves=classic_curves, calibration_curves=calibration_curves)
+                                        classic_curves=classic_curves, calibration_curves=calibration_curves,
+                                        polynomial_reports=polynomial_reports)
         unavailable.difference_update(restored)
     if global_curves is not None and unavailable:
         from .legacy_binary_global import global_candidates

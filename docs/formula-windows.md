@@ -4,6 +4,8 @@ Use **Calculated column** to assign a statistic to the rows of a data table. Add
 
 In a multiple-variables table, select a cell and press `=` to open the formula editor for that column. You can also type a complete formula into an empty variable. Use a column name or its worksheet letter, such as `A * 2`. When a name and a letter coincide, the name takes precedence. Trama saves the referenced column names so formulas keep the same inputs when new columns are inserted. Replacing an existing column's data requires confirmation, and Undo restores its values. Pasting cells keeps treating the clipboard contents as data.
 
+In the Qt interface, the editor opens beside the worksheet, or below it in a narrow window. The worksheet marks the columns referenced by the formula as you type. **Apply** saves the formula. **Cancel** or **Esc** discards the draft, as does leaving the worksheet.
+
 In the editor, search **Columns** by name or worksheet letter, or switch to **Functions** to see the arguments accepted by each function. Press Enter in the search or results, double-click a match, or use **Insert** to put it at the cursor. A column is inserted as a `COL()` reference, including any spaces or punctuation in its name. For a function, the cursor moves inside the parentheses so you can enter its arguments.
 
 ```text

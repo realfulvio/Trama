@@ -12,10 +12,10 @@ from PySide6.QtCore import QEvent, QSignalBlocker, QStringListModel, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboBox, QCompleter, QDialog, QFileDialog, QFrame,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
-                               QProgressBar, QPushButton, QScrollArea, QSplitter, QTabBar, QTabWidget, QToolBar,
-                               QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+                               QProgressBar, QPushButton, QScrollArea, QSplitter, QTabBar, QToolBar,
+                               QToolButton, QTreeWidget, QTreeWidgetItem, QTreeWidgetItemIterator, QVBoxLayout, QWidget)
 
-from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mean_permutation, parallel, power_plan, rmst
+from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power, mean_permutation, parallel, power_plan, rmst
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
@@ -57,6 +57,7 @@ from .flow import FlowLayout
 from .gallery import GalleryPage, g as gallery_text
 from .labels import method_label
 from .report_dialog import text as report_text
+from .result_tabs import ResultTabs
 from .models import WorksheetModel, column_label
 from .recovery import RecoveryDialog, RecoverySettingsDialog, r as recovery_text
 from .project import (DATA_SUFFIXES, OPEN_FILTER, LEGACY_GRAPH_METHODS, PROJECT_SUFFIXES, SAVED_VIEWS,
@@ -321,6 +322,7 @@ class MainWindow(QMainWindow):
         self.page = None
         self.plot_tools = None
         self.sheet = None
+        self.formula_editor = None
         self.result_tabs = None
         self.table_font = font_preference(config_path())
         self.table_zoom = 100
@@ -475,6 +477,8 @@ class MainWindow(QMainWindow):
         a("analyze", tr("ribbon.analyze"), self.analyze, icon="sigma", shortcut="Ctrl+Shift+A")
         a("power", tr("command.power"), lambda: self.analyze(method=power_plan.METHOD, only=power_plan.METHOD),
           icon="chart-line")
+        a("paired_power", tr("command.paired_power"),
+          lambda: self.analyze(method=mcnemar_power.METHOD, only=mcnemar_power.METHOD), icon="chart-line")
         a("simulate", tr("command.simulate"), self.simulate_data, icon="table-2")
         a("monte_carlo", tr("command.monte_carlo"), lambda: self.analyze(method=MONTE_CARLO, only=MONTE_CARLO),
           icon="sigma")
@@ -489,6 +493,8 @@ class MainWindow(QMainWindow):
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
         from .graph_style_preset_dialog import t as preset_text
         a("graph_style_presets", preset_text("action"), self.graph_style_presets, icon="sparkles")
+        from .batch_figure_styles_dialog import t as batch_style_text
+        a("batch_figure_styles", batch_style_text("action"), self.batch_figure_styles, icon="sparkles")
         a("inspector", tr("graph.inspector.title"), self.toggle_inspector, icon="paintbrush", shortcut="Ctrl+Shift+I")
         a("annotations", tr("command.graph_annotations"), self.edit_annotations, icon="type")
         a("shapes", tr("shape.button"), self.edit_shapes, icon="shapes")
@@ -578,6 +584,8 @@ class MainWindow(QMainWindow):
         self.navigator.setIconSize(theme.icon_size(16))
         self.navigator.itemClicked.connect(self._navigate)
         self.navigator.itemActivated.connect(self._navigate)
+        self.navigator.itemExpanded.connect(lambda item: self._remember_folder(item, True))
+        self.navigator.itemCollapsed.connect(lambda item: self._remember_folder(item, False))
         self.navigator.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.navigator.customContextMenuRequested.connect(self._navigator_menu)
         nav_layout.addWidget(self.navigator)
@@ -809,6 +817,8 @@ class MainWindow(QMainWindow):
         data = kind == "data"
         editable = data and not stored_legacy_view(self.project.tables[self.selected[1]])
         idle = self.job is None
+        if self.formula_editor is not None:
+            self.formula_editor.apply_button.setEnabled(idle)
         self.gallery_button.setVisible(self.gallery is None)
         self.sheet_picker.setEnabled(idle and self.sheet_picker.count() > 0)
         sections = {kind for kind, _ in self.sheet_refs.values()}
@@ -845,6 +855,8 @@ class MainWindow(QMainWindow):
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
         self.actions["graph_style_presets"].setEnabled(graph and idle)
+        from .gallery_catalog import graph_runs
+        self.actions["batch_figure_styles"].setEnabled(idle and bool(graph_runs(self.project)))
         self.actions["inspector"].setEnabled(graph and idle)
         self.actions["worksheet_preview"].setEnabled(data and idle)
         if data and self.page is not None and self.page.worksheet_preview is not None:
@@ -877,17 +889,18 @@ class MainWindow(QMainWindow):
         for key in ("analyze", "new_graph", "descriptive", "ttest", "anova", "correlation", "linear", "nonlinear",
                     "survival", "contingency", "correlation_matrix", "monte_carlo", "transpose_xy"):
             self.actions[key].setEnabled(has_data and idle)
-        for key in ("power", "simulate", "plot_function", "paste_table", "load_example", "new_table", "new_info"):
+        for key in ("power", "paired_power", "simulate", "plot_function", "paste_table", "load_example",
+                    "new_table", "new_info"):
             self.actions[key].setEnabled(idle)
-        shape_run = self.drawing.history_run()  # On a graph with drawing steps, Undo/Redo belong to that graph.
-        history = shape_run.shape_history if shape_run is not None else self.project.history
         if kind == "info" and self.info_editor is not None:
             doc = self.info_editor.notes.document()
             self.actions["undo"].setEnabled(idle and doc.isUndoAvailable())
             self.actions["redo"].setEnabled(idle and doc.isRedoAvailable())
         else:
-            self.actions["undo"].setEnabled(idle and self.gallery is None and history.can_apply())
-            self.actions["redo"].setEnabled(idle and self.gallery is None and history.can_apply(redo=True))
+            undo_source = self._history_target(redo=False)
+            redo_source = self._history_target(redo=True)
+            self.actions["undo"].setEnabled(idle and self.gallery is None and undo_source is not None)
+            self.actions["redo"].setEnabled(idle and self.gallery is None and redo_source is not None)
         for key in ("open", "import", "new_project", "save", "save_as", "close_project", "import_excel"):
             self.actions[key].setEnabled(idle)
         self.actions["export_excel"].setEnabled(idle and bool(self.project.tables or self.project.runs))
@@ -908,6 +921,40 @@ class MainWindow(QMainWindow):
         self.drawing.sync()
 
     # == navigator ================================================================================
+    def _navigator_folders(self):
+        iterator = QTreeWidgetItemIterator(self.navigator, QTreeWidgetItemIterator.IteratorFlag.HasChildren)
+        while (item := iterator.value()) is not None:
+            yield item
+            iterator += 1
+
+    def _folder_key(self, item):
+        path = []
+        while item is not None:
+            ref = item.data(0, Qt.ItemDataRole.UserRole)
+            path.append(self._sheet_identity(tuple(ref)) if ref else item.text(0))
+            item = item.parent()
+        return tuple(reversed(path))
+
+    def _remember_folder(self, item, expanded):
+        if item is not self.search_results:
+            collapsed = self.sessions.active.collapsed_folders
+            key = self._folder_key(item)
+            if expanded:
+                collapsed.discard(key)
+            else:
+                collapsed.add(key)
+
+    def expand_navigator(self, expanded):
+        collapsed = self.sessions.active.collapsed_folders
+        with QSignalBlocker(self.navigator):
+            if expanded:
+                collapsed.clear()
+                self.navigator.expandAll()
+            else:
+                for item in self._navigator_folders():
+                    self._remember_folder(item, False)
+                self.navigator.collapseAll()
+
     def _section(self, title):
         item = QTreeWidgetItem([title])
         item.setFlags(Qt.ItemFlag.ItemIsEnabled)
@@ -996,6 +1043,7 @@ class MainWindow(QMainWindow):
         graphs = [(index, run) for index, run in enumerate(project.runs)
                   if run_view(run.method) == "graph" or (run.method not in ANALYSIS_GRAPH_OPTIONS and run.method in GRAPH_METHODS)
                   or (run.result is None and run.method == power_plan.METHOD and run.options.get(power_plan.SHOW_CURVE))
+                  or (run.result is None and run.method == mcnemar_power.METHOD and run.options.get(mcnemar_power.GRAPH))
                   or (run.result is None and run.method == TOLERANCE and run.options.get(TOLERANCE_GRAPH))
                   or (run.result is None and shows_paired_estimation(run.method, run.options))
                   or (run.result is None and run.method in ANALYSIS_GRAPH_OPTIONS
@@ -1035,7 +1083,12 @@ class MainWindow(QMainWindow):
                                       (report, "new_analysis", "analyze"), (graph, "new_graph", "new_graph"),
                                       (layout, "new_layout", "new_layout")):
             self._new_sheet_entry(parent, label, action)
-        self.navigator.expandAll()
+        collapsed = self.sessions.active.collapsed_folders
+        if collapsed:
+            for item in self._navigator_folders():
+                item.setExpanded(self._folder_key(item) not in collapsed)
+        else:
+            self.navigator.expandAll()
         self.navigator.blockSignals(False)
         with QSignalBlocker(self.sheet_search):
             self.sheet_search.setText(self.sessions.active.sheet_filter)
@@ -1143,7 +1196,11 @@ class MainWindow(QMainWindow):
             menu.addSeparator()
             menu.addAction(self.actions["duplicate_family"])
             menu.addAction(self.actions["save_family"])
-        menu.exec(self.navigator.viewport().mapToGlobal(position))
+        menu.addSeparator()
+        menu.addAction(tr("nav.expand_all"), lambda: self.expand_navigator(True))
+        menu.addAction(tr("nav.collapse_all"), lambda: self.expand_navigator(False))
+        menu.aboutToHide.connect(menu.deleteLater)
+        menu.popup(self.navigator.viewport().mapToGlobal(position))
 
     # == gallery ==================================================================================
     def toggle_gallery(self):
@@ -1223,6 +1280,7 @@ class MainWindow(QMainWindow):
     # == pages ====================================================================================
     def _replace_page(self, page):
         self._drop_gallery()
+        self.formula_editor = None  # The editor belongs to the old worksheet page.
         if self.page is not None:
             self.page.release()
             self.page_layout.removeWidget(self.page)
@@ -1259,6 +1317,9 @@ class MainWindow(QMainWindow):
         self.refresh()
 
     def open_sheet(self, ref):
+        if self.formula_editor is not None and self.gallery is None and ref == self.selected:
+            self.sheet.setFocus()
+            return
         kind, key = ref
         self.show_sheet(kind, key)
         if kind in {"result", "graph", "saved-layout"} and self.project.runs[key].result is None and self.job is None:
@@ -1269,9 +1330,6 @@ class MainWindow(QMainWindow):
                 self.refresh_runs(runs)
 
     def show_sheet(self, kind, key):
-        self.toolbar.show()
-        self.nav_card.setVisible(self.navigator_open)
-        self.statusBar().show()
         self.plot_tools = None
         self.drawing.detach()  # Closes a pointer preview; the new graph page attaches its own canvas.
         self.dispose_inspector()  # Before the new page builds its own panel.
@@ -1291,6 +1349,9 @@ class MainWindow(QMainWindow):
         else:
             page = self._run_page(kind, key)
         self._replace_page(page)
+        self.toolbar.show()
+        self.nav_card.setVisible(self.navigator_open)
+        self.statusBar().show()
         self.refresh()
         if self.sheet is not None:
             self.sheet.setFocus()
@@ -1303,6 +1364,8 @@ class MainWindow(QMainWindow):
             self.sheet.model().reload()
             if current.isValid():
                 self.sheet.setCurrentIndex(self.sheet.model().index(current.row(), current.column()))
+            if self.formula_editor is not None:
+                self._highlight_formula_references()
             self.refresh()
         else:
             self.show_sheet(*self.selected)
@@ -1325,7 +1388,11 @@ class MainWindow(QMainWindow):
         self.sheet = WorksheetView(model, self)
         if self.table_font != ("", None) or self.table_zoom != 100:
             set_table_appearance(self.sheet, self.table_font, self.table_zoom)
-        page.worksheet_preview = page.add(WorksheetPreview(self, title, self.sheet))
+        page.worksheet_split = page.add(QSplitter(Qt.Orientation.Horizontal))
+        page.worksheet_split.setChildrenCollapsible(False)
+        page.worksheet_preview = WorksheetPreview(self, title, self.sheet)
+        page.worksheet_split.addWidget(page.worksheet_preview)
+        page.worksheet_split.setStretchFactor(0, 1)
         self.sheet.setCurrentIndex(model.index(0, 0))
         return page
 
@@ -1754,8 +1821,8 @@ class MainWindow(QMainWindow):
         if result.style_warning:
             page.notice(result.style_warning)
         if kind == "result":
-            self.result_tabs = QTabWidget()
-            self.result_tabs.setDocumentMode(True)
+            results = ResultTabs()
+            self.result_tabs = results.tabs
             for title, frame in result.tables.items():
                 formatters = ({"Threshold": threshold_text} if threshold_text and run.method == "ROC curve"
                               and title == "Diagnostic thresholds" else None)
@@ -1764,8 +1831,8 @@ class MainWindow(QMainWindow):
                 view = FrameView(frame, formatters, backgrounds=backgrounds, number_formats=number_formats)
                 if self.table_font != ("", None) or self.table_zoom != 100:
                     set_table_appearance(view, self.table_font, self.table_zoom)
-                self.result_tabs.addTab(view, str(title))
-            page.add(self.result_tabs, 1)
+                results.add_table(view, str(title))
+            page.add(results, 1)
         elif result.figure is not None:
             try:
                 from analisi.pairwise_graph import pairwise_warning
@@ -1928,7 +1995,7 @@ class MainWindow(QMainWindow):
     def edit_formula(self, name=None):
         """Formula…: a new calculated column, or the one selected (or double-clicked) to change."""
         title = self._active_table()
-        if title is None or self.busy():
+        if title is None or self.sheet is None or self.sheet.model().read_only:
             return
         dataset = self.project.tables[title]
         if name is None and self.sheet is not None:
@@ -1938,31 +2005,66 @@ class MainWindow(QMainWindow):
                 selected = columns[current.column()]
                 if selected in dataset.formulas:
                     name = selected
-        from .formula import FormulaDialog
-        dialog = FormulaDialog(self, dataset, name or "")
-        if dialog.exec() != FormulaDialog.DialogCode.Accepted or dialog.result is None:
-            return
-        column, expression = dialog.result
-        self._apply_edit(title, lambda: self.project.set_formula(title, column, expression))
+        self._open_formula_editor(title, dataset, name or "")
 
     def edit_formula_in_column(self, column):
         title = self._active_table()
-        if title is None:
+        if title is None or self.sheet is None or self.sheet.model().read_only:
             return True
         dataset = self.project.tables[title]
         if not dataset.can_enter_formula(column):
             return False
-        from .formula import FormulaDialog
-        dialog = FormulaDialog(self, dataset, column=column)
-        try:
-            if dialog.exec() == FormulaDialog.DialogCode.Accepted and dialog.result is not None:
-                _, expression = dialog.result
-                self._apply_edit(title, lambda: self.project.edit(
-                    title, "Edit formula", lambda table: table.set_worksheet_formula(
-                        column, expression, replace_values=dialog.replace_values)))
-        finally:
-            dialog.deleteLater()
+        self._open_formula_editor(title, dataset, column=column)
         return True
+
+    def _open_formula_editor(self, title, dataset, name="", *, column=None):
+        from .formula import FormulaEditor
+
+        if self.formula_editor is not None:
+            self.formula_editor.focus_input()
+            return
+        panel = self.formula_editor = FormulaEditor(dataset, name, column=column)
+        split = self.page.worksheet_split
+        compact = split.width() < 560
+        split.setOrientation(Qt.Orientation.Vertical if compact else Qt.Orientation.Horizontal)
+        split.addWidget(panel)
+        split.setStretchFactor(1, 0)
+        if compact:
+            split.setSizes([max(96, split.height() // 3), split.height() * 2 // 3])
+        else:
+            split.setSizes([split.width() - 318, 318])
+        panel.expression.textChanged.connect(self._highlight_formula_references)
+        panel.apply_requested.connect(lambda: self._apply_formula_editor(title, panel))
+        panel.cancelled.connect(self._close_formula_editor)
+        self._highlight_formula_references()
+        panel.focus_input()
+
+    def _highlight_formula_references(self):
+        self.sheet.highlight_formula_columns(self.formula_editor.referenced_columns())
+
+    def _close_formula_editor(self):
+        panel, self.formula_editor = self.formula_editor, None
+        panel.hide()
+        panel.setParent(None)
+        panel.deleteLater()
+        self.sheet.highlight_formula_columns(())
+        self.sheet.setFocus()
+
+    def _apply_formula_editor(self, title, panel):
+        if (self.formula_editor is not panel or self.gallery is not None or self.selected != ("data", title)
+                or self.project.tables.get(title) is not panel.dataset or self.busy()):
+            return
+        values = panel.validated_formula()
+        if values is None:
+            return
+        name, expression = values
+        self._close_formula_editor()
+        if panel.column is None:
+            self._apply_edit(title, lambda: self.project.set_formula(title, name, expression))
+        else:
+            self._apply_edit(title, lambda: self.project.edit(
+                title, "Edit formula", lambda table: table.set_worksheet_formula(
+                    panel.column, expression, replace_values=panel.replace_values)))
 
     def freeze_worksheet_formula(self, column):
         title = self._active_table()
@@ -1982,6 +2084,26 @@ class MainWindow(QMainWindow):
         cells = [(row, column) for row in range(top, bottom + 1) for column in range(left, right + 1)]
         self._apply_edit(title, lambda: self.project.toggle_exclusion(title, cells))
 
+    def _history_target(self, *, redo=False):
+        """Return ``('shape', run)`` or ``('project', None)`` for Undo/Redo, or ``None`` if unavailable."""
+        from .project import StyleBatchChange
+
+        shape_run = self.drawing.history_run()
+        proj_change = self.project.history.next_change(redo=redo)
+        if shape_run is not None:
+            shape_hist = shape_run.shape_history
+            shape_can = shape_hist.can_apply(redo=redo)
+            if isinstance(proj_change, StyleBatchChange):
+                if not shape_can:
+                    return ("project", None)
+                seqs = getattr(shape_hist, "_trama_seqs", ())
+                idx = shape_hist.position if redo else shape_hist.position - 1
+                shape_seq = seqs[idx] if 0 <= idx < len(seqs) else 0
+                if (proj_change.seq <= shape_seq) if redo else (proj_change.seq > shape_seq):
+                    return ("project", None)
+            return ("shape", shape_run) if shape_can else None
+        return ("project", None) if proj_change is not None else None
+
     def undo(self, *, redo=False):
         if self.gallery is not None or self.busy():
             return
@@ -1992,14 +2114,28 @@ class MainWindow(QMainWindow):
                 self.info_editor.notes.undo()
             self.info_editor.flush()
             return
-        shape_run = self.drawing.history_run()
-        if shape_run is not None:
+        target = self._history_target(redo=redo)
+        if target is None:
+            return
+        source, shape_run = target
+        if source == "shape":
             self.drawing.apply_history(shape_run, redo=redo)
             return
+        from .project import StyleBatchChange
+        if isinstance(self.project.history.next_change(redo=redo), StyleBatchChange):
+            if not self.settle_graph_draft():
+                return
         try:
             title, affected = self.project.undo(redo=redo)
         except (ValueError, TypeError, OverflowError) as error:
             self.error(error)
+            return
+        if self.project.undo_style_uids:
+            from .batch_figure_styles_dialog import t as batch_style_text
+            self._after_style_batch(
+                self.project.undo_style_uids,
+                batch_style_text("redone" if redo else "undone", count=len(self.project.undo_style_uids)),
+            )
             return
         if title is None:
             return
@@ -2109,7 +2245,8 @@ class MainWindow(QMainWindow):
     def analyze(self, method=None, only=None):
         if self.busy():
             return
-        title, frame = self._analysis_input(allow_empty=method in {power_plan.METHOD, PLOT_FUNCTION})
+        title, frame = self._analysis_input(allow_empty=method in {power_plan.METHOD, mcnemar_power.METHOD,
+                                                                  PLOT_FUNCTION})
         if frame is None:
             return
         current = (method, {}) if method else None
@@ -2140,7 +2277,12 @@ class MainWindow(QMainWindow):
         method, options = dialog.result
         try:
             if title is None:
-                name = tr("power.sheet") if method == power_plan.METHOD else method_label(method)
+                if method == power_plan.METHOD:
+                    name = tr("power.sheet")
+                elif method == mcnemar_power.METHOD:
+                    name = tr("mcnemar.power.sheet")
+                else:
+                    name = method_label(method)
                 candidate = Run(method, self.project.unique_title(name), options)
             else:
                 candidate = self.project.candidate(title, method, options, index=index,
@@ -2312,6 +2454,66 @@ class MainWindow(QMainWindow):
         self.commit_style(run, style)
         self.show_sheet(*self.selected)
         self.status(preset_text("applied"))
+
+    def _after_style_batch(self, changed_uids, status_text):
+        """Refresh the visible sheet, Inspector, gallery or layout after a batch style commit/undo/redo."""
+        if self.gallery is not None:
+            self.gallery.sync()
+        elif self.selected is not None and self.selected[0] in {"graph", "layout"}:
+            self.show_sheet(*self.selected)
+        elif (self.selected is not None and self.selected[0] == "data" and self.page is not None
+              and self.page.worksheet_preview is not None and self.page.worksheet_preview.enabled):
+            self.page.worksheet_preview.refresh()
+        self.update_title()
+        self.update_actions()
+        if status_text:
+            self.status(status_text)
+
+    def batch_figure_styles(self):
+        """Change → Apply style to multiple graphs…: apply one saved style atomically to chosen graphs."""
+        from .batch_figure_styles_dialog import (BatchFigureStylesDialog, batch_message, batch_style_rows,
+                                                 format_summary, t as batch_style_text)
+        from .graph_style_presets import PresetLibrary
+
+        if self.busy():
+            return
+        if not self.settle_graph_draft():
+            return
+        project = self.project
+        rows = batch_style_rows(project)
+        if not rows:
+            self.error(batch_style_text("no_graphs"))
+            return
+        current_uid = None
+        if self.gallery is None and self.selected and self.selected[0] == "graph":
+            current_uid = project.runs[self.selected[1]].uid
+        expected = {
+            row.uid: (row.run, row.run.result,
+                      row.run.result.figure if row.run.result is not None else None,
+                      deepcopy(row.run.style or {}))
+            for row in rows if row.eligible
+        }
+        dialog = BatchFigureStylesDialog(self, project, rows, PresetLibrary(), current_uid=current_uid)
+        accepted = dialog.exec() == BatchFigureStylesDialog.DialogCode.Accepted and dialog.result is not None
+        payload = dialog.result
+        dialog.deleteLater()
+        if not accepted:
+            return
+        if self.project is not project or self.busy():
+            self.error(batch_style_text("changed"))
+            return
+        selected_uids, preset = payload
+        try:
+            outcome = project.commit_style_batch(selected_uids, preset, expected=expected)
+        except Exception as error:  # noqa: BLE001 - report validation or figure failure without partial writes
+            self.error(batch_message(error))
+            return
+        summary = format_summary(outcome)
+        self.last_batch_style_summary = summary
+        if outcome.changed_uids:
+            self._after_style_batch(outcome.changed_uids, summary)
+        else:
+            self.status(summary)
 
     def _figure_canvas(self, figure):
         """The canvas that shows ``figure`` on the active page, if any."""

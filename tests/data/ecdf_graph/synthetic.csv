@@ -1,0 +1,19 @@
+Series A,Series B,Constant,Empty,Long X,Long Group
+-1.5,0.0,4.0,,-1.5,Control
+0.0,0.0,4.0,,0.0,Control
+0.0,1.0,4.0,,0.0,Control
+2.0,1.0,4.0,,2.0,Control
+3.5,1.0,4.0,,3.5,Control
+,3.0,4.0,,0.0,Treated
+2.0,4.5,,,0.0,Treated
+5.0,4.5,,,1.0,Treated
+,,,,1.0,Treated
+,,,,1.0,Treated
+,,,,3.0,Treated
+,,,,4.5,Treated
+,,,,4.5,Treated
+,,,,4.0,Constant
+,,,,4.0,Constant
+,,,,4.0,Constant
+,,,,,Empty
+,,,,,Empty

@@ -1,6 +1,6 @@
 """Reopen verified saved simulations as native function plots."""
 from hashlib import sha256
-from struct import error as StructError, unpack
+from struct import error as StructError, unpack, unpack_from
 
 import numpy as np
 
@@ -38,16 +38,25 @@ _OVERLAID_SURVIVAL = {
     10: _FRACTIONAL_DEATH, 11: _PERCENT_DEATH, 12: _DEATH_COUNT,
 }
 _FORMATTED_PROFILES = {
-    0: (_DISSOCIATION, (1, 251, 0, 65535, 0)),
-    3: (_DEPLETION, (0, 127, 1, 65535, 0)),
-    5: (_TWO_SITE_KI, (0, 127, 0, 65535, 0)),
-    9: (_SPECIFIC_BINDING, _SIMULATION_FLAGS),
-    10: (_TOTAL_BINDING, _SIMULATION_FLAGS),
-    17: (_COMPETITION_KI, _SIMULATION_FLAGS),
-    19: (_HOMOLOGOUS, _SIMULATION_FLAGS),
-    22: (_COMPETITION_IC50, _SIMULATION_FLAGS),
-    23: (_TWO_SITE_IC50, (0, 127, 1, 65535, 0)),
+    (0, 1, 251, 0, 65535, 0): {_DISSOCIATION},
+    (3, 0, 127, 1, 65535, 0): {_DEPLETION},
+    (5, 0, 127, 0, 65535, 0): {_TWO_SITE_KI},
+    (23, 0, 127, 1, 65535, 0): {_TWO_SITE_IC50},
+    (0, *_SIMULATION_FLAGS): {"Standard sine wave", "Gaussian"},
+    (1, *_SIMULATION_FLAGS): {"Damped sine wave", "Sum of two Gaussians"},
+    (2, *_SIMULATION_FLAGS): {"Sinc wave", "Lognormal"},
+    (3, *_SIMULATION_FLAGS): {"Lorentzian"},
+    (4, *_SIMULATION_FLAGS): {"Sum of two Lorentzians"},
+    (5, *_SIMULATION_FLAGS): {"Michaelis–Menten"},
+    (8, *_SIMULATION_FLAGS): {"Horizontal line"},
+    (9, *_SIMULATION_FLAGS): {_SPECIFIC_BINDING, "Line through origin"},
+    (10, *_SIMULATION_FLAGS): {_TOTAL_BINDING, _ALLOSTERIC_ENZYME, "Line through point"},
+    (17, *_SIMULATION_FLAGS): {_COMPETITION_KI},
+    (19, *_SIMULATION_FLAGS): {_HOMOLOGOUS},
+    (22, *_SIMULATION_FLAGS): {_COMPETITION_IC50},
 }
+_FORMATTED_MODELS = frozenset().union(*_FORMATTED_PROFILES.values())
+_DECLARED_GRID_MODELS = {"Gaussian", "Sum of two Gaussians", "Lognormal", "Sum of two Lorentzians"}
 _NAMED_EQUATIONS = {
     "a9d69436efab589f74b9fbf5aa684f0128337d902e0b221fb83caeb79f5e3a4a": (
         _SURVIVAL_FRACTION, {"A": "Alpha", "B": "Beta"}),
@@ -86,6 +95,36 @@ _NAMED_EQUATIONS = {
         _COMPETITION_IC50, {"Bottom": "Bottom", "Top": "Top", "LogIC50": "Log IC50"}),
     "60d17593fba6729dcd60c948fc26226cce592a039febad591a1d9f85c5388516": (
         _HOMOLOGOUS, {"logKD": "Log Kd", "NS": "NS", "HotnM": "Hot (nM)", "Bmax": "Bmax"}),
+    "dbda4d94c4648611be5161e89749097e30f67085ce1ec0402d4b70b52d09996c": (
+        "Gaussian", {"Amplitude": "Amplitude", "Mean": "Mean", "SD": "SD"}),
+    "d438b8d091500216d510807fc70c6944259d2d0ad07999b070a0531751b83774": (
+        "Sum of two Gaussians", {"Amplitude1": "Amplitude 1", "Mean1": "Mean 1", "SD1": "SD 1",
+                                 "Amplitude2": "Amplitude 2", "Mean2": "Mean 2", "SD2": "SD 2"}),
+    "4979a83ac511b4c56729412b5603ab2eba8769c53581aa8e47ef71b7a34f3618": (
+        "Lognormal", {"A": "A", "GeoMean": "Geometric mean", "GeoSD": "Geometric SD"}),
+    "8ee1836a0e73085adc9adb4127c488b7599d253054ae9463128fde713917deda": (
+        "Sum of two Lorentzians", {"Amplitude1": "Amplitude 1", "Center1": "Center 1", "Width1": "Width 1",
+                                  "Amplitude2": "Amplitude 2", "Center2": "Center 2", "Width2": "Width 2"}),
+    "476fb86104d483a19ca6cbee2bed7e71a19d3183e258af5693a29aea535bad61": (
+        "Lorentzian", {"Amplitude": "Amplitude", "Center": "Center", "Width": "Width"}),
+    "815459ba61f23339bb9266b8c03de833e7c77f2f4365d0cdee7048865c6e35ff": (
+        "Michaelis–Menten", {"Vmax": "Vmax", "Km": "Km"}),
+    "6d399f9031452f5f4bdd6f4606683941679687147d6029fe8d5c11387b72f6d4": (
+        "Line through point", {"Slope": "Slope", "X0": "X0", "Y0": "Y0"}),
+    "4ecede9a8e8470e7b2fd0631932ad987feb5c8af238adac7d340b11231c6afa3": (
+        "Line through origin", {"Slope": "Slope"}),
+    "ccd2f187fac5c1c65c04c49a0a4f08d40337168fdb11e1c1cc99c1da8648c0ad": (
+        "Horizontal line", {"Mean": "Mean"}),
+    "36bde89735288a35bcae028ef37ae711aed7085605883cc1e9eebd92faaae014": (
+        "Standard sine wave", {"Amplitude": "Amplitude", "Wavelength": "Wavelength", "PhaseShift": "Phase shift"}),
+    "584bf12c199fe72ffa2ef7947a92654c7e2032730a359180fa0ab8a0931ecaee": (
+        "Damped sine wave", {"Amplitude": "Amplitude", "Wavelength": "Wavelength", "PhaseShift": "Phase shift",
+                             "K": "Rate"}),
+    "9ec682a65b35da6230956c588251bd6774059fbf85af5b46bf53a40b77905aaa": (
+        "Sinc wave", {"Amplitude": "Amplitude", "Wavelength": "Wavelength"}),
+    "c49eca20bb758166dbd58b3a3becbdf8ef1580eef56232919a3d5a55ee190e60": (
+        "Sine wave with baseline", {"Amplitude": "Amplitude", "Wavelength": "Wavelength",
+                                   "PhaseShift": "Phase shift", "Baseline": "Baseline"}),
 }
 _SINGLE_PRECISION = float(np.finfo(np.float32).eps)
 
@@ -94,7 +133,7 @@ def _decode_equation(expression):
     text = bytes(_one(expression, 0x49)).rstrip(b"\r\n\0").decode("ascii")
     signature = sha256("".join(text.split()).encode("ascii")).hexdigest()
     payload = _one(expression, 0x54)
-    _require(len(payload) in (16, 24, 32, 40, 56, 64))
+    _require(len(payload) in (8, 16, 24, 32, 40, 48, 56, 64))
     values = unpack(f"<{len(payload) // 8}d", payload)
     raw_names = bytes(_one(expression, 0x53)).split(b"\0", len(values))
     _require(len(raw_names) == len(values) + 1 and np.isfinite(values).all())
@@ -115,6 +154,25 @@ def _decode_equation(expression):
     else:
         raise ValueError("The saved simulation equation is not supported.")
     return model, native
+
+
+def _simulation_grid(records, x, model):
+    if model not in _DECLARED_GRID_MODELS:
+        return x
+    settings = _one(records, 0x46)
+    _require(len(settings) == 1348)
+    segments, low, high = unpack_from("<3d", settings, 1100)
+    _require(segments == len(x) - 1 and segments >= 2 and np.isfinite([low, high]).all() and low < high)
+    # The generator settings store the actual bounds. The table stores a
+    # single-precision copy of the origin and step, even for double-precision Y.
+    with np.errstate(over="ignore", invalid="ignore"):
+        origin = float(np.float32(low))
+        step = float(np.float32((high - low) / segments))
+        encoded = origin + np.arange(len(x)) * step
+    _require(np.array_equal(x, encoded))
+    grid = np.linspace(low, high, len(x))
+    _require((np.diff(grid) > 0).all())
+    return grid
 
 
 def _simulation_options(records, frame):
@@ -145,14 +203,13 @@ def _simulation_options(records, frame):
     options = {plotting.MODEL: model, plotting.X_SOURCE: plotting.WORKSHEET, plotting.X_COLUMN: x_column,
                plotting.CURVES: [curves[index] for index in range(count)]}
     checked = plotting.check_curves(model, options[plotting.CURVES])
-    x = plotting.worksheet_grid(frame, options, count)
+    x = _simulation_grid(records, plotting.worksheet_grid(frame, options, count), model)
     plotting.check_domain(model, x, plotting.X_COLUMN)
     # Older two-site curves round both the X step and the stored response to single precision.
     if model in (_TWO_SITE_KI, _TWO_SITE_IC50):
         tolerance = 4 * _SINGLE_PRECISION
     else:
-        formatted = model == _ALLOSTERIC_ENZYME or any(model == name for name, _ in _FORMATTED_PROFILES.values())
-        tolerance = _SINGLE_PRECISION if formatted else 3e-8
+        tolerance = _SINGLE_PRECISION if model in _FORMATTED_MODELS else 3e-8
     for name, parameters in checked:
         observed = frame[name].to_numpy(dtype=float)
         _require(x.shape == observed.shape and np.isfinite(observed).all()
@@ -301,17 +358,17 @@ def read_simulation_graphs(data, result_frames, graph_ids, remaining_cells, *, o
             kind = unpack("<8H", _one(records, 0x3A))
             _require(not has_empty_slot or kind == (15, 255, 7, *_SIMULATION_FLAGS))
             formatted_asymmetric = kind == (15, 0, 14, *_SIMULATION_FLAGS)
-            profile, flags = (_FORMATTED_PROFILES.get(kind[2], (None, _SIMULATION_FLAGS))
-                              if kind[:2] == (15, 0) else (None, _SIMULATION_FLAGS))
+            profiles = _FORMATTED_PROFILES.get(kind[2:], ()) if kind[:2] == (15, 0) else ()
+            dissociation = _DISSOCIATION in profiles
             sources = samples.attrs["legacy_binary_result"]["source_ids"]
             input_links = _one(records, 0x3B)
-            if profile == _DISSOCIATION:
+            if dissociation:
                 # This generator stores a worksheet reference and its own fixed coefficients.
                 _require(len(sources) == 1 and sources[0] in indexed and _id_array(input_links) == sources)
             else:
                 _require(not sources and input_links == bytes(4))
-            _require((kind[:2] == (15, 255) or profile is not None or formatted_asymmetric)
-                     and kind[3:] == flags
+            standalone = kind[:2] == (15, 255) and kind[3:] == _SIMULATION_FLAGS
+            _require((standalone or profiles or formatted_asymmetric)
                      and unpack("<11i", _one(records, 0x3C)) == (10, sheet, *([-1] * 9)))
             columns = _column_ids(sheets[sheet][0])
             expected_links = tuple(_dataset_link(sheets[sheet], column, 40) for column in columns)
@@ -332,23 +389,23 @@ def read_simulation_graphs(data, result_frames, graph_ids, remaining_cells, *, o
                      and unpack("<H", links[:2]) == (total,))
             graph_links = tuple(_GRAPH_SERIES.iter_unpack(links[2:]))
             empty_series = ()
-            if (profile == _TWO_SITE_KI and count == 1 and total == 2
+            if (_TWO_SITE_KI in profiles and count == 1 and total == 2
                     and graph_links[1][:2] == (-1, -1) and graph_links[1][2] >= 0):
                 empty_series = series[1:]
                 series = series[:1]
                 graph_links = graph_links[:1]
             _require(count == samples.shape[1] - 1 == len(series))
             _require(tuple(link[0] for link in graph_links) == columns)
+            options = _simulation_options(records, samples)
+            # A local slot can represent different equations in different projects.
+            profile = options[plotting.MODEL] if profiles else None
+            _require(not profiles or profile in profiles)
+            _require(not formatted_asymmetric or options[plotting.MODEL] == _ASYMMETRIC_MODEL)
             texts, _, _, drawn = _scene(graph, encoding, empty_series=empty_series,
-                                        curve_drawing=0x80 if profile == _DISSOCIATION else 0x88)
+                                        curve_drawing=0x80 if dissociation else 0x88,
+                                        annotated=profile == "Gaussian")
             _require(drawn.keys() == set(series) and tuple(drawn[key][0] for key in series) == columns)
             axes = _axis_config(graph, viewport_only=True)
-            options = _simulation_options(records, samples)
-            # Two saved generators share this local slot number and flag set.
-            if profile == _TOTAL_BINDING and options[plotting.MODEL] == _ALLOSTERIC_ENZYME:
-                profile = _ALLOSTERIC_ENZYME
-            _require(profile is None or options[plotting.MODEL] == profile)
-            _require(not formatted_asymmetric or options[plotting.MODEL] == _ASYMMETRIC_MODEL)
             if profile in (_COMPETITION_KI, _COMPETITION_IC50):
                 (_, y_revision, x_revision), = graph_links
                 (_, expected_y, expected_x), = expected_links
@@ -360,7 +417,8 @@ def read_simulation_graphs(data, result_frames, graph_ids, remaining_cells, *, o
                 _require(y >= dy and x >= dx and graph_links == ((dataset, y - dy, x - dx),))
                 grid = _resampled_drawing_grid(samples, drawn[series[0]][1], axes, options)
             else:
-                points = samples.to_numpy(dtype=float)
+                points = samples.to_numpy(dtype=float, copy=True)
+                points[:, 0] = _simulation_grid(records, points[:, 0], options[plotting.MODEL])
                 # The older simulation drawing can have different revisions of the same
                 # linked data set. Match every point to the verified table in either case.
                 revisions_match = graph_links == expected_links or (
@@ -369,6 +427,7 @@ def read_simulation_graphs(data, result_frames, graph_ids, remaining_cells, *, o
                     _matches_drawing(drawn[key][1], points[:, [0, index]], axes)
                     for index, key in enumerate(series, 1)))
                 grid = samples[[options[plotting.X_COLUMN]]].copy()
+                grid[options[plotting.X_COLUMN]] = points[:, 0]
             style = _graph_style(axes, texts, hidden=count == 1)
         except (KeyError, TypeError, ValueError, StructError, OverflowError):
             continue

@@ -429,8 +429,10 @@ def _double_peak_initial(x, y):
 
 
 def _lognormal(x, a, geomean, geosd):
-    logx = np.log(x)
-    return a * np.exp(-.5 * ((logx - np.log(geomean)) / np.log(geosd))**2 - logx)
+    # The density extends to zero by its right-hand limit.
+    at_zero = x == 0
+    logx = np.log(np.where(at_zero, 1., x))
+    return np.where(at_zero, 0., a * np.exp(-.5 * ((logx - np.log(geomean)) / np.log(geosd))**2 - logx))
 
 
 def _lognormal_initial(x, y):

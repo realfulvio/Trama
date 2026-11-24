@@ -458,8 +458,10 @@ def _formula_tree(expression):
     return tree, seed
 
 
-def formula_column_references(expression):
+def formula_column_references(expression, *, worksheet_columns=None):
     """Read worksheet references without evaluating a formula on the table."""
+    if worksheet_columns is not None:
+        expression = _bind_worksheet_letters(expression, worksheet_columns)
     tree, _ = _formula_tree(expression)
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
     called_names = {node.func for node in calls}

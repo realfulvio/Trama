@@ -12,6 +12,7 @@ The module has no Qt dependency: the dialog (``graph_style_preset_dialog``) and 
 way. Every function returns independent copies and raises ``ValueError`` with a short English message
 (translated by the caller with ``analisi.i18n.translate_message`` when a catalog entry exists).
 """
+from collections.abc import Mapping
 from copy import deepcopy
 from datetime import datetime
 import json
@@ -139,6 +140,45 @@ def apply_preset(current_style, preset):
     result.update(deepcopy(preset["style"]))
     validated_style(deepcopy(result))
     return result
+
+
+def plan_preset_batch(styles_by_id, selected_ids, preset):
+    """Complete updated styles for ``selected_ids`` in selection order, omitting graphs that do not change.
+
+    Every target ID is validated before returning: missing or duplicate IDs raise ``ValueError``.
+    Returned styles are independent deep copies; ``styles_by_id`` and ``preset`` are never mutated.
+    """
+    preset = validate_preset(preset)
+    if not isinstance(styles_by_id, Mapping):
+        raise ValueError("Invalid graph style.")
+    if isinstance(selected_ids, (str, bytes)):
+        raise ValueError("Invalid graph selection.")
+    try:
+        ids = list(selected_ids)
+    except TypeError as error:
+        raise ValueError("Invalid graph selection.") from error
+    seen = set()
+    for graph_id in ids:
+        try:
+            duplicate = graph_id in seen
+            present = graph_id in styles_by_id
+        except TypeError as error:
+            raise ValueError("Invalid graph selection.") from error
+        if duplicate:
+            raise ValueError("A graph was selected more than once.")
+        if not present:
+            raise ValueError("A selected graph is no longer available.")
+        seen.add(graph_id)
+    planned = {}
+    for graph_id in ids:
+        current = styles_by_id[graph_id]
+        if current is not None and not isinstance(current, dict):
+            raise ValueError("Invalid graph style.")
+        baseline = {} if current is None else current
+        updated = apply_preset(baseline, preset)
+        if updated != baseline:
+            planned[graph_id] = updated
+    return planned
 
 
 def preset_bytes(preset):

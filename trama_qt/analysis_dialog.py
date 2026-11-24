@@ -6,9 +6,11 @@ compound editors of the classic dialog (pair lists, profiles, term pickers…) k
 analysis being edited, or the engine default for a new one.
 """
 from copy import deepcopy
+from unicodedata import combining, normalize
 
 import numpy as np
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QHBoxLayout,
                                QLabel, QLineEdit, QListWidget, QListWidgetItem, QPlainTextEdit, QScrollArea,
                                QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QTreeWidget, QTreeWidgetItem,
@@ -20,7 +22,14 @@ from analisi.anova_terms import TERM_LIST
 from analisi import curve_pipeline, curve_pipeline_dialog, lognormal_tests, regression_range, ttest_options
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
-from analisi import cluster_silhouette, cohen_kappa as kappa, cox_exact, cox_outputs
+from analisi import (
+    cluster_silhouette,
+    cohen_kappa as kappa,
+    cox_exact,
+    cox_outputs,
+    interaction_plot_catalog,
+    raincloud_plot_catalog,
+)
 from analisi import cohen_kappa_options as kappa_text, cohen_kappa_workbench as kappa_form
 from analisi import extract_rearrange as extraction
 from analisi.field_error import FieldError
@@ -29,19 +38,19 @@ from analisi.replicate_fit import MERGE_REPLICATES, replicate_groups
 from analisi.hierarchical_gap import GAP_DATA, GAP_OPTIONS, GAP_PLOT
 from analisi.hierarchical_workbench import (HIERARCHICAL_TABS, HIERARCHY_GRAPH, check_hierarchical_options,
                                            check_hierarchy_view, saved_hierarchical_options)
-from analisi import kmeans_options, kmeans_reports, mean_permutation
+from analisi import brunner_munzel, kmeans_options, kmeans_reports, mean_permutation, mood_median, yuen
 from analisi import mean_permutation_options as permutation_text
 from analisi import nonlinear_calibration as calibration
 from analisi import ordinal_logit as ordinal
 from analisi import paired_proportions as paired
 from analisi.paired_graphs import TTEST_ESTIMATION
 from analisi.variance_ratio import SHOW as TTEST_VARIANCE
-from analisi import monte_carlo, plot_function, power_plan, rmst, transpose_xy
+from analisi import mcnemar_power, monte_carlo, plot_function, power_plan, rmst, transpose_xy
 from analisi import rmst_dialog, rmst_workbench as rmst_form
 from analisi import tolerance_intervals as tolerance
 from analisi import weibull_aft as weibull
 from analisi import weibull_aft_workbench as weibull_form
-from analisi.i18n import tr, translate_message, ui
+from analisi.i18n import active_language, tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
 from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
 from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_FIELDS, PAIRWISE_SCOPE, PAIRWISE_PAIR_LIST,
@@ -55,7 +64,11 @@ from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
 from . import rm_sphericity_dialog as sphericity_options
 from . import icc as icc_binding
+from . import ecdf_graph as ecdf_binding
+from . import interaction_plot as interaction_binding
 from . import precision_recall as precision_options
+from . import raincloud_plot as raincloud_binding
+from . import pareto_plot as pareto_binding
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
 from . import standard_curve as calibration_options
@@ -81,7 +94,7 @@ except Exception:  # pragma: no cover
 
 CATEGORY_ROLES = {"Group", "Rows", "Columns", "Subject", "Row label", "Row factor variable",
                   "Column factor variable", "Row (treatment) variable", "Column (outcome) variable",
-                  "X categories", "Y categories"}
+                  "X categories", "Y categories", "X factor", "Series factor"}
 VARIABLE_KINDS = (None, OPTIONAL, MULTIPLE, OPTIONAL_MULTIPLE)
 PLANNED_PANEL_FIELDS = {CONTRAST_CORRECTION, CONTRAST_ALPHA}
 
@@ -189,7 +202,11 @@ class AnalysisDialog(QDialog):
         self.repeated = None  # Bland–Altman for repeated pairs (trama_qt.bland_altman_repeated)
         self.sphericity = None  # Repeated measures ANOVA sphericity correction (trama_qt.rm_sphericity_dialog)
         self.icc = None  # Intraclass correlation (trama_qt.icc)
+        self.ecdf = None  # Empirical cumulative distribution (trama_qt.ecdf_graph)
+        self.interaction = None  # Two-factor interaction plot (trama_qt.interaction_plot)
         self.precision = None  # Precision–recall curve (trama_qt.precision_recall)
+        self.raincloud = None  # Raincloud plot (trama_qt.raincloud_plot)
+        self.pareto = None  # Pareto plot (trama_qt.pareto_plot)
         self.calibration = None  # Standard-curve calibration (trama_qt.standard_curve)
         self.reshape = None  # Reshape long and wide editor (trama_qt.reshape_long_wide)
         method = current[0] if current and current[0] in METHODS else None
@@ -260,8 +277,16 @@ class AnalysisDialog(QDialog):
             self.banner.setText(self.sphericity.message(error, error_field))
         if error and self.icc is not None:  # engine errors reopen here; word them in the active language
             self.banner.setText(self.icc.message(error))
+        if error and self.ecdf is not None:
+            self.banner.setText(self.ecdf.message(error))
+        if error and self.interaction is not None:
+            self.banner.setText(self.interaction.message(error))
         if error and self.precision is not None:
             self.banner.setText(self.precision.message(error))
+        if error and self.raincloud is not None:
+            self.banner.setText(self.raincloud.message(error))
+        if error and self.pareto is not None:
+            self.banner.setText(self.pareto.message(error))
         if error and self.calibration is not None:
             self.banner.setText(self.calibration.message(error))
         if error_field:
@@ -347,19 +372,28 @@ class AnalysisDialog(QDialog):
         self.repeated = None
         self.sphericity = None
         self.icc = None
+        self.ecdf = None
+        self.interaction = None
         self.precision = None
+        self.raincloud = None
+        self.pareto = None
         self.calibration = None
         self.reshape = None
         self.join = None
         pages, scrolls = {}, {}
         power_method = self.method == power_plan.METHOD
+        paired_power = self.method == mcnemar_power.METHOD
         cox_method = self.method == cox_outputs.METHOD
         weibull_method = self.method == weibull.METHOD
         ordinal_method = self.method == ordinal.ORDINAL_LOGIT
         rmst_method = self.method == rmst.METHOD
         kappa_method = self.method == kappa.METHOD
         permutation_method = self.method == mean_permutation.METHOD
-        page_specs = (("variables", ui("Design")), ("options", ui("Effect")), ("curve", ui("Curve"))) if power_method else (
+        yuen_method = self.method == yuen.METHOD
+        brunner_method = self.method == brunner_munzel.METHOD
+        mood_method = self.method == mood_median.METHOD
+        page_specs = (("variables", ui("Design")), ("options", ui("Effect")), ("curve", ui("Curve"))) if (
+            power_method or paired_power) else (
             ("variables", qt("qt.variables")), *global_fit.pages(self.method),
             *global_catalog.pages(self.method), *select_editor.pages(self.method),
             ("options", qt("qt.options")))
@@ -390,6 +424,15 @@ class AnalysisDialog(QDialog):
         if permutation_method:
             page_specs = (("variables", tr(mean_permutation.TAB_KEYS["Data"])),
                           ("options", tr(mean_permutation.TAB_KEYS["Test"])))
+        if yuen_method:
+            page_specs = (("variables", tr(yuen.TAB_KEYS["Data"])),
+                          ("options", tr(yuen.TAB_KEYS["Test"])))
+        if brunner_method:
+            page_specs = (("variables", tr(brunner_munzel.TAB_KEYS["Data"])),
+                          ("options", tr(brunner_munzel.TAB_KEYS["Test"])))
+        if mood_method:
+            page_specs = (("variables", tr(mood_median.TAB_KEYS["Data"])),
+                          ("options", tr(mood_median.TAB_KEYS["Test"])))
         for key, name in page_specs:
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
@@ -428,12 +471,24 @@ class AnalysisDialog(QDialog):
             labels, captions = kappa_form.LABEL_KEYS, kappa_form.CHOICE_KEYS
         if permutation_method:
             labels, captions = mean_permutation.LABEL_KEYS, mean_permutation.CHOICE_KEYS
+        if yuen_method:
+            labels, captions = yuen.LABEL_KEYS, yuen.CHOICE_KEYS
+        if brunner_method:
+            labels, captions = brunner_munzel.LABEL_KEYS, brunner_munzel.CHOICE_KEYS
+        if mood_method:
+            labels, captions = mood_median.LABEL_KEYS, mood_median.CHOICE_KEYS
         if self.method == "t-test":
             labels, captions = ttest_options.LABEL_KEYS, ttest_options.CHOICE_KEYS
         if lognormal_method:
             labels, captions = lognormal_tests.LABEL_KEYS, lognormal_tests.CHOICE_KEYS
             for page, title in (("variables", "Data"), ("options", "Test and graph")):
                 self.tabs.setTabText(self.tabs.indexOf(scrolls[page]), tr(lognormal_tests.TAB_KEYS[title]))
+        if self.method == interaction_binding.METHOD:
+            captions = interaction_plot_catalog.CHOICE_KEYS
+            if interaction_binding.ERROR_BARS not in saved:
+                saved = {**saved, interaction_binding.ERROR_BARS: interaction_binding.DEFAULT_ERROR_BARS}
+        if self.method == raincloud_binding.METHOD:
+            captions = raincloud_plot_catalog.CHOICE_KEYS
         if self.method == CUSTOM_EQUATION and not saved:
             saved = {"Equation": DEFAULT_EQUATION, "Parameters": [dict(record) for record in EXAMPLE_PARAMETERS]}
         elif self.method == global_fit.GLOBAL_CUSTOM_EQUATION and not saved:
@@ -455,6 +510,9 @@ class AnalysisDialog(QDialog):
             text_defaults = power_plan.TEXT_DEFAULTS
             for name, form in (("Design", variables), ("Effect", options), ("Curve", pages["curve"])):
                 power_forms.update(dict.fromkeys(power_plan.TABS[name], form))
+        if paired_power:
+            for name, form in (("Design", variables), ("Effect", options), ("Curve", pages["curve"])):
+                power_forms.update(dict.fromkeys(mcnemar_power.TABS[name], form))
         hierarchy_forms = {field: pages[tab] for tab, names in HIERARCHICAL_TABS.items()
                            for field in names} if hierarchy_method else {}
         columns = [str(name) for name in self.data.columns]
@@ -480,7 +538,15 @@ class AnalysisDialog(QDialog):
                 variable = label in kappa_form.RATING_FIELDS
             if permutation_method:
                 variable = label in mean_permutation.DATA_FIELDS
+            if yuen_method:
+                variable = label in yuen.DATA_FIELDS
+            if brunner_method:
+                variable = label in brunner_munzel.DATA_FIELDS
+            if mood_method:
+                variable = label in mood_median.DATA_FIELDS
             if self.method == "t-test" and label in ("Design", ttest_options.INPUT):
+                variable = True
+            if self.method == ecdf_binding.METHOD and label == ecdf_binding.INPUT:
                 variable = True
             form = (power_forms.get(label) or pages.get(global_fit.page_of(self.method, label))
                     or (variables if variable else options))
@@ -551,12 +617,21 @@ class AnalysisDialog(QDialog):
                 if reference is not None and reference != "":
                     text = rmst.group_text(reference)
                     widget.addItem(text, text)
+            elif paired_power and type(kind) in (int, float):
+                value = saved.get(label, kind)
+                text = mcnemar_power.canonical(value) if type(value) in (int, float) else "" if value is None else str(value)
+                widget = QLineEdit(text)
             elif type(kind) in (int, float) or kind == TEXT:
                 default = text_defaults.get(label, "") if kind == TEXT else kind
                 value = saved.get(label, default)
                 text = "" if value is None else str(value)
                 if rmst_method and label in rmst_form.NUMBER_FIELDS and type(value) in (int, float):
                     text = rmst_dialog.shown_number(value)
+                if yuen_method and label in yuen.NUMBER_FIELDS and type(value) in (int, float) and not isinstance(value, bool):
+                    text = yuen.shown_number(value)
+                if (brunner_method and label in brunner_munzel.NUMBER_FIELDS
+                        and type(value) in (int, float) and not isinstance(value, bool)):
+                    text = brunner_munzel.shown_number(value)
                 widget = QLineEdit(text)
             elif kind == plot_function.CURVE_LIST:
                 model = self.controls[plot_function.MODEL][1]
@@ -604,7 +679,7 @@ class AnalysisDialog(QDialog):
                                          (ordinal_method and label == ordinal.RESPONSE)) and categorical:
                         default = categorical[category_position % len(categorical)]
                         category_position += 1
-                    elif self.method == "t-test" and label in (ttest_options.FIRST, ttest_options.SECOND) and numeric:
+                    elif self.method in ("t-test", yuen.METHOD) and label in (ttest_options.FIRST, ttest_options.SECOND) and numeric:
                         default = numeric[min(int(label == ttest_options.SECOND), len(numeric) - 1)]
                     elif kind is None and numeric:
                         default = numeric[numeric_position % len(numeric)]
@@ -638,6 +713,10 @@ class AnalysisDialog(QDialog):
                 form.addRow(caption, widget)
             self.controls[label] = (kind, widget)
             self.rows[label] = (caption, widget, form)
+        variable_lists = [(self.rows[label][0], widget) for label, (kind, widget) in self.controls.items()
+                          if kind in (MULTIPLE, OPTIONAL_MULTIPLE) and self.rows[label][2] is variables]
+        if any(widget.count() > 8 for _, widget in variable_lists):
+            self._add_column_search(variables, variable_lists)
         if hierarchy_method:
             plot = self.controls["Graph output"][1]
             report_gap = self.controls[GAP_DATA][1]
@@ -700,10 +779,45 @@ class AnalysisDialog(QDialog):
             design.currentIndexChanged.connect(show_ttest_fields)
             layout.currentIndexChanged.connect(show_ttest_fields)
             show_ttest_fields()
+        if yuen_method:
+            note = QLabel(tr("yuen.note"))
+            note.setWordWrap(True)
+            options.addRow(note)
+            sample_format = self.controls[yuen.INPUT][1]
+
+            def show_yuen_fields():
+                self._set_field_visibility(yuen.visibility(sample_format.currentData()))
+                if self.error_field in self.hidden:
+                    self.clear_field_error(self.error_field)
+
+            sample_format.currentIndexChanged.connect(show_yuen_fields)
+            show_yuen_fields()
+        if brunner_method:
+            note = QLabel(tr("bm.note"))
+            note.setWordWrap(True)
+            options.addRow(note)
         if lognormal_method:
             for name in (lognormal_tests.DESIGN, lognormal_tests.INPUT, *lognormal_tests.GROUP_FIELDS):
                 self.controls[name][1].currentIndexChanged.connect(self._show_lognormal_fields)
             self._show_lognormal_fields()
+        if mood_method:
+            note = QLabel(tr("mood.note"))
+            note.setWordWrap(True)
+            options.addRow(note)
+            variables_box = self.controls[mood_median.VARIABLES][1]
+            yates_box = self.controls[mood_median.YATES][1]
+
+            def sync_yates():
+                checked = sum(
+                    1 for index in range(variables_box.count())
+                    if variables_box.item(index).checkState() == Qt.CheckState.Checked
+                )
+                yates_box.setEnabled(checked == 2)
+                if checked != 2:
+                    yates_box.setChecked(False)
+
+            variables_box.itemChanged.connect(lambda _item: sync_yates())
+            sync_yates()
         if self.method == "Nonlinear regression":
             model = self.controls["Model"][1]
 
@@ -721,7 +835,11 @@ class AnalysisDialog(QDialog):
         self.repeated = repeated_agreement.attach(self)
         self.sphericity = sphericity_options.attach(self)
         self.icc = icc_binding.attach(self, saved)
+        self.ecdf = ecdf_binding.attach(self, saved)
+        self.interaction = interaction_binding.attach(self, saved)
         self.precision = precision_options.attach(self)
+        self.raincloud = raincloud_binding.attach(self, saved)
+        self.pareto = pareto_binding.attach(self, saved)
         self.calibration = calibration_options.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
         select_editor.attach(self, pages, saved)
@@ -735,6 +853,8 @@ class AnalysisDialog(QDialog):
         self.join = join_editor.attach(self, pages, saved)
         if power_method:
             self._configure_power_fields(pages)
+        if paired_power:
+            self._configure_paired_power(pages)
         if cox_method:
             self._configure_cox_fields(pages["diagnostics"], saved.get(cox_outputs.GRAPH_TERM))
         if weibull_method:
@@ -773,6 +893,56 @@ class AnalysisDialog(QDialog):
             options.addRow(note)
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
+
+    def _add_column_search(self, form, lists):
+        search = QLineEdit()
+        search.setObjectName("analysisColumnSearch")
+        search.setPlaceholderText(qt("qt.find_columns"))
+        search.setAccessibleName(qt("qt.find_columns"))
+        search.setClearButtonEnabled(True)
+        form.insertRow(0, search)
+        outside = QLabel()
+        outside.setObjectName("muted")
+        outside.setTextFormat(Qt.TextFormat.PlainText)
+        outside.setWordWrap(True)
+        outside.hide()
+        form.insertRow(1, outside)
+        limits = {widget: widget.maximumHeight() for _, widget in lists}
+
+        def folded(text):
+            return "".join(char for char in normalize("NFKD", text.casefold()) if not combining(char))
+
+        def filter_columns(query):
+            needle = folded(query.strip())
+            kept = []
+            for caption, widget in lists:
+                visible = checked_outside = 0
+                for index in range(widget.count()):
+                    item = widget.item(index)
+                    matches = needle in folded(item.text())
+                    item.setHidden(not matches)
+                    if matches:
+                        visible += 1
+                    elif item.checkState() == Qt.CheckState.Checked:
+                        checked_outside += 1
+                widget.setMaximumHeight(min(limits[widget], max(70, 24 * visible + 8)))
+                if checked_outside:
+                    kept.append(f"{caption.text()} ({checked_outside})")
+            outside.setText(qt("qt.filtered_selection", fields=" · ".join(kept)) if kept else "")
+            outside.setVisible(bool(kept))
+
+        def focus_first_match():
+            for _, widget in lists:
+                if widget.isVisible():
+                    for index in range(widget.count()):
+                        if not widget.item(index).isHidden():
+                            widget.setCurrentRow(index)
+                            widget.setFocus()
+                            return
+
+        search.textChanged.connect(filter_columns)
+        for key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            QShortcut(QKeySequence(key), search, focus_first_match, Qt.ShortcutContext.WidgetShortcut)
 
     def _sync_kmeans_options(self):
         algorithm = self.controls[kmeans_options.ALGORITHM][1].currentData()
@@ -829,6 +999,40 @@ class AnalysisDialog(QDialog):
 
         for name in choices:
             self.controls[name][1].currentIndexChanged.connect(sync)
+        sync()
+
+    def _configure_paired_power(self, pages):
+        notes = []
+        for page, key in (("variables", "design"), ("options", "effect_empty"), ("curve", "curve")):
+            note = QLabel(tr(f"mcnemar.power.note.{key}"))
+            note.setWordWrap(True)
+            note.setObjectName("muted")
+            pages[page].addRow(note)
+            notes.append(note)
+        effect = notes[1]
+        goal = self.controls[mcnemar_power.GOAL][1]
+        first = self.controls[mcnemar_power.P01][1]
+        second = self.controls[mcnemar_power.P10][1]
+
+        def show(value):
+            text = f"{value:.6g}"
+            return text.replace(".", ",") if active_language() == "it" else text
+
+        def sync(_value=None):
+            self._set_field_visibility(mcnemar_power.visibility({mcnemar_power.GOAL: goal.currentData()}))
+            preview = mcnemar_power.effect_preview(first.text(), second.text())
+            if preview is None:
+                effect.setText(tr("mcnemar.power.note.effect_empty"))
+            else:
+                difference, discordance = preview
+                effect.setText(tr("mcnemar.power.note.effect", difference=show(difference),
+                                  discordance=show(discordance)))
+            if self.error_field in self.hidden:
+                self.clear_field_error(self.error_field)
+
+        goal.currentIndexChanged.connect(sync)
+        first.textChanged.connect(sync)
+        second.textChanged.connect(sync)
         sync()
 
     def _configure_cox_fields(self, form, saved_term):
@@ -955,6 +1159,8 @@ class AnalysisDialog(QDialog):
                 options[name] = control.isChecked()
             elif self.method == power_plan.METHOD and name in power_plan.NUMBER_FIELDS:
                 options[name] = control.toPlainText() if name == power_plan.GROUP_MEANS else control.text()
+            elif self.method == mcnemar_power.METHOD and name in mcnemar_power.NUMBER_FIELDS:
+                options[name] = control.text()
             elif self.method == rmst.METHOD and name in rmst_form.NUMBER_FIELDS:
                 options[name] = rmst_dialog.read_number(control.text())
             elif self.method == rmst.METHOD and name == rmst.REFERENCE:
@@ -1011,6 +1217,10 @@ class AnalysisDialog(QDialog):
                 options[ellipse_groups.GROUP_STYLES] = deepcopy(self.ellipse_groups.styles)
         if self.icc is not None:
             options = self.icc.ordered(options)  # raters in the order they were ticked
+        if self.ecdf is not None:
+            options = self.ecdf.ordered(options)  # series in the order they were ticked
+        if self.pareto is not None:
+            options = self.pareto.canonical(options)
         return self.anova.canonical(options) if self.anova is not None else options
 
     def accept(self):
@@ -1039,10 +1249,26 @@ class AnalysisDialog(QDialog):
                 self.sphericity.check(options)  # the design check of the corrections; the fit stays on the worker
             if self.icc is not None:
                 self.icc.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
+            if self.ecdf is not None:
+                self.ecdf.check(options)  # recipe and worksheet checks before the worker starts
+            if self.interaction is not None:
+                self.interaction.check(options)
             if self.precision is not None:
                 self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
+            if self.raincloud is not None:
+                self.raincloud.check(options)
+            if self.pareto is not None:
+                self.pareto.check(options)
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            if self.method == yuen.METHOD:
+                if options.get(yuen.INPUT) == yuen.GROUPED and yuen.GROUP_ORDER in self._saved():
+                    options[yuen.GROUP_ORDER] = self._saved()[yuen.GROUP_ORDER]
+                yuen.check_options(self.data, options)
+            if self.method == brunner_munzel.METHOD:
+                brunner_munzel.check_options(self.data, options)
+            if self.method == mood_median.METHOD:
+                mood_median.check_options(self.data, options)
             if self.method == "Interpolate a standard curve":
                 calibration.check_calibration_options(self.data, options)
             if self.method == XY_METHOD:
@@ -1072,6 +1298,8 @@ class AnalysisDialog(QDialog):
                 plot_function.check_curves(model, options.get(plot_function.CURVES))
             if self.method == power_plan.METHOD:
                 options = power_plan.normalized_options(options, power_plan.check_options(options))
+            if self.method == mcnemar_power.METHOD:
+                options = mcnemar_power.normalized_options(options)
             if self.method == cox_outputs.METHOD:
                 if cox_exact.is_exact(options):
                     cox_exact.check_outputs(options)
@@ -1123,8 +1351,16 @@ class AnalysisDialog(QDialog):
             return self.sphericity.message(error, field)
         if self.icc is not None:  # Intraclass correlation: engine messages in the active language
             return self.icc.message(error)
+        if self.ecdf is not None:
+            return self.ecdf.message(error)
+        if self.interaction is not None:
+            return self.interaction.message(error)
         if self.precision is not None:  # Precision–recall curve: engine messages in the active language
             return self.precision.message(error)
+        if self.raincloud is not None:
+            return self.raincloud.message(error)
+        if self.pareto is not None:
+            return self.pareto.message(error)
         if self.method == calibration_options.METHOD:
             return calibration_options.translate_error(error)
         if self.method == reshape_editor.METHOD:
@@ -1148,6 +1384,8 @@ class AnalysisDialog(QDialog):
             thousands = lambda value: value.replace(",", ".")
             return translate_message(error, "power.error.", convert={
                 "field": field_label, "low": thousands, "high": thousands, "limit": thousands, "count": thousands})
+        if self.method == mcnemar_power.METHOD:
+            return translate_message(str(error), mcnemar_power.ERROR_PREFIX, convert={"field": field_label})
         if self.method == cox_outputs.METHOD:
             return cox_outputs.cox_message(cox_exact.translate_error(error))
         if self.method == tolerance.TOLERANCE:
@@ -1163,6 +1401,12 @@ class AnalysisDialog(QDialog):
             return kappa_text.describe_error(error, field)
         if self.method == mean_permutation.METHOD:
             return permutation_text.describe_error(error, field)
+        if self.method == yuen.METHOD:
+            return yuen.describe_error(error, field)
+        if self.method == brunner_munzel.METHOD:
+            return brunner_munzel.describe_error(error, field)
+        if self.method == mood_median.METHOD:
+            return mood_median.describe_error(error, field)
         if self.method == XY_METHOD:
             return translate_message(error, "xy.error.")
         return str(error)

@@ -211,13 +211,15 @@ def worksheet_grid(frame, o, curves):
 
 
 def check_domain(model, x, field):
-    domain = MODELS[model].domain
+    # The plot can show the lognormal limit at zero. Fitting still requires positive observations.
+    domain = "nonnegative" if model == "Lognormal" else MODELS[model].domain
     if model in POINTWISE_DOMAIN or domain is None:
-        return
+        return domain
     if domain == "positive" and (x <= 0).any():
         raise FieldError(field, f"{model} needs X greater than 0.")
     if domain == "nonnegative" and (x < 0).any():
         raise FieldError(field, f"{model} needs X of 0 or more.")
+    return domain
 
 
 def evaluate(model, x, parameters):
@@ -309,7 +311,7 @@ def plot_function(frame, o):
         x, field = worksheet_grid(frame, o, len(curves)), X_COLUMN
     else:
         x, field = generated_grid(o, len(curves)), X_MIN
-    check_domain(model, x, field)
+    domain = check_domain(model, x, field)
     names = [name for name, _ in curves]
     values = [evaluate(model, x, parameters) for _, parameters in curves]
     for name, y in zip(names, values):
@@ -338,7 +340,7 @@ def plot_function(frame, o):
     if o.get(INTEGRAL):
         tables[INTEGRAL] = _sheet(x, names, [integral(x, y) for y in values])
     figure, axes = _plot(model, "X", "Y")
-    axes._tramastat_log_x_omit_zero = spec.domain == "nonnegative"
+    axes._tramastat_log_x_omit_zero = domain == "nonnegative"
     axes._tramastat_log_y_omit_zero = model in CELL_DEATH_MODELS
     if OBSERVATION_COLUMNS in o:
         _draw_observations(axes, frame, o[OBSERVATION_COLUMNS])

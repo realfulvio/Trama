@@ -213,10 +213,27 @@ class Smoke:
             text.write_text("ID;Dose;Response\n1;0,5;10,2\n2;1,0;11,8\n", encoding="utf-8")
             for name, command in (("analyze", window.analyze), ("layout", window.new_layout),
                                   ("info", window.new_info), ("family", window.duplicate_family),
-                                  ("pdf", window.export_pdf_bundle), ("formula", window.edit_formula),
+                                  ("pdf", window.export_pdf_bundle),
                                   ("text-import", lambda: window.open_path(text, import_data=True))):
                 with self.dialogs(name):
                     command()
+            window.actions["formula"].trigger()
+            panel = window.formula_editor
+            if panel is None or not window.sheet.isVisible():
+                self.problem("formula: the editor and worksheet are not visible together")
+            else:
+                panel.name.setText("Difference")
+                panel.expression.setPlainText("=Control *")
+                panel.apply_button.click()
+                if not panel.problem.isVisible():
+                    self.problem("formula: invalid expression was not shown in the editor")
+                panel.expression.setPlainText("=Control * 2")
+                if window.sheet.formula_columns != (0,):
+                    self.problem("formula: the referenced worksheet column was not marked")
+                self.shot(window, "formula-editor")
+                panel.cancel_button.click()
+                if "Difference" in window.project.tables["groups"].formulas or window.sheet.formula_columns:
+                    self.problem("formula: cancelling did not clear the draft")
             window.open_sheet(("result", refs["result"]))
             with self.dialogs("change-input"):
                 window.change_input_result()
@@ -234,6 +251,8 @@ class Smoke:
             self.editors(window, refs)
             from .batch_export_smoke import check_in_smoke
             check_in_smoke(self, window)
+            from .batch_figure_styles_smoke import check_in_smoke as check_batch_styles
+            check_batch_styles(self, window)
             self.gallery(window)
             self.anova(window)
             from .planned_contrasts_smoke import exercise as planned_contrasts
@@ -626,8 +645,15 @@ def _repeat_scenario(smoke, window):
     repeat_analysis(smoke, window)
 
 
+def _batch_figure_styles_scenario(smoke, window):
+    smoke.build()
+    from .batch_figure_styles_smoke import check_in_smoke as check_batch_styles
+    check_batch_styles(smoke, window)
+
+
 SCENARIOS = {"qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
-             "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario}
+             "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
+             "qt-batch-figure-styles": _batch_figure_styles_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

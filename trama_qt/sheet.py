@@ -140,6 +140,10 @@ class WorksheetHeading(QHeaderView):
                     if active:
                         painter.fillRect(rect.x() + 1, rect.bottom() - 1, rect.width() - 1, 2, theme.color("accent"))
             column = stop
+        for column in self.view.formula_columns:
+            left = self.sectionViewportPosition(column)
+            if not self.isSectionHidden(column):
+                painter.fillRect(left, self.height() - 3, self.sectionSize(column), 3, theme.color("accent"))
 
 
 class PasteSpecialDialog(QDialog):
@@ -191,6 +195,7 @@ class WorksheetView(QTableView):
     def __init__(self, model, host, parent=None):
         super().__init__(parent)
         self.host = host
+        self.formula_columns = ()
         heading = WorksheetHeading(self)
         self.setHorizontalHeader(heading)
         self.setModel(model)
@@ -228,6 +233,12 @@ class WorksheetView(QTableView):
     def box(self):
         return selection_box(self)
 
+    def highlight_formula_columns(self, columns):
+        if self.formula_columns != columns:
+            self.formula_columns = columns
+            self.horizontalHeader().viewport().update()
+            self.viewport().update()
+
     def paintEvent(self, event):
         super().paintEvent(event)
         model = self.model()
@@ -248,6 +259,17 @@ class WorksheetView(QTableView):
                 if y > blank.bottom():
                     break
                 painter.drawLine(edge, y, blank.right(), y)
+        if self.formula_columns:
+            accent = theme.color("accent")
+            accent.setAlpha(150)
+            painter.setPen(accent)
+            for column in self.formula_columns:
+                if self.isColumnHidden(column):
+                    continue
+                left = self.columnViewportPosition(column)
+                right = left + self.columnWidth(column) - 1
+                painter.drawLine(left, 0, left, self.viewport().height())
+                painter.drawLine(right, 0, right, self.viewport().height())
         selection = self.selectionModel()
         painter.setPen(QPen(theme.color("accent_dark"), 2))
         for cells in selection.selection():

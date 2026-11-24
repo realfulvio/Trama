@@ -36,12 +36,15 @@ from .bubble import BUBBLE, OPTIONS as BUBBLE_OPTIONS, bubble_plot
 from . import bland_altman_repeated as ba_repeated
 from .cluster_silhouette import METHOD as CLUSTER_SILHOUETTE, OPTIONS as SILHOUETTE_OPTIONS, cluster_silhouette
 from . import icc
-from . import precision_recall
+from . import mcnemar_power, precision_recall
 from .compare_lines import COMPARE_LINES, OPTIONS as COMPARE_LINES_OPTIONS, compare_lines
 from .contingency import CONTINGENCY, CONTINGENCY_OPTIONS, contingency
 from .distribution_graphs import BOX_VIOLIN, OPTIONS as BOX_VIOLIN_OPTIONS, box_violin
+from .ecdf_graph import METHOD as ECDF_GRAPH, OPTIONS as ECDF_GRAPH_OPTIONS, ecdf_graph
 from .grouped_distributions import (GROUPED_DISTRIBUTIONS, OPTIONS as GROUPED_DISTRIBUTIONS_OPTIONS,
                                     grouped_distributions)
+from .interaction_plot import METHOD as INTERACTION_PLOT, OPTIONS as INTERACTION_PLOT_OPTIONS, interaction_plot
+from .raincloud_plot import METHOD as RAINCLOUD_PLOT, OPTIONS as RAINCLOUD_PLOT_OPTIONS, raincloud_plot
 from .correlation_details import (COMPARE_INDEPENDENT, CONTROL_OPTIONS, CORRELATE_CONTROL, INDEPENDENT_OPTIONS,
                                   SINGLE_EXTRA, control_result, correlation_result, independent_result)
 from .correlation_matrix import CORRELATION_MATRIX, OPTIONS as CORRELATION_MATRIX_OPTIONS, correlation_matrix
@@ -68,6 +71,9 @@ from .linear_diagnostics import LINEAR_OPTIONS, linear_result
 from .cohen_kappa_workbench import COHEN_KAPPA, OPTIONS as COHEN_KAPPA_OPTIONS, cohen_kappa
 from .equivalence_workbench import EQUIVALENCE, OPTIONS as EQUIVALENCE_OPTIONS, equivalence_test
 from .mean_permutation import METHOD as MEAN_PERMUTATION, OPTIONS as MEAN_PERMUTATION_OPTIONS, permutation_test
+from .yuen import METHOD as YUEN, OPTIONS as YUEN_OPTIONS, yuen_test
+from .brunner_munzel import METHOD as BRUNNER_MUNZEL, OPTIONS as BRUNNER_MUNZEL_OPTIONS, brunner_munzel
+from .mood_median import METHOD as MOOD_MEDIAN, OPTIONS as MOOD_MEDIAN_OPTIONS, mood_median
 from .competing_risks_workbench import (COMPETING_RISKS, OPTIONS as COMPETING_RISKS_OPTIONS,
                                         competing_risks)
 from .cox_exact import METHOD as COX_REGRESSION, cox_exact_result, is_exact as is_cox_exact
@@ -107,6 +113,7 @@ from .paired_proportions import OPTIONS as PAIRED_PROPORTIONS_OPTIONS, PAIRED_PR
 from .nested import METHODS as NESTED_METHODS, NESTED_ANOVA, NESTED_T, nested_analysis
 from .select_transform import SELECT_OPTIONS, SELECT_TRANSFORM, select_transform
 from .parts_of_whole import GOODNESS_OF_FIT, GOODNESS_OPTIONS, PARTS_GRAPH, PARTS_OPTIONS, goodness_of_fit, parts_graph
+from .pareto_plot import METHOD as PARETO_PLOT, OPTIONS as PARETO_PLOT_OPTIONS, pareto_plot
 from .reporting import Result, _plot, _report
 from .xy_series import XY_METHOD, xy_series
 from .processing import FieldError
@@ -273,6 +280,9 @@ METHODS = {
                      "Graph": ("None", "Variance ratio", "SD ratio")},
     EQUIVALENCE: EQUIVALENCE_OPTIONS,
     MEAN_PERMUTATION: MEAN_PERMUTATION_OPTIONS,
+    YUEN: YUEN_OPTIONS,
+    BRUNNER_MUNZEL: BRUNNER_MUNZEL_OPTIONS,
+    MOOD_MEDIAN: MOOD_MEDIAN_OPTIONS,
     COHEN_KAPPA: COHEN_KAPPA_OPTIONS,
     COMPETING_RISKS: COMPETING_RISKS_OPTIONS,
     WEIBULL_AFT: WEIBULL_AFT_OPTIONS,
@@ -294,6 +304,7 @@ METHODS = {
     CONTINGENCY: CONTINGENCY_OPTIONS,
     PAIRED_PROPORTIONS: PAIRED_PROPORTIONS_OPTIONS,
     PARTS_GRAPH: PARTS_OPTIONS,
+    PARETO_PLOT: PARETO_PLOT_OPTIONS,
     GOODNESS_OF_FIT: GOODNESS_OPTIONS,
     "Linear regression": {"X": None, "Y": None, **LINEAR_OPTIONS, **dict.fromkeys(regression_range.FIELDS, TEXT)},
     COMPARE_LINES: COMPARE_LINES_OPTIONS,
@@ -384,6 +395,9 @@ METHODS = {
     FREQUENCY: FREQUENCY_OPTIONS,
     BOX_VIOLIN: BOX_VIOLIN_OPTIONS,
     GROUPED_DISTRIBUTIONS: GROUPED_DISTRIBUTIONS_OPTIONS,
+    ECDF_GRAPH: ECDF_GRAPH_OPTIONS,
+    INTERACTION_PLOT: INTERACTION_PLOT_OPTIONS,
+    RAINCLOUD_PLOT: RAINCLOUD_PLOT_OPTIONS,
     BUBBLE: BUBBLE_OPTIONS,
     ba_repeated.METHOD: ba_repeated.OPTIONS,
     icc.METHOD: {icc.RATERS: MULTIPLE, **icc.OPTIONS},
@@ -421,8 +435,8 @@ GROUPS = {
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
                               "Interpolate a standard curve", SPLINE_FIT,
                               "Smooth / differentiate / integrate", PLOT_FUNCTION, ORDINAL_LOGIT),
-    "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, MEAN_PERMUTATION, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", "Wilcoxon signed-rank",
-                         "Kolmogorov–Smirnov", "Kruskal–Wallis", "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
+    "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, MEAN_PERMUTATION, YUEN, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", BRUNNER_MUNZEL, "Wilcoxon signed-rank",
+                         "Kolmogorov–Smirnov", "Kruskal–Wallis", MOOD_MEDIAN, "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
                          "Multifactor ANOVA", grouped_anova.METHOD, ANCOVA, "Contingency table", PAIRED_PROPORTIONS, COHEN_KAPPA,
                          "Bland–Altman", ba_repeated.METHOD, icc.METHOD, "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC,
@@ -431,8 +445,9 @@ GROUPS = {
     "Clustering": ("K-means clustering", "K-means model selection", KMEANS_STABILITY, kmeans_reports.MODEL_GRAPH, "Hierarchical clustering",
                    HIERARCHY_GRAPH, CLUSTER_SILHOUETTE),
     "Graphing": ("Scatter / confidence ellipse", "XY error bars", XY_METHOD, COLUMN_GRAPH, GROUPED_GRAPH, HEAT_MAP,
-                 PARTS_GRAPH, "Box / violin plot", GROUPED_DISTRIBUTIONS, BUBBLE, BEFORE_AFTER, TRAJECTORIES, FOREST_PLOT),
-    "Study Design and Simulation": ("Power and sample size", "Simulate data", MONTE_CARLO),
+                 PARTS_GRAPH, PARETO_PLOT, "Box / violin plot", GROUPED_DISTRIBUTIONS, ECDF_GRAPH, RAINCLOUD_PLOT, BUBBLE, BEFORE_AFTER,
+                 TRAJECTORIES, FOREST_PLOT, INTERACTION_PLOT),
+    "Study Design and Simulation": ("Power and sample size", mcnemar_power.METHOD, "Simulate data", MONTE_CARLO),
 }
 
 # These analyses create a graph when calculated. Keep their Graphs entry
@@ -1288,7 +1303,8 @@ LINKED_AXES_METHODS = {
     "Linear regression": ("x", "y"), COMPARE_LINES: ("x", "y"), "Deming regression": ("x", "y"),
     "Nonlinear regression": ("x", "y"), ROBUST_CURVE: ("x", "y"), CUSTOM_EQUATION: ("x", "y"),
     GLOBAL_CUSTOM_EQUATION: ("x", "y"), SPLINE_FIT: ("x", "y"), "Kaplan–Meier survival": ("x", "y"),
-    COLUMN_GRAPH: ("y",), GROUPED_GRAPH: ("y",),
+    ECDF_GRAPH: ("x", "y"),
+    COLUMN_GRAPH: ("y",), GROUPED_GRAPH: ("y",), INTERACTION_PLOT: ("y",),
 }
 
 
@@ -1403,6 +1419,12 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return equivalence_test(frame, o)
     if method == MEAN_PERMUTATION:
         return permutation_test(frame, o, cancel=cancel)
+    if method == YUEN:
+        return yuen_test(frame, o)
+    if method == BRUNNER_MUNZEL:
+        return brunner_munzel(frame, o, cancel=cancel)
+    if method == MOOD_MEDIAN:
+        return mood_median(frame, o, cancel=cancel)
     if method == COHEN_KAPPA:
         return cohen_kappa(frame, o, cancel=cancel)
     if method == COMPETING_RISKS:
@@ -1459,6 +1481,8 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return paired_proportions(frame, o)
     if method == PARTS_GRAPH:
         return parts_graph(frame, o)
+    if method == PARETO_PLOT:
+        return pareto_plot(frame, o)
     if method == GOODNESS_OF_FIT:
         return goodness_of_fit(frame, o)
     if method == "Linear regression":
@@ -1572,6 +1596,12 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return box_violin(frame, o)
     if method == GROUPED_DISTRIBUTIONS:
         return grouped_distributions(frame, o)
+    if method == ECDF_GRAPH:
+        return ecdf_graph(frame, o)
+    if method == INTERACTION_PLOT:
+        return interaction_plot(frame, o)
+    if method == RAINCLOUD_PLOT:
+        return raincloud_plot(frame, o)
     if method == BEFORE_AFTER:
         return before_after(frame, o)
     if method == TRAJECTORIES:
@@ -1596,4 +1626,6 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return _distribution(method, frame, o)
     if method == REFERENCE_NORMALIZATION:
         return normalize_to_references(frame, o)
+    if method == mcnemar_power.METHOD:
+        return mcnemar_power.analysis(frame, o, cancel=cancel)
     return extra_analysis(method, frame, o)

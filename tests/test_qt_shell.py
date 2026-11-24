@@ -133,6 +133,43 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(options[cp.BASELINE], 1.25)
         self.assertEqual(options[cp.SMOOTHING], cp.SAVITZKY_GOLAY)
 
+    def test_analysis_column_search_finds_literal_names_and_preserves_checked_factors(self):
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QLabel, QLineEdit
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.strings import qt
+
+        data = {"Response": [1., 2., 4., 8.], "Group": ["A", "B"] * 2,
+                "Dòse [$]": ["Low", "Low", "High", "High"]}
+        data.update({f"Batch {i}": ["M", "N"] * 2 for i in range(12)})
+        dialog = AnalysisDialog(self.window, pd.DataFrame(data), only="Multifactor ANOVA",
+                                current=("Multifactor ANOVA", {"Response": "Response", "Factors": ["Group", "Dòse [$]"]}))
+        self.addCleanup(dialog.deleteLater)
+        dialog.show()
+        self.app.processEvents()
+        search = dialog.findChild(QLineEdit, "analysisColumnSearch")
+        self.assertIsNotNone(search)
+        self.assertTrue(search.isClearButtonEnabled())
+        before = dialog.options()
+        factors = dialog.controls["Factors"][1]
+        height = factors.maximumHeight()
+        search.setText("dose [$]")
+        visible = [factors.item(i).text() for i in range(factors.count()) if not factors.item(i).isHidden()]
+        self.assertEqual(visible, ["Dòse [$]"])
+        self.assertLess(factors.maximumHeight(), height)
+        caption = dialog.rows["Factors"][0].text()
+        hidden = qt("qt.filtered_selection", fields=f"{caption} (1)")
+        self.assertIn(hidden, [label.text() for label in dialog.findChildren(QLabel) if label.isVisible()])
+        self.assertEqual(dialog.options(), before)
+        search.setFocus()
+        QTest.keyClick(search, Qt.Key.Key_Return)
+        self.assertIs(dialog.focusWidget(), factors)
+        self.assertTrue(dialog.isVisible())
+        self.assertEqual(factors.currentItem().text(), "Dòse [$]")
+        search.clear()
+        self.assertTrue(all(not factors.item(i).isHidden() for i in range(factors.count())))
+        self.assertEqual(factors.maximumHeight(), height)
+
     def test_paired_proportions_accepts_both_input_formats_and_reopens_the_recipe(self):
         from unittest.mock import patch
         from analisi import paired_proportions as paired
@@ -2665,41 +2702,36 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(list(window.project.tables["groups"].raw.columns), ["Control", "Drug"])
 
     def test_formula_columns_and_cell_editing(self):
-        from unittest import mock
         from PySide6.QtTest import QTest
         from PySide6.QtWidgets import QApplication as _App
-        from trama_qt.formula import FormulaDialog
         window = self.window
         self.open_example()
         self.assertTrue(window.actions["formula"].isEnabled())
 
-        def new_column(dialog):
-            dialog.name.setText("Double")
-            dialog.expression.setPlainText("=Control *")
-            dialog.accept()
-            seen["problem"] = dialog.problem.text()
-            dialog.expression.setPlainText("=Control * 2")
-            dialog.accept()
-            return FormulaDialog.DialogCode.Accepted
-
-        seen = {}
-        with mock.patch.object(FormulaDialog, "exec", new_column):
-            window.edit_formula()
-        self.assertTrue(seen["problem"])
+        window.actions["formula"].trigger()
+        panel = window.formula_editor
+        self.assertTrue(window.sheet.isVisible())
+        self.assertTrue(panel.isVisible())
+        panel.name.setText("Double")
+        panel.expression.setPlainText("=Control *")
+        panel.apply_button.click()
+        self.assertTrue(panel.problem.text())
+        self.assertIs(window.formula_editor, panel)
+        panel.expression.setPlainText("=Control * 2")
+        self.assertEqual(window.sheet.formula_columns, (0,))
+        panel.apply_button.click()
+        self.assertIsNone(window.formula_editor)
+        self.assertEqual(window.sheet.formula_columns, ())
         dataset = window.project.tables["groups"]
         self.assertEqual(dataset.formulas, {"Double": "=Control * 2"})
         self.assertAlmostEqual(dataset.frame()["Double"].iloc[0], 8.2)
 
         # A double click on the calculated column's header opens its formula to change.
-        def change(dialog):
-            seen["loaded"] = (dialog.name.text(), dialog.expression.toPlainText())
-            dialog.expression.setPlainText("=Control * 3")
-            dialog.accept()
-            return FormulaDialog.DialogCode.Accepted
-
-        with mock.patch.object(FormulaDialog, "exec", change):
-            window.rename_column(2)
-        self.assertEqual(seen["loaded"], ("Double", "=Control * 2"))
+        window.rename_column(2)
+        panel = window.formula_editor
+        self.assertEqual((panel.name.text(), panel.expression.toPlainText()), ("Double", "=Control * 2"))
+        panel.expression.setPlainText("=Control * 3")
+        panel.apply_button.click()
         self.assertAlmostEqual(window.project.tables["groups"].frame()["Double"].iloc[0], 12.3)
         window.undo()
         self.assertEqual(window.project.tables["groups"].formulas["Double"], "=Control * 2")
@@ -2741,12 +2773,12 @@ class QtShellTests(unittest.TestCase):
     def test_formula_reference_inserts_a_search_result_without_closing_the_editor(self):
         from PySide6.QtTest import QTest
         from analisi.data import Dataset
-        from trama_qt.formula import FormulaDialog
+        from trama_qt.formula import FormulaEditor
 
         name = "Dòse [μM] 'étape' \"A\""
         dataset = Dataset(pd.DataFrame({"Observed": [2., 4.], name: [8., 10.],
                                         "Derived dose": [None, None]}))
-        dialog = FormulaDialog(self.window, dataset, column=2)
+        dialog = FormulaEditor(dataset, column=2)
         self.addCleanup(dialog.deleteLater)
         dialog.show()
         self.app.processEvents()
@@ -2758,22 +2790,59 @@ class QtShellTests(unittest.TestCase):
         cursor.setPosition(len("=2 * placeholder"), cursor.MoveMode.KeepAnchor)
         dialog.expression.setTextCursor(cursor)
         QTest.keyClick(dialog.reference_search, Qt.Key.Key_Return)
-        self.assertIsNone(dialog.result)
         self.assertTrue(dialog.isVisible())
         self.assertTrue(dialog.expression.toPlainText().startswith("=2 * COL("))
-        dialog.accept()
-        self.assertIsNotNone(dialog.result)
+        validated = dialog.validated_formula()
+        self.assertIsNotNone(validated)
         self.assertFalse(dataset.formulas)
-        dataset.set_worksheet_formula(2, dialog.result[1])
+        dataset.set_worksheet_formula(2, validated[1])
         self.assertEqual(dataset.frame()["Derived dose"].tolist(), [16., 20.])
+
+    def test_formula_errors_stay_next_to_the_expression(self):
+        from analisi.data import Dataset
+        from trama_qt.formula import FormulaEditor
+
+        dataset = Dataset(pd.DataFrame({"Observed": [0., 1.]}))
+        dialog = FormulaEditor(dataset, "Density")
+        self.addCleanup(dialog.deleteLater)
+        dialog.show()
+        self.app.processEvents()
+        dialog.expression.setPlainText("=1 +")
+        self.assertIsNone(dialog.validated_formula())
+        self.app.processEvents()
+        self.assertTrue(dialog.problem.isVisible())
+        self.assertLess(dialog.expression.y(), dialog.problem.y())
+        self.assertLess(dialog.problem.y(), dialog.reference_results.y())
+        self.assertIs(dialog.focusWidget(), dialog.expression)
+        dialog.expression.setPlainText("=2")
+        self.assertFalse(dialog.problem.isVisible())
+
+    def test_formula_reference_search_accepts_clear_and_arrow_navigation(self):
+        from PySide6.QtTest import QTest
+        from analisi.data import Dataset
+        from trama_qt.formula import FormulaEditor
+
+        dataset = Dataset(pd.DataFrame({"Dose low": [0., 1.], "Dose high": [3., 4.]}))
+        dialog = FormulaEditor(dataset, "Density")
+        self.addCleanup(dialog.deleteLater)
+        dialog.show()
+        self.app.processEvents()
+        dialog.reference_search.setText("dose")
+        self.assertTrue(dialog.reference_search.isClearButtonEnabled())
+        self.assertEqual(dialog.reference_results.count(), 2)
+        QTest.keyClick(dialog.reference_search, Qt.Key.Key_Down)
+        self.assertEqual(dialog.reference_results.currentRow(), 1)
+        QTest.keyClick(dialog.reference_search, Qt.Key.Key_Return)
+        self.assertIn("Dose high", dialog.expression.toPlainText())
+        self.assertTrue(dialog.isVisible())
 
     def test_formula_function_reference_uses_engine_signature_and_leaves_caret_inside(self):
         from PySide6.QtTest import QTest
         from analisi.data import Dataset
-        from trama_qt.formula import FormulaDialog
+        from trama_qt.formula import FormulaEditor
 
         dataset = Dataset(pd.DataFrame({"Observed": [0., 1.]}))
-        dialog = FormulaDialog(self.window, dataset, "Density")
+        dialog = FormulaEditor(dataset, "Density")
         self.addCleanup(dialog.deleteLater)
         dialog.show()
         self.app.processEvents()
@@ -2790,50 +2859,100 @@ class QtShellTests(unittest.TestCase):
         dialog.reference_group.setCurrentIndex(0)
         dialog.reference_search.setText("A")
         dialog.reference_insert.click()
-        dialog.accept()
-        dataset.set_formula(*dialog.result)
+        dataset.set_formula(*dialog.validated_formula())
         self.assertAlmostEqual(dataset.frame()["Density"].iloc[0], 0.3989422804014327)
 
-    def test_equals_shortcut_confirms_replacement_and_keeps_errors_in_the_dialog(self):
-        from unittest.mock import patch
+    def test_formula_function_help_prioritizes_an_exact_name_and_matches_engine_examples(self):
+        from analisi.data import Dataset
+        from analisi.i18n import active_language, set_language
+        from trama_qt.formula import FUNCTION_EXAMPLES, FormulaEditor
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        dataset = Dataset(pd.DataFrame({"Observed": [0., 1.]}))
+        dataset.set_formula("Example", "=0")
+        panel = FormulaEditor(dataset, "Example")
+        self.addCleanup(panel.deleteLater)
+        panel.reference_group.setCurrentIndex(1)
+        panel.reference_search.setText("cos")
+        self.assertEqual(panel.matches[0].name, "COS")
+        self.assertTrue(panel.reference_detail.text().startswith("COS(x)"))
+        self.assertIn("radianti", panel.reference_detail.text())
+        for name, (_, _, formula, result) in FUNCTION_EXAMPLES.items():
+            with self.subTest(name=name):
+                panel.reference_search.setText(name.lower())
+                self.assertIn(f"Esempio · {formula} → {result}", panel.reference_detail.text())
+                panel.expression.setPlainText(formula)
+                self.assertEqual(panel.validated_formula(), ("Example", formula))
+                dataset.set_formula("Example", formula)
+                self.assertAlmostEqual(dataset.frame()["Example"].iloc[0], float(result))
+
+    def test_equals_shortcut_confirms_replacement_and_keeps_errors_in_the_panel(self):
         from PySide6.QtTest import QTest
-        from trama_qt.formula import FormulaDialog
 
         window = self.window
         window.project.add_tables({"Study": pd.DataFrame({"Dose": [2., 4.], "Response": [9., 7.]})})
         window.open_sheet(("data", "Study"))
         window.sheet.setCurrentIndex(window.sheet.model().index(0, 1))
+        window.activateWindow()
+        self.app.processEvents()
         window.sheet.setFocus()
         dataset = window.project.tables["Study"]
-        seen = []
-
-        def cancel(dialog):
-            self.assertEqual(dialog.column, 1)
-            seen.append(dialog.replace_values)
-            return FormulaDialog.DialogCode.Rejected
-
-        with patch.object(FormulaDialog, "exec", cancel):
-            QTest.keyClick(window.sheet, Qt.Key.Key_Equal)
-        self.assertEqual(seen, [True])
+        QTest.keyClick(window.sheet, Qt.Key.Key_Equal)
+        panel = window.formula_editor
+        self.assertEqual(panel.column, 1)
+        self.assertTrue(panel.replace_values)
+        panel.expression.setPlainText("=A * 3")
+        self.assertEqual(window.sheet.formula_columns, (0,))
+        panel.cancel_button.click()
+        self.assertIsNone(window.formula_editor)
+        self.assertEqual(window.sheet.formula_columns, ())
         self.assertEqual(dataset.raw["Response"].tolist(), [9., 7.])
         self.assertFalse(dataset.formulas)
 
-        def accept(dialog):
-            dialog.expression.setPlainText("=B + 1")
-            dialog.accept()
-            self.assertIn("cannot depend on itself", dialog.problem.text())
-            self.assertIsNone(dialog.result)
-            self.assertEqual(dataset.raw["Response"].tolist(), [9., 7.])
-            dialog.expression.setPlainText("=A * 2")
-            dialog.accept()
-            self.assertIsNotNone(dialog.result)
-            return FormulaDialog.DialogCode.Accepted
+        QTest.keyClick(window.sheet, Qt.Key.Key_Equal)
+        panel = window.formula_editor
+        panel.expression.setPlainText("=A * 3")
+        self.app.processEvents()
+        self.assertIs(self.app.focusWidget(), panel.expression)
+        QTest.keyClick(panel.expression, Qt.Key.Key_Escape)
+        self.assertIsNone(window.formula_editor)
+        self.assertFalse(dataset.formulas)
 
-        with patch.object(FormulaDialog, "exec", accept):
-            QTest.keyClick(window.sheet, Qt.Key.Key_Equal)
+        QTest.keyClick(window.sheet, Qt.Key.Key_Equal)
+        panel = window.formula_editor
+        panel.expression.setPlainText("=B + 1")
+        panel.apply_button.click()
+        self.assertIn("cannot depend on itself", panel.problem.text())
+        self.assertIs(window.formula_editor, panel)
+        self.assertEqual(dataset.raw["Response"].tolist(), [9., 7.])
+        panel.expression.setPlainText("=A * 2")
+        panel.apply_button.click()
+        self.assertIsNone(window.formula_editor)
         self.assertEqual(dataset.frame()["Response"].tolist(), [4., 8.])
         window.undo()
         self.assertEqual(dataset.raw["Response"].tolist(), [9., 7.])
+
+    def test_formula_panel_cannot_apply_to_a_renamed_column_or_another_sheet(self):
+        window = self.window
+        window.project.add_tables({"Study": pd.DataFrame({"Dose": [2.], "Response": [None]}),
+                                   "Other": pd.DataFrame({"Dose": [4.], "Response": [None]})})
+        window.open_sheet(("data", "Study"))
+        dataset = window.project.tables["Study"]
+        window.edit_formula_in_column(1)
+        panel = window.formula_editor
+        panel.expression.setPlainText("=A * 3")
+        window.open_sheet(("data", "Study"))
+        self.assertIs(window.formula_editor, panel)
+        window._apply_edit("Study", lambda: window.project.rename_column("Study", 0, "Mass"))
+        self.assertEqual(window.sheet.formula_columns, ())
+        panel.apply_button.click()
+        self.assertTrue(panel.problem.text())
+        self.assertFalse(dataset.formulas)
+        window.open_sheet(("data", "Other"))
+        self.assertIsNone(window.formula_editor)
+        panel.apply_requested.emit()
+        self.assertFalse(window.project.tables["Other"].formulas)
 
     def test_interleaved_formula_has_read_only_cells_and_keeps_source_actions_aligned(self):
         from analisi.grid_data import clipboard_rows
@@ -2996,14 +3115,13 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.selected, second)
 
     def test_classic_toolbar_fits_all_buttons_at_1024_pixels(self):
-        from PySide6.QtWidgets import QToolButton
-
         window = self.window
         window.resize(1024, 720)
         self.open_example()
         self.app.processEvents()
-        buttons = window.toolbar.findChildren(QToolButton)
+        buttons = window.toolbar.buttons.values()
         self.assertEqual(len(buttons), 29)
+        self.assertFalse(window.toolbar.overflow.isVisible())
         actions = [button.defaultAction() for button in buttons]
         self.assertEqual(actions.count(window.actions["formula"]), 1)
         self.assertIn(window.actions["formula"], window.command_menus["Insert"].actions())
@@ -3012,6 +3130,65 @@ class QtShellTests(unittest.TestCase):
             self.assertFalse(button.icon().isNull(), button.accessibleName())
             self.assertLessEqual(button.mapTo(window.toolbar, button.rect().bottomRight()).x(),
                                  window.toolbar.width(), button.accessibleName())
+
+    def test_classic_toolbar_overflow_keeps_all_commands_reachable_without_overlap(self):
+        from PySide6.QtCore import QPoint
+
+        window = self.window
+        self.open_example()
+        window.resize(643, 460)
+        self.app.processEvents()
+        bar = window.toolbar
+        self.assertTrue(bar.overflow.isVisible())
+        visible = [button for button in bar.buttons.values() if button.isVisible()]
+        self.assertIn(bar.buttons["analyze"], visible)
+        listed = [action for group in bar.overflow.menu().actions() for action in group.menu().actions()]
+        self.assertCountEqual([button.defaultAction() for button in visible] + listed,
+                              [button.defaultAction() for button in bar.buttons.values()])
+        bounds = []
+        for button in [*visible, bar.overflow]:
+            rect = button.rect().translated(button.mapTo(bar, QPoint()))
+            self.assertLess(rect.right(), bar.width(), button.accessibleName())
+            self.assertTrue(all(not rect.intersects(other) for other in bounds), button.accessibleName())
+            bounds.append(rect)
+        window.resize(1024, 720)
+        self.app.processEvents()
+        self.assertFalse(bar.overflow.isVisible())
+        self.assertTrue(all(button.isVisible() for button in bar.buttons.values()))
+
+    def test_result_selector_preserves_the_active_table_as_the_window_resizes(self):
+        from analisi.reporting import Result
+        from trama_qt.project import Run
+        from trama_qt.result_tabs import ResultTabs
+
+        self.open_example()
+        window = self.window
+        tables = {name: pd.DataFrame({"n": [index]}) for index, name in enumerate(
+            ("Summary", "Group comparisons", "Residuals", "Model coefficients", "Notes"))}
+        run = Run("Descriptive statistics", "groups", {}, Result(tables))
+        window.project.runs.append(run)
+        window.open_sheet(("result", 0))
+        navigation = window.page.findChild(ResultTabs)
+        tabs = window.result_tabs
+        window.resize(1280, 740)
+        self.app.processEvents()
+        self.assertTrue(tabs.tabBar().isVisible())
+        self.assertFalse(navigation.choice.isVisible())
+        tabs.setCurrentIndex(2)
+        window.resize(630, 460)
+        self.app.processEvents()
+        self.assertFalse(tabs.tabBar().isVisible())
+        self.assertTrue(navigation.choice.isVisible())
+        self.assertEqual(navigation.choice.currentText(), "Residuals")
+        self.assertEqual([navigation.choice.itemText(index) for index in range(tabs.count())], list(tables))
+        navigation.choice.setCurrentIndex(4)
+        self.assertIs(tabs.currentWidget().model().frame, tables["Notes"])
+        window.resize(1280, 740)
+        self.app.processEvents()
+        self.assertTrue(tabs.tabBar().isVisible())
+        self.assertFalse(navigation.choice.isVisible())
+        self.assertEqual(tabs.currentIndex(), 4)
+        self.assertIsNone(window.job)
 
     def test_classic_graph_controls_and_canvas_navigation(self):
         from PySide6.QtWidgets import QToolButton
@@ -3477,6 +3654,50 @@ class QtShellTests(unittest.TestCase):
         self.app.processEvents()
         self.assertFalse(self.window.findChildren(GlassVeil))
         dialog.close()
+
+    def test_navigator_keeps_folded_folders_per_project(self):
+        from PySide6.QtCore import QPoint
+        from PySide6.QtWidgets import QMenu
+
+        self.open_example()
+        window = self.window
+        self.run_method("Descriptive statistics", {"Variables": ["Control"]})
+        first = window.sessions.active
+        window.project.dirty = False
+
+        def combined():
+            return next(window.navigator.topLevelItem(index) for index in range(window.navigator.topLevelItemCount())
+                        if window.navigator.topLevelItem(index).text(0) == tr("nav.data_results"))
+
+        branch = combined().child(0)
+        self.assertGreater(branch.childCount(), 0)
+        branch.setExpanded(False)
+        window.refresh()
+        self.assertTrue(combined().isExpanded())
+        self.assertFalse(combined().child(0).isExpanded())
+
+        def action(key):
+            window._navigator_menu(QPoint(-1, -1))
+            menu = self.app.activePopupWidget()
+            self.assertIsInstance(menu, QMenu)
+            next(item for item in menu.actions() if item.text() == tr(key)).trigger()
+            menu.close()
+
+        action("nav.collapse_all")
+        window.refresh()
+        self.assertFalse(combined().isExpanded())
+        window.new_project()
+        title, = window.project.add_tables({"Other": pd.DataFrame({"Reading": [1., 2.]})})
+        window.open_sheet(("data", title))
+        self.assertTrue(combined().isExpanded())
+        window.switch_project(first)
+        self.assertFalse(combined().isExpanded())
+        self.assertFalse(window.project.dirty)
+        action("nav.expand_all")
+        window.refresh()
+        self.assertTrue(combined().isExpanded())
+        self.assertTrue(combined().child(0).isExpanded())
+        self.assertFalse(window.project.dirty)
 
     def test_classic_navigator_toggles_and_restores_its_width(self):
         window = self.window

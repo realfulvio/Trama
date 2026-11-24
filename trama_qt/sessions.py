@@ -31,6 +31,7 @@ class Session:
     inspector_element: object = None
     key: str = field(default_factory=lambda: uuid4().hex)
     combined_navigator: bool = True
+    collapsed_folders: set = field(default_factory=set)
     sheet_filter: str = ""
     sheet_history: list = field(default_factory=list)
     sheet_position: int = -1
@@ -40,6 +41,7 @@ class Session:
         self.project, self.selected, self.view, self.status = project, None, {}, ""
         self.inspector_wanted, self.inspector_element = False, None
         self.combined_navigator = True
+        self.collapsed_folders.clear()
         self.sheet_filter = ""
         self.sheet_history.clear()
         self.sheet_position = -1

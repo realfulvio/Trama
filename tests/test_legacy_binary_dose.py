@@ -95,6 +95,28 @@ class BinaryDoseFitTests(unittest.TestCase):
         self.assertEqual(restored, {uid})
         self.assertEqual(self.frame.attrs["legacy_recipes"][0][1]["Model"], profile)
 
+    def test_table_only_polynomial_requires_matching_report_and_center(self):
+        frame = pd.DataFrame({"X": range(1, 9)})
+        centered = frame["X"] - 4.5
+        frame["Signal"] = 11 + 2 * centered + 3 * centered**2
+        report = pd.DataFrame([
+            ("Centered quadratic", None), ("Best-fit values", None), ("B0", "11.00"), ("B1", "2.000"),
+            ("MeanX", "= 4.500"), ("B2", "3.000"), ("Std. Error", None), ("Degrees of Freedom", "5"),
+            ("Absolute Sum of Squares", "0.000"), ("MeanX", "MeanX = 4.500"), ("Analyzed", "8"),
+        ])
+
+        model = "Centered polynomial (order 2)"
+        method, options = dose._polynomial_report(frame, report, model)
+        self.assertEqual(method, "Global nonlinear regression")
+        self.assertEqual(options["Fixed parameters"], {"Mean X": 4.5})
+        self.assertEqual(options["Y columns"], ["Signal"])
+
+        for row, wrong in ((4, "= 4.000"), (8, "0.100"), (9, "MeanX = 4.000"), (10, "7")):
+            with self.subTest(row=row), self.assertRaises(ValueError):
+                altered = report.copy()
+                altered.iat[row, 1] = wrong
+                dose._polynomial_report(frame, altered, model)
+
     def test_unreadable_index_preserves_other_imports(self):
         with patch.object(dose, "indexed_analyses", side_effect=ValueError("no valid index")):
             self.assertEqual(dose.restore_dose_recipes(b"", {}, {}, {}, {7}), set())

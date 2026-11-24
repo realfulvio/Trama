@@ -30,7 +30,7 @@ L’[editor delle legende](graph-legends.md) modifica titolo, colonne, cornice e
 
 ## Confronti e inferenza
 
-Il [test di permutazione per la differenza tra medie](mean-permutation-test.md) supporta campioni indipendenti e appaiati, enumerazione esatta e Monte Carlo riproducibile. Il [kappa di Cohen](cohen-kappa.md) misura la concordanza tra due valutatori con pesi lineari, quadratici o senza pesi, intervallo bootstrap e matrice di concordanza esportabile.
+Il [test di permutazione per la differenza tra medie](mean-permutation-test.md) supporta campioni indipendenti e appaiati, enumerazione esatta e Monte Carlo riproducibile. Il [test di Yuen per medie troncate](yuen-trimmed-means.md) confronta due campioni indipendenti con medie troncate, errore standard winsorizzato e intervallo di confidenza. Il [test di Brunner–Munzel](brunner-munzel.md) stima la probabilità di superiorità tra due campioni indipendenti con intervallo e dettaglio delle coppie. Il [test delle mediane di Mood](mood-median.md) confronta la mediana di due o più campioni indipendenti in colonne distinte con χ² di Pearson e regola dei pareggi. Il [kappa di Cohen](cohen-kappa.md) misura la concordanza tra due valutatori con pesi lineari, quadratici o senza pesi, intervallo bootstrap e matrice di concordanza esportabile.
 
 Test t indipendenti, appaiati e di Welch; test t lognormali per dati positivi, con rapporto fra medie geometriche e intervallo di confidenza ([guida](lognormal-tests-070.md)); test di equivalenza TOST per uno o due campioni, appaiati, Student e Welch, con zona di equivalenza dichiarata dall'utente ([guida](equivalence-tost-071.md)); test di rango; ANOVA ordinaria, di Welch e Brown–Forsythe; misure ripetute, Friedman, Kruskal–Wallis e ANOVA multifattoriale. Confronti multipli e correzioni, comprese coppie selezionate e controlli del tasso di false scoperte nei flussi supportati.
 
@@ -43,6 +43,8 @@ Il [test binomiale esatto](exact-binomial.md) confronta due conteggi osservati c
 ### Potenza e numerosità da medie e SD
 
 **Analizza → Potenza e numerosità…** pianifica uno studio con t a un campione, t appaiato, t indipendente (con allocazione esatta A:B) o ANOVA a una via bilanciata, partendo dalle medie e dalle SD attese oppure da un effetto standardizzato. Cerca la numerosità minima o calcola la potenza e può disegnare la curva di potenza come grafico nativo. [Conversione, allocazione e assunzioni](power-from-summary.md).
+
+**Strumenti → Potenza per proporzioni appaiate…** (nel catalogo: **Disegno degli studi e simulazione**) calcola la potenza esatta del test di McNemar bilaterale e la prima numerosità di coppie che la raggiunge, anche da un progetto vuoto. Non modifica la potenza per medie e SD. [Disegno, limiti e contratto](mcnemar-power.md).
 
 ## Regressioni, curve e calibrazione
 

@@ -130,6 +130,52 @@ class PresetSchemaTests(unittest.TestCase):
             gsp.apply_preset({"title": "x", "bogus": 1}, preset(grid=True))
 
 
+class PresetBatchPlanTests(unittest.TestCase):
+    def test_plan_preserves_selection_order_skips_unchanged_and_copies_independently(self):
+        batch_preset = {"version": 1, "name": "Stile comune", "style": {"grid": True, "tick_size": 11.0}}
+        shape = {"id": "0b7a7300-0000-4000-8000-000000000009", "kind": "rectangle", "units": "axes",
+                 "points": [[0.1, 0.1], [0.4, 0.3]], "stroke": "#333333", "width": 1.5, "line_style": "dashed",
+                 "fill": None, "alpha": 1.0, "layer": "above"}
+        styles = {
+            "g1": {"title": "Prima", "grid": False, "axis": {"x": {"min": 0, "max": 10}},
+                   "series": {"line:1:A": {"color": "#AA4433"}}},
+            "g2": {"title": "Seconda", "grid": True, "tick_size": 11.0},
+            "g3": {"title": "Terza", "grid": False, "shapes": [shape]},
+        }
+        original = deepcopy(styles)
+        planned = gsp.plan_preset_batch(styles, ["g2", "g1"], batch_preset)
+        self.assertEqual(list(planned), ["g1"])
+        self.assertEqual(planned["g1"], {**original["g1"], **batch_preset["style"]})
+        planned["g1"]["title"] = "Mutato"
+        planned["g1"]["axis"]["x"]["min"] = 99
+        self.assertEqual(styles, original)
+
+        ordered = gsp.plan_preset_batch(styles, ["g3", "g1"], batch_preset)
+        self.assertEqual(list(ordered), ["g3", "g1"])
+        self.assertEqual(ordered["g3"]["shapes"], original["g3"]["shapes"])
+        self.assertIsNot(ordered["g3"]["shapes"][0], styles["g3"]["shapes"][0])
+
+    def test_plan_handles_empty_selection_none_styles_and_all_unchanged(self):
+        batch_preset = preset("Comune", grid=True, tick_size=11.0)
+        styles = {"g1": None, "g2": {"title": "Uguale", "grid": True, "tick_size": 11.0}}
+        self.assertEqual(gsp.plan_preset_batch(styles, [], batch_preset), {})
+        self.assertEqual(gsp.plan_preset_batch(styles, ["g2"], batch_preset), {})
+        self.assertEqual(gsp.plan_preset_batch(styles, ["g1"], batch_preset),
+                         {"g1": {"grid": True, "tick_size": 11.0}})
+
+    def test_plan_rejects_missing_duplicate_or_invalid_targets_without_mutation(self):
+        batch_preset = preset("Comune", grid=True)
+        styles = {"g1": {"title": "A", "grid": False}, "bad": {"bogus": 1}}
+        original = deepcopy(styles)
+        for bad_ids in (["g1", "missing"], ["g1", "g1"], ["g1", "bad"], "g1"):
+            with self.subTest(ids=bad_ids), self.assertRaises(ValueError):
+                gsp.plan_preset_batch(styles, bad_ids, batch_preset)
+            self.assertEqual(styles, original)
+        with self.assertRaises(ValueError):
+            gsp.plan_preset_batch(styles, ["g1"], {"version": 1, "name": "Bad", "style": {"title": "No"}})
+        self.assertEqual(styles, original)
+
+
 class PresetFileTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

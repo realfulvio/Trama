@@ -187,6 +187,17 @@ class PlotFunctionTests(unittest.TestCase):
         result = analyse(pf.PLOT_FUNCTION, frame, options(**{pf.X_SOURCE: pf.WORKSHEET, pf.X_COLUMN: "Dose"}))
         self.assertEqual(result.tables[pf.VALUES]["X"].tolist(), [-1., .5, 4.])
 
+    def test_lognormal_plot_includes_limit_at_zero_but_rejects_negative_x(self):
+        coefficients = {"A": 1., "Geometric mean": 2., "Geometric SD": 2.}
+        settings = options("Lognormal", [curve("Density", **coefficients)],
+                           **{pf.X_MIN: 0., pf.X_MAX: 4., pf.SEGMENTS: 4})
+        result = analyse(pf.PLOT_FUNCTION, pd.DataFrame(), settings)
+        values = result.tables[pf.VALUES]["Density"].to_numpy()
+        self.assertEqual(values[0], 0.)
+        x = np.arange(1., 5.)
+        np.testing.assert_allclose(values[1:], np.exp(-.5 * (np.log2(x / 2.))**2) / x)
+        self.rejects(pf.X_MIN, settings | {pf.X_MIN: -1.})
+
     def test_power_series_is_checked_point_by_point(self):
         result = analyse(pf.PLOT_FUNCTION, pd.DataFrame(), options(
             "Power series", [curve("Root", A=1, B=.5, C=0, D=1)], **{pf.X_MIN: -2, pf.X_MAX: 2, pf.SEGMENTS: 4}))

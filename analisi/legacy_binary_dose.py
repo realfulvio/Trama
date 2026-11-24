@@ -12,7 +12,7 @@ from pandas.api.types import is_numeric_dtype
 from . import regression_range as rr, stats
 from .legacy_binary import _DATASET, _record_once
 from .legacy_binary_editable import _axis_config, _id_array, _one, _project_records, _require, _scene, _subgroups
-from .legacy_binary_results import _column_ids, _title
+from .legacy_binary_results import _column_ids, _matches_display, _title
 from .legacy_emf_edit import _drawing_series
 from .legacy_fit_graph import FIT_GRAPH, FIT_GRAPH_OBSERVATIONS, FIT_GRAPH_POINTS, FIT_GRAPH_SPEC
 from .legacy_restore import LEGACY_GRAPH_LINK, LEGACY_NOTES, LEGACY_TITLE, SAVED_XY, _append_linked_recipe
@@ -91,6 +91,22 @@ _CLASSIC_PROFILES = {
     "ec7d62ee3622e63da2511d82b9c0213d9790378fdafc9a9d1c04317879cd6de9": "Classic two-phase decay",
     "28c4d689a2a0b9b1da09ed38b8d85ebd50e3c28fc930993cfb0f4afc92e143bc": "Power series",
 }
+# These table-led fits were saved without an indexed drawing.
+_REPORT_POLYNOMIAL_PROFILES = {
+    "6801f435084e82d281913d7cfe201c9c7d9a7eb09bd1c9765183943b881b2663": "Polynomial (order 1)",
+    "73cc41438c00136978585e2b3c32b78db84fdc2bc9a325d6cdcc609b391e7773": "Polynomial (order 2)",
+    "4f72dcf580f512da83916dde1a85ddaf0f2de971d63159f28d181070febde6ed": "Polynomial (order 3)",
+    "1a7fc7328cad111683d52a86e2aee50e4f2d9a65c85a8fc3acfe825342564cdb": "Polynomial (order 4)",
+    "adcfdad93dae32fb28a942d6041ad05e0e632e034e39cf8d615547bab769b329": "Polynomial (order 5)",
+    "4bf7100a8a7df069bfd578101f4eec124a71deee3689d1243b85cddcf5b6403c": "Polynomial (order 6)",
+    "094433aef5ad9906f8f13d03e6729a2bb23c71bfa1c6cbc4221ef9d044b7e454": "Centered polynomial (order 1)",
+    "aa9806ba57e98160920e8d247e42f7e3c649bfbc09129de02aa23058d8daa86d": "Centered polynomial (order 2)",
+    "9e3a90e76e69552c8277c2d388e8f66be3044dc8dec3608be1d40e2a5b8c8c9b": "Centered polynomial (order 3)",
+    "b443a6ae7807a67e485b4379010d791a000a2db7feac5aea98077c50507b75ef": "Centered polynomial (order 4)",
+    "c3de43a7f01a5ec79ce43a6ab1909884c80570f929ffecc41a947dd6e75f3364": "Centered polynomial (order 5)",
+    "cb2a4346e68dd2d5bf61ae6e88010ce0d8a43ea2423c070d3ed088bbab9f34b7": "Centered polynomial (order 6)",
+}
+
 # Positive rates and fractions are bounded by the native models. Keep the saved
 # equalities and seed symmetric terms in the order used in their saved reports.
 _CLASSIC_COEFFICIENTS = {
@@ -115,7 +131,7 @@ def _model(records, settings, profiles):
     return profiles.get(fingerprint.hexdigest())
 
 
-def classic_fit_models(data):
+def classic_fit_models(data, *, report_polynomials=None):
     """Recognize the complete archived equation, solver and constraint profile."""
     try:
         _, analyses = indexed_analyses(data)
@@ -136,6 +152,12 @@ def classic_fit_models(data):
             elif (kind in ((0, 5, uid, 1, 127, 1, 65535, 65535), (0, 5, uid, 1, 255, 1, 65535, 0))
                   and (model := _model(records, settings, _CLASSIC_PROFILES))):
                 models[uid] = model, False
+            elif (kind[2] == uid and kind[3] in (0, 1) and kind[4] == 127
+                  and kind[5] in (0, 1) and kind[6:] == (65535, 65535)
+                  and (model := _model(records, settings, _REPORT_POLYNOMIAL_PROFILES))):
+                models[uid] = model, False
+                if report_polynomials is not None:
+                    report_polynomials.add(uid)
         except (ValueError, StructError):
             continue
     return models
@@ -169,8 +191,53 @@ def early_fit_inputs(data, companions, indexed, *, profiles=None):
     return found
 
 
+def _polynomial_report(frame, snapshot, model):
+    """Check a formatted result against an independent least-squares fit."""
+    _require(snapshot is not None and snapshot.shape[1] == 2 and 8 <= len(snapshot) <= 128
+             and len(frame) <= 128 and not frame.attrs.get("excluded"))
+    coefficients = stats.MODELS[model].parameters
+    centered = coefficients[0] == "Mean X"
+    degree = len(coefficients) - 1 - int(centered)
+    x, y = frame.dropna().to_numpy(dtype=float).T
+    _require(len(x) > degree + 1 and np.isfinite(x).all() and np.isfinite(y).all()
+             and len(np.unique(x)) >= degree + 1 and np.ptp(y) > 0)
+
+    rows = [(str(label).strip(), value) for label, value in snapshot.itertuples(index=False, name=None)]
+    end = 2 + len(coefficients)
+    _require(len(rows) > end and rows[1][0] == "Best-fit values" and rows[end][0] == "Std. Error")
+    estimates = dict(rows[2:end])
+    expected = ("MeanX", *coefficients[1:]) if centered else coefficients
+    _require(estimates.keys() == set(expected) and all(isinstance(value, str) for value in estimates.values()))
+
+    center = 0.
+    if centered:
+        center = float(x.mean())
+        saved, = (value for label, value in rows[end:] if label == "MeanX"
+                  and isinstance(value, str) and value.startswith("MeanX = "))
+        estimate = estimates.pop("MeanX")
+        _require(estimate.startswith("= ") and _matches_display(center, estimate[2:])
+                 and _matches_display(center, saved.removeprefix("MeanX = ")))
+
+    fit, (_, rank, _, _) = np.polynomial.Polynomial.fit(x - center, y, degree, full=True)
+    residual = y - fit(x - center)
+    values = fit.convert().coef
+    _require(rank == len(values) == degree + 1 and all(
+        _matches_display(value, estimates[f"B{index}"].removeprefix("~").strip())
+        for index, value in enumerate(values)))
+    for field, value in (("Analyzed", len(x)), ("Degrees of Freedom", len(x) - degree - 1),
+                         ("Absolute Sum of Squares", float(residual @ residual))):
+        saved, = (content for label, content in rows[end:] if label == field)
+        _require(_matches_display(value, saved))
+    if centered:
+        return "Global nonlinear regression", {
+            "Input format": "Wide XY", "Y columns": [frame.columns[1]], "Fixed parameters": {"Mean X": center},
+        }
+    return "Nonlinear regression", {"Runs test": True}
+
+
 def restore_dose_recipes(data, sources, sheets, snapshots, pending, *, curves=None,
-                         early_inputs=None, classic_models=None, classic_curves=None, calibration_curves=None):
+                         early_inputs=None, classic_models=None, classic_curves=None, calibration_curves=None,
+                         polynomial_reports=None):
     """Attach native recipes only where the input, output and saved column selection agree."""
     try:
         indexed, analyses = indexed_analyses(data)
@@ -180,6 +247,7 @@ def restore_dose_recipes(data, sources, sheets, snapshots, pending, *, curves=No
     restored = set()
     early_inputs = early_inputs or {}
     classic_models = classic_models or {}
+    polynomial_reports = polynomial_reports or {}
     if any(not calibration for _, calibration in classic_models.values()):
         try:
             _, _, _, source_records = _project_records(data, sources)
@@ -257,12 +325,20 @@ def restore_dose_recipes(data, sources, sheets, snapshots, pending, *, curves=No
                     fixed, start = _CLASSIC_COEFFICIENTS[classic]
                     options[stats.FIXED_COEFFICIENTS] = fixed.copy()
                     options[stats.STARTING_COEFFICIENTS] = start.copy()
+                method = "Nonlinear regression"
+                if uid in polynomial_reports:
+                    method, extra = _polynomial_report(frame, polynomial_reports[uid], model)
+                    options.update({**extra, LEGACY_TITLE: f"{title[:120]} · {model}"})
+                    if method == "Global nonlinear regression":
+                        options.pop("Y")
+                        options.pop("Runs test")
+                        options[LEGACY_NOTES] += " Mean X stays fixed at the saved center."
                 slot = len(recipes)
                 if parent:
-                    if not _append_linked_recipe(frame, parent[1], NORMALIZED, "Nonlinear regression", options):
+                    if not _append_linked_recipe(frame, parent[1], NORMALIZED, method, options):
                         continue
                 else:
-                    frame.attrs.setdefault("legacy_recipes", []).append(("Nonlinear regression", options))
+                    frame.attrs.setdefault("legacy_recipes", []).append((method, options))
                 if ((curves is not None or classic_curves is not None or calibration_curves is not None)
                         and snapshots.get(curve) == (uid, sheet, 2)):
                     columns = _column_ids(sheets[curve][0])
@@ -274,7 +350,7 @@ def restore_dose_recipes(data, sources, sheets, snapshots, pending, *, curves=No
                         owner = (curve, sheet, observations, frame, slot)
                         if calibration and calibration_curves is not None:
                             calibration_curves[link] = None if link in calibration_curves else owner
-                        elif classic and not calibration and classic_curves is not None:
+                        elif classic and not calibration and classic_curves is not None and method == "Nonlinear regression":
                             key = curve, link[0]
                             classic_curves[key] = None if key in classic_curves else (frame, slot)
                         elif not classic and curves is not None:

@@ -21,7 +21,10 @@ from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
 from analisi.linked_axes import linked_axes_status
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, MAX_ENTRY, Dataset,
                           info_references, load_tables, load_workspace, project_document, save_project)
+from analisi.ecdf_graph import METHOD as ECDF_GRAPH, style_after_parameter_change as ecdf_style
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
+from analisi.interaction_plot import METHOD as INTERACTION_PLOT, style_after_parameter_change as interaction_style
+from analisi.raincloud_plot import METHOD as RAINCLOUD_PLOT, style_after_parameter_change as raincloud_style
 from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
 from analisi.category_order import keep_source_columns
@@ -41,7 +44,7 @@ from analisi.pairwise_graph import (SECTION as PAIRWISE_SECTION, attach as attac
                                     graph_problem as pairwise_graph_problem, read_section as read_pairwise,
                                     source_problem as pairwise_source_problem, sync_letters_table)
 from analisi.parallel_analyses import precompute as precompute_analyses
-from analisi.presentation import Layout, apply_style, compose_layout
+from analisi.presentation import Layout, apply_style, compose_layout, validate_graph_style
 from analisi.legacy_emf_edit import LIMIT_SOURCE
 from analisi.stats import FIXED_COEFFICIENTS, STARTING_COEFFICIENTS, STARTING_COEFFICIENTS_BY_SERIES
 from analisi.legacy_fit_graph import FIT_GRAPH_SPEC, FIT_INTERVAL_BAND
@@ -61,7 +64,8 @@ from analisi.survival_plot import SURVIVAL_GRAPH
 from analisi.workbench import analyse
 from analisi import worksheet_join
 from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
-from analisi.worksheet_history import WorksheetHistory, WorksheetState
+from analisi.worksheet_history import WorksheetChange, WorksheetHistory, WorksheetState
+from .graph_style_presets import plan_preset_batch
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
 
@@ -266,6 +270,86 @@ def _file_stamp(path):
     return [status.st_size, status.st_mtime_ns]
 
 
+@dataclass(frozen=True, eq=False)
+class StyleBatchChange:
+    """One undoable multi-graph figure style step capturing only the affected runs' styles."""
+    label: str
+    before: dict
+    after: dict
+    seq: int = 0
+
+
+@dataclass(frozen=True)
+class BatchStyleOutcome:
+    """Outcome of applying a figure style preset to a selection of graphs."""
+    preset_name: str
+    selected_uids: tuple
+    changed_uids: tuple
+    unchanged_uids: tuple
+
+
+class ProjectHistory(WorksheetHistory):
+    """Project-wide undo/redo history supporting worksheet edits and multi-graph style batches."""
+
+    def __init__(self, *, memory_budget=96 * 1024 * 1024):
+        self._seq = 0
+        super().__init__(memory_budget=memory_budget)
+
+    def clear(self):
+        super().clear()
+        self._seq = 0
+
+    def next_seq(self):
+        self._seq += 1
+        return self._seq
+
+    def next_change(self, *, redo=False):
+        if not self.can_apply(redo=redo):
+            return None
+        return self.changes[self.position if redo else self.position - 1]
+
+    def record_style_batch(self, label, before, after):
+        if not before or before == after:
+            return False
+        del self.changes[self.position:]
+        self.changes.append(StyleBatchChange(label, deepcopy(before), deepcopy(after), self.next_seq()))
+        self._trim()
+        self.position = len(self.changes)
+        return True
+
+    def _trim(self):
+        while True:
+            worksheet_changes = [change for change in self.changes if isinstance(change, WorksheetChange)]
+            states = [state for change in worksheet_changes for state in (change.before, change.after)]
+            sizes = {}
+            exclusions = {}
+            backgrounds = {}
+            for state in states:
+                key = id(state.raw)
+                if key not in sizes:
+                    sizes[key] = self.frame_sizes.get(key)
+                    if sizes[key] is None:
+                        sizes[key] = int(state.raw.memory_usage(deep=True).sum())
+                exclusions[id(state.excluded)] = len(state.excluded) * 72
+                if state.cell_backgrounds:
+                    backgrounds[id(state.cell_backgrounds)] = len(state.cell_backgrounds) * 112
+                for sheets in (state.result_backgrounds or {}).values():
+                    for cells in sheets.values():
+                        backgrounds[id(cells)] = len(cells) * 112
+                if state.number_formats:
+                    backgrounds[id(state.number_formats)] = len(state.number_formats) * 160
+                for sheets in (state.result_number_formats or {}).values():
+                    for formats in sheets.values():
+                        backgrounds[id(formats)] = len(formats) * 160
+            style_bytes = sum(len(repr(change.before)) + len(repr(change.after))
+                              for change in self.changes if isinstance(change, StyleBatchChange))
+            self.frame_sizes = sizes
+            total_bytes = sum(sizes.values()) + sum(exclusions.values()) + sum(backgrounds.values()) + style_bytes
+            if len(self.changes) == 1 or (len(self.changes) <= 24 and total_bytes <= self.memory_budget):
+                return
+            del self.changes[0]
+
+
 class Project(WorksheetJoinSources):
     def __init__(self, number=1):
         self.number = number
@@ -277,8 +361,9 @@ class Project(WorksheetJoinSources):
         self.origin = None
         self.revision = 0  # Grows at every change (each ``dirty = True``): recovery copies follow it.
         self.dirty = False
-        self.history = WorksheetHistory()
+        self.history = ProjectHistory()
         self.undo_changed_data = True  # Set by ``undo``: False after undoing colours or number formats only.
+        self.undo_style_uids = ()  # Set by ``undo``: affected run UIDs after undoing/redoing a style batch.
         # Recovery copies (trama_qt/recovery.py): one key for the life of this project, a sequence of generations,
         # the original the copy refers to and the state that original had when it was opened or saved.
         self.recovery_key = uuid4().hex
@@ -719,6 +804,12 @@ class Project(WorksheetJoinSources):
         style = run.style
         if method == run.method == FREQUENCY:
             style = frequency_style(style, run.options, options)
+        elif method == run.method == ECDF_GRAPH:
+            style = ecdf_style(style, run.options, options)
+        elif method == run.method == INTERACTION_PLOT:
+            style = interaction_style(style, run.options, options)
+        elif method == run.method == RAINCLOUD_PLOT:
+            style = raincloud_style(style, run.options, options)
         elif method == run.method == "Kaplan–Meier survival":
             style = survival_style(style, run.options, options)
         elif method == run.method == XY_METHOD:
@@ -869,10 +960,19 @@ class Project(WorksheetJoinSources):
             xy = {"frame": self.tables[run.title].frame(mask_excluded=True), "options": dict(run.options)}
         return style, xy
 
-    @staticmethod
-    def record_shapes(run, style):
+    def record_shapes(self, run, style):
         """One step of the graph's drawing history when ``style`` changes its shapes."""
+        before_pos = run.shape_history.position
+        before_len = len(run.shape_history.changes)
         run.shape_history.record((run.style or {}).get(SHAPES, []), (style or {}).get(SHAPES, []))
+        if run.shape_history.position != before_pos or len(run.shape_history.changes) != before_len:
+            seqs = getattr(run.shape_history, "_trama_seqs", None)
+            if seqs is None:
+                seqs = run.shape_history._trama_seqs = [0] * max(0, len(run.shape_history.changes) - 1)
+            del seqs[before_pos:]
+            seqs.append(self.history.next_seq())
+            if len(seqs) > len(run.shape_history.changes):
+                del seqs[:-len(run.shape_history.changes)]
 
     def commit_style(self, run, style, *, record_shapes=True):
         """Store a style already drawn on the figure (the Inspector and the canvas tools preview it first)."""
@@ -883,6 +983,84 @@ class Project(WorksheetJoinSources):
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
         self.dirty = True
+
+    def _apply_style_updates(self, targets, styles_by_uid):
+        """Validate every target figure first, then redraw all of them with full rollback on error."""
+        for uid, run in targets:
+            problem = self.graph_format_problem(run)
+            if problem:
+                raise ValueError(problem)
+            candidate = {} if styles_by_uid[uid] is None else styles_by_uid[uid]
+            validate_graph_style(run.result.figure.axes[0], candidate)
+        applied = []
+        try:
+            for uid, run in targets:
+                previous = deepcopy(run.style)
+                target = styles_by_uid[uid]
+                applied.append((run, previous))
+                apply_style(run.result.figure, deepcopy(target or {}))
+        except Exception:
+            for prev_run, prev_style in reversed(applied):
+                try:
+                    apply_style(prev_run.result.figure, deepcopy(prev_style or {}))
+                except Exception:
+                    pass
+            raise
+        for uid, run in targets:
+            target = deepcopy(styles_by_uid[uid])
+            run.style = target
+            run.result.style_warning = graph_warning(run.result.figure, target)
+            if target is None:
+                self.tables[run.title].graph_styles.pop(run.slot, None)
+            else:
+                self.tables[run.title].graph_styles[run.slot] = target
+            sync_letters_table(run.result)
+
+    def commit_style_batch(self, selected_uids, preset, *, expected=None, label="Apply figure style to graphs"):
+        """Apply ``preset`` atomically to ``selected_uids`` as one undoable project transaction.
+
+        Zero effective changes leave the project clean with no new history entry. If any target
+        changed, fails validation or fails while drawing, all confirmed styles stay untouched.
+        """
+        by_uid = {run.uid: run for run in self.runs}
+        ids = list(selected_uids)
+        styles_by_id = {}
+        seen = set()
+        for uid in ids:
+            if uid in seen:
+                raise ValueError("A graph was selected more than once.")
+            seen.add(uid)
+            run = by_uid.get(uid)
+            if run is None:
+                raise ValueError("One or more graphs changed while the dialog was open. Nothing was applied."
+                                 if expected is not None else "A selected graph is no longer available.")
+            if expected is not None:
+                snapshot = expected.get(uid)
+                if snapshot is None:
+                    raise ValueError("One or more graphs changed while the dialog was open. Nothing was applied.")
+                exp_run, exp_result, exp_figure, exp_style = snapshot
+                cur_figure = run.result.figure if run.result is not None else None
+                if (run is not exp_run or run.result is not exp_result or cur_figure is not exp_figure
+                        or (run.style or {}) != exp_style or run.calculation_error):
+                    raise ValueError("One or more graphs changed while the dialog was open. Nothing was applied.")
+            if run.calculation_error:
+                raise ValueError("Recalculate the graph first.")
+            problem = self.graph_format_problem(run)
+            if problem:
+                raise ValueError(problem)
+            styles_by_id[uid] = run.style
+        planned = plan_preset_batch(styles_by_id, ids, preset)
+        changed_uids = tuple(planned.keys())
+        unchanged_uids = tuple(uid for uid in ids if uid not in planned)
+        if not changed_uids:
+            return BatchStyleOutcome(preset["name"], tuple(ids), (), unchanged_uids)
+        targets = [(uid, by_uid[uid]) for uid in changed_uids]
+        before = {uid: deepcopy(run.style) for uid, run in targets}
+        after = {uid: deepcopy(planned[uid]) for uid, _ in targets}
+        self._apply_style_updates(targets, after)
+        self.history.record_style_batch(label, before, after)
+        self.dirty = True
+        return BatchStyleOutcome(preset["name"], tuple(ids), changed_uids, unchanged_uids)
 
     def apply_format(self, run, style, *, xy_update=None, xy_result=None):
         if run.method == XY_METHOD and xy_update is not None:
@@ -1100,6 +1278,25 @@ class Project(WorksheetJoinSources):
         return self.edit(title, "Exclude cells", change)
 
     def undo(self, *, redo=False):
+        self.undo_style_uids = ()
+        change = self.history.next_change(redo=redo)
+        if change is None:
+            return None, None
+        if isinstance(change, StyleBatchChange):
+            by_uid = {run.uid: run for run in self.runs}
+            target_styles = change.after if redo else change.before
+            targets = []
+            for uid in target_styles:
+                run = by_uid.get(uid)
+                if run is None:
+                    raise ValueError("A styled graph is no longer in this project.")
+                targets.append((uid, run))
+            self._apply_style_updates(targets, target_styles)
+            self.history.position += 1 if redo else -1
+            self.dirty = True
+            self.undo_changed_data = False
+            self.undo_style_uids = tuple(target_styles.keys())
+            return None, []
         change = self.history.apply(self.tables, redo=redo)
         if change is None:
             return None, None
