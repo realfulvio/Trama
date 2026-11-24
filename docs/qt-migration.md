@@ -4,17 +4,18 @@ Avvia **Trama.exe** nel portabile Windows. Dal sorgente usa `python -m trama_qt 
 
 ## Area di lavoro
 
-- Foglio dati virtuale (`QTableView`): modifica, incolla/taglia/copia, Canc, inserisci/elimina righe e colonne, rinomina, escludi celle, annulla/ripeti. Colonne calcolate con Home → Formula…: si aggiungono o si cambiano, anche con doppio clic sull'intestazione, e l'espressione viene verificata prima di tenerla.
+- Foglio dati virtuale (`QTableView`): modifica, incolla/taglia/copia, Canc, inserisci/elimina righe e colonne, rinomina, escludi celle, annulla/ripeti. Colonne calcolate con Inserisci → Formula…: si aggiungono o si cambiano, anche con doppio clic sull'intestazione, e l'espressione viene verificata prima di tenerla.
+- **Cambia → Proprietà variabili…** riunisce nomi e tipi delle colonne nelle tabelle a variabili multiple. I tipi dichiarati nelle importazioni compatibili si conservano nel progetto.
 - Dialogo analisi per tutti i 95 metodi del motore, con ricerca, campi tradotti e messaggio di errore sul campo.
 - Calcolo in background con avanzamento e annulla; ricalcolo a catena dei risultati collegati quando cambiano i dati.
 - Tabelle dei risultati, grafici matplotlib (barra di navigazione), layout salvati.
-- Fogli Info (Home → Nuovo foglio Info…): nome e ambito, costanti modificabili (aggiungi, elimina, sposta), note con grassetto/corsivo/sottolineato (Ctrl+B/I/U) e importazione da testo, sposta ed elimina foglio. Le costanti lette dalle formule ricalcolano le loro tabelle.
+- Fogli Info (Inserisci → Nuovo foglio Info…): nome e ambito, costanti modificabili (aggiungi, elimina, sposta), note con grassetto/corsivo/sottolineato (Ctrl+B/I/U) e importazione da testo, sposta ed elimina foglio. Le costanti lette dalle formule ricalcolano le loro tabelle.
 - Apri/importa (stessi formati della versione Tk), salva `.alab`, esporta tabelle CSV e grafici PNG/SVG/PDF/TIFF a 300 dpi con verifica del file; layout in PDF e SVG vettoriali; File → Esporta più fogli in PDF con ordine, larghezza e sfondo trasparente.
 - Format Graph (Ctrl+Maiusc+F): titolo ed etichette, font e dimensioni, legenda, cornice, griglie, assi (scala, minimo/massimo, passo, tacche, decimali), serie (colore, linea, simbolo, etichetta), asse destro e stile delle serie XY, linee di riferimento, tacche e griglie aggiuntive (guide) e intervalli ombreggiati (bande) degli assi, interruzioni degli assi sui grafici XY (2 o 3 segmenti, suggerite dai dati), formato della legenda (titolo, colonne, ordine, cornice, sfondo, etichette delle voci), ripristino dei predefiniti.
 - Inspector dei grafici (Ctrl+Maiusc+I): pannello laterale con anteprima dal vivo, Applica/Annulla, clic sul grafico per scegliere box e violini; chiede cosa fare di una bozza prima di salvare, esportare o ricalcolare.
 - Annotazioni di testo e frecce sul grafico (Grafico → Annotazioni grafico…).
 - Confronti a coppie e lettere compatte su box, violini e grafici a colonne (Grafico → Confronti a coppie… / Lettere compatte…): sorgente, coppie, asterischi o valori P, soglia, colore; lettere con alfa, identificatori, posizione e dimensione.
-- Famiglie di esperimenti (Home → Duplica famiglia… / Salva famiglia come…, anche dal menu del navigatore): anteprima del contenuto, nome o prefisso, layout inclusi; copia e salvataggio in background, annullabili.
+- Famiglie di esperimenti (Famiglia → Duplica famiglia… / Salva famiglia come…, anche dal menu del navigatore): anteprima del contenuto, nome o prefisso, layout inclusi; copia e salvataggio in background, annullabili. Nella copia puoi scegliere quali valori e titoli svuotare.
 - Forme sul grafico (Grafico → Forme del grafico…): linee con o senza frecce, rettangoli ed ellissi, con tratto, riempimento, motivo, opacità, livello e coordinate in frazioni o dati; ordinabili.
 - File → Esporta con opzioni… per grafici e layout: preset Schermo/Stampa/Vettoriale, PNG/TIFF/SVG/PDF, larghezza in mm, DPI, sfondo trasparente e testo SVG come testo o tracciati, con dimensione finale in anteprima; le scelte restano per la sessione, compreso il testo SVG.
 - Catene di analisi: Analizza questo risultato… (nuova analisi sulla tabella dei risultati aperta), Analisi sorgente, Cambia risultato di ingresso… (sorgente e tabella, con controllo dei cicli e revisione dei parametri); nel navigatore i risultati collegati stanno sotto la loro sorgente. Anche nella scheda Analizza e col tasto destro.
@@ -30,6 +31,8 @@ Avvia **Trama.exe** nel portabile Windows. Dal sorgente usa `python -m trama_qt 
 - `<lingua>-<nome>.png` con la finestra su ogni foglio e ogni dialogo, alla scala corrente;
 - `report.txt` con schermo, scala, versione di Qt e i problemi trovati;
 - `status.txt` con `PASS` o `FAIL`; il codice di uscita è 0 o 1.
+
+Per il collaudo di Proprietà variabili e Duplica famiglia sulle tabelle importate, usa `python -m trama_qt --smoke CARTELLA --scenario qt-worksheet-properties`.
 
 Per collaudare solo l’anteprima del foglio dati, usa `python -m trama_qt --smoke CARTELLA --scenario qt-worksheet-preview`.
 
