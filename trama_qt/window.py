@@ -482,6 +482,8 @@ class MainWindow(QMainWindow):
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
         from .graph_style_preset_dialog import t as preset_text
         a("graph_style_presets", preset_text("action"), self.graph_style_presets, icon="sparkles")
+        from .batch_figure_styles_dialog import t as batch_style_text
+        a("batch_figure_styles", batch_style_text("action"), self.batch_figure_styles, icon="sparkles")
         a("inspector", tr("graph.inspector.title"), self.toggle_inspector, icon="paintbrush", shortcut="Ctrl+Shift+I")
         a("annotations", tr("command.graph_annotations"), self.edit_annotations, icon="type")
         a("shapes", tr("shape.button"), self.edit_shapes, icon="shapes")
@@ -838,6 +840,8 @@ class MainWindow(QMainWindow):
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
         self.actions["graph_style_presets"].setEnabled(graph and idle)
+        from .gallery_catalog import graph_runs
+        self.actions["batch_figure_styles"].setEnabled(idle and bool(graph_runs(self.project)))
         self.actions["inspector"].setEnabled(graph and idle)
         self.actions["worksheet_preview"].setEnabled(data and idle)
         if data and self.page is not None and self.page.worksheet_preview is not None:
@@ -872,15 +876,15 @@ class MainWindow(QMainWindow):
             self.actions[key].setEnabled(has_data and idle)
         for key in ("power", "simulate", "plot_function", "paste_table", "load_example", "new_table", "new_info"):
             self.actions[key].setEnabled(idle)
-        shape_run = self.drawing.history_run()  # On a graph with drawing steps, Undo/Redo belong to that graph.
-        history = shape_run.shape_history if shape_run is not None else self.project.history
         if kind == "info" and self.info_editor is not None:
             doc = self.info_editor.notes.document()
             self.actions["undo"].setEnabled(idle and doc.isUndoAvailable())
             self.actions["redo"].setEnabled(idle and doc.isRedoAvailable())
         else:
-            self.actions["undo"].setEnabled(idle and self.gallery is None and history.can_apply())
-            self.actions["redo"].setEnabled(idle and self.gallery is None and history.can_apply(redo=True))
+            undo_source = self._history_target(redo=False)
+            redo_source = self._history_target(redo=True)
+            self.actions["undo"].setEnabled(idle and self.gallery is None and undo_source is not None)
+            self.actions["redo"].setEnabled(idle and self.gallery is None and redo_source is not None)
         for key in ("open", "import", "new_project", "save", "save_as", "close_project", "import_excel"):
             self.actions[key].setEnabled(idle)
         self.actions["export_excel"].setEnabled(idle and bool(self.project.tables or self.project.runs))
@@ -1974,6 +1978,26 @@ class MainWindow(QMainWindow):
         cells = [(row, column) for row in range(top, bottom + 1) for column in range(left, right + 1)]
         self._apply_edit(title, lambda: self.project.toggle_exclusion(title, cells))
 
+    def _history_target(self, *, redo=False):
+        """Return ``('shape', run)`` or ``('project', None)`` for Undo/Redo, or ``None`` if unavailable."""
+        from .project import StyleBatchChange
+
+        shape_run = self.drawing.history_run()
+        proj_change = self.project.history.next_change(redo=redo)
+        if shape_run is not None:
+            shape_hist = shape_run.shape_history
+            shape_can = shape_hist.can_apply(redo=redo)
+            if isinstance(proj_change, StyleBatchChange):
+                if not shape_can:
+                    return ("project", None)
+                seqs = getattr(shape_hist, "_trama_seqs", ())
+                idx = shape_hist.position if redo else shape_hist.position - 1
+                shape_seq = seqs[idx] if 0 <= idx < len(seqs) else 0
+                if (proj_change.seq <= shape_seq) if redo else (proj_change.seq > shape_seq):
+                    return ("project", None)
+            return ("shape", shape_run) if shape_can else None
+        return ("project", None) if proj_change is not None else None
+
     def undo(self, *, redo=False):
         if self.gallery is not None or self.busy():
             return
@@ -1984,14 +2008,28 @@ class MainWindow(QMainWindow):
                 self.info_editor.notes.undo()
             self.info_editor.flush()
             return
-        shape_run = self.drawing.history_run()
-        if shape_run is not None:
+        target = self._history_target(redo=redo)
+        if target is None:
+            return
+        source, shape_run = target
+        if source == "shape":
             self.drawing.apply_history(shape_run, redo=redo)
             return
+        from .project import StyleBatchChange
+        if isinstance(self.project.history.next_change(redo=redo), StyleBatchChange):
+            if not self.settle_graph_draft():
+                return
         try:
             title, affected = self.project.undo(redo=redo)
         except (ValueError, TypeError, OverflowError) as error:
             self.error(error)
+            return
+        if self.project.undo_style_uids:
+            from .batch_figure_styles_dialog import t as batch_style_text
+            self._after_style_batch(
+                self.project.undo_style_uids,
+                batch_style_text("redone" if redo else "undone", count=len(self.project.undo_style_uids)),
+            )
             return
         if title is None:
             return
@@ -2304,6 +2342,66 @@ class MainWindow(QMainWindow):
         self.commit_style(run, style)
         self.show_sheet(*self.selected)
         self.status(preset_text("applied"))
+
+    def _after_style_batch(self, changed_uids, status_text):
+        """Refresh the visible sheet, Inspector, gallery or layout after a batch style commit/undo/redo."""
+        if self.gallery is not None:
+            self.gallery.sync()
+        elif self.selected is not None and self.selected[0] in {"graph", "layout"}:
+            self.show_sheet(*self.selected)
+        elif (self.selected is not None and self.selected[0] == "data" and self.page is not None
+              and self.page.worksheet_preview is not None and self.page.worksheet_preview.enabled):
+            self.page.worksheet_preview.refresh()
+        self.update_title()
+        self.update_actions()
+        if status_text:
+            self.status(status_text)
+
+    def batch_figure_styles(self):
+        """Change → Apply style to multiple graphs…: apply one saved style atomically to chosen graphs."""
+        from .batch_figure_styles_dialog import (BatchFigureStylesDialog, batch_message, batch_style_rows,
+                                                 format_summary, t as batch_style_text)
+        from .graph_style_presets import PresetLibrary
+
+        if self.busy():
+            return
+        if not self.settle_graph_draft():
+            return
+        project = self.project
+        rows = batch_style_rows(project)
+        if not rows:
+            self.error(batch_style_text("no_graphs"))
+            return
+        current_uid = None
+        if self.gallery is None and self.selected and self.selected[0] == "graph":
+            current_uid = project.runs[self.selected[1]].uid
+        expected = {
+            row.uid: (row.run, row.run.result,
+                      row.run.result.figure if row.run.result is not None else None,
+                      deepcopy(row.run.style or {}))
+            for row in rows if row.eligible
+        }
+        dialog = BatchFigureStylesDialog(self, project, rows, PresetLibrary(), current_uid=current_uid)
+        accepted = dialog.exec() == BatchFigureStylesDialog.DialogCode.Accepted and dialog.result is not None
+        payload = dialog.result
+        dialog.deleteLater()
+        if not accepted:
+            return
+        if self.project is not project or self.busy():
+            self.error(batch_style_text("changed"))
+            return
+        selected_uids, preset = payload
+        try:
+            outcome = project.commit_style_batch(selected_uids, preset, expected=expected)
+        except Exception as error:  # noqa: BLE001 - report validation or figure failure without partial writes
+            self.error(batch_message(error))
+            return
+        summary = format_summary(outcome)
+        self.last_batch_style_summary = summary
+        if outcome.changed_uids:
+            self._after_style_batch(outcome.changed_uids, summary)
+        else:
+            self.status(summary)
 
     def _figure_canvas(self, figure):
         """The canvas that shows ``figure`` on the active page, if any."""
