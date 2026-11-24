@@ -4,7 +4,7 @@ from matplotlib.ticker import PercentFormatter
 from scipy import stats
 
 from . import (auc_peaks, cox_outputs, design, exploration, independent_roc, inference, logistic_diagnostics, lognormal_anova, mlr_weighting,
-               models, ols_diagnostics, operations, pca_graphs, pca_overlays, pca_regression, pca_reports, power_plan,
+               mcnemar_power, models, ols_diagnostics, operations, pca_graphs, pca_overlays, pca_regression, pca_reports, power_plan,
                pca_retention, trend_anova, unequal_anova, variance_assumptions, roc as roc_module)
 from . import plot_function as function_plot
 from . import deming as deming_module
@@ -134,6 +134,7 @@ EXTRA_METHODS = {
     # Legacy recipes keep working: the keys they lack (Effect input, Allocation A:B, Show power curve) default to
     # the standardized effect, a 1:1 allocation and no curve.
     power_plan.METHOD: power_plan.OPTIONS,
+    mcnemar_power.METHOD: mcnemar_power.OPTIONS,
     "Simulate data": {"Distribution": ("Normal", "XY with normal noise", "2 × 2 contingency"),
                       "N": 30, "Seed": 42, "Mean": 0., "SD": 1., "X minimum": 0., "X maximum": 1.,
                       "Intercept": 0., "Slope": 1., "Success probability A": .5, "Success probability B": .5},
@@ -511,6 +512,8 @@ def extra_analysis(method, frame, o):
         return Result({"Grubbs' test": _report(operations.grubbs(frame, o["Response"], o["Alpha"]))})
     if method == power_plan.METHOD:
         return power_plan.analysis(o)
+    if method == mcnemar_power.METHOD:
+        return mcnemar_power.analysis(frame, o)
     if method == "Simulate data":
         kind = {"Normal": "normal", "XY with normal noise": "xy", "2 × 2 contingency": "contingency"}[o["Distribution"]]
         values = design.simulate(kind, o["N"], seed=o["Seed"], mean=o["Mean"], sd=o["SD"],

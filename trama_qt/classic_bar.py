@@ -29,7 +29,7 @@ MENUS = (
     ("Arrange", ("arrange_shapes", "new_layout", "edit_layout")),
     ("Family", ("family_data", "family_info", "family_results", "family_graphs", "family_gallery", "|",
                 "duplicate_family", "save_family")),
-    ("Tools", ("power", "simulate", "monte_carlo", "transpose_xy", "plot_function", "|", "search")),
+    ("Tools", ("power", "paired_power", "simulate", "monte_carlo", "transpose_xy", "plot_function", "|", "search")),
     ("Settings", ("language", "table_font", "processes", "recovery_settings")),
 )
 

@@ -36,12 +36,12 @@ from analisi import ordinal_logit as ordinal
 from analisi import paired_proportions as paired
 from analisi.paired_graphs import TTEST_ESTIMATION
 from analisi.variance_ratio import SHOW as TTEST_VARIANCE
-from analisi import monte_carlo, plot_function, power_plan, rmst, transpose_xy
+from analisi import mcnemar_power, monte_carlo, plot_function, power_plan, rmst, transpose_xy
 from analisi import rmst_dialog, rmst_workbench as rmst_form
 from analisi import tolerance_intervals as tolerance
 from analisi import weibull_aft as weibull
 from analisi import weibull_aft_workbench as weibull_form
-from analisi.i18n import tr, translate_message, ui
+from analisi.i18n import active_language, tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
 from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
 from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_FIELDS, PAIRWISE_SCOPE, PAIRWISE_PAIR_LIST,
@@ -353,13 +353,15 @@ class AnalysisDialog(QDialog):
         self.join = None
         pages, scrolls = {}, {}
         power_method = self.method == power_plan.METHOD
+        paired_power = self.method == mcnemar_power.METHOD
         cox_method = self.method == cox_outputs.METHOD
         weibull_method = self.method == weibull.METHOD
         ordinal_method = self.method == ordinal.ORDINAL_LOGIT
         rmst_method = self.method == rmst.METHOD
         kappa_method = self.method == kappa.METHOD
         permutation_method = self.method == mean_permutation.METHOD
-        page_specs = (("variables", ui("Design")), ("options", ui("Effect")), ("curve", ui("Curve"))) if power_method else (
+        page_specs = (("variables", ui("Design")), ("options", ui("Effect")), ("curve", ui("Curve"))) if (
+            power_method or paired_power) else (
             ("variables", qt("qt.variables")), *global_fit.pages(self.method),
             *global_catalog.pages(self.method), *select_editor.pages(self.method),
             ("options", qt("qt.options")))
@@ -455,6 +457,9 @@ class AnalysisDialog(QDialog):
             text_defaults = power_plan.TEXT_DEFAULTS
             for name, form in (("Design", variables), ("Effect", options), ("Curve", pages["curve"])):
                 power_forms.update(dict.fromkeys(power_plan.TABS[name], form))
+        if paired_power:
+            for name, form in (("Design", variables), ("Effect", options), ("Curve", pages["curve"])):
+                power_forms.update(dict.fromkeys(mcnemar_power.TABS[name], form))
         hierarchy_forms = {field: pages[tab] for tab, names in HIERARCHICAL_TABS.items()
                            for field in names} if hierarchy_method else {}
         columns = [str(name) for name in self.data.columns]
@@ -551,6 +556,10 @@ class AnalysisDialog(QDialog):
                 if reference is not None and reference != "":
                     text = rmst.group_text(reference)
                     widget.addItem(text, text)
+            elif paired_power and type(kind) in (int, float):
+                value = saved.get(label, kind)
+                text = mcnemar_power.canonical(value) if type(value) in (int, float) else "" if value is None else str(value)
+                widget = QLineEdit(text)
             elif type(kind) in (int, float) or kind == TEXT:
                 default = text_defaults.get(label, "") if kind == TEXT else kind
                 value = saved.get(label, default)
@@ -735,6 +744,8 @@ class AnalysisDialog(QDialog):
         self.join = join_editor.attach(self, pages, saved)
         if power_method:
             self._configure_power_fields(pages)
+        if paired_power:
+            self._configure_paired_power(pages)
         if cox_method:
             self._configure_cox_fields(pages["diagnostics"], saved.get(cox_outputs.GRAPH_TERM))
         if weibull_method:
@@ -829,6 +840,40 @@ class AnalysisDialog(QDialog):
 
         for name in choices:
             self.controls[name][1].currentIndexChanged.connect(sync)
+        sync()
+
+    def _configure_paired_power(self, pages):
+        notes = []
+        for page, key in (("variables", "design"), ("options", "effect_empty"), ("curve", "curve")):
+            note = QLabel(tr(f"mcnemar.power.note.{key}"))
+            note.setWordWrap(True)
+            note.setObjectName("muted")
+            pages[page].addRow(note)
+            notes.append(note)
+        effect = notes[1]
+        goal = self.controls[mcnemar_power.GOAL][1]
+        first = self.controls[mcnemar_power.P01][1]
+        second = self.controls[mcnemar_power.P10][1]
+
+        def show(value):
+            text = f"{value:.6g}"
+            return text.replace(".", ",") if active_language() == "it" else text
+
+        def sync(_value=None):
+            self._set_field_visibility(mcnemar_power.visibility({mcnemar_power.GOAL: goal.currentData()}))
+            preview = mcnemar_power.effect_preview(first.text(), second.text())
+            if preview is None:
+                effect.setText(tr("mcnemar.power.note.effect_empty"))
+            else:
+                difference, discordance = preview
+                effect.setText(tr("mcnemar.power.note.effect", difference=show(difference),
+                                  discordance=show(discordance)))
+            if self.error_field in self.hidden:
+                self.clear_field_error(self.error_field)
+
+        goal.currentIndexChanged.connect(sync)
+        first.textChanged.connect(sync)
+        second.textChanged.connect(sync)
         sync()
 
     def _configure_cox_fields(self, form, saved_term):
@@ -955,6 +1000,8 @@ class AnalysisDialog(QDialog):
                 options[name] = control.isChecked()
             elif self.method == power_plan.METHOD and name in power_plan.NUMBER_FIELDS:
                 options[name] = control.toPlainText() if name == power_plan.GROUP_MEANS else control.text()
+            elif self.method == mcnemar_power.METHOD and name in mcnemar_power.NUMBER_FIELDS:
+                options[name] = control.text()
             elif self.method == rmst.METHOD and name in rmst_form.NUMBER_FIELDS:
                 options[name] = rmst_dialog.read_number(control.text())
             elif self.method == rmst.METHOD and name == rmst.REFERENCE:
@@ -1072,6 +1119,8 @@ class AnalysisDialog(QDialog):
                 plot_function.check_curves(model, options.get(plot_function.CURVES))
             if self.method == power_plan.METHOD:
                 options = power_plan.normalized_options(options, power_plan.check_options(options))
+            if self.method == mcnemar_power.METHOD:
+                options = mcnemar_power.normalized_options(options)
             if self.method == cox_outputs.METHOD:
                 if cox_exact.is_exact(options):
                     cox_exact.check_outputs(options)
@@ -1148,6 +1197,8 @@ class AnalysisDialog(QDialog):
             thousands = lambda value: value.replace(",", ".")
             return translate_message(error, "power.error.", convert={
                 "field": field_label, "low": thousands, "high": thousands, "limit": thousands, "count": thousands})
+        if self.method == mcnemar_power.METHOD:
+            return translate_message(str(error), mcnemar_power.ERROR_PREFIX, convert={"field": field_label})
         if self.method == cox_outputs.METHOD:
             return cox_outputs.cox_message(cox_exact.translate_error(error))
         if self.method == tolerance.TOLERANCE:
