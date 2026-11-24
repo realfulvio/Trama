@@ -1496,3 +1496,10 @@ from .precision_recall_catalog import MESSAGES as _PRECISION_RECALL_MESSAGES  # 
 
 CAPTIONS.update(_PRECISION_RECALL_CAPTIONS)
 MESSAGES.update(_PRECISION_RECALL_MESSAGES)
+
+# Two-factor interaction plot: captions and engine messages live in their own section.
+from .interaction_plot_catalog import CAPTIONS as _INTERACTION_PLOT_CAPTIONS  # noqa: E402
+from .interaction_plot_catalog import MESSAGES as _INTERACTION_PLOT_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_INTERACTION_PLOT_CAPTIONS)
+MESSAGES.update(_INTERACTION_PLOT_MESSAGES)
