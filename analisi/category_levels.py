@@ -7,10 +7,12 @@ import math
 import numpy as np
 import pandas as pd
 
-from . import worksheet_join
+from . import ttest_options, worksheet_join
+from .analysis_chain import ResultSource, result_frame
 from .category_order import MAX_LEVELS, WORKSHEET_ORDERS, ranks, validated_orders
 from .graph_legend import MAX_LEGEND_KEY_LENGTH, typed_group_token
 from .i18n import tr, ui
+from .select_transform import CALCULATED, FILTERS, SELECT_TRANSFORM
 from .variable_types import VARIABLE_TYPES, inferred_type
 from .worksheet_join_app import stored_legacy_view
 
@@ -381,96 +383,126 @@ def apply_level_plan(dataset, plan):
 
 # -- Recipe dependency & blocker inspection ------------------------------------------------------
 
+PASSTHROUGH_TABLES = {worksheet_join.METHOD: worksheet_join.JOINED, SELECT_TRANSFORM: "Selected data"}
+
 def _run_name(run):
     if getattr(run, "label", None):
         return run.label
     return ui(run.method)
 
 
-def _join_right_column_mapping(left_columns, right_columns, options, source_column):
-    try:
-        left_keys, right_keys = worksheet_join.key_lists(options)
-    except ValueError:
+def _source_columns(project, source, runs):
+    """Output names of a live or reproducible saved input to a worksheet join."""
+    pending = []
+    while source is not None:
+        parent = runs.get(source.analysis_id)
+        if parent is None:
+            return None
+        if parent.result is not None and not parent.calculation_error:
+            try:
+                columns = list(result_frame(parent.result, source.table).columns)
+            except ValueError:
+                return None
+            break
+        if source.table != PASSTHROUGH_TABLES.get(parent.method):
+            return None
+        pending.append(parent)
+        if parent.method == SELECT_TRANSFORM and "Variables" in parent.options:
+            columns = ()
+            break
+        if parent.source is None:
+            dataset = project.tables.get(parent.title)
+            if dataset is None:
+                return None
+            columns = dataset.columns
+            break
+        source = parent.source
+    else:
         return None
-    if source_column in right_keys:
-        mapped = [left_keys[idx] for idx, key in enumerate(right_keys) if key == source_column]
-        return mapped[0] if mapped else None
-    try:
-        out_names, carried = worksheet_join.output_names(left_columns, right_columns, right_keys)
-    except Exception:
-        return None
-    if source_column not in carried:
-        return None
-    pos = carried.index(source_column)
-    return out_names[len(left_columns) + pos]
+    for parent in reversed(pending):
+        if parent.method == worksheet_join.METHOD:
+            right = project.tables.get(worksheet_join.right_title(parent.options))
+            if right is None:
+                return None
+            try:
+                _, right_keys, _, _ = worksheet_join.validate(parent.options, columns, right.columns)
+            except ValueError:
+                return None
+            columns, _ = worksheet_join.output_names(columns, right.columns, right_keys)
+            continue
+        names = parent.options.get("Variables", columns)
+        calculated = parent.options.get(CALCULATED, ())
+        if (not isinstance(names, (list, tuple)) or not isinstance(calculated, (list, tuple))
+                or not all(isinstance(item, dict) and isinstance(item.get("name"), str) for item in calculated)):
+            return None
+        columns = [*names, *(item["name"].strip() for item in calculated)]
+    return list(columns)
 
 
-def _source_columns(project, source):
-    if source is None:
-        return None
-    parent = next((item for item in project.runs if item.uid == source.analysis_id), None)
-    if parent is None or parent.result is None:
-        return None
-    table = parent.result.tables.get(source.table)
-    return list(table.columns) if table is not None else None
+def _join_right_column(left_columns, right_columns, right_keys, column):
+    names, carried = worksheet_join.output_names(left_columns, right_columns, right_keys)
+    return names[len(left_columns) + carried.index(column)]
 
 
 def _collect_downstream_columns(project, title, column):
-    """Return list of ``(run, effective_column)`` reading ``(title, column)`` directly or via joins/results."""
-    targets = []
+    """Find column readers and any joins whose right output name still needs resolution."""
+    targets, unresolved = [], []
     visited = set()
     queue = deque()
+    children, schemas = {}, {}
+    runs = {run.uid: run for run in project.runs}
+    right_columns = project.tables[title].columns
 
     for run in project.runs:
-        if run.source is None and run.title == title:
+        if run.source is not None:
+            children.setdefault(run.source, []).append(run)
+        elif run.title == title:
             queue.append((run, column))
-        elif run.method == worksheet_join.METHOD and worksheet_join.right_title(run.options) == title:
-            left_cols = (
-                list(project.tables[run.title].columns)
-                if run.source is None and run.title in project.tables
-                else _source_columns(project, run.source)
-            )
-            right_cols = list(project.tables[title].columns) if title in project.tables else []
-            if left_cols is not None:
-                mapped = _join_right_column_mapping(left_cols, right_cols, run.options, column)
-                if mapped is not None:
-                    queue.append((run, mapped, "right_join"))
+        if run.method != worksheet_join.METHOD or worksheet_join.right_title(run.options) != title:
             continue
+        try:
+            left_keys, right_keys, kind, _ = worksheet_join.validate(run.options)
+        except ValueError:
+            continue
+        if column in right_keys:
+            # A Left join always uses the unchanged left key, even when the right row no longer matches.
+            if kind != worksheet_join.LEFT:
+                queue.append((run, left_keys[right_keys.index(column)]))
+        elif column in right_columns:
+            if run.source is None:
+                left_columns = project.tables[run.title].columns
+            else:
+                if run.source not in schemas:
+                    schemas[run.source] = _source_columns(project, run.source, runs)
+                left_columns = schemas[run.source]
+            if left_columns is None:
+                unresolved.append(run)
+            else:
+                mapped = _join_right_column(left_columns, right_columns, right_keys, column)
+                queue.append((run, mapped))
 
-    # Normalize queue items to (run, col, kind)
-    normalized = deque()
-    for item in queue:
-        if len(item) == 2:
-            normalized.append((item[0], item[1], "direct"))
-        else:
-            normalized.append(item)
-
-    while normalized:
-        run, col, kind = normalized.popleft()
+    while queue:
+        run, col = queue.popleft()
         key = (run.uid, col)
         if key in visited:
             continue
         visited.add(key)
         targets.append((run, col))
+        if output := _passthrough(run, col):
+            queue.extend((child, col) for child in children.get(output, ()))
 
-        if run.method == worksheet_join.METHOD:
-            # Left input keeps ``col`` unless it's a right-join item already mapped to ``col``.
-            out_col = col
-            for child in project.runs:
-                if child.source is not None and child.source.analysis_id == run.uid and child.source.table == worksheet_join.JOINED:
-                    normalized.append((child, out_col, "derived"))
-                elif child.method == worksheet_join.METHOD and worksheet_join.right_title(child.options) == run.title:
-                    # Only table-level right joins exist in current Trama, handled above.
-                    pass
-        elif run.method == "Select and Transform":
-            selected = run.options.get("Variables")
-            survives = (not selected) or (col in selected)
-            if survives:
-                for child in project.runs:
-                    if child.source is not None and child.source.analysis_id == run.uid:
-                        normalized.append((child, col, "derived"))
+    return targets, unresolved, children
 
-    return targets
+
+def _passthrough(run, column):
+    table = PASSTHROUGH_TABLES.get(run.method)
+    if table is None:
+        return None
+    if run.method == SELECT_TRANSFORM:
+        variables = run.options.get("Variables")
+        if isinstance(variables, (list, tuple)) and column not in variables:
+            return None
+    return ResultSource(run.uid, table)
 
 
 def _hits(values, removed):
@@ -499,7 +531,20 @@ def _recipe_hits(run, col, removed):
     o = run.options or {}
     blocks = []
 
-    if method == "One-way ANOVA" and o.get("Group") == col:
+    if method == SELECT_TRANSFORM and isinstance(o.get(FILTERS), list):
+        references = (rule.get("value") for rule in o[FILTERS] if isinstance(rule, dict)
+                      and rule.get("column") == col and rule.get("target") == "Text"
+                      and rule.get("operator") in {"=", "!="})
+        if hits := _hits(references, removed):
+            blocks.append((FILTERS, tuple(hits)))
+
+    elif (method == "t-test" and o.get("Group") == col and o.get("Design") in {"Welch", "Student", "Paired"}
+          and o.get(ttest_options.INPUT, ttest_options.GROUPED) == ttest_options.GROUPED
+          and isinstance(o.get("Group order"), (list, tuple))):
+        if hits := _hits((str(label) for label in o["Group order"]), removed):
+            blocks.append(("Group order", tuple(hits)))
+
+    elif method == "One-way ANOVA" and o.get("Group") == col:
         posthoc = o.get("Post-hoc", "None")
         family = o.get("Comparison family", "All pairs")
         if posthoc == "Dunnett" or (posthoc in {"Tamhane T2", "Dunnett T3"} and family == "Versus control"):
@@ -650,7 +695,7 @@ def _recipe_hits(run, col, removed):
 
 
 def find_blocking_recipes(project, title, plan):
-    """Check all direct and join-derived recipes reading ``(title, plan.column)`` for removed explicit levels."""
+    """Find recipes referencing removed levels. An unresolved join schema raises LevelEditError."""
     if not plan.removed_labels:
         return []
     label_to_tokens = {}
@@ -661,7 +706,8 @@ def find_blocking_recipes(project, title, plan):
                 label_to_tokens.setdefault(raw, []).append(old_token)
 
     blockers = []
-    for run, col in _collect_downstream_columns(project, title, plan.column):
+    targets, unresolved, children = _collect_downstream_columns(project, title, plan.column)
+    for run, col in targets:
         for field_name, levels in _recipe_hits(run, col, plan.removed_labels):
             tokens = []
             for lvl in levels:
@@ -672,7 +718,52 @@ def find_blocking_recipes(project, title, plan):
                 levels=levels,
                 source_tokens=tuple(dict.fromkeys(tokens)),
             ))
+    if not blockers:
+        for join in unresolved:
+            if _unresolved_join_depends(join, plan, children):
+                source = next((run for run in project.runs if run.uid == join.source.analysis_id), join)
+                raise LevelEditError(tr("category_levels.error.join_source", recipe=source.name),
+                                     code="join_source_unavailable")
     return blockers
+
+
+def _unresolved_join_depends(join, plan, children):
+    """Only ask for an unloaded schema when a consumer names a possible alias and a changed level."""
+    column = plan.column
+    pending = deque(children.get(ResultSource(join.uid, worksheet_join.JOINED), ()))
+    visited = set()
+    while pending:
+        run = pending.popleft()
+        if run.uid in visited:
+            continue
+        visited.add(run.uid)
+        if any(_recipe_hits(run, alias, plan.removed_labels) for alias in _possible_aliases(run.options, column)):
+            return True
+        if table := PASSTHROUGH_TABLES.get(run.method):
+            pending.extend(children.get(ResultSource(run.uid, table), ()))
+    return False
+
+
+def _possible_aliases(options, column):
+    """Names that output_names could choose with a still unknown set of left columns."""
+    yield column
+    prefix = f"{column} [right"
+    pending = [options]
+    found = {column}
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            pending.extend(value)
+            pending.extend(value.values())
+        elif isinstance(value, (list, tuple)):
+            pending.extend(value)
+        elif isinstance(value, str) and value.startswith(prefix) and value.endswith("]") and value not in found:
+            suffix = value[len(prefix):-1]
+            number = suffix[1:]
+            if not suffix or (suffix.startswith(" ") and number.isascii() and number.isdigit()
+                              and not number.startswith("0") and number != "1"):
+                found.add(value)
+                yield value
 
 
 def format_recipe_blockers(blockers):

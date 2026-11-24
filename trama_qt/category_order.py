@@ -119,6 +119,7 @@ class CategoryOrderDialog(QDialog):
         layout.addWidget(self.filter_hint)
 
         self.problem = QLabel()
+        self.problem.setTextFormat(Qt.TextFormat.PlainText)
         self.problem.setObjectName("errorBanner")
         self.problem.setWordWrap(True)
         self.problem.hide()
@@ -347,7 +348,11 @@ class CategoryOrderDialog(QDialog):
             return
 
         if self.check_recipes is not None:
-            blockers = self.check_recipes(plan)
+            try:
+                blockers = self.check_recipes(plan)
+            except LevelEditError as error:
+                self._show_problem(error)
+                return
             if blockers:
                 self._show_problem(format_recipe_blockers(blockers))
                 token = blockers[0].source_tokens[0] if blockers[0].source_tokens else None
