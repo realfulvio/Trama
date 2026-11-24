@@ -28,6 +28,8 @@ from analisi.raincloud_plot import METHOD as RAINCLOUD_PLOT, style_after_paramet
 from analisi.graph_annotations import ANNOTATIONS
 from analisi.graph_shapes import SHAPES
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
+from analisi.category_levels import (LevelEditError, apply_level_plan, can_rename_levels, find_blocking_recipes,
+                                     format_recipe_blockers)
 from analisi.category_order import WORKSHEET_ORDERS, keep_source_columns
 from analisi.variable_types import TYPES, VARIABLE_TYPES, convert_type
 from analisi.i18n import tr, ui
@@ -1470,6 +1472,24 @@ class Project(WorksheetJoinSources, SheetCommands):
             candidate.number_formats = {names.get(name, name): spec for name, spec in candidate.number_formats.items()}
 
         return self.edit(title, tr("variables.title"), change)
+
+    def category_level_blockers(self, title, plan):
+        """Return any recipes reading ``(title, plan.column)`` blocked by removed levels."""
+        return find_blocking_recipes(self, title, plan)
+
+    def apply_category_levels(self, title, plan):
+        """Apply validated level renames/merges and category order in one undoable edit."""
+        dataset = self.editable(title)
+        if plan.value_map and not can_rename_levels(dataset, plan.column):
+            raise LevelEditError(tr("category_levels.error.ineligible"), code="ineligible")
+        blockers = self.category_level_blockers(title, plan)
+        if blockers:
+            token = blockers[0].source_tokens[0] if blockers[0].source_tokens else None
+            raise LevelEditError(format_recipe_blockers(blockers), token=token, code="recipe_blocked")
+        if not plan.has_changes:
+            return None
+        label = tr("category_levels.history_label") if plan.value_map else tr("command.category_order").removesuffix("…")
+        return self.edit(title, label, lambda candidate: apply_level_plan(candidate, plan))
 
     def set_formula(self, title, name, expression):
         """Add a calculated column, or change the expression of an existing one."""

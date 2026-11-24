@@ -2222,7 +2222,7 @@ class MainWindow(QMainWindow):
             dialog.deleteLater()
 
     def edit_category_order(self):
-        from analisi.category_order import OrderDraft, set_order
+        from analisi.category_levels import LevelEditDraft
         from .category_order import CategoryOrderDialog
 
         if not self.prepare_project_change(self.edit_category_order):
@@ -2237,17 +2237,29 @@ class MainWindow(QMainWindow):
             return
         column = dataset.columns[index]
         try:
-            draft = OrderDraft(dataset, column)
+            draft = LevelEditDraft(dataset, column)
         except ValueError as error:
             self.error(error)
             return
-        if len(draft.levels) < 2 and not draft.saved:
+        if draft.can_rename and not draft.levels and not draft.saved:
+            self.error(tr("category_levels.error.no_levels"))
+            return
+        if not draft.can_rename and len(draft.levels) < 2 and not draft.saved:
             self.error(tr("worksheet_order.empty"))
             return
-        dialog = CategoryOrderDialog(self, column, draft)
-        if dialog.exec() == CategoryOrderDialog.DialogCode.Accepted and (order := draft.result()) is not None:
-            label = tr("command.category_order").removesuffix("…")
-            self._apply_edit(title, lambda: self.project.edit(title, label, lambda data: set_order(data, column, order)))
+        dialog = CategoryOrderDialog(
+            self,
+            column,
+            draft,
+            check_recipes=lambda plan: self.project.category_level_blockers(title, plan),
+        )
+        try:
+            if dialog.exec() == CategoryOrderDialog.DialogCode.Accepted:
+                plan = dialog.plan if dialog.plan is not None else draft.validate()
+                if plan.has_changes:
+                    self._apply_edit(title, lambda: self.project.apply_category_levels(title, plan))
+        finally:
+            dialog.deleteLater()
 
     def rename_column(self, column):
         title = self._active_table()
