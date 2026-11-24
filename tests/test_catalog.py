@@ -91,6 +91,7 @@ class CatalogTests(unittest.TestCase):
             "XY error bars": {"X": "x", "Y": "z", "Y lower error": "p", "Group": "Group"},
             "XY series": {"X": "x", "Y columns": ["y", "z"]},
             "Parts of whole graph": {"Values": "x", "Graph style": "Donut"},
+            "Pareto plot": {"Category": "Group", "Weight": "x", "Threshold": 80},
             "Compare observed distribution with expected": {"Observed counts": "x"},
             "Column graph": {"Variables": ["x", "z"], "Graph style": "Individual points", "Interval": "SEM"},
             "Grouped graph": {"Variables": ["x", "z"], "Row titles": "Group", "Graph style": "Bars"},
