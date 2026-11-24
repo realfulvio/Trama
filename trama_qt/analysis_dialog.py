@@ -20,7 +20,7 @@ from analisi.anova_terms import TERM_LIST
 from analisi import curve_pipeline, curve_pipeline_dialog, lognormal_tests, regression_range, ttest_options
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
-from analisi import cluster_silhouette, cohen_kappa as kappa, cox_exact, cox_outputs
+from analisi import cluster_silhouette, cohen_kappa as kappa, cox_exact, cox_outputs, interaction_plot_catalog
 from analisi import cohen_kappa_options as kappa_text, cohen_kappa_workbench as kappa_form
 from analisi import extract_rearrange as extraction
 from analisi.field_error import FieldError
@@ -55,6 +55,7 @@ from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
 from . import rm_sphericity_dialog as sphericity_options
 from . import icc as icc_binding
+from . import interaction_plot as interaction_binding
 from . import precision_recall as precision_options
 from . import reshape_long_wide as reshape_editor
 from . import select_transform as select_editor
@@ -81,7 +82,7 @@ except Exception:  # pragma: no cover
 
 CATEGORY_ROLES = {"Group", "Rows", "Columns", "Subject", "Row label", "Row factor variable",
                   "Column factor variable", "Row (treatment) variable", "Column (outcome) variable",
-                  "X categories", "Y categories"}
+                  "X categories", "Y categories", "X factor", "Series factor"}
 VARIABLE_KINDS = (None, OPTIONAL, MULTIPLE, OPTIONAL_MULTIPLE)
 PLANNED_PANEL_FIELDS = {CONTRAST_CORRECTION, CONTRAST_ALPHA}
 
@@ -189,6 +190,7 @@ class AnalysisDialog(QDialog):
         self.repeated = None  # Bland–Altman for repeated pairs (trama_qt.bland_altman_repeated)
         self.sphericity = None  # Repeated measures ANOVA sphericity correction (trama_qt.rm_sphericity_dialog)
         self.icc = None  # Intraclass correlation (trama_qt.icc)
+        self.interaction = None  # Two-factor interaction plot (trama_qt.interaction_plot)
         self.precision = None  # Precision–recall curve (trama_qt.precision_recall)
         self.calibration = None  # Standard-curve calibration (trama_qt.standard_curve)
         self.reshape = None  # Reshape long and wide editor (trama_qt.reshape_long_wide)
@@ -260,6 +262,8 @@ class AnalysisDialog(QDialog):
             self.banner.setText(self.sphericity.message(error, error_field))
         if error and self.icc is not None:  # engine errors reopen here; word them in the active language
             self.banner.setText(self.icc.message(error))
+        if error and self.interaction is not None:
+            self.banner.setText(self.interaction.message(error))
         if error and self.precision is not None:
             self.banner.setText(self.precision.message(error))
         if error and self.calibration is not None:
@@ -347,6 +351,7 @@ class AnalysisDialog(QDialog):
         self.repeated = None
         self.sphericity = None
         self.icc = None
+        self.interaction = None
         self.precision = None
         self.calibration = None
         self.reshape = None
@@ -434,6 +439,10 @@ class AnalysisDialog(QDialog):
             labels, captions = lognormal_tests.LABEL_KEYS, lognormal_tests.CHOICE_KEYS
             for page, title in (("variables", "Data"), ("options", "Test and graph")):
                 self.tabs.setTabText(self.tabs.indexOf(scrolls[page]), tr(lognormal_tests.TAB_KEYS[title]))
+        if self.method == interaction_binding.METHOD:
+            captions = interaction_plot_catalog.CHOICE_KEYS
+            if interaction_binding.ERROR_BARS not in saved:
+                saved = {**saved, interaction_binding.ERROR_BARS: interaction_binding.DEFAULT_ERROR_BARS}
         if self.method == CUSTOM_EQUATION and not saved:
             saved = {"Equation": DEFAULT_EQUATION, "Parameters": [dict(record) for record in EXAMPLE_PARAMETERS]}
         elif self.method == global_fit.GLOBAL_CUSTOM_EQUATION and not saved:
@@ -721,6 +730,7 @@ class AnalysisDialog(QDialog):
         self.repeated = repeated_agreement.attach(self)
         self.sphericity = sphericity_options.attach(self)
         self.icc = icc_binding.attach(self, saved)
+        self.interaction = interaction_binding.attach(self, saved)
         self.precision = precision_options.attach(self)
         self.calibration = calibration_options.attach(self)
         self.reshape = reshape_editor.attach(self, pages, saved)
@@ -1039,6 +1049,8 @@ class AnalysisDialog(QDialog):
                 self.sphericity.check(options)  # the design check of the corrections; the fit stays on the worker
             if self.icc is not None:
                 self.icc.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
+            if self.interaction is not None:
+                self.interaction.check(options)
             if self.precision is not None:
                 self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.method == mean_permutation.METHOD:
@@ -1123,6 +1135,8 @@ class AnalysisDialog(QDialog):
             return self.sphericity.message(error, field)
         if self.icc is not None:  # Intraclass correlation: engine messages in the active language
             return self.icc.message(error)
+        if self.interaction is not None:
+            return self.interaction.message(error)
         if self.precision is not None:  # Precision–recall curve: engine messages in the active language
             return self.precision.message(error)
         if self.method == calibration_options.METHOD:
