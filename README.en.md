@@ -8,7 +8,7 @@
 
 Paste from Excel, choose an analysis, format your figure and save the complete project. Trama is an independent project for scientific statistics and figures, with MIT-licensed source code.
 
-**[Download for Windows x64](https://github.com/realfulvio/Trama/releases)** · [Italiano](README.md) · [Getting started](docs/getting-started.md) · [Website](https://realfulvio.github.io/trama-site/en/)
+**[Download for Windows x64](https://github.com/realfulvio/Trama/releases)** · [Italiano](README.md) · [Getting started](docs/getting-started.md) · [Website](https://tramastat.org/en/)
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
