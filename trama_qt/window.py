@@ -44,6 +44,7 @@ from analisi.ordinal_logit import GRAPH as ORDINAL_GRAPH, ORDINAL_LOGIT
 from analisi.tolerance_intervals import SHOW_GRAPH as TOLERANCE_GRAPH, TOLERANCE
 from analisi.weibull_aft import METHOD as WEIBULL_AFT, SHOW_GRAPH as WEIBULL_GRAPH
 from analisi.workbench import GRAPH_METHODS, GROUPS
+from analisi.sheet_metadata import HIGHLIGHTS, RUN_KINDS, validate_sheet_title
 from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
 from analisi.paired_graphs import shows_paired_estimation
 
@@ -336,6 +337,7 @@ class MainWindow(QMainWindow):
         self.gallery = None  # The open gallery of graphs and layouts, in place of the page (trama_qt/gallery.py).
         self.gallery_view = {"kind": None, "text": ""}  # Its filters: a state of the view, never saved.
         self.info_editor = None
+        self.worksheet_notes = None
         self.navigator_width = 244
         self.navigator_open = True
         self.setAcceptDrops(True)
@@ -404,7 +406,8 @@ class MainWindow(QMainWindow):
 
     def _build(self):
         a = self._action
-        a("new_project", tr("command.new_project"), self.new_project, icon="plus", shortcut="Ctrl+Shift+N")
+        a("new_project", tr("command.new_project"), self.new_project, icon="plus", shortcut="Ctrl+N")
+        self.actions["new_project"].setShortcuts([QKeySequence("Ctrl+N"), QKeySequence("Ctrl+Shift+N")])
         a("open", tr("command.open"), self.open_dialog, icon="folder-open", shortcut="Ctrl+O")
         a("close_project", tr("command.close_project"), self.close_project, icon="x", shortcut="Ctrl+W",
           tip=qt("qt.close_project_hint"))
@@ -448,8 +451,7 @@ class MainWindow(QMainWindow):
           icon="arrow-up-down", shortcut="Ctrl+Shift+T")
         a("paste_table", tr("command.paste_as_new_table"), self.paste_table, icon="table-2")
         a("clear_cells", tr("command.clear_selected_cells"), lambda: self._sheet_call("clear"), icon="trash-2")
-        a("new_table", tr("command.new_table"), self.choose_table, icon="table", shortcut="Ctrl+N")
-        self.actions["new_table"].setShortcuts([QKeySequence("Ctrl+N"), QKeySequence("Ctrl+T")])
+        a("new_table", tr("command.new_table"), self.choose_table, icon="table", shortcut="Ctrl+T")
         a("category_order", tr("command.category_order"), self.edit_category_order, icon="arrow-up-down")
         a("variable_properties", tr("command.variable_properties"), self.edit_variable_properties,
           icon="sliders-horizontal")
@@ -515,6 +517,12 @@ class MainWindow(QMainWindow):
         a("repeat_analysis", repeat_text("command"), self.repeat_analysis, icon="copy", tip=repeat_text("tip"))
         self.actions["repeat_analysis"].setIconText(repeat_text("short"))
         a("navigator", tr("command.toggle_navigator"), self.toggle_navigator, icon="panel-bottom", shortcut="Ctrl+F1")
+        for command, icon in (("duplicate", "copy"), ("rename", "type"), ("delete", "trash-2"),
+                              ("move_up", "chevron-up"), ("move_down", "chevron-down"),
+                              ("freeze", "lock")):
+            a(f"sheet_{command}", qt(f"qt.sheet_{command}"),
+              lambda command=command: self._worksheet_command(self.selected, command), icon=icon)
+        a("sheet_notes", qt("qt.sheet_notes"), self.open_worksheet_notes, icon="book-open")
         a("find_sheet", tr("nav.search"), self.focus_sheet_search, icon="search", shortcut="Ctrl+F")
         a("combined_navigator", tr("command.toggle_data_results"), self.toggle_combined_navigator,
           icon="panel-bottom").setCheckable(True)
@@ -815,10 +823,17 @@ class MainWindow(QMainWindow):
 
     def update_actions(self):
         kind = self.selected[0] if self.selected and self.gallery is None else None  # The gallery shows no sheet.
-        on_run = kind in {"result", "graph", "saved-layout"}
+        on_run = kind in RUN_KINDS
         data = kind == "data"
-        editable = data and not stored_legacy_view(self.project.tables[self.selected[1]])
+        locked = bool(kind and self.project.sheet_locked(self.selected))
+        editable = data and not locked and not stored_legacy_view(self.project.tables[self.selected[1]])
         idle = self.job is None
+        self.actions["sheet_notes"].setEnabled(kind is not None and idle)
+        for command in ("duplicate", "rename", "delete", "move_up", "move_down", "freeze"):
+            action = self.actions[f"sheet_{command}"]
+            action.setEnabled(bool(kind and idle and self._worksheet_command_available(self.selected, command)))
+            if command == "freeze":
+                action.setText(qt("qt.sheet_unfreeze" if locked else "qt.sheet_freeze"))
         if self.formula_editor is not None:
             self.formula_editor.apply_button.setEnabled(idle)
         self.gallery_button.setVisible(self.gallery is None)
@@ -840,7 +855,7 @@ class MainWindow(QMainWindow):
         for key in ("sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset"):
             self.actions[key].setEnabled(has_table)
         for key in ("cell_background", "clear_cell_background", "number_format"):
-            self.actions[key].setEnabled(has_table and idle)
+            self.actions[key].setEnabled(has_table and idle and not locked)
         graph_clipboard = kind == "graph" and self.drawing.problem() is None
         self.actions["copy"].setEnabled(has_table or graph_clipboard)
         self.actions["paste"].setEnabled((editable and idle) or graph_clipboard)
@@ -854,7 +869,7 @@ class MainWindow(QMainWindow):
         self.actions["remove_info"].setEnabled(info)
         self.actions["info_up"].setEnabled(info and info_index > 0)
         self.actions["info_down"].setEnabled(info and info_index + 1 < len(info_keys))
-        changeable = kind in {"result", "graph"} and not _saved_recipe(self.project.runs[self.selected[1]])
+        changeable = kind in {"result", "graph"} and not locked and not _saved_recipe(self.project.runs[self.selected[1]])
         self.actions["change"].setEnabled(changeable and idle)
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
@@ -875,15 +890,16 @@ class MainWindow(QMainWindow):
             self.inspector.setEnabled(idle)
         self.actions["new_layout"].setEnabled(idle and bool(self.project.layout_candidates()))
         self.actions["edit_layout"].setEnabled(idle and kind == "layout")
-        self.actions["recalculate"].setEnabled((on_run or kind == "layout") and idle)
+        self.actions["recalculate"].setEnabled((on_run and not locked or kind == "layout") and idle)
         self.actions["use_result"].setEnabled(kind == "result" and idle)
         run = self.project.runs[self.selected[1]] if kind in {"result", "graph"} else None
         result = run.result if run is not None else None
         self.actions["analysis_graph"].setEnabled(idle and kind == "result" and result is not None
-                                                   and result.figure is not None)
+                                                   and result.figure is not None and not self.project.sheet_state(("graph", self.selected[1])).get("hidden"))
         self.actions["analysis_tables"].setEnabled(idle and kind == "graph" and (
-            run_view(run.method) == "result" or XML_GENERATED_XY in run.options))
-        self.actions["plot_margins"].setEnabled(idle and self.gallery is None and self.plot_tools is not None)
+            (run_view(run.method) == "result" or XML_GENERATED_XY in run.options)
+            and not self.project.sheet_state(("result", self.selected[1])).get("hidden")))
+        self.actions["plot_margins"].setEnabled(idle and not locked and self.gallery is None and self.plot_tools is not None)
         chained = kind in {"result", "graph"} and self.project.runs[self.selected[1]].source is not None
         self.actions["analyze_result"].setEnabled(kind == "result" and idle)
         self.actions["source_analysis"].setEnabled(chained)
@@ -976,7 +992,21 @@ class MainWindow(QMainWindow):
         item = QTreeWidgetItem([text])
         item.setData(0, Qt.ItemDataRole.UserRole, ref)
         item.setIcon(0, theme.classic_icon(icon))
-        item.setToolTip(0, text)
+        markers = [text]
+        state = self.project.sheet_state(ref)
+        if color := state.get("highlight"):
+            from PySide6.QtGui import QBrush
+            light = {"amber": "#fff0cd", "green": "#def1df", "blue": "#ddecfb", "purple": "#ebdff9"}
+            dark = {"amber": "#483717", "green": "#263d2d", "blue": "#23394d", "purple": "#3c294d"}
+            item.setBackground(0, QBrush(QColor((dark if theme.T["bg"] == theme.DARK["bg"]
+                                               else light)[color])))
+            markers.append(qt(f"qt.sheet_highlight_{color}"))
+        if self.project.sheet_locked(ref):
+            font = item.font(0)
+            font.setItalic(True)
+            item.setFont(0, font)
+            markers.append(qt("qt.sheet_frozen_notice"))
+        item.setToolTip(0, "\n".join(markers))
         section.addChild(item)
         current = self.navigator.currentItem()
         if ref == self.selected and (current is None or current.data(0, Qt.ItemDataRole.UserRole) != ref):
@@ -1067,6 +1097,10 @@ class MainWindow(QMainWindow):
             (layout, [(item.name, ("layout", index), "layout") for index, item in enumerate(project.layouts)]
              + [(run.name, ("saved-layout", index), "layout") for index, run in layouts]),
         ]
+        entries = [(section, project.ordered_sheets([
+            (project.sheet_title(ref) + (" ⚠" if caption.endswith(" ⚠") else ""), ref, icon)
+            for caption, ref, icon in group if not project.sheet_state(ref).get("hidden")
+        ])) for section, group in entries]
         self.navigator_entries = [entry for _, group in entries for entry in group]
         self._family_entries(family, self.navigator_entries)
         if combined is not None:
@@ -1142,10 +1176,7 @@ class MainWindow(QMainWindow):
                 self.open_sheet(first)
 
     def _sheet_identity(self, ref):
-        kind, key = ref
-        if kind in {"result", "graph", "saved-layout"}:
-            return kind, self.project.runs[key].uid
-        return ref
+        return self.project.sheet_identity(ref)
 
     def _sheet_history_target(self, step):
         session = self.sessions.active
@@ -1180,26 +1211,168 @@ class MainWindow(QMainWindow):
         elif action := item.data(0, Qt.ItemDataRole.UserRole + 1):
             self.actions[action].trigger()
 
+    def _worksheet_group(self, ref):
+        kinds = {"layout", "saved-layout"} if ref[0] in {"layout", "saved-layout"} else {ref[0]}
+        return [other for _, other, _ in self.navigator_entries if other[0] in kinds]
+
+    def _worksheet_peer(self, ref):
+        other = {"result": "graph", "graph": "result"}.get(ref[0])
+        return bool(other and any(item == (other, ref[1]) for _, item, _ in self.navigator_entries))
+
+    def _worksheet_command_available(self, ref, command):
+        if command in {"move_up", "move_down"}:
+            group = self._worksheet_group(ref)
+            return ref in group and 0 <= group.index(ref) + (-1 if command == "move_up" else 1) < len(group)
+        if command == "freeze":
+            if ref[0] == "data":
+                return not stored_legacy_view(self.project.tables[ref[1]])
+            if ref[0] in RUN_KINDS:
+                run = self.project.runs[ref[1]]
+                return run.result is not None and not run.calculation_error
+            return False
+        return True
+
+    def _worksheet_command(self, ref, command, argument=None):
+        if ref is None or self.busy() or not self._has_sheet(ref) or not self.prepare_project_change():
+            return
+        project = self.project
+        restore = self._sheet_identity(self.selected) if self.selected is not None else None
+        try:
+            if command == "duplicate":
+                self.open_sheet(project.duplicate_sheet(ref))
+                return
+            if command == "rename":
+                title, ok = QInputDialog.getText(self, qt("qt.sheet_rename"), qt("qt.sheet_name"),
+                                                 text=project.sheet_title(ref))
+                if not ok:
+                    return
+                try:
+                    title = validate_sheet_title(title)
+                except ValueError as error:
+                    raise ValueError(qt("qt.sheet_name_invalid")) from error
+                renamed = project.rename_sheet(ref, title)
+                if renamed != ref:
+                    session = self.sessions.active
+                    session.sheet_history = [renamed if item == ref else item for item in session.sheet_history]
+                if self.selected == ref:
+                    self.close_worksheet_notes()
+                    self.show_sheet(*renamed)
+                else:
+                    self.refresh()
+                return
+            if command in {"move_up", "move_down"}:
+                project.move_sheet(ref, self._worksheet_group(ref), -1 if command == "move_up" else 1)
+            elif command == "highlight":
+                project.highlight_sheet(ref, argument)
+            elif command == "freeze":
+                locked = project.sheet_locked(ref)
+                if ref[0] in RUN_KINDS and not locked and self._worksheet_peer(ref):
+                    answer = QMessageBox.question(self, qt("qt.sheet_freeze"), qt("qt.sheet_freeze_linked"))
+                    if answer != QMessageBox.StandardButton.Yes:
+                        return
+                affected = project.set_sheet_frozen(ref, not locked)
+                if self.selected == ref or (self.selected and self.selected[0] in RUN_KINDS
+                                            and ref[0] in RUN_KINDS and self.selected[1] == ref[1]):
+                    self.show_sheet(*self.selected)
+                self.refresh_runs(affected)
+            elif command == "delete":
+                peer = self._worksheet_peer(ref)
+                if problem := project.sheet_delete_problem(ref, peer_visible=peer):
+                    raise ValueError(problem)
+                answer = QMessageBox.question(self, qt("qt.sheet_delete"),
+                                               qt("qt.sheet_confirm_delete", name=project.sheet_title(ref)))
+                if answer != QMessageBox.StandardButton.Yes:
+                    return
+                self.close_worksheet_notes()
+                if self.selected == ref and ref[0] == "info":
+                    self.info_editor = None
+                identity = self._sheet_identity(ref)
+                stale = project.delete_sheet(ref, peer_visible=peer)
+                session = self.sessions.active
+                history = session.sheet_history
+                session.sheet_position -= history[:session.sheet_position + 1].count(identity)
+                session.sheet_history = [other for other in history if other != identity]
+                if ref[0] == "layout":
+                    def reindex(other):
+                        kind, key = other
+                        return ("layout", key - 1) if kind == "layout" and key > ref[1] else other
+                    session.sheet_history = [reindex(other) for other in session.sheet_history]
+                    if restore and restore != identity:
+                        restore = reindex(restore)
+                if restore == identity:
+                    restore = None
+                self.selected = None
+                self.refresh()
+                target = self.sheet_refs.get(restore, next(iter(self.sheet_refs.values()), None))
+                seeds = [run for run in stale if run.result is not None]
+                if target is None:
+                    self.show_home()
+                else:
+                    self.show_sheet(*target)
+                    kind, key = target
+                    if kind in RUN_KINDS and project.runs[key].result is None:
+                        seeds.append(project.runs[key])
+                    elif kind == "layout":
+                        seeds.extend(run for run in project.layout_runs(project.layouts[key]) if run.result is None)
+                self.refresh_runs(seeds)
+                return
+            self.refresh()
+        except (ValueError, TypeError, OSError, OverflowError) as error:
+            self.error(error)
+
+    def _navigator_action(self, ref, key):
+        if self._has_sheet(ref) and self.prepare_project_change():
+            if self.selected != ref:
+                self.show_sheet(*ref)
+            self.actions[key].trigger()
+
     def _navigator_menu(self, position):
         item = self.navigator.itemAt(position)
-        ref = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+        raw = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+        ref = tuple(raw) if raw else None
         menu = QMenu(self)
-        if ref and ref[0] in {"result", "graph"}:
-            self.open_sheet(tuple(ref))
-            menu.addAction(self.actions["change"])
-            menu.addAction(self.actions["recalculate"])
-            for key in ("analyze_result", "source_analysis", "change_input", "repeat_analysis"):
-                if self.actions[key].isEnabled():
-                    menu.addAction(self.actions[key])
-        if ref and ref[0] == "data":
-            self.open_sheet(tuple(ref))
-            menu.addAction(self.actions["analyze"])
-            menu.addAction(self.actions["new_graph"])
-        menu.addAction(self.actions["new_table"])
-        if ref:
+        if ref is not None:
+            kind, key = ref
+            idle = not self.busy(warn=False)
+            for command in ("duplicate", "rename", "delete", "move_up", "move_down", "freeze"):
+                if not self._worksheet_command_available(ref, command):
+                    continue
+                label = "unfreeze" if command == "freeze" and self.project.sheet_locked(ref) else command
+                action = menu.addAction(qt(f"qt.sheet_{label}"),
+                                        lambda _checked=False, command=command: self._worksheet_command(ref, command))
+                action.setEnabled(idle)
+            palette = menu.addMenu(qt("qt.sheet_highlight"))
+            palette.setEnabled(idle)
+            for color in (*HIGHLIGHTS, None):
+                choice = palette.addAction(qt(f"qt.sheet_highlight_{color or 'none'}"),
+                                           lambda _checked=False, color=color: self._worksheet_command(ref, "highlight", color))
+                choice.setCheckable(True)
+                choice.setChecked(self.project.sheet_state(ref).get("highlight") == color)
+            commands = []
+            if kind in {"result", "graph"}:
+                run = self.project.runs[key]
+                if not self.project.frozen(run):
+                    if not _saved_recipe(run):
+                        commands.extend(("change", "repeat_analysis"))
+                    commands.append("recalculate")
+                if kind == "result":
+                    commands.extend(("analyze_result", "change_input") if not self.project.frozen(run)
+                                    else ("analyze_result",))
+                if run.source is not None:
+                    commands.append("source_analysis")
+            elif kind == "data":
+                commands.extend(("analyze", "new_graph"))
+            elif kind == "info":
+                commands.append("info_properties")
+            elif kind == "layout":
+                commands.append("edit_layout")
             menu.addSeparator()
-            menu.addAction(self.actions["duplicate_family"])
-            menu.addAction(self.actions["save_family"])
+            for command in (*commands, "sheet_notes", "duplicate_family", "save_family"):
+                action = menu.addAction(self.actions[command].text(),
+                                        lambda _checked=False, command=command: self._navigator_action(ref, command))
+                action.setEnabled(idle)
+            menu.addSeparator()
+        menu.addAction(self.actions["new_table"])
         menu.addSeparator()
         menu.addAction(tr("nav.expand_all"), lambda: self.expand_navigator(True))
         menu.addAction(tr("nav.collapse_all"), lambda: self.expand_navigator(False))
@@ -1219,6 +1392,7 @@ class MainWindow(QMainWindow):
             return
         origin = self.selected
         self.dispose_inspector()
+        self.close_worksheet_notes()
         self.flush_info()
         try:
             gallery = GalleryPage(lambda: self.project, lambda: self.job is not None, self.gallery_view, origin)
@@ -1297,6 +1471,8 @@ class MainWindow(QMainWindow):
     def show_home(self):
         from .table_setup import TableSetup
 
+        self.close_worksheet_notes()
+
         self.plot_tools = None
         self.drawing.detach()
         self.dispose_inspector()
@@ -1334,6 +1510,8 @@ class MainWindow(QMainWindow):
                 self.refresh_runs(runs)
 
     def show_sheet(self, kind, key):
+        if self.worksheet_notes is not None and self.project.sheet_key((kind, key)) != self.worksheet_notes.sheet_key:
+            self.close_worksheet_notes()
         self.plot_tools = None
         self.drawing.detach()  # Closes a pointer preview; the new graph page attaches its own canvas.
         self.dispose_inspector()  # Before the new page builds its own panel.
@@ -1383,10 +1561,11 @@ class MainWindow(QMainWindow):
         page = Page("")
         page.layout_.setContentsMargins(0, 0, 0, 0)
         page.layout_.setSpacing(0)
-        read_only = stored_legacy_view(dataset)
+        locked = self.project.sheet_locked(("data", title))
+        read_only = locked or stored_legacy_view(dataset)
         page.finish_actions()
         if read_only:
-            page.notice(qt("qt.read_only"))
+            page.notice(qt("qt.sheet_frozen_notice" if locked else "qt.read_only"))
         project = self.project  # Typing reaches this project only, even if it lands after a tab switch.
         model = WorksheetModel(dataset, lambda row, column, text: self.edit_cell(title, row, column, text,
                                                                                  project=project),
@@ -1535,7 +1714,30 @@ class MainWindow(QMainWindow):
         self.info_editor.notes.redoAvailable.connect(self.update_actions)
         return page
 
+    def open_worksheet_notes(self):
+        if self.selected is None or self.gallery is not None or self.busy():
+            return
+        from .worksheet_notes import WorksheetNotes
+
+        if self.worksheet_notes is None:
+            dialog = self.worksheet_notes = WorksheetNotes(self, self.selected)
+            dialog.finished.connect(lambda _code: self._notes_closed(dialog))
+        self.worksheet_notes.show()
+        self.worksheet_notes.raise_()
+        self.worksheet_notes.activateWindow()
+
+    def _notes_closed(self, dialog):
+        if self.worksheet_notes is dialog:
+            dialog.flush()
+            self.worksheet_notes = None
+
+    def close_worksheet_notes(self):
+        if self.worksheet_notes is not None:
+            self.worksheet_notes.close()
+
     def flush_info(self):
+        if self.worksheet_notes is not None:
+            self.worksheet_notes.flush()
         if getattr(self, "info_editor", None) is not None:
             editor, self.info_editor = self.info_editor, None
             editor.flush()
@@ -1543,8 +1745,9 @@ class MainWindow(QMainWindow):
 
     def change_info(self, sheet):
         """Store an edit of the open Info sheet; constants read by formulas recalculate their tables."""
-        if self.job is not None and (sheet.table, sheet.fields) != (self.project.info_sheets[sheet.uid].table,
-                                                                    self.project.info_sheets[sheet.uid].fields):
+        current = self.project.info_sheets[sheet.uid]
+        if self.job is not None and (sheet.table, sheet.fields, sheet.use_constants) != (
+                current.table, current.fields, current.use_constants):
             self.error(tr("family.wait").split(".")[0] + ".")
             return False
         title = self.project.info_sheets[sheet.uid].title
@@ -1592,11 +1795,11 @@ class MainWindow(QMainWindow):
             return
         self.flush_info()
         sheet = self.project.info_sheets[self.selected[1]]
-        dialog = InfoDetails(self, sheet.title, sheet.table, self._info_tables())
+        dialog = InfoDetails(self, sheet.title, sheet.table, self._info_tables(), use_constants=sheet.use_constants)
         if dialog.exec() != InfoDetails.DialogCode.Accepted or dialog.result is None:
             return
         title, table = dialog.result
-        if self.info_editor.commit(title=title, table=table):
+        if self.info_editor.commit(title=title, table=table, use_constants=dialog.use_constants.isChecked()):
             self.show_sheet("info", sheet.uid)
 
     def move_info(self, step):
@@ -1789,7 +1992,7 @@ class MainWindow(QMainWindow):
     def _run_page(self, kind, index):
         run = self.project.runs[index]
         subtitle = run.notes or (tr("command.analysis_results") if kind == "result" else tr("ribbon.graph"))
-        page = Page(run.name, subtitle)
+        page = Page(self.project.sheet_title((kind, index)), subtitle)
         result = run.result
         if kind == "graph" and (run.method in {SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH} or linked_curve_view(run)
                                 or (run.method == SAVED_XY and SAVED_AXES in run.options)):
@@ -1818,6 +2021,8 @@ class MainWindow(QMainWindow):
             caption.setWordWrap(True)
             page.add(caption, 0)
         self._stale(page, [run])
+        if self.project.frozen(run):
+            page.notice(qt("qt.sheet_frozen_notice"))
         if result is None:
             text = qt("qt.running", method=method_label(run.method)) if self.job is not None else qt("qt.not_calculated")
             page.notice(text)
@@ -2114,6 +2319,8 @@ class MainWindow(QMainWindow):
 
         shape_run = self.drawing.history_run()
         proj_change = self.project.history.next_change(redo=redo)
+        if not self.project.can_apply_history(proj_change):
+            proj_change = None
         if shape_run is not None:
             shape_hist = shape_run.shape_history
             shape_can = shape_hist.can_apply(redo=redo)
@@ -3198,6 +3405,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(0, self, scroll)
 
     def _activate(self, session, *, capture=True):
+        self.close_worksheet_notes()
         if capture:
             self._capture()
         else:
@@ -3475,7 +3683,7 @@ class MainWindow(QMainWindow):
                 else:
                     run = self.project.runs[key]
                     figure = run.result.figure if run.result is not None else None
-                    name = run.name
+                    name = self.project.sheet_title(self.selected)
                 vector = self.project.imported_vector_format(run) if run is not None else None
                 if figure is None and vector is None:
                     raise ValueError(qt("qt.layout_missing"))
@@ -3706,6 +3914,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         self.timer.stop()
+        self.close_worksheet_notes()
         self._drop_gallery()
         self.worker.shutdown(wait=False, cancel_futures=True)
         if self.recovery is not None:  # Every project was saved or discarded: their copies go.

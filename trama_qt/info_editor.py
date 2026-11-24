@@ -8,7 +8,7 @@ from dataclasses import replace
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont, QKeySequence, QShortcut, QTextCharFormat, QTextCursor
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget)
 
@@ -19,7 +19,7 @@ _ITALIAN = {"New Info sheet": "Nuovo foglio Info", "Info sheet properties": "Pro
             "Sheet name": "Nome del foglio", "Scope": "Ambito", "Entire project": "Tutto il progetto",
             "Properties…": "Proprietà…", "Move sheet up": "Sposta su", "Move sheet down": "Sposta giù",
             "Delete Info sheet…": "Elimina foglio Info…", "Import notes…": "Importa note…",
-            "Constants": "Costanti", "Notes": "Note", "Delete row": "Elimina riga", "Bold": "Grassetto",
+            "Constants": "Costanti", "Use constants in formulas": "Usa le costanti nelle formule", "Notes": "Note", "Delete row": "Elimina riga", "Bold": "Grassetto",
             "Italic": "Corsivo", "Underline": "Sottolineato",
             "An Info sheet supports up to 500 rows.": "Un foglio Info ha al massimo 500 righe.",
             "Info notes contain invalid text.": "Le note contengono caratteri non validi.",
@@ -53,7 +53,7 @@ def _spans(masks):
 class InfoDetails(QDialog):
     """Name and scope of an Info sheet; ``result`` is ``(title, table)``."""
 
-    def __init__(self, parent, title, table, tables, *, creating=False):
+    def __init__(self, parent, title, table, tables, *, creating=False, use_constants=True):
         super().__init__(parent)
         self.setWindowTitle(t("New Info sheet" if creating else "Info sheet properties"))
         self.tables, self.result = tuple(tables), None
@@ -65,6 +65,10 @@ class InfoDetails(QDialog):
         self.scope.addItems([t("Entire project"), *self.tables])
         self.scope.setCurrentIndex(self.tables.index(table) + 1 if table in self.tables else 0)
         form.addRow(t("Scope"), self.scope)
+        self.use_constants = QCheckBox(t("Use constants in formulas"))
+        self.use_constants.setChecked(use_constants)
+        if not creating:
+            form.addRow(self.use_constants)
         self.problem = QLabel()
         self.problem.setObjectName("errorBanner")
         self.problem.setWordWrap(True)
@@ -94,7 +98,7 @@ class InfoDetails(QDialog):
 class InfoEditor(QWidget):
     """Constants and notes of one sheet. ``change(revised)`` stores a sheet and returns False when refused."""
 
-    def __init__(self, sheet, change, error):
+    def __init__(self, sheet, change, error, *, notes_only=False):
         super().__init__()
         self.sheet, self.change, self.error = sheet, change, error
         self._loading = False
@@ -124,6 +128,7 @@ class InfoEditor(QWidget):
         self.table.itemChanged.connect(self._cell_changed)
         column.addWidget(self.table, 1)
         split.addWidget(left)
+        left.setVisible(not notes_only)
 
         right = QWidget()
         column = QVBoxLayout(right)

@@ -785,8 +785,8 @@ class ProjectTabsTests(unittest.TestCase):
         self.assertIn("Ctrl+W", shortcuts["close_project"])
         self.assertEqual(shortcuts["next_project"], {"Ctrl+Tab"})
         self.assertIn("Ctrl+Shift+Tab", shortcuts["previous_project"])
-        self.assertEqual(shortcuts["new_project"], {"Ctrl+Shift+N"})
-        self.assertIn("Ctrl+N", shortcuts["new_table"])
+        self.assertEqual(shortcuts["new_project"], {"Ctrl+N", "Ctrl+Shift+N"})
+        self.assertEqual(shortcuts["new_table"], {"Ctrl+T"})
         window.actions["close_project"].trigger()  # Clean tab: closes without asking.
         self.assertEqual(self.bar.count(), 1)
         window.actions["next_project"].trigger()  # One tab: nothing to switch to.

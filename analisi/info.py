@@ -7,6 +7,8 @@ from pathlib import Path
 import re
 from uuid import uuid4
 
+from .sheet_metadata import KINDS
+
 
 MAX_INFO_SHEETS = 500
 MAX_INFO_FIELDS = 500
@@ -66,6 +68,9 @@ class InfoSheet:
     table: str | None = None
     uid: str = field(default_factory=lambda: uuid4().hex)
     note_styles: tuple[tuple[int, int, int], ...] = ()
+    floating: bool = False
+    use_constants: bool = True
+    worksheet: str | None = None
 
     def __post_init__(self):
         if not _text(self.title, MAX_INFO_NAME) or not self.title.strip() or any(c in self.title for c in "\r\n"):
@@ -74,6 +79,14 @@ class InfoSheet:
             raise ValueError("Invalid Info sheet identifier.")
         if self.table is not None and (not isinstance(self.table, str) or not self.table):
             raise ValueError("Invalid linked data table.")
+        if type(self.floating) is not bool or type(self.use_constants) is not bool:
+            raise ValueError("Invalid Info sheet options.")
+        if self.worksheet is not None:
+            if not isinstance(self.worksheet, str):
+                raise ValueError("Invalid linked worksheet.")
+            kind, separator, identifier = self.worksheet.partition(":")
+            if not (separator and identifier and self.floating and kind in KINDS - {"data"}):
+                raise ValueError("Invalid linked worksheet.")
         if not _text(self.notes, MAX_INFO_NOTES):
             raise ValueError("Info notes exceed the size limit or contain invalid text.")
         object.__setattr__(self, "note_styles", _note_styles(self.note_styles, len(self.notes)))
@@ -101,6 +114,8 @@ def info_contexts(sheets):
     """Share global constants across worksheets and overlay their local names."""
     scopes = {None: {}}
     for sheet in sheets:
+        if not sheet.use_constants:
+            continue
         target = scopes.setdefault(sheet.table, {})
         for label, value in sheet.fields:
             key = label.strip().casefold()

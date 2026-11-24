@@ -68,6 +68,8 @@ from analisi import worksheet_join
 from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
 from analisi.worksheet_history import WorksheetChange, WorksheetHistory, WorksheetState
 from .graph_style_presets import plan_preset_batch
+from .sheet_commands import SheetCommands
+from .strings import qt
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
 
@@ -243,12 +245,14 @@ class Snapshot:
     tables: dict
     layouts: list
     info_sheets: tuple
+    sheet_metadata: dict = field(default_factory=dict)
 
     def to_bytes(self, batch=256):
         """The .alab bytes, identical to what Save writes. Safe on any thread: nothing here is shared with the
         project. The rows are encoded ``batch`` rows at a time: ``json.dumps`` holds the interpreter lock for the
         whole call, so one call on a 10,000 × 30 table would freeze the window for about a tenth of a second."""
-        document = project_document(self.tables, layouts=self.layouts, info_sheets=self.info_sheets)
+        document = project_document(self.tables, layouts=self.layouts, info_sheets=self.info_sheets,
+                                    sheet_metadata=self.sheet_metadata)
         marker = uuid4().hex
         rows = {}
         for index, record in enumerate(document["tables"]):
@@ -354,13 +358,14 @@ class ProjectHistory(WorksheetHistory):
             del self.changes[0]
 
 
-class Project(WorksheetJoinSources):
+class Project(WorksheetJoinSources, SheetCommands):
     def __init__(self, number=1):
         self.number = number
         self.tables = {}
         self.runs = []
         self.layouts = []
         self.info_sheets = {}
+        self.sheet_metadata = {}
         self.path = None
         self.origin = None
         self.revision = 0  # Grows at every change (each ``dirty = True``): recovery copies follow it.
@@ -428,9 +433,15 @@ class Project(WorksheetJoinSources):
         path = Path(path)
         if path.suffix.lower() == ".alab":
             loaded, layouts, info_sheets = load_workspace(path, include_info=True)
-            self.tables, self.layouts = loaded, layouts
+            from .frozen_output import restore
+            runs = [run for name, table in loaded.items() for run in self.runs_for(name, table)]
+            frozen = loaded.sheet_metadata.get("frozen_runs", {})
+            for run in runs:
+                if run.uid in frozen:
+                    run.result = restore(frozen[run.uid])
+            self.tables, self.layouts, self.runs = loaded, layouts, runs
+            self.sheet_metadata = loaded.sheet_metadata
             self.info_sheets = {sheet.uid: sheet for sheet in info_sheets}
-            self.runs = [run for name, table in loaded.items() for run in self.runs_for(name, table)]
             self.path = path
             self.history.clear()
             self.dirty = False
@@ -459,7 +470,7 @@ class Project(WorksheetJoinSources):
             title = names[name]
             for number, (text, styles) in enumerate(frame.attrs.get(WORKSHEET_NOTES, ()), 1):
                 note_title = tr("worksheet.imported_note", name=title[:122], number=number)
-                incoming.append(InfoSheet(note_title, notes=text, table=title, note_styles=styles))
+                incoming.append(InfoSheet(note_title, notes=text, table=title, note_styles=styles, floating=True))
         sheets = {**self.info_sheets, **{sheet.uid: sheet for sheet in incoming}}
         validate_info_sheets(tuple(sheets.values()), occupied)
         contexts = info_contexts(sheets.values())
@@ -526,7 +537,7 @@ class Project(WorksheetJoinSources):
     def change_info(self, sheet):
         """Store an edited Info sheet. Returns the runs to recalculate."""
         current = self.info_sheets[sheet.uid]
-        if (sheet.table, sheet.fields) != (current.table, current.fields):
+        if (sheet.table, sheet.fields, sheet.use_constants) != (current.table, current.fields, current.use_constants):
             return self.update_info_sheets({**self.info_sheets, sheet.uid: sheet})
         self.info_sheets[sheet.uid] = sheet
         self.dirty = True
@@ -583,7 +594,8 @@ class Project(WorksheetJoinSources):
         if path.suffix.lower() != ".alab":
             raise ValueError(tr("error.alab_name"))
         self.sync_links(persist=True)
-        save_project(path, self.tables, layouts=self.layouts, info_sheets=tuple(self.info_sheets.values()))
+        save_project(path, self.tables, layouts=self.layouts, info_sheets=tuple(self.info_sheets.values()),
+                     sheet_metadata=self.sheet_metadata)
         self.path = path
         self.dirty = False
         self.recovered_from = self.recovered_title = self.recovery_base_title = self.save_suggestion = None
@@ -607,8 +619,9 @@ class Project(WorksheetJoinSources):
             twin.analysis_sources = dict(dataset.analysis_sources)
             twin.analysis_labels = dict(dataset.analysis_labels)
             tables[title] = twin
-        _persist_links(self.runs, tables)
-        return Snapshot(tables, deepcopy(self.layouts), deepcopy(tuple(self.info_sheets.values())))
+        _persist_links(self.runs, tables, pinned=self._pinned_runs())
+        return Snapshot(tables, deepcopy(self.layouts), deepcopy(tuple(self.info_sheets.values())),
+                        deepcopy(self.sheet_metadata))
 
     # -- analysis links -------------------------------------------------------------------------
     def chain_ids(self):
@@ -618,7 +631,18 @@ class Project(WorksheetJoinSources):
 
     def sync_links(self, *, persist=False):
         if persist:
-            _persist_links(self.runs, self.tables)
+            _persist_links(self.runs, self.tables, pinned=self._pinned_runs())
+
+    def _pinned_runs(self):
+        # View settings are addressed by run identity, including in projects with no linked analysis recipes.
+        selected = {key.split(":", 1)[1] for key in self.sheet_metadata.get("sheets", {})
+                    if key.split(":", 1)[0] in {"graph", "result", "saved-layout"}}
+        for sheet in self.info_sheets.values():
+            if sheet.worksheet:
+                kind, identifier = sheet.worksheet.split(":", 1)
+                if kind in {"graph", "result", "saved-layout"}:
+                    selected.add(identifier)
+        return selected | self.sheet_metadata.get("frozen_runs", {}).keys()
 
     def analysis_graph(self, *, replacement=None, additional=None):
         runs = list(self.runs)
@@ -708,7 +732,8 @@ class Project(WorksheetJoinSources):
         graph = self.analysis_graph()
         live = {run.uid: run for run in self.runs}
         unavailable = {run.uid for run in self.runs if run.result is None or run.calculation_error}
-        selected = graph.affected([run.uid for run in seeds], unavailable=unavailable)
+        selected = graph.affected([run.uid for run in seeds], unavailable=unavailable,
+                                  blocked=self.sheet_metadata.get("frozen_runs", {}))
         cached = {run.uid: run.result for run in self.runs
                   if run.result is not None and not run.calculation_error and run.uid not in selected}
         frames, roots, clones, pairwise, layout_data, joins = {}, {}, {}, {}, {}, {}
@@ -799,6 +824,8 @@ class Project(WorksheetJoinSources):
                 raise ValueError(tr("chain.node_budget"))
             return Run(method, title, options, source=source)
         run = self.runs[index]
+        if self.frozen(run):
+            raise ValueError(qt("qt.sheet_frozen_notice"))
         options = dict(options)
         if method == run.method:
             for key in (LEGACY_TITLE, LEGACY_NOTES, LEGACY_GRAPH_LINK, PAIRWISE_SECTION, SAVED_REPLICATE_DISPLAY,
@@ -953,6 +980,8 @@ class Project(WorksheetJoinSources):
     # -- graph format -----------------------------------------------------------------------------
     def graph_format_problem(self, run):
         """Why this graph cannot be formatted, or None (as in the classic window)."""
+        if self.frozen(run):
+            return qt("qt.sheet_frozen_notice")
         if run.method == SAVED_BINARY_GRAPH:
             return ui("Use Open editable graph when available, or export the original drawing in its saved "
                       "vector format.")
@@ -1105,6 +1134,8 @@ class Project(WorksheetJoinSources):
     # -- worksheet edits ------------------------------------------------------------------------
     def editable(self, title):
         dataset = self.tables[title]
+        if self.sheet_locked(("data", title)):
+            raise ValueError(qt("qt.sheet_frozen_notice"))
         if stored_legacy_view(dataset):
             raise ValueError("Select a source table or use Result as Data to create an editable table.")
         return dataset
@@ -1128,6 +1159,8 @@ class Project(WorksheetJoinSources):
         return self.table_runs(title)
 
     def set_table_background(self, title, box, color):
+        if self.sheet_locked(("data", title)):
+            raise ValueError(qt("qt.sheet_frozen_notice"))
         dataset = self.tables[title]
         before = WorksheetState.capture(dataset)
         dataset.set_background(box, color)
@@ -1147,6 +1180,8 @@ class Project(WorksheetJoinSources):
 
     def set_table_number_format(self, title, names, spec):
         """Display-only: no analysis is recalculated. One undoable step; False when nothing changed."""
+        if self.sheet_locked(("data", title)):
+            raise ValueError(qt("qt.sheet_frozen_notice"))
         dataset = self.tables[title]
         before = WorksheetState.capture(dataset)
         dataset.set_number_format(names, spec)
@@ -1361,10 +1396,17 @@ class Project(WorksheetJoinSources):
             dataset.excluded = current
         return self.edit(title, "Exclude cells", change)
 
+    def can_apply_history(self, change):
+        if isinstance(change, WorksheetChange):
+            return not self.sheet_locked(("data", change.title))
+        if isinstance(change, StyleBatchChange):
+            return self.sheet_metadata.get("frozen_runs", {}).keys().isdisjoint(change.before)
+        return False
+
     def undo(self, *, redo=False):
         self.undo_style_uids = ()
         change = self.history.next_change(redo=redo)
-        if change is None:
+        if change is None or not self.can_apply_history(change):
             return None, None
         if isinstance(change, StyleBatchChange):
             by_uid = {run.uid: run for run in self.runs}
@@ -1390,7 +1432,7 @@ class Project(WorksheetJoinSources):
         return change.title, self.table_runs(change.title) if self.undo_changed_data else []
 
 
-def _persist_links(runs, tables):
+def _persist_links(runs, tables, *, pinned=()):
     """Write the identity, source and name of every analysis into the tables that store its recipe: on the live
     project before Save, on a detached copy for a recovery copy."""
     linked = {run.uid for run in runs if run.source is not None}
@@ -1398,7 +1440,7 @@ def _persist_links(runs, tables):
         if run.slot < 0:
             continue
         dataset = tables[run.title]
-        if linked or run.slot in dataset.analysis_ids:
+        if linked or run.uid in pinned or run.slot in dataset.analysis_ids:
             dataset.analysis_ids[run.slot] = run.uid
         if run.source is not None:
             dataset.analysis_sources[run.slot] = run.source

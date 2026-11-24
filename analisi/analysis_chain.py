@@ -90,14 +90,14 @@ class AnalysisGraph:
         if len(self.order) != len(self.sources):
             raise ValueError("Analysis input links contain a cycle.")
 
-    def affected(self, seeds, *, unavailable=()):
-        unavailable = set(unavailable)
+    def affected(self, seeds, *, unavailable=(), blocked=()):
+        unavailable, blocked = set(unavailable), set(blocked)
         selected, pending = set(), deque(seeds)
         while pending:
             identifier = pending.popleft()
             if identifier not in self.sources:
                 raise ValueError("Unknown analysis in dependency request.")
-            if identifier in selected:
+            if identifier in selected or identifier in blocked:
                 continue
             selected.add(identifier)
             pending.extend(self.children[identifier])

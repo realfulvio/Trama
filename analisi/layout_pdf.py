@@ -81,7 +81,38 @@ def _add_panels(document, page, layout, plan):
         raise ValueError("Could not write the PDF layout page.")
 
 
-def add_layout_panels(base, target, layouts):
+def _fill_snapshot(document, page, pdf, plan):
+    from pypdfium2 import PdfDocument, raw
+
+    with PdfDocument(pdf) as source:
+        original = source[0]
+        try:
+            width, height = original.get_size()
+        finally:
+            original.close()
+        matrix = raw.FS_MATRIX(plan["width_mm"] * PT / MM / width, 0, 0,
+                               plan["height_mm"] * PT / MM / height, 0, 0)
+        _place_form(document, page, source, matrix)
+    if not raw.FPDFPage_GenerateContent(page):
+        raise ValueError("Could not write the frozen PDF.")
+
+
+def write_frozen_pdf(pdf, target, plan):
+    from pypdfium2 import PdfDocument, PdfiumError
+
+    try:
+        with PdfDocument.new() as document:
+            page = document.new_page(plan["width_mm"] * PT / MM, plan["height_mm"] * PT / MM)
+            try:
+                _fill_snapshot(document, page, pdf, plan)
+            finally:
+                page.close()
+            document.save(target)
+    except PdfiumError as error:
+        raise ValueError(f"Could not write the frozen PDF: {error}") from error
+
+
+def add_layout_panels(base, target, layouts, *, frozen=()):
     """Insert panels into the corresponding pages of a PDF containing the layout frames."""
     import pypdfium2 as pdfium
 
@@ -92,6 +123,12 @@ def add_layout_panels(base, target, layouts):
                 page = document[index]
                 try:
                     _add_panels(document, page, layout, plan)
+                finally:
+                    page.close()
+            for index, pdf, plan in frozen:
+                page = document[index]
+                try:
+                    _fill_snapshot(document, page, pdf, plan)
                 finally:
                     page.close()
             document.save(target)

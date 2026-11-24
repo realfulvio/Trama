@@ -47,16 +47,18 @@ def fold(text):
 def graph_runs(project):
     """``(index, run)`` of every graph sheet, as the navigator lists them."""
     return [(index, run) for index, run in enumerate(project.runs)
-            if run_view(run.method) == "graph" or run.method in GRAPH_METHODS
+            if not project.sheet_state(("graph", index)).get("hidden")
+            and (run_view(run.method) == "graph" or run.method in GRAPH_METHODS
             or (run.result is None and shows_paired_estimation(run.method, run.options))
-            or (run.result is not None and run.result.figure is not None and run_view(run.method) == "result")]
+            or (run.result is not None and run.result.figure is not None and run_view(run.method) == "result"))]
 
 
 def layout_refs(project):
     """References of every layout sheet: the project's layouts, then layouts imported with their drawing."""
     return ([("layout", index) for index in range(len(project.layouts))]
             + [("saved-layout", index) for index, run in enumerate(project.runs)
-               if run_view(run.method) == "saved-layout"])
+               if run_view(run.method) == "saved-layout"
+               and not project.sheet_state(("saved-layout", index)).get("hidden")])
 
 
 def _state(runs, expected):
@@ -74,7 +76,7 @@ def describe(project, ref):
     try:
         if kind == "graph" or kind == "saved-layout":
             run = project.runs[key]
-            runs, name, expected, extra = [run], run.name, 1, ()
+            runs, name, expected, extra = [run], project.sheet_title(ref), 1, ()
         elif kind == "layout":
             layout = project.layouts[key]
             runs, name, expected = project.layout_runs(layout), layout.name, len(layout.panels)

@@ -92,6 +92,11 @@ def check_destination(path, fmt):
 
 def _render(figure, plan, target):
     fmt = plan["format"]
+    if fmt == "pdf" and (pdf := getattr(figure, "_trama_frozen_pdf", None)):
+        from .layout_pdf import write_frozen_pdf
+
+        write_frozen_pdf(pdf, target, plan)
+        return
     if plan["pixels"] is not None:
         # Agg truncates the pixel size: aim just above the integer so the file has exactly the planned pixels.
         size = [(p + 1e-6) / plan["dpi"] for p in plan["pixels"]]
@@ -197,8 +202,12 @@ def export_pdf_bundle(figures, path, settings, names=None):
                              for figure in figures], settings, names)
     layouts = [(index, figure, plan) for index, (figure, plan) in enumerate(zip(figures, plans))
                if isinstance(figure, PdfLayoutPage)]
+    frozen = [(index, payload, plan) for index, (figure, plan) in enumerate(zip(figures, plans))
+              if (payload := getattr(figure, "_trama_frozen_pdf", None))]
     for index, layout, plan in layouts:
         figures[index] = layout.frame(plan)
+    for index, _, _ in frozen:
+        figures[index] = Figure(figsize=figures[index].get_size_inches())
 
     def render_pages(target):
         # PdfPages embeds fonts when it closes, after the per-figure render has returned.
@@ -212,10 +221,10 @@ def export_pdf_bundle(figures, path, settings, names=None):
     os.close(handle)
     temp = Path(name)
     try:
-        if layouts:
+        if layouts or frozen:
             with tempfile.TemporaryFile() as base:
                 render_pages(base)
-                add_layout_panels(base, temp, layouts)
+                add_layout_panels(base, temp, layouts, frozen=frozen)
         else:
             render_pages(temp)
         _verify_pdf(temp, plans)

@@ -23,6 +23,7 @@ import pandas as pd
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheets
 from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, valid_analysis_id
 from .analysis_labels import validate_labels
+from .sheet_metadata import validate_sheet_metadata
 from .category_order import CATEGORY_ORDER_VERSION, WORKSHEET_ORDERS, keep_source_columns, validated_orders
 from .variable_types import VARIABLE_TYPES, validated_types
 from .distribution_formulas import DISTRIBUTION_FUNCTIONS, argument_count_message
@@ -950,6 +951,7 @@ class ProjectTables(dict):
     def __init__(self, info_sheets):
         super().__init__()
         self.info_sheets = tuple(info_sheets)
+        self.sheet_metadata = {}
 
 
 def validate_analysis_links(tables):
@@ -993,7 +995,7 @@ def _analysis_slots(value, count):
     return result
 
 
-def project_document(tables, *, layouts=(), info_sheets=None):
+def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=None):
     """The JSON document of a .alab project, validated as ``save_project`` writes it. Pure: reads its arguments only,
     so a detached copy of a project can be serialised away from the GUI thread (Qt recovery copies)."""
     from dataclasses import asdict
@@ -1009,6 +1011,10 @@ def project_document(tables, *, layouts=(), info_sheets=None):
         validate_labels(dataset.analysis_labels, len(dataset.analyses))
     linked = any(dataset.analysis_sources or len(dataset.analyses) > 256 for dataset in tables.values())
     data = {"version": 3 if linked else 2, "tables": [], "layouts": [asdict(layout) for layout in layouts]}
+    if sheet_metadata is None:
+        sheet_metadata = getattr(tables, "sheet_metadata", None)
+    if sheet_metadata:
+        data["sheet_metadata"] = validate_sheet_metadata(sheet_metadata)
     if info_sheets:
         validate_info_sheets(info_sheets, tables)
         records = []
@@ -1016,6 +1022,12 @@ def project_document(tables, *, layouts=(), info_sheets=None):
             record = asdict(sheet)
             if not sheet.note_styles:
                 del record["note_styles"]
+            if not sheet.floating:
+                del record["floating"]
+            if sheet.use_constants:
+                del record["use_constants"]
+            if sheet.worksheet is None:
+                del record["worksheet"]
             records.append(record)
         data["info_sheets"] = records
     contexts = info_contexts(info_sheets)
@@ -1077,21 +1089,23 @@ def project_document(tables, *, layouts=(), info_sheets=None):
     return data
 
 
-def project_bytes(tables, *, layouts=(), info_sheets=None):
+def project_bytes(tables, *, layouts=(), info_sheets=None, sheet_metadata=None):
     """The bytes ``save_project`` writes for these tables, without touching the disk."""
-    data = json.dumps(project_document(tables, layouts=layouts, info_sheets=info_sheets), ensure_ascii=False,
+    data = json.dumps(project_document(tables, layouts=layouts, info_sheets=info_sheets,
+                                          sheet_metadata=sheet_metadata), ensure_ascii=False,
                       allow_nan=False, separators=(",", ":")).encode("utf-8")
     if len(data) > MAX_ENTRY:
         raise ValueError("The project exceeds the 32 MiB limit.")
     return data
 
 
-def save_project(path, tables, *, layouts=(), info_sheets=None):
+def save_project(path, tables, *, layouts=(), info_sheets=None, sheet_metadata=None):
     import os
     from tempfile import NamedTemporaryFile
 
     path = Path(path)
-    data = project_document(tables, layouts=layouts, info_sheets=info_sheets)
+    data = project_document(tables, layouts=layouts, info_sheets=info_sheets,
+                                          sheet_metadata=sheet_metadata)
     tmp = None
     try:
         with NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as handle:
@@ -1126,6 +1140,7 @@ def load_workspace(path, *, include_info=False):
         raise ValueError("Invalid saved Info sheet.") from error
     contexts = info_contexts(sheets)
     result = ProjectTables(sheets)
+    result.sheet_metadata = validate_sheet_metadata(obj.get("sheet_metadata", {}))
     for table in obj["tables"]:
         rows = [[_decode_cell(value) for value in row] for row in table["rows"]]
         data = Dataset(_table(table["columns"], rows, table["kinds"], max_columns=MAX_CELLS),
