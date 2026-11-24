@@ -18,6 +18,7 @@ from analisi.field_error import FieldError
 from analisi.graph_annotations import ANNOTATIONS
 from analisi.graph_legend import LEGEND_OPTIONS_KEY
 from analisi.graph_shapes import SHAPES
+from analisi.point_style import POINTS
 from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.linked_axes import LINKED_AXES, linked_axes_reasons
 from analisi.i18n import active_language, tr, translate_message
@@ -74,7 +75,7 @@ def choice_text(labels, value):
 
 
 # Kept as they are: edited by their own dialogs (annotations, shapes) or not editable on Qt yet.
-KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical")
+KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical", POINTS)
 
 
 class Choice(QComboBox):
@@ -792,7 +793,7 @@ class GraphFormatDialog(QDialog):
 
     def reset(self):
         """Back to the analysis defaults; drawings, annotations and panel settings stay."""
-        style = {key: deepcopy(self.style[key]) for key in (ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical")
+        style = {key: deepcopy(self.style[key]) for key in (ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical", POINTS)
                  if self.style.get(key)}
         if self.xy is not None:
             options = {key: value for key, value in self.xy["options"].items() if key not in RECIPE_KEYS}

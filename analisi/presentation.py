@@ -37,6 +37,7 @@ from .linked_axes import (LINKED_AXES, apply_linked_axes, clear_linked_axes, log
 from .graph_legend import (LEGEND_OPTIONS_KEY, apply_legend_options, is_non_native_figure,
                            restore_legend_snapshots, validate_legend_options)
 from .graph_shapes import SHAPES, draw_shapes, validate_shapes
+from .point_style import GID_PREFIX as POINT_GID_PREFIX, INDICATOR_GID, POINTS, apply_point_styles, restore_point_styles, validate_points
 from .layout_geometry import (AUTO_PAPER, LABEL_PAD, LABEL_SIZE, PAPER_SIZES, PT, WHITE, layout_frame, page_ink,
                               page_size, panel_boxes)
 
@@ -201,7 +202,7 @@ def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
                     "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", LEGEND_OPTIONS_KEY, "series",
                     "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY,
-                    "hierarchical", AXIS_BREAKS, LINKED_AXES},
+                    "hierarchical", AXIS_BREAKS, LINKED_AXES, POINTS},
             "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
         if key in style and not _text(style[key]):
@@ -239,6 +240,8 @@ def validated_style(style):
     for key, options in series.items():
         _check_series(key, options)
     _check_groups(style.get("groups", {}))
+    if POINTS in style:
+        validate_points(style[POINTS])
     validate_annotations(style.get(ANNOTATIONS, []))
     validate_shapes(style.get(SHAPES, []))
     if PANEL_KEY in style:
@@ -374,7 +377,7 @@ def _series(axes):
     artists = [("line", artist) for artist in axes.lines
                if id(artist) not in xy_ids
                and not str(artist.get_gid() or "").startswith(("tramastat-shape-", "trama-axis-guide:",
-                                                                BREAK_GID_PREFIX))]
+                                                                BREAK_GID_PREFIX, POINT_GID_PREFIX, INDICATOR_GID))]
     artists.extend(("errorbar", artist) for artist in errorbars)
     artists.extend(("scatter", artist) for artist in axes.collections if isinstance(artist, PathCollection))
     artists.extend(("bar", artist) for artist in axes.containers
@@ -1057,6 +1060,7 @@ def apply_style(figure, style):
     capture_defaults(figure)
     defaults = axes._tramastat_defaults
     previous = getattr(axes, "_tramastat_style", {})
+    restore_point_styles(figure)  # Before the series are formatted: every artist starts from its series look.
     if LEGEND_OPTIONS_KEY in style or LEGEND_OPTIONS_KEY in previous:
         restore_legend_snapshots(figure)
     clear_axis_guides_and_bands(axes)
@@ -1116,6 +1120,8 @@ def apply_style(figure, style):
                 break
         if not has_color:
             setter(style["accent"])
+    apply_point_styles(figure, [series for series, _ in defaults["series"].values()], style.get(POINTS, []),
+                       breaks=bool(style.get(AXIS_BREAKS)))
     _apply_legend(axes, style, defaults, bool(series_options or "accent" in style))
     _apply_xy_legend(axes, style)
     apply_axis_breaks(figure, normalise_axis_breaks(style.get(AXIS_BREAKS)))

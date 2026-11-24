@@ -19,6 +19,7 @@ from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCanc
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
 from analisi.linked_axes import linked_axes_status
+from analisi.point_style import POINTS, point_styles_status
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, MAX_ENTRY, Dataset,
                           formula_column_references, info_references, load_tables, load_workspace, project_document, save_project)
 from analisi.ecdf_graph import METHOD as ECDF_GRAPH, style_after_parameter_change as ecdf_style
@@ -144,7 +145,8 @@ def breaks_warning(figure, style):
 
 def graph_warning(figure, style):
     """The notes about saved style sections that the graph cannot draw right now (breaks, linked axes)."""
-    notes = [note for note in (breaks_warning(figure, style), linked_axes_status(figure, style)) if note]
+    notes = [note for note in (breaks_warning(figure, style), linked_axes_status(figure, style),
+                               point_styles_status(figure, (style or {}).get(POINTS))) if note]
     return " ".join(notes) or None
 
 

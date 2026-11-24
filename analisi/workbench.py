@@ -115,6 +115,7 @@ from .select_transform import SELECT_OPTIONS, SELECT_TRANSFORM, select_transform
 from .parts_of_whole import GOODNESS_OF_FIT, GOODNESS_OPTIONS, PARTS_GRAPH, PARTS_OPTIONS, goodness_of_fit, parts_graph
 from .pareto_plot import METHOD as PARETO_PLOT, OPTIONS as PARETO_PLOT_OPTIONS, pareto_plot
 from .reporting import Result, _plot, _report
+from .point_style import attach_points, positions_of
 from .xy_series import XY_METHOD, xy_series
 from .processing import FieldError
 from .rank_tests import MANN_WHITNEY, OPTIONS as RANK_OPTIONS, WILCOXON, is_legacy as legacy_rank_test, rank_test
@@ -603,9 +604,13 @@ def _scatter(frame, o):
         groups = [(label, parts[label]) for label in preferred_levels(parts, priority)]
     separate_overlay = o.get("Ellipse", NONE) != NONE and o.get("Ellipse grouping") == SEPARATE_GROUP
     point_colors = {}
+    recipe = (x, y, group) if group else (x, y)
     for label, part in groups:
         legend_label = str(label) if group or not separate_overlay else "_nolegend_"
         dots = axes.scatter(part[x], part[y], label=legend_label)
+        positions = positions_of(frame, part.index)
+        if positions is not None:  # The worksheet row of every point, so a single point can be formatted.
+            attach_points(dots, positions, part[x].to_numpy(float), part[y].to_numpy(float), recipe, len(frame))
         if group:
             dots._tramastat_legend_key = f"group:{typed_group_token(label)}"
         point_colors[label] = dots.get_facecolor()[0]

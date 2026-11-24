@@ -5785,6 +5785,12 @@ from .linked_axes_text import EN as _LINKED_EN, IT as _LINKED_IT  # noqa: E402
 _EN.update(_LINKED_EN)
 _IT.update(_LINKED_IT)
 
+# Formatting of single points (analisi.point_style): messages, reasons and Inspector captions.
+from .point_style_text import EN as _POINT_EN, IT as _POINT_IT  # noqa: E402
+
+_EN.update(_POINT_EN)
+_IT.update(_POINT_IT)
+
 # Yuen's trimmed-mean test (analisi.yuen): captions, the dialog note and the exact engine messages.
 from .yuen_text import EN as _YUEN_EN, IT as _YUEN_IT  # noqa: E402
 

@@ -4,7 +4,7 @@ A template keeps what is needed to run the same work on new data: for every data
 columns (names, kinds and worksheet roles) and the native table format, the calculated columns, the
 analyses with their options, persistent names, graph styles and the links between them, and the native
 layouts. It never keeps rows, excluded cells, results, attributes left by an import, file or host
-references, history, Info sheets, drawn shapes or free annotations.
+references, history, Info sheets, drawn shapes, free annotations or the formatting of single points.
 
 The file is UTF-8 JSON, an object whose ``schema`` is 1. Identities are local to the file (``A1``,
 ``A2``…): links and layout panels go through them, and every instance receives new persistent
@@ -37,6 +37,7 @@ from .data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY
                    formula_calculation_order, info_references,
                    validate_analysis_links)
 from .graph_annotations import ANNOTATIONS
+from .point_style import POINTS
 from .graph_shapes import SHAPES
 from .layout_geometry import AUTO_PAPER, WHITE
 from .legacy_project_metadata import IMPORTED_METHODS, is_import_option, saved_name
@@ -348,7 +349,7 @@ def plan_template(tables, layouts=(), info_sheets=None, *, cancel=None):
             style = dataset.graph_styles.get(slot)
             if style is not None:
                 style = deepcopy(style)
-                for key, code in ((SHAPES, "shapes"), (ANNOTATIONS, "annotations")):
+                for key, code in ((SHAPES, "shapes"), (ANNOTATIONS, "annotations"), (POINTS, "points")):
                     if style.get(key):
                         omissions.append(Omission(code, spot, len(style[key])))
                     style.pop(key, None)
