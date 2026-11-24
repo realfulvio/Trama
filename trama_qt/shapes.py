@@ -8,8 +8,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QFo
 
 from analisi.data import decimal_comma
 from analisi.graph_shapes import (ARROW_HEADS, ARROW_SIZE, ARROW_STYLES, HATCHES, KINDS, LAYERS, LINE_STYLES,
-                                  MAX_SHAPES, UNITS, on_axis_domain, validate_shape)
+                                  MAX_SHAPES, OBJECT_KEYS, UNITS, on_axis_domain, validate_shape)
 from analisi.i18n import tr
+from analisi.shape_objects import duplicate_object, is_locked, object_key, selected_objects
 
 from . import theme
 from .graph_format import Choice, _color_button
@@ -186,6 +187,7 @@ class ShapeEditor(QDialog):
                     record["hatch_color"] = old["hatch_color"]
             elif f["hatch_color"].text().strip():
                 record["hatch_color"] = f["hatch_color"].text().strip()
+        record.update({key: old[key] for key in OBJECT_KEYS if key in old})
         try:
             canonical = validate_shape(record)
         except ValueError as error:
@@ -255,7 +257,11 @@ class GraphShapesDialog(QDialog):
         self.table.setRowCount(len(self.records))
         for index, record in enumerate(self.records):
             for column, text in enumerate(describe_shape(record)):
-                self.table.setItem(index, column, QTableWidgetItem(text))
+                item = QTableWidgetItem(text)
+                if record.get("group") or record.get("locked"):
+                    item.setToolTip(tr("shape.objects.locked" if is_locked(self.members(index))
+                                       else "shape.objects.ungroup_first"))
+                self.table.setItem(index, column, item)
         if selected is not None and self.records:
             self.table.selectRow(max(0, min(selected, len(self.records) - 1)))
         self.problem.setVisible(False)
@@ -265,18 +271,34 @@ class GraphShapesDialog(QDialog):
         rows = self.table.selectionModel().selectedRows()
         return rows[0].row() if rows else None
 
-    def _buttons(self):
-        index, full = self.selected(), len(self.records) >= MAX_SHAPES
-        self.buttons["add"].setEnabled(not full)
-        for key in ("edit", "remove"):
-            self.buttons[key].setEnabled(index is not None)
-        self.buttons["duplicate"].setEnabled(index is not None and not full)
-        self.buttons["up"].setEnabled(bool(index))
-        self.buttons["down"].setEnabled(index is not None and index < len(self.records) - 1)
-        self.buttons["clear"].setEnabled(bool(self.records))
+    def members(self, index):
+        if index is None:
+            return []
+        return selected_objects(self.records, [self.records[index]["id"]])[0]
 
-    def _limit(self):
-        if len(self.records) >= MAX_SHAPES:
+    def can_move(self, index, step):
+        if index is None or not 0 <= index + step < len(self.records):
+            return False
+        return all(len(members) == 1 and not is_locked(members)
+                   for members in (self.members(index), self.members(index + step)))
+
+    def _buttons(self):
+        index = self.selected()
+        members = self.members(index)
+        unlocked = bool(members) and not is_locked(members)
+        self.buttons["add"].setEnabled(len(self.records) < MAX_SHAPES)
+        self.buttons["edit"].setEnabled(unlocked and len(members) == 1)
+        self.buttons["remove"].setEnabled(unlocked)
+        self.buttons["duplicate"].setEnabled(unlocked and len(self.records) + len(members) <= MAX_SHAPES)
+        self.buttons["up"].setEnabled(self.can_move(index, -1))
+        self.buttons["down"].setEnabled(self.can_move(index, 1))
+        locked = self.locked_objects()
+        clear = self.buttons["clear"]
+        clear.setText(tr("shape.objects.clear_unlocked" if locked else "shape.clear"))
+        clear.setEnabled(any(object_key(record) not in locked for record in self.records))
+
+    def _limit(self, count=1):
+        if len(self.records) + count > MAX_SHAPES:
             self.problem.setText(tr("shape.error.limit"))
             self.problem.setVisible(True)
             return True
@@ -292,37 +314,43 @@ class GraphShapesDialog(QDialog):
 
     def edit(self):
         index = self.selected()
-        if index is None:
+        members = self.members(index)
+        if len(members) != 1 or is_locked(members):
             return
-        dialog = ShapeEditor(self, self.axes, self.records[index])
+        dialog = ShapeEditor(self, self.axes, members[0])
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.result is not None:
             self.records[index] = dialog.result
             self.fill(index)
 
     def duplicate(self):
         index = self.selected()
-        if index is None or self._limit():
+        members = self.members(index)
+        if not members or is_locked(members) or self._limit(len(members)):
             return
-        copied = deepcopy(self.records[index])
-        copied["id"] = str(uuid.uuid4())
-        self.records.insert(index + 1, copied)
-        self.fill(index + 1)
+        insert_at = self.records.index(members[-1]) + 1
+        self.records[insert_at:insert_at] = duplicate_object(members)
+        self.fill(insert_at)
 
     def remove(self):
         index = self.selected()
-        if index is not None:
-            del self.records[index]
+        members = self.members(index)
+        if members and not is_locked(members):
+            self.records = [record for record in self.records if record not in members]
             self.fill(index)
 
     def move(self, step):
         index = self.selected()
-        if index is None or not 0 <= index + step < len(self.records):
+        if not self.can_move(index, step):
             return
         self.records[index], self.records[index + step] = self.records[index + step], self.records[index]
         self.fill(index + step)
 
+    def locked_objects(self):
+        return {object_key(record) for record in self.records if record.get("locked")}
+
     def clear(self):
-        self.records = []
+        locked = self.locked_objects()
+        self.records = [record for record in self.records if object_key(record) in locked]
         self.fill()
 
     def accept(self):

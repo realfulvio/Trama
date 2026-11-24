@@ -309,6 +309,99 @@ class QtCanvasTests(unittest.TestCase):
         self.window.actions["undo"].trigger()
         self.assertEqual(self.shapes, [original])
 
+    def test_group_lock_and_ungroup_through_arrange_and_canvas(self):
+        from trama_qt.shape_arrange import ArrangeShapesDialog
+        from trama_qt.shapes import GraphShapesDialog, ShapeEditor
+
+        self.draw_rectangle()
+        original = self.shapes
+
+        def group(dialog, accept):
+            dialog.resize(430, 430)
+            dialog.shapes.selectAll()
+            dialog.object_buttons["group"].click()
+            self.assertEqual(self.shapes, original)  # The dialog has a draft.
+            dialog.accept() if accept else dialog.reject()
+            return dialog.result()
+
+        for accept in (False, True):
+            with mock.patch.object(ArrangeShapesDialog, "exec", lambda dialog: group(dialog, accept)):
+                self.window.actions["arrange_shapes"].trigger()
+            if not accept:
+                self.assertEqual(self.shapes, original)
+        grouped = self.shapes
+        self.assertEqual(len({record["group"] for record in grouped}), 1)
+        self.window.actions["undo"].trigger()
+        self.assertEqual(self.shapes, original)
+        self.window.actions["redo"].trigger()
+        self.assertEqual(self.shapes, grouped)
+
+        self.drag((.27, .23), (.37, .33))
+        moved = self.shapes
+        for before, after in zip(grouped, moved, strict=True):
+            self.assertTrue(np.allclose(np.array(after["points"]) - before["points"], .10, atol=.03))
+        self.assertTrue(np.allclose(np.array(moved[1]["points"]) - grouped[1]["points"],
+                                    np.array(moved[0]["points"]) - grouped[0]["points"]))
+        QTest.keyClick(self.canvas, Qt.Key.Key_Right)
+        nudged = self.shapes
+        self.assertTrue(all(before["points"] != after["points"] for before, after in zip(moved, nudged, strict=True)))
+
+        drawing = self.window.drawing
+        shape_id = grouped[0]["id"]
+        menu = drawing.context_menu(shape_id)
+        self.addCleanup(menu.deleteLater)
+        next(action for action in menu.actions() if action.text() == tr("shape.objects.lock")).trigger()
+        locked = self.shapes
+        self.assertTrue(all(record["locked"] for record in locked))
+        history_size = len(self.graph.shape_history.changes)
+
+        self.drag((.37, .33), (.47, .43))
+        for key in (Qt.Key.Key_Left, Qt.Key.Key_Delete, Qt.Key.Key_Return):
+            with mock.patch.object(ShapeEditor, "exec", side_effect=AssertionError("locked editor opened")):
+                QTest.keyClick(self.canvas, key)
+        original_clipboard = QApplication.clipboard().text()
+        QTest.keyClick(self.canvas, Qt.Key.Key_X, Qt.KeyboardModifier.ControlModifier)
+        self.assertEqual(QApplication.clipboard().text(), original_clipboard)
+        self.assertEqual(len(self.graph.shape_history.changes), history_size)
+        self.assertEqual(self.shapes, locked)
+
+        manager = GraphShapesDialog(self.window, self.graph.result.figure.axes[0], locked)
+        self.addCleanup(manager.deleteLater)
+        self.assertFalse(manager.buttons["remove"].isEnabled())
+        self.assertFalse(manager.buttons["clear"].isEnabled())
+        manager.clear()
+        self.assertEqual(manager.records, locked)
+
+        QTest.keyClick(self.canvas, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
+        QTest.keyClick(self.canvas, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+        copies = self.shapes[2:]
+        self.assertEqual(len(copies), 2)
+        self.assertEqual(copies[0]["group"], copies[1]["group"])
+        self.assertNotEqual(copies[0]["group"], shape_id)
+        self.assertNotEqual(copies[0]["group"], locked[0]["group"])
+        self.assertTrue(all(not record.get("locked") for record in copies))
+        self.window.actions["undo"].trigger()
+        self.assertEqual(self.shapes, locked)
+
+        saved = self.folder / "locked.alab"
+        self.window.project.save(saved)
+        self.window.open_path(saved)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        self.assertEqual(self.shapes, locked)
+        self.assertEqual(set(self.svg_ids(self.export_to("locked.svg"))), {record["id"] for record in locked})
+
+        drawing = self.window.drawing
+        self.assertTrue(drawing.change(shape_id, "unlock"))
+        context = drawing.context_menu(shape_id)
+        self.addCleanup(context.deleteLater)
+        next(action for action in context.actions() if action.text() == tr("shape.objects.ungroup")).trigger()
+        self.assertTrue(all("group" not in record and "locked" not in record for record in self.shapes))
+        self.window.actions["undo"].trigger()
+        self.assertEqual(self.shapes, nudged)
+        self.window.actions["undo"].trigger()
+        self.assertEqual(self.shapes, locked)
+
     # -- undo is separate from the grid and from other graphs -----------------------------------------
     def test_undo_on_a_graph_leaves_the_worksheet_history_alone(self):
         self.window.open_sheet(("data", "Misure"))

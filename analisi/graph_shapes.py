@@ -18,7 +18,8 @@ LAYERS = ("below", "above")
 MAX_SHAPES = 100
 SHAPE_KEYS = {"id", "kind", "units", "points", "stroke", "width", "line_style", "fill", "alpha", "layer"}
 ARROW_KEYS = {"arrow_heads", "arrow_style", "arrow_size"}
-OPTIONAL_KEYS = ARROW_KEYS | {"hatch", "hatch_color"}
+OBJECT_KEYS = {"group", "locked"}
+OPTIONAL_KEYS = ARROW_KEYS | {"hatch", "hatch_color"} | OBJECT_KEYS
 ARROW_HEADS = ("none", "start", "end", "both")
 ARROW_STYLES = ("open", "filled", "cap")
 ARROW_SIZE = 10.0
@@ -76,6 +77,10 @@ def validate_shape(record):
     shape_id = record["id"]
     if not _canonical_uuid(shape_id):
         raise ValueError("Each graph shape requires a canonical lowercase UUID.")
+    if "group" in record and not _canonical_uuid(record["group"]):
+        raise ValueError("Invalid graph shape group.")
+    if "locked" in record and type(record["locked"]) is not bool:
+        raise ValueError("Invalid graph shape lock.")
     kind = record["kind"]
     if kind not in KINDS:
         raise ValueError("Choose line, rectangle, or ellipse for the shape kind.")

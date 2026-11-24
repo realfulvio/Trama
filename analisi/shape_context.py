@@ -3,12 +3,10 @@
 ``edit_records`` and the choice tables are toolkit-free (the Qt window builds its own menu from them);
 only ``build_menu`` creates Tk controls.
 """
-from copy import deepcopy
-import uuid
-
 from .graph_shapes import (ARROW_HEADS, ARROW_SIZE, ARROW_STYLES, HATCHES, LINE_STYLES,
                            validate_shapes)
 from .i18n import tr
+from .shape_objects import duplicate_object, edit_objects, is_locked, selected_objects
 
 WIDTHS = (.25, .5, 1., 1.5, 2., 3., 4., 6., 8., 12.)
 ENDING_SIZES = (6., 10., 14., 18., 24., 32., 40.)
@@ -19,25 +17,41 @@ FIELDS = {'stroke', 'width', 'line_style', 'fill', 'hatch', 'hatch_color', 'arro
 def edit_records(records, shape_id, action, value=None):
     """Return a complete canonical candidate and selected ID; the input is never modified."""
     candidate = validate_shapes(records)
-    index = next((i for i,r in enumerate(candidate) if r['id']==shape_id),None)
-    if index is None:
-        raise ValueError(tr('shape.context.missing'))
-    record = candidate[index]
+    objects = selected_objects(candidate, [shape_id])
+    if not objects:
+        raise ValueError(tr("shape.context.missing"))
+    members = objects[0]
+    if action in ("ungroup", "lock", "unlock"):
+        return edit_objects(candidate, [shape_id], action), shape_id
+    if is_locked(members):
+        raise ValueError(tr("shape.objects.locked"))
+    record = next(record for record in members if record["id"] == shape_id)
     selected = shape_id
     if action in FIELDS:
-        if action == 'hatch_color' and value is None:
-            record.pop(action,None)
-        elif record.get(action,DEFAULTS.get(action)) != value:
+        if len(members) > 1:
+            raise ValueError(tr("shape.objects.ungroup_first"))
+        if action == "hatch_color" and value is None:
+            record.pop(action, None)
+        elif record.get(action, DEFAULTS.get(action)) != value:
             record[action] = value
-    elif action == 'duplicate':
-        record = deepcopy(record);record['id']=selected=str(uuid.uuid4());candidate.append(record)
-    elif action == 'remove':
-        candidate.pop(index);selected=None
-    elif action in ('front','back'):
-        candidate.pop(index);record['layer']='above' if action=='front' else 'below'
-        candidate.insert(len(candidate) if action=='front' else 0,record)
+    elif action == "duplicate":
+        copies = duplicate_object(members)
+        selected = copies[members.index(record)]["id"]
+        candidate.extend(copies)
+    elif action in ("remove", "front", "back"):
+        ids = {member["id"] for member in members}
+        candidate = [item for item in candidate if item["id"] not in ids]
+        if action == "remove":
+            selected = None
+        else:
+            for member in members:
+                member["layer"] = "above" if action == "front" else "below"
+            if action == "front":
+                candidate.extend(members)
+            else:
+                candidate[:0] = members
     else:
-        raise ValueError(tr('shape.context.invalid'))
+        raise ValueError(tr("shape.context.invalid"))
     return validate_shapes(candidate), selected
 
 

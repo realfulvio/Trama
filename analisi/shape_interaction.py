@@ -18,6 +18,7 @@ from matplotlib.transforms import IdentityTransform
 
 from .graph_shapes import draw_shapes, on_axis_domain, validate_shapes
 from .i18n import tr
+from .shape_objects import is_locked, selected_objects, shape_transform, translated_shape
 
 MODES = (None, 'select', 'line', 'arrow', 'rectangle', 'ellipse')
 NEW_SHAPE = {'units': 'axes', 'points': [[0., 0.], [0., 0.]], 'stroke': '#216a94', 'width': 1.5,
@@ -134,10 +135,13 @@ class ShapeController:
         self.canvas.draw_idle()
 
     def transform(self, record):
-        return self.axes.transAxes if record['units'] == 'axes' else self.axes.transData
+        return shape_transform(self.axes, record)
 
     def selected_record(self):
         return next((r for r in self.records() if r['id'] == self.selected), None)
+
+    def selected_members(self):
+        return next(iter(selected_objects(self.records(), [self.selected])), [])
 
     def _inside(self, event):
         """The pointer is on the primary plot, even under a twin axis that shares its rectangle."""
@@ -204,7 +208,7 @@ class ShapeController:
         if self.mode == 'select':
             record = self.selected_record()
             endpoint = None
-            if record is not None:
+            if record is not None and len(self.selected_members()) == 1:
                 distances = np.linalg.norm(self.transform(record).transform(record['points'])-point,axis=1)
                 if min(distances) <= 7*self.canvas.figure.dpi/72:
                     endpoint = int(np.argmin(distances))
@@ -214,8 +218,14 @@ class ShapeController:
             self.canvas.draw_idle()
             if record is None:
                 return
+            members = self.selected_members()
+            if is_locked(members):
+                self.status(tr("shape.objects.locked"))
+                return
             if event.dblclick:
-                if self.edit is not None:
+                if len(members) > 1:
+                    self.status(tr("shape.objects.ungroup_first"))
+                elif self.edit is not None:
                     self.edit(self.selected)
                 return
             self.gesture = {'kind':'resize' if endpoint is not None else 'move','record':deepcopy(record),
@@ -240,9 +250,7 @@ class ShapeController:
                 delta[1] = 0.
             elif 'shift' in modifiers and 'ctrl' not in modifiers:
                 delta[0] = 0.
-            if not np.any(delta):
-                return deepcopy(gesture['snapshot'])
-            pixels = transform.transform(record['points']) + delta
+            return self.moved(gesture["snapshot"], record["id"], delta)
         else:
             if gesture['kind'] == 'create':
                 pixels = np.array([gesture['start'],point],dtype=float)
@@ -267,6 +275,13 @@ class ShapeController:
         if not on_axis_domain(self.axes,record):
             raise ValueError(tr('shape.error.axis_domain'))
         return records
+
+    def moved(self, records, shape_id, delta):
+        members = next(iter(selected_objects(records, [shape_id])), [])
+        if is_locked(members):
+            raise ValueError(tr("shape.objects.locked"))
+        moved = {record["id"]: translated_shape(self.axes, record, delta) for record in members}
+        return validate_shapes([moved.get(record["id"], record) for record in records])
 
     def motion(self, event):
         if self.gesture is None:
@@ -327,51 +342,58 @@ class ShapeController:
 
     # -- keys ----------------------------------------------------------------------------------------
     def key(self, key):
-        key = key.lower().replace('control', 'ctrl')
+        key = key.lower().replace("control", "ctrl")
         if self.mode is None:
             return False
-        if key == 'escape':
-            self.cancel();self.set_mode('select')
+        if key == "escape":
+            self.cancel()
+            self.set_mode("select")
             return True
         if not self.allowed():
             return True
-        if key in ('ctrl+c','ctrl+x','ctrl+v') and self.clipboard is not None:
+        if key in ("ctrl+c", "ctrl+x", "ctrl+v") and self.clipboard is not None:
             self.cancel()
-            self.clipboard({'ctrl+c':'copy','ctrl+x':'cut','ctrl+v':'paste'}[key])
+            if key == "ctrl+x" and is_locked(self.selected_members()):
+                self.status(tr("shape.objects.locked"))
+            else:
+                self.clipboard({"ctrl+c": "copy", "ctrl+x": "cut", "ctrl+v": "paste"}[key])
             return True
-        if key in ('ctrl+z','ctrl+y'):
+        if key in ("ctrl+z", "ctrl+y"):
             self.cancel()
             if self.undo is not None:
-                self.undo(key=='ctrl+y')
+                self.undo(key == "ctrl+y")
             return True
-        record = self.selected_record()
-        if record is None:
+        members = self.selected_members()
+        if not members:
             return True
-        if key == 'enter':
-            if self.edit is not None:
-                self.edit(record['id'])
+        if is_locked(members):
+            self.status(tr("shape.objects.locked"))
             return True
-        if key == 'delete':
-            records = [r for r in self.records() if r['id']!=self.selected]
-            render_shapes(self.axes,records);self.commit(deepcopy(records));self.selected=None
+        if key == "enter":
+            if len(members) > 1:
+                self.status(tr("shape.objects.ungroup_first"))
+            elif self.edit is not None:
+                self.edit(self.selected)
+            return True
+        if key == "delete":
+            member_ids = {member["id"] for member in members}
+            records = [record for record in self.records() if record["id"] not in member_ids]
         else:
-            parts = key.split('+')
+            parts = key.split("+")
             direction = parts[-1]
-            deltas = {'left':(-1,0),'right':(1,0),'up':(0,1),'down':(0,-1)}
-            if direction not in deltas or set(parts[:-1]) - {'shift', 'ctrl'}:
+            deltas = {"left": (-1, 0), "right": (1, 0), "up": (0, 1), "down": (0, -1)}
+            if direction not in deltas or set(parts[:-1]) - {"shift", "ctrl"}:
                 return True
-            delta = np.array(deltas[direction],dtype=float)*(10 if len(parts)>1 else 1)
-            transform = self.transform(record)
-            moved = deepcopy(record)
-            moved['points'] = transform.inverted().transform(transform.transform(record['points'])+delta).tolist()
-            records = [moved if r['id']==record['id'] else r for r in self.records()]
+            delta = np.array(deltas[direction], dtype=float) * (10 if len(parts) > 1 else 1)
             try:
-                records=validate_shapes(records)
-                if not on_axis_domain(self.axes,moved):
-                    raise ValueError(tr('shape.error.axis_domain'))
-            except ValueError:
-                self.status(tr('shape.canvas.invalid'));return True
-            render_shapes(self.axes,records);self.commit(deepcopy(records))
+                records = self.moved(self.records(), self.selected, delta)
+            except (ValueError, TypeError, OverflowError):
+                self.status(tr("shape.canvas.invalid"))
+                return True
+        render_shapes(self.axes, records)
+        self.commit(deepcopy(records))
+        if key == "delete":
+            self.selected = None
         if not self._closed:
             self.canvas.draw_idle()
         return True
@@ -380,13 +402,20 @@ class ShapeController:
     def draw_overlay(self, event):
         if self._closed or self.mode is None or event.canvas.is_saving():
             return
-        record = self.selected_record()
-        if record is None:
+        members = self.selected_members()
+        if not members:
             return
-        # This artist is drawn directly, never added to axes.lines or the figure's saved content.
-        pixels = self.transform(record).transform(record['points'])
-        handle = Line2D(pixels[:,0],pixels[:,1],linestyle='none',marker='s',markersize=6,
-                        markerfacecolor='white',markeredgecolor='#176676')
+        pixels = np.concatenate([self.transform(record).transform(record["points"]) for record in members])
+        locked = is_locked(members)
+        # This artist is drawn directly and never enters the figure's saved content.
+        if len(members) == 1 and not locked:
+            handle = Line2D(pixels[:, 0], pixels[:, 1], linestyle="none", marker="s", markersize=6,
+                            markerfacecolor="white", markeredgecolor="#176676")
+        else:
+            left, bottom = pixels.min(axis=0)
+            right, top = pixels.max(axis=0)
+            handle = Line2D([left, left, right, right, left], [bottom, top, top, bottom, bottom],
+                            linewidth=1.2, linestyle="--" if locked else "-", color="#176676")
         handle.set_transform(IdentityTransform());handle.set_figure(self.canvas.figure)
         handle.draw(event.renderer)
 

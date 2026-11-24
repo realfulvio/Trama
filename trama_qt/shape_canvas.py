@@ -21,9 +21,10 @@ from analisi.i18n import tr
 from analisi.presentation import apply_style
 from analisi.legacy_restore import SAVED_BINARY_GRAPH, SAVED_EDITABLE_GRAPH, SAVED_XY
 from analisi.qq_panels import panel_axes
-from analisi.shape_clipboard import dump_shape, paste_shape
+from analisi.shape_clipboard import dump_object, paste_shape
 from analisi.shape_context import DEFAULTS, ENDING_SIZES, WIDTHS, edit_records
 from analisi.shape_interaction import ShapeController, render_shapes
+from analisi.shape_objects import is_locked, selected_objects
 
 from .strings import qt
 
@@ -163,6 +164,7 @@ class GraphDrawing:
         for name in CLIPBOARD:
             self.menu.addAction(w.actions[f"shape_{name}"])
         self.menu.addSeparator()
+        self.menu.addAction(w.actions["arrange_shapes"])
         self.menu.addAction(w.actions["shapes"])
         self.menu.addAction(w.actions["draw_stop"])
         draw = w._action("draw", qt("qt.draw"), lambda: self.toggle("select", force=True), icon="pencil",
@@ -303,7 +305,7 @@ class GraphDrawing:
 
     def can_arrange(self):
         run = self.selected_run()
-        return run is not None and len((run.style or {}).get(SHAPES, ())) >= 2 and self.problem() is None
+        return run is not None and bool((run.style or {}).get(SHAPES)) and self.problem() is None
 
     def arrange(self):
         from .shape_arrange import ArrangeShapesDialog
@@ -404,7 +406,7 @@ class GraphDrawing:
         self.canvas.draw_idle()
 
     def clipboard_action(self, action, shape_id=None):
-        """Cut, copy or paste one drawing through the system clipboard (paste: new identity)."""
+        """Cut, copy or paste a complete drawing object through the system clipboard."""
         w = self.window
         problem = self.problem()
         if problem is None and not self.allowed():
@@ -418,10 +420,12 @@ class GraphDrawing:
         try:
             if action in ("copy", "cut"):
                 selected = shape_id or self.controller.selected
-                record = next((r for r in confirmed if r["id"] == selected), None)
-                if record is None:
+                members = next(iter(selected_objects(confirmed, [selected])), [])
+                if not members:
                     raise ValueError(tr("shape.clipboard.select"))
-                text = dump_shape(record)
+                if action == "cut" and is_locked(members):
+                    raise ValueError(tr("shape.objects.locked"))
+                text = dump_object(members)
                 clipboard.setText(text)
                 if clipboard.text() != text:
                     raise ValueError(qt("qt.clipboard_failed"))
@@ -432,7 +436,7 @@ class GraphDrawing:
             if action != "paste":
                 return False
             records, selected = paste_shape(confirmed, clipboard.text())
-            if not on_axis_domain(axes, records[-1]):
+            if any(not on_axis_domain(axes, record) for record in records[len(confirmed):]):
                 raise ValueError(tr("shape.error.axis_domain"))
             self.controller.cancel()
             render_shapes(axes, records)
@@ -453,9 +457,13 @@ class GraphDrawing:
             return False
         self.controller.cancel()
         confirmed = shapes_of(run)
-        record = next((r for r in confirmed if r["id"] == shape_id), None)
-        if record is None:
+        members = next(iter(selected_objects(confirmed, [shape_id])), [])
+        if not members:
             return False
+        if is_locked(members) or len(members) > 1:
+            w.error(tr("shape.objects.locked" if is_locked(members) else "shape.objects.ungroup_first"))
+            return False
+        record = members[0]
         axes = run.result.figure.axes[0]
         dialog = ShapeEditor(w, axes, record)
         accepted = dialog.exec() == ShapeEditor.DialogCode.Accepted and dialog.result is not None
@@ -495,9 +503,13 @@ class GraphDrawing:
         menu.deleteLater()
 
     def context_menu(self, shape_id):
-        record = next((r for r in shapes_of(self.run) if r["id"] == shape_id), None) if self.run else None
-        if record is None:
+        if self.run is None:
             return None
+        members = next(iter(selected_objects(shapes_of(self.run), [shape_id])), [])
+        if not members:
+            return None
+        record = next(record for record in members if record["id"] == shape_id)
+        locked, grouped = is_locked(members), bool(record.get("group"))
         w = self.window
         menu = QMenu(w)
 
@@ -507,48 +519,54 @@ class GraphDrawing:
             action.setEnabled(enabled)
             return action
 
-        add(tr("shape.context.format"), lambda: self.edit(shape_id))
+        add(tr("shape.context.format"), lambda: self.edit(shape_id), enabled=not locked and not grouped)
+        command = "unlock" if locked else "lock"
+        add(tr(f"shape.objects.{command}"), lambda: self.change(shape_id, command))
+        if grouped:
+            add(tr("shape.objects.ungroup"), lambda: self.change(shape_id, "ungroup"), enabled=not locked)
         menu.addSeparator()
         for name, shortcut in (("cut", "Ctrl+X"), ("copy", "Ctrl+C"), ("paste", "Ctrl+V")):
-            action = add(tr(f"shape.clipboard.{name}"), lambda name=name: self.clipboard_action(name, shape_id))
+            action = add(tr(f"shape.clipboard.{name}"), lambda name=name: self.clipboard_action(name, shape_id),
+                         enabled=name != "cut" or not locked)
             action.setShortcut(shortcut)
             action.setShortcutVisibleInContextMenu(True)
         menu.addSeparator()
-        suffix = "line" if record["kind"] == "line" else "area"
-        add(tr(f"shape.context.color_{suffix}"), lambda: self.choose_color(shape_id, "stroke"))
+        if not grouped and not locked:
+            suffix = "line" if record["kind"] == "line" else "area"
+            add(tr(f"shape.context.color_{suffix}"), lambda: self.choose_color(shape_id, "stroke"))
 
-        def choices(label, key, values, *, translated=True, units=False, enabled=True):
-            child = menu.addMenu(tr(label))
-            child.setEnabled(enabled)
-            current = record.get(key, DEFAULTS.get(key))
-            for value in values:
-                caption = tr(f"shape.option.{value}") if translated else f"{value:g}" + (" pt" if units else "")
-                action = add(caption, lambda value=value: self.change(shape_id, key, value), parent=child)
-                action.setCheckable(True)
-                action.setChecked(value == current if translated else float(value) == float(current))
+            def choices(label, key, values, *, translated=True, units=False, enabled=True):
+                child = menu.addMenu(tr(label))
+                child.setEnabled(enabled)
+                current = record.get(key, DEFAULTS.get(key))
+                for value in values:
+                    caption = tr(f"shape.option.{value}") if translated else f"{value:g}" + (" pt" if units else "")
+                    action = add(caption, lambda value=value: self.change(shape_id, key, value), parent=child)
+                    action.setCheckable(True)
+                    action.setChecked(value == current if translated else float(value) == float(current))
 
-        choices(f"shape.context.width_{suffix}", "width", WIDTHS, translated=False, units=True)
-        choices(f"shape.context.style_{suffix}", "line_style", LINE_STYLES)
-        if record["kind"] == "line":
-            choices("shape.arrow_heads", "arrow_heads", ARROW_HEADS)
-            active = record.get("arrow_heads", "none") != "none"
-            choices("shape.arrow_style", "arrow_style", ARROW_STYLES, enabled=active)
-            choices("shape.arrow_size", "arrow_size", ENDING_SIZES, translated=False, units=True, enabled=active)
-        else:
-            add(tr("shape.context.fill_color"), lambda: self.choose_color(shape_id, "fill"))
-            add(tr("shape.context.no_fill"), lambda: self.change(shape_id, "fill", None))
-            choices("shape.hatch", "hatch", HATCHES)
-            patterned = record.get("hatch", "none") != "none"
-            add(tr("shape.context.pattern_color"), lambda: self.choose_color(shape_id, "hatch_color"),
-                enabled=patterned)
-            add(tr("shape.context.pattern_follow"), lambda: self.change(shape_id, "hatch_color", None),
-                enabled=patterned)
-        menu.addSeparator()
+            choices(f"shape.context.width_{suffix}", "width", WIDTHS, translated=False, units=True)
+            choices(f"shape.context.style_{suffix}", "line_style", LINE_STYLES)
+            if record["kind"] == "line":
+                choices("shape.arrow_heads", "arrow_heads", ARROW_HEADS)
+                active = record.get("arrow_heads", "none") != "none"
+                choices("shape.arrow_style", "arrow_style", ARROW_STYLES, enabled=active)
+                choices("shape.arrow_size", "arrow_size", ENDING_SIZES, translated=False, units=True, enabled=active)
+            else:
+                add(tr("shape.context.fill_color"), lambda: self.choose_color(shape_id, "fill"))
+                add(tr("shape.context.no_fill"), lambda: self.change(shape_id, "fill", None))
+                choices("shape.hatch", "hatch", HATCHES)
+                patterned = record.get("hatch", "none") != "none"
+                add(tr("shape.context.pattern_color"), lambda: self.choose_color(shape_id, "hatch_color"),
+                    enabled=patterned)
+                add(tr("shape.context.pattern_follow"), lambda: self.change(shape_id, "hatch_color", None),
+                    enabled=patterned)
+            menu.addSeparator()
         for name in ("duplicate", "remove"):
-            add(tr(f"shape.context.{name}"), lambda name=name: self.change(shape_id, name))
+            add(tr(f"shape.context.{name}"), lambda name=name: self.change(shape_id, name), enabled=not locked)
         menu.addSeparator()
         for name in ("front", "back"):
-            add(tr(f"shape.context.{name}"), lambda name=name: self.change(shape_id, name))
+            add(tr(f"shape.context.{name}"), lambda name=name: self.change(shape_id, name), enabled=not locked)
         return menu
 
     def choose_color(self, shape_id, key):

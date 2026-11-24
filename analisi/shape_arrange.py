@@ -1,6 +1,7 @@
 """Atomic drawing arrangement in primary-axis display coordinates, with no model mutation."""
 import numpy as np
 from .graph_shapes import on_axis_domain, validate_shapes
+from .shape_objects import is_locked, selected_objects, shape_transform, translated_shape
 
 HORIZONTAL=('none','left','center','right','distribute')
 VERTICAL=('none','top','middle','bottom','distribute')
@@ -45,35 +46,30 @@ def arrange_shapes(axes,records,selected_ids,*,horizontal='none',vertical='none'
         raise ArrangementError('selection','selection')
     known={r['id']:i for i,r in enumerate(candidate)}
     if any(i not in known for i in selected_ids):raise ArrangementError('selection','selection')
-    if 'distribute' in (horizontal,vertical) and len(selected_ids)<3:
-        raise ArrangementError('selection','three')
-    if axes.name!='rectilinear':raise ArrangementError('selection','domain')
-    indices=[known[i] for i in selected_ids]
-    transforms=[];pixels=[]
-    for index in indices:
-        record=candidate[index]
-        if not on_axis_domain(axes,record):raise ArrangementError('selection','domain')
-        transform=axes.transAxes if record['units']=='axes' else axes.transData
-        points=np.asarray(transform.transform(record['points']),dtype=float)
-        if not np.all(np.isfinite(points)):raise ArrangementError('selection','domain')
-        transforms.append(transform);pixels.append(points)
-    pixels=np.asarray(pixels)
-    bounds=np.stack((pixels.min(axis=1),pixels.max(axis=1)),axis=1)
-    offsets=np.column_stack((_offsets(bounds,0,horizontal),_offsets(bounds,1,vertical)))
-    offsets[np.abs(offsets)<=PIXEL_TOLERANCE]=0
-    for index,transform,points,offset in zip(indices,transforms,pixels,offsets):
-        if not np.any(offset):continue
-        record=candidate[index]
-        with np.errstate(over='ignore',invalid='ignore'):
-            moved=np.asarray(transform.inverted().transform(points+offset),dtype=float)
-        if not np.all(np.isfinite(moved)):raise ArrangementError('selection','domain')
-        # Inverting a transform must not rewrite a coordinate dimension the user left untouched.
-        for axis in range(2):
-            if offset[axis]==0:moved[:,axis]=np.asarray(record['points'])[:,axis]
-        if record['units']=='axes':
-            near=(moved>=-1e-12)&(moved<=1+1e-12)
-            moved=np.where(near,np.clip(moved,0,1),moved)
-        record['points']=moved.tolist()
-        if not on_axis_domain(axes,record):raise ArrangementError('selection','domain')
-    try:return validate_shapes(candidate)
-    except ValueError:raise ArrangementError('selection','domain') from None
+    objects = selected_objects(candidate, selected_ids)
+    if len(objects) < 2:
+        raise ArrangementError("selection", "selection")
+    if "distribute" in (horizontal, vertical) and len(objects) < 3:
+        raise ArrangementError("selection", "three")
+    if axes.name != "rectilinear":
+        raise ArrangementError("selection", "domain")
+    bounds = []
+    for members in objects:
+        if is_locked(members):
+            raise ArrangementError("selection", "locked")
+        if not all(on_axis_domain(axes, record) for record in members):
+            raise ArrangementError("selection", "domain")
+        pixels = np.concatenate([shape_transform(axes, record).transform(record["points"]) for record in members])
+        if not np.all(np.isfinite(pixels)):
+            raise ArrangementError("selection", "domain")
+        bounds.append((pixels.min(axis=0), pixels.max(axis=0)))
+    bounds = np.asarray(bounds)
+    offsets = np.column_stack((_offsets(bounds, 0, horizontal), _offsets(bounds, 1, vertical)))
+    offsets[np.abs(offsets) <= PIXEL_TOLERANCE] = 0
+    try:
+        for members, offset in zip(objects, offsets, strict=True):
+            for record in members:
+                candidate[known[record["id"]]] = translated_shape(axes, record, offset)
+        return validate_shapes(candidate)
+    except (ValueError, TypeError, OverflowError):
+        raise ArrangementError("selection", "domain") from None
