@@ -51,7 +51,7 @@ from analisi.worksheet_appearance import font_preference, save_font_preference, 
 from analisi.paired_graphs import shows_paired_estimation
 
 from . import global_catalog
-from . import gui_gc, theme
+from . import gui_gc, office, theme
 from .analysis_dialog import AnalysisDialog
 from .classic_bar import ClassicToolbar, build_menus
 from .flow import FlowLayout
@@ -60,6 +60,7 @@ from .labels import method_label
 from .report_dialog import text as report_text
 from .result_tabs import ResultTabs
 from .models import WorksheetModel, column_label
+from .printing import FIGURE_KINDS, PrintCommands
 from .recovery import RecoveryDialog, RecoverySettingsDialog, r as recovery_text
 from .project import (DATA_SUFFIXES, GRAPHING, GRAPH_TYPE_METHODS, LEGACY_GRAPH_METHODS, OPEN_FILTER, PROJECT_SUFFIXES,
                       SAVED_VIEWS, CalculationControl, Project, Run, compute, result_as_table, run_view,
@@ -376,6 +377,7 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self._poll)
         self.actions = {}
         self.icons = {}
+        self.printing = PrintCommands(self)
         self.inspector = None
         self.gallery = None  # The open gallery of graphs and layouts, in place of the page (trama_qt/gallery.py).
         self.gallery_view = {"kind": None, "text": ""}  # Its filters: a state of the view, never saved.
@@ -477,6 +479,12 @@ class MainWindow(QMainWindow):
         a("export_pdf", tr("command.export_multiple_pdf"), self.export_pdf_bundle, icon="file-down")
         a("export_batch", batch_text("command"), self.export_batch, icon="copy")
         a("export_report", report_text("command"), self.export_report, icon="book-open")
+        a("print", qt("qt.print_action"), self.printing.print_sheet, shortcut="Ctrl+P")
+        a("print_preview", qt("qt.print_preview"), self.printing.preview)
+        a("page_setup", qt("qt.page_setup"), self.printing.page_setup)
+        for app in ("Word", "PowerPoint"):
+            a(f"send_{app.lower()}", qt("qt.office_action", app=app), lambda app=app: self.printing.send(app),
+              tip=qt("qt.office_tip" if office.ON_WINDOWS else "qt.office_windows", app=app))
         a("import_excel", excel_text("Import Excel workbook…"), self.import_excel_workbook, icon="table-2")
         a("export_excel", excel_text("Export Excel workbook…"), self.export_excel_workbook, icon="sheet")
         a("language", tr("command.language"), self.choose_language, icon="type")
@@ -534,7 +542,7 @@ class MainWindow(QMainWindow):
         a("load_example", tr("command.load_example"), self.load_example, icon="sparkles")
         a("new_graph", tr("command.new_graph"), self.new_graph, icon="chart-line", shortcut="Ctrl+G")
         a("change", tr("command.change_parameters"), self.change_parameters, icon="sliders-horizontal",
-          shortcut="Ctrl+P")
+          shortcut="Ctrl+Shift+P")
         a("change_graph_type", qt("qt.change_graph_type"), self.change_graph_type, icon="chart-column")
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
         from .graph_style_preset_dialog import t as preset_text
@@ -991,6 +999,10 @@ class MainWindow(QMainWindow):
         self.new_tab_button.setEnabled(idle and not self.sessions.full())
         self.actions["export"].setEnabled(kind is not None)
         self.actions["export_options"].setEnabled(kind in {"graph", "layout", "saved-layout"})
+        for key in ("print", "print_preview"):
+            self.actions[key].setEnabled(kind is not None and idle)
+        for key in ("send_word", "send_powerpoint"):
+            self.actions[key].setEnabled(office.ON_WINDOWS and kind in FIGURE_KINDS and idle)
         self.actions["export_pdf"].setEnabled(idle and (bool(self.project.layouts) or any(
             run.result is not None and run.result.figure is not None for run in self.project.runs)))
         self.actions["export_batch"].setEnabled(self.actions["export_pdf"].isEnabled())

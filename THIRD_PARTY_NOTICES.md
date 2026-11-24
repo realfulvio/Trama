@@ -22,6 +22,7 @@ Trama è sviluppato dai contributori del progetto e si basa sul lavoro della com
 | [openpyxl](https://openpyxl.readthedocs.io/) | Lettura XLSX | [MIT](https://pypi.org/project/openpyxl/) |
 | [Pillow](https://python-pillow.github.io/) | Immagini | [MIT-CMU e avvisi delle dipendenze](https://pillow.readthedocs.io/en/stable/about.html#license) |
 | [pypdfium2 / PDFium](https://github.com/pypdfium2-team/pypdfium2) | Viste PDF | [Apache-2.0 / BSD-3-Clause e licenze delle dipendenze](https://github.com/pypdfium2-team/pypdfium2/tree/main/LICENSES) |
+| [pywin32](https://github.com/mhammond/pywin32) | Invio a Microsoft Office su Windows | [Licenza del componente COM](https://github.com/mhammond/pywin32/blob/main/com/License.txt) |
 | [PyInstaller](https://pyinstaller.org/) | Preparazione del portabile | [GPL con eccezione per i programmi distribuiti](https://pyinstaller.org/en/stable/license.html) |
 
 Il pacchetto Windows raccoglie gli avvisi delle distribuzioni installate nella cartella **Third-party licenses**, compresi quelli del runtime Python. Alcuni componenti incorporano altre librerie con avvisi propri: va conservata l'intera cartella, non soltanto questa tabella. Versioni e dipendenze dirette sono fissate in [requirements.txt](requirements.txt); per una distribuzione specifica fanno riferimento i testi inclusi in quell'archivio.

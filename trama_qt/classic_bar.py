@@ -13,7 +13,8 @@ from . import theme
 MENUS = (
     ("File", ("new_project", "new_table", "open", "import", "import_excel", "recover", "|",
               "save", "save_as", "save_template", "new_from_template", "|", "export", "export_options",
-              "export_pdf", "export_batch", "export_report", "export_excel", "|", "close_project", "about", "exit")),
+              "export_pdf", "export_batch", "export_report", "export_excel", "send_word", "send_powerpoint", "|",
+              "print", "print_preview", "page_setup", "|", "close_project", "about", "exit")),
     ("Edit", ("undo", "redo", "|", "cut", "copy", "paste", "paste_special", "paste_transpose", "paste_table",
               "clear_cells", "|", "exclude", "delete_rows", "delete_columns", "|",
               "sheet_duplicate", "sheet_rename", "sheet_delete", "sheet_move_up", "sheet_move_down", "sheet_freeze")),
