@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QFo
                                QHBoxLayout, QHeaderView, QLabel, QListWidget, QListWidgetItem, QPushButton,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from analisi.i18n import active_language
+from analisi.i18n import active_language, ui
 from analisi.presentation import apply_style, validate_graph_style
 
 from . import graph_style_presets as gsp
@@ -31,10 +31,10 @@ _TEXT = {
     "title": ("Apply style to multiple graphs", "Applica stile a più grafici"),
     "intro": ("Apply one saved figure style to several graphs in this project. Titles, axis texts, scales, "
               "series colours, shapes and annotations stay with each graph. Edit the style library in "
-              "Figure styles….",
+              "Figure styles…",
               "Applica uno stile di figura salvato a più grafici del progetto. Titoli, testi degli assi, "
               "scale, colori delle serie, forme e annotazioni restano di ciascun grafico. Per modificare la "
-              "libreria usa Stili di figura…."),
+              "libreria usa Stili di figura…"),
     "styles": ("Saved styles", "Stili salvati"),
     "empty_library": ("No saved styles yet. Save or import one in Change → Figure styles… first.",
                       "Nessuno stile salvato. Salvane o importane prima uno da Cambia → Stili di figura…."),
@@ -163,10 +163,11 @@ def batch_style_rows(project):
             problem = project.graph_format_problem(run)
             if problem is None:
                 eligible, reason = True, ""
-            elif run.result is None:
-                eligible, reason = False, t("reason_pending")
-            elif run.result.figure is None or not run.result.figure.axes:
-                eligible, reason = False, t("reason_no_figure")
+            elif problem == ui("Calculate the graph first."):
+                if run.result is None:
+                    eligible, reason = False, t("reason_pending")
+                else:
+                    eligible, reason = False, t("reason_no_figure")
             else:
                 eligible, reason = False, problem
         rows.append(BatchStyleRow(run.uid, index, run.name, source, eligible, reason, run))

@@ -353,9 +353,11 @@ def main(argv=None):
             t1 = time.perf_counter()
             outcome = project.commit_style_batch(selected_uids, preset)
             commit_ms = round((time.perf_counter() - t1) * 1000.0, 2)
+            window.update_actions()
             t2 = time.perf_counter()
             window.actions["undo"].trigger()
             undo_ms = round((time.perf_counter() - t2) * 1000.0, 2)
+            smoke.expect(all(run.style is None for run in project.runs), "load 30x1000: undo did not revert styles")
             metrics["load_30x1000"] = {
                 "graphs": 30,
                 "points_per_graph": 1000,
