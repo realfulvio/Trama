@@ -29,7 +29,7 @@ from analisi.replicate_fit import MERGE_REPLICATES, replicate_groups
 from analisi.hierarchical_gap import GAP_DATA, GAP_OPTIONS, GAP_PLOT
 from analisi.hierarchical_workbench import (HIERARCHICAL_TABS, HIERARCHY_GRAPH, check_hierarchical_options,
                                            check_hierarchy_view, saved_hierarchical_options)
-from analisi import kmeans_options, kmeans_reports, mean_permutation
+from analisi import kmeans_options, kmeans_reports, mean_permutation, mood_median
 from analisi import mean_permutation_options as permutation_text
 from analisi import nonlinear_calibration as calibration
 from analisi import ordinal_logit as ordinal
@@ -359,6 +359,7 @@ class AnalysisDialog(QDialog):
         rmst_method = self.method == rmst.METHOD
         kappa_method = self.method == kappa.METHOD
         permutation_method = self.method == mean_permutation.METHOD
+        mood_method = self.method == mood_median.METHOD
         page_specs = (("variables", ui("Design")), ("options", ui("Effect")), ("curve", ui("Curve"))) if power_method else (
             ("variables", qt("qt.variables")), *global_fit.pages(self.method),
             *global_catalog.pages(self.method), *select_editor.pages(self.method),
@@ -390,6 +391,9 @@ class AnalysisDialog(QDialog):
         if permutation_method:
             page_specs = (("variables", tr(mean_permutation.TAB_KEYS["Data"])),
                           ("options", tr(mean_permutation.TAB_KEYS["Test"])))
+        if mood_method:
+            page_specs = (("variables", tr(mood_median.TAB_KEYS["Data"])),
+                          ("options", tr(mood_median.TAB_KEYS["Test"])))
         for key, name in page_specs:
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
@@ -428,6 +432,8 @@ class AnalysisDialog(QDialog):
             labels, captions = kappa_form.LABEL_KEYS, kappa_form.CHOICE_KEYS
         if permutation_method:
             labels, captions = mean_permutation.LABEL_KEYS, mean_permutation.CHOICE_KEYS
+        if mood_method:
+            labels, captions = mood_median.LABEL_KEYS, mood_median.CHOICE_KEYS
         if self.method == "t-test":
             labels, captions = ttest_options.LABEL_KEYS, ttest_options.CHOICE_KEYS
         if lognormal_method:
@@ -480,6 +486,8 @@ class AnalysisDialog(QDialog):
                 variable = label in kappa_form.RATING_FIELDS
             if permutation_method:
                 variable = label in mean_permutation.DATA_FIELDS
+            if mood_method:
+                variable = label in mood_median.DATA_FIELDS
             if self.method == "t-test" and label in ("Design", ttest_options.INPUT):
                 variable = True
             form = (power_forms.get(label) or pages.get(global_fit.page_of(self.method, label))
@@ -704,6 +712,24 @@ class AnalysisDialog(QDialog):
             for name in (lognormal_tests.DESIGN, lognormal_tests.INPUT, *lognormal_tests.GROUP_FIELDS):
                 self.controls[name][1].currentIndexChanged.connect(self._show_lognormal_fields)
             self._show_lognormal_fields()
+        if mood_method:
+            note = QLabel(tr("mood.note"))
+            note.setWordWrap(True)
+            options.addRow(note)
+            variables_box = self.controls[mood_median.VARIABLES][1]
+            yates_box = self.controls[mood_median.YATES][1]
+
+            def sync_yates():
+                checked = sum(
+                    1 for index in range(variables_box.count())
+                    if variables_box.item(index).checkState() == Qt.CheckState.Checked
+                )
+                yates_box.setEnabled(checked == 2)
+                if checked != 2:
+                    yates_box.setChecked(False)
+
+            variables_box.itemChanged.connect(lambda _item: sync_yates())
+            sync_yates()
         if self.method == "Nonlinear regression":
             model = self.controls["Model"][1]
 
@@ -1043,6 +1069,8 @@ class AnalysisDialog(QDialog):
                 self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            if self.method == mood_median.METHOD:
+                mood_median.check_options(self.data, options)
             if self.method == "Interpolate a standard curve":
                 calibration.check_calibration_options(self.data, options)
             if self.method == XY_METHOD:
@@ -1163,6 +1191,8 @@ class AnalysisDialog(QDialog):
             return kappa_text.describe_error(error, field)
         if self.method == mean_permutation.METHOD:
             return permutation_text.describe_error(error, field)
+        if self.method == mood_median.METHOD:
+            return mood_median.describe_error(error, field)
         if self.method == XY_METHOD:
             return translate_message(error, "xy.error.")
         return str(error)

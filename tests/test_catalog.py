@@ -56,6 +56,7 @@ class CatalogTests(unittest.TestCase):
             "Mann–Whitney": {"Response": "y", "Group": "Group"},
             "Wilcoxon signed-rank": {"First": "x", "Second": "y"},
             "Kruskal–Wallis": {"Response": "y", "Group": "Group"},
+            "Mood median test": {"Variables": ["x", "y", "z"], "Ties": "Below", "Yates correction": False},
             "Correlation": {"X": "x", "Y": "y", "Method": "Pearson"},
             "Correlate against control": {"X": "x", "Variables": ["y", "z"]},
             "Compare independent correlations": {"X": "x", "Y": "y", "Group": "Group"},

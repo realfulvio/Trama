@@ -5740,3 +5740,12 @@ from .linked_axes_text import EN as _LINKED_EN, IT as _LINKED_IT  # noqa: E402
 
 _EN.update(_LINKED_EN)
 _IT.update(_LINKED_IT)
+
+# Mood median test (analisi.mood_median): captions, the dialog note and the exact engine messages.
+from .mood_median_text import EN as _MOOD_EN, IT as _MOOD_IT  # noqa: E402
+
+_EN.update(_MOOD_EN)
+_IT.update(_MOOD_IT)
+for _key, _text in _MOOD_EN.items():
+    if _key == "mood.method" or _key.startswith(("mood.field.", "mood.tab.", "mood.choice.")):
+        KEY_BY_LABEL.setdefault(_text, _key)

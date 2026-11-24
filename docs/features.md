@@ -30,7 +30,7 @@ L’[editor delle legende](graph-legends.md) modifica titolo, colonne, cornice e
 
 ## Confronti e inferenza
 
-Il [test di permutazione per la differenza tra medie](mean-permutation-test.md) supporta campioni indipendenti e appaiati, enumerazione esatta e Monte Carlo riproducibile. Il [kappa di Cohen](cohen-kappa.md) misura la concordanza tra due valutatori con pesi lineari, quadratici o senza pesi, intervallo bootstrap e matrice di concordanza esportabile.
+Il [test di permutazione per la differenza tra medie](mean-permutation-test.md) supporta campioni indipendenti e appaiati, enumerazione esatta e Monte Carlo riproducibile. Il [test delle mediane di Mood](mood-median.md) confronta la mediana di due o più campioni indipendenti in colonne distinte con χ² di Pearson e regola dei pareggi. Il [kappa di Cohen](cohen-kappa.md) misura la concordanza tra due valutatori con pesi lineari, quadratici o senza pesi, intervallo bootstrap e matrice di concordanza esportabile.
 
 Test t indipendenti, appaiati e di Welch; test t lognormali per dati positivi, con rapporto fra medie geometriche e intervallo di confidenza ([guida](lognormal-tests-070.md)); test di equivalenza TOST per uno o due campioni, appaiati, Student e Welch, con zona di equivalenza dichiarata dall'utente ([guida](equivalence-tost-071.md)); test di rango; ANOVA ordinaria, di Welch e Brown–Forsythe; misure ripetute, Friedman, Kruskal–Wallis e ANOVA multifattoriale. Confronti multipli e correzioni, comprese coppie selezionate e controlli del tasso di false scoperte nei flussi supportati.
 
