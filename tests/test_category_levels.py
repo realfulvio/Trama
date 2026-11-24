@@ -13,8 +13,9 @@ import pandas as pd
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QDialog, QLineEdit, QMessageBox
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QDialog, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton
 
 from analisi.category_levels import (
     LevelEditDraft,
@@ -26,7 +27,7 @@ from analisi.category_levels import (
 )
 from analisi.category_order import WORKSHEET_ORDERS, set_order
 from analisi.data import Dataset, load_workspace, save_project
-from analisi.i18n import set_language
+from analisi.i18n import set_language, tr
 from analisi.variable_types import VARIABLE_TYPES
 from analisi import worksheet_join
 from trama_qt.category_order import CategoryOrderDialog
@@ -540,6 +541,56 @@ class CategoryOrderDialogQtTests(unittest.TestCase):
         dlg_merge.confirm_merge = lambda merges: True
         dlg_merge.accept()
         self.assertIsNotNone(dlg_merge.plan)
+
+    def test_large_merge_confirmation_fits_scrolls_and_can_be_retried_after_cancel(self):
+        values = [f"Category {i:03d}" for i in range(256)]
+        literal = "Merged 127 <b>literal</b> &"
+        ds = Dataset(pd.DataFrame({"Group": values}))
+        draft = LevelEditDraft(ds, "Group")
+        draft.apply_mapping({value: literal if i >= 254 else f"Merged {i // 2:03d}"
+                             for i, value in enumerate(values)})
+        dialog = CategoryOrderDialog(None, "Group", draft)
+        self.addCleanup(dialog.deleteLater)
+        dialog.show()
+        self.app.processEvents()
+
+        observed = {}
+
+        def inspect_and_click(button_key):
+            popup = self.app.activeModalWidget()
+            try:
+                buttons = {button.text(): button for button in popup.findChildren(QPushButton)}
+                cancel = buttons[tr("setup.cancel")]
+                confirm = buttons[tr("category_levels.merge.confirm")]
+                bounds = popup.screen().availableGeometry()
+                observed["buttons_visible"] = all(bounds.contains(button.mapToGlobal(button.rect().center()))
+                                                  for button in (cancel, confirm))
+                preview = popup.findChild(QPlainTextEdit)
+                if preview is not None:
+                    scroll = preview.verticalScrollBar()
+                    scroll.setValue(scroll.maximum())
+                    observed["can_scroll"] = scroll.value() > 0
+                    observed["literal_at_end"] = literal in preview.toPlainText()
+                QTest.mouseClick(buttons[tr(button_key)], Qt.MouseButton.LeftButton)
+            finally:
+                if popup.isVisible():
+                    popup.reject()
+
+        QTimer.singleShot(80, lambda: inspect_and_click("setup.cancel"))
+        dialog.accept()
+        self.assertTrue(observed["buttons_visible"])
+        self.assertTrue(observed["can_scroll"])
+        self.assertTrue(observed["literal_at_end"])
+        self.assertTrue(dialog.isVisible())
+        self.assertIsNone(dialog.plan)
+        self.assertEqual(ds.raw["Group"].tolist(), values)
+
+        QTimer.singleShot(80, lambda: inspect_and_click("category_levels.merge.confirm"))
+        dialog.accept()
+        self.assertEqual(dialog.result(), QDialog.DialogCode.Accepted)
+        self.assertEqual(len(dialog.plan.merges), 128)
+        apply_level_plan(ds, dialog.plan)
+        self.assertEqual(ds.raw["Group"].iloc[254:].tolist(), [literal, literal])
 
     def test_window_escape_and_apply_with_mainwindow(self):
         window = MainWindow()

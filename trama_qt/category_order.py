@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -307,7 +307,7 @@ class CategoryOrderDialog(QDialog):
                 self.table.editItem(item)
 
     def _default_confirm_merge(self, merges):
-        lines = [tr("category_levels.merge.intro"), ""]
+        lines = []
         for merge in merges:
             sources_text = ", ".join(
                 f"«{entry.display_label}» ({entry.count})" for entry in merge.sources
@@ -318,16 +318,31 @@ class CategoryOrderDialog(QDialog):
                 target=merge.target_label,
                 total=merge.total_count,
             ))
-        lines.extend(["", tr("category_levels.merge.question")])
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Question)
-        box.setWindowTitle(tr("category_levels.merge.title"))
-        box.setText("\n".join(lines))
-        confirm_button = box.addButton(tr("category_levels.merge.confirm"), QMessageBox.ButtonRole.AcceptRole)
-        cancel_button = box.addButton(tr("setup.cancel"), QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(cancel_button)
-        box.exec()
-        return box.clickedButton() is confirm_button
+        dialog = QDialog(self)
+        dialog.setWindowTitle(tr("category_levels.merge.title"))
+        layout = QVBoxLayout(dialog)
+        intro = QLabel(tr("category_levels.merge.intro"))
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+        preview = QPlainTextEdit()
+        preview.setReadOnly(True)
+        preview.setAccessibleName(intro.text())
+        preview.setPlainText("\n".join(lines))
+        layout.addWidget(preview, 1)
+        layout.addWidget(QLabel(tr("category_levels.merge.question")))
+
+        buttons = QDialogButtonBox()
+        buttons.addButton(tr("category_levels.merge.confirm"), QDialogButtonBox.ButtonRole.AcceptRole)
+        cancel = buttons.addButton(tr("setup.cancel"), QDialogButtonBox.ButtonRole.RejectRole)
+        cancel.setDefault(True)
+        cancel.setFocus()
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        fit_dialog(dialog, 560, min(440, 177 + 30 * len(merges)))
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        dialog.deleteLater()
+        return accepted
 
     def accept(self):
         self._commit_active_editor()
