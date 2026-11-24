@@ -29,7 +29,7 @@ def main():
                  "yuen-trimmed-means.md", "brunner-munzel.md", "mood-median.md", "pareto-plot.md",
                  "tolerance-intervals-093.md", "weibull-aft.md", "ordinal-logit.md", "restricted-mean-survival.md", "cohen-kappa.md", "mean-permutation-test.md", "xy-mixed-series.md",
                  "survival-simultaneous-bands.md", "linked-axes.md",
-                 "release-104.md", "release-103.md", "release-102.md", "release-101.md", "release-100.md", "release-099.md", "release-098.md", "release-097.md", "release-094.md",
+                 "release-105.md", "release-104.md", "release-103.md", "release-102.md", "release-101.md", "release-100.md", "release-099.md", "release-098.md", "release-097.md", "release-094.md",
                  "release-093.md", "validation-093.md",
                  "release-092.md", "validation-092.md", "release-091.md", "validation-091.md",
                  "pca-regression-087.md", "release-090.md", "validation-090.md",
