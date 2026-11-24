@@ -95,14 +95,19 @@ def _as_finite_float_vector(values):
     if values is None or isinstance(values, (str, bytes, dict)):
         raise ValueError("ECDF values must be a non-empty 1D sequence of finite numbers.")
     if isinstance(values, pd.Series):
+        if pd.api.types.is_bool_dtype(values.dtype):
+            raise ValueError("ECDF values must be numeric, not boolean.")
         raw = values.to_numpy()
     elif isinstance(values, np.ndarray):
         raw = values
     else:
         try:
-            raw = np.asarray(list(values) if not hasattr(values, "__len__") else values)
+            seq = list(values)
         except TypeError as error:
             raise ValueError("ECDF values must be a non-empty 1D sequence of finite numbers.") from error
+        if any(isinstance(item, (bool, np.bool_)) for item in seq):
+            raise ValueError("ECDF values must be numeric, not boolean.")
+        raw = np.asarray(seq)
     if raw.ndim != 1 or raw.size == 0:
         raise ValueError("ECDF values must be a non-empty 1D sequence of finite numbers.")
     if raw.dtype == bool or np.issubdtype(raw.dtype, np.bool_):
