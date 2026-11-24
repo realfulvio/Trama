@@ -234,6 +234,8 @@ class Smoke:
             self.editors(window, refs)
             from .batch_export_smoke import check_in_smoke
             check_in_smoke(self, window)
+            from .batch_figure_styles_smoke import check_in_smoke as check_batch_styles
+            check_batch_styles(self, window)
             self.gallery(window)
             self.anova(window)
             from .planned_contrasts_smoke import exercise as planned_contrasts
@@ -626,8 +628,15 @@ def _repeat_scenario(smoke, window):
     repeat_analysis(smoke, window)
 
 
+def _batch_figure_styles_scenario(smoke, window):
+    smoke.build()
+    from .batch_figure_styles_smoke import check_in_smoke as check_batch_styles
+    check_batch_styles(smoke, window)
+
+
 SCENARIOS = {"qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
-             "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario}
+             "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
+             "qt-batch-figure-styles": _batch_figure_styles_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):
