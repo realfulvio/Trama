@@ -12,13 +12,11 @@ Paste from Excel, choose an analysis, format your figure and save the complete p
 
 Windows 10/11 x64 · Portable application · Italian and English interface
 
-The **0.99 beta** aligns the Classic Tk and Qt workspaces, adds clustered data plots, silhouette and Gap diagnostics for hierarchical clustering, and improves worksheet formula editing. [0.99 beta release notes](docs/release-099.md).
-
 ![Real Trama Windows worksheet with replicate subcolumns and a selected range.](docs/media/homepage/worksheet-windows.png)
 
-## Two ways to open the Classic interface
+## Classic Qt
 
-**Trama.exe** opens Classic in Tk. **Trama - Qt.cmd** opens Classic in PySide6/Qt. Both open and save the same `.alab` projects. [Launcher guide](docs/qt-migration.md)
+**Trama.exe** opens Classic in PySide6/Qt. Open `.alab` projects from the app or drop them onto the window. [Classic Qt guide](docs/qt-migration.md)
 
 ## From observations to figures
 

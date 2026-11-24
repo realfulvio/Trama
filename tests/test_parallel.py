@@ -129,10 +129,8 @@ class SettingTests(unittest.TestCase):
             self.assertEqual(parallel.process_count(), 5)
 
     def test_freeze_support_is_the_first_thing_the_executable_does(self):
-        source = (ROOT / "tramastat.py").read_text(encoding="utf-8")
-        before_startup = source.split("from trama_startup import launch")[0]
-        self.assertIn("multiprocessing.freeze_support()", before_startup)
-        self.assertLess(source.index("multiprocessing.freeze_support()"), source.index("import tkinter"))
+        source = (ROOT / "trama_qt" / "__main__.py").read_text(encoding="utf-8")
+        self.assertLess(source.index("multiprocessing.freeze_support()"), source.index("from trama_qt.app import main"))
 
 
 class SerialEquivalenceTests(unittest.TestCase):

@@ -2,8 +2,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
-import subprocess
-import sys
 
 from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
@@ -435,7 +433,6 @@ class MainWindow(QMainWindow):
         a("export_report", report_text("command"), self.export_report, icon="book-open")
         a("import_excel", excel_text("Import Excel workbook…"), self.import_excel_workbook, icon="table-2")
         a("export_excel", excel_text("Export Excel workbook…"), self.export_excel_workbook, icon="sheet")
-        a("classic", qt("qt.classic"), self.open_classic, tip=qt("qt.classic_hint"))
         a("language", tr("command.language"), self.choose_language, icon="type")
         a("processes", tr("processes.command"), self.choose_processes, icon="sliders-horizontal")
         a("about", qt("qt.about"), self.about, icon="info")
@@ -1349,6 +1346,8 @@ class MainWindow(QMainWindow):
         else:
             page = self._run_page(kind, key)
         self._replace_page(page)
+        self.page_layout.activate()
+        self.body.refresh()
         self.toolbar.show()
         self.nav_card.setVisible(self.navigator_open)
         self.statusBar().show()
@@ -3623,23 +3622,6 @@ class MainWindow(QMainWindow):
     def export_excel_workbook(self, path=None):
         from .excel_workbook import export_workbook
         export_workbook(self, path)
-
-    def open_classic(self):
-        if self.busy() or not self.settle_graph_draft():
-            return
-        if self.project.dirty or (self.project.tables and self.project.path is None):
-            QMessageBox.information(self, qt("qt.classic"), qt("qt.classic_save"))
-            if not self.save():
-                return
-        command = [sys.executable]
-        if not getattr(sys, "frozen", False):
-            command.append(str(Path(__file__).resolve().parent.parent / "tramastat.py"))
-        if self.project.path:
-            command.append(str(self.project.path))
-        try:
-            subprocess.Popen(command, close_fds=True)
-        except OSError as error:
-            self.error(error)
 
     def choose_processes(self):
         if self.busy():

@@ -1421,7 +1421,14 @@ class QtShellTests(unittest.TestCase):
         self.assertIn(action, window.command_menus["View"].actions())
         self.assertIsNone(workspace.canvas)
 
-        action.trigger()
+        workspace.preview_box.click()
+        self.app.processEvents()
+        self.assertTrue(action.isChecked())
+        self.assertTrue(workspace.heading.isVisible())
+        self.assertEqual(workspace.title_label.text(), graph.title)
+        self.assertTrue(workspace.link_buttons["graph"].menu().actions())
+        self.assertLess(workspace.format_box.mapTo(workspace, workspace.format_box.rect().topLeft()).y(),
+                        workspace.grid.mapTo(workspace, workspace.grid.rect().topLeft()).y())
         self.assertIs(window.sheet, sheet)
         self.assertIs(figure.canvas, canvas)
         self.assertIsNot(workspace.canvas.figure, figure)
@@ -1447,7 +1454,7 @@ class QtShellTests(unittest.TestCase):
         self.assertIsNot(graph.result.figure, figure)
         self.assertIs(workspace.result, graph.result)
         self.assertEqual(workspace.canvas.figure.axes[0].get_title(), "Confirmed on Apply")
-        workspace.open_button.click()
+        workspace.link_buttons["graph"].menu().actions()[0].trigger()
         self.assertEqual(window.selected, ("graph", window.project.runs.index(graph)))
         self.assertIsNone(workspace.canvas)
 
@@ -3076,12 +3083,8 @@ class QtShellTests(unittest.TestCase):
         self.assertIsNone(result[cal.COUNT])
         self.assertNotIn(cal.UNKNOWN_X, result)
 
-    def test_classic_file_menu_keeps_tk_open_reachable(self):
-        window = self.window
-        window.resize(760, 650)
-        self.app.processEvents()
-        self.assertIn(window.actions["classic"], window.command_menus["File"].actions())
-        self.assertTrue(window.actions["classic"].isEnabled())
+    def test_file_menu_uses_only_the_qt_interface(self):
+        self.assertNotIn("classic", self.window.actions)
 
     def test_home_creates_typed_worksheets_and_the_picker_follows_selection(self):
         from trama_qt.table_setup import TableSetup
@@ -3283,7 +3286,8 @@ class QtShellTests(unittest.TestCase):
         _, title = window.selected
         self.assertTrue(window.toolbar.isVisible())
         self.assertTrue(window.nav_card.isVisible())
-        self.assertFalse(window.page.findChildren(QPushButton))
+        self.assertFalse(any(button.isVisible() for button in window.page.findChildren(QPushButton)))
+        self.assertTrue(window.page.worksheet_preview.preview_box.isVisible())
 
         sheet = InfoSheet.new("Measurements", title)
         window.project.update_info_sheets({sheet.uid: sheet})

@@ -4,9 +4,9 @@ from copy import deepcopy
 
 from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
-from PySide6.QtCore import QSignalBlocker, Qt
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QGroupBox, QLabel, QPushButton, QSplitter,
-                               QVBoxLayout, QWidget)
+from PySide6.QtCore import QSignalBlocker, QTimer, Qt
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QGroupBox, QHBoxLayout, QLabel, QMenu,
+                               QPushButton, QScrollArea, QSplitter, QVBoxLayout, QWidget)
 
 from analisi.i18n import tr, ui
 from analisi.presentation import apply_style, validate_graph_style
@@ -16,11 +16,11 @@ from .inspector import GraphInspector
 from .strings import qt
 
 
-class WorksheetPreview(QSplitter):
+class WorksheetPreview(QWidget):
     """Keep the original figure and its canvas independent of the worksheet preview."""
 
     def __init__(self, window, title, sheet):
-        super().__init__(Qt.Orientation.Horizontal)
+        super().__init__()
         self.window, self.project, self.title = window, window.project, title
         self.enabled = False
         self.area = None
@@ -28,11 +28,67 @@ class WorksheetPreview(QSplitter):
         self.run = self.result = None
         self._style = None
         self.graphs = ()
+        self.links = ()
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        self.heading = QWidget()
+        heading_layout = QVBoxLayout(self.heading)
+        heading_layout.setContentsMargins(10, 7, 10, 3)
+        heading_layout.setSpacing(4)
+        self.title_label = QLabel(title)
+        self.title_label.setObjectName("pageTitle")
+        self.title_label.setWordWrap(True)
+        heading_layout.addWidget(self.title_label)
+        sections = QWidget()
+        section_layout = FlowLayout(sections)
+        current = QLabel(tr("nav.data_tables"))
+        current.setObjectName("sectionTitle")
+        section_layout.addWidget(current)
+        self.link_buttons = {}
+        for kind, key in (("result", "nav.results"), ("graph", "nav.graphs")):
+            button = QPushButton(tr(key))
+            button.setMenu(QMenu(button))
+            button.setEnabled(False)
+            self.link_buttons[kind] = button
+            section_layout.addWidget(button)
+        heading_layout.addWidget(sections)
+        root.addWidget(self.heading)
+        self.heading.hide()
+
+        controls = QWidget()
+        row = QHBoxLayout(controls)
+        row.setContentsMargins(8, 2, 8, 2)
+        action = window.actions["worksheet_preview"]
+        self.preview_box = QCheckBox(action.text())
+        self.preview_box.clicked.connect(lambda: action.trigger())
+        action.changed.connect(self._sync_controls)
+        row.addWidget(self.preview_box)
+        row.addStretch()
+        self.format_box = QCheckBox(tr("modern.format"))
+        self.format_box.toggled.connect(self._toggle_format)
+        self.format_box.hide()
+        row.addWidget(self.format_box)
+        root.addWidget(controls)
+        self._sync_controls()
+
+        self.workspace = QSplitter(Qt.Orientation.Horizontal)
+        self.workspace.setChildrenCollapsible(False)
         self.grid = QSplitter(Qt.Orientation.Vertical)
         self.grid.addWidget(sheet)
         self.grid.setChildrenCollapsible(False)
-        self.addWidget(self.grid)
-        self.setChildrenCollapsible(False)
+        self.workspace.addWidget(self.grid)
+        self.scroll = QScrollArea()
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setWidget(self.workspace)
+        root.addWidget(self.scroll, 1)
+
+    def _sync_controls(self):
+        action = self.window.actions["worksheet_preview"]
+        self.preview_box.setEnabled(action.isEnabled())
+        self.preview_box.setChecked(action.isChecked())
 
     def _build(self):
         self.area = QWidget()
@@ -50,9 +106,6 @@ class WorksheetPreview(QSplitter):
         self.open_button = QPushButton(tr("modern.open_graph"))
         self.open_button.clicked.connect(self._open_graph)
         header.addWidget(self.open_button)
-        self.format_box = QCheckBox(tr("modern.format"))
-        self.format_box.toggled.connect(self._format)
-        header.addWidget(self.format_box)
         layout.addWidget(controls)
         self.notice = QLabel()
         self.notice.setWordWrap(True)
@@ -82,9 +135,9 @@ class WorksheetPreview(QSplitter):
         self.inspector_area = QVBoxLayout()
         self.inspector_area.setContentsMargins(0, 0, 0, 0)
         side.addLayout(self.inspector_area, 1)
-        self.addWidget(self.sidebar)
-        self.setStretchFactor(0, 1)
-        self.setStretchFactor(1, 0)
+        self.workspace.addWidget(self.sidebar)
+        self.workspace.setStretchFactor(0, 1)
+        self.workspace.setStretchFactor(1, 0)
 
     def set_enabled(self, enabled):
         self.enabled = enabled
@@ -93,18 +146,31 @@ class WorksheetPreview(QSplitter):
                 return
             self._build()
         self.area.setVisible(enabled)
+        self.heading.setVisible(enabled)
+        self.format_box.setVisible(enabled)
         if enabled:
             self.refresh()
         else:
-            self.sidebar.hide()
+            self._format(False)
             self.release()
 
     def refresh(self):
         if not self.enabled:
             return
+        links = tuple((name, (kind, index))
+                      for name, (kind, index), _ in self.window.navigator_entries
+                      if kind in self.link_buttons and self.project.runs[index].title == self.title)
+        if links != self.links:
+            self.links = links
+            for kind, button in self.link_buttons.items():
+                menu = button.menu()
+                menu.clear()
+                for name, ref in links:
+                    if ref[0] == kind:
+                        menu.addAction(name, lambda _checked=False, item=ref: self._open_link(item))
+                button.setEnabled(bool(menu.actions()))
         graphs = tuple((index, self.project.runs[index].uid, name)
-                       for name, (kind, index), _ in self.window.navigator_entries
-                       if kind == "graph" and self.project.runs[index].title == self.title)
+                       for name, (kind, index) in links if kind == "graph")
         if graphs != self.graphs:
             selected = self.choice.currentData()
             self.graphs = graphs
@@ -166,6 +232,8 @@ class WorksheetPreview(QSplitter):
         self.choice.setEnabled(bool(self.graphs) and not busy)
         self.open_button.setEnabled(run is not None and not busy)
         self.format_box.setEnabled(not busy)
+        for button in self.link_buttons.values():
+            button.setEnabled(not busy and bool(button.menu().actions()))
 
     def _choose(self):
         if not self.window.settle_graph_draft():
@@ -176,8 +244,12 @@ class WorksheetPreview(QSplitter):
 
     def _open_graph(self):
         index = self.choice.currentIndex()
-        if index >= 0 and not self.window.busy() and self.window.settle_graph_draft():
-            self.window.open_sheet(("graph", self.graphs[index][0]))
+        if index >= 0:
+            self._open_link(("graph", self.graphs[index][0]))
+
+    def _open_link(self, ref):
+        if not self.window.busy() and self.window.settle_graph_draft():
+            self.window.open_sheet(ref)
 
     def _calculate(self):
         if self.window.busy():
@@ -187,9 +259,34 @@ class WorksheetPreview(QSplitter):
         else:
             self.window.refresh_runs([self.run])
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.enabled and self.format_box.isChecked():
+            self._fit_sidebar()
+
+    def _fit_sidebar(self):
+        wide = self.width() >= 700
+        self.workspace.setOrientation(Qt.Orientation.Horizontal if wide else Qt.Orientation.Vertical)
+        self.grid.setMinimumHeight(0 if wide else 285)
+        self.sidebar.setMinimumHeight(0 if wide else 280)
+        if wide and not self.sidebar.isVisible():
+            self.workspace.setSizes([max(360, self.width() - 344), 344])
+
+    def _toggle_format(self, shown):
+        self._format(shown)
+        if shown and self.workspace.orientation() == Qt.Orientation.Vertical:
+            QTimer.singleShot(0, self, self._show_compact_inspector)
+
+    def _show_compact_inspector(self):
+        if self.enabled and self.sidebar.isVisible():
+            self.scroll.ensureWidgetVisible(self.sidebar, 0, 0)
+
     def _format(self, shown):
+        if shown:
+            self._fit_sidebar()
         self.sidebar.setVisible(shown)
         if not shown:
+            self.grid.setMinimumHeight(0)
             self._close_inspector()
             return
         dataset = self.project.tables[self.title]

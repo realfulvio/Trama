@@ -12,17 +12,15 @@ Trama è un'applicazione per Windows che riunisce fogli dati, analisi statistich
 
 Windows 10/11 a 64 bit · Versione portabile · Interfaccia italiano / inglese
 
-La **0.99 beta** allinea l’interfaccia Classica tra Tk e Qt, aggiunge il grafico dei gruppi, la silhouette e la statistica Gap al clustering gerarchico e migliora la modifica delle formule nei fogli. [Note della 0.99 beta](docs/release-099.md).
-
 ## Un foglio familiare. Un flusso di lavoro completo.
 
 Seleziona intervalli, gestisci repliche e celle escluse, copia e incolla dalla cella attiva. Dati, risultati, grafici e layout restano collegati: quando modifichi i dati, le analisi collegate si aggiornano.
 
 ![Foglio XY con repliche, selezione di un intervallo e navigatore di progetto, nella vera applicazione Windows.](docs/media/homepage/worksheet-windows.png)
 
-## Due avvii per l’interfaccia Classica
+## Classica Qt
 
-**Trama.exe** apre la Classica in Tk. **Trama - Qt.cmd** apre la Classica in PySide6/Qt. Entrambi leggono e salvano gli stessi progetti `.alab`. [Guida agli avvii](docs/qt-migration.md)
+**Trama.exe** apre la Classica in PySide6/Qt. I progetti `.alab` si aprono dall’app oppure trascinandoli sulla finestra. [Guida a Classica Qt](docs/qt-migration.md)
 
 ## Gli strumenti per andare oltre il foglio di calcolo
 
