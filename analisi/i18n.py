@@ -5738,3 +5738,12 @@ from .linked_axes_text import EN as _LINKED_EN, IT as _LINKED_IT  # noqa: E402
 
 _EN.update(_LINKED_EN)
 _IT.update(_LINKED_IT)
+
+# Brunner–Munzel test (analisi.brunner_munzel): captions, the dialog note and the exact engine messages.
+from .brunner_munzel_text import EN as _BM_EN, IT as _BM_IT  # noqa: E402
+
+_EN.update(_BM_EN)
+_IT.update(_BM_IT)
+for _key, _text in _BM_EN.items():
+    if _key == "bm.method" or _key.startswith(("bm.field.", "bm.tab.", "bm.choice.")):
+        KEY_BY_LABEL.setdefault(_text, _key)

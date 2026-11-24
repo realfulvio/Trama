@@ -44,6 +44,8 @@ class CatalogTests(unittest.TestCase):
             "t-test": {"Design": "Paired", "Response": "y", "Group": "Group", "Subject": "Subject"},
             "Paired t-test (columns)": {"First": "x", "Second": "y"},
             "Permutation test for mean difference": {"First": "x", "Second": "z", "Resamples": 199},
+            "Brunner–Munzel test": {"First sample": "x", "Second sample": "z",
+                                    "Confidence level": 95.0, "Alternative": "Two-sided"},
             "Lognormal t-test": {"First": "x", "Second": "y", "Design": "Paired", "Report ratio": "First / Second",
                                  "Null ratio": 1., "Hypothetical geometric mean": 1., "Confidence level (%)": 95.,
                                  "Alternative": "Two-sided", "Log base": "10", "Graph": "Ratio estimation",

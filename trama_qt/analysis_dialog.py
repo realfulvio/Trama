@@ -29,7 +29,7 @@ from analisi.replicate_fit import MERGE_REPLICATES, replicate_groups
 from analisi.hierarchical_gap import GAP_DATA, GAP_OPTIONS, GAP_PLOT
 from analisi.hierarchical_workbench import (HIERARCHICAL_TABS, HIERARCHY_GRAPH, check_hierarchical_options,
                                            check_hierarchy_view, saved_hierarchical_options)
-from analisi import kmeans_options, kmeans_reports, mean_permutation
+from analisi import brunner_munzel, kmeans_options, kmeans_reports, mean_permutation
 from analisi import mean_permutation_options as permutation_text
 from analisi import nonlinear_calibration as calibration
 from analisi import ordinal_logit as ordinal
@@ -359,6 +359,7 @@ class AnalysisDialog(QDialog):
         rmst_method = self.method == rmst.METHOD
         kappa_method = self.method == kappa.METHOD
         permutation_method = self.method == mean_permutation.METHOD
+        brunner_method = self.method == brunner_munzel.METHOD
         page_specs = (("variables", ui("Design")), ("options", ui("Effect")), ("curve", ui("Curve"))) if power_method else (
             ("variables", qt("qt.variables")), *global_fit.pages(self.method),
             *global_catalog.pages(self.method), *select_editor.pages(self.method),
@@ -390,6 +391,9 @@ class AnalysisDialog(QDialog):
         if permutation_method:
             page_specs = (("variables", tr(mean_permutation.TAB_KEYS["Data"])),
                           ("options", tr(mean_permutation.TAB_KEYS["Test"])))
+        if brunner_method:
+            page_specs = (("variables", tr(brunner_munzel.TAB_KEYS["Data"])),
+                          ("options", tr(brunner_munzel.TAB_KEYS["Test"])))
         for key, name in page_specs:
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
@@ -428,6 +432,8 @@ class AnalysisDialog(QDialog):
             labels, captions = kappa_form.LABEL_KEYS, kappa_form.CHOICE_KEYS
         if permutation_method:
             labels, captions = mean_permutation.LABEL_KEYS, mean_permutation.CHOICE_KEYS
+        if brunner_method:
+            labels, captions = brunner_munzel.LABEL_KEYS, brunner_munzel.CHOICE_KEYS
         if self.method == "t-test":
             labels, captions = ttest_options.LABEL_KEYS, ttest_options.CHOICE_KEYS
         if lognormal_method:
@@ -480,6 +486,8 @@ class AnalysisDialog(QDialog):
                 variable = label in kappa_form.RATING_FIELDS
             if permutation_method:
                 variable = label in mean_permutation.DATA_FIELDS
+            if brunner_method:
+                variable = label in brunner_munzel.DATA_FIELDS
             if self.method == "t-test" and label in ("Design", ttest_options.INPUT):
                 variable = True
             form = (power_forms.get(label) or pages.get(global_fit.page_of(self.method, label))
@@ -557,6 +565,9 @@ class AnalysisDialog(QDialog):
                 text = "" if value is None else str(value)
                 if rmst_method and label in rmst_form.NUMBER_FIELDS and type(value) in (int, float):
                     text = rmst_dialog.shown_number(value)
+                if (brunner_method and label in brunner_munzel.NUMBER_FIELDS
+                        and type(value) in (int, float) and not isinstance(value, bool)):
+                    text = brunner_munzel.shown_number(value)
                 widget = QLineEdit(text)
             elif kind == plot_function.CURVE_LIST:
                 model = self.controls[plot_function.MODEL][1]
@@ -700,6 +711,10 @@ class AnalysisDialog(QDialog):
             design.currentIndexChanged.connect(show_ttest_fields)
             layout.currentIndexChanged.connect(show_ttest_fields)
             show_ttest_fields()
+        if brunner_method:
+            note = QLabel(tr("bm.note"))
+            note.setWordWrap(True)
+            options.addRow(note)
         if lognormal_method:
             for name in (lognormal_tests.DESIGN, lognormal_tests.INPUT, *lognormal_tests.GROUP_FIELDS):
                 self.controls[name][1].currentIndexChanged.connect(self._show_lognormal_fields)
@@ -1043,6 +1058,8 @@ class AnalysisDialog(QDialog):
                 self.precision.check(options)  # recipe and worksheet checks; the bootstrap stays on the worker
             if self.method == mean_permutation.METHOD:
                 mean_permutation.check_options(self.data, options)
+            if self.method == brunner_munzel.METHOD:
+                brunner_munzel.check_options(self.data, options)
             if self.method == "Interpolate a standard curve":
                 calibration.check_calibration_options(self.data, options)
             if self.method == XY_METHOD:
@@ -1163,6 +1180,8 @@ class AnalysisDialog(QDialog):
             return kappa_text.describe_error(error, field)
         if self.method == mean_permutation.METHOD:
             return permutation_text.describe_error(error, field)
+        if self.method == brunner_munzel.METHOD:
+            return brunner_munzel.describe_error(error, field)
         if self.method == XY_METHOD:
             return translate_message(error, "xy.error.")
         return str(error)
