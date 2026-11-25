@@ -84,6 +84,7 @@ from .lognormal_tests import LOGNORMAL, OPTIONS as LOGNORMAL_OPTIONS, lognormal_
 from .ordinal_logit import ORDINAL_LOGIT, OPTIONS as ORDINAL_LOGIT_OPTIONS, ordinal_logit
 from .variance_ratio import METHOD as VARIANCE_RATIO, SHOW as VARIANCE_SHOW, analysis as variance_ratio_analysis, attach_ttest
 from .summary_anova import METHOD as SUMMARY_ANOVA, OPTIONS as SUMMARY_ANOVA_OPTIONS, summary_anova
+from .summary_twoway import METHOD as SUMMARY_TWOWAY, OPTIONS as SUMMARY_TWOWAY_OPTIONS, summary_twoway
 from .summary_ttest import METHOD as SUMMARY_TTEST, OPTIONS as SUMMARY_TTEST_OPTIONS, summary_ttest
 from .tolerance_intervals import TOLERANCE, OPTIONS as TOLERANCE_OPTIONS, tolerance_intervals
 from .model_selection import COMPARE_MODELS, OPTIONS as COMPARE_MODELS_OPTIONS, model_selection
@@ -328,6 +329,7 @@ METHODS = {
     grouped_anova.METHOD: {grouped_anova.ROWS: None, grouped_anova.VALUES: OPTIONAL_MULTIPLE,
                           grouped_anova.ROW_NAME: TEXT, grouped_anova.COLUMN_NAME: TEXT,
                           grouped_anova.INTERACTION: True},
+    SUMMARY_TWOWAY: SUMMARY_TWOWAY_OPTIONS,
     NB2: NB2_OPTIONS,
     LOGISTIC_VALIDATION: LOGISTIC_VALIDATION_OPTIONS,
     "Multifactor ANOVA": {"Response": None, "Factors": MULTIPLE, TERM_SELECTION: TERM_CHOICES, "Interaction order": 1,
@@ -446,7 +448,7 @@ GROUPS = {
     "Group Comparison": ("t-test", "Paired t-test (columns)", LOGNORMAL, VARIANCE_RATIO, EQUIVALENCE, MEAN_PERMUTATION, YUEN, SUMMARY_TTEST, "Multiple t-tests", ROW_TESTS, "Mann–Whitney", BRUNNER_MUNZEL, "Wilcoxon signed-rank",
                          "Kolmogorov–Smirnov", "Kruskal–Wallis", MOOD_MEDIAN, "Friedman", "One-way ANOVA", SUMMARY_ANOVA,
                          NESTED_T, NESTED_ANOVA, "Repeated measures ANOVA", "Mixed-effects model (REML)",
-                         "Multifactor ANOVA", grouped_anova.METHOD, ANCOVA, "Contingency table", PAIRED_PROPORTIONS, COHEN_KAPPA,
+                         "Multifactor ANOVA", grouped_anova.METHOD, SUMMARY_TWOWAY, ANCOVA, "Contingency table", PAIRED_PROPORTIONS, COHEN_KAPPA,
                          "Bland–Altman", ba_repeated.METHOD, icc.METHOD, "ROC curve", "Compare paired ROC curves", INDEPENDENT_ROC,
                          precision_recall.METHOD),
     "Survival Analysis": ("Kaplan–Meier survival", "Cox regression", COMPETING_RISKS, WEIBULL_AFT, RMST),
@@ -1553,6 +1555,8 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return model_selection(frame, o)
     if method == ROBUST_CURVE:
         return robust_curve(frame, o)
+    if method == SUMMARY_TWOWAY:
+        return summary_twoway(frame, o)
     if method == grouped_anova.METHOD:
         long, response, factors = grouped_anova.grouped_inputs(frame, o)
         table = engine.factorial_anova(long, response, factors, 2 if o.get(grouped_anova.INTERACTION, True) else 1)

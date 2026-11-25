@@ -1540,3 +1540,10 @@ from .pareto_plot_catalog import MESSAGES as _PARETO_MESSAGES  # noqa: E402
 
 CAPTIONS.update(_PARETO_CAPTIONS)
 MESSAGES.update(_PARETO_MESSAGES)
+
+# Two-way ANOVA from cell summaries: captions and engine messages live in their own section.
+from .summary_twoway_catalog import CAPTIONS as _SUMMARY_TWOWAY_CAPTIONS  # noqa: E402
+from .summary_twoway_catalog import MESSAGES as _SUMMARY_TWOWAY_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_SUMMARY_TWOWAY_CAPTIONS)
+MESSAGES.update(_SUMMARY_TWOWAY_MESSAGES)

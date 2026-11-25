@@ -131,6 +131,16 @@ Grouped. Offre ANOVA ordinaria e confronti Tukey–Kramer, Holm o Bonferroni,
 con grafico delle medie e intervalli basati sulla varianza aggregata.
 [Istruzioni e limiti](summary-anova.md).
 
+**Group Comparison → Two-way ANOVA from summaries** fa l’ANOVA ordinaria di due
+fattori fissi incrociati partendo da media, SD o SEM e numerosità di ogni cella.
+Accetta le sottocolonne di un foglio Grouped e, in alternativa, le colonne lunghe
+dei due fattori. Il modello è il disegno completo con interazione e somme dei
+quadrati di tipo III. Nel caso bilanciato (medie 2, 6, 4 e 12, SD 1, N 3) gli F
+sono 48, 108 e 12, con somma dei quadrati residua 8. Nel caso sbilanciato il
+livello `Dose $` resta letterale. Le medie marginali a peso uguale sono stime dei
+contrasti, non la scheda delle medie marginali stimate.
+[Istruzioni e limiti](summary-twoway-anova.md).
+
 ### Test t da misure individuali
 
 **Group Comparison → t-test** accetta una colonna di misura con un gruppo oppure

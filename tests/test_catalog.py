@@ -78,6 +78,9 @@ class CatalogTests(unittest.TestCase):
             "Compare models (AICc)": {"X": "x", "Y": "stim", "Models": ["Michaelis–Menten", "Straight line"],
                                       "Show graph": False},
             "Grouped two-way ANOVA": {"Row labels": "Row", "Y columns": ["a [1]", "a [2]", "b [1]", "b [2]"]},
+            "Two-way ANOVA from summaries": {"Input": "Groups in rows", "Row factor variable": "A",
+                                             "Column factor variable": "B", "Mean": "Mean", "Dispersion": "SD",
+                                             "Sample size": "N", "Dispersion type": "SD"},
             "Multifactor ANOVA": {"Response": "z", "Factors": ["Group", "Factor"], "Interaction order": 2,
                                  "Compare marginal means by": "Group", "Within factors (simple effects)": ["Factor"]},
             "ANCOVA": {"Response": "y", "Covariate": "x", "Group": "Group", "Slope model": "By group",
@@ -240,6 +243,9 @@ class CatalogTests(unittest.TestCase):
                     selected = pd.DataFrame({f"Group {group + 1} [{rep + 1}]": np.arange(4.) / 4 + 2 * group + rep
                                              for group in range(groups) for rep in range(3)})
                     selected.attrs["table_format"] = "nested"
+                if name == "Two-way ANOVA from summaries":
+                    selected = pd.DataFrame({"A": ["A0", "A0", "A1", "A1"], "B": ["B0", "B1", "B0", "B1"],
+                                             "Mean": [2., 6., 4., 12.], "SD": [1., 1., 1., 1.], "N": [3, 3, 3, 3]})
                 if name == "Grouped two-way ANOVA":
                     selected = pd.DataFrame({"Row": ["First", "Second"], "a [1]": [1., 3.],
                                              "a [2]": [2., 4.], "b [1]": [3., 9.], "b [2]": [4., 7.]})

@@ -58,6 +58,8 @@ from analisi.select_transform import SELECT_TRANSFORM, check_options as check_se
 from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
 from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_FIELDS, PAIRWISE_SCOPE, PAIRWISE_PAIR_LIST,
                                      pairwise_corrections, pairwise_scope)
+from analisi.summary_twoway import METHOD as SUMMARY_TWOWAY
+from analisi import summary_twoway
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
                                OPTIONAL_MULTIPLE, TEXT, check_survival_options, classic_roles)
 from analisi.stats import GEOMETRIC_REPORT, SUMMARY_FORMAT, summary_confidence, summary_fields
@@ -699,6 +701,8 @@ class AnalysisDialog(QDialog):
                                          (ordinal_method and label == ordinal.RESPONSE)) and categorical:
                         default = categorical[category_position % len(categorical)]
                         category_position += 1
+                    elif self.method == SUMMARY_TWOWAY and label == summary_twoway.ROW_LABELS and categorical:
+                        default = "Row title" if "Row title" in categorical else categorical[0]
                     elif self.method in ("t-test", yuen.METHOD) and label in (ttest_options.FIRST, ttest_options.SECOND) and numeric:
                         default = numeric[min(int(label == ttest_options.SECOND), len(numeric) - 1)]
                     elif kind is None and numeric:
@@ -755,6 +759,21 @@ class AnalysisDialog(QDialog):
             sync_gap()
         if survival_method:
             survival_pairs.attach(self)
+        if self.method == SUMMARY_TWOWAY:
+            source = self.controls[summary_twoway.INPUT][1]
+            saved_input = self.current and self.current[0] == self.method and summary_twoway.INPUT in self.current[1]
+
+            def sync_summary_twoway(_index=None):
+                self._set_field_visibility(summary_twoway.visibility(source.currentData()))
+
+            source.currentIndexChanged.connect(sync_summary_twoway)
+            if not saved_input:
+                preferred = (summary_twoway.SUBCOLUMNS if summary_twoway.looks_like_subcolumns(self.data)
+                             else summary_twoway.ROWS)
+                position = source.findData(preferred)
+                if position >= 0 and position != source.currentIndex():
+                    source.setCurrentIndex(position)
+            sync_summary_twoway()
         if self.method == "Descriptive statistics":
             report = self.controls[SUMMARY_FORMAT][1]
             report.currentIndexChanged.connect(lambda _: self._set_field_visibility(summary_fields(report.currentData())))
@@ -1351,6 +1370,8 @@ class AnalysisDialog(QDialog):
                 rmst.check_options(self.data, options)
             if self.method == kappa.METHOD:
                 kappa.check_options(self.data, options)
+            if self.method == SUMMARY_TWOWAY:
+                summary_twoway.check_options(self.data, options)
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
@@ -1361,6 +1382,8 @@ class AnalysisDialog(QDialog):
         super().accept()
 
     def _message(self, error, field=None):
+        if self.method == SUMMARY_TWOWAY:
+            return summary_twoway.format_error(error)
         if self.method == "Kaplan–Meier survival":
             return ui(str(error))
         if self.method == "t-test":

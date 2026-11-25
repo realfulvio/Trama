@@ -1,0 +1,52 @@
+{
+  "progetto": "anova-riassunti.alab",
+  "tolleranza": {
+    "rel": 1e-8,
+    "abs": 1e-10
+  },
+  "scenari": [
+    {
+      "id": "bilanciato",
+      "input": "bilanciato.csv",
+      "atteso": "oracolo.json#bilanciato",
+      "variante": "Riesegui usando SEM = SD/sqrt(N), scambiando i livelli e usando menu IT/EN."
+    },
+    {
+      "id": "sbilanciato",
+      "input": "sbilanciato.csv",
+      "atteso": "oracolo.json#sbilanciato",
+      "variante": "Riordina le righe e i gruppi, conserva risultati e chiavi."
+    },
+    {
+      "id": "modifica",
+      "input": "bilanciato.csv",
+      "azione": "Salva la ricetta, riapri, modifica media A1/B1 da 12 a 14.",
+      "atteso": {
+        "F_A": 75,
+        "F_B": 147,
+        "F_AxB": 27,
+        "SS_residuo": 8
+      }
+    },
+    {
+      "id": "validazione",
+      "alterazioni": [
+        "N assente",
+        "N = 2,5",
+        "N = 1",
+        "SD negativa",
+        "SEM infinito",
+        "cella fattoriale duplicata",
+        "combinazione mancante",
+        "tutte SD nulle",
+        "cella esclusa"
+      ],
+      "atteso": "Errore di campo contestualizzato e progetto integro."
+    },
+    {
+      "id": "non-regressione",
+      "azione": "Apri un progetto storico con ANOVA raggruppata grezza e un progetto con ANOVA a una via riassuntiva.",
+      "atteso": "Stessi risultati, grafici e metadati della base."
+    }
+  ]
+}
