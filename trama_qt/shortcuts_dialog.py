@@ -7,6 +7,7 @@ from analisi.i18n import tr, ui
 
 from .classic_bar import MENUS
 from .strings import qt
+from .theme import fit_dialog
 
 # Cut, Copy and Paste are handled by the table itself, so their actions carry no shortcut of their own.
 STANDARD = {"cut": QKeySequence.StandardKey.Cut, "copy": QKeySequence.StandardKey.Copy,
@@ -26,6 +27,7 @@ class ShortcutsDialog(QDialog):
         self.setWindowTitle(qt("qt.shortcuts"))
         layout = QVBoxLayout(self)
         self.filter = QLineEdit()
+        self.filter.setAccessibleName(qt("qt.shortcuts_filter"))
         self.filter.setPlaceholderText(qt("qt.shortcuts_filter"))
         self.filter.setClearButtonEnabled(True)
         self.filter.textChanged.connect(self._apply_filter)
@@ -72,7 +74,7 @@ class ShortcutsDialog(QDialog):
                 row = QTreeWidgetItem(head, [text, shortcut])
                 row.setTextAlignment(1, int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter))
             head.setExpanded(True)
-        self.resize(480, 560)
+        fit_dialog(self, 480, 560)
 
     def _apply_filter(self, text):
         text = text.strip().casefold()
