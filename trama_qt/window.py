@@ -54,6 +54,8 @@ from analisi.worksheet_sort import (ASCENDING, plan_row_sort, remap_selection_af
                                     row_title_sort_column, sort_text, sortable_columns, x_sort_column)
 from analisi.worksheet_text import TextStyles
 from analisi.paired_graphs import paired_plot_options
+from analisi.rank_graphs import RANK_PLOT, rank_plot_options
+from analisi.rank_tests import MANN_WHITNEY, WILCOXON
 
 from . import global_catalog
 from . import gui_gc, office, theme
@@ -1163,6 +1165,7 @@ class MainWindow(QMainWindow):
                   or (run.result is None and run.method == mcnemar_power.METHOD and run.options.get(mcnemar_power.GRAPH))
                   or (run.result is None and run.method == TOLERANCE and run.options.get(TOLERANCE_GRAPH))
                   or (run.result is None and paired_plot_options(run.method, run.options))
+                  or (run.result is None and rank_plot_options(run.method, run.options))
                   or (run.result is None and run.method in ANALYSIS_GRAPH_OPTIONS
                       and run.options.get(*ANALYSIS_GRAPH_OPTIONS[run.method]))
                   or (run.result is None and run.method == cox_outputs.METHOD and not cox_exact.is_exact(run.options)
@@ -2879,6 +2882,9 @@ class MainWindow(QMainWindow):
             initial_field = {PLOT_FUNCTION: FUNCTION_CURVES,
                              global_catalog.METHOD: global_catalog.PARAMETERS}.get(
                                  run.method, ANALYSIS_GRAPH_OPTIONS.get(run.method, (None,))[0])
+            if initial_field is None and run.method in (MANN_WHITNEY, WILCOXON):
+                active_plots = rank_plot_options(run.method, run.options)
+                initial_field = active_plots[0] if active_plots else RANK_PLOT
         self._ask(run.title, frame, current=(run.method, run.options), index=index, initial_field=initial_field)
 
     # -- analysis chains ----------------------------------------------------------------------------------

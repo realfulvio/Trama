@@ -12,9 +12,9 @@ import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame, QHBoxLayout,
-                               QLabel, QLineEdit, QListWidget, QListWidgetItem, QPlainTextEdit, QScrollArea,
-                               QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QTreeWidget, QTreeWidgetItem,
-                               QVBoxLayout, QWidget, QHeaderView, QAbstractItemView)
+                               QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPlainTextEdit,
+                               QScrollArea, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QTreeWidget,
+                               QTreeWidgetItem, QVBoxLayout, QWidget, QHeaderView, QAbstractItemView)
 
 from analisi.anova_marginal_means import CONFIDENCE as MEANS_CONFIDENCE
 from analisi.anova_marginal_means import FACTOR_LIST as MEANS_FACTOR_LIST, FACTORS as MEANS_FACTORS
@@ -49,6 +49,7 @@ from analisi import nonlinear_calibration as calibration
 from analisi import ordinal_logit as ordinal
 from analisi import paired_proportions as paired
 from analisi.paired_graphs import TTEST_PLOTS
+from analisi import rank_graphs, rank_tests
 from analisi.variance_ratio import SHOW as TTEST_VARIANCE
 from analisi import mcnemar_power, monte_carlo, plot_function, power_plan, rmst, transpose_xy
 from analisi import rmst_dialog, rmst_workbench as rmst_form
@@ -414,6 +415,7 @@ class AnalysisDialog(QDialog):
         self.calibration = None
         self.reshape = None
         self.join = None
+        self._rank_legacy_start = False
         pages, scrolls = {}, {}
         power_method = self.method == power_plan.METHOD
         paired_power = self.method == mcnemar_power.METHOD
@@ -513,6 +515,13 @@ class AnalysisDialog(QDialog):
             labels, captions = mood_median.LABEL_KEYS, mood_median.CHOICE_KEYS
         if self.method == "t-test":
             labels, captions = ttest_options.LABEL_KEYS, ttest_options.CHOICE_KEYS
+        rank_method = self.method in (rank_tests.MANN_WHITNEY, rank_tests.WILCOXON)
+        rank_legacy = (rank_method and self.current is not None and self.current[0] == self.method
+                       and rank_tests.is_legacy(saved))
+        self._rank_legacy_start = rank_legacy
+        if rank_method:
+            labels = {**rank_tests.LABEL_KEYS, **rank_graphs.LABEL_KEYS}
+            captions = {**rank_tests.CHOICE_KEYS, **rank_graphs.CHOICE_KEYS}
         if lognormal_method:
             labels, captions = lognormal_tests.LABEL_KEYS, lognormal_tests.CHOICE_KEYS
             for page, title in (("variables", "Data"), ("options", "Test and graph")):
@@ -556,6 +565,10 @@ class AnalysisDialog(QDialog):
         fields = {} if self.method in {reshape_editor.METHOD, SELECT_TRANSFORM, join_editor.wj.METHOD} else METHODS[self.method]
         if self.method == "t-test":
             fields = {**fields, **dict.fromkeys(TTEST_PLOTS, False)}
+        elif self.method == rank_tests.MANN_WHITNEY:
+            fields = {**fields, rank_graphs.RANK_PLOT: False}
+        elif self.method == rank_tests.WILCOXON:
+            fields = {**fields, **dict.fromkeys(rank_graphs.RANK_PLOTS, False)}
         if self.method in result_display.METHODS:
             fields = {**fields, **result_display.OPTIONS}
         for label, kind in fields.items():
@@ -702,6 +715,7 @@ class AnalysisDialog(QDialog):
                 widget.setMinimumContentsLength(18)
                 if isinstance(kind, tuple):
                     choices = (pairwise_corrections(saved) if survival_method and label == PAIRWISE_CORRECTION
+                               else [rank_graphs.LEGACY_P_METHOD, *kind] if rank_legacy and label == rank_tests.P_VALUE
                                else list(kind))
                     for choice in choices:
                         choice_caption = str(choice)
@@ -852,6 +866,30 @@ class AnalysisDialog(QDialog):
 
             p_style.currentIndexChanged.connect(show_p_decimals)
             show_p_decimals()
+        if rank_method:
+            p_combo = self.controls[rank_tests.P_VALUE][1]
+            alternative_box = self.controls[rank_tests.ALTERNATIVE][1]
+            continuity_box = self.controls[rank_tests.CONTINUITY][1]
+            zero_box = self.controls[rank_tests.ZERO_DIFFERENCES][1] if self.method == rank_tests.WILCOXON else None
+            legacy_banner = None
+            if rank_legacy:
+                legacy_banner = QLabel(tr("rank.hint.legacy"))
+                legacy_banner.setObjectName("infoBanner")
+                legacy_banner.setWordWrap(True)
+                options.insertRow(0, legacy_banner)
+
+            def sync_rank_fields():
+                p_choice = p_combo.currentData()
+                keeping_legacy = p_choice == rank_graphs.LEGACY_P_METHOD
+                alternative_box.setEnabled(not keeping_legacy)
+                continuity_box.setEnabled(not keeping_legacy and p_choice != rank_tests.EXACT)
+                if zero_box is not None:
+                    zero_box.setEnabled(not keeping_legacy)
+                if legacy_banner is not None:
+                    legacy_banner.setVisible(keeping_legacy)
+
+            p_combo.currentIndexChanged.connect(sync_rank_fields)
+            sync_rank_fields()
         if yuen_method:
             note = QLabel(tr("yuen.note"))
             note.setWordWrap(True)
@@ -1224,7 +1262,7 @@ class AnalysisDialog(QDialog):
                 continue
             if name in self.hidden:
                 continue
-            if name in (REPORT_LOG_IC50, *TTEST_PLOTS) and not control.isChecked():
+            if name in (REPORT_LOG_IC50, *TTEST_PLOTS, *rank_graphs.RANK_PLOTS) and not control.isChecked():
                 continue
             if self.method == "Nonlinear regression" and name == MERGE_REPLICATES and not control.isChecked():
                 continue
@@ -1309,6 +1347,11 @@ class AnalysisDialog(QDialog):
             for name in result_display.OPTIONS:
                 options.pop(name, None)
             options.update(presentation)
+        if self.method in (rank_tests.MANN_WHITNEY, rank_tests.WILCOXON):
+            if options.get(rank_tests.P_VALUE) == rank_graphs.LEGACY_P_METHOD:
+                for key in (rank_tests.P_VALUE, rank_tests.ALTERNATIVE, rank_tests.CONTINUITY,
+                            rank_tests.ZERO_DIFFERENCES):
+                    options.pop(key, None)
         return self.anova.canonical(options) if self.anova is not None else options
 
     def accept(self):
@@ -1320,6 +1363,10 @@ class AnalysisDialog(QDialog):
                 check_survival_options(self.data, options)
             if self.method == "t-test":
                 ttest_options.preserve_direction(options, self.data)
+            if self.method in (rank_tests.MANN_WHITNEY, rank_tests.WILCOXON):
+                rank_graphs.rank_plot_options(self.method, options)
+                if not rank_tests.is_legacy(options):
+                    rank_tests.check_options(self.method, options)
             if self.method == lognormal_tests.LOGNORMAL:
                 lognormal_tests.check_grouped(self.data, options)
             if self.method in regression_range.METHODS:
@@ -1418,6 +1465,17 @@ class AnalysisDialog(QDialog):
         except (ValueError, OverflowError) as error:
             self.show_error(error)
             return
+        if (self.method in (rank_tests.MANN_WHITNEY, rank_tests.WILCOXON) and self._rank_legacy_start
+                and not rank_tests.is_legacy(options)):
+            answer = QMessageBox.question(
+                self,
+                tr("rank.legacy.migrate_title"),
+                tr("rank.legacy.migrate_body"),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
         self.result = (self.method, options)
         super().accept()
 

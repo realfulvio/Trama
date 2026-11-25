@@ -6022,3 +6022,12 @@ _IT.update(_MOOD_IT)
 for _key, _text in _MOOD_EN.items():
     if _key == "mood.method" or _key.startswith(("mood.field.", "mood.tab.", "mood.choice.")):
         KEY_BY_LABEL.setdefault(_text, _key)
+
+# Rank and paired-difference plots for Mann–Whitney and Wilcoxon signed-rank.
+from .rank_graphs_text import EN as _RANK_GRAPH_EN, IT as _RANK_GRAPH_IT  # noqa: E402
+
+_EN.update(_RANK_GRAPH_EN)
+_IT.update(_RANK_GRAPH_IT)
+for _key, _text in _RANK_GRAPH_EN.items():
+    if _key.startswith(("rank.field.", "rank.choice.")):
+        KEY_BY_LABEL.setdefault(_text, _key)
