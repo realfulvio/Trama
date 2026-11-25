@@ -1,5 +1,6 @@
 """Send one embedded figure to a new document in a local Windows Office application."""
-from contextlib import suppress
+from contextlib import contextmanager, suppress
+import ctypes
 import sys
 
 from .strings import qt
@@ -60,20 +61,37 @@ def _powerpoint(application, path, title, size):
 _DESTINATIONS = {"Word": _word, "PowerPoint": _powerpoint}
 
 
+@contextmanager
+def _office_apartment():
+    """Balance this command's COM reference without closing the GUI thread's apartment."""
+    ole = ctypes.WinDLL("ole32")
+    initialize = ole.CoInitializeEx
+    initialize.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+    initialize.restype = ctypes.c_long
+    status = initialize(None, 2)  # COINIT_APARTMENTTHREADED
+    initialized = status in (0, 1)  # Both S_OK and S_FALSE acquire a reference.
+    if not initialized and status & 0xFFFFFFFF != 0x80010106:  # RPC_E_CHANGED_MODE: already initialized.
+        raise OfficeError(qt("qt.office_com_initialization", code=f"0x{status & 0xFFFFFFFF:08X}"))
+    try:
+        yield
+    finally:
+        if initialized:
+            ole.CoUninitialize.restype = None
+            ole.CoUninitialize()
+
+
 def send_picture(app_name, path, title, size):
     """Start the desktop application on demand and leave the new unsaved document open."""
     insert = _DESTINATIONS[app_name]
     if not ON_WINDOWS:
         raise OfficeError(qt("qt.office_windows", app=app_name))
     try:
-        import pythoncom
         from pywintypes import com_error
         from win32com.client.dynamic import Dispatch
     except (ImportError, OSError) as error:
         raise OfficeError(qt("qt.office_automation_missing")) from error
 
-    pythoncom.CoInitialize()
-    try:
+    with _office_apartment():
         try:
             application = Dispatch(f"{app_name}.Application")
         except com_error as error:
@@ -84,5 +102,3 @@ def send_picture(app_name, path, title, size):
             raise OfficeError(qt("qt.office_insert_failed", app=app_name, error=error.strerror)) from error
         finally:
             del application
-    finally:
-        pythoncom.CoUninitialize()

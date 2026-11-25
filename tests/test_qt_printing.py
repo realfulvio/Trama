@@ -37,10 +37,10 @@ class OfficeTests(unittest.TestCase):
         set_language("en")
         self.application = Mock()
         self.dispatch = Mock(return_value=self.application)
-        self.com = SimpleNamespace(CoInitialize=Mock(), CoUninitialize=Mock())
+        self.com = SimpleNamespace(CoInitializeEx=Mock(return_value=1), CoUninitialize=Mock())
         self.enterContext(patch.object(office, "ON_WINDOWS", True))
-        self.enterContext(patch.dict(sys.modules, {"pythoncom": self.com,
-                                                   "pywintypes": SimpleNamespace(com_error=ComError),
+        self.enterContext(patch.object(office.ctypes, "WinDLL", return_value=self.com, create=True))
+        self.enterContext(patch.dict(sys.modules, {"pywintypes": SimpleNamespace(com_error=ComError),
                                                    "win32com.client.dynamic": SimpleNamespace(Dispatch=self.dispatch)}))
         self.path = Path("figure.png")
 
@@ -58,6 +58,7 @@ class OfficeTests(unittest.TestCase):
         self.assertIs(self.application.Visible, True)
         document.Activate.assert_called_once_with()
         document.Close.assert_not_called()
+        self.com.CoInitializeEx.assert_called_once_with(None, 2)
         self.com.CoUninitialize.assert_called_once_with()
 
     def test_powerpoint_embeds_and_centres_the_figure_on_a_new_blank_slide(self):
@@ -75,6 +76,19 @@ class OfficeTests(unittest.TestCase):
             self.assertAlmostEqual(actual, expected)
         self.assertEqual(shapes.AddPicture.return_value.AlternativeText, "Figure β")
         presentation.Close.assert_not_called()
+
+    def test_an_existing_different_com_apartment_is_not_uninitialized(self):
+        self.com.CoInitializeEx.return_value = -2147417850  # RPC_E_CHANGED_MODE
+        with office._office_apartment():
+            self.com.CoUninitialize.assert_not_called()
+        self.com.CoUninitialize.assert_not_called()
+
+    def test_other_com_initialization_failures_do_not_start_office(self):
+        self.com.CoInitializeEx.return_value = -2147024882
+        with self.assertRaisesRegex(office.OfficeError, "0x8007000E"):
+            office.send_picture("Word", self.path, "Figure", (400, 200))
+        self.com.CoUninitialize.assert_not_called()
+        self.dispatch.assert_not_called()
 
     def test_missing_app_and_failed_insert_are_reported_separately(self):
         self.dispatch.side_effect = ComError()

@@ -123,6 +123,8 @@ _TEXT = {
     "qt.office_windows": ("Sending to {app} requires its Windows desktop application.",
                           "Per inviare a {app} serve l’applicazione desktop per Windows."),
     "qt.office_figure": ("Select a calculated graph or layout first.", "Seleziona prima un grafico o layout calcolato."),
+    "qt.office_com_initialization": ("Could not start Office automation ({code}).",
+                                     "Impossibile avviare l’automazione di Office ({code})."),
     "qt.office_automation_missing": ("Office automation is unavailable in this Trama installation.",
                                     "L’automazione di Office non è disponibile in questa installazione di Trama."),
     "qt.office_unavailable": ("Could not open Microsoft {app}. Check that the desktop application is installed "
