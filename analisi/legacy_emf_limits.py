@@ -12,6 +12,7 @@ from .legacy_emf_edit import (
     LIMIT_SOURCE, POINTS, _ERRORS, _MAX_POINTS, _XY, _classic_commands, _drawing_series,
     _geometry, _point_pixels, _project, _require, _xy_group_links,
 )
+from .worksheet_row_identity import current_spans, rows_of
 
 
 def _limit_pixels(values, style):
@@ -108,23 +109,28 @@ def _visible_errors(values, cache, nudge, style):
 
 def points_from_limit_source(frame, binding):
     """Read the worksheet endpoints that actually have strokes in the saved drawing."""
-    _require(len(frame) == binding["size"], "Keep the original point rows in the graph’s source sheet.")
+    problem = "Keep the original point rows in the graph’s source sheet."
+    _require(len(frame) == binding["size"], problem)
     x = binding["x"]
-    points = []
+    points, spans = [], current_spans(frame)
     for group in binding["groups"]:
         columns = group["columns"]
         saved = group["points"]
         _require(len(columns) == 3 and 0 < len(saved) <= _MAX_POINTS - len(points))
         sheet = frame[columns]
-        rows = np.flatnonzero(sheet.notna().any(axis=1))
-        _require(rows.tolist() == [row for row, _, _ in saved],
-                 "Keep the original point rows in the graph’s source sheet.")
+        plotted = np.flatnonzero(sheet.notna().any(axis=1)).tolist()
+        original_rows = [row for row, _, _ in saved]
+        _require(all(type(row) is int and 0 <= row < binding["size"] for row in original_rows), problem)
+        # The stored offsets refer to the unmodified imported worksheet. Its
+        # row identities start at base:1 and follow the data through a reorder.
+        rows = rows_of(spans, (f"base:{row + 1}" for row in original_rows))
+        _require(None not in rows and sorted(rows) == plotted, problem)
         used = frame.iloc[rows]
         centers = used[columns[0]].to_numpy(dtype=float, na_value=np.nan)
         abscissae = used[x].to_numpy(dtype=float, na_value=np.nan)
         _require(np.isfinite(centers).all() and np.isfinite(abscissae).all(),
                  "Enter finite coordinates for the saved points.")
-        for i, (row, upper, lower) in enumerate(saved):
+        for i, (row, (_, upper, lower)) in enumerate(zip(rows, saved, strict=True)):
             center = float(centers[i])
             errors = [np.nan, np.nan]
             for side, endpoint in enumerate((upper, lower)):

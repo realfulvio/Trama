@@ -14,11 +14,15 @@ from .reporting import Result
 BINARY_XY_RANGE = "Binary XY shaded range"
 
 
-def _band_values(frame, x, columns):
+def _band_values(frame, x, columns, *, sort_x=False):
     values = frame[[x, *columns]].to_numpy(dtype=float, na_value=np.nan)
     _require(2 <= len(values) <= _MAX_POINTS and np.isfinite(values[:, [0, 2, 3]]).all(),
              "Enter finite X values and both endpoints for every point of the shaded range.")
-    _require((np.diff(values[:, 0]) > 0).all(), "X values for the shaded range must be increasing.")
+    if sort_x and not (np.diff(values[:, 0]) > 0).all():
+        values = values[np.argsort(values[:, 0], kind="stable")]
+    _require((np.diff(values[:, 0]) > 0).all(),
+             "X values for the shaded range must be distinct." if sort_x
+             else "X values for the shaded range must be increasing.")
     _require((values[:, 2] >= values[:, 3]).all(),
              "Keep the upper endpoint of the shaded range at or above its lower endpoint.")
     return values
@@ -99,7 +103,7 @@ def render_binary_range(frame, style, title):
 
     try:
         binding = style["source"]
-        band = _band_values(frame, binding["x"], style["columns"])
+        band = _band_values(frame, binding["x"], style["columns"], sort_x=True)
         points = points_from_limit_source(frame, binding)
         plot_x = points[:, 0] + np.asarray(style["nudges"], dtype=float)
         scales = style["axes"]

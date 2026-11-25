@@ -11,6 +11,7 @@ from analisi.legacy_binary_graphs import read_binary_graphs, validate_binary_gra
 from analisi.legacy_binary_range import render_binary_range, verify_band
 from analisi.legacy_emf_edit import CURVE, POINTS, edit_emf_preview
 from analisi.legacy_restore import LEGACY_GRAPH_STYLE, LEGACY_PREVIEW, SAVED_EDITABLE_GRAPH
+from analisi.worksheet_row_identity import ROW_SPANS, after_permutation
 from test_legacy_binary_editable import _binary_xy
 from test_legacy_binary_graphs import _emf, _preview
 
@@ -154,6 +155,10 @@ class EditableEmfTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r"B \[Lower\]"):
             edit_emf_preview(sheet, style, preview)
         sheet.loc[2, "B [Lower]"] = 9.
+        order = [2, 0, 1]
+        reordered = sheet.iloc[order].reset_index(drop=True)
+        reordered.attrs[ROW_SPANS] = after_permutation(sheet, order)
+        self.assertEqual(validate_binary_graph(edit_emf_preview(reordered, style, preview)), edited)
         sheet.loc[0, "B [Center]"] = 2.
         with self.assertRaisesRegex(ValueError, "point rows"):
             edit_emf_preview(sheet, style, preview)
@@ -198,6 +203,15 @@ class EditableEmfTests(unittest.TestCase):
         self.assertEqual(result.tables["Shaded range"].at[1, "Upper"], 6.)
         self.assertEqual(result.tables["XY coordinates"].at[0, "Lower error"], 1.5)
         self.assertIn([1., 6.], result.figure.axes[0].collections[0].get_paths()[0].vertices.tolist())
+        order = [1, 2, 0]
+        reordered = frame.iloc[order].reset_index(drop=True)
+        reordered.attrs[ROW_SPANS] = after_permutation(frame, order)
+        after = render_binary_range(reordered, style, "Current range")
+        for key in result.tables:
+            pd.testing.assert_frame_equal(after.tables[key], result.tables[key])
+        reordered.at[2, "Time"] = 2.
+        with self.assertRaisesRegex(ValueError, "distinct"):
+            render_binary_range(reordered, style, "Current range")
         frame.loc[1, "High"] = 1.
         with self.assertRaisesRegex(ValueError, "upper endpoint"):
             render_binary_range(frame, style, "Current range")
