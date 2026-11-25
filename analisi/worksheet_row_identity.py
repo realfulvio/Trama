@@ -59,9 +59,66 @@ def _slice(spans, start, stop):
             break
 
 
+def _coalesce(spans):
+    merged = []
+    for origin, first, count in spans:
+        if merged and merged[-1][0] == origin and merged[-1][1] + merged[-1][2] == first:
+            prev_origin, prev_first, prev_count = merged[-1]
+            merged[-1] = (prev_origin, prev_first, prev_count + count)
+        else:
+            merged.append((origin, first, count))
+    return tuple(merged)
+
+
+def moved_row_bounds(start, stop, destination):
+    """Return the new 0-based [start, stop) bounds after moving [start, stop) to destination."""
+    count = stop - start
+    if destination < start:
+        return destination, destination + count
+    if destination > stop:
+        return destination - count, destination
+    return start, stop
+
+
+def move_row_index(row, start, stop, destination):
+    """Remap a 0-based row index after moving [start, stop) to destination."""
+    if start <= destination <= stop:
+        return row
+    count = stop - start
+    if destination < start:
+        if destination <= row < start:
+            return row + count
+        if start <= row < stop:
+            return destination + (row - start)
+        return row
+    if stop <= row < destination:
+        return row - count
+    if start <= row < stop:
+        return destination - count + (row - start)
+    return row
+
+
 def after_insertion(frame, position, count):
     spans = current_spans(frame)
-    return (*_slice(spans, 0, position), (uuid4().hex, 1, count), *_slice(spans, position, len(frame)))
+    return _coalesce((*_slice(spans, 0, position), (uuid4().hex, 1, count), *_slice(spans, position, len(frame))))
+
+
+def after_move(frame, start, stop, destination):
+    """Update contiguous row-identity spans after moving rows [start, stop) to destination."""
+    length = len(frame)
+    if (type(start) is not int or type(stop) is not int or type(destination) is not int
+            or not (0 <= start < stop <= length) or not (0 <= destination <= length)):
+        raise ValueError("Invalid row move range.")
+    spans = current_spans(frame)
+    if start <= destination <= stop:
+        return spans
+    if destination < start:
+        segments = (*_slice(spans, 0, destination), *_slice(spans, start, stop),
+                    *_slice(spans, destination, start), *_slice(spans, stop, length))
+    else:
+        segments = (*_slice(spans, 0, start), *_slice(spans, stop, destination),
+                    *_slice(spans, start, stop), *_slice(spans, destination, length))
+    return _coalesce(segments)
 
 
 def after_deletion(frame, removed):

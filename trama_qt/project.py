@@ -12,6 +12,7 @@ from pathlib import Path
 import threading
 from uuid import uuid4
 
+import numpy as np
 import pandas as pd
 
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
@@ -20,8 +21,9 @@ from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCanc
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
 from analisi.linked_axes import linked_axes_status
 from analisi.point_style import POINTS, point_styles_status
-from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES, MAX_ENTRY, Dataset,
-                          formula_column_references, info_references, load_tables, load_workspace, project_document, save_project)
+from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES,
+                          EDITABLE_LEGACY_XY, MAX_ENTRY, Dataset, formula_column_references, info_references,
+                          load_tables, load_workspace, project_document, save_project)
 from analisi.ecdf_graph import METHOD as ECDF_GRAPH, style_after_parameter_change as ecdf_style
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.interaction_plot import METHOD as INTERACTION_PLOT, style_after_parameter_change as interaction_style
@@ -71,7 +73,7 @@ from analisi.workbench import GROUPS, analyse
 from analisi import worksheet_join
 from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
 from analisi.worksheet_history import WorksheetChange, WorksheetHistory, WorksheetState
-from analisi.worksheet_row_identity import ROW_SPANS, after_deletion, after_insertion
+from analisi.worksheet_row_identity import ROW_SPANS, after_deletion, after_insertion, after_move, move_row_index
 from .sheet_commands import SheetCommands
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
@@ -363,6 +365,8 @@ class ProjectHistory(WorksheetHistory):
                 exclusions[id(state.excluded)] = len(state.excluded) * 72
                 if state.cell_backgrounds:
                     backgrounds[id(state.cell_backgrounds)] = len(state.cell_backgrounds) * 112
+                if state.row_heights:
+                    backgrounds[id(state.row_heights)] = len(state.row_heights) * 64
                 for sheets in (state.result_backgrounds or {}).values():
                     for cells in sheets.values():
                         backgrounds[id(cells)] = len(cells) * 112
@@ -650,6 +654,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             twin.analysis_ids = dict(dataset.analysis_ids)
             twin.analysis_sources = dict(dataset.analysis_sources)
             twin.analysis_labels = dict(dataset.analysis_labels)
+            twin.row_heights = dict(dataset.row_heights)
             tables[title] = twin
         _persist_links(self.runs, tables, pinned=self._pinned_runs())
         return Snapshot(tables, deepcopy(self.layouts), deepcopy(tuple(self.info_sheets.values())),
@@ -1238,6 +1243,10 @@ class Project(WorksheetJoinSources, SheetCommands):
             raise ValueError("Select a source table or use Result as Data to create an editable table.")
         return dataset
 
+    def can_reorder_rows(self, title):
+        return (title in self.tables and not self.sheet_locked(("data", title))
+                and reorder_rows_allowed(self.tables[title]))
+
     def edit(self, title, label, change):
         """Apply ``change`` to a copy of the table, keep it with undo, and return the analyses to recalculate."""
         dataset = self.editable(title)
@@ -1253,11 +1262,26 @@ class Project(WorksheetJoinSources, SheetCommands):
         dataset.column_order = candidate.column_order
         dataset.cell_backgrounds = candidate.cell_backgrounds
         dataset.number_formats = candidate.number_formats
+        dataset.row_heights = candidate.row_heights
         after = WorksheetState.capture(dataset)
         if not self.history.record(title, label, before, after):
             return None
         self.dirty = True
         return self.table_runs(title)
+
+    def set_row_heights(self, title, rows, height):
+        """Presentation-only: change or reset row heights with undo and zero recalculations."""
+        if self.sheet_locked(("data", title)):
+            raise ValueError(qt("qt.sheet_frozen_notice"))
+        dataset = self.tables[title]
+        if stored_legacy_view(dataset):
+            raise ValueError("Select a source table or use Result as Data to create an editable table.")
+        rows = tuple(dict.fromkeys(rows))
+        if not rows or any(type(row) is not int or not 0 <= row < len(dataset.raw) for row in rows):
+            raise ValueError(qt("qt.rows_virtual_or_invalid"))
+        before = WorksheetState.capture(dataset)
+        dataset.set_row_heights(rows, height)
+        return self._record_background(title, dataset, before, "Row height")
 
     def set_table_background(self, title, box, color):
         if self.sheet_locked(("data", title)):
@@ -1319,10 +1343,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             frame.attrs = dict(raw.attrs)
             if count > 0:
                 frame.attrs[ROW_SPANS] = after_insertion(raw, at, count)
-            dataset.excluded = {(row + count if row >= at else row, column) for row, column in dataset.excluded}
-            if dataset.cell_backgrounds:
-                dataset.cell_backgrounds = {(row + count if row >= at else row, name): color
-                                            for (row, name), color in dataset.cell_backgrounds.items()}
+            _remap_row_metadata(dataset, lambda row: row + count if row >= at else row)
             dataset.raw = frame
         return self.edit(title, "Insert rows", change)
 
@@ -1337,12 +1358,36 @@ class Project(WorksheetJoinSources, SheetCommands):
             if len(frame) != len(raw):
                 frame.attrs[ROW_SPANS] = after_deletion(raw, rows)
             mapping = {old: new for new, old in enumerate(keep)}
-            dataset.excluded = {(mapping[row], column) for row, column in dataset.excluded if row in mapping}
-            if dataset.cell_backgrounds:
-                dataset.cell_backgrounds = {(mapping[row], name): color
-                                            for (row, name), color in dataset.cell_backgrounds.items() if row in mapping}
+            _remap_row_metadata(dataset, mapping.get)
             dataset.raw = frame
         return self.edit(title, "Delete rows", change)
+
+    def move_rows(self, title, start, stop, destination):
+        dataset = self.editable(title)
+        if not reorder_rows_allowed(dataset):
+            raise ValueError(qt("qt.rows_reorder_unavailable"))
+        length = len(dataset.raw)
+        if (type(start) is not int or type(stop) is not int or type(destination) is not int
+                or not (0 <= start < stop <= length) or not (0 <= destination <= length)):
+            raise ValueError(qt("qt.rows_virtual_or_invalid"))
+        if start <= destination <= stop:
+            return None
+
+        def change(candidate):
+            raw = candidate.raw
+            if destination < start:
+                order = np.concatenate((np.arange(0, destination), np.arange(start, stop),
+                                        np.arange(destination, start), np.arange(stop, length)))
+            else:
+                order = np.concatenate((np.arange(0, start), np.arange(stop, destination),
+                                        np.arange(start, stop), np.arange(destination, length)))
+            frame = raw.iloc[order].reset_index(drop=True)
+            frame.attrs = dict(raw.attrs)
+            frame.attrs[ROW_SPANS] = after_move(raw, start, stop, destination)
+            _remap_row_metadata(candidate, lambda row: move_row_index(row, start, stop, destination))
+            candidate.raw = frame
+
+        return self.edit(title, "Move rows", change)
 
     def insert_column(self, title, position, name):
         def change(dataset):
@@ -1563,6 +1608,25 @@ class Project(WorksheetJoinSources, SheetCommands):
         # False for colours and number formats: the window can refresh the open grid in place.
         self.undo_changed_data = change.before.data_changed(change.after)
         return change.title, self.table_runs(change.title) if self.undo_changed_data else []
+
+
+def reorder_rows_allowed(dataset):
+    return not (stored_legacy_view(dataset)
+                or dataset.table_format == EDITABLE_LEGACY_XY
+                or dataset.table_format in EDITABLE_LEGACY_FIXED_VALUES)
+
+
+def _remap_row_metadata(dataset, remap):
+    if dataset.excluded:
+        dataset.excluded = {(new_row, col) for row, col in dataset.excluded
+                            if (new_row := remap(row)) is not None}
+    if dataset.cell_backgrounds:
+        dataset.cell_backgrounds = {(new_row, name): color
+                                    for (row, name), color in dataset.cell_backgrounds.items()
+                                    if (new_row := remap(row)) is not None}
+    if dataset.row_heights:
+        dataset.row_heights = {new_row: height for row, height in dataset.row_heights.items()
+                               if (new_row := remap(row)) is not None}
 
 
 def _persist_links(runs, tables, *, pinned=()):

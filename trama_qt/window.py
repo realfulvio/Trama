@@ -48,6 +48,7 @@ from analisi.weibull_aft import METHOD as WEIBULL_AFT, SHOW_GRAPH as WEIBULL_GRA
 from analisi.workbench import GRAPH_METHODS
 from analisi.sheet_metadata import HIGHLIGHTS, RUN_KINDS, validate_sheet_title
 from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
+from analisi.worksheet_row_identity import moved_row_bounds
 from analisi.paired_graphs import shows_paired_estimation
 
 from . import global_catalog
@@ -523,6 +524,9 @@ class MainWindow(QMainWindow):
         a("insert_column", qt("qt.insert_column"), self.insert_column, icon="columns-3")
         a("formula", ui("Formula…"), self.edit_formula, icon="sigma")
         a("delete_rows", qt("qt.delete_rows"), self.delete_rows, icon="trash-2")
+        a("move_rows_up", qt("qt.move_rows_up"), self.move_rows_up, icon="chevron-up", shortcut="Alt+Up")
+        a("move_rows_down", qt("qt.move_rows_down"), self.move_rows_down, icon="chevron-down", shortcut="Alt+Down")
+        a("reset_row_height", qt("qt.reset_row_height"), self.reset_row_height, shortcut="Alt+0")
         a("exclude", tr("ribbon.exclude"), self.toggle_exclusion, icon="filter", shortcut="Ctrl+E")
         a("analyze", tr("ribbon.analyze"), self.analyze, icon="sigma", shortcut="Ctrl+Shift+A")
         a("power", tr("command.power"), lambda: self.analyze(method=power_plan.METHOD, only=power_plan.METHOD),
@@ -900,6 +904,7 @@ class MainWindow(QMainWindow):
         for key in ("cut", "paste_special", "paste_transpose", "clear_cells", "insert_row",
                     "insert_column", "delete_rows", "delete_columns", "exclude", "formula", "category_order"):
             self.actions[key].setEnabled(editable and idle)
+        self._update_row_actions(data, editable, idle)
         self.actions["variable_properties"].setEnabled(
             editable and idle and self.project.tables[self.selected[1]].table_format == "multivariable")
         has_table = (data and self.sheet is not None) or (kind == "result" and self.result_tabs is not None)
@@ -1606,6 +1611,7 @@ class MainWindow(QMainWindow):
         elif self.selected[0] == "data" and self.sheet is not None:
             current = self.sheet.currentIndex()
             self.sheet.model().reload()
+            self.sheet.apply_row_heights(self.table_zoom)
             if current.isValid():
                 self.sheet.setCurrentIndex(self.sheet.model().index(current.row(), current.column()))
             if self.formula_editor is not None:
@@ -1633,6 +1639,8 @@ class MainWindow(QMainWindow):
         self.sheet = WorksheetView(model, self)
         if self.table_font != ("", None) or self.table_zoom != 100:
             set_table_appearance(self.sheet, self.table_font, self.table_zoom)
+        else:
+            self.sheet.apply_row_heights(self.table_zoom)
         page.worksheet_split = page.add(QSplitter(Qt.Orientation.Horizontal))
         page.worksheet_split.setChildrenCollapsible(False)
         page.worksheet_preview = WorksheetPreview(self, title, self.sheet)
@@ -2178,6 +2186,88 @@ class MainWindow(QMainWindow):
         if rows:
             self._apply_edit(title, lambda: self.project.delete_rows(title, rows))
 
+    def can_reorder_active_rows(self):
+        return bool(self.selected and self.selected[0] == "data" and self.job is None
+                    and self.project.can_reorder_rows(self.selected[1]))
+
+    def _update_row_actions(self, data, editable, idle):
+        box = self.sheet.box() if data and self.sheet is not None else None
+        dataset = self.project.tables[self.selected[1]] if data else None
+        data_rows = len(dataset.raw) if dataset is not None else 0
+        reorder = bool(editable and idle and dataset is not None and self.project.can_reorder_rows(self.selected[1])
+                       and box is not None and 0 <= box[0] <= box[2] < data_rows)
+        self.actions["move_rows_up"].setEnabled(reorder and box[0] > 0)
+        self.actions["move_rows_down"].setEnabled(reorder and box[2] + 1 < data_rows)
+        has_custom = bool(editable and idle and dataset is not None and box is not None and dataset.row_heights
+                          and any(row in dataset.row_heights for row in range(box[0], min(box[2] + 1, data_rows))))
+        self.actions["reset_row_height"].setEnabled(has_custom)
+
+    def move_rows(self, start, stop, destination):
+        title = self._active_table()
+        if title is None or self.sheet is None:
+            return
+        box = self.sheet.box()
+        current = self.sheet.currentIndex()
+        left = box[1] if box is not None else 0
+        right = box[3] if box is not None else max(0, self.sheet.model().columnCount() - 1)
+        row_offset = (current.row() - start) if current.isValid() and start <= current.row() < stop else 0
+        col_cur = current.column() if current.isValid() else left
+        self._apply_edit(title, lambda: self.project.move_rows(title, start, stop, destination))
+        if self.selected == ("data", title) and self.sheet is not None:
+            new_start, new_stop = moved_row_bounds(start, stop, destination)
+            self.sheet.select_block(new_start, left, new_stop - 1, right,
+                                    current_row=new_start + row_offset, current_col=col_cur)
+            self.update_actions()
+
+    def move_rows_up(self):
+        if self.sheet is None or (box := self.sheet.box()) is None:
+            return
+        top, _, bottom, _ = box
+        if top > 0:
+            self.move_rows(top, bottom + 1, top - 1)
+
+    def move_rows_down(self):
+        if self.sheet is None or (box := self.sheet.box()) is None:
+            return
+        top, _, bottom, _ = box
+        if bottom + 1 < len(self.sheet.model().frame):
+            self.move_rows(top, bottom + 1, bottom + 2)
+
+    def set_row_height(self, row, height):
+        title = self._active_table()
+        if title is None or self.sheet is None:
+            return
+        try:
+            changed = self.project.set_row_heights(title, (row,), height)
+        except (ValueError, TypeError, OverflowError) as error:
+            self.sheet.apply_row_heights(self.table_zoom)
+            self.error(error)
+            return
+        if changed:
+            self.sheet.apply_row_heights(self.table_zoom)
+            self.update_title()
+            self.update_actions()
+            self.status(qt("qt.edited"))
+
+    def reset_row_height(self):
+        title = self._active_table()
+        if title is None or self.sheet is None or (box := self.sheet.box()) is None:
+            return
+        data_rows = len(self.sheet.model().frame)
+        rows = [row for row in range(box[0], box[2] + 1) if row < data_rows]
+        if not rows:
+            return
+        try:
+            changed = self.project.set_row_heights(title, rows, None)
+        except (ValueError, TypeError, OverflowError) as error:
+            self.error(error)
+            return
+        if changed:
+            self.sheet.apply_row_heights(self.table_zoom)
+            self.update_title()
+            self.update_actions()
+            self.status(qt("qt.edited"))
+
     def insert_column(self):
         title = self._active_table()
         if title is None:
@@ -2441,6 +2531,7 @@ class MainWindow(QMainWindow):
             model = self.sheet.model()
             model.refresh_backgrounds()
             model.refresh_formats()
+            self.sheet.apply_row_heights(self.table_zoom)
             self.update_title()
             self.update_actions()
             return

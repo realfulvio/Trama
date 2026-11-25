@@ -630,6 +630,7 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph, bla
                                    if (title, slot) in identities},
             analysis_sources={}, analysis_labels=labels, column_order=dataset.column_order,
             cell_backgrounds=dataset.cell_backgrounds.copy(),
+            row_heights=dataset.row_heights.copy(),
             result_backgrounds={mapping[slot]: deepcopy(sheets) for slot, sheets in dataset.result_backgrounds.items()
                                 if slot in mapping},
             number_formats=deepcopy(dataset.number_formats),

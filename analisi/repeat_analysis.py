@@ -592,6 +592,7 @@ def _detached(dataset):
     twin.analysis_sources = dict(dataset.analysis_sources)
     twin.analysis_labels = dict(dataset.analysis_labels)
     twin.cell_backgrounds = dict(dataset.cell_backgrounds)
+    twin.row_heights = dict(dataset.row_heights)
     twin.result_backgrounds = deepcopy(dataset.result_backgrounds)
     return twin
 
