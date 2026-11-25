@@ -3317,6 +3317,9 @@ class QtShellTests(unittest.TestCase):
         self.assertNotIn("classic", self.window.actions)
 
     def test_home_creates_typed_worksheets_and_the_picker_follows_selection(self):
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QPushButton
         from trama_qt.table_setup import TableSetup
 
         window = self.window
@@ -3329,7 +3332,13 @@ class QtShellTests(unittest.TestCase):
         template, sample = setup.selection()
         self.assertFalse(sample)
         self.assertEqual(len(template.columns), 14)
-        window.create_worksheet(template, sample)
+        create = next(button for button in setup.findChildren(QPushButton) if button.text() == tr("setup.create_blank"))
+        window.activateWindow()
+        setup.row_titles.setFocus()
+        self.app.processEvents()
+        QTest.keyClick(setup.row_titles, Qt.Key.Key_Tab)
+        self.assertIs(self.app.focusWidget(), create)
+        QTest.keyClick(create, Qt.Key.Key_Return)
         first = window.selected
         self.assertEqual(window.project.tables[first[1]].table_format, "XY with replicates")
         self.assertEqual(window.sheet.currentIndex().column(), 1)

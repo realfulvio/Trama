@@ -310,9 +310,11 @@ class TableSetup(QWidget):
         button.setObjectName("primary")
         button.setIcon(theme.icon("plus", "on_accent"))
         button.setMinimumHeight(36)
+        button.setDefault(True)
         self.sample.toggled.connect(lambda: button.setText(self.create_label))
         self.create_row.addWidget(button)
         self.create_row.addStretch(1)
+        self.setTabOrder(self.row_titles, button)
 
     def _formats(self):
         kind = TEMPLATES[max(0, self.types.currentRow())].kind
