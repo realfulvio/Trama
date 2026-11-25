@@ -18,7 +18,7 @@ The work is counted before it is done: a block that would take the cumulative
 transitions over the limit, or a merged table that holds too many states, raises
 :class:`ExactBudgetExceeded`.
 """
-from math import comb
+from math import comb, lgamma, log, log2
 
 import numpy as np
 
@@ -66,11 +66,7 @@ def _distribution(blocks, take, max_states, max_transitions):
     size = sum(m for _, m in blocks)
     top = sum(value * m for value, m in blocks)
     stride = top + 1
-    if take is None:
-        bound = 2**size
-    else:
-        bound = sum(comb(size, c) for c in range(take + 1))
-    dtype = np.int64 if bound < _INT64_SAFE else object
+    dtype = np.int64 if _count_bound_fits(size, take) else object
     keys = np.zeros(1, dtype=np.int64)
     counts = np.ones(1, dtype=dtype)
     remaining, transitions = size, 0
@@ -97,6 +93,116 @@ def _distribution(blocks, take, max_states, max_transitions):
     if take is not None:
         keys = keys - take * stride
     return keys, counts
+
+
+def _count_bound_fits(size, take):
+    """True when every allocation count stays below 2**62, so int64 is exact.
+
+    The bound is sum(comb(size, c) for c <= take) (2**size for signs). Summing those big
+    integers costs O(take) multiplications of numbers with up to ``size`` bits, which takes
+    minutes for size = 100,000. Above 61 observations an upper bound in logarithms decides:
+    (take + 1) times the largest term, plus a margin. It can only choose the exact object
+    path more often, never an int64 that could overflow.
+    """
+    if size <= 61:
+        return True
+    if take is None:
+        return False
+    k = min(take, size // 2)
+    log2_term = (lgamma(size + 1) - lgamma(k + 1) - lgamma(size - k + 1)) / log(2)
+    return log2(take + 1) + log2_term + 1 < 62
+
+
+def mann_whitney_state_floor(doubled, take):
+    """A lower bound on the distinct rank sums of ``take`` positions among the pooled ranks.
+
+    Sort the doubled ranks. Start from the ``take`` smallest and move the chosen positions one
+    step to the right at a time, the rightmost first, until they are the ``take`` largest. That
+    is ``take * (size - take)`` moves; a move across two different ranks raises the sum, so the
+    sums seen are distinct and the count of such moves plus one bounds the number of distinct
+    sums. Position ``k`` (from the right) sweeps the gaps between sorted positions
+    ``take - k`` and ``size - k``. Without ties this is exactly take * (size - take) + 1.
+    """
+    values = np.sort(np.asarray(doubled, dtype=np.int64))
+    size = len(values)
+    if take <= 0 or take >= size:
+        return 1
+    rises = np.concatenate(([0], np.cumsum(values[1:] > values[:-1])))   # rises[i]: steps before i
+    starts = np.arange(take)                       # chosen position j starts at j ...
+    ends = starts + (size - take)                  # ... and ends at j + size - take
+    return int(1 + np.sum(rises[ends] - rises[starts]))
+
+
+def _mann_whitney_budget_floor(doubled, take, max_states, max_transitions):
+    """Return the budget message the dynamic programme would raise for certain, or None.
+
+    The programme visits the blocks of equal doubled ranks in increasing order. Before block b
+    it adds len(table) * (longest + 1) to its transition count, and after it the table holds
+    one state per distinct (chosen, sum) pair with chosen in [take - remaining, min(take, m)],
+    where m observations have been seen. For each such ``chosen`` the distinct sums of the
+    first m sorted ranks are at least ``mann_whitney_state_floor`` of that prefix, which has
+    the closed form 1 + CR[m] - CR[m - c] - CR[c] with CR the running sum of the rises. Both
+    counts are therefore bounded from below block by block; reaching a limit with the bounds
+    means the programme reaches it at the same block or earlier, with the same message kind.
+    """
+    values = np.sort(np.asarray(doubled, dtype=np.int64))
+    size = len(values)
+    if size > 2_000_000 or take <= 0:      # int64 sums below stay exact up to this size
+        return None
+    rises = np.concatenate(([0], np.cumsum(values[1:] > values[:-1], dtype=np.int64)))
+    cr = np.concatenate(([0], np.cumsum(rises, dtype=np.int64)))            # cr[t] = sum(rises[:t])
+    ccr = np.concatenate(([0], np.cumsum(cr, dtype=np.int64)))              # ccr[t] = sum(cr[:t])
+    _, multiplicity = np.unique(values, return_counts=True)
+    seen = np.cumsum(multiplicity)                                          # m after each block
+    remaining = size - seen
+    longest = np.minimum(multiplicity, take)
+    low = np.maximum(0, take - remaining)
+    high = np.minimum(take, seen)
+    count = high - low + 1
+    # sum over c in [low, high] of (1 + cr[m] - cr[m - c] - cr[c])
+    states = (count * (1 + cr[seen]) - (ccr[seen - low + 1] - ccr[seen - high])
+              - (ccr[high + 1] - ccr[low]))
+    before = np.concatenate(([1.0], states[:-1].astype(float)))             # table size before each block
+    transitions = np.cumsum(before * (longest + 1))
+    over_transitions = np.flatnonzero(transitions > max_transitions)
+    over_states = np.flatnonzero(states > max_states)
+    first_t = over_transitions[0] if len(over_transitions) else size + 1
+    first_s = over_states[0] if len(over_states) else size + 1
+    if first_t <= first_s and first_t <= size:
+        return f"More than {max_transitions:,} transitions are needed."
+    if first_s <= size:
+        return f"More than {max_states:,} distinct states."
+    return None
+
+
+def _signed_rank_budget_floor(doubled, max_states, max_transitions):
+    """The signed-rank counterpart of :func:`_mann_whitney_budget_floor`.
+
+    Without a fixed number chosen, the table after m observations holds every distinct subset
+    sum of the first m sorted ranks. Those include the sums of exactly c = m // 2 of them, so
+    the same closed form with c = m // 2 bounds the table size from below.
+    """
+    values = np.sort(np.asarray(doubled, dtype=np.int64))
+    size = len(values)
+    if size > 2_000_000:
+        return None
+    rises = np.concatenate(([0], np.cumsum(values[1:] > values[:-1], dtype=np.int64)))
+    cr = np.concatenate(([0], np.cumsum(rises, dtype=np.int64)))
+    _, multiplicity = np.unique(values, return_counts=True)
+    seen = np.cumsum(multiplicity)
+    half = seen // 2
+    states = 1 + cr[seen] - cr[seen - half] - cr[half]
+    before = np.concatenate(([1.0], states[:-1].astype(float)))
+    transitions = np.cumsum(before * (multiplicity + 1))
+    over_transitions = np.flatnonzero(transitions > max_transitions)
+    over_states = np.flatnonzero(states > max_states)
+    first_t = over_transitions[0] if len(over_transitions) else size + 1
+    first_s = over_states[0] if len(over_states) else size + 1
+    if first_t <= first_s and first_t <= size:
+        return f"More than {max_transitions:,} transitions are needed."
+    if first_s <= size:
+        return f"More than {max_states:,} distinct states."
+    return None
 
 
 def _blocks(doubled):
@@ -127,6 +233,11 @@ def mann_whitney_tails(doubled, first, *, max_states=None, max_transitions=None)
     observed = int(doubled[first].sum())
     # Choosing the smaller group gives the same allocations with fewer states.
     take = min(n1, size - n1)
+    # Lower bounds of the work the dynamic programme below would count: when one is over a
+    # limit the programme would raise after doing that work, so raise before starting it.
+    reason = _mann_whitney_budget_floor(doubled, take, max_states, max_transitions)
+    if reason is not None:
+        raise ExactBudgetExceeded(reason)
     sums, counts = _distribution(_blocks(doubled), take, max_states, max_transitions)
     low, high = _tails(sums, counts, observed if take == n1 else int(doubled.sum()) - observed)
     if take != n1:
@@ -146,6 +257,9 @@ def signed_rank_tails(doubled, positive, *, max_states=None, max_transitions=Non
     if not len(doubled):
         return 1, 1, 1
     observed = int(doubled[np.asarray(positive, dtype=bool)].sum())
+    reason = _signed_rank_budget_floor(doubled, max_states, max_transitions)
+    if reason is not None:
+        raise ExactBudgetExceeded(reason)
     sums, counts = _distribution(_blocks(doubled), None, max_states, max_transitions)
     low, high = _tails(sums, counts, observed)
     return low, high, 2 ** len(doubled)
