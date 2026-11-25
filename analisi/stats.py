@@ -287,7 +287,11 @@ def _anova_model(frame, response, factors, order, *, terms=None):
                                 for choice in combinations(degrees, degree))
     if coefficient_count >= len(data) or coefficient_count * len(data) > 4_000_000:
         raise ValueError("The selected model is too large or has no residual degrees of freedom.")
-    design = dmatrix(f"({' + '.join(terms)}) ** {order}", data, return_type="dataframe")
+    # patsy sniffs a column of strings cell by cell; a Categorical with the levels patsy would sort
+    # gives the same design in a fraction of the time (0.111.x). The returned data keep their text.
+    coded = data.assign(**{key: pd.Categorical(data[key], categories=sorted(data[key].unique()))
+                           for key in keys})
+    design = dmatrix(f"({' + '.join(terms)}) ** {order}", coded, return_type="dataframe")
     y = data["response"].to_numpy()
     x = design.to_numpy()
     beta, rss, rank, _ = np.linalg.lstsq(x, y, rcond=None)
