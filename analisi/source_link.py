@@ -33,6 +33,7 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import time
 from uuid import uuid4
 
 import numpy as np
@@ -258,11 +259,25 @@ def stamp_of(path):
     return status.st_size, status.st_mtime_ns
 
 
-def read_file(path, *, cancel=None, progress=None):
-    """Read the file once, for reading only, and digest it. A file that changes while it is read is refused."""
+def read_file(path, *, cancel=None, progress=None, attempts=3):
+    """Read the file for reading only and digest it. A file whose size or modification time moves during the read
+    is read again (a network folder can settle the time of a file just copied there); one that keeps changing is
+    refused."""
+    path = local_path(path)
+    for attempt in range(attempts):
+        source = _read_once(path, cancel, progress)
+        if source is not None:
+            return source
+        for _ in range(5):  # A short pause before reading again, still answering Cancel.
+            if cancel is not None and cancel():
+                raise UpdateCancelled
+            time.sleep(0.05 * (attempt + 1))
+    raise ValueError("The file changed while it was being read. Try again when it is complete.")
+
+
+def _read_once(path, cancel, progress):
     from .data import MAX_ENTRY
 
-    path = local_path(path)
     try:
         before = os.stat(path)
     except FileNotFoundError as error:
@@ -283,8 +298,23 @@ def read_file(path, *, cancel=None, progress=None):
                 progress(done, max(done, before.st_size))
     after = os.stat(path)
     if (after.st_size, after.st_mtime_ns) != (before.st_size, before.st_mtime_ns) or done != after.st_size:
-        raise ValueError("The file changed while it was being read. Try again when it is complete.")
+        return None
     return SourceFile(path, after.st_size, after.st_mtime_ns, digest.hexdigest(), decode_text(b"".join(pieces)))
+
+
+def same_file(path, stamp, sha256):
+    """True when ``path`` is still the file read: same size and time, or (a network folder may report another time
+    for the same bytes) the same SHA-256."""
+    try:
+        if stamp_of(path) == stamp:
+            return True
+        digest = hashlib.sha256()
+        with Path(path).open("rb") as handle:
+            while chunk := handle.read(CHUNK):
+                digest.update(chunk)
+        return digest.hexdigest() == sha256
+    except OSError:
+        return False
 
 
 # == digests ======================================================================================================

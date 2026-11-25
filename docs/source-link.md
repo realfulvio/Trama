@@ -14,6 +14,8 @@ until you ask, and every change is shown before it is applied. The file is only 
 | File → Update from file… (*Aggiorna da file…*), `Ctrl+Shift+U` | Reads the linked file again with the saved options and opens the preview; **Apply** changes the worksheet |
 | File → Source link… (*Collegamento sorgente…*) | Where the file is, how it is read, the key, imported and project columns, the last confirmed version; **Update from file…**, **Change source…** (*Cambia sorgente…*), **Unlink** (*Scollega*). On a worksheet without a link: **Link to a file…** (*Collega a un file…*) |
 
+![Import with the link and the key column](media/source-link/importa-collegato-it.png)
+
 *Update from file…* is on only for an editable worksheet with a link. *Source link…* is on for a linked worksheet
 and for an ordinary (multivariable) worksheet, which it can link to a file.
 
@@ -63,11 +65,18 @@ Cells show `worksheet value → file value`; the *Row* column shows `place in th
 - a linked worksheet column was deleted or replaced by a calculated column;
 - there are conflicts and no choice was made;
 - without a key, the rows cannot be matched one by one (see below) and *Replace all rows* is not ticked;
-- the file changed while the preview was open (*Apply* re-checks size and modification time and refuses).
+- the file changed while the preview was open (*Apply* re-checks size and modification time, and the SHA-256 when
+  they moved, and refuses a different file).
+
+A file whose size or time moves during the read is read again up to three times (a network folder can settle the
+time of a file just copied there); one that keeps changing is refused with *The file changed while it was being
+read*.
 
 Enter applies only when *Apply* is on.
 
 ### Conflicts
+
+![A conflict: Apply stays off until a choice is made](media/source-link/conflitto-en.png)
 
 A row is a conflict only when both sides changed it since the last confirmed version. The panel **Changed in the
 project and in the file** asks one decision for all of them, with **no default**: *Keep the project values* or *Use
@@ -100,6 +109,8 @@ the data and the history as they were. With the trailing `*` exclusion mark in t
 file decide the exclusions of the cells the file sends.
 
 Exports (Excel workbook, figures, PDF, report) always use the worksheet as it is: the last confirmed version.
+
+![Source link: file, reading options, key, columns, last confirmed version](media/source-link/collegamento-en.png)
 
 ## Change source
 

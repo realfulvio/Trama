@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QDial
 from analisi import source_link as engine
 from analisi.i18n import active_language
 from analisi.source_link import (ADDED, CONFLICT, DELETED, DELETED_CONFLICT, LOCAL, MODIFIED, REMOVED_CONFLICT,
-                                 UNCHANGED, Message, UpdateCancelled, locate, stamp_of)
+                                 UNCHANGED, Message, UpdateCancelled, locate)
 from analisi.text_import import DECIMAL_MARKS, DELIMITERS
 
 from . import theme
@@ -347,11 +347,7 @@ class UpdatePreviewDialog(QDialog):
     def accept(self):
         if self.problem() is not None:
             return
-        try:
-            changed = stamp_of(self.plan.path) != self.plan.stamp
-        except OSError:
-            changed = True
-        if changed:  # Nothing is applied from a file that is no longer the one shown.
+        if not engine.same_file(self.plan.path, self.plan.stamp, self.plan.sha256):  # Nothing is applied from a file that is no longer the one shown.
             self.stale = True
             self._sync()
             return
