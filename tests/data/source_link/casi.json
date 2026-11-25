@@ -1,0 +1,10 @@
+{
+  "initial_slope": 2,
+  "updated_slope": 2.2,
+  "updated_order": [
+    "C",
+    "A",
+    "B",
+    "D"
+  ]
+}

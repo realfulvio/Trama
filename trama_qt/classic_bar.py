@@ -14,7 +14,8 @@ from .text_format import ICONS as TEXT_ICONS, MENU as TEXT_MENU, ToolbarTextCont
 
 
 MENUS = (
-    ("File", ("new_project", "new_table", "open", "import", "import_excel", "recover", "|",
+    ("File", ("new_project", "new_table", "open", "import", "import_excel", "refresh_source", "source_link",
+              "recover", "|",
               "save", "save_as", "save_template", "new_from_template", "|", "export", "export_options",
               "export_pdf", "export_batch", "export_report", "export_excel", "send_word", "send_powerpoint", "|",
               "print", "print_preview", "page_setup", "|", "close_project", "exit")),
