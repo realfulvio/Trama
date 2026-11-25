@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from analisi import deming_dialog, i18n
-from analisi.deming import (KNOWN_SDS, VARIANCE_RATIO, analyse_fit, project_points, read_settings)
+from analisi.deming import (KNOWN_SDS, PAIRED, VARIANCE_RATIO, analyse_fit, project_points, read_settings)
 from analisi.field_error import FieldError
 from analisi.i18n import CATALOGS, placeholders, translate_message
 from tests.test_graph_i18n import LanguageMixin, TkCase
@@ -318,6 +318,8 @@ def triggers():
     yield fit({**known, "X error SD": 1e-200, "Y error SD": 1e200}), "Y error SD"
     yield fit({**base, "Uncertainty input": "Bayes"}), "Uncertainty input"
     yield fit({**base, "Show projections": "yes"}), "Show projections"
+    yield fit({**base, PAIRED: "yes"}), PAIRED
+    yield fit({**base, "Y series": ["A"], PAIRED: True}), PAIRED
     yield fit({**base, "Y series": ["A"], "Parameter intervals": "Bootstrap"}), "Parameter intervals"
     yield fit({**base, "Y series": ["A"], "Parameter intervals": "Jackknife (t)", "Confidence level (%)": 100}), \
         "Confidence level (%)"
