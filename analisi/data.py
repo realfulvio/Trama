@@ -367,7 +367,15 @@ def _after_operand(token):
 def worksheet_logic_tokens(tokens):
     """Lower logical keywords in operator positions, preserving columns and string literals."""
     insignificant = {tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.ENDMARKER}
-    significant = [(token.type, token.string) for token in tokens if token.type not in insignificant]
+    significant = []
+    for token in tokens:
+        if token.type in insignificant:
+            continue
+        if token.type == tokenize.OP and token.string == "<>":
+            # Some Python versions tokenize this worksheet operator as one token.
+            significant.extend(((tokenize.OP, "<"), (tokenize.OP, ">")))
+        else:
+            significant.append((token.type, token.string))
     result = []
     previous = (None, "")
     for index, (kind, value) in enumerate(significant):
