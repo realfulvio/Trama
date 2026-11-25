@@ -103,7 +103,7 @@ from .transpose_xy import OPTIONS as TRANSPOSE_OPTIONS, TRANSPOSE_XY, transpose_
 from .reshape_long_wide import METHOD as RESHAPE_LONG_WIDE, OPTIONS as RESHAPE_OPTIONS, reshape_long_wide
 from .worksheet_join import METHOD as WORKSHEET_JOIN, OPTIONS as WORKSHEET_JOIN_OPTIONS, join_worksheets
 from .paired_graphs import (BEFORE_AFTER, BEFORE_AFTER_OPTIONS, TRAJECTORIES, TRAJECTORY_OPTIONS, before_after,
-                            subject_trajectories, TTEST_DIFFERENCES, TTEST_PLOTS, PAIRED_DIFFERENCES,
+                            subject_trajectories, TTEST_DIFFERENCES, TTEST_ESTIMATION, PAIRED_DIFFERENCES,
                             paired_test_figure, paired_plot_options)
 from .spline_fit import SPLINE_FIT
 from .outlier_screening import OPTIONS as OUTLIER_OPTIONS, OUTLIERS, identify_outliers
@@ -276,7 +276,7 @@ METHODS = {
     NORMALITY: NORMALITY_OPTIONS,
     "t-test": {"Design": ("Welch", "Student", "Paired", "One-sample"), **ttest_options.OPTIONS,
                "Response": None, "Group": OPTIONAL, "Subject": OPTIONAL, "Null mean": 0.0,
-               VARIANCE_SHOW: False, **dict.fromkeys(TTEST_PLOTS, False)},
+               VARIANCE_SHOW: False, TTEST_ESTIMATION: False},
     "Paired t-test (columns)": {"First": None, "Second": None},
     LOGNORMAL: LOGNORMAL_OPTIONS,
     VARIANCE_RATIO: {"First": None, "Second": None, "Confidence level (%)": 95.0,

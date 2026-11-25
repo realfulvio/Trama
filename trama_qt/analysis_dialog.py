@@ -554,6 +554,8 @@ class AnalysisDialog(QDialog):
         categorical = [name for name in columns if name not in numeric] or columns
         numeric_position = category_position = 0
         fields = {} if self.method in {reshape_editor.METHOD, SELECT_TRANSFORM, join_editor.wj.METHOD} else METHODS[self.method]
+        if self.method == "t-test":
+            fields = {**fields, **dict.fromkeys(TTEST_PLOTS, False)}
         for label, kind in fields.items():
             if kind == CONTRAST_FACTOR_LIST or (kind != CONTRAST_LIST and label in PLANNED_PANEL_FIELDS
                                                 and CONTRAST_LIST in METHODS[self.method].values()):
