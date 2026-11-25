@@ -95,7 +95,7 @@ class PointEditor:
         self.form = form
         form.addRow(self._muted(tr("point.hint")))
         self.reason = QLabel()
-        self.reason.setObjectName("errorBanner")
+        self.reason.setObjectName("infoBanner")
         self.reason.setWordWrap(True)
         self.reason.setVisible(False)
         form.addRow(self.reason)

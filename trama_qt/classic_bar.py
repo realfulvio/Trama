@@ -263,9 +263,12 @@ class ClassicToolbar(QFrame):
                 break
             names.remove(name)
             hidden.append(name)
+        # Bring groups back in priority order and stop at the first that does not fit, so a smaller
+        # low-priority group (Send) never takes the place of a more important one (Export).
         for name in reversed(hidden):
-            if self._content_width(names | {name}, widths) <= self.width():
-                names.add(name)
+            if self._content_width(names | {name}, widths) > self.width():
+                break
+            names.add(name)
 
         menu = self.overflow.menu()
         menu.clear()
