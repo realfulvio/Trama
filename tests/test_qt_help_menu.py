@@ -1,8 +1,9 @@
 """Help menu, F1 and the Keyboard shortcuts window of the Classica Qt window (EN and IT)."""
 import unittest
+from types import SimpleNamespace
 
 try:
-    from PySide6.QtCore import QEvent
+    from PySide6.QtCore import QEvent, QRect
     from PySide6.QtGui import QKeySequence
     from PySide6.QtWidgets import QApplication
 except ImportError:  # PySide6 missing, or libEGL/libGL missing on a headless machine.
@@ -110,6 +111,17 @@ class HelpMenuTests(unittest.TestCase):
         self.addCleanup(dialog.deleteLater)
         self.assertEqual(dialog.windowTitle(), "Scorciatoie da tastiera")
         self.assertEqual(dialog.tree.headerItem().text(0), "Comando")
+
+    def test_shortcuts_window_fits_small_available_screen(self):
+        from trama_qt.shortcuts_dialog import ShortcutsDialog
+
+        class ShortcutsOnSmallScreen(ShortcutsDialog):
+            def screen(self):
+                return SimpleNamespace(availableGeometry=lambda: QRect(0, 0, 680, 480))
+
+        dialog = ShortcutsOnSmallScreen(self.make_window())
+        self.addCleanup(dialog.deleteLater)
+        self.assertLessEqual(dialog.height(), 432)
 
 
 if __name__ == "__main__":

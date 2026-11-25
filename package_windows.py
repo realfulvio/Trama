@@ -17,7 +17,7 @@ def main():
     shutil.copy2(root / "README.md", bundle / "README.md")
     shutil.copy2(root / "LICENSE", bundle / "LICENSE.txt")
     shutil.copy2(root / "LICENSE", bundle / "LICENSE")
-    for name in ("README.en.md", "THIRD_PARTY_NOTICES.md"):
+    for name in ("README.en.md", "THIRD_PARTY_NOTICES.md", "AGENTS.md"):
         shutil.copy2(root / name, bundle / name)
     for name in ("features.md", "getting-started.md", "compatibility.md", "development.md", "legal.md",
                  "competing-risks.md", "kmeans-algorithms.md", "independent-roc-curves.md", "ancova-090.md",
