@@ -273,6 +273,7 @@ def _paired_t(frame, content, results):
         "Design": "Paired", **source, "Subject": subject,
         "Legacy import notes": "Recalculates the paired test with the saved sample order and confidence level. "
                               "Trama reports the signed t statistic.",
+        **result_display.imported_output(content.get("output")),
     }
     if level != 95.:
         recipe[ttest_options.LEVEL] = level
@@ -363,6 +364,7 @@ def _survival(frame, content, _results):
         "Legacy import notes": "Recalculates survival probabilities, risk counts, and the overall log-rank test. "
                               "Supported saved curve options are applied to the native graph. "
                               "Imported post-tests and comparison tables use saved views when available.",
+        **result_display.imported_output(content.get("output")),
     }
 
 
@@ -397,6 +399,7 @@ def _nonlinear(frame, content, _results):
         "Legacy import notes": "Recalculates the inhibitory fit with a negative Hill slope. "
                               "Trama uses symmetric intervals and its own curve rendering. "
                               "Imported profile intervals and transformed parameters use saved views when available.",
+        **result_display.imported_output(content.get("output")),
     }
     for edge, field in (("minX", rr.FIT_MIN), ("maxX", rr.FIT_MAX)):
         endpoint = data["range"][edge]

@@ -287,6 +287,8 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
         self.backgrounds = backgrounds or {}
         self.header_labels = header_labels or {}
         self.result_display = result_display
+        self.metric_labels = ((frame["Metric"] if "Metric" in frame else frame.index).to_numpy(copy=False)
+                              if result_display is not None and "Value" in frame else None)
         self.formats = Renderer(number_formats)
         self.numeric = [_mostly_numeric(frame.iloc[:, index]) for index in range(len(frame.columns))]
 
@@ -310,7 +312,8 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
             if column and self.result_display is not None:
                 name = self.frame.columns[column - 1]
                 if name not in self.formatters:
-                    formatted = self.result_display(name, self.frame.iat[row, column - 1])
+                    metric = self.metric_labels[row] if self.metric_labels is not None and name == "Value" else None
+                    formatted = self.result_display(name, self.frame.iat[row, column - 1], metric)
                     if formatted is not None:
                         return formatted
             return self.plain_text(row, column)

@@ -556,7 +556,7 @@ class AnalysisDialog(QDialog):
         fields = {} if self.method in {reshape_editor.METHOD, SELECT_TRANSFORM, join_editor.wj.METHOD} else METHODS[self.method]
         if self.method == "t-test":
             fields = {**fields, **dict.fromkeys(TTEST_PLOTS, False)}
-        elif self.method == result_display.METHOD:
+        if self.method in result_display.METHODS:
             fields = {**fields, **result_display.OPTIONS}
         for label, kind in fields.items():
             if kind == CONTRAST_FACTOR_LIST or (kind != CONTRAST_LIST and label in PLANNED_PANEL_FIELDS
@@ -844,7 +844,7 @@ class AnalysisDialog(QDialog):
             design.currentIndexChanged.connect(show_ttest_fields)
             layout.currentIndexChanged.connect(show_ttest_fields)
             show_ttest_fields()
-        if self.method == result_display.METHOD:
+        if self.method in result_display.METHODS:
             p_style = self.controls[result_display.P_STYLE][1]
 
             def show_p_decimals():
@@ -1304,7 +1304,7 @@ class AnalysisDialog(QDialog):
             options = self.ecdf.ordered(options)  # series in the order they were ticked
         if self.pareto is not None:
             options = self.pareto.canonical(options)
-        if self.method == result_display.METHOD:
+        if self.method in result_display.METHODS:
             presentation = result_display.canonical(options)
             for name in result_display.OPTIONS:
                 options.pop(name, None)
