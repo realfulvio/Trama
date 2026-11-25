@@ -6,6 +6,8 @@ from .i18n import load_preferences, save_preferences
 ZOOM_LEVELS = (60, 75, 90, 100, 110, 125, 150, 175, 200)
 MIN_FONT_SIZE = 8
 MAX_FONT_SIZE = 24
+MIN_ROW_HEIGHT = 18
+MAX_ROW_HEIGHT = 480
 
 
 def font_preference(path):
@@ -79,3 +81,41 @@ def read_backgrounds(records, row_limit, columns):
             raise ValueError("Duplicate saved cell background.")
         backgrounds[row, column] = _color(color)
     return backgrounds
+
+
+def assign_row_heights(current, rows, height, row_limit):
+    """Return a new {row: base_height_px} mapping with custom heights set or reset to automatic (None)."""
+    if height is not None and (type(height) is not int or not MIN_ROW_HEIGHT <= height <= MAX_ROW_HEIGHT):
+        raise ValueError(f"Row height must be an integer between {MIN_ROW_HEIGHT} and {MAX_ROW_HEIGHT}.")
+    new = current.copy()
+    for row in rows:
+        if type(row) is not int or not 0 <= row < row_limit:
+            raise ValueError("Row height references an unknown row.")
+        if height is None:
+            new.pop(row, None)
+        else:
+            new[row] = height
+    return current if new == current else new
+
+
+def row_height_records(heights):
+    return [[row, height] for row, height in sorted(heights.items())]
+
+
+def read_row_heights(records, row_limit):
+    """Validate persisted [row, height] pairs against the table row count."""
+    if not isinstance(records, list) or len(records) > row_limit:
+        raise ValueError("Invalid saved row heights.")
+    heights = {}
+    for entry in records:
+        if not isinstance(entry, list) or len(entry) != 2:
+            raise ValueError("Invalid saved row height.")
+        row, height = entry
+        if type(row) is not int or not 0 <= row < row_limit:
+            raise ValueError("Row height references an unknown row.")
+        if type(height) is not int or not MIN_ROW_HEIGHT <= height <= MAX_ROW_HEIGHT:
+            raise ValueError("Invalid saved row height.")
+        if row in heights:
+            raise ValueError("Duplicate saved row height.")
+        heights[row] = height
+    return heights

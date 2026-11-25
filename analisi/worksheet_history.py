@@ -17,6 +17,7 @@ class WorksheetState:
     result_backgrounds: dict | None = None
     number_formats: dict | None = None
     result_number_formats: dict | None = None
+    row_heights: dict | None = None
 
     @classmethod
     def capture(cls, dataset, view=None):
@@ -24,7 +25,7 @@ class WorksheetState:
         # preserves exact cell types, metadata and exclusion flags.
         return cls(dataset.raw, dataset.formulas, dataset.excluded, view, dataset.column_order,
                    dataset.cell_backgrounds, dataset.result_backgrounds,
-                   dataset.number_formats, dataset.result_number_formats)
+                   dataset.number_formats, dataset.result_number_formats, dataset.row_heights)
 
     def data_changed(self, other):
         return (self.raw is not other.raw or self.formulas is not other.formulas
@@ -34,7 +35,8 @@ class WorksheetState:
         return (self.data_changed(other) or self.cell_backgrounds is not other.cell_backgrounds
                 or self.result_backgrounds is not other.result_backgrounds
                 or self.number_formats is not other.number_formats
-                or self.result_number_formats is not other.result_number_formats)
+                or self.result_number_formats is not other.result_number_formats
+                or self.row_heights is not other.row_heights)
 
     def restore(self, dataset):
         candidate = copy(dataset)
@@ -49,6 +51,7 @@ class WorksheetState:
         dataset.result_backgrounds = self.result_backgrounds if self.result_backgrounds is not None else {}
         dataset.number_formats = self.number_formats if self.number_formats is not None else {}
         dataset.result_number_formats = self.result_number_formats if self.result_number_formats is not None else {}
+        dataset.row_heights = self.row_heights if self.row_heights is not None else {}
 
 
 @dataclass(frozen=True, eq=False)
@@ -97,6 +100,8 @@ class WorksheetHistory:
                 exclusions[id(state.excluded)] = len(state.excluded) * 72
                 if state.cell_backgrounds:
                     backgrounds[id(state.cell_backgrounds)] = len(state.cell_backgrounds) * 112
+                if state.row_heights:
+                    backgrounds[id(state.row_heights)] = len(state.row_heights) * 64
                 for sheets in (state.result_backgrounds or {}).values():
                     for cells in sheets.values():
                         backgrounds[id(cells)] = len(cells) * 112

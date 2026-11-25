@@ -30,7 +30,8 @@ from .distribution_formulas import DISTRIBUTION_FUNCTIONS, argument_count_messag
 from .formula_special import SPECIAL_FORMULA_FUNCTIONS
 from .formula_windows import WINDOW_CLAUSES, WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
 from .grid_headings import column_label
-from .worksheet_appearance import background_records, paint_cells, read_backgrounds
+from .worksheet_appearance import (assign_row_heights, background_records, paint_cells, read_backgrounds,
+                                   read_row_heights, row_height_records)
 from .worksheet_row_identity import ROW_SPANS, current_spans, saved_spans
 from .worksheet_number_format import (assign_formats, column_records, position_records, read_column_formats,
                                       read_position_formats)
@@ -685,6 +686,7 @@ class Dataset:
     # position on the results. Replaced, never mutated, so undo snapshots and recovery copies can share them.
     number_formats: dict[str, dict] = field(default_factory=dict)
     result_number_formats: dict[int, dict[str, dict[int, dict]]] = field(default_factory=dict)
+    row_heights: dict[int, int] = field(default_factory=dict)
 
     @property
     def displayed_backgrounds(self):
@@ -694,6 +696,9 @@ class Dataset:
     def set_background(self, box, color):
         columns = self.columns
         self.cell_backgrounds = paint_cells(self.cell_backgrounds, box, (len(self.raw), len(columns)), color, columns)
+
+    def set_row_heights(self, rows, height):
+        self.row_heights = assign_row_heights(self.row_heights, rows, height, len(self.raw))
 
     @property
     def displayed_number_formats(self):
@@ -1065,6 +1070,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         }
         if dataset.cell_backgrounds:
             record["cell_backgrounds"] = background_records(dataset.cell_backgrounds)
+        if dataset.row_heights:
+            record["row_heights"] = row_height_records(dataset.row_heights)
         if dataset.result_backgrounds:
             record["result_backgrounds"] = {
                 slot: {name: background_records(colors) for name, colors in sorted(sheets.items())}
@@ -1189,6 +1196,8 @@ def load_workspace(path, *, include_info=False):
             data.column_order = _validated_column_order(table["column_order"], data.raw.columns, data.formulas)
         if "cell_backgrounds" in table:
             data.cell_backgrounds = read_backgrounds(table["cell_backgrounds"], len(data.raw), set(data.columns))
+        if "row_heights" in table:
+            data.row_heights = read_row_heights(table["row_heights"], len(data.raw))
         if "number_formats" in table:
             data.number_formats = read_column_formats(table["number_formats"], set(data.columns))
         entries = table.get("analyses", [])

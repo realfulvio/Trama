@@ -1,11 +1,12 @@
 """Table views: the editable worksheet and the read-only result tables."""
-from PySide6.QtCore import QRect, QThread, Qt
+from PySide6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, QRect, QThread, Qt
 from PySide6.QtGui import QAction, QColor, QFont, QGuiApplication, QKeySequence, QPainter, QPen
-from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QDialog, QDialogButtonBox, QFormLayout,
-                               QHeaderView, QLabel, QMenu, QSpinBox, QTableView, QVBoxLayout)
+from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QApplication, QDialog, QDialogButtonBox,
+                               QFormLayout, QHeaderView, QLabel, QMenu, QSpinBox, QTableView, QVBoxLayout)
 
 from analisi.grid_data import clipboard_decimal_mark, clipboard_rows, copy_block, filter_clipboard_rows
 from analisi.i18n import tr, ui
+from analisi.worksheet_appearance import MAX_ROW_HEIGHT, MIN_ROW_HEIGHT
 
 from . import theme
 from .models import FrameModel, display
@@ -46,6 +47,7 @@ def set_table_appearance(view, preference, zoom):
         heading.setDefaultSectionSize(round(112 * font.pointSizeF() / 9.5))
         for column, width in enumerate(widths):
             view.setColumnWidth(column, round(width * ratio))
+        view.apply_row_heights(zoom)
         heading.updateGeometry()
         heading.viewport().update()
     else:
@@ -189,6 +191,233 @@ class PasteSpecialDialog(QDialog):
         super().accept()
 
 
+class WorksheetRowHeader(QHeaderView):
+    """Vertical numbered header supporting boundary height drag, contiguous block drag-reorder and menu."""
+
+    GRIP_MARGIN = 4
+
+    def __init__(self, view):
+        super().__init__(Qt.Orientation.Vertical, view)
+        self.view = view
+        self.setSectionsClickable(True)
+        self.setMouseTracking(True)
+        self.setMinimumWidth(36)
+        self.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._menu)
+        self._mode = None
+        self._press_pos = None
+        self._resize_row = None
+        self._resize_start_height = 0
+        self._move_range = None
+        self._move_anchor_row = None
+        self._drop_row = None
+
+    def _data_rows(self):
+        model = self.view.model()
+        return len(model.frame) if model is not None else 0
+
+    def _can_edit(self):
+        model = self.view.model()
+        return model is not None and not model.read_only
+
+    def _can_reorder(self):
+        return self._can_edit() and self.view.host.can_reorder_active_rows()
+
+    def _resize_hit(self, y):
+        data_rows = self._data_rows()
+        if data_rows <= 0:
+            return None
+        row_at = self.logicalIndexAt(y)
+        candidates = (row_at - 1, row_at) if 0 <= row_at < data_rows else (data_rows - 1,)
+        for row in candidates:
+            if 0 <= row < data_rows:
+                bottom = self.sectionViewportPosition(row) + self.sectionSize(row)
+                if abs(y - bottom) <= self.GRIP_MARGIN:
+                    return row
+        return None
+
+    def _insertion_row(self, y):
+        data_rows = self._data_rows()
+        if data_rows <= 0:
+            return 0
+        if y <= self.sectionViewportPosition(0):
+            return 0
+        row = self.logicalIndexAt(max(0, y))
+        if row < 0 or row >= data_rows:
+            return data_rows
+        top = self.sectionViewportPosition(row)
+        return row if y < top + self.sectionSize(row) / 2 else min(data_rows, row + 1)
+
+    def drop_line_y(self, drop_row):
+        data_rows = self._data_rows()
+        if data_rows <= 0:
+            return None
+        if drop_row < data_rows:
+            y = self.sectionViewportPosition(drop_row)
+        else:
+            last = data_rows - 1
+            y = self.sectionViewportPosition(last) + self.sectionSize(last)
+        return max(1, min(self.viewport().height() - 2, y))
+
+    def _clear_drag(self):
+        self._mode = None
+        self._press_pos = None
+        self._resize_row = None
+        self._resize_start_height = 0
+        self._move_range = None
+        self._move_anchor_row = None
+        self._drop_row = None
+        self.unsetCursor()
+        self.viewport().update()
+        self.view.viewport().update()
+
+    def cancel_drag(self):
+        if self._mode is None:
+            return False
+        if self._mode == "resize" and self._resize_row is not None:
+            self.resizeSection(self._resize_row, self._resize_start_height)
+        self._clear_drag()
+        return True
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            y = int(event.position().y())
+            if self._can_edit():
+                hit = self._resize_hit(y)
+                if hit is not None:
+                    self._mode = "resize"
+                    self._press_pos = event.position().toPoint()
+                    self._resize_row = hit
+                    self._resize_start_height = self.sectionSize(hit)
+                    self.setCursor(Qt.CursorShape.SplitVCursor)
+                    event.accept()
+                    return
+            row = self.logicalIndexAt(y)
+            data_rows = self._data_rows()
+            if (0 <= row < data_rows and self._can_reorder()
+                    and not (event.modifiers() & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier))):
+                selection = self.view.selectionModel()
+                box = self.view.box()
+                if (box is not None and box[0] <= row <= box[2] < data_rows
+                        and selection is not None and selection.isRowSelected(row, QModelIndex())):
+                    self._move_range = (box[0], box[2] + 1)
+                else:
+                    self.view.selectRow(row)
+                    self.view.setCurrentIndex(self.view.model().index(row, 0))
+                    self._move_range = (row, row + 1)
+                self._mode = "pending_move"
+                self._press_pos = event.position().toPoint()
+                self._move_anchor_row = row
+                self._drop_row = None
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        y = int(event.position().y())
+        if self._mode == "resize":
+            zoom = getattr(self.view.host, "table_zoom", 100)
+            min_px = max(MIN_ROW_HEIGHT, round(MIN_ROW_HEIGHT * zoom / 100))
+            max_px = max(min_px, round(MAX_ROW_HEIGHT * zoom / 100))
+            delta = y - self._press_pos.y()
+            self.resizeSection(self._resize_row, max(min_px, min(max_px, self._resize_start_height + delta)))
+            event.accept()
+            return
+        if self._mode == "pending_move":
+            if (event.position().toPoint() - self._press_pos).manhattanLength() >= QApplication.startDragDistance():
+                self._mode = "move"
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                self._drop_row = self._insertion_row(y)
+                self.viewport().update()
+                self.view.viewport().update()
+            event.accept()
+            return
+        if self._mode == "move":
+            bar = self.view.verticalScrollBar()
+            if y < 16:
+                bar.setValue(bar.value() - 1)
+            elif y > self.viewport().height() - 16:
+                bar.setValue(bar.value() + 1)
+            self._drop_row = self._insertion_row(y)
+            self.viewport().update()
+            self.view.viewport().update()
+            event.accept()
+            return
+        if self._can_edit() and self._resize_hit(y) is not None:
+            self.setCursor(Qt.CursorShape.SplitVCursor)
+        else:
+            self.unsetCursor()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self._mode is not None:
+            mode = self._mode
+            if mode == "resize":
+                row, start_px = self._resize_row, self._resize_start_height
+                final_px = self.sectionSize(row)
+                self._clear_drag()
+                if final_px != start_px:
+                    zoom = getattr(self.view.host, "table_zoom", 100)
+                    base_h = max(MIN_ROW_HEIGHT, min(MAX_ROW_HEIGHT, round(final_px * 100 / zoom)))
+                    self.view.host.set_row_height(row, base_h)
+                event.accept()
+                return
+            if mode == "pending_move":
+                anchor = self._move_anchor_row
+                self._clear_drag()
+                if anchor is not None and anchor < self._data_rows():
+                    self.view.selectRow(anchor)
+                    self.view.setCurrentIndex(self.view.model().index(anchor, 0))
+                event.accept()
+                return
+            if mode == "move":
+                start, stop = self._move_range
+                drop = self._drop_row
+                self._clear_drag()
+                if drop is not None and not (start <= drop <= stop):
+                    self.view.host.move_rows(start, stop, drop)
+                event.accept()
+                return
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self.cancel_drag():
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._mode == "move" and self._drop_row is not None:
+            y = self.drop_line_y(self._drop_row)
+            if y is not None:
+                painter = QPainter(self.viewport())
+                painter.setPen(QPen(theme.color("accent_dark"), 3))
+                painter.drawLine(0, y, self.viewport().width(), y)
+
+    def _menu(self, position):
+        row = self.logicalIndexAt(position)
+        data_rows = self._data_rows()
+        if not 0 <= row < data_rows:
+            return
+        model = self.view.model()
+        selection = self.view.selectionModel()
+        if selection is not None and not selection.isRowSelected(row, QModelIndex()):
+            self.view.selectRow(row)
+            self.view.setCurrentIndex(model.index(row, 0))
+        self.view.host.update_actions()
+        menu = QMenu(self)
+        menu.addAction(self.view.host.actions["move_rows_up"])
+        menu.addAction(self.view.host.actions["move_rows_down"])
+        menu.addAction(self.view.host.actions["reset_row_height"])
+        menu.addSeparator()
+        menu.addAction(self.view.host.actions["insert_row"])
+        menu.addAction(self.view.host.actions["delete_rows"])
+        menu.exec(self.viewport().mapToGlobal(position))
+        menu.deleteLater()
+
+
 class WorksheetView(QTableView):
     """The data grid: typing, F2 and double click edit; Ctrl+C/X/V and Delete work on the selection."""
 
@@ -196,20 +425,20 @@ class WorksheetView(QTableView):
         super().__init__(parent)
         self.host = host
         self.formula_columns = ()
+        self._custom_height_rows = set()
         heading = WorksheetHeading(self)
         self.setHorizontalHeader(heading)
+        self.setVerticalHeader(WorksheetRowHeader(self))
         self.setModel(model)
         _setup(self)
         self.setObjectName("classicWorksheet")
         self.verticalHeader().setDefaultSectionSize(self.fontMetrics().height() + 4)
-        self.verticalHeader().setMinimumWidth(36)
-        self.verticalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
         for column, (first, stop, band, title) in enumerate(model.bands):
             span = stop - first
             minimum = 76 if band == "Row titles" else 73 if span > 1 else 92 if model.roles else 105
             width = (max(heading.fontMetrics().horizontalAdvance(label) for label in (band, title)) + 16) // span
             self.setColumnWidth(column, max(minimum, min(248, width)))
-        self.selectionModel().selectionChanged.connect(lambda *_: heading.viewport().update())
+        self.selectionModel().selectionChanged.connect(self._selection_changed)
         model.headerDataChanged.connect(lambda *_: heading.updateGeometry())
         self.setSelectionMode(QAbstractItemView.SelectionMode.ContiguousSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.AnyKeyPressed
@@ -229,6 +458,42 @@ class WorksheetView(QTableView):
             action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
             action.triggered.connect(handler)
             self.addAction(action)
+
+    def _selection_changed(self, *_):
+        self.horizontalHeader().viewport().update()
+        self.host.update_actions()
+
+    def apply_row_heights(self, zoom=100):
+        header = self.verticalHeader()
+        default_height = self.fontMetrics().height() + 4
+        header.setDefaultSectionSize(default_height)
+        model = self.model()
+        if model is None:
+            return
+        data_rows = len(model.frame)
+        wanted = {row: max(MIN_ROW_HEIGHT, round(height * zoom / 100))
+                  for row, height in model.dataset.row_heights.items() if 0 <= row < data_rows}
+        for row in self._custom_height_rows - wanted.keys():
+            if row < model.rowCount():
+                header.resizeSection(row, default_height)
+        for row, height in wanted.items():
+            header.resizeSection(row, height)
+        self._custom_height_rows = set(wanted)
+
+    def select_block(self, top, left, bottom, right, *, current_row=None, current_col=None):
+        model = self.model()
+        selection = self.selectionModel()
+        if model is None or selection is None:
+            return
+        top = max(0, min(top, model.rowCount() - 1))
+        bottom = max(top, min(bottom, model.rowCount() - 1))
+        left = max(0, min(left, model.columnCount() - 1))
+        right = max(left, min(right, model.columnCount() - 1))
+        row_cur = top if current_row is None else max(top, min(bottom, current_row))
+        col_cur = left if current_col is None else max(left, min(right, current_col))
+        selection.select(QItemSelection(model.index(top, left), model.index(bottom, right)),
+                         QItemSelectionModel.SelectionFlag.ClearAndSelect)
+        selection.setCurrentIndex(model.index(row_cur, col_cur), QItemSelectionModel.SelectionFlag.NoUpdate)
 
     def box(self):
         return selection_box(self)
@@ -280,8 +545,18 @@ class WorksheetView(QTableView):
             rect = self.visualRect(current).adjusted(1, 1, -1, -1)
             painter.setPen(QPen(theme.color("text"), 2))
             painter.drawRect(rect)
+        header = self.verticalHeader()
+        if isinstance(header, WorksheetRowHeader) and header._mode == "move" and header._drop_row is not None:
+            y = header.drop_line_y(header._drop_row)
+            if y is not None:
+                painter.setPen(QPen(theme.color("accent_dark"), 3))
+                painter.drawLine(0, y, self.viewport().width(), y)
 
     def keyPressEvent(self, event):
+        header = self.verticalHeader()
+        if event.key() == Qt.Key.Key_Escape and isinstance(header, WorksheetRowHeader) and header.cancel_drag():
+            event.accept()
+            return
         if (event.text() == "=" and self.state() != QAbstractItemView.State.EditingState
                 and not (event.modifiers() & (Qt.KeyboardModifier.ControlModifier
                                               | Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier))
@@ -377,6 +652,16 @@ class WorksheetView(QTableView):
             menu.addAction(tr("worksheet.formula.freeze"),
                            lambda: self.host.freeze_worksheet_formula(column))
 
+    def _can_series_column(self, column):
+        model = self.model()
+        if model is None or model.read_only or column < 0:
+            return False
+        if column == len(model.frame.columns):
+            return model.grows_columns()
+        if column > len(model.frame.columns):
+            return False
+        return column not in model.calculated and column not in model.locked and model.numeric[column]
+
     def _heading_menu(self, position):
         heading = self.horizontalHeader()
         menu = QMenu(self)
@@ -387,12 +672,18 @@ class WorksheetView(QTableView):
             menu.addAction(qt("qt.rename_column"), lambda: self.host.rename_column(column))
             if self.host.actions["variable_properties"].isEnabled():
                 menu.addAction(tr("command.variable_properties"), lambda: self.host.edit_variable_properties(column))
+        if self._can_series_column(column):
+            menu.addAction(qt("qt.create_numeric_series"),
+                           lambda: self.host.create_numeric_series(column=column, start_row=0, full_column=True))
         self._add_freeze_action(menu, column)
         if not menu.isEmpty():
             menu.exec(heading.viewport().mapToGlobal(position))
         menu.deleteLater()
 
     def _context_menu(self, position):
+        index = self.indexAt(position)
+        if index.isValid() and not self.selectionModel().isSelected(index):
+            self.setCurrentIndex(index)
         menu = QMenu(self)
         for label, handler in ((tr("command.cut_cells"), self.cut), (tr("command.copy_cells"), self.copy),
                                (tr("ribbon.paste"), self.paste),
@@ -406,6 +697,9 @@ class WorksheetView(QTableView):
         menu.addAction(qt("qt.insert_column"), self.host.insert_column)
         menu.addAction(self.host.actions["delete_columns"])
         menu.addAction(qt("qt.rename_column"), lambda: self.host.rename_column(self.currentIndex().column()))
+        column = index.column() if index.isValid() else self.currentIndex().column()
+        if self._can_series_column(column):
+            menu.addAction(self.host.actions["create_numeric_series"])
         self._add_freeze_action(menu, self.columnAt(position.x()))
         menu.addSeparator()
         menu.addAction(tr("command.toggle_exclusion"), self.host.toggle_exclusion)
