@@ -1,0 +1,10 @@
+Trama Qt smoke · PySide6 6.12.0 · platform xcb
+Screen eDP-1: available 1536×864, device pixel ratio 1.25, logical DPI 96.0
+Screenshots: 14
+
+No problems found.
+
+Desktop checks (widget events at the current display scale):
+OS Linux 7.3.5-2-cachyos — Linux-7.3.5-2-cachyos-x86_64-with-glibc2.44
+[en-light] two-way summary ANOVA 2.05s, device pixel ratio 1.25, QT_SCALE_FACTOR 1.25, command 'Two-way ANOVA from summaries'
+[it-light] two-way summary ANOVA 2.02s, device pixel ratio 1.25, QT_SCALE_FACTOR 1.25, command 'ANOVA a due fattori da riepiloghi'
