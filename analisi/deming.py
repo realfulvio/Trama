@@ -54,6 +54,27 @@ For |b| > 1 the two weights are formed as (1/b) / (1 + q) and q / (1 + q) with q
 overflows; for |b| <= 1 the denominator lambda + b^2 cannot overflow. A point on the line (r = 0) is projected onto
 itself, a zero-length segment. For lambda = 1 the segments are the Euclidean perpendiculars. Results that are not
 finite stop the analysis instead of being drawn.
+
+Paired comparison of two series
+-------------------------------
+``Compare paired series`` is off unless a recipe asks for it. It needs exactly two Y series and compares
+the second with the first on the rows where X and both series are all valid: each row is the same unit
+measured twice. The separate series reports keep their own complete pairs. The extra sheet
+``Paired comparison`` reports both sample sizes, so a series fitted on 10 pairs and a comparison fitted
+on 8 are visible together.
+
+For each coefficient, the estimate is the full-sample Deming fit on those paired rows and the difference
+is second minus first. The standard error uses the n leave-one-out differences from
+``leave_one_out_coefficients``, deleting the same row from both fits:
+
+sqrt((n-1)/n * sum (delta_i - mean of the deltas)^2).
+
+The interval and the two-sided p use a Student t on n-1 degrees of freedom at the analysis confidence
+level. Both p values are individual. The sheet calls the procedure an approximate jackknife (t). At
+least 6 paired rows are required. A paired fit that is not defined, a degenerate leave-one-out fit, a
+zero standard error or more than ``JACKKNIFE_LIMIT`` paired rows keeps every coefficient that can be
+computed and leaves the missing inference blank, with the reason on the sheet. The intercept is the
+value at X = 0; the sheet says when 0 lies outside the paired X range.
 """
 from dataclasses import dataclass
 import numbers
@@ -199,6 +220,11 @@ PROJECTIONS = "Show projections"
 INTERVAL_METHOD = "Parameter intervals"
 LEVEL = "Confidence level (%)"
 SERIES_LIMIT = 12
+PAIRED = "Compare paired series"
+PAIRED_SHEET = "Paired comparison"
+PAIRED_MINIMUM = 6
+PAIRED_INTERVAL = "Approximate jackknife (t)"
+PAIRED_P_NOTE = "Individual two-sided p values; they are not adjusted across the two coefficients."
 EXTENDED_KEYS = (UNCERTAINTY, X_SD, Y_SD, Y_SERIES, PROJECTIONS)
 SERIES_COLUMN = "Series"
 PROJECTED_COLUMNS = ("Projected X", "Projected Y")
@@ -222,6 +248,7 @@ class Settings:
     level: float
     projections: bool
     extended: bool
+    paired: bool = False
 
 
 @dataclass
@@ -295,6 +322,21 @@ def _series_names(frame, options):
     return names
 
 
+def _paired_flag(options):
+    """False when the recipe does not ask. Anything other than on or off is a field error."""
+    if PAIRED not in options:
+        return False
+    flag = options[PAIRED]
+    if not isinstance(flag, (bool, np.bool_)):
+        raise FieldError(PAIRED, "Compare paired series must be on or off.")
+    return bool(flag)
+
+
+def uses_extension(options):
+    """True when a recipe uses known SDs, at least one Y series, or projections."""
+    return bool(options.get(UNCERTAINTY) == KNOWN_SDS or options.get(Y_SERIES) or options.get(PROJECTIONS))
+
+
 def read_settings(frame, options):
     """Validate the new keys. Recipes that do not use them keep every legacy value untouched."""
     mode = options.get(UNCERTAINTY, VARIANCE_RATIO)
@@ -304,6 +346,10 @@ def read_settings(frame, options):
     if not isinstance(projections, (bool, np.bool_)):
         raise FieldError(PROJECTIONS, "Show projections must be on or off.")
     series = _series_names(frame, options)
+    paired = _paired_flag(options)
+    if paired and (series is None or len(series) != 2):
+        raise FieldError(PAIRED, "The paired comparison needs exactly two Y series. "
+                                 "The second is compared with the first.")
     known = mode == KNOWN_SDS
     intervals = options.get(INTERVAL_METHOD, "None")
     level = options.get(LEVEL, 95.0)
@@ -317,7 +363,7 @@ def read_settings(frame, options):
         raise FieldError("X", f'X column "{x}" is not in the worksheet.')
     if intervals not in _INTERVALS:
         raise FieldError(INTERVAL_METHOD, 'Parameter intervals must be "None" or "Jackknife (t)".')
-    if intervals == "Jackknife (t)":
+    if intervals == "Jackknife (t)" or paired:
         try:
             level = _level(level)
         except ValueError as error:
@@ -330,7 +376,35 @@ def read_settings(frame, options):
         x_sd = y_sd = None
         ratio = _positive(options, RATIO, required_text="Y / X error variance is required.")
     y = None if series is not None else options["Y"]
-    return Settings(x, y, series, ratio, x_sd, y_sd, intervals, level, bool(projections), True)
+    return Settings(x, y, series, ratio, x_sd, y_sd, intervals, level, bool(projections), True, paired)
+
+
+def check_dialog(frame, options):
+    """Refuse a bad Deming recipe before the worker. The historical wording stays."""
+    if options.get(UNCERTAINTY, VARIANCE_RATIO) == VARIANCE_RATIO:
+        ratio = options[RATIO]
+        if not _real(ratio) or not np.isfinite(ratio) or ratio <= 0:
+            raise FieldError(RATIO, f"{RATIO} must be finite and greater than 0.")
+    if options.get(INTERVAL_METHOD) == "Jackknife (t)":
+        level = options.get(LEVEL)
+        if level is None or not _real(level) or not np.isfinite(level) or not 0 < float(level) < 100:
+            raise FieldError(LEVEL, f"{LEVEL} must be finite and strictly between 0 and 100.")
+    if uses_extension(options) or _paired_flag(options):
+        read_settings(frame, options)
+
+
+def prune_paired(options, saved):
+    """Leave the paired key out of a recipe that never had it and still has it off."""
+    saved = saved if isinstance(saved, dict) else {}
+    if PAIRED not in saved and options.get(PAIRED) is False:
+        options.pop(PAIRED, None)
+    return options
+
+
+def format_error(error):
+    """The Deming message in the active language. Unlisted sentences stay in English."""
+    from .i18n import translate_message, ui
+    return translate_message(str(error), "deming.error.", convert={"field": ui})
 
 
 def project_points(x_values, y_values, slope, intercept, ratio):
@@ -437,9 +511,154 @@ def _series_report(rows, settings):
     return table
 
 
-def analyse_fit(frame, options):
+PAIRED_COLUMNS = (
+    "Coefficient", "First series", "Second series", "First N", "Second N", "Paired N",
+    "First", "Second", "Difference", "SE", "df", "CI low", "CI high", "Individual p",
+    "Interval", "p note", "Status", "Y / X measurement error variance", "Confidence level (%)",
+)
+_PAIRED_BLANK = ("First", "Second", "Difference", "SE", "df", "CI low", "CI high", "Individual p")
+_EXTRAPOLATED = "The intercept is the value at X = 0, outside the observed paired X range."
+_ZERO_SE = "The jackknife standard error is zero, so the inference is unavailable."
+_DEGENERATE_PAIRED = ("A leave-one-out fit is degenerate, so the standard error and the inference "
+                      "are unavailable.")
+_WORK_LIMIT_PAIRED = ("The jackknife work limit of {limit} paired rows was exceeded, so the standard "
+                      "error and the inference are unavailable.")
+
+
+def _stop_if_cancelled(cancel):
+    """``cancel`` is the worker's ``threading.Event``, or a callable in a test."""
+    if cancel is None:
+        return
+    stopped = bool(cancel.is_set()) if hasattr(cancel, "is_set") else bool(cancel())
+    if stopped:
+        from .analysis_chain import ChainCancelled
+        raise ChainCancelled("Deming paired comparison cancelled.")
+
+
+def _paired_table(rows):
+    table = pd.DataFrame(rows, columns=PAIRED_COLUMNS)
+    for name in ("Coefficient", "First series", "Second series", "Interval", "p note", "Status"):
+        table[name] = table[name].fillna("").astype(object)
+    return table
+
+
+def _paired_base(settings, fits, paired_n):
+    first, second = settings.series
+    counted = {fit.name: len(fit.x) for fit in fits}
+    return {
+        "First series": first, "Second series": second,
+        "First N": int(counted[first]), "Second N": int(counted[second]), "Paired N": int(paired_n),
+        "Y / X measurement error variance": settings.ratio, "Confidence level (%)": settings.level,
+    }
+
+
+def _paired_status(settings, fits, paired_n, status):
+    """Two rows, one per coefficient, with the counts and a reason instead of an inference."""
+    base = _paired_base(settings, fits, paired_n)
+    rows = []
+    for coefficient in ("Slope", "Intercept"):
+        row = {**base, "Coefficient": coefficient, "Interval": "", "p note": "", "Status": status}
+        for name in _PAIRED_BLANK:
+            row[name] = np.nan
+        rows.append(row)
+    return _paired_table(rows)
+
+
+def _paired_line(x_values, y_values, ratio):
+    report, _points = exploration.deming(pd.DataFrame({"X": x_values, "Y": y_values}), "X", "Y", float(ratio))
+    slope, intercept = float(report["Slope"]), float(report["Intercept"])
+    if not (np.isfinite(slope) and np.isfinite(intercept)):
+        raise ValueError("The paired coefficients are outside the representable range.")
+    return slope, intercept
+
+
+def _outside_zero(x_values):
+    low, high = float(np.min(x_values)), float(np.max(x_values))
+    return not low <= 0.0 <= high
+
+
+def paired_comparison(frame, settings, fits, cancel=None):
+    """One sheet: second series minus first, on the rows where X and both series are valid."""
+    _stop_if_cancelled(cancel)
+    first_name, second_name = settings.series
+    try:
+        paired = complete(frame, [settings.x, first_name, second_name])
+    except ValueError as error:
+        raise FieldError(PAIRED, str(error)) from error
+    count = len(paired)
+    if count < PAIRED_MINIMUM:
+        return _paired_status(settings, fits, count,
+                              f"At least {PAIRED_MINIMUM} paired rows are required; {count} are available.")
+    x_values = paired[settings.x].to_numpy(dtype=float)
+    series_values = {first_name: paired[first_name].to_numpy(dtype=float),
+                     second_name: paired[second_name].to_numpy(dtype=float)}
+    lines, problems = {}, []
+    for name, values in series_values.items():
+        try:
+            lines[name] = _paired_line(x_values, values, settings.ratio)
+        except ValueError as error:
+            problems.append((name, str(error)))
+    if problems:
+        detail = "; ".join(f'"{name}": {message}' for name, message in problems)
+        return _paired_status(settings, fits, count, f"The paired fit is not defined. {detail}")
+    first_line, second_line = lines[first_name], lines[second_name]
+    extrapolated = _outside_zero(x_values)
+    base = _paired_base(settings, fits, count)
+    if count > JACKKNIFE_LIMIT:
+        reason = _WORK_LIMIT_PAIRED.format(limit=JACKKNIFE_LIMIT)
+        replicates = None
+    else:
+        _stop_if_cancelled(cancel)
+        omitted = [leave_one_out_coefficients(x_values, series_values[name], settings.ratio)
+                   for name in (first_name, second_name)]
+        if omitted[0] is None or omitted[1] is None:
+            reason = _DEGENERATE_PAIRED
+            replicates = None
+        else:
+            reason = ""
+            replicates = (omitted[1][0] - omitted[0][0], omitted[1][1] - omitted[0][1])
+    degrees = count - 1
+    critical = float(stats.t.isf((100.0 - settings.level) / 200.0, degrees)) if replicates is not None else np.nan
+    rows = []
+    for index, coefficient in enumerate(("Slope", "Intercept")):
+        first, second = first_line[index], second_line[index]
+        difference = second - first
+        status = []
+        standard_error = np.nan
+        if replicates is None:
+            status.append(reason)
+        else:
+            standard_error = float(_jackknife_se(replicates[index]))
+            if not np.isfinite(standard_error):
+                status.append("The jackknife standard error is not finite, so the inference is unavailable.")
+            elif standard_error == 0.0:
+                status.append(_ZERO_SE)
+        if coefficient == "Intercept" and extrapolated:
+            status.append(_EXTRAPOLATED)
+        ran = replicates is not None and np.isfinite(standard_error)
+        row = {**base, "Coefficient": coefficient, "First": first, "Second": second,
+               "Difference": difference, "SE": standard_error,
+               "Interval": PAIRED_INTERVAL if ran else "", "p note": "", "Status": " ".join(status)}
+        for name in ("df", "CI low", "CI high", "Individual p"):
+            row[name] = np.nan
+        if replicates is not None and np.isfinite(standard_error) and standard_error > 0.0:
+            half = critical * standard_error
+            low, high = difference - half, difference + half
+            probability = float(2.0 * stats.t.sf(abs(difference / standard_error), degrees))
+            if np.isfinite(low) and np.isfinite(high) and np.isfinite(probability):
+                row.update({"df": degrees, "CI low": low, "CI high": high, "Individual p": probability,
+                            "Interval": PAIRED_INTERVAL, "p note": PAIRED_P_NOTE})
+            else:
+                row["Status"] = " ".join([*status, "The interval cannot be represented as finite numbers."])
+        rows.append(row)
+    return _paired_table(rows)
+
+
+def analyse_fit(frame, options, cancel=None):
     """Fit, tabulate and prepare the drawing data for Deming regression, legacy or extended."""
     settings = read_settings(frame, options)
+    if settings.paired:
+        _stop_if_cancelled(cancel)
     if not settings.extended:
         report, points, pairs = jackknife_deming(frame, settings.x, settings.y, options["Y / X error variance"],
                                                  intervals=settings.intervals, level=settings.level)
@@ -463,4 +682,6 @@ def analyse_fit(frame, options):
     tables = {"Deming regression": _series_report(rows, settings),
               "Data": pd.concat(data, ignore_index=True),
               "Pairs": pd.concat(all_pairs, ignore_index=True)}
+    if settings.paired:
+        tables[PAIRED_SHEET] = paired_comparison(frame, settings, fits, cancel)
     return Fit(settings, tables, fits)

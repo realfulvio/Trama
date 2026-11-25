@@ -208,9 +208,9 @@ def _bland_altman(frame, o):
     return Result({"Agreement": _report(report), "Paired values": points}, fig)
 
 
-def _xy(method, frame, o):
+def _xy(method, frame, o, cancel=None):
     if method == "Deming regression":
-        return deming_result(frame, o)
+        return deming_result(frame, o, cancel=cancel)
     x, y = o["X"], o["Y"]
     fig, ax = _plot(method, x, y)
     report, points = exploration.area_under_curve(frame, x, y, o["Baseline"])
@@ -416,7 +416,7 @@ def _spline_fit(frame, o):
     return Result(fitted.tables, fig)
 
 
-def extra_analysis(method, frame, o):
+def extra_analysis(method, frame, o, cancel=None):
     if method == spline_fit.SPLINE_FIT:
         return _spline_fit(frame, o)
     if method == "Mixed-effects model (REML)":
@@ -466,7 +466,7 @@ def extra_analysis(method, frame, o):
     if method == "Area under curve":
         return auc_peaks.auc_result(frame, o)
     if method == "Deming regression":
-        return _xy(method, frame, o)
+        return _xy(method, frame, o, cancel=cancel)
     if method == "Interpolate a standard curve":
         return _standard_curve(frame, o)
     if method == "Smooth / differentiate / integrate":

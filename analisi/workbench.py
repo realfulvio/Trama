@@ -1652,4 +1652,4 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return normalize_to_references(frame, o)
     if method == mcnemar_power.METHOD:
         return mcnemar_power.analysis(frame, o, cancel=cancel)
-    return extra_analysis(method, frame, o)
+    return extra_analysis(method, frame, o, cancel=cancel)
