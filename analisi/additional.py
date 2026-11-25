@@ -9,6 +9,7 @@ from . import (auc_peaks, cox_outputs, design, exploration, independent_roc, inf
 from . import plot_function as function_plot
 from . import deming as deming_module
 from .deming_plot import deming_result
+from . import passing_bablok
 from . import nonlinear_calibration as calibration
 from .nonlinear_calibration import CURVES, INVERSE_MODELS, interpolate_standard_curve
 from .processing import METHODS as PROCESSING_METHODS, processing_analysis
@@ -54,6 +55,7 @@ EXTRA_METHODS = {
                      exploration.COVERAGE: exploration.DEFAULT_PERCENT,
                      exploration.CONFIDENCE: exploration.DEFAULT_PERCENT,
                      exploration.LIMIT_INTERVALS: False, exploration.CONFIDENCE_BANDS: False},
+    passing_bablok.METHOD: passing_bablok.OPTIONS,
     "Deming regression": {"X": None, "Y": None, deming_module.Y_SERIES: OPTIONAL_MULTIPLE,
                           # Variance ratio is first, so a recipe without these keys keeps the historical fit.
                           deming_module.UNCERTAINTY: deming_module.UNCERTAINTY_CHOICES,
@@ -467,6 +469,8 @@ def extra_analysis(method, frame, o, cancel=None):
         return auc_peaks.auc_result(frame, o)
     if method == "Deming regression":
         return _xy(method, frame, o, cancel=cancel)
+    if method == passing_bablok.METHOD:
+        return passing_bablok.analyse(frame, o, cancel=cancel)
     if method == "Interpolate a standard curve":
         return _standard_curve(frame, o)
     if method == "Smooth / differentiate / integrate":

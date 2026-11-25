@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "tables": [
+    {
+      "title": "Metodi",
+      "columns": [
+        "Row title",
+        "Riferimento",
+        "Metodo"
+      ],
+      "kinds": [
+        "text",
+        "numeric",
+        "numeric"
+      ],
+      "rows": [
+        [
+          "U1",
+          1,
+          4
+        ],
+        [
+          "U2",
+          2,
+          2
+        ],
+        [
+          "U3",
+          3,
+          5
+        ],
+        [
+          "U4",
+          4,
+          7
+        ],
+        [
+          "U5",
+          5,
+          null
+        ],
+        [
+          "U6",
+          6,
+          20
+        ]
+      ],
+      "formulas": [],
+      "analyses": [
+        [
+          "Passing–Bablok regression",
+          {
+            "X": "Riferimento",
+            "Y": "Metodo",
+            "Confidence level (%)": 95.0,
+            "Identity line": true
+          }
+        ]
+      ],
+      "excluded": [
+        [
+          5,
+          2
+        ]
+      ],
+      "table_format": "multivariable",
+      "graph_styles": {}
+    }
+  ],
+  "layouts": []
+}
