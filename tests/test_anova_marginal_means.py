@@ -265,6 +265,22 @@ class RequestTests(unittest.TestCase):
             {means.ENABLED: True, means.OVERALL: True}, ["A"])
         self.assertEqual((factors, include, confidence), ([], True, 0.95))
 
+    def test_italian_errors_use_the_sentences_the_engine_raises(self):
+        import string
+        from analisi.i18n import _EN, set_language
+        sample = {"factor": "“A”", "text": "“1”", "cells": 3, "limit": 4096}
+        set_language("it")
+        try:
+            for key, english in means.ERRORS.items():
+                self.assertEqual(_EN[f"anova.means.error.{key}"], english)
+                names = [name for _, name, _, _ in string.Formatter().parse(english) if name]
+                text = english.format(**{name: sample[name] for name in names})
+                italian = means.localized(text)
+                self.assertNotEqual(italian, text)
+                self.assertNotIn("{", italian)
+        finally:
+            set_language("en")
+
     def test_special_characters_stay_literal(self):
         levels, doses = ['B |', '100%', 'µ "x"'], ["low", "high"]
         rows = [(level, dose, value) for level in levels for dose in doses for value in (1.0, 3.0)]

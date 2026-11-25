@@ -16,6 +16,9 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
                                QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QTreeWidget, QTreeWidgetItem,
                                QVBoxLayout, QWidget, QHeaderView, QAbstractItemView)
 
+from analisi.anova_marginal_means import CONFIDENCE as MEANS_CONFIDENCE
+from analisi.anova_marginal_means import FACTOR_LIST as MEANS_FACTOR_LIST, FACTORS as MEANS_FACTORS
+from analisi.anova_marginal_means import OVERALL as MEANS_OVERALL, PANEL as MEANS_PANEL
 from analisi.anova_planned_contrasts import ALPHA as CONTRAST_ALPHA, CONTRAST_LIST, CORRECTION as CONTRAST_CORRECTION
 from analisi.anova_planned_contrasts import FACTOR_LIST as CONTRAST_FACTOR_LIST
 from analisi.anova_terms import TERM_LIST
@@ -59,7 +62,8 @@ from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS,
                                OPTIONAL_MULTIPLE, TEXT, check_survival_options, classic_roles)
 from analisi.stats import GEOMETRIC_REPORT, SUMMARY_FORMAT, summary_confidence, summary_fields
 
-from . import anova_model, ellipse_groups, global_catalog, global_fit, logistic_validation, planned_contrasts
+from . import (anova_model, ellipse_groups, global_catalog, global_fit, logistic_validation, marginal_means,
+                planned_contrasts)
 from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
 from . import rm_sphericity_dialog as sphericity_options
@@ -97,6 +101,7 @@ CATEGORY_ROLES = {"Group", "Rows", "Columns", "Subject", "Row label", "Row facto
                   "X categories", "Y categories", "X factor", "Series factor"}
 VARIABLE_KINDS = (None, OPTIONAL, MULTIPLE, OPTIONAL_MULTIPLE)
 PLANNED_PANEL_FIELDS = {CONTRAST_CORRECTION, CONTRAST_ALPHA}
+MEANS_PANEL_FIELDS = {MEANS_FACTORS, MEANS_OVERALL, MEANS_CONFIDENCE}
 
 
 def _text_defaults(method):
@@ -533,6 +538,8 @@ class AnalysisDialog(QDialog):
             if kind == CONTRAST_FACTOR_LIST or (kind != CONTRAST_LIST and label in PLANNED_PANEL_FIELDS
                                                 and CONTRAST_LIST in METHODS[self.method].values()):
                 continue  # the Planned contrasts… editor holds these fields
+            if kind == MEANS_FACTOR_LIST or label in MEANS_PANEL_FIELDS:
+                continue  # the estimated-marginal-means panel holds these fields
             variable = (kind in VARIABLE_KINDS or label == "Input format") and label not in {
                 "Comparison factor", "Condition on factors"}
             if self.method == extraction.EXTRACT_REARRANGE and label == extraction.OUTPUT:
@@ -586,6 +593,7 @@ class AnalysisDialog(QDialog):
             caption.setMinimumWidth(150)
             caption.setMaximumWidth(230)
             widget = None
+            bare = False
             if kind in (MULTIPLE, OPTIONAL_MULTIPLE):
                 widget = QListWidget()
                 widget.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
@@ -652,6 +660,9 @@ class AnalysisDialog(QDialog):
                 widget = anova_model.TermEditor(saved.get(label))
             elif kind == CONTRAST_LIST:  # Multifactor ANOVA planned contrasts; bound by anova_model.attach
                 widget = planned_contrasts.ContrastPanel(saved)
+            elif kind == MEANS_PANEL:  # Estimated marginal means; the panel writes the four recipe keys
+                widget = marginal_means.MeansPanel(saved)
+                bare = True
             elif kind == EQUATION_TEXT:
                 widget = QPlainTextEdit(str(saved.get(label, DEFAULT_EQUATION)))
                 widget.setMinimumHeight(90)
@@ -715,13 +726,15 @@ class AnalysisDialog(QDialog):
             full_width = (kind in (TERM_LIST, CONTRAST_LIST, global_fit.PARAMETER_LIST, global_fit.SERIES_LIST)
                           or isinstance(widget, (Profiles, ordinal_options.OrderEditor, kappa_options.CategoryOrder,
                                                  FunctionCurves, TransposeSets)))
-            if full_width:
+            if bare:
+                form.addRow(widget)  # the panel carries its own caption, so the form label is not repeated
+            elif full_width:
                 form.addRow(caption)
                 form.addRow(widget)
             else:
                 form.addRow(caption, widget)
             self.controls[label] = (kind, widget)
-            self.rows[label] = (caption, widget, form)
+            self.rows[label] = (widget if bare else caption, widget, form)
         variable_lists = [(self.rows[label][0], widget) for label, (kind, widget) in self.controls.items()
                           if kind in (MULTIPLE, OPTIONAL_MULTIPLE) and self.rows[label][2] is variables]
         if any(widget.count() > 8 for _, widget in variable_lists):
@@ -1135,7 +1148,15 @@ class AnalysisDialog(QDialog):
                 scroll.ensureWidgetVisible(widget)
                 break
         # A compound editor puts the cursor on the cell the error is about.
-        if not (hasattr(widget, "focus_problem") and widget.focus_problem(error)):
+        # ``field`` is optional: the marginal-means panel uses it, the other editors do not.
+        handler = getattr(widget, "focus_problem", None)
+        handled = False
+        if handler is not None:
+            try:
+                handled = handler(error, field=name)
+            except TypeError:
+                handled = handler(error)
+        if not handled:
             widget.setFocus()
         return True
 
@@ -1195,6 +1216,8 @@ class AnalysisDialog(QDialog):
                 options[name] = control.values()
             elif kind == CONTRAST_LIST:
                 options.update(control.values())  # the four planned-contrast keys, or none
+            elif kind == MEANS_PANEL:
+                options.update(control.values())  # the four marginal-mean keys, or none while the option is off
             elif kind == EQUATION_TEXT:
                 options[name] = control.toPlainText().strip()
             elif kind == PARAMETER_LIST:

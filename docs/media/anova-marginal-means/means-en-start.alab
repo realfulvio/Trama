@@ -1,0 +1,1 @@
+{"version":2,"tables":[{"title":"Oracle 2 × 2","columns":["A","B","Y"],"kinds":["text","text","numeric"],"rows":[["A0","B0",1],["A0","B0",3],["A0","B1",5],["A0","B1",7],["A0","B1",9],["A0","B1",11],["A1","B0",4],["A1","B0",6],["A1","B0",8],["A1","B1",9],["A1","B1",11]],"formulas":[],"analyses":[],"excluded":[],"table_format":"multivariable","graph_styles":{}}],"layouts":[]}

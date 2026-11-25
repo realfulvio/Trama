@@ -4282,6 +4282,64 @@ _ANOVA_CONTRASTS_IT = {
 _EN.update(_ANOVA_CONTRASTS_EN)
 _IT.update(_ANOVA_CONTRASTS_IT)
 
+# Estimated marginal means of Multifactor ANOVA. The error values are the English sentences the
+# engine raises, so translate_message can match them. The dialog shows a percent; the recipe stores
+# a proportion.
+_ANOVA_MEANS_EN = {
+    "anova.means.field.enabled": "Estimated marginal means",
+    "anova.means.field.factors": "Marginal mean factors",
+    "anova.means.field.overall": "Include overall mean",
+    "anova.means.field.confidence": "Marginal mean confidence",
+    "anova.means.help": "One row for every combination of the ticked factors. Factors left unticked are averaged "
+                        "with equal weight on each cell of the model, so an unbalanced margin is not the raw mean "
+                        "of the rows.",
+    "anova.means.factors": "Factors",
+    "anova.means.overall": "Include the overall mean",
+    "anova.means.confidence": "Confidence (%)",
+    "anova.means.weighting": "Each mean uses the same weight on every cell of the reference grid. Intervals are "
+                             "two-sided t intervals on the residual degrees of freedom of this fit.",
+    "anova.means.note.absent": "{factors} are no longer factors of the model. Untick them.",
+    "anova.means.error.enabled": "Choose whether to report estimated marginal means.",
+    "anova.means.error.factors_type": "Choose the factors of the estimated marginal means.",
+    "anova.means.error.factors_repeat": "{factor} is chosen more than once for the estimated marginal means.",
+    "anova.means.error.factors_absent": "{factor} is not a factor of the model, so estimated marginal means cannot use it.",
+    "anova.means.error.factors_empty": "Choose at least one factor, or include the overall mean.",
+    "anova.means.error.overall": "Choose whether to include the overall mean.",
+    "anova.means.error.confidence": "The confidence level must be a finite number greater than 0 and less than 1.",
+    "anova.means.error.percent": "Enter a confidence percentage greater than 0 and less than 100.",
+    "anova.means.error.grid": "Estimated marginal means average over {cells} cells of the model factors. The limit is {limit}.",
+    "anova.means.error.collision": "Two different categories of {factor} read as the same text, {text}. Make the categories "
+                                   "distinct before using estimated marginal means.",
+}
+_ANOVA_MEANS_IT = {
+    "anova.means.field.enabled": "Medie marginali stimate",
+    "anova.means.field.factors": "Fattori delle medie marginali",
+    "anova.means.field.overall": "Includi la media complessiva",
+    "anova.means.field.confidence": "Confidenza delle medie marginali",
+    "anova.means.help": "Una riga per ogni combinazione dei fattori spuntati. I fattori non spuntati sono mediati "
+                        "con lo stesso peso su ogni cella del modello, quindi una media marginale sbilanciata non è "
+                        "la media grezza delle righe.",
+    "anova.means.factors": "Fattori",
+    "anova.means.overall": "Includi la media complessiva",
+    "anova.means.confidence": "Confidenza (%)",
+    "anova.means.weighting": "Ogni media usa lo stesso peso su ogni cella della griglia di riferimento. Gli intervalli "
+                             "sono t bilaterali sui gradi di libertà residui di questo adattamento.",
+    "anova.means.note.absent": "{factors} non sono più fattori del modello. Togli la spunta.",
+    "anova.means.error.enabled": "Scegli se riportare le medie marginali stimate.",
+    "anova.means.error.factors_type": "Scegli i fattori delle medie marginali stimate.",
+    "anova.means.error.factors_repeat": "{factor} è scelto più di una volta per le medie marginali stimate.",
+    "anova.means.error.factors_absent": "{factor} non è un fattore del modello, quindi le medie marginali stimate non possono usarlo.",
+    "anova.means.error.factors_empty": "Scegli almeno un fattore, oppure includi la media complessiva.",
+    "anova.means.error.overall": "Scegli se includere la media complessiva.",
+    "anova.means.error.confidence": "Il livello di confidenza deve essere un numero finito maggiore di 0 e minore di 1.",
+    "anova.means.error.percent": "Inserisci una percentuale di confidenza maggiore di 0 e minore di 100.",
+    "anova.means.error.grid": "Le medie marginali stimate mediano su {cells} celle dei fattori del modello. Il limite è {limit}.",
+    "anova.means.error.collision": "Due categorie diverse di {factor} si leggono come lo stesso testo, {text}. Rendi distinte "
+                                   "le categorie prima di usare le medie marginali stimate.",
+}
+_EN.update(_ANOVA_MEANS_EN)
+_IT.update(_ANOVA_MEANS_IT)
+
 # Repeated measures ANOVA: Greenhouse–Geisser correction for one or two within-subject factors (0.93).
 # The recipe keeps the English choice names; these texts only change what the dialog shows.
 _RM_SPHERICITY_EN = {

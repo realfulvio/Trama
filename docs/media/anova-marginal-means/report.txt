@@ -1,0 +1,8 @@
+Trama Qt smoke · PySide6 6.12.0 · platform wayland
+Screen eDP-1: available 1920×1080, device pixel ratio 1.0, logical DPI 96.0
+Screenshots: 12
+
+No problems found.
+
+Desktop checks (widget events at the current display scale):
+OS Linux 7.3.5-2-cachyos — Linux-7.3.5-2-cachyos-x86_64-with-glibc2.44

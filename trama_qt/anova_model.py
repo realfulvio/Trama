@@ -27,6 +27,7 @@ from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
                                QListWidget, QListWidgetItem, QPushButton, QSizePolicy, QVBoxLayout, QWidget)
 
+from analisi import anova_marginal_means as marginal
 from analisi import anova_planned_contrasts as planned
 from analisi.anova_diagnostics import ASSUMPTIONS, TEST_SET
 from analisi.anova_contrast_editor import check_contrast_input, contrast_context
@@ -532,9 +533,20 @@ class AnovaFields:
                 dialog.rows[key] = dialog.rows[planned.CONTRASTS]
             self.editor.changed.connect(self.contrasts.refresh)
             self.response.currentIndexChanged.connect(lambda _index: self.contrasts.refresh())
+        # Estimated marginal means: the panel lists the model factors as the dialog stands.
+        self.means = controls[marginal.ENABLED][1] if marginal.ENABLED in controls else None
+        if self.means is not None:
+            self.means.context = self.contrast_context
+            for key in (marginal.FACTORS, marginal.OVERALL, marginal.CONFIDENCE):
+                dialog.rows[key] = dialog.rows[marginal.ENABLED]
+            self.editor.changed.connect(self.means.refresh)
+            self.response.currentIndexChanged.connect(lambda _index: self.means.refresh())
+            self.order.moved.connect(self.means.refresh)
         self.order.refresh()
         self.editor.refresh()  # the term check boxes follow the order of the recipe being edited
         self.sync_mode()
+        if self.means is not None:
+            self.means.refresh()
 
     # -- live state -------------------------------------------------------------------------------
     def ticked(self):
@@ -646,6 +658,9 @@ class AnovaFields:
         check_anova_options(options)
         model = active_factors(factors, terms) if terms is not None else list(factors)
         check_contrast_input(options, self.dialog.data, model)
+        request = marginal.check_options(options, model)
+        if request is not None:
+            marginal.check_data(request, self.dialog.data, options.get("Response"), model)
         validate_diagnostics(options)
         graph = graph_choice(options)
         if graph != "None":
