@@ -124,8 +124,7 @@ def _summary(rows, note):
     return _report(rows)
 
 
-def _mann_whitney(frame, options):
-    p_method, alternative, continuity, _ = check_options(MANN_WHITNEY, options)
+def _mann_whitney_data(frame, options):
     response, group = options["Response"], options["Group"]
     if response == group:
         raise FieldError("Group", "Choose different columns for Response and Group.")
@@ -135,9 +134,49 @@ def _mann_whitney(frame, options):
         raise FieldError("Group", "Mann–Whitney needs exactly two groups.")
     values = data[response].to_numpy(dtype=float)
     first = (data[group] == labels[0]).to_numpy()
+    doubled = doubled_ranks(values)
+    ranks = pd.DataFrame({"Source row": frame.index.take(data.index).to_numpy(), "Group": data[group].to_numpy(),
+                          "Value": values, "Rank": doubled / 2})
+    positions = data.index.to_numpy(dtype=np.int64) + 1
+    return values, labels, first, doubled, ranks, positions
+
+
+def _wilcoxon_data(frame, options, zero):
+    first_name, second_name = options["First"], options["Second"]
+    if first_name == second_name:
+        raise FieldError("Second", "Choose different columns for First and Second.")
+    data = engine.complete(frame.reset_index(drop=True), [first_name, second_name])
+    if not len(data):
+        raise ValueError("Wilcoxon needs at least one complete pair.")
+    first, second = data[first_name].to_numpy(dtype=float), data[second_name].to_numpy(dtype=float)
+    difference = first - second
+    nonzero = difference != 0
+    if zero == PRATT:
+        doubled = doubled_ranks(np.abs(difference))
+    else:
+        doubled = np.zeros(len(difference), dtype=np.int64)
+        doubled[nonzero] = doubled_ranks(np.abs(difference[nonzero]))
+    ranked = np.where(nonzero | (zero == PRATT), doubled / 2, np.nan)
+    ranks = pd.DataFrame({"Source row": frame.index.take(data.index).to_numpy(), "First": first, "Second": second,
+                          "Difference": difference, "Absolute rank": ranked, "Included": nonzero})
+    positions = data.index.to_numpy(dtype=np.int64) + 1
+    return first, second, difference, nonzero, doubled, ranks, positions
+
+
+def rank_table_only(method, frame, options):
+    """Build the exact ``Ranks`` table and validated 1-based source positions for legacy rank recipes."""
+    if method == MANN_WHITNEY:
+        _, _, _, _, ranks, positions = _mann_whitney_data(frame, options)
+        return ranks, positions
+    _, _, _, _, _, ranks, positions = _wilcoxon_data(frame, options, DISCARD)
+    return ranks, positions
+
+
+def _mann_whitney(frame, options):
+    p_method, alternative, continuity, _ = check_options(MANN_WHITNEY, options)
+    values, labels, first, doubled, ranks, positions = _mann_whitney_data(frame, options)
     size, n1 = len(values), int(first.sum())
     n2 = size - n1
-    doubled = doubled_ranks(values)
     u1 = doubled[first].sum() / 2 - n1 * (n1 + 1) / 2
     u2 = n1 * n2 - u1
 
@@ -156,28 +195,14 @@ def _mann_whitney(frame, options):
             "Rank-biserial": 2 * u1 / (n1 * n2) - 1,
             "First group": labels[0], "Second group": labels[1], "N first": n1, "N second": n2,
             "U first": u1, "U second": u2}
-    ranks = pd.DataFrame({"Source row": frame.index.take(data.index).to_numpy(), "Group": data[group].to_numpy(),
-                          "Value": values, "Rank": doubled / 2})
-    return Result({MANN_WHITNEY: _summary(rows, note), "Ranks": ranks})
+    return Result({MANN_WHITNEY: _summary(rows, note), "Ranks": ranks},
+                  table_contexts={"Ranks": {"positions": positions}})
 
 
 def _wilcoxon(frame, options):
     p_method, alternative, continuity, zero = check_options(WILCOXON, options)
-    first_name, second_name = options["First"], options["Second"]
-    if first_name == second_name:
-        raise FieldError("Second", "Choose different columns for First and Second.")
-    data = engine.complete(frame.reset_index(drop=True), [first_name, second_name])
-    if not len(data):
-        raise ValueError("Wilcoxon needs at least one complete pair.")
-    first, second = data[first_name].to_numpy(dtype=float), data[second_name].to_numpy(dtype=float)
-    difference = first - second
-    nonzero = difference != 0
+    _, _, difference, nonzero, doubled, ranks, positions = _wilcoxon_data(frame, options, zero)
     effective = int(nonzero.sum())
-    if zero == PRATT:
-        doubled = doubled_ranks(np.abs(difference))
-    else:
-        doubled = np.zeros(len(difference), dtype=np.int64)
-        doubled[nonzero] = doubled_ranks(np.abs(difference[nonzero]))
     positive, negative = difference > 0, difference < 0
     w_plus, w_minus = doubled[positive].sum() / 2, doubled[negative].sum() / 2
     used = doubled[nonzero]
@@ -195,16 +220,14 @@ def _wilcoxon(frame, options):
     if not effective:
         p = 1.0
         note = "Every complete pair has a zero difference, so there are no signed ranks to test."
-    rows = {"Statistic": min(w_plus, w_minus) if alternative == TWO_SIDED else w_plus, "p": p, "N": len(data),
+    rows = {"Statistic": min(w_plus, w_minus) if alternative == TWO_SIDED else w_plus, "p": p, "N": len(difference),
             "p method": method, "p method reason": reason, ALTERNATIVE: alternative,
             CONTINUITY: continuity if method == NORMAL else NOT_APPLICABLE,
             "Rank-biserial": (w_plus - w_minus) / (w_plus + w_minus) if effective else np.nan,
-            "Complete pairs": len(data), "Zero pairs": len(data) - effective, "Effective N": effective,
+            "Complete pairs": len(difference), "Zero pairs": len(difference) - effective, "Effective N": effective,
             "W positive": w_plus, "W negative": w_minus, ZERO_DIFFERENCES: zero}
-    ranked = np.where(nonzero | (zero == PRATT), doubled / 2, np.nan)
-    ranks = pd.DataFrame({"Source row": frame.index.take(data.index).to_numpy(), "First": first, "Second": second,
-                          "Difference": difference, "Absolute rank": ranked, "Included": nonzero})
-    return Result({WILCOXON: _summary(rows, note), "Ranks": ranks})
+    return Result({WILCOXON: _summary(rows, note), "Ranks": ranks},
+                  table_contexts={"Ranks": {"positions": positions}})
 
 
 def rank_test(method, frame, options):

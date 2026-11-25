@@ -121,7 +121,9 @@ from .worksheet_row_identity import ROW_SPANS
 from .point_style import attach_points, positions_of
 from .xy_series import XY_METHOD, xy_series
 from .processing import FieldError
-from .rank_tests import MANN_WHITNEY, OPTIONS as RANK_OPTIONS, WILCOXON, is_legacy as legacy_rank_test, rank_test
+from .rank_graphs import rank_plot_options, rank_test_figure
+from .rank_tests import (MANN_WHITNEY, OPTIONS as RANK_OPTIONS, WILCOXON, is_legacy as legacy_rank_test,
+                         rank_table_only, rank_test)
 from .row_tests import ROW_TESTS, OPTIONS as ROW_TEST_OPTIONS, row_tests
 from . import fdr_control
 from .survival_input import (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJUSTED, PAIRWISE_ALPHA,
@@ -1471,9 +1473,22 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
     if method == MEAN_PERMUTATION:
         return permutation_test(frame, o, cancel=cancel)
     if method in {MANN_WHITNEY, WILCOXON} and not legacy_rank_test(o):
-        return rank_test(method, frame, o)
+        plots = rank_plot_options(method, o)
+        result = rank_test(method, frame, o)
+        if not plots:
+            return result
+        positions = result.table_contexts["Ranks"]["positions"]
+        figure = rank_test_figure(method, result.tables, o, frame=frame, source_positions=positions)
+        return Result(result.tables, figure, table_contexts=result.table_contexts)
     if method in {MANN_WHITNEY, WILCOXON, "Kruskal–Wallis"}:
-        return _nonparametric(method, frame, o)
+        plots = rank_plot_options(method, o) if method in {MANN_WHITNEY, WILCOXON} else ()
+        result = _nonparametric(method, frame, o)
+        if not plots:
+            return result
+        ranks_df, positions = rank_table_only(method, frame, o)
+        figure = rank_test_figure(method, {**result.tables, "Ranks": ranks_df}, o,
+                                  frame=frame, source_positions=positions)
+        return Result(result.tables, figure)
     if method == "Correlation":
         # Detailed results is opt-in. A missing or false flag keeps this legacy sheet and ignores new fields.
         if o.get("Detailed results") is True:
