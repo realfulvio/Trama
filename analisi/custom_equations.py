@@ -25,7 +25,10 @@ MAX_LENGTH, MAX_NODES, MAX_DEPTH, MAX_PARAMETERS, MAX_NAME = 1024, 128, 32, 12, 
 VARIABLE = "X"
 CONSTANTS = {"pi": math.pi, "e": math.e}
 FUNCTIONS = {"exp": np.exp, "log": np.log, "log10": np.log10, "sqrt": np.sqrt, "abs": np.abs,
-             "sin": np.sin, "cos": np.cos, "tan": np.tan}
+             "sin": np.sin, "cos": np.cos, "tan": np.tan,
+             # 0.109.x: inverse and hyperbolic functions (NIST Roszman1 needs atan).
+             "asin": np.arcsin, "acos": np.arccos, "atan": np.arctan,
+             "sinh": np.sinh, "cosh": np.cosh, "tanh": np.tanh}
 RESERVED = frozenset({VARIABLE, "Y", *CONSTANTS, *FUNCTIONS})
 ARITHMETIC, CONDITIONAL = SYNTAXES = ("Arithmetic", "Conditional")
 CONDITIONAL_WORDS = ("if", "and", "or", "not")
