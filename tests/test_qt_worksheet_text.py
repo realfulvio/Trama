@@ -477,6 +477,25 @@ class QtTextTests(unittest.TestCase):
         self.assertEqual(self.state("font"), ("uniform", family))
         self.assertEqual(font.currentText(), family)
 
+    def test_toolbar_size_displays_every_digit_and_unit(self):
+        from PySide6.QtWidgets import QStyle, QStyleOptionFrame
+
+        _, view, _ = self.sheet()
+        self.select(view, 0, 0, 0, 0)
+        controls = self.window.toolbar.text_controls
+        editor = controls.size.lineEdit()
+        for language, value in (("en", "95.33 px"), ("it", "95,33 px")):
+            with self.subTest(language=language):
+                set_language(language)
+                self.window.text_format.apply({"size": 71.5})
+                self.window.text_format.update()
+                self.app.processEvents()
+                self.assertEqual(editor.text(), value)
+                option = QStyleOptionFrame()
+                option.initFrom(editor)
+                contents = editor.style().subElementRect(QStyle.SubElement.SE_LineEditContents, option, editor)
+                self.assertGreaterEqual(contents.width(), editor.fontMetrics().horizontalAdvance(value) + 4)
+
     def test_worksheet_editor_has_room_to_type_in_a_short_formatted_row(self):
         from PySide6.QtTest import QTest
         from PySide6.QtWidgets import QAbstractItemView, QLineEdit, QStyle, QStyleOptionFrame

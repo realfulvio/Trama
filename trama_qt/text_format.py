@@ -82,7 +82,8 @@ class ToolbarTextControls:
         self.size.setObjectName("toolbarSize")
         self.size.setEditable(True)
         self.size.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.size.setFixedWidth(77)
+        # Leave room for "95.33 px" and the native dropdown button.
+        self.size.setFixedWidth(88)
         self.size.setMinimumHeight(24)
         self.size.setAccessibleName(qt("qt.toolbar_font_size"))
         self._fill_sizes()
