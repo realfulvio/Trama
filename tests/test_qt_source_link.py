@@ -245,6 +245,32 @@ class SourceLinkWindowTests(unittest.TestCase):
         self.assertIs(self.window.project.tables[title].source_link, link)
         self.assertIn("Update cancelled: nothing changed.", self.messages)
 
+    def test_tab_leaves_read_only_changes_table_and_reaches_apply(self):
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+
+        path = self.folder / "dati.csv"
+        self.copy("iniziale.csv", path)
+        title, _ = self.import_linked(path)
+        self.copy("aggiornato.csv", path)
+        focused = []
+
+        def navigate(dialog):
+            dialog.activateWindow()
+            dialog.table.setFocus()
+            self.app.processEvents()
+            for _ in range(24):
+                focus = self.app.focusWidget()
+                if focus is dialog.apply_button:
+                    focused.append(True)
+                    return False
+                QTest.keyClick(focus, Qt.Key.Key_Tab)
+            return False
+
+        self.update(navigate)
+        self.assertEqual(focused, [True])
+        self.assertEqual(self.ids(title), ["A", "B", "C"])
+
     def test_file_changed_while_the_preview_is_open(self):
         path = self.folder / "dati.csv"
         self.copy("iniziale.csv", path)
