@@ -53,7 +53,7 @@ from analisi.worksheet_row_identity import moved_row_bounds
 from analisi.worksheet_sort import (ASCENDING, plan_row_sort, remap_selection_after_sort,
                                     row_title_sort_column, sort_text, sortable_columns, x_sort_column)
 from analisi.worksheet_text import TextStyles
-from analisi.paired_graphs import shows_paired_estimation
+from analisi.paired_graphs import paired_plot_options
 
 from . import global_catalog
 from . import gui_gc, office, theme
@@ -1162,7 +1162,7 @@ class MainWindow(QMainWindow):
                   or (run.result is None and run.method == power_plan.METHOD and run.options.get(power_plan.SHOW_CURVE))
                   or (run.result is None and run.method == mcnemar_power.METHOD and run.options.get(mcnemar_power.GRAPH))
                   or (run.result is None and run.method == TOLERANCE and run.options.get(TOLERANCE_GRAPH))
-                  or (run.result is None and shows_paired_estimation(run.method, run.options))
+                  or (run.result is None and paired_plot_options(run.method, run.options))
                   or (run.result is None and run.method in ANALYSIS_GRAPH_OPTIONS
                       and run.options.get(*ANALYSIS_GRAPH_OPTIONS[run.method]))
                   or (run.result is None and run.method == cox_outputs.METHOD and not cox_exact.is_exact(run.options)

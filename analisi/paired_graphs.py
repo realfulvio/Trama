@@ -22,6 +22,7 @@ from math import ceil
 from matplotlib.collections import LineCollection
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
 
@@ -35,17 +36,56 @@ from .stats import ci_columns
 
 
 TTEST_ESTIMATION = "Show estimation plot"
+TTEST_DIFFERENCES = "Plot paired differences"
+TTEST_CORRELATION = "Plot paired correlation"
+TTEST_PLOTS = (TTEST_ESTIMATION, TTEST_DIFFERENCES, TTEST_CORRELATION)
+PAIRED_DIFFERENCES = "Paired differences"
 
 
 def shows_paired_estimation(method, options):
     return method == "t-test" and options.get("Design") == "Paired" and options.get(TTEST_ESTIMATION) is True
 
 
-def paired_estimation_figure(first, second, summary, response, *, level=95.):
-    """Plot the complete pairs and the interval calculated by the same test."""
+def paired_plot_options(method, options):
+    if method != "t-test" or options.get("Design") != "Paired":
+        return ()
+    return tuple(name for name in TTEST_PLOTS if options.get(name) is True)
+
+
+def paired_test_figure(first, second, summary, response, plots, *, level):
+    """Draw the requested graphs from the same complete pairs used in the test."""
     first, second = first.to_numpy(dtype=float), second.to_numpy(dtype=float)
-    figure = Figure(figsize=(8, 5), dpi=100, layout="constrained")
-    values, effects = figure.subplots(1, 2, width_ratios=(3, 2))
+    estimated = TTEST_ESTIMATION in plots
+    diagnostics = tuple(name for name in plots if name != TTEST_ESTIMATION)
+    combined = estimated and bool(diagnostics)
+    figure = Figure(figsize=(8, 8 if combined else 5), dpi=100, layout="constrained")
+    grid = figure.add_gridspec(2 if combined else 1, 1)
+    if estimated:
+        cells = grid[0].subgridspec(1, 2, width_ratios=(3, 2))
+        values, effects = (figure.add_subplot(cell) for cell in (cells[0, 0], cells[0, 1]))
+        _draw_paired_estimate(values, effects, first, second, summary, response, level)
+    if diagnostics:
+        cells = grid[-1].subgridspec(1, len(diagnostics))
+        for column, name in enumerate(diagnostics):
+            axes = figure.add_subplot(cells[0, column])
+            axes.spines[["right", "top"]].set_visible(False)
+            if name == TTEST_DIFFERENCES:
+                axes.scatter(np.arange(1, len(first) + 1), first - second, color=COLORS[0], s=22)
+                axes.axhline(0., color="#81929b", linewidth=1, linestyle="--")
+                axes.xaxis.set_major_locator(MaxNLocator(integer=True))
+                axes.set_title(tr("ttest.plot.differences"))
+                axes.set_xlabel(tr("ttest.plot.pair_number"))
+                axes.set_ylabel(f'{summary["First"]} − {summary["Second / null"]}', parse_math=False)
+            else:
+                axes.scatter(second, first, color=COLORS[0], s=22)
+                axes.set_title(tr("ttest.plot.correlation"))
+                axes.set_xlabel(str(summary["Second / null"]), parse_math=False)
+                axes.set_ylabel(str(summary["First"]), parse_math=False)
+    return figure
+
+
+def _draw_paired_estimate(values, effects, first, second, summary, response, level):
+    """Plot the complete pairs and the interval calculated by the same test."""
     pairs = np.stack((np.column_stack((np.zeros(len(second)), second)),
                       np.column_stack((np.ones(len(first)), first))), axis=1)
     values.add_collection(LineCollection(pairs, colors="#a8b7c0", linewidths=.7, alpha=.65))
@@ -74,7 +114,6 @@ def paired_estimation_figure(first, second, summary, response, *, level=95.):
     effects.set_title(tr("ttest.plot.effect"))
     for axes in (values, effects):
         axes.spines[["right", "top"]].set_visible(False)
-    return figure
 
 BEFORE_AFTER = "Before/after"
 TRAJECTORIES = "Subject trajectories"

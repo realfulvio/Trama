@@ -843,6 +843,8 @@ Means at each X|Medie per ogni X
 Symmetric t|t simmetrico
 Profile likelihood|Verosimiglianza profilata
 Show estimation plot|Mostra grafico della stima
+Plot paired differences|Grafico delle differenze appaiate
+Plot paired correlation|Grafico di correlazione delle coppie
 Matched observations|Osservazioni appaiate
 Differences|Differenze
 Mean and 95% CI|Media e IC 95%

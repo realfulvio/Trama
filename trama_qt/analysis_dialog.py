@@ -48,7 +48,7 @@ from analisi import mean_permutation_options as permutation_text
 from analisi import nonlinear_calibration as calibration
 from analisi import ordinal_logit as ordinal
 from analisi import paired_proportions as paired
-from analisi.paired_graphs import TTEST_ESTIMATION
+from analisi.paired_graphs import TTEST_PLOTS
 from analisi.variance_ratio import SHOW as TTEST_VARIANCE
 from analisi import mcnemar_power, monte_carlo, plot_function, power_plan, rmst, transpose_xy
 from analisi import rmst_dialog, rmst_workbench as rmst_form
@@ -834,7 +834,7 @@ class AnalysisDialog(QDialog):
             def show_ttest_fields():
                 mode = design.currentData()
                 self._set_field_visibility({**ttest_options.visibility(mode, layout.currentData()),
-                                            TTEST_ESTIMATION: mode == "Paired",
+                                            **dict.fromkeys(TTEST_PLOTS, mode == "Paired"),
                                             TTEST_VARIANCE: mode in ("Welch", "Student")})
 
             design.currentIndexChanged.connect(show_ttest_fields)
@@ -1212,7 +1212,7 @@ class AnalysisDialog(QDialog):
                 continue
             if name in self.hidden:
                 continue
-            if name in (REPORT_LOG_IC50, TTEST_ESTIMATION) and not control.isChecked():
+            if name in (REPORT_LOG_IC50, *TTEST_PLOTS) and not control.isChecked():
                 continue
             if self.method == "Nonlinear regression" and name == MERGE_REPLICATES and not control.isChecked():
                 continue

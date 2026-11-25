@@ -96,6 +96,52 @@ class ClassicLookTests(unittest.TestCase):
         captions = [label for label in dialog.findChildren(QLabel) if label.text() == placeholder]
         self.assertEqual(captions, [])
 
+    def test_ttest_paired_plot_controls_and_project_roundtrip(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        from analisi import ttest_options as tt
+        from analisi.paired_graphs import PAIRED_DIFFERENCES, TTEST_CORRELATION, TTEST_DIFFERENCES
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.gallery_catalog import graph_runs
+        from trama_qt.project import Project, compute
+        from trama_qt.result_tabs import result_labels
+
+        set_language("it")
+        source = pd.DataFrame({"Soggetto": list("abc"), "Prima": [2., 4., 8.], "Dopo": [1., 5., 5.]})
+        recipe = {
+            "Design": "Paired", tt.INPUT: tt.COLUMNS, tt.FIRST: "Prima", tt.SECOND: "Dopo", "Subject": "Soggetto",
+        }
+        dialog = AnalysisDialog(self.window, source, current=("t-test", recipe), only="t-test")
+        self.addCleanup(dialog.deleteLater)
+        self.assertNotIn(TTEST_DIFFERENCES, dialog.options())
+        self.assertNotIn(TTEST_CORRELATION, dialog.options())
+        for field in (TTEST_DIFFERENCES, TTEST_CORRELATION):
+            self.assertNotIn(field, dialog.hidden)
+            self.assertNotEqual(dialog.rows[field][0].text(), field)
+            dialog.controls[field][1].setChecked(True)
+        options = dialog.options()
+        design = dialog.controls["Design"][1]
+        design.setCurrentIndex(design.findData("Welch"))
+        self.assertTrue({TTEST_DIFFERENCES, TTEST_CORRELATION}.issubset(dialog.hidden))
+        self.assertNotIn(TTEST_DIFFERENCES, dialog.options())
+        project = Project()
+        project.add_tables({"Misure": source})
+        run = project.candidate("Misure", "t-test", options)
+        project.add_result(run, compute(run, source))
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "paired.alab"
+            project.save(path)
+            reopened = Project()
+            reopened.load(path)
+            restored, = reopened.runs
+            self.assertEqual(graph_runs(reopened), [(0, restored)])
+            result = compute(restored, reopened.tables["Misure"].frame(mask_excluded=True))
+            self.assertEqual(len(result.figure.axes), 2)
+            self.assertEqual(result.tables[PAIRED_DIFFERENCES]["Difference"].tolist(), [1., -1., 3.])
+            self.assertEqual(result_labels("t-test", PAIRED_DIFFERENCES),
+                             ("Differenze appaiate", {"Subject": "Soggetto", "Difference": "Differenza"}))
+
     def test_narrow_toolbar_hides_groups_strictly_by_priority(self):
         from trama_qt.classic_bar import OVERFLOW_ORDER
         toolbar = self.window.toolbar

@@ -77,7 +77,9 @@ def preserve_direction(options, frame):
         return
     if "Group order" in options:
         return
-    if alternative == "two-sided" and not options.get(REVERSE):
+    from .paired_graphs import paired_plot_options
+
+    if alternative == "two-sided" and not options.get(REVERSE) and not paired_plot_options("t-test", options):
         return
     group = options["Group"]
     fields = [options["Response"], group]

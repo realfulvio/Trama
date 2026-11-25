@@ -228,7 +228,7 @@ def saved_anova_primary_factor(frame, method, parameters, options):
 
 
 def _paired_t(frame, content, results):
-    from .paired_graphs import TTEST_ESTIMATION
+    from .paired_graphs import TTEST_CORRELATION, TTEST_DIFFERENCES, TTEST_ESTIMATION
 
     design, options = content["variableDesign"], content["options"]
     alpha = options["significanceLevel"]
@@ -278,8 +278,11 @@ def _paired_t(frame, content, results):
     if content.get("report", {}).get("effectSizes") is True:
         recipe[ttest_options.DETAILS] = True
     graph = content.get("graph")
-    if isinstance(graph, dict) and graph.get("confidenceInterval") is True:
-        recipe[TTEST_ESTIMATION] = True
+    if isinstance(graph, dict):
+        for key, option in (("confidenceInterval", TTEST_ESTIMATION), ("differences", TTEST_DIFFERENCES),
+                            ("correlation", TTEST_CORRELATION)):
+            if graph.get(key) is True:
+                recipe[option] = True
     return "t-test", recipe
 
 

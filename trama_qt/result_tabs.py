@@ -3,6 +3,8 @@
 from PySide6.QtWidgets import QComboBox, QTabWidget, QVBoxLayout, QWidget
 
 from analisi.distribution_graphs import BOX_VIOLIN
+from analisi.i18n import tr
+from analisi.paired_graphs import PAIRED_DIFFERENCES
 
 from .strings import qt
 
@@ -36,6 +38,10 @@ _DISTRIBUTION_HEADERS = {
 
 def result_labels(method, title):
     """Localize the view while keeping the result keys and frame columns for linked recipes."""
+    if method == "t-test" and title == PAIRED_DIFFERENCES:
+        return tr("ttest.pairs.table"), {
+            "Subject": tr("ttest.pairs.subject"), "Difference": tr("ttest.pairs.difference"),
+        }
     key = _TAB_KEYS.get(method, {}).get(title)
     if key is None:
         return str(title), {}

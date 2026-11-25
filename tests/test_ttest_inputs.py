@@ -8,7 +8,7 @@ from scipy.stats import t, ttest_ind
 
 from analisi import ttest_options as tt
 from analisi.field_error import FieldError
-from analisi.paired_graphs import TTEST_ESTIMATION
+from analisi.paired_graphs import PAIRED_DIFFERENCES, TTEST_CORRELATION, TTEST_DIFFERENCES, TTEST_ESTIMATION
 from analisi.legacy_recipes import restore_recipe
 from analisi.variance_ratio import SHEET as VARIANCE, SHOW as VARIANCE_SHOW
 from analisi.workbench import analyse
@@ -26,6 +26,44 @@ def summary(frame, options):
 
 
 class TTestInputs(unittest.TestCase):
+    def test_paired_diagnostics_plot_only_complete_pairs_in_the_test_direction(self):
+        opts = {"Design": "Paired", TTEST_DIFFERENCES: True, TTEST_CORRELATION: True}
+        reversed_opts = {**COLUMNS, **opts, tt.REVERSE: True}
+        result = analyse("t-test", WIDE, reversed_opts)
+        pairs = result.tables[PAIRED_DIFFERENCES]
+        self.assertEqual(pairs["Subject"].tolist(), list("abce"))
+        self.assertEqual(pairs["Difference"].tolist(), [-4., -11., -9., -3.])
+        differences, correlation = result.figure.axes
+        np.testing.assert_array_equal(differences.collections[0].get_offsets(),
+                                      [[1., -4.], [2., -11.], [3., -9.], [4., -3.]])
+        np.testing.assert_array_equal(correlation.collections[0].get_offsets(),
+                                      [[43., 39.], [48., 37.], [64., 55.], [54., 51.]])
+        self.assertEqual((correlation.get_xlabel(), correlation.get_ylabel()), ("Before", "After"))
+        long = WIDE.melt(id_vars="ID", var_name="Visit", value_name="Value")
+        grouped_opts = {**opts, "Group": "Visit", "Response": "Value", "Subject": "ID"}
+        tt.preserve_direction(grouped_opts, long.iloc[::-1])
+        self.assertEqual(grouped_opts["Group order"], ["After", "Before"])
+        grouped = analyse("t-test", long, grouped_opts)
+        pd.testing.assert_frame_equal(grouped.tables[PAIRED_DIFFERENCES], pairs)
+
+    def test_paired_plots_are_independent_and_existing_summaries_do_not_change(self):
+        opts = {**COLUMNS, "Design": "Paired"}
+        saved = analyse("t-test", WIDE, opts)
+        self.assertIsNone(saved.figure)
+        for selected, axes, has_table in (
+            ({TTEST_DIFFERENCES: True}, 1, True),
+            ({TTEST_CORRELATION: True}, 1, False),
+            ({TTEST_ESTIMATION: True, TTEST_DIFFERENCES: True, TTEST_CORRELATION: True}, 4, True),
+        ):
+            with self.subTest(plots=selected):
+                result = analyse("t-test", WIDE, {**opts, **selected})
+                self.assertEqual(len(result.figure.axes), axes)
+                self.assertEqual(PAIRED_DIFFERENCES in result.tables, has_table)
+                pd.testing.assert_frame_equal(result.tables["t-test"], saved.tables["t-test"])
+        independent = analyse("t-test", WIDE, {**opts, "Design": "Welch", TTEST_DIFFERENCES: True})
+        self.assertIsNone(independent.figure)
+        self.assertNotIn(PAIRED_DIFFERENCES, independent.tables)
+
     def test_paired_columns_and_grouping_use_the_same_complete_pairs(self):
         opts = {"Design": "Paired", tt.LEVEL: 92.5, tt.DETAILS: True, TTEST_ESTIMATION: True}
         wide = analyse("t-test", WIDE, {**opts, **COLUMNS})
@@ -89,7 +127,8 @@ class TTestInputs(unittest.TestCase):
     def test_import_of_two_paired_columns_preserves_order_and_confidence(self):
         a, b = var("a", 1), var("b", 2)
         content = {"variableDesign": {"responseList": [a, b], "factorList": [], "subject": var("s")},
-                   "experimentalDesign": "PAIRED_T_TEST", "graph": {"confidenceInterval": True},
+                   "experimentalDesign": "PAIRED_T_TEST",
+                   "graph": {"confidenceInterval": True, "differences": True, "correlation": True},
                    "options": {"swapDirection": True, "significanceLevel": .10,
                                "pValueTailType": "P_VALUE_TWO_TAILED"}}
         args = source("T_TESTS_AND_NONPARAMETRIC", "0.0.1", content, WIDE.copy(),
@@ -98,6 +137,7 @@ class TTestInputs(unittest.TestCase):
             f"sample{index}": {"id": {"var": {"response": column["col"], "factorList": []}}}
             for index, column in enumerate((b, a), start=1)}}}
         _, _, options = restore_recipe(*args, saved)
+        self.assertTrue(all(options[key] for key in (TTEST_ESTIMATION, TTEST_DIFFERENCES, TTEST_CORRELATION)))
         self.assertEqual((options[tt.INPUT], options[tt.FIRST], options[tt.SECOND], options[tt.LEVEL]),
                          (tt.COLUMNS, "After", "Before", 90.))
         result = summary(WIDE, options)

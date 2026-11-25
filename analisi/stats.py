@@ -176,6 +176,7 @@ def t_test_columns(frame, first, second, mode, subject=None, *, level=95., alter
         pairs = complete(frame, [first, second], [subject])
         if not pairs[subject].is_unique:
             raise FieldError("Subject", "A subject has more than one complete pair.")
+        pairs = pairs.set_index(subject)
         a, b = pairs[first], pairs[second]
     else:
         a, b = (complete(frame, [name])[name] for name in (first, second))
