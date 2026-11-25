@@ -274,6 +274,27 @@ class SourceLinkTests(unittest.TestCase):
             engine.plan_update(project.tables[title].source_link, raw, excluded, path, cancel=cancel)
         self.assertIs(project.tables[title].raw, raw)
 
+    def test_a_file_that_settles_is_read_again_and_a_touched_file_is_the_same(self):
+        from unittest import mock
+        path = self.copy("iniziale.csv")
+        original, calls = engine._read_once, []
+
+        def unsettled(*args):
+            calls.append(1)
+            return None if len(calls) == 1 else original(*args)
+
+        with mock.patch.object(engine, "_read_once", unsettled):
+            source = engine.read_file(path)
+        self.assertEqual(len(calls), 2)
+        with mock.patch.object(engine, "_read_once", lambda *args: None), \
+                self.assertRaisesRegex(ValueError, "changed while it was being read"):
+            engine.read_file(path)
+        # A network folder may report another time for the same bytes: still the same file.
+        os.utime(path, ns=(1_600_000_000_000_000_000, 1_600_000_000_000_000_000))
+        self.assertTrue(engine.same_file(path, source.stamp, source.sha256))
+        self.copy("aggiornato.csv")
+        self.assertFalse(engine.same_file(path, source.stamp, source.sha256))
+
     def test_the_source_file_is_only_read(self):
         path = self.copy("iniziale.csv")
         project, title = link_file(path)
