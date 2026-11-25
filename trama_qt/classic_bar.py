@@ -17,7 +17,7 @@ MENUS = (
     ("File", ("new_project", "new_table", "open", "import", "import_excel", "recover", "|",
               "save", "save_as", "save_template", "new_from_template", "|", "export", "export_options",
               "export_pdf", "export_batch", "export_report", "export_excel", "send_word", "send_powerpoint", "|",
-              "print", "print_preview", "page_setup", "|", "close_project", "about", "exit")),
+              "print", "print_preview", "page_setup", "|", "close_project", "exit")),
     ("Edit", ("undo", "redo", "|", "cut", "copy", "paste", "paste_special", "paste_transpose", "paste_table",
               "clear_cells", "|", "exclude", "move_rows_up", "move_rows_down", "sort_rows", "sort_by_x",
               "sort_by_row_title", "reset_row_height",
@@ -45,6 +45,7 @@ MENUS = (
                 "duplicate_family", "save_family")),
     ("Tools", ("power", "paired_power", "simulate", "monte_carlo", "transpose_xy", "plot_function", "|", "search")),
     ("Settings", ("language", "table_font", "processes", "recovery_settings")),
+    ("Help", ("help_shortcuts", "search", "|", "about")),
 )
 
 # In reading order. Compact groups show icons before moving into More.
@@ -106,7 +107,7 @@ def build_menus(window):
     bar.setNativeMenuBar(False)
     menus = {}
     for name, keys in MENUS:
-        title = tr("theme.settings") if name == "Settings" else ui(name)
+        title = tr("theme.settings") if name == "Settings" else qt("qt.toolbar_help") if name == "Help" else ui(name)
         menu = menus[name] = bar.addMenu(title)
         for key in keys:
             if key == "|":

@@ -3467,14 +3467,16 @@ class QtShellTests(unittest.TestCase):
 
     def test_classic_menus_preserve_the_desktop_commands(self):
         from analisi.i18n import ui
+        from trama_qt.strings import qt
 
         window = self.window
         window.resize(760, 650)
         window.new_table()
-        self.assertEqual([action.text() for action in window.menuBar().actions()][:-1],
+        self.assertEqual([action.text() for action in window.menuBar().actions()][:-2],
                          [ui(key) for key in ("File", "Edit", "View", "Insert", "Analyze",
                                               "Change", "Arrange", "Family", "Tools")])
-        self.assertEqual(window.menuBar().actions()[-1].text(), tr("theme.settings"))
+        self.assertEqual(window.menuBar().actions()[-2].text(), tr("theme.settings"))
+        self.assertEqual(window.menuBar().actions()[-1].text(), qt("qt.toolbar_help"))
         for menu, names in {
             "File": ("exit", "open", "save", "export_batch", "export_report", "new_from_template", "import_excel"),
             "Edit": ("paste_special", "paste_transpose", "paste_table", "clear_cells", "sheet_delete"),
