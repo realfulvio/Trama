@@ -3,6 +3,7 @@
 The public repository begins with **Trama 0.73.0 beta**. All 0.x versions are
 beta builds; no final stable release has been declared.
 
+- [0.107 beta — Worksheet rows, numeric series, text formatting and linked tables](release-107.md).
 - [0.106 beta — Welcome page, single-point formatting and estimated marginal means](release-106.md).
 - [0.105 beta — Sheet commands, layout tools and printing](release-105.md).
 - [0.104 beta: Classic Qt portable, variable properties and selective family duplication](release-104.md).

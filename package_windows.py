@@ -24,6 +24,8 @@ def main():
                  "grouped-distributions.md", "qt-migration.md", "qt-canvas-095.md", "qt-gallery.md",
                  "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "qt-report.md", "worksheet-join.md", "qt-recovery.md", "qt-analysis-templates.md",
                  "qt-excel-workbook.md", "worksheet-number-format.md", "repeat-analysis.md",
+                 "worksheet-rows-and-series.md", "summary-twoway-anova.md", "text-format.md", "linked-tables.md",
+                 "release-107.md",
                  "cluster-silhouette-092.md", "paired-proportions.md", "power-from-summary.md", "mcnemar-power.md",
                  "qt-batch-figure-styles.md", "ecdf-graph.md", "interaction-plot.md", "raincloud-plot.md",
                  "yuen-trimmed-means.md", "brunner-munzel.md", "mood-median.md", "pareto-plot.md",

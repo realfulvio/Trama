@@ -112,6 +112,14 @@ def main(argv=None):
         elif only == "qt-point-style":
             from .point_style_smoke import run_dedicated
             status = run_dedicated(folder)
+        elif only == "qt-rows-series":
+            from .rows_series_smoke import main as rows_smoke
+            language = _option(argv, "--lang") or "it"
+            mode = _option(argv, "--theme") or "light"
+            status = "PASS" if rows_smoke([folder, "--lang", language, "--theme", mode]) == 0 else "FAIL"
+        elif only == "qt-summary-twoway":
+            from .summary_twoway_smoke import main as summary_smoke
+            status = "PASS" if summary_smoke([folder]) == 0 else "FAIL"
         elif only == "qt-text-style":
             from .text_style_smoke import run_dedicated as text_style
             status = text_style(folder)
