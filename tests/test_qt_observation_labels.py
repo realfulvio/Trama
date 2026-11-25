@@ -459,6 +459,25 @@ class SheetEditTests(QtCase):
         recalc(self.project)
         self.assertEqual(texts(self.current(), CONTROL), ["Campione $1", "Caffè"])
 
+    def test_a_column_added_by_paste_keeps_its_label_identity_after_rename_and_reopen(self):
+        project, title = self.project, self.title
+        project.rename_column(title, LABEL_COLUMN, "Existing label")
+        recalc(project, project.paste(title, 0, LABEL_COLUMN, [["Original", "Pasted $1"],
+                                                               ["Original", "Pasted $2"],
+                                                               ["Original", "Pasted 3"]]))
+        source = origin(project, title, "Column 6")
+        style_run(project, self.current(), {ol.LABELS: [{"series": CONTROL, "from": source}]})
+        self.assertEqual(texts(self.current(), CONTROL), ["Pasted $1", "Pasted $2", "Pasted 3"])
+
+        recalc(project, project.rename_column(title, LABEL_COLUMN + 1, "New name"))
+        self.assertEqual(origin(project, title, "New name")["id"], source["id"])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "pasted-label.alab"
+            project.save(path)
+            reopened, reopened_title = new_project(path)
+            self.assertEqual(origin(reopened, reopened_title, "New name")["id"], source["id"])
+            self.assertEqual(texts(reopened.runs[0], CONTROL), ["Pasted $1", "Pasted $2", "Pasted 3"])
+
     def test_a_calculated_column_is_a_source_and_a_new_column_gets_a_new_identity(self):
         self.project.set_formula(self.title, "Doppio", "X * 2")
         frame = self.project.tables[self.title].frame(mask_excluded=True)

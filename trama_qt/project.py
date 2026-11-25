@@ -80,7 +80,7 @@ from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
 from analisi.worksheet_history import WorksheetChange, WorksheetHistory, WorksheetState
 from analisi.worksheet_row_identity import (ROW_SPANS, after_deletion, after_insertion, after_move, current_spans,
                                            move_row_index, row_move_slices)
-from analisi.worksheet_column_identity import (after_deletion as column_ids_after_deletion,
+from analisi.worksheet_column_identity import (COLUMN_IDS, after_deletion as column_ids_after_deletion,
                                                after_insertion as column_ids_after_insertion,
                                                after_rename as column_ids_after_rename,
                                                store as store_column_ids)
@@ -1473,6 +1473,11 @@ class Project(WorksheetJoinSources, SheetCommands):
         dataset = self.editable(title)
         candidate = copy(dataset)
         change(candidate)
+        if (len(candidate.raw.columns) > len(dataset.raw.columns)
+                and candidate.raw.attrs.get(COLUMN_IDS) == dataset.raw.attrs.get(COLUMN_IDS)):
+            # Pasting a block or filling a numeric series can also create source columns.
+            names = candidate.raw.columns.difference(dataset.raw.columns, sort=False)
+            store_column_ids(candidate.raw, column_ids_after_insertion(dataset.raw, *names))
         added_rows = len(candidate.raw) - len(dataset.raw)
         if added_rows > 0 and candidate.raw.attrs.get(ROW_SPANS) == dataset.raw.attrs.get(ROW_SPANS):
             candidate.raw.attrs[ROW_SPANS] = after_insertion(dataset.raw, len(dataset.raw), added_rows)

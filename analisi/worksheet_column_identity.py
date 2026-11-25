@@ -88,10 +88,11 @@ def after_deletion(raw, names):
     return {name: token for name, token in current_ids(raw).items() if name not in names}
 
 
-def after_insertion(raw, name):
-    """The identities with one new column: it never takes the identity of a column that was deleted."""
-    ids = dict(current_ids(raw))
-    ids[name] = f"{uuid4().hex}:1"
+def after_insertion(raw, *names):
+    """Give each added source column its own identity, even when a name is reused."""
+    ids = current_ids(raw)
+    origin = uuid4().hex
+    ids.update({name: f"{origin}:{position}" for position, name in enumerate(names, 1)})
     return ids
 
 
