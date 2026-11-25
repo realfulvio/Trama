@@ -1,6 +1,6 @@
 # Regressione di Passing–Bablok
 
-In **Analizza → Regressione e curve → Regressione di Passing–Bablok** si scelgono la colonna di riferimento **X** e la colonna di confronto **Y**. Il metodo sta subito dopo la regressione di Deming. La finestra classica non lo elenca fra i comandi nuovi: un progetto già salvato con questo metodo lo mostra ancora, se è l’analisi corrente. La barra di Qt non cambia.
+In Classica Qt, scegli **Analizza → Regressione e curve → Regressione di Passing–Bablok**, subito dopo Deming. Imposta la colonna di riferimento **X** e la colonna di confronto **Y**.
 
 La ricetta tiene le chiavi inglesi `X`, `Y`, `Confidence level (%)` e `Identity line`. Il livello parte da 95 e la retta di identità è spenta. Scambiare le due colonne cambia la retta e resta scritto nel progetto.
 
