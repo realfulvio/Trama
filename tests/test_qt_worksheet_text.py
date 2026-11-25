@@ -288,14 +288,19 @@ class QtTextTests(unittest.TestCase):
         self.assertFalse(window.actions["text_graph"].isEnabled())
 
     def test_font_dialog_changes_family_and_size_and_can_send_them_back(self):
+        from PySide6.QtGui import QFontDatabase
+
         from trama_qt.text_format import TextFontDialog
         window = self.window
         title, view, model = self.sheet()
         self.select(view, 0, 1, 1, 1)
+        installed_family = QFontDatabase.families()[0]
 
         def confirm(family, size):
             def exec_(dialog):
-                dialog.family.setCurrentIndex(dialog.family.findData(family))
+                index = dialog.family.findData(family)
+                self.assertGreaterEqual(index, 0)
+                dialog.family.setCurrentIndex(index)
                 if size in ("keep", "inherit"):
                     dialog.size.setCurrentIndex(0 if size == "keep" else 1)
                 else:
@@ -303,10 +308,10 @@ class QtTextTests(unittest.TestCase):
                 dialog.accept()
                 return dialog.DialogCode.Accepted
             return exec_
-        with patch.object(TextFontDialog, "exec", confirm("DejaVu Sans", "13,5")):
+        with patch.object(TextFontDialog, "exec", confirm(installed_family, "13,5")):
             window.actions["text_font"].trigger()
-        self.assertEqual(window.project.tables[title].text_styles.style_at("Dose", 0), {"font": "DejaVu Sans",
-                                                                                         "size": 13.5})
+        self.assertEqual(window.project.tables[title].text_styles.style_at("Dose", 0),
+                         {"font": installed_family, "size": 13.5})
         with patch.object(TextFontDialog, "exec", confirm("inherit", "inherit")):
             window.actions["text_font"].trigger()
         self.assertFalse(window.project.tables[title].text_styles)
