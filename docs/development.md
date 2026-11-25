@@ -16,6 +16,8 @@ py -3.13 -m venv .venv
 
 Per i test GUI headless configura un display di almeno **1024×768**; una risoluzione inferiore non è un collaudo valido della disposizione dei dialoghi.
 
+Le convenzioni dell'interfaccia Classica (precisione mostrata, token di colore, avvisi, dialoghi, tastiera) sono in [AGENTS.md](../AGENTS.md).
+
 ## Verifiche
 
 ```sh
