@@ -720,6 +720,17 @@ class WorksheetView(QTableView):
             return False
         return column not in model.calculated and column not in model.locked and model.numeric[column]
 
+    def _can_sort_column(self, column):
+        model = self.model()
+        if model is None or model.read_only or column < 0 or column >= len(model.frame.columns):
+            return False
+        if column in model.calculated:
+            return False
+        indices = model.dataset.source_indices
+        if column >= len(indices) or indices[column] is None:
+            return False
+        return self.host.can_reorder_active_rows()
+
     def _heading_menu(self, position):
         heading = self.horizontalHeader()
         menu = QMenu(self)
@@ -733,6 +744,8 @@ class WorksheetView(QTableView):
         if self._can_series_column(column):
             menu.addAction(qt("qt.create_numeric_series"),
                            lambda: self.host.create_numeric_series(column=column, start_row=0, full_column=True))
+        if self._can_sort_column(column):
+            menu.addAction(qt("qt.sort_rows"), lambda: self.host.sort_rows(column=column))
         self._add_freeze_action(menu, column)
         if not menu.isEmpty():
             menu.exec(heading.viewport().mapToGlobal(position))

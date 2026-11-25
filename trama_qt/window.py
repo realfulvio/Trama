@@ -50,6 +50,8 @@ from analisi.sheet_metadata import HIGHLIGHTS, RUN_KINDS, validate_sheet_title
 from analisi.numeric_series import validate_series_target
 from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
 from analisi.worksheet_row_identity import moved_row_bounds
+from analisi.worksheet_sort import (ASCENDING, plan_row_sort, remap_selection_after_sort,
+                                    row_title_sort_column, sort_text, sortable_columns, x_sort_column)
 from analisi.worksheet_text import TextStyles
 from analisi.paired_graphs import shows_paired_estimation
 
@@ -530,6 +532,9 @@ class MainWindow(QMainWindow):
         a("delete_rows", qt("qt.delete_rows"), self.delete_rows, icon="trash-2")
         a("move_rows_up", qt("qt.move_rows_up"), self.move_rows_up, icon="chevron-up", shortcut="Alt+Up")
         a("move_rows_down", qt("qt.move_rows_down"), self.move_rows_down, icon="chevron-down", shortcut="Alt+Down")
+        a("sort_rows", qt("qt.sort_rows"), self.sort_rows, icon="arrow-up-down")
+        a("sort_by_x", qt("qt.sort_by_x"), self.sort_by_x)
+        a("sort_by_row_title", qt("qt.sort_by_row_title"), self.sort_by_row_title)
         a("reset_row_height", qt("qt.reset_row_height"), self.reset_row_height, shortcut="Alt+0")
         a("exclude", tr("ribbon.exclude"), self.toggle_exclusion, icon="filter", shortcut="Ctrl+E")
         a("analyze", tr("ribbon.analyze"), self.analyze, icon="sigma", shortcut="Ctrl+Shift+A")
@@ -2214,13 +2219,110 @@ class MainWindow(QMainWindow):
         box = self.sheet.box() if data and self.sheet is not None else None
         dataset = self.project.tables[self.selected[1]] if data else None
         data_rows = len(dataset.raw) if dataset is not None else 0
-        reorder = bool(editable and idle and dataset is not None and self.project.can_reorder_rows(self.selected[1])
-                       and box is not None and 0 <= box[0] <= box[2] < data_rows)
+        can_reorder = bool(editable and idle and dataset is not None and self.project.can_reorder_rows(self.selected[1]))
+        reorder = bool(can_reorder and box is not None and 0 <= box[0] <= box[2] < data_rows)
         self.actions["move_rows_up"].setEnabled(reorder and box[0] > 0)
         self.actions["move_rows_down"].setEnabled(reorder and box[2] + 1 < data_rows)
+        self.actions["sort_rows"].setEnabled(can_reorder and bool(sortable_columns(dataset)))
+        self.actions["sort_by_x"].setEnabled(can_reorder and x_sort_column(dataset) is not None)
+        self.actions["sort_by_row_title"].setEnabled(can_reorder and row_title_sort_column(dataset) is not None)
         has_custom = bool(editable and idle and dataset is not None and box is not None and dataset.row_heights
                           and any(row in dataset.row_heights for row in range(box[0], min(box[2] + 1, data_rows))))
         self.actions["reset_row_height"].setEnabled(has_custom)
+
+    def sort_rows(self, column=None):
+        from .sort_rows_dialog import SortRowsDialog
+
+        title = self._active_table()
+        if title is None or self.sheet is None or self.busy():
+            return
+        dataset = self.project.tables[title]
+        if not self.project.can_reorder_rows(title):
+            self.error(ValueError(qt("qt.rows_reorder_unavailable")))
+            return
+        if not sortable_columns(dataset):
+            self.error(ValueError(sort_text("err.empty")))
+            return
+        if column is None:
+            current = self.sheet.currentIndex()
+            column = current.column() if current.isValid() else None
+        dialog = SortRowsDialog(self, self.project, title, dataset, initial_column=column)
+        initial_revision = dialog.initial_revision
+        initial_raw = dialog.initial_raw
+        try:
+            if dialog.exec() != QDialog.DialogCode.Accepted or dialog.plan is None:
+                return
+            plan = dialog.plan
+        finally:
+            dialog.deleteLater()
+        self._apply_row_sort(title, plan=plan, expected_revision=initial_revision, expected_raw=initial_raw)
+
+    def sort_by_x(self):
+        title = self._active_table()
+        if title is None or self.sheet is None or self.busy():
+            return
+        key = x_sort_column(self.project.tables[title])
+        if key is None:
+            self.error(ValueError(sort_text("err.unknown_key")))
+            return
+        self._apply_row_sort(title, key=key, direction=ASCENDING)
+
+    def sort_by_row_title(self):
+        title = self._active_table()
+        if title is None or self.sheet is None or self.busy():
+            return
+        key = row_title_sort_column(self.project.tables[title])
+        if key is None:
+            self.error(ValueError(sort_text("err.unknown_key")))
+            return
+        self._apply_row_sort(title, key=key, direction=ASCENDING)
+
+    def _apply_row_sort(self, title, *, key=None, direction=ASCENDING, plan=None,
+                        expected_revision=None, expected_raw=None):
+        if expected_revision is not None:
+            if (self.project.revision != expected_revision or title not in self.project.tables
+                    or self.project.tables[title].raw is not expected_raw):
+                self.error(ValueError(sort_text("err.stale")))
+                return
+        if self._active_table() != title or self.sheet is None:
+            self.error(ValueError(sort_text("err.stale")))
+            return
+        dataset = self.project.tables[title]
+        locked = self.project.sheet_locked(("data", title))
+        reorder_allowed = title in self.project.tables and not locked and self.project.can_reorder_rows(title)
+        if plan is None:
+            try:
+                plan = plan_row_sort(dataset, key, direction, locked=locked,
+                                     reorder_allowed=reorder_allowed or self.project.can_reorder_rows(title))
+            except ValueError as error:
+                self.error(error)
+                return
+        if not plan.changed:
+            self.status(sort_text("already_sorted", key=plan.key_name, direction=sort_text(plan.direction).lower()))
+            return
+        box = self.sheet.box()
+        current = self.sheet.currentIndex()
+        current_row = current.row() if current.isValid() else None
+        current_col = current.column() if current.isValid() else (box[1] if box is not None else 0)
+        length = len(dataset.raw)
+        before_revision = self.project.revision
+        self._apply_edit(
+            title,
+            lambda: self.project.sort_rows(
+                title, plan.key_name, plan.direction, plan=plan,
+                expected_revision=expected_revision, expected_raw=expected_raw,
+            ),
+        )
+        if self.project.revision != before_revision and self.selected == ("data", title) and self.sheet is not None:
+            restored = remap_selection_after_sort(plan.inverse, length, box, current_row, current_col)
+            if restored is not None:
+                top, left, bottom, right, active_row, active_col = restored
+                self.sheet.select_block(top, left, bottom, right, current_row=active_row, current_col=active_col)
+                self.sheet.scrollTo(self.sheet.model().index(active_row, active_col))
+            self.update_actions()
+            if not self.project.table_runs(title):
+                self.status(sort_text("done", rows=plan.row_count, key=plan.key_name,
+                                      direction=sort_text(plan.direction).lower()))
 
     def move_rows(self, start, stop, destination):
         title = self._active_table()

@@ -78,12 +78,13 @@ from analisi.workbench import GROUPS, analyse
 from analisi import worksheet_join
 from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
 from analisi.worksheet_history import WorksheetChange, WorksheetHistory, WorksheetState
-from analisi.worksheet_row_identity import (ROW_SPANS, after_deletion, after_insertion, after_move, current_spans,
-                                           move_row_index, row_move_slices)
 from analisi.worksheet_column_identity import (COLUMN_IDS, after_deletion as column_ids_after_deletion,
                                                after_insertion as column_ids_after_insertion,
                                                after_rename as column_ids_after_rename,
                                                store as store_column_ids)
+from analisi.worksheet_row_identity import (ROW_SPANS, after_deletion, after_insertion, after_move, after_permutation,
+                                           current_spans, move_row_index, row_move_slices, validate_permutation)
+from analisi.worksheet_sort import ASCENDING, plan_row_sort, sort_text, validate_sort_key
 from .sheet_commands import SheetCommands
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
@@ -1661,6 +1662,56 @@ class Project(WorksheetJoinSources, SheetCommands):
             candidate.raw = frame
 
         return self.edit(title, "Move rows", change)
+
+    def sort_rows(self, title, key, direction=ASCENDING, *, plan=None, expected_revision=None, expected_raw=None):
+        """Sort all rows of worksheet ``title`` atomically by a non-calculated source column."""
+        if expected_revision is not None and self.revision != expected_revision:
+            raise ValueError(sort_text("err.stale"))
+        if title not in self.tables:
+            raise ValueError(sort_text("err.stale"))
+        dataset = self.editable(title)
+        if expected_raw is not None and dataset.raw is not expected_raw:
+            raise ValueError(sort_text("err.stale"))
+        if not reorder_rows_allowed(dataset):
+            raise ValueError(qt("qt.rows_reorder_unavailable"))
+        length = len(dataset.raw)
+        if plan is None:
+            resolved = plan_row_sort(dataset, key, direction, locked=False, reorder_allowed=True)
+        else:
+            validate_sort_key(dataset, plan.key_name)
+            if plan.row_count != length:
+                raise ValueError(sort_text("err.stale"))
+            order_arr = validate_permutation(plan.order, length)
+            inverse = np.empty(length, dtype=np.intp)
+            if length:
+                inverse[order_arr] = np.arange(length, dtype=np.intp)
+            changed = not np.array_equal(order_arr, np.arange(length, dtype=np.intp))
+            resolved = plan if (plan.order is order_arr and plan.changed == changed) else type(plan)(
+                key_name=plan.key_name,
+                raw_column=plan.raw_column,
+                display_column=plan.display_column,
+                direction=plan.direction,
+                row_count=length,
+                order=order_arr,
+                inverse=inverse,
+                changed=changed,
+            )
+        if not resolved.changed:
+            return None
+
+        def change(candidate):
+            raw = candidate.raw
+            order = resolved.order
+            inv = resolved.inverse
+            inv_list = inv.tolist()
+            frame = raw.iloc[order].reset_index(drop=True)
+            frame.attrs = dict(raw.attrs)
+            frame.attrs[ROW_SPANS] = after_permutation(raw, order)
+            _remap_row_metadata(candidate, lambda row: inv_list[row] if 0 <= row < length else None)
+            candidate.text_styles = candidate.text_styles.reorder_rows(length, order, inverse=inv)
+            candidate.raw = frame
+
+        return self.edit(title, "Sort rows", change)
 
     def insert_column(self, title, position, name):
         def change(dataset):

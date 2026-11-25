@@ -26,6 +26,7 @@ from analisi.i18n import set_language
 from analisi.presentation import apply_style, compose_layout, graph_series
 from analisi.repeat_analysis import fit_style, remap_style
 from analisi.worksheet_column_identity import COLUMN_IDS, valid_token
+from analisi.worksheet_sort import DESCENDING
 from trama_qt import theme
 from trama_qt.inspector import GraphInspector
 from trama_qt.project import Project, compute, graph_warning
@@ -389,6 +390,23 @@ class SheetEditTests(QtCase):
         self.assertIsNone(run.result.style_warning)
         recalc(self.project, self.project.move_rows(self.title, 2, 3, 0))  # and back to the top
         self.assertEqual(texts(self.current(), CONTROL), ["Campione $1", "Caffè"])
+
+    def test_sorting_worksheet_rows_keeps_the_override_on_its_observation(self):
+        project, title = self.project, self.title
+        raw = project.tables[title].raw
+        before = raw["Etichetta"].tolist().index("Campione $2")
+        recalc(project, project.sort_rows(title, "Etichetta", DESCENDING))
+        after = project.tables[title].raw["Etichetta"].tolist().index("Campione $2")
+        self.assertNotEqual(after, before)
+        self.assertCountEqual(texts(self.current(), CONTROL), ["Campione $1", "Caffè"])
+        (status,) = ol.label_statuses(self.current().result.figure)
+        self.assertEqual(status.observations[0].state, "ok")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "sorted-labels.alab"
+            project.save(path)
+            reopened, _ = new_project(path)
+            self.assertCountEqual(texts(reopened.runs[0], CONTROL), ["Campione $1", "Caffè"])
 
     def test_a_new_identical_row_does_not_inherit_the_override_of_a_deleted_one(self):
         recalc(self.project, self.project.delete_rows(self.title, [1]))  # Campione $2 and its override go away
