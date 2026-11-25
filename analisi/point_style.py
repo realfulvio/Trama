@@ -90,6 +90,7 @@ class PointMap:
     recipe: tuple
     sheet_rows: int
     row_spans: tuple | None = None
+    data: object | None = None  # the worksheet frame the graph was drawn from (the labels of the observations read it)
 
     def __post_init__(self):
         if not (len(self.rows) == len(self.x) == len(self.y) == len(self.drawn)):
@@ -99,14 +100,18 @@ class PointMap:
         return len(self.rows)
 
 
-def attach_points(artist, positions, x, y, recipe, sheet_rows, drawn=None, *, row_spans=None):
-    """Record the source rows of ``artist``'s vertices. ``positions`` are 1-based worksheet positions."""
+def attach_points(artist, positions, x, y, recipe, sheet_rows, drawn=None, *, row_spans=None, data=None):
+    """Record the source rows of ``artist``'s vertices. ``positions`` are 1-based worksheet positions.
+
+    ``data`` is the worksheet frame (all its columns, in the rows of ``positions``): the labels of the observations
+    read their text from it. Nothing is copied or scanned here.
+    """
     positions = np.asarray(positions, dtype=np.int64)
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     shown = np.ones(len(positions), dtype=bool) if drawn is None else np.asarray(drawn, dtype=bool)
     setattr(artist, POINT_MAP_ATTR, PointMap(positions, x, y, shown, tuple(str(name) for name in recipe),
-                                             int(sheet_rows), row_spans))
+                                             int(sheet_rows), row_spans, data))
 
 
 def positions_of(frame, index):

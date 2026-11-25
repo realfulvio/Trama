@@ -36,6 +36,7 @@ from .analysis_labels import MAX_LABEL, clean_label, valid_label
 from .data import validate_analysis_links
 from .graph_annotations import ANNOTATIONS
 from .linked_tables import TABLES
+from .observation_labels import LABELS, remap_labels
 from .graph_shapes import SHAPES
 from .legacy_project_metadata import IMPORTED_METHODS, is_import_option, saved_name
 from .legacy_restore import LEGACY_TITLE
@@ -492,6 +493,8 @@ def remap_style(style, columns):
     style.pop(SHAPES, None)
     style.pop(ANNOTATIONS, None)
     style.pop(TABLES, None)  # A linked table reads the sheet or result it was made for, not a repetition of it.
+    if style.get(LABELS):  # The source columns and the series follow the renamed columns; single rows stay behind.
+        style[LABELS] = remap_labels(style[LABELS], columns)
     series = style.get("series")
     if isinstance(series, dict):
         renamed = {}
@@ -690,6 +693,17 @@ def fit_style(figure, style):
     axes = figure.axes[0]
     # The formatting of a single point belongs to one row of one worksheet: another sheet has other rows.
     reduced = style.pop(POINTS, None) is not None
+    if isinstance(style.get(LABELS), list):
+        # The labels keep their source and their series; the settings of single rows stay behind.
+        keys = {item.key for item in graph_series(axes)}
+        labels = [{name: value for name, value in record.items() if name != "observations"}
+                  for record in style[LABELS] if isinstance(record, dict) and record.get("series") in keys]
+        reduced = reduced or len(labels) != len(style[LABELS]) or any(
+            isinstance(record, dict) and record.get("observations") for record in style[LABELS])
+        if labels:
+            style[LABELS] = labels
+        else:
+            style.pop(LABELS)
     series = style.get("series")
     if isinstance(series, dict) and series:
         keys = {item.key for item in graph_series(axes)}

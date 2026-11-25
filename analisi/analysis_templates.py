@@ -37,6 +37,7 @@ from .data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY
                    formula_calculation_order, info_references,
                    validate_analysis_links)
 from .graph_annotations import ANNOTATIONS
+from .observation_labels import LABELS
 from .point_style import POINTS
 from .graph_shapes import SHAPES
 from .linked_tables import TABLES
@@ -353,7 +354,7 @@ def plan_template(tables, layouts=(), info_sheets=None, *, cancel=None):
             if style is not None:
                 style = deepcopy(style)
                 for key, code in ((SHAPES, "shapes"), (ANNOTATIONS, "annotations"), (POINTS, "points"),
-                                  (TABLES, "linked_tables")):
+                                  (LABELS, "labels"), (TABLES, "linked_tables")):
                     if style.get(key):
                         omissions.append(Omission(code, spot, len(style[key])))
                     style.pop(key, None)

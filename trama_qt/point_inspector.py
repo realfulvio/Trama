@@ -255,6 +255,7 @@ class PointEditor:
         finally:
             self.loading = False
         self._enable()
+        self._notify()
         if held is not None and self.model.row_of(held) >= 0:
             self.select(series, held)
         self.host.canvas.draw_idle()
@@ -356,7 +357,14 @@ class PointEditor:
         self._show_ring()
         self.host._flag("point", None)
         self._enable()
+        self._notify()
         self.host.canvas.draw_idle()
+
+    def _notify(self):
+        """The labels of the observations follow the selected point (they are edited in their own section)."""
+        labels = getattr(self.host, "labels", None)
+        if labels is not None:
+            labels.selection_changed()
 
     def _show_ring(self):
         """The temporary ring around the selected point. It is never part of a save, export or layout."""

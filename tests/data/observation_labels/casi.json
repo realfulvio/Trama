@@ -1,0 +1,20 @@
+{
+  "project": "etichette-osservazioni.alab",
+  "label_column": "Etichetta",
+  "row_title": "Row title",
+  "visible_labels_with_column": [
+    "Campione $1",
+    "Campione $2",
+    "Caffè"
+  ],
+  "skip": {
+    "row_4": "Y mancante",
+    "row_5": "etichetta vuota",
+    "row_6": "etichetta esclusa"
+  },
+  "duplicate": "Nascondi Campione $2. Campione $1 resta visibile a pari X e Y.",
+  "reorder": "Sposta la riga di Campione $2 in fondo. Il suo override lo segue.",
+  "delete_and_reuse": "Elimina la riga con override, poi inserisci una riga identica. La nuova riga non eredita quell’override.",
+  "remove_label_column": "Elimina Etichetta e creane una con lo stesso nome. Il collegamento rimane mancante finché non viene scelto esplicitamente.",
+  "export": "Controlla visuale, PDF/SVG, layout e ripetizione del rendering senza duplicati."
+}

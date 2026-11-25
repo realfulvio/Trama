@@ -1,0 +1,94 @@
+{
+  "version": 2,
+  "tables": [
+    {
+      "title": "Campioni",
+      "columns": [
+        "Row title",
+        "X",
+        "Y",
+        "Gruppo",
+        "Etichetta"
+      ],
+      "kinds": [
+        "text",
+        "numeric",
+        "numeric",
+        "text",
+        "text"
+      ],
+      "rows": [
+        [
+          "Riga $α",
+          1,
+          2,
+          "Controllo",
+          "Campione $1"
+        ],
+        [
+          "Riga $α",
+          1,
+          2,
+          "Controllo",
+          "Campione $2"
+        ],
+        [
+          "Terza",
+          2,
+          4,
+          "Controllo",
+          "Caffè"
+        ],
+        [
+          "Senza Y",
+          3,
+          null,
+          "Controllo",
+          "Nessun punto"
+        ],
+        [
+          "Quinta",
+          4,
+          5,
+          "Trattamento",
+          null
+        ],
+        [
+          "Sesta",
+          5,
+          8,
+          "Trattamento",
+          "Etichetta esclusa"
+        ]
+      ],
+      "formulas": [],
+      "excluded": [
+        [
+          5,
+          4
+        ]
+      ],
+      "graph_styles": {},
+      "analyses": [
+        [
+          "Scatter / confidence ellipse",
+          {
+            "X": "X",
+            "Y": "Y",
+            "Group": "Gruppo"
+          }
+        ],
+        [
+          "XY series",
+          {
+            "X": "X",
+            "Y columns": [
+              "Y"
+            ]
+          }
+        ]
+      ]
+    }
+  ],
+  "layouts": []
+}

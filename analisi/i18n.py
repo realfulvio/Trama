@@ -5963,6 +5963,12 @@ from .point_style_text import EN as _POINT_EN, IT as _POINT_IT  # noqa: E402
 _EN.update(_POINT_EN)
 _IT.update(_POINT_IT)
 
+# Labels of the observations (analisi.observation_labels): messages, reasons and Inspector captions.
+from .observation_label_text import EN as _LABEL_EN, IT as _LABEL_IT  # noqa: E402
+
+_EN.update(_LABEL_EN)
+_IT.update(_LABEL_IT)
+
 # Yuen's trimmed-mean test (analisi.yuen): captions, the dialog note and the exact engine messages.
 from .yuen_text import EN as _YUEN_EN, IT as _YUEN_IT  # noqa: E402
 

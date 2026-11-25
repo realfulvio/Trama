@@ -20,6 +20,7 @@ from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCanc
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
 from analisi.linked_axes import linked_axes_status
+from analisi.observation_labels import LABELS, label_status_line
 from analisi.point_style import POINTS, point_styles_status
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES,
                           EDITABLE_LEGACY_XY, MAX_ENTRY, Dataset, formula_column_references, info_references,
@@ -79,6 +80,10 @@ from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
 from analisi.worksheet_history import WorksheetChange, WorksheetHistory, WorksheetState
 from analisi.worksheet_row_identity import (ROW_SPANS, after_deletion, after_insertion, after_move, current_spans,
                                            move_row_index, row_move_slices)
+from analisi.worksheet_column_identity import (after_deletion as column_ids_after_deletion,
+                                               after_insertion as column_ids_after_insertion,
+                                               after_rename as column_ids_after_rename,
+                                               store as store_column_ids)
 from .sheet_commands import SheetCommands
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
@@ -162,7 +167,8 @@ def breaks_warning(figure, style):
 def graph_warning(figure, style):
     """The notes about saved style sections that the graph cannot draw right now (breaks, linked axes)."""
     notes = [note for note in (breaks_warning(figure, style), linked_axes_status(figure, style),
-                               point_styles_status(figure, (style or {}).get(POINTS))) if note]
+                               point_styles_status(figure, (style or {}).get(POINTS)),
+                               label_status_line(figure, (style or {}).get(LABELS))) if note]
     return " ".join(notes) or None
 
 
@@ -1665,6 +1671,7 @@ class Project(WorksheetJoinSources, SheetCommands):
                 dataset.column_order = (*order[:at], name, *order[at:])
             raw.insert(position_, name, pd.Series([pd.NA] * len(raw), dtype="Float64"))
             raw.attrs = dict(dataset.raw.attrs)
+            store_column_ids(raw, column_ids_after_insertion(dataset.raw, name))
             dataset.excluded = {(row, column + 1 if column >= position_ else column)
                                 for row, column in dataset.excluded}
             dataset.raw = raw
@@ -1685,6 +1692,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             frame = raw.drop(columns=names)
             frame.attrs = dict(raw.attrs)
             keep_source_columns(frame)
+            store_column_ids(frame, column_ids_after_deletion(raw, names))
             keep = [index for index in range(len(raw.columns)) if index not in sources]
             mapping = {old: new for new, old in enumerate(keep)}
             dataset.excluded = {(row, mapping[column]) for row, column in dataset.excluded if column in mapping}
@@ -1713,6 +1721,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             frame = raw.rename(columns={previous: name_})
             frame.attrs = dict(raw.attrs)
             keep_source_columns(frame, {previous: name_})
+            store_column_ids(frame, column_ids_after_rename(raw, {previous: name_}))
             if dataset.column_order is not None:
                 order = dataset.column_order
                 dataset.column_order = (*order[:column], name_, *order[column + 1:])
@@ -1765,6 +1774,8 @@ class Project(WorksheetJoinSources, SheetCommands):
         def change(candidate):
             frame = raw.rename(columns=rename)
             keep_source_columns(frame, rename)
+            if rename:
+                store_column_ids(frame, column_ids_after_rename(raw, rename))
             if rename and (roles := raw.attrs.get("worksheet_roles")) is not None:
                 frame.attrs["worksheet_roles"] = {"x": [names[name] for name in roles["x"]],
                                                    "y": [[names[name] for name in group] for group in roles["y"]]}

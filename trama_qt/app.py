@@ -112,6 +112,9 @@ def main(argv=None):
         elif only == "qt-point-style":
             from .point_style_smoke import run_dedicated
             status = run_dedicated(folder)
+        elif only == "qt-observation-labels":
+            from .observation_labels_smoke import run_dedicated as observation_labels
+            status = observation_labels(folder)
         elif only == "qt-rows-series":
             from .rows_series_smoke import main as rows_smoke
             language = _option(argv, "--lang") or "it"

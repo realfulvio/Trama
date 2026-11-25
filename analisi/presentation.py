@@ -38,6 +38,7 @@ from .graph_legend import (LEGEND_OPTIONS_KEY, apply_legend_options, is_non_nati
                            restore_legend_snapshots, validate_legend_options)
 from .graph_shapes import SHAPES, draw_shapes, validate_shapes
 from .linked_tables import TABLES, draw_tables, validate_tables
+from .observation_labels import LABELS, apply_observation_labels, restore_observation_labels, validate_labels
 from .point_style import (GID_PREFIX as POINT_GID_PREFIX, INDICATOR_GID, POINTS, apply_point_styles,
                           restore_point_styles, validate_points)
 from .layout_geometry import (AUTO_PAPER, AXIS_ALIGNMENTS, LABEL_PAD, LABEL_SIZE, PANEL_SIZES, PAPER_SIZES, PT, WHITE,
@@ -212,7 +213,7 @@ def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
                     "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", LEGEND_OPTIONS_KEY, "series",
                     "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY,
-                    "hierarchical", AXIS_BREAKS, LINKED_AXES, POINTS, TABLES},
+                    "hierarchical", AXIS_BREAKS, LINKED_AXES, POINTS, LABELS, TABLES},
             "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
         if key in style and not _text(style[key]):
@@ -252,6 +253,8 @@ def validated_style(style):
     _check_groups(style.get("groups", {}))
     if POINTS in style:
         validate_points(style[POINTS])
+    if LABELS in style:
+        validate_labels(style[LABELS])
     validate_annotations(style.get(ANNOTATIONS, []))
     validate_shapes(style.get(SHAPES, []))
     if TABLES in style:
@@ -1073,6 +1076,7 @@ def apply_style(figure, style):
     defaults = axes._tramastat_defaults
     previous = getattr(axes, "_tramastat_style", {})
     restore_point_styles(figure)  # Before the series are formatted: every artist starts from its series look.
+    restore_observation_labels(figure)
     if LEGEND_OPTIONS_KEY in style or LEGEND_OPTIONS_KEY in previous:
         restore_legend_snapshots(figure)
     clear_axis_guides_and_bands(axes)
@@ -1134,6 +1138,8 @@ def apply_style(figure, style):
             setter(style["accent"])
     apply_point_styles(figure, [series for series, _ in defaults["series"].values()], style.get(POINTS, []),
                        breaks=bool(style.get(AXIS_BREAKS)))
+    apply_observation_labels(figure, [series for series, _ in defaults["series"].values()], style.get(LABELS, []),
+                             breaks=bool(style.get(AXIS_BREAKS)), font_family=style.get("font_family"))
     _apply_legend(axes, style, defaults, bool(series_options or "accent" in style))
     _apply_xy_legend(axes, style)
     apply_axis_breaks(figure, normalise_axis_breaks(style.get(AXIS_BREAKS)))

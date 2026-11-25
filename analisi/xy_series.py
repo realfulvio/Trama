@@ -384,7 +384,7 @@ def xy_series(frame, options, left_scale="linear"):
             order.append(artist.get_gid())
             # One vertex per worksheet row, so a single point can be formatted and found again.
             attach_points(artist, np.arange(1, len(frame) + 1), x_values, y_values, (x_name, column), len(frame),
-                          drawn=mask, row_spans=frame.attrs.get(ROW_SPANS))
+                          drawn=mask, row_spans=frame.attrs.get(ROW_SPANS), data=frame)
         if mask.any() and _legend_label(column):
             handles.append(artist)
         for position, keep in enumerate(mask):
