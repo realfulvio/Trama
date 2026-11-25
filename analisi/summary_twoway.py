@@ -306,16 +306,22 @@ def _cells_from_subcolumns(frame, options):
     for _, roles in grouped:
         if not {"Mean", kind, "N"} <= roles.keys():
             _fail(VARIABLES, "triple")
+    fields = ("Mean", kind, "N")
+    selected = [roles[role] for _, roles in grouped for role in fields]
     records = []
-    for row in range(len(frame)):
-        level = _label(frame.iloc[row][row_labels], ROW_LABELS)
-        for column_level, roles in grouped:
-            values = {role: frame.iloc[row][roles[role]] for role in ("Mean", kind, "N")}
-            missing = [role for role, value in values.items() if _missing(value)]
+    for row, values in enumerate(frame[[row_labels, *selected]].itertuples(index=False, name=None), 1):
+        label, *statistics = values
+        if _missing(label) and all(_missing(value) for value in statistics):
+            continue
+        level = _label(label, ROW_LABELS)
+        summaries = iter(statistics)
+        for column_level, _ in grouped:
+            cell = {role: next(summaries) for role in fields}
+            missing = [role for role, value in cell.items() if _missing(value)]
             if missing:
                 _fail(VARIABLES, "partial", row_level=level, column_level=column_level,
                       role=", ".join(missing))
-            records.append(_record(row + 1, level, column_level, values["Mean"], values[kind], values["N"],
+            records.append(_record(row, level, column_level, cell["Mean"], cell[kind], cell["N"],
                                    kind, VARIABLES, VARIABLES))
     return records, kind
 

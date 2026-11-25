@@ -15,6 +15,7 @@ from analisi.grouped_anova import METHOD as GROUPED
 from analisi.i18n import set_language, ui
 from analisi.stats import factorial_anova
 from analisi.summary_anova import METHOD as ONE_WAY, summary_anova
+from analisi.table_templates import GROUPED_FORMATS, table_frame
 from analisi.summary_twoway import (
     ANOVA_SHEET, BALANCED_N, COLUMN_FACTOR, COLUMN_NAME, DISPERSION, DISPERSION_TYPE, EQUAL_WEIGHT,
     ERRORS, INPUT, MEAN, METHOD, RESIDUAL, ROW_FACTOR, ROW_LABELS, ROW_NAME, ROWS, SAMPLE_SIZE, SD, SEM,
@@ -87,6 +88,19 @@ class OracleTests(TestCase):
             shuffled = summary_twoway(frame.sample(frac=1, random_state=3), long_options()).tables[ANOVA_SHEET]
             self.assert_oracle(direct, name)
             self.assert_oracle(shuffled, name)
+
+    def test_blank_grouped_rows_keep_the_original_source_row_numbers(self):
+        frame = table_frame(GROUPED_FORMATS["Mean, SD and N"], sample=False)
+        frame.iloc[0] = ["A0", 2, 1, 3, 6, 1, 3]
+        frame.iloc[2] = ["A1", 4, 1, 3, 12, 1, 3]
+        options = {INPUT: SUBCOLUMNS, ROW_LABELS: "Row title", ROW_NAME: "A", COLUMN_NAME: "B"}
+        result = summary_twoway(frame, options)
+        self.assert_oracle(result.tables[ANOVA_SHEET], "bilanciato")
+        self.assertEqual(result.tables[SUMMARY_SHEET][SOURCE_ROW].tolist(), [1, 1, 3, 3])
+        frame.iat[1, 0] = "A2"
+        with self.assertRaises(FieldError) as error:
+            summary_twoway(frame, options)
+        self.assertEqual(error.exception.field, VARIABLES)
 
     def test_changing_one_mean_matches_the_recalculated_fixture(self):
         frame = long_frame()

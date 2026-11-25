@@ -4,7 +4,7 @@ Use **Group Comparison → Two-way ANOVA from summaries** (*ANOVA a due fattori 
 
 Two arrangements are supported. The dialog opens on the one that matches the sheet.
 
-* **Summary subcolumns:** a Grouped sheet whose column groups already use the headers `[Mean]`, `[SD]` or `[SEM]`, and `[N]`. Choose the row-factor column (for the bundled sheet, `Row title`) and tick the summary subcolumns. An empty Variables list means every matching subcolumn.
+* **Summary subcolumns:** a Grouped sheet whose column groups already use the headers `[Mean]`, `[SD]` or `[SEM]`, and `[N]`. Choose the row-factor column (for the bundled sheet, `Row title`) and tick the summary subcolumns. An empty Variables list means every matching subcolumn. Entirely blank rows among the chosen columns are skipped. The results show the original worksheet row numbers.
 * **Groups in rows:** one row per cell. Map the two factor columns and the Mean, Dispersion and Sample size columns. A long CSV is mapped in place; it is not pivoted onto a Grouped sheet.
 
 Choose SD or SEM. If the choice is left unset, it is inferred only when every selected group has exactly one of those two roles. CV is not accepted. SEM is converted with SD = SEM × √N before the residual is formed. N must be an integer from 2 to 2^53. The mean and the dispersion must be finite, and the dispersion cannot be negative. The grid must be complete, with at least two levels of each factor, distinct factor names and each combination once. A partial or excluded cell is a field error on that cell; it is not dropped. Levels stay in first-seen order and the text is kept as typed, including a name such as `Dose $`.
