@@ -31,6 +31,7 @@ _SOURCES = (
     ("rank_tests", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("reference_normalization_dialog", ("LABEL_KEYS",), ()),
     ("rmcorr", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
+    ("summary_twoway", ("LABEL_KEYS",), ()),
     ("ttest_options", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("yuen", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("brunner_munzel", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
