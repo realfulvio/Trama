@@ -276,6 +276,26 @@ class RankGraphMathAndLiteralTests(unittest.TestCase):
         self.assertLessEqual(drawn_count, VISUAL_POINT_LIMIT)
         self.assertIn("6,000", plotted.figure.get_supxlabel())
 
+    def test_discarded_zeros_do_not_use_the_signed_rank_plot_budget(self):
+        first = np.zeros(50_000)
+        first[1:4] = [1.0, 3.0, -2.0]
+        frame = pd.DataFrame({"First": first, "Second": np.zeros_like(first)})
+        result = analyse(WILCOXON, frame, {
+            "First": "First", "Second": "Second", P_VALUE: AUTOMATIC,
+            ZERO_DIFFERENCES: DISCARD, RANK_PLOT: True, WILCOXON_DIFFERENCES: True,
+        })
+        points = sorted(
+            (int(column), float(rank))
+            for collection in result.figure.axes[0].collections
+            for column, rank in collection.get_offsets()
+        )
+        self.assertEqual(points, [(2, 1.0), (3, 3.0), (4, -2.0)])
+        caption = result.figure.get_supxlabel()
+        self.assertIn("50,000", caption)
+        self.assertTrue(caption.startswith(result.figure.axes[1].get_title()))
+        self.assertNotIn(result.figure.axes[0].get_title(), caption)
+        self.assertEqual(result.tables[WILCOXON].at["Effective N", "Value"], 3)
+
     def test_legacy_recipe_preserves_original_table_and_draws_requested_plot(self):
         frame = pd.DataFrame({
             "Response": [3.0, 7.0, 3.0, 5.0, 8.0],

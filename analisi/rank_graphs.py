@@ -206,12 +206,15 @@ def _draw_wilcoxon_ranks(axes, ranks: pd.DataFrame, options: dict, frame, source
     plot_mask = included | zero_mask
 
     total = len(ranks)
-    picked, reduced = _sample_indices(
-        total,
+    candidates = np.flatnonzero(plot_mask)
+    signed_ranks = np.sign(diffs) * abs_ranks
+    kept, reduced = _sample_indices(
+        len(candidates),
         VISUAL_POINT_LIMIT,
-        values=np.where(included, np.where(diffs > 0, abs_ranks, -abs_ranks), 0.0),
-        priority_mask=zero_mask,
-    ) if plot_mask.any() else (np.arange(total, dtype=np.intp), False)
+        values=signed_ranks[candidates],
+        priority_mask=zero_mask[candidates],
+    )
+    picked = candidates[kept]
 
     row_spans = frame.attrs.get(ROW_SPANS) if frame is not None else None
     sheet_rows = len(frame) if frame is not None else int(source_positions.max(initial=0))
@@ -219,12 +222,11 @@ def _draw_wilcoxon_ranks(axes, ranks: pd.DataFrame, options: dict, frame, source
 
     drawn_pairs = pair_nums[picked]
     drawn_diffs = diffs[picked]
-    drawn_abs = abs_ranks[picked]
     drawn_inc = included[picked]
     drawn_pos = source_positions[picked]
     drawn_zero = zero_mask[picked]
 
-    signed = np.where(drawn_diffs > 0, drawn_abs, -drawn_abs)
+    signed = signed_ranks[picked]
     pos_sel = drawn_inc & (drawn_diffs > 0)
     neg_sel = drawn_inc & (drawn_diffs < 0)
 
@@ -402,9 +404,7 @@ def rank_test_figure(method: str, tables: dict[str, pd.DataFrame], options: dict
     panels = len(plots)
     figure = Figure(figsize=(10.5 if panels == 2 else 8.0, 4.8), dpi=100, layout="constrained")
     grid = figure.add_gridspec(1, panels)
-    any_reduced = False
-    max_total = 0
-    max_shown = 0
+    captions = []
     for column, plot_kind in enumerate(plots):
         axes = figure.add_subplot(grid[0, column])
         if plot_kind == RANK_PLOT:
@@ -412,9 +412,8 @@ def rank_test_figure(method: str, tables: dict[str, pd.DataFrame], options: dict
         else:
             reduced, shown, total = _draw_wilcoxon_differences(axes, ranks, options, frame, positions)
         if reduced:
-            any_reduced = True
-            if total >= max_total:
-                max_total, max_shown = total, shown
-    if any_reduced:
-        figure.supxlabel(_sampled_caption(max_shown, max_total), fontsize="small", color="#5c6b7a", parse_math=False)
+            caption = _sampled_caption(shown, total)
+            captions.append(caption if panels == 1 else f"{axes.get_title()} · {caption}")
+    if captions:
+        figure.supxlabel("\n".join(captions), fontsize="small", color="#5c6b7a", parse_math=False)
     return figure
