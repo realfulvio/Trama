@@ -756,6 +756,9 @@ class Dataset:
     # stores, replaced on every change, so undo snapshots and recovery copies can share them.
     text_styles: TextStyles = field(default_factory=TextStyles)
     result_text_styles: dict[int, dict[str, TextStyles]] = field(default_factory=dict)
+    # The CSV or TSV file the worksheet was imported from and can be updated from (``analisi.source_link``), or
+    # None. Immutable, replaced by a change, so Undo restores it with the data.
+    source_link: object = None
 
     @property
     def displayed_backgrounds(self):
@@ -1218,6 +1221,9 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         roles = _worksheet_roles(raw)
         if roles is not None:
             record["worksheet_roles"] = _validated_worksheet_roles(roles, raw.columns)
+        if dataset.source_link is not None:
+            from .source_link import SOURCE_LINK, link_record
+            record[SOURCE_LINK] = link_record(dataset.source_link)
         data["tables"].append(record)
     return data
 
@@ -1318,6 +1324,9 @@ def load_workspace(path, *, include_info=False):
             data.number_formats = read_column_formats(table["number_formats"], set(data.columns))
         if "text_styles" in table:
             data.text_styles = read_text_styles(table["text_styles"], len(data.raw), set(data.columns))
+        if "source_link" in table:  # Older versions of Trama ignore it: the worksheet keeps its cells.
+            from .source_link import read_link_record
+            data.source_link = read_link_record(table["source_link"])
         entries = table.get("analyses", [])
         limit = MAX_ANALYSIS_NODES if version >= 3 else 256
         if len(entries) > limit or any(not isinstance(method, str) or not isinstance(options, dict)

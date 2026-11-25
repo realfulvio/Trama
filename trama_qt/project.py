@@ -83,7 +83,9 @@ from analisi.worksheet_column_identity import (COLUMN_IDS, after_deletion as col
                                                after_rename as column_ids_after_rename,
                                                store as store_column_ids)
 from analisi.worksheet_row_identity import (ROW_SPANS, after_deletion, after_insertion, after_move, after_permutation,
-                                           current_spans, move_row_index, row_move_slices, validate_permutation)
+                                           current_spans, move_row_index, row_move_slices, row_tokens,
+                                           validate_permutation)
+from analisi import source_link
 from analisi.worksheet_sort import ASCENDING, plan_row_sort, sort_text, validate_sort_key
 from .sheet_commands import SheetCommands
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
@@ -389,6 +391,8 @@ class ProjectHistory(WorksheetHistory):
                         backgrounds[id(formats)] = len(formats) * 160
                 if state.text_styles:
                     backgrounds[id(state.text_styles)] = state.text_styles.run_count() * 200
+                if state.source_link is not None:  # 16 bytes per confirmed file row.
+                    backgrounds[id(state.source_link)] = len(state.source_link.digests) + 1024
                 for sheets in (state.result_text_styles or {}).values():
                     for styles in sheets.values():
                         backgrounds[id(styles)] = styles.run_count() * 200
@@ -708,6 +712,9 @@ class Project(WorksheetJoinSources, SheetCommands):
         if path.suffix.lower() != ".alab":
             raise ValueError(tr("error.alab_name"))
         self.sync_links(persist=True)
+        for dataset in self.tables.values():  # Linked files: also relative to the project folder (moving both).
+            if dataset.source_link is not None:
+                dataset.source_link = dataset.source_link.with_relative(path.absolute().parent)
         save_project(path, self.tables, layouts=self.layouts, info_sheets=tuple(self.info_sheets.values()),
                      sheet_metadata=self.sheet_metadata)
         self.path = path
@@ -1492,6 +1499,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         dataset.number_formats = candidate.number_formats
         dataset.row_heights = candidate.row_heights
         dataset.text_styles = candidate.text_styles
+        dataset.source_link = candidate.source_link
         after = WorksheetState.capture(dataset)
         if not self.history.record(title, label, before, after):
             return None
@@ -1909,6 +1917,85 @@ class Project(WorksheetJoinSources, SheetCommands):
             dataset.excluded = current
         return self.edit(title, "Exclude cells", change)
 
+    # -- worksheets linked to a CSV or TSV file (analisi.source_link) ------------------------------------------
+    def attach_source(self, title, spec):
+        """Link a worksheet just imported from ``spec.path`` (part of the import: not a separate Undo step)."""
+        dataset = self.tables[title]
+        dataset.source_link = source_link.new_link(spec, dataset.raw, dataset.excluded)
+        self.dirty = True
+
+    def source_sheet(self, title):
+        """``(raw, excluded)`` of a worksheet, to compare with its file away from the window thread."""
+        dataset = self.editable(title)
+        return dataset.raw, frozenset(dataset.excluded)
+
+    def update_from_source(self, title, plan, *, choice=None, replace_rows=False):
+        """Apply a plan of ``analisi.source_link.plan_update``: one Undo step and one recalculation of the analyses
+        that read the worksheet. Raises ValueError, changing nothing, when the worksheet changed after the plan."""
+        dataset = self.editable(title)
+        if dataset.raw is not plan.raw or (plan.relink is None and dataset.source_link is not plan.link):
+            raise ValueError("The worksheet changed after the file was read. Update again.")
+        arrangement = source_link.arrange(plan, choice=choice, replace_rows=replace_rows)
+        length = len(dataset.raw)
+        if not arrangement.changes_data(length) and not plan.new_columns:
+            link = source_link.confirmed_link(plan, arrangement, _with_spans(dataset.raw))
+            if source_link.same_link(link, dataset.source_link):
+                return None
+            before = WorksheetState.capture(dataset)
+            dataset.source_link = link
+            return [] if self._record_background(title, dataset, before, "Update from file") else None
+        new_raw = source_link.build_frame(plan, arrangement)
+        mapping = arrangement.mapping()
+        link = source_link.confirmed_link(plan, arrangement, new_raw)
+
+        def change(candidate):
+            _remap_row_metadata(candidate, mapping.get)
+            if plan.options.mark_excluded:  # The exclusion mark of the file decides for the cells it sends.
+                imported = {position for position, name in enumerate(new_raw.columns) if name in plan.names}
+                taken = set(np.flatnonzero(arrangement.take >= 0).tolist())
+                candidate.excluded = ({(row, column) for row, column in candidate.excluded
+                                       if not (row in taken and column in imported)}
+                                      | source_link.file_exclusions(plan, arrangement, new_raw.columns))
+            candidate.text_styles = source_link.reindex_styles(candidate.text_styles, arrangement, length)
+            candidate.raw = new_raw
+            candidate.source_link = link
+
+        return self.edit(title, "Update from file", change)
+
+    def unlink_source(self, title):
+        """Remove the link and keep the cells and the results. One Undo step, no recalculation."""
+        dataset = self.editable(title)
+        if dataset.source_link is None:
+            return False
+        before = WorksheetState.capture(dataset)
+        dataset.source_link = None
+        return self._record_background(title, dataset, before, "Unlink source file")
+
+    def source_references(self, title, rows):
+        """What disappears with the worksheet ``rows`` (0-based): excluded cells, backgrounds, styled text, row
+        heights, styled or labelled points of graphs and values of the columns added in the project."""
+        dataset = self.tables[title]
+        rows = set(rows)
+        if not rows:
+            return {}
+        imported = set(dataset.source_link.imported_names(dataset.raw)) if dataset.source_link else set()
+        project_columns = [position for position, name in enumerate(dataset.raw.columns) if name not in imported]
+        counts = {
+            "excluded": sum(1 for row, _ in dataset.excluded if row in rows),
+            "backgrounds": sum(1 for row, _ in dataset.cell_backgrounds if row in rows),
+            "heights": sum(1 for row in dataset.row_heights if row in rows),
+            "text": _styled_rows(dataset.text_styles, rows, len(dataset.raw)),
+            "values": int(dataset.raw.iloc[sorted(rows), project_columns].notna().to_numpy().sum())
+            if project_columns else 0,
+        }
+        tokens = set(row_tokens(dataset.raw, sorted(rows)))
+        points = 0
+        for run in self.runs:
+            if run.title == title:
+                points += _count_tokens(run.style or dataset.graph_styles.get(run.slot) or {}, tokens)
+        counts["points"] = points
+        return {name: count for name, count in counts.items() if count}
+
     def can_apply_history(self, change):
         if isinstance(change, WorksheetChange):
             return not self.sheet_locked(("data", change.title))
@@ -1954,6 +2041,36 @@ class Project(WorksheetJoinSources, SheetCommands):
         self.undo_changed_data = change.before.data_changed(change.after)
         self.update_linked_tables()  # Number formats are undone too, and a linked table shows them.
         return change.title, self.table_runs(change.title) if self.undo_changed_data else []
+
+
+def _with_spans(raw):
+    """``raw`` with its row identities written down (a link always names them)."""
+    if ROW_SPANS in raw.attrs:
+        return raw
+    copy_ = raw.copy(deep=False)
+    copy_.attrs = dict(raw.attrs)
+    copy_.attrs[ROW_SPANS] = current_spans(raw)
+    return copy_
+
+
+def _styled_rows(styles, rows, length):
+    if not styles:
+        return 0
+    mask = np.zeros(length, dtype=bool)
+    for column in styles.runs.values():
+        for start, stop, _ in column:
+            mask[max(0, start):min(length, stop)] = True
+    return int(mask[sorted(rows)].sum())
+
+
+def _count_tokens(value, tokens):
+    """How many records of a graph style point at one of the worksheet row ``tokens`` (styled or labelled points)."""
+    if isinstance(value, dict):
+        own = 1 if value.get("row_token") in tokens else 0
+        return own + sum(_count_tokens(item, tokens) for key, item in value.items() if key != "row_token")
+    if isinstance(value, (list, tuple)):
+        return sum(_count_tokens(item, tokens) for item in value)
+    return 0
 
 
 def reorder_rows_allowed(dataset):

@@ -151,6 +151,9 @@ def main(argv=None):
             sizes = tuple(dict.fromkeys((min(width, screen.width()), min(height, screen.height()))
                                         for width, height in ((1024, 768), (1600, 1000))))
             status = "PASS" if run_smoke(folder, sizes=sizes) == 0 else "FAIL"
+        elif only == "qt-source-link":
+            from .source_link_smoke import run_dedicated as source_link  # EN/IT, light/dark, 1024×768 and 1600×1000.
+            status = source_link(folder)
         elif only == "qt-pareto-plot":
             from .pareto_plot_smoke import run
             status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")

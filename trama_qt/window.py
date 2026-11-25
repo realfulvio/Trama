@@ -497,6 +497,12 @@ class MainWindow(QMainWindow):
             a(f"send_{app.lower()}", qt("qt.office_action", app=app), lambda app=app: self.printing.send(app),
               tip=qt("qt.office_tip" if office.ON_WINDOWS else "qt.office_windows", app=app))
         a("import_excel", excel_text("Import Excel workbook…"), self.import_excel_workbook, icon="table-2")
+        from . import source_link as linked_source
+        a("refresh_source", linked_source.t("Update from file…"), lambda: linked_source.update_from_file(self),
+          icon="git-compare", shortcut="Ctrl+Shift+U",
+          tip=linked_source.t("Read the linked CSV or TSV file again and review the changes before applying them"))
+        a("source_link", linked_source.t("Source link…"), lambda: linked_source.manage(self), icon="sliders-horizontal",
+          tip=linked_source.t("Show, change or remove the file this worksheet is linked to"))
         a("export_excel", excel_text("Export Excel workbook…"), self.export_excel_workbook, icon="sheet")
         a("language", tr("command.language"), self.choose_language, icon="type")
         a("processes", tr("processes.command"), self.choose_processes, icon="sliders-horizontal")
@@ -1006,6 +1012,10 @@ class MainWindow(QMainWindow):
             self.actions["redo"].setEnabled(idle and self.gallery is None and redo_source is not None)
         for key in ("open", "import", "new_project", "save", "save_as", "close_project", "import_excel"):
             self.actions[key].setEnabled(idle)
+        linked = editable and self.project.tables[self.selected[1]].source_link is not None
+        self.actions["refresh_source"].setEnabled(linked and idle)
+        self.actions["source_link"].setEnabled(idle and editable and (
+            linked or self.project.tables[self.selected[1]].table_format == "multivariable"))
         self.actions["export_excel"].setEnabled(idle and bool(self.project.tables or self.project.runs))
         for key in ("next_project", "previous_project"):  # Switching waits for the calculation (Cancel stays on).
             self.actions[key].setEnabled(idle and len(self.sessions) > 1)
@@ -4039,6 +4049,8 @@ class MainWindow(QMainWindow):
                 if dialog.exec() != TextImportDialog.DialogCode.Accepted or dialog.result is None:
                     return
                 titles = self.project.add_tables({path.stem: dialog.result})
+                if dialog.link_spec is not None:  # Link to the source file: File → Update from file… reads it again.
+                    self.project.attach_source(titles[0], dialog.link_spec)
                 self.status(qt("qt.imported", count=len(titles)))
             else:
                 titles = self.project.load(path, import_warnings=import_warnings)
