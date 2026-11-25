@@ -42,6 +42,9 @@ def main(rows=50_000, columns=20):
         print(f"{label:<58}{(time.perf_counter() - start) * 1000:9.1f} ms")
         return value
 
+    reference = Path(tempfile.mkdtemp(prefix="trama-table-bench-"))
+    timed("reference: export the page without tables as PDF",
+          lambda: project.export_layout(project.layouts[0], reference / "senza.pdf", {"format": "pdf"}))
     sheet = next(c for c in project.table_source_choices() if c["kind"] == "sheet")
     timed("preview of the source (200 × 40 cells)", lambda: project.table_source_preview(sheet, 200, 40))
 

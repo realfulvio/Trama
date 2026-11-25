@@ -93,20 +93,21 @@ One container artist per table holds Text, Rectangle and Line2D children in poin
 
 ## What it costs
 
-`python -m tests.bench_linked_tables` (Linux, offscreen, 4 cores, a test run was going on beside it): a 50 000 × 21 sheet, a graph with the **12 largest tables allowed** (60 × 10 cells each; a table is usually a few cells).
+`python -m tests.bench_linked_tables` (Linux, offscreen, 4 cores, idle machine): a 50 000 × 21 sheet and a graph with the **12 largest tables allowed** (60 × 10 cells each, 747 artists per table at most, 8 964 in all; a table is usually a few cells).
 
 | Step | Time |
 |---|---|
-| Preview of the source for the dialog (200 × 40 cells) | 8–14 ms |
+| Preview of the source for the dialog (200 × 40 cells) | 8 ms |
 | Refuse a whole column (50 000 rows) | 0 ms, before any read |
 | Record of one 60 × 10 range | 0.1–0.2 ms |
-| Apply 12 maximal tables (resolve + draw) | 1.2–1.3 s (about 100 ms each; 747 artists per table at most, 8 964 in all) |
-| Edit a cell outside the tables | 32 ms (no table redrawn) |
-| Update with nothing changed | 16 ms |
-| Edit a cell inside the tables | about 2 s (all 12 resolved and redrawn) |
-| Export the page with 4 maximal tables: PDF / SVG / PNG | 10 s / 5 s / 9 s (mostly the vector panel and the text of the tables) |
+| Apply the 12 maximal tables (resolve + draw) | 1.1–1.4 s (about 100 ms each) |
+| Edit a cell outside the tables | 25 ms (no table is redrawn) |
+| Update with nothing changed | 12–17 ms |
+| Edit a cell inside the tables | 1.2 s (all 12 resolved and redrawn) |
+| Reference: export the layout page without tables, PDF | 1.7 s |
+| Export the page with the 12 maximal tables in the graph and 4 on the page: PDF / SVG / PNG | 9.6 s / 4.6 s / 9.4 s |
 
-A table redraws only when its record, the values it reads, the scale or the page size change (the signature of the last drawing is kept), so an edit that does not touch a table costs only the check.
+The cost follows the text of the tables (about 0.5 s of export per maximal table, 670 text objects); one table of a few cells is not measurable. A table redraws only when its record, the values it reads, the scale or the page size change (the signature of the last drawing is kept), so an edit that does not touch a table costs only the check.
 
 ## Tests
 
