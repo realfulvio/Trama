@@ -634,7 +634,10 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph, bla
                                 if slot in mapping},
             number_formats=deepcopy(dataset.number_formats),
             result_number_formats={mapping[slot]: deepcopy(sheets)
-                                   for slot, sheets in dataset.result_number_formats.items() if slot in mapping})
+                                   for slot, sheets in dataset.result_number_formats.items() if slot in mapping},
+            text_styles=dataset.text_styles,
+            result_text_styles={mapping[slot]: dict(sheets)
+                                for slot, sheets in dataset.result_text_styles.items() if slot in mapping})
         # Sources are rebuilt from identities of the copies, so they can only refer to the copies.
         built[title].analysis_sources.update(sources)
 

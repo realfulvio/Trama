@@ -8,6 +8,7 @@ from analisi.data import EDITABLE_LEGACY_FIXED_VALUES, EDITABLE_LEGACY_XY
 from analisi.grid_headings import column_label, heading_bands
 from analisi.worksheet_appearance import text_on_background
 from analisi.worksheet_number_format import Renderer, edit_text
+from analisi.worksheet_text import ALIGN, BOLD, COLOR, FONT, ITALIC, SIZE, UNDERLINE, TextStyles
 
 from . import theme
 
@@ -30,7 +31,70 @@ def _numeric(series):
     return pd.api.types.is_numeric_dtype(series.dtype) and not pd.api.types.is_bool_dtype(series.dtype)
 
 
-class WorksheetModel(QAbstractTableModel):
+_ALIGNMENTS = {"left": Qt.AlignmentFlag.AlignLeft, "center": Qt.AlignmentFlag.AlignHCenter,
+               "right": Qt.AlignmentFlag.AlignRight}
+
+
+class TextStyleRoles:
+    """Font, colour and alignment roles of the cells whose text has a style, shared by both table models.
+
+    A style only changes how a cell is drawn: the number it shows, edits and copies is untouched. A font
+    returned here sets just the attributes the style names, so the rest comes from the table font (and its
+    zoom) through ``QFont.resolve``. ``text_scale`` carries the table zoom for an explicit size."""
+
+    text_styles = TextStyles()
+    text_scale = 1.0
+
+    def _style(self, key, row):
+        return self.text_styles.style_at(key, row) if self.text_styles else {}
+
+    def cell_style(self, column, row):
+        """The text style attributes of a cell (empty when everything is inherited): what a print or an export reads."""
+        raise NotImplementedError
+
+    def styled_font(self, style, excluded=False):
+        """The font role of a cell: the style's attributes, plus the marks of an excluded value."""
+        if not style and not excluded:
+            return None
+        cache = self.__dict__.setdefault("_font_cache", {})
+        key = (tuple(style.items()), excluded, self.text_scale)
+        font = cache.get(key)
+        if font is None:
+            font = cache[key] = QFont()
+            if FONT in style:
+                font.setFamily(style[FONT])
+            if SIZE in style:
+                font.setPointSizeF(style[SIZE] * self.text_scale)
+            if style.get(BOLD):
+                font.setBold(True)
+            if style.get(ITALIC) or excluded:
+                font.setItalic(True)
+            if style.get(UNDERLINE):
+                font.setUnderline(True)
+            if excluded:
+                font.setStrikeOut(True)
+        return font
+
+    def styled_alignment(self, style, numeric):
+        horizontal = _ALIGNMENTS.get(style.get(ALIGN)) or (
+            Qt.AlignmentFlag.AlignRight if numeric else Qt.AlignmentFlag.AlignLeft)
+        return int(horizontal | Qt.AlignmentFlag.AlignVCenter)
+
+    def styled_color(self, style):
+        return QBrush(QColor(style[COLOR])) if COLOR in style else None
+
+    def refresh_text(self, text_styles=None, scale=None):
+        """Read the text styles again (or the zoom): the roles of every cell change, the cells themselves not."""
+        if text_styles is not None:
+            self.text_styles = text_styles
+        if scale is not None:
+            self.text_scale = scale
+        if self.rowCount() and self.columnCount():
+            roles = [Qt.ItemDataRole.FontRole, Qt.ItemDataRole.ForegroundRole, Qt.ItemDataRole.TextAlignmentRole]
+            self.dataChanged.emit(self.index(0, 0), self.index(self.rowCount() - 1, self.columnCount() - 1), roles)
+
+
+class WorksheetModel(TextStyleRoles, QAbstractTableModel):
     """A data table as the window shows it, with calculated columns in worksheet order."""
 
     def __init__(self, dataset, edit, *, read_only=False, parent=None):
@@ -64,11 +128,15 @@ class WorksheetModel(QAbstractTableModel):
         self.locked = {column for column, source in enumerate(self.dataset.source_indices) if source in locks}
         self.excluded = self.dataset.worksheet_excluded
         self.formats = Renderer(self.dataset.displayed_number_formats)
+        self.text_styles = self.dataset.text_styles
         if reset:
             self.endResetModel()
         elif self.rowCount() and self.columnCount():
             self.dataChanged.emit(self.index(0, 0), self.index(self.rowCount() - 1, self.columnCount() - 1))
             self.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, self.columnCount() - 1)
+
+    def cell_style(self, column, row):
+        return self._style(self.frame.columns[column], row) if 0 <= column < len(self.frame.columns) else {}
 
     def refresh_backgrounds(self):
         if self.rowCount() and self.columnCount():
@@ -120,13 +188,15 @@ class WorksheetModel(QAbstractTableModel):
                 # The cell shows the format; its editor starts from the stored, unrounded number.
                 return text if role == Qt.ItemDataRole.DisplayRole else edit_text(value)
             return display(value)
+        style = self._style(self.frame.columns[column], row) if inside else {}
         if role == Qt.ItemDataRole.TextAlignmentRole:
             numeric = column < len(self.numeric) and self.numeric[column]
-            horizontal = Qt.AlignmentFlag.AlignRight if numeric else Qt.AlignmentFlag.AlignLeft
-            return int(horizontal | Qt.AlignmentFlag.AlignVCenter)
+            return self.styled_alignment(style, numeric)
         excluded = (row, column) in self.excluded
         background = self.dataset.cell_backgrounds.get((row, self.frame.columns[column])) if inside else None
         if role == Qt.ItemDataRole.ForegroundRole:
+            if brush := self.styled_color(style):
+                return brush
             if background:
                 return QBrush(QColor(text_on_background(background)))
             if excluded:
@@ -142,11 +212,8 @@ class WorksheetModel(QAbstractTableModel):
             if not inside:
                 return QBrush(theme.color("panel"))
             return None
-        if role == Qt.ItemDataRole.FontRole and excluded:
-            font = QFont()
-            font.setItalic(True)
-            font.setStrikeOut(True)
-            return font
+        if role == Qt.ItemDataRole.FontRole:
+            return self.styled_font(style, excluded)
         return None
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
@@ -194,11 +261,13 @@ class WorksheetModel(QAbstractTableModel):
             self.edit(row, column, text)
 
 
-class FrameModel(QAbstractTableModel):
+class FrameModel(TextStyleRoles, QAbstractTableModel):
     """A read-only result table; the row labels become the first column, as in the classic grid."""
 
-    def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None, number_formats=None):
+    def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None, number_formats=None,
+                 text_styles=None):
         super().__init__(parent)
+        self.text_styles = text_styles or TextStyles()
         self.frame = frame
         self.index_title = str(frame.index.name or "Row") if not isinstance(frame.index, pd.MultiIndex) \
             else " / ".join(str(name or "") for name in frame.index.names) or "Row"
@@ -206,6 +275,9 @@ class FrameModel(QAbstractTableModel):
         self.backgrounds = backgrounds or {}
         self.formats = Renderer(number_formats)
         self.numeric = [_numeric(frame.iloc[:, index]) for index in range(len(frame.columns))]
+
+    def cell_style(self, column, row):
+        return self._style(column, row)
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.frame)
@@ -222,13 +294,17 @@ class FrameModel(QAbstractTableModel):
                     and (text := self.formats.text(column, self.frame.iat[row, column - 1])) is not None):
                 return text  # A column formatted by its analysis (ROC thresholds) keeps that renderer.
             return self.plain_text(row, column)
+        style = self._style(column, row)
         if role == Qt.ItemDataRole.TextAlignmentRole:
             numeric = column > 0 and self.numeric[column - 1]
-            horizontal = Qt.AlignmentFlag.AlignRight if numeric else Qt.AlignmentFlag.AlignLeft
-            return int(horizontal | Qt.AlignmentFlag.AlignVCenter)
+            return self.styled_alignment(style, numeric)
+        if role == Qt.ItemDataRole.FontRole:
+            return self.styled_font(style)
         background = self.backgrounds.get((row, column))
         if background and role == Qt.ItemDataRole.BackgroundRole:
             return QBrush(QColor(background))
+        if role == Qt.ItemDataRole.ForegroundRole and (brush := self.styled_color(style)):
+            return brush
         if background and role == Qt.ItemDataRole.ForegroundRole:
             return QBrush(QColor(text_on_background(background)))
         if role == Qt.ItemDataRole.BackgroundRole and row % 2:

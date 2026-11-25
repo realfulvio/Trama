@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from .worksheet_text import TextStyles
+
 
 @dataclass(frozen=True, eq=False)
 class WorksheetState:
@@ -17,6 +19,8 @@ class WorksheetState:
     result_backgrounds: dict | None = None
     number_formats: dict | None = None
     result_number_formats: dict | None = None
+    text_styles: object | None = None
+    result_text_styles: dict | None = None
 
     @classmethod
     def capture(cls, dataset, view=None):
@@ -24,7 +28,8 @@ class WorksheetState:
         # preserves exact cell types, metadata and exclusion flags.
         return cls(dataset.raw, dataset.formulas, dataset.excluded, view, dataset.column_order,
                    dataset.cell_backgrounds, dataset.result_backgrounds,
-                   dataset.number_formats, dataset.result_number_formats)
+                   dataset.number_formats, dataset.result_number_formats,
+                   dataset.text_styles, dataset.result_text_styles)
 
     def data_changed(self, other):
         return (self.raw is not other.raw or self.formulas is not other.formulas
@@ -34,7 +39,9 @@ class WorksheetState:
         return (self.data_changed(other) or self.cell_backgrounds is not other.cell_backgrounds
                 or self.result_backgrounds is not other.result_backgrounds
                 or self.number_formats is not other.number_formats
-                or self.result_number_formats is not other.result_number_formats)
+                or self.result_number_formats is not other.result_number_formats
+                or self.text_styles is not other.text_styles
+                or self.result_text_styles is not other.result_text_styles)
 
     def restore(self, dataset):
         candidate = copy(dataset)
@@ -49,6 +56,8 @@ class WorksheetState:
         dataset.result_backgrounds = self.result_backgrounds if self.result_backgrounds is not None else {}
         dataset.number_formats = self.number_formats if self.number_formats is not None else {}
         dataset.result_number_formats = self.result_number_formats if self.result_number_formats is not None else {}
+        dataset.text_styles = self.text_styles if self.text_styles is not None else TextStyles()
+        dataset.result_text_styles = self.result_text_styles if self.result_text_styles is not None else {}
 
 
 @dataclass(frozen=True, eq=False)
@@ -105,6 +114,11 @@ class WorksheetHistory:
                 for sheets in (state.result_number_formats or {}).values():
                     for formats in sheets.values():
                         backgrounds[id(formats)] = len(formats) * 160
+                if state.text_styles:
+                    backgrounds[id(state.text_styles)] = state.text_styles.run_count() * 200
+                for sheets in (state.result_text_styles or {}).values():
+                    for styles in sheets.values():
+                        backgrounds[id(styles)] = styles.run_count() * 200
             self.frame_sizes = sizes
             if len(self.changes) == 1 or (len(self.changes) <= 24 and
                                          sum(sizes.values()) + sum(exclusions.values()) + sum(backgrounds.values()) <= self.memory_budget):

@@ -1,15 +1,22 @@
 """Text and arrow annotations of a graph on Qt (same records as ``analisi.graph_annotations``)."""
 from copy import deepcopy
 
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout,
-                               QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QTableWidget,
-                               QTableWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtGui import QFontDatabase
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
+                               QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget,
+                               QTableWidgetItem, QToolButton, QVBoxLayout, QWidget)
 
 from analisi.data import decimal_comma
-from analisi.graph_annotations import ALIGNMENTS, UNITS, on_axis_domain, validate_annotation
+from analisi.graph_annotations import ALIGNMENTS, STYLE_FLAGS, UNITS, on_axis_domain, validate_annotation
 from analisi.i18n import tr, translate_message
+from analisi.text_markup import SUBSCRIPT, SUPERSCRIPT, UNIFORM
 
+from . import theme
 from .graph_format import Choice, _color_button
+from .script_edit import ScriptEdit
+
+DEFAULT_RECORD = {"text": "", "units": "axes", "position": [.08, .9], "size": 11, "color": "#174e78",
+                  "align": "left"}
 
 
 def _pair(values):
@@ -22,17 +29,34 @@ def _pair(values):
     return row, fields
 
 
+def _tool(icon, tip, *, checkable=True):
+    button = QToolButton()
+    button.setIcon(theme.classic_icon(icon))
+    button.setIconSize(theme.icon_size(14))
+    button.setCheckable(checkable)
+    button.setToolTip(tip)
+    button.setAccessibleName(tip)
+    button.setAutoRaise(True)
+    return button
+
+
 class AnnotationEditor(QDialog):
+    """One annotation: its text with subscript and superscript portions, font, style, size, colour and place.
+
+    The Text commands of the toolbar live here for the label being edited: bold, italic and underline reach the
+    whole annotation; subscript and superscript reach the selected characters (or what is typed next);
+    ``Restore text`` gives the annotation the default formatting of a new one. The text stays plain."""
+
     def __init__(self, parent, axes, record=None):
         super().__init__(parent)
         self.setWindowTitle(tr("annotation.edit") if record is not None else tr("annotation.add"))
         self.axes, self.result = axes, None
-        record = record or {"text": "", "units": "axes", "position": [.08, .9], "size": 11, "color": "#174e78",
-                            "align": "left"}
+        record = record or dict(DEFAULT_RECORD)
         form = QFormLayout(self)
-        self.text = QPlainTextEdit(record["text"])
+        self.text = ScriptEdit(record["text"], record.get("spans", ()))
         self.text.setMaximumHeight(90)
         form.addRow(tr("annotation.text"), self.text)
+        form.addRow(tr("text.annotation.group"), self._text_bar(record))
         self.units = Choice(UNITS, {option: f"annotation.option.{option}" for option in UNITS}, record["units"])
         form.addRow(tr("annotation.units"), self.units)
         self.align = Choice(ALIGNMENTS, {option: f"annotation.option.{option}" for option in ALIGNMENTS},
@@ -68,6 +92,56 @@ class AnnotationEditor(QDialog):
         form.addRow(buttons)
         self._arrow()
 
+    def _text_bar(self, record):
+        bar = QWidget()
+        line = QHBoxLayout(bar)
+        line.setContentsMargins(0, 0, 0, 0)
+        line.setSpacing(2)
+        self.font_choice = QComboBox()
+        self.font_choice.addItem(tr("text.annotation.default_font"), None)
+        families = QFontDatabase.families()
+        for family in families:
+            self.font_choice.addItem(family, family)
+        if record.get("font") and record["font"] not in families:
+            self.font_choice.addItem(record["font"], record["font"])
+        self.font_choice.setCurrentIndex(max(0, self.font_choice.findData(record.get("font"))))
+        line.addWidget(self.font_choice, 1)
+        self.flags = {}
+        for flag, icon in (("bold", "bold"), ("italic", "italic"), ("underline", "underline")):
+            button = self.flags[flag] = _tool(icon, tr(f"command.text_{flag}"))
+            button.setChecked(bool(record.get(flag)))
+            line.addWidget(button)
+        self.subscript = _tool("subscript", tr("command.text_subscript"))
+        self.superscript = _tool("superscript", tr("command.text_superscript"))
+        self.subscript.clicked.connect(lambda: self.text.toggle_script(SUBSCRIPT))
+        self.superscript.clicked.connect(lambda: self.text.toggle_script(SUPERSCRIPT))
+        self.restore_button = _tool("textrestore", tr("command.text_restore"), checkable=False)
+        self.restore_button.clicked.connect(self.restore)
+        for button in (self.subscript, self.superscript, self.restore_button):
+            line.addWidget(button)
+        self.text.cursorPositionChanged.connect(self._script_state)
+        self.text.selectionChanged.connect(self._script_state)
+        self._script_state()
+        return bar
+
+    def _script_state(self):
+        kind, mask = self.text.script()
+        self.subscript.setChecked(kind == UNIFORM and mask == SUBSCRIPT)
+        self.superscript.setChecked(kind == UNIFORM and mask == SUPERSCRIPT)
+        for button, value in ((self.subscript, kind), (self.superscript, kind)):
+            button.setProperty("textState", value)
+
+    def restore(self):
+        """Restore text: font, bold, italic, underline, subscripts and superscripts, size, colour and alignment
+        go back to what a new annotation has; the words and their place stay."""
+        self.font_choice.setCurrentIndex(0)
+        for button in self.flags.values():
+            button.setChecked(False)
+        self.text.clear_scripts()
+        self.size.setText(f"{DEFAULT_RECORD['size']:g}")
+        self.color.setText(DEFAULT_RECORD["color"])
+        self.align.set(DEFAULT_RECORD["align"])
+
     def _arrow(self, *_):
         self.target_row.setVisible(self.arrow.isChecked())
         label = self.layout().labelForField(self.target_row)
@@ -83,9 +157,17 @@ class AnnotationEditor(QDialog):
             return [float(decimal_comma(field.text())) for field in fields]
 
         try:
-            record = {"text": self.text.toPlainText(), "units": self.units.value(), "position": values(self.position),
+            text, spans = self.text.content()
+            record = {"text": text, "units": self.units.value(), "position": values(self.position),
                       "align": self.align.value(), "size": float(decimal_comma(self.size.text())),
                       "color": self.color.text().strip()}
+            if self.font_choice.currentData():
+                record["font"] = self.font_choice.currentData()
+            for flag in STYLE_FLAGS:
+                if self.flags[flag].isChecked():
+                    record[flag] = True
+            if spans:
+                record["spans"] = spans
             if self.arrow.isChecked():
                 record["target"] = values(self.target)
         except ValueError:

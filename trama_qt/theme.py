@@ -315,6 +315,7 @@ def stylesheet():
     QToolButton:hover {{ background: {t['hover']}; }}
     QToolButton:pressed {{ background: {t['tint']}; }}
     QToolButton:checked {{ background: {t['tint']}; color: {t['accent_dark']}; }}
+    QToolButton[textState="mixed"] {{ border: 1px dashed {t['accent']}; }}
     QToolButton:disabled {{ color: {t['text3']}; }}
     QToolButton#primary {{ background: {primary}; color: {t['on_accent']}; border: 1px solid {t['accent']};
         padding: 5px 13px; font-weight: 600; }}

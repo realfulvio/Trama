@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QMenu, Q
 from analisi.i18n import tr, ui
 
 from . import theme
+from .text_format import FIRST_ROW as TEXT_FIRST_ROW, ICONS as TEXT_ICONS, MENU as TEXT_MENU, SECOND_ROW as TEXT_SECOND_ROW
 
 
 MENUS = (
@@ -31,6 +32,7 @@ MENUS = (
     ("Change", ("change", "change_graph_type", "format_graph", "graph_style_presets", "batch_figure_styles",
                 "plot_margins", "edit_layout", "variable_properties", "category_order", "cell_background",
                 "clear_cell_background", "number_format", "|",
+                *TEXT_MENU, "|",
                 "info_properties")),
     ("Arrange", ("arrange_shapes", "new_layout", "edit_layout")),
     ("Family", ("family_data", "family_info", "family_results", "family_graphs", "family_gallery", "|",
@@ -47,6 +49,7 @@ GROUPS = (
     ("Clipboard", ("cut", "copy"), ("paste_special", "paste_table"), "paste", 2),
     ("Analysis", ("linear", "nonlinear"), ("descriptive", "correlation_matrix"), "analyze", 1),
     ("Change", ("change", "format_graph"), (), None, 5),
+    ("Text", TEXT_FIRST_ROW, TEXT_SECOND_ROW, None, 6),
     ("Import / Export", ("export",), ("export_options",), "import", 3),
     ("Graph", ("new_layout",), ("pairwise",), "new_graph", 5),
 )
@@ -63,6 +66,7 @@ ICONS = {
     "analyze": "analyze", "change": "params", "format_graph": "format", "import": "import",
     "export": "export", "export_options": "exportopts", "new_layout": "layout",
     "pairwise": "pairwise", "new_graph": "graph",
+    **TEXT_ICONS,
 }
 
 
