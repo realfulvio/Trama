@@ -164,6 +164,17 @@ Report initial centroids|Mostra i centri iniziali
 Report cluster ANOVA|Mostra l’ANOVA descrittiva dei gruppi
 Report assignments for every k|Mostra le assegnazioni per ogni k
 Report Gap statistics|Mostra le statistiche Gap
+Report K-means fit diagnostics|Mostra il resoconto delle iterazioni k-means
+K-means fit diagnostics|Iterazioni k-means
+Iterations|Iterazioni
+Stop reason|Motivo dell’arresto
+Fit source|Origine del modello
+Converged|Convergenza raggiunta
+Iteration limit reached|Limite di iterazioni raggiunto
+Fixed passes completed|Passaggi programmati completati
+Current fit|Calcolo corrente
+Saved fit|Modello salvato
+Not recorded|Non registrato
 Choose whether to include this report.|Scegli se includere questo report.
 Show WSS plot|Mostra il grafico WSS
 Show silhouette plot|Mostra il grafico della silhouette

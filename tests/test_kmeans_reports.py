@@ -42,6 +42,24 @@ class KmeansReportTests(unittest.TestCase):
         self.assertIn("Descriptive", anova["Interpretation"])
         self.assertAlmostEqual(result.tables["Cluster variation"].loc[2, "Explained variation (%)"], 100 * 100 / 104)
 
+    def test_fit_diagnostics_distinguish_stable_assignments_and_the_iteration_limit(self):
+        opts = {**self.fit, k.ALGORITHM: k.FORGY_LLOYD, "Report K-means fit diagnostics": True}
+        for limit, reason in ((1, "Iteration limit reached"), (2, "Converged")):
+            with self.subTest(limit=limit):
+                result = analyse(k.CLUSTERING, self.frame, {**opts, k.LLOYD_ITERATIONS: limit})
+                record = result.tables["K-means fit diagnostics"].loc[2]
+                self.assertEqual(list(record), [1, reason, "Current fit"])
+                self.assertEqual(result.tables["Fit"].at["Within-cluster SS", "Value"], 4.)
+
+    def test_fit_diagnostics_report_the_observed_iteration_count_for_each_algorithm(self):
+        for algorithm, passes, reason in ((k.HARTIGAN, 1, "Converged"), (k.MACQUEEN, 1, "Converged"),
+                                          (k.LLOYD, 100, "Fixed passes completed")):
+            with self.subTest(algorithm=algorithm):
+                result = analyse(k.CLUSTERING, self.frame,
+                                 {**self.fit, k.ALGORITHM: algorithm, "Report K-means fit diagnostics": True})
+                self.assertEqual(list(result.tables["K-means fit diagnostics"].loc[2]),
+                                 [passes, reason, "Current fit"])
+
     # The patched kmeans counts calls in this process: keep the scan in one process.
     @patch.dict("os.environ", {"TRAMA_PROCESSES": "1"})
     def test_opt_in_does_not_change_lloyd_fits_and_scan_reports_reuse_every_fit_once(self):
@@ -207,7 +225,8 @@ class KmeansReportTests(unittest.TestCase):
         _, method, options = restore_recipe(sheet, parameters, frames)
         self.assertEqual(method, k.SELECTION)
         self.assertTrue(all(options.get(flag) for flag in ("Show WSS plot", "Show silhouette plot", "Show Gap plot")))
-        self.assertEqual(reports.requested(options, scan=True), set(reports.SCAN) - {reports.ANOVA})
+        self.assertEqual(reports.requested(options, scan=True),
+                         set(reports.SCAN) - {reports.ANOVA, reports.FIT_DIAGNOSTICS})
         result = analyse(method, self.frame, options).tables
         self.assertNotIn("Cluster ANOVA", result)
         self.assertEqual(len(result["Assignments by k"]), len(self.frame))

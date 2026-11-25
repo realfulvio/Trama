@@ -35,6 +35,10 @@ def _number(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
+def _iterations(value):
+    return value if type(value) is int and 0 <= value <= 1000 else None
+
+
 def _identical_rows(data):
     _, keys = np.unique(data.to_numpy(dtype=float), axis=0, return_inverse=True)
     ordered = np.argsort(keys)
@@ -91,7 +95,10 @@ def _archived_row(model, data, values, count, repeated):
     if (not _consistent(fit, *values_to_keep)
             or not np.allclose(distances, saved_distances, rtol=1e-10, atol=1e-12)):
         return None
-    return {"groups": memberships, "metrics": values_to_keep}
+    record = {"groups": memberships, "metrics": values_to_keep}
+    if (iterations := _iterations(model.get("iterationCount"))) is not None:
+        record["iterations"] = iterations
+    return record
 
 
 def restore(frame, options, results):
@@ -145,6 +152,7 @@ def matching(frame, options, data, values, candidates, retain_initial):
         fit, _ = found
         if not _consistent(fit, *metrics):
             return None
+        fit.iterations = _iterations(model.get("iterations"))
         fits[count] = fit
         gaps[count] = metrics[1:3]
     return fits, gaps

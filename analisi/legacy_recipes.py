@@ -754,6 +754,8 @@ def _kmeans(frame, content, results):
     archive = kmeans_archive.restore(frame, options, results)
     if archive is not None:
         options[kmeans_archive.ARCHIVE] = archive
+        if any("iterations" in record for record in archive["models"]):
+            options[kmeans_reports.FIT_DIAGNOSTICS] = True
         options["Legacy import notes"] = (
             "Uses the saved K-means partitions and Gap statistics while worksheet values and fitting settings match. "
             "Recalculates with Trama after a change. See the Selection sheet for the source of the result."

@@ -24,6 +24,8 @@ Apri la scheda **Risultati** per scegliere le tabelle aggiuntive. La ricerca di 
 
 **ANOVA descrittiva dei gruppi** scompone la variazione per variabile e riporta F e p nominale quando calcolabili. Poiché i gruppi sono ricavati dalle stesse variabili, questi valori descrivono la partizione e richiedono dati indipendenti per un uso confermativo. La tabella **Variazione dei gruppi** riporta le quote interna e spiegata se la variazione totale è positiva.
 
+**Mostra il resoconto delle iterazioni k-means** aggiunge una riga per ciascun modello con i passaggi della partenza scelta e il motivo dell’arresto. Lloyd esegue un numero fisso di passaggi. Forgy–Lloyd conta gli aggiornamenti dei centroidi e indica se ha confermato la stabilità delle assegnazioni prima di fermarsi. Hartigan–Wong e MacQueen riportano i giri della soluzione convergente. Se un progetto importato contiene modelli verificabili con il conteggio salvato, Trama apre il report con quei conteggi. Per i modelli salvati con motivo dell’arresto sconosciuto, il report mostra **Non registrato**.
+
 ## Selezione del modello importata
 
 Per i modelli salvati che corrispondono ai dati del foglio, Trama usa le assegnazioni verificate e le statistiche Gap del progetto per creare tabelle e figure native. All’apertura controlla che ogni riga appartenga a un gruppo e che distanze e somme dei quadrati corrispondano ai dati sulla scala di calcolo. Il campo **Result source** in **Selection** indica la provenienza. Per esempio, Wine conserva tutte le otto partizioni, le statistiche Gap e la raccomandazione di tre gruppi. [Selezione del modello Wine su Windows](media/kmeans-algorithms/windows-wine-selection.png)

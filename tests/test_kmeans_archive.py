@@ -60,6 +60,23 @@ class KMeansArchiveTests(unittest.TestCase):
         self.assertNotIn("Gap simulations", result.tables["Selection"].index)
         self.assertEqual(result.tables["Cluster metrics"].loc[2, "Gap"], 1.25)
 
+    def test_iteration_report_reuses_recorded_counts_when_available(self):
+        models = self.results["content"]["models"]
+        models["1"]["iterationCount"] = 0
+        models["2"]["iterationCount"] = 3
+        options = {**self.options_with_archive(), "Report K-means fit diagnostics": True}
+        with patch.object(advanced, "_scan_fit", side_effect=AssertionError("Unexpected live fit")):
+            table = analyse(SELECTION, self.frame, options).tables["K-means fit diagnostics"]
+        self.assertEqual(table["Iterations"].tolist(), [0, 3])
+        self.assertEqual(table["Fit source"].tolist(), ["Saved fit"] * 2)
+        self.assertEqual(table["Stop reason"].tolist(), ["Not recorded"] * 2)
+        options[ARCHIVE]["models"][0].pop("iterations")
+        options[ARCHIVE]["models"][1]["iterations"] = True
+        result = analyse(SELECTION, self.frame, options)
+        self.assertTrue(result.tables["K-means fit diagnostics"]["Iterations"].isna().all())
+        self.assertEqual(result.tables["Selection"].at["Result source", "Value"],
+                         "Saved partitions and Gap statistics")
+
     def test_edit_exclusion_or_configuration_change_recalculates(self):
         options = self.options_with_archive()
         edited = self.frame.copy()

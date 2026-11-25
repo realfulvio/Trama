@@ -3,7 +3,8 @@
 from PySide6.QtWidgets import QComboBox, QTabWidget, QVBoxLayout, QWidget
 
 from analisi.distribution_graphs import BOX_VIOLIN
-from analisi.i18n import tr
+from analisi.i18n import tr, ui
+from analisi import kmeans_options, kmeans_reports
 from analisi.paired_graphs import PAIRED_DIFFERENCES
 
 from .strings import qt
@@ -42,6 +43,9 @@ def result_labels(method, title):
         return tr("ttest.pairs.table"), {
             "Subject": tr("ttest.pairs.subject"), "Difference": tr("ttest.pairs.difference"),
         }
+    if method in kmeans_options.METHODS and title == kmeans_reports.FIT_DIAGNOSTICS_TABLE:
+        return ui(title), {name: ui(name) for name in ("Iterations", kmeans_reports.FIT_REASON,
+                                                       kmeans_reports.FIT_SOURCE)}
     key = _TAB_KEYS.get(method, {}).get(title)
     if key is None:
         return str(title), {}

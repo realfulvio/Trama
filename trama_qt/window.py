@@ -21,6 +21,8 @@ from analisi.analysis_chain import ChainCancelled
 from analisi.axis_breaks import AXIS_BREAKS
 from analisi.field_error import FieldError
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, translate_message, ui
+from analisi.kmeans_options import METHODS as KMEANS_METHODS
+from analisi.kmeans_reports import FIT_DIAGNOSTICS_TABLE, FIT_REASON, FIT_SOURCE
 from analisi.correlation_matrix import CORRELATION_MATRIX
 from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
 from analisi.plot_function import CURVES as FUNCTION_CURVES, PLOT_FUNCTION
@@ -2112,6 +2114,8 @@ class MainWindow(QMainWindow):
             for title, frame in result.tables.items():
                 formatters = ({"Threshold": threshold_text} if threshold_text and run.method == "ROC curve"
                               and title == "Diagnostic thresholds" else None)
+                if run.method in KMEANS_METHODS and title == FIT_DIAGNOSTICS_TABLE:
+                    formatters = {FIT_REASON: ui, FIT_SOURCE: ui}
                 backgrounds = self.project.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})
                 number_formats = self.project.tables[run.title].result_number_formats.get(run.slot, {}).get(title, {})
                 text_styles = self.project.tables[run.title].result_text_styles.get(run.slot, {}).get(title)

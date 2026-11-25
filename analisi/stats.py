@@ -931,6 +931,8 @@ class Clusters:
     scaled: pd.DataFrame | None = None
     distances: np.ndarray | None = None
     initial_centers: pd.DataFrame | None = None
+    iterations: int | None = None
+    converged: bool | None = None
 
 
 def _cluster_data(frame, columns, count, scale="none"):
@@ -990,11 +992,12 @@ def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloy
         raise ValueError("Too many clusters for the number of distinct observations.")
     rng = np.random.default_rng(seed)
     best = None
+    passes = 100
     for _ in range(10):
         try:
             initial = values[_kmeans_plus_plus_rows(values, count, rng)] if retain_initial else None
             centers, labels = cluster.vq.kmeans2(values, initial.copy() if initial is not None else count,
-                                                iter=100, minit="matrix" if retain_initial else "++",
+                                                iter=passes, minit="matrix" if retain_initial else "++",
                                                 missing="raise", rng=rng)
         except cluster.vq.ClusterError:
             continue
@@ -1002,7 +1005,8 @@ def kmeans(frame, columns, count, standardize=False, seed=42, *, algorithm="lloy
         if best is None or inertia < best.inertia:
             best = Clusters(data, pd.Series(labels + 1, index=data.index, name="Cluster"),
                             pd.DataFrame(centers, columns=columns), inertia,
-                            initial_centers=None if initial is None else pd.DataFrame(initial, columns=columns))
+                            initial_centers=None if initial is None else pd.DataFrame(initial, columns=columns),
+                            iterations=passes)
     if best is None:
         raise ValueError("K-means did not converge to non-empty clusters.")
     return best
@@ -1039,9 +1043,12 @@ def _forgy_lloyd_kmeans(frame, columns, count, scale, seed, max_iterations, init
 
     centers = initial
     previous = None
+    updates = 0
+    converged = False
     for _ in range(max_iterations):
         labels = cdist(shifted, centers, "sqeuclidean").argmin(axis=1)
         if previous is not None and np.array_equal(labels, previous):
+            converged = True
             break
         sizes = np.bincount(labels, minlength=count)
         if (sizes == 0).any():
@@ -1050,10 +1057,12 @@ def _forgy_lloyd_kmeans(frame, columns, count, scale, seed, max_iterations, init
         np.add.at(sums, labels, shifted)
         centers = sums / sizes[:, None]
         previous = labels
+        updates += 1
     inertia = float(np.sum((shifted - centers[labels]) ** 2))
     return Clusters(data, pd.Series(labels + 1, index=data.index, name="Cluster"),
                     pd.DataFrame(centers + origin, columns=columns), inertia,
-                    initial_centers=pd.DataFrame(values[positions], columns=columns) if retain_initial else None)
+                    initial_centers=pd.DataFrame(values[positions], columns=columns) if retain_initial else None,
+                    iterations=updates, converged=converged)
 
 
 def _hartigan_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial,
@@ -1096,7 +1105,8 @@ def _hartigan_kmeans(frame, columns, count, scale, seed, max_iterations, initial
             raise IterationLimitError("Hartigan–Wong reached the maximum number of iterations.")
     return Clusters(data, pd.Series(fit.labels + 1, index=data.index, name="Cluster"),
                     pd.DataFrame(fit.centers, columns=columns), float(fit.within.sum()),
-                    initial_centers=pd.DataFrame(values[chosen], columns=columns) if retain_initial else None)
+                    initial_centers=pd.DataFrame(values[chosen], columns=columns) if retain_initial else None,
+                    iterations=fit.iterations, converged=fit.converged)
 
 
 def _macqueen_kmeans(frame, columns, count, scale, seed, max_iterations, initial_rows, retain_initial):
@@ -1133,7 +1143,7 @@ def _macqueen_kmeans(frame, columns, count, scale, seed, max_iterations, initial
     sums = np.zeros_like(initial)
     np.add.at(sums, labels, shifted)
     centers = sums / counts[:, None]
-    for _ in range(max_iterations):
+    for iteration in range(1, max_iterations + 1):
         moved = False
         for row, point in enumerate(shifted):
             old = labels[row]
@@ -1163,7 +1173,8 @@ def _macqueen_kmeans(frame, columns, count, scale, seed, max_iterations, initial
     inertia = float(np.sum((shifted - centers[labels]) ** 2))
     return Clusters(data, pd.Series(labels + 1, index=data.index, name="Cluster"),
                     pd.DataFrame(centers + origin, columns=columns), inertia,
-                    initial_centers=pd.DataFrame(values[positions], columns=columns) if retain_initial else None)
+                    initial_centers=pd.DataFrame(values[positions], columns=columns) if retain_initial else None,
+                    iterations=iteration, converged=True)
 
 
 def _scale_cluster_axis(values, mode, axis):

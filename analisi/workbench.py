@@ -777,7 +777,8 @@ def _cluster_selection(frame, o, *, cancel=None):
         result.tables["Selection"].loc["Gap simulations", "Value"] = o.get("Gap simulations", 20)
     if reports:
         result.tables.update(kmeans_reports.result_tables(scan.report_fits, frame, scan.fitting_data, reports,
-                                                          metrics=scan.metrics, column_scale=scale))
+                                                          metrics=scan.metrics, column_scale=scale,
+                                                          restored=scan.restored))
     primary = {"elbow": "WSS", "consensus": None}.get(criterion, o["Criterion"])
     extra = [metric for metric in plots if metric != primary]
     if extra:

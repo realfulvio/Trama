@@ -69,6 +69,19 @@ class QtKmeansOptionsTests(unittest.TestCase):
         algorithm.setCurrentIndex(algorithm.findData(km.HARTIGAN))
         self.assertEqual(dialog.options()[km.INITIALIZATION], km.KMEANS_PLUS_PLUS)
 
+    def test_fit_diagnostics_is_optional_and_has_italian_result_labels(self):
+        from trama_qt.result_tabs import result_labels
+
+        key = kmeans_reports.FIT_DIAGNOSTICS
+        dialog = self.dialog(km.SELECTION, {})
+        self.assertEqual(dialog.rows[key][0].text(), "Mostra il resoconto delle iterazioni k-means")
+        self.assertFalse(dialog.options().get(key, False))
+        dialog.controls[key][1].setChecked(True)
+        self.assertIs(dialog.options()[key], True)
+        caption, headers = result_labels(km.SELECTION, kmeans_reports.FIT_DIAGNOSTICS_TABLE)
+        self.assertEqual(caption, "Iterazioni k-means")
+        self.assertEqual(headers["Iterations"], "Iterazioni")
+
     def test_metric_plot_requires_a_linked_scan_and_reports_missing_gap_on_its_field(self):
         from trama_qt.analysis_dialog import AnalysisDialog
 

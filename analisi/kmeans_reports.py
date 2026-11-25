@@ -18,7 +18,11 @@ ANOVA = "Report cluster ANOVA"
 ASSIGNMENTS = "Report assignments for every k"
 ASSIGNMENTS_TABLE = "Assignments by k"
 GAP = "Report Gap statistics"
-COMMON = (DETAILS, SCALED, DISTANCES, CENTROIDS, ANOVA)
+FIT_DIAGNOSTICS = "Report K-means fit diagnostics"
+FIT_DIAGNOSTICS_TABLE = "K-means fit diagnostics"
+FIT_REASON = "Stop reason"
+FIT_SOURCE = "Fit source"
+COMMON = (DETAILS, SCALED, DISTANCES, CENTROIDS, ANOVA, FIT_DIAGNOSTICS)
 SCAN = (*COMMON, ASSIGNMENTS, GAP)
 GAP_CRITERIA = ("Gap", "Consensus (17 indices)")
 MODEL_GRAPH = "K-means metric plot"
@@ -102,7 +106,7 @@ def _gap_table(metrics):
     return table
 
 
-def result_tables(fits, raw, fitting_data, active, *, metrics=None, column_scale="standardize"):
+def result_tables(fits, raw, fitting_data, active, *, metrics=None, column_scale="standardize", restored=False):
     """Generate report tables from existing fits; all fits share complete observations."""
     variables = list(fitting_data.columns)
     values = fitting_data.to_numpy()
@@ -176,4 +180,11 @@ def result_tables(fits, raw, fitting_data, active, *, metrics=None, column_scale
         tables["Cluster ANOVA"] = pd.concat(comparisons, ignore_index=True)
     if GAP in active:
         tables["Gap statistics"] = _gap_table(metrics)
+    if FIT_DIAGNOSTICS in active:
+        reasons = {True: "Converged", False: "Iteration limit reached", None: "Fixed passes completed"}
+        tables[FIT_DIAGNOSTICS_TABLE] = pd.DataFrame({
+            "Iterations": pd.array([fit.iterations for fit in fits.values()], dtype="Int64"),
+            FIT_REASON: ["Not recorded" if restored else reasons[fit.converged] for fit in fits.values()],
+            FIT_SOURCE: "Saved fit" if restored else "Current fit",
+        }, index=pd.Index(fits.keys(), name="k"))
     return tables
