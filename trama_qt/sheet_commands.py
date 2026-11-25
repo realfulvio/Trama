@@ -158,43 +158,49 @@ class SheetCommands:
         self.tables = {name if key == title else key: dataset for key, dataset in self.tables.items()}
         self.info_sheets = {uid: replace(sheet, table=name) if sheet.table == title else sheet
                             for uid, sheet in self.info_sheets.items()}
-        def rename_panel_sources(layout):
-            panels = [(name if owner == title else owner, slot) for owner, slot in layout.panels]
-            tables = linked_tables.rename_sheet(layout.tables, title, name) if layout.tables else layout.tables
-            if panels == layout.panels and tables is layout.tables:
-                return layout
-            return replace(layout, panels=panels, tables=tables)
-
-        def rename_table_sources(style):
-            if style and style.get(TABLES):
-                style[TABLES] = linked_tables.rename_sheet(style[TABLES], title, name)
-
-        self.layouts = [rename_panel_sources(layout) for layout in self.layouts]
+        self._remap_worksheet_references(title, name)
         for run in self.runs:
-            rename_table_sources(run.style)  # A linked table reads the sheet under its new name.
             if run.title == title:
                 run.title = name
             if run.method == worksheet_join.METHOD and worksheet_join.right_title(run.options) == title:
                 run.options = {**run.options, worksheet_join.RIGHT_SHEET: name}
                 self.tables[run.title].analyses[run.slot] = run.method, run.options
-        from .project import LayoutChange, StyleBatchChange
-
-        for index, change in enumerate(self.history.changes):
-            if isinstance(change, WorksheetChange) and change.title == title:
-                self.history.changes[index] = replace(change, title=name)
-            elif isinstance(change, StyleBatchChange):
-                for styles in (change.before, change.after):
-                    for style in styles.values():
-                        rename_table_sources(style)
-            elif isinstance(change, LayoutChange):
-                self.history.changes[index] = replace(change, before=rename_panel_sources(change.before),
-                                                      after=rename_panel_sources(change.after))
         records = self.sheet_metadata.get("sheets", {})
         if (state := records.pop(f"data:{title}", None)) is not None:
             records[f"data:{name}"] = state
         self.dirty = True
         self.update_linked_tables()
         return name
+
+    def _remap_worksheet_references(self, title, name):
+        from .project import LayoutChange, StyleBatchChange
+
+        def remap_layout(layout):
+            panels = ([(name if owner == title else owner, slot) for owner, slot in layout.panels]
+                      if name is not None else layout.panels)
+            tables = linked_tables.rename_sheet(layout.tables, title, name) if layout.tables else layout.tables
+            if panels == layout.panels and tables is layout.tables:
+                return layout
+            return replace(layout, panels=panels, tables=tables)
+
+        def remap_style(style):
+            if style and style.get(TABLES):
+                style[TABLES] = linked_tables.rename_sheet(style[TABLES], title, name)
+
+        self.layouts = [remap_layout(layout) for layout in self.layouts]
+        for run in self.runs:
+            remap_style(run.style)
+
+        for index, change in enumerate(self.history.changes):
+            if name is not None and isinstance(change, WorksheetChange) and change.title == title:
+                self.history.changes[index] = replace(change, title=name)
+            elif isinstance(change, StyleBatchChange):
+                for styles in (change.before, change.after):
+                    for style in styles.values():
+                        remap_style(style)
+            elif isinstance(change, LayoutChange):
+                self.history.changes[index] = replace(change, before=remap_layout(change.before),
+                                                      after=remap_layout(change.after))
 
     def duplicate_sheet(self, ref):
         kind, key = ref
@@ -313,6 +319,7 @@ class SheetCommands:
                 if position > key:
                     self.info_sheets[uid] = replace(note, worksheet=f"layout:{position - 1}")
         if kind == "data":
+            self._remap_worksheet_references(key, None)
             del self.tables[key]
             self._remove_history(lambda edit: isinstance(edit, WorksheetChange) and edit.title == key)
         elif kind == "info":

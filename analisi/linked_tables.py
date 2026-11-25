@@ -56,7 +56,7 @@ GID = "tramastat-table-"
 
 TABLE_KEYS = {"id", "mode", "position", "size", "headers", "orientation", "grid"}
 OPTIONAL_KEYS = {"source", "values", "origin", "font"}
-SOURCE_KEYS = {"kind", "sheet", "analysis", "table", "rows", "columns", "by", "rows_total"}
+SOURCE_KEYS = {"kind", "sheet", "analysis", "table", "rows", "columns", "by", "rows_total", "retired"}
 
 SIZE_MESSAGE = ("Choose up to {rows} rows and {columns} columns ({cells} cells in all); "
                 "the range has {have_rows} × {have_columns}.")
@@ -125,10 +125,13 @@ def validate_source(source):
     kind = source["kind"]
     clean = {"kind": kind}
     if kind == "sheet":
-        if source.keys() - {"kind", "sheet", "rows", "columns"} or not _text(source.get("sheet")):
+        if (source.keys() - {"kind", "sheet", "rows", "columns", "retired"}
+                or not _text(source.get("sheet")) or ("retired" in source and source["retired"] is not True)):
             raise ValueError("Invalid linked table source.")
         clean["sheet"] = source["sheet"]
         clean["rows"] = _keys(rows, "token")
+        if source.get("retired"):
+            clean["retired"] = True
     else:
         if (source.keys() - {"kind", "analysis", "table", "rows", "columns", "by", "rows_total"}
                 or not _text(source.get("analysis"), limit=64) or not _text(source.get("table"))
@@ -240,8 +243,9 @@ def remap_sources(records, analyses=None, sheets=None):
         if source is not None:
             if source["kind"] == "result" and source["analysis"] in analyses:
                 source = {**source, "analysis": analyses[source["analysis"]]}
-            elif source["kind"] == "sheet" and source["sheet"] in sheets:
-                source = {**source, "sheet": sheets[source["sheet"]]}
+            elif source["kind"] == "sheet" and not source.get("retired") and source["sheet"] in sheets:
+                new_sheet = sheets[source["sheet"]]
+                source = {**source, "retired": True} if new_sheet is None else {**source, "sheet": new_sheet}
             if source is not record["source"]:
                 record = {**record, "source": source}
         moved.append(record)
@@ -249,17 +253,8 @@ def remap_sources(records, analyses=None, sheets=None):
 
 
 def rename_sheet(records, old, new):
-    """``records`` with the sheet ``old`` named ``new`` in the sources that read it (the same list when none does)."""
-    if not any(record.get("source", {}).get("sheet") == old and record["source"]["kind"] == "sheet"
-               for record in records):
-        return records
-    changed = []
-    for record in records:
-        source = record.get("source")
-        if source and source["kind"] == "sheet" and source["sheet"] == old:
-            record = {**record, "source": {**source, "sheet": new}}
-        changed.append(record)
-    return changed
+    """Rename worksheet sources, or retire them when their worksheet is deleted."""
+    return remap_sources(records, sheets={old: new})
 
 
 # -- reading the project ---------------------------------------------------------------------------------
@@ -350,6 +345,8 @@ def resolve(record, lookup):
     if record["mode"] == "copy":
         return _frozen(record)
     source = record["source"]
+    if source.get("retired"):
+        return Resolved("missing", tr("linked_table.detail.sheet", name=source["sheet"]))
     found = (lookup.sheet(source["sheet"]) if source["kind"] == "sheet"
              else lookup.result(source["analysis"], source["table"]))
     if isinstance(found, Problem):

@@ -45,7 +45,7 @@ In the example the slope of the regression of `Misure` is 2; after B4 goes from 
 
 The project says exactly which source a table reads, and never guesses another one:
 
-- **Worksheet range**: the title of the sheet, the **identity of each row** (the worksheet row identities that already survive inserted and deleted rows, so a table keeps its rows when rows are added above them) and the **names of the columns**. Renaming a sheet follows (the records are rewritten with it); renaming or deleting a column that the table uses is a state, not a guess.
+- **Worksheet range**: the sheet title, **row identities**, and **column names**. Links follow moved rows and renamed worksheets. Deleting a source worksheet leaves its links unavailable, including after another sheet takes the same name. A missing column is reported in the figure.
 - **Result range**: the identity of the **analysis** (its recipe, not its number in the list: the unique id the project already gives it and that Save writes), the **key of the result table** and the **row and column keys**. Removing and recreating an analysis with the same recipe gives a different analysis: the table stays *not available* and does not move onto it.
 
 ### States

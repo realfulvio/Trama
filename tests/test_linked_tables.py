@@ -555,6 +555,30 @@ class ProjectTests(unittest.TestCase):
         self.project.undo()
         self.assertEqual(cells(self.project)[0][2], "ok")
 
+    def test_links_follow_reordered_rows_but_never_reuse_a_deleted_sheet_name(self):
+        project = self.project
+        project.add_tables({"Fonte": pd.DataFrame({"Dato": [11, 22, 33]})})
+        choice = next(choice for choice in project.table_source_choices() if choice.get("sheet") == "Fonte")
+        linked = project.table_record(choice, (1, 0, 1, 0))
+        copied = project.table_record(choice, (1, 0, 1, 0), mode="copy")
+        put_on_graph(project, linked, copied)
+        project.put_layout(replace(project.layouts[0], tables=[linked]), 0)
+        project.move_rows("Fonte", 1, 2, 0)
+        self.assertEqual([value for _, _, _, value in cells(project)], [(("22",),)] * 3)
+
+        project.delete_sheet(("data", "Fonte"))
+        project.add_tables({"Fonte": pd.DataFrame({"Dato": [101, 202, 303]})})
+        expected = [("linked", "missing", ()), ("copy", "ok", (("22",),)), ("linked", "missing", ())]
+        self.assertEqual([(mode, state, value) for _, mode, state, value in cells(project)], expected)
+        project.undo()
+        self.assertEqual([(mode, state, value) for _, mode, state, value in cells(project)], expected[:2])
+        project.undo(redo=True)
+        self.assertEqual([(mode, state, value) for _, mode, state, value in cells(project)], expected)
+        saved = self.folder / "riusato.alab"
+        project.save(saved)
+        again = opened(self.folder, saved)
+        self.assertEqual([(mode, state, value) for _, mode, state, value in cells(again)], expected)
+
     def test_a_malformed_table_in_a_file_makes_it_refuse_to_open(self):
         put_on_graph(self.project, slope_record(self.project))
         self.project.put_layout(replace(self.project.layouts[0], tables=[slope_record(self.project)]), 0)
