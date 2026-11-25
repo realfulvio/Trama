@@ -532,7 +532,7 @@ class Project(WorksheetJoinSources, SheetCommands):
                 for index, (method, options) in enumerate(dataset.analyses)]
 
     # -- files ----------------------------------------------------------------------------------
-    def load(self, path, *, initial_sheet=None):
+    def load(self, path, *, initial_sheet=None, import_warnings=None):
         """Open a project or import a data file into this project. Returns the titles added."""
         path = Path(path)
         if path.suffix.lower() == ".alab":
@@ -552,7 +552,8 @@ class Project(WorksheetJoinSources, SheetCommands):
             self.source_stamp = _file_stamp(path)
             return list(loaded)
         info_sheets = []
-        tables = load_tables(path, restore_legacy=True, info_sheets=info_sheets, initial_sheet=initial_sheet)
+        tables = load_tables(path, restore_legacy=True, info_sheets=info_sheets,
+                             initial_sheet=initial_sheet, import_warnings=import_warnings)
         if path.suffix.lower() in PROJECT_SUFFIXES and not self.tables:
             self.origin = path
             self.source_stamp = _file_stamp(path)

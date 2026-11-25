@@ -238,6 +238,7 @@ _EN = {
     # Essential states and prompts.
     "status.welcome": "Open a project, import data, or start with the example.",
     "status.opened": "Opened {name}.", "status.saved": "Saved {name}.",
+    "import.skipped_info_note": "notes in “{name}”",
     "status.imported": "Imported {count} data table(s).", "status.info_sheets": "{count} Info sheet(s).",
     "status.unsupported": "Unsupported sheets: {names}",
     "prompt.unsaved_title": "Unsaved data", "prompt.save_changes": 'Save changes to "{name}"?',
@@ -618,6 +619,7 @@ _IT = {
     "example.nested": "Misure ripetute in unità indipendenti",
     "status.welcome": "Apri un progetto, importa dati o parti dall'esempio.",
     "status.opened": "Aperto {name}.", "status.saved": "Salvato {name}.",
+    "import.skipped_info_note": "note in «{name}»",
     "status.imported": "Importate {count} tabelle dati.", "status.info_sheets": "{count} fogli Info.",
     "status.unsupported": "Fogli non supportati: {names}",
     "prompt.unsaved_title": "Dati non salvati", "prompt.save_changes": 'Salvare le modifiche a "{name}"?',

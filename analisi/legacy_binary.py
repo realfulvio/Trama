@@ -387,7 +387,7 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
     return frame
 
 
-def load_legacy_binary(path, *, restore=False, info_sheets=None):
+def load_legacy_binary(path, *, restore=False, info_sheets=None, import_warnings=None):
     from .legacy_import import _finish, _store_table
 
     with path.open("rb") as stream:
@@ -459,4 +459,4 @@ def load_legacy_binary(path, *, restore=False, info_sheets=None):
         if skipped:
             message += " Unsupported sheets: " + ", ".join(skipped)
         raise ValueError(message)
-    return _finish(tables, skipped, info_sheets)
+    return _finish(tables, skipped, info_sheets, import_warnings=import_warnings)

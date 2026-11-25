@@ -3998,7 +3998,7 @@ class MainWindow(QMainWindow):
             return
         suffix = path.suffix.lower()
         replace = suffix == ".alab" or (suffix in PROJECT_SUFFIXES and not import_data)
-        initial_sheet = []
+        initial_sheet, import_warnings = [], []
         try:
             if replace:
                 existing = self.sessions.find(path)
@@ -4014,7 +4014,8 @@ class MainWindow(QMainWindow):
                     return
                 number = self.project.number if reuse else self.project_number + 1
                 project = Project(number)
-                titles = project.load(path, initial_sheet=initial_sheet)  # Read before changing the active tab.
+                # Read before changing the active tab.
+                titles = project.load(path, initial_sheet=initial_sheet, import_warnings=import_warnings)
                 if suffix != ".alab":
                     project.origin, project.dirty = path, False
                 self._put_project(project, reuse=reuse)
@@ -4028,11 +4029,13 @@ class MainWindow(QMainWindow):
                 titles = self.project.add_tables({path.stem: dialog.result})
                 self.status(qt("qt.imported", count=len(titles)))
             else:
-                titles = self.project.load(path)
+                titles = self.project.load(path, import_warnings=import_warnings)
                 self.status(qt("qt.imported", count=len(titles)))
         except Exception as error:  # Nothing changed: no tab was added and the active one is as it was.
             self.error(qt("qt.open_failed", name=path.name, error=error))
             return
+        if import_warnings:
+            self.status(qt("qt.import_skipped", items=", ".join(dict.fromkeys(import_warnings))))
         if focus := initial_sheet_reference(initial_sheet, self.project.runs, run_view):
             self.open_sheet(focus)
             return
@@ -4042,6 +4045,8 @@ class MainWindow(QMainWindow):
         elif self.project.runs:
             run = self.project.runs[0]
             self.open_sheet((preferred_view(run, run.result), 0))
+        elif replace and self.project.info_sheets:
+            self.show_sheet("info", next(iter(self.project.info_sheets)))
         else:
             self.refresh()
 

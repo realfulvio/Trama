@@ -2,6 +2,7 @@
 
 from struct import unpack_from
 
+from .i18n import tr
 from .info import InfoSheet, MAX_INFO_FIELDS, MAX_INFO_NAME, MAX_INFO_SHEETS, MAX_INFO_VALUE
 from .legacy_binary import _records
 
@@ -97,7 +98,7 @@ def read_binary_info(data, target, skipped):
             try:
                 notes = _notes(note_records[uid], encoding)
             except ValueError:
-                skipped.append(f"{title} (notes)")
+                skipped.append(tr("import.skipped_info_note", name=title))
                 notes = ""
             target.append(_sheet(records, title, encoding, notes))
         except ValueError:

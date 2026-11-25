@@ -119,12 +119,13 @@ def delimited_reader(handle, suffix, delimiter=None, *, strict=False):
     return csv.reader(handle, dialect, strict=strict)
 
 
-def load_tables(path, *, restore_legacy=False, info_sheets=None, initial_sheet=None):
+def load_tables(path, *, restore_legacy=False, info_sheets=None, initial_sheet=None, import_warnings=None):
     path = Path(path)
     if path.suffix.lower() in {".prism", ".prismt", ".pzt", ".pzf", ".pzfx", ".xml"}:
         from .legacy_import import load_legacy
 
-        return load_legacy(path, restore=restore_legacy, info_sheets=info_sheets, initial_sheet=initial_sheet)
+        return load_legacy(path, restore=restore_legacy, info_sheets=info_sheets,
+                           initial_sheet=initial_sheet, import_warnings=import_warnings)
     if path.stat().st_size > MAX_ENTRY:
         raise ValueError("Input file exceeds 32 MiB.")
     if path.suffix.lower() == ".xlsx":

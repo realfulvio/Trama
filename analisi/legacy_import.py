@@ -17,6 +17,7 @@ from .data import (COLUMN_FORMULA_FUNCTIONS, ELEMENTWISE_FORMULA_FUNCTIONS, MAX_
                    RANDOM_FORMULA_CALLS, SHEET_LOGIC, _member, _table, formula, worksheet_logic_tokens)
 from .formula_windows import CONDITIONAL_CALLS, WINDOW_CALLS, WINDOW_CLAUSES, WINDOW_KEYWORDS
 from .graph_legend import MAX_LEGEND_KEY_LENGTH, typed_group_token
+from .i18n import tr
 from .info import InfoSheet, MAX_INFO_FIELDS, MAX_INFO_SHEETS
 from .legacy_notes import WORKSHEET_NOTES, archive_note, xml_note
 from .legacy_project_metadata import saved_table_format
@@ -48,7 +49,7 @@ def _store_table(tables, title, frame):
     return name
 
 
-def _finish(tables, skipped, info_sheets=None):
+def _finish(tables, skipped, info_sheets=None, *, import_warnings=None):
     if not tables and not info_sheets:
         message = "The legacy file has no supported source data tables."
         if skipped:
@@ -57,6 +58,8 @@ def _finish(tables, skipped, info_sheets=None):
     if skipped:
         for frame in tables.values():
             frame.attrs["skipped"] = skipped
+        if import_warnings is not None:
+            import_warnings.extend(skipped)
     return tables
 
 
@@ -361,7 +364,11 @@ def _zip_info(archive, ids, target, skipped, *, focused=None):
             if not isinstance(fields, list) or len(fields) > MAX_INFO_FIELDS:
                 raise ValueError("Invalid legacy Info constant list.")
             pairs = [(_zip_info_text(row["name"]), _zip_info_text(row["value"])) for row in fields]
-            notes, styles = archive_note(sheet.get("notesText", ""))
+            try:
+                notes, styles = archive_note(sheet.get("notesText", ""))
+            except ValueError:
+                skipped.append(tr("import.skipped_info_note", name=title))
+                notes, styles = "", ()
             imported = InfoSheet(title, tuple(pairs), notes, note_styles=styles)
             target.append(imported)
             if uid == focused:
@@ -390,7 +397,7 @@ def _saved_opening_sheet(document, sheets):
     return None
 
 
-def _legacy_zip(path, restore=False, info_sheets=None, initial_sheet=None):
+def _legacy_zip(path, restore=False, info_sheets=None, initial_sheet=None, *, import_warnings=None):
     tables, skipped, cells = {}, [], 0
     destination = None
     try:
@@ -452,7 +459,7 @@ def _legacy_zip(path, restore=False, info_sheets=None, initial_sheet=None):
         raise ValueError(f"Invalid or unreadable legacy archive: {error}") from error
     if destination is not None:
         initial_sheet.append(destination)
-    return _finish(tables, skipped, info_sheets)
+    return _finish(tables, skipped, info_sheets, import_warnings=import_warnings)
 
 
 def _xml_text(element):
@@ -515,7 +522,11 @@ def _xml_info(root, ns, target, skipped):
             if len(fields) > MAX_INFO_FIELDS:
                 raise ValueError("Legacy Info sheet contains too many constants.")
             pairs = tuple((_xml_text(row.find(ns + "Name")), _xml_text(row.find(ns + "Value"))) for row in fields)
-            notes, styles = xml_note(element.find(ns + "Notes"))
+            try:
+                notes, styles = xml_note(element.find(ns + "Notes"))
+            except ValueError:
+                skipped.append(tr("import.skipped_info_note", name=title))
+                notes, styles = "", ()
             target.append(InfoSheet(title, pairs, notes, note_styles=styles))
         except ValueError:
             skipped.append(title)
@@ -535,7 +546,7 @@ def _xml_worksheet_notes(table, ns):
     return tuple(notes)
 
 
-def _legacy_xml(path, info_sheets=None, *, restore=False):
+def _legacy_xml(path, info_sheets=None, *, restore=False, import_warnings=None):
     data = path.read_bytes()
     if b"<!DOCTYPE" in data.replace(b"\0", b"").upper():
         raise ValueError("Legacy XML files containing a DOCTYPE are unsupported.")
@@ -631,21 +642,22 @@ def _legacy_xml(path, info_sheets=None, *, restore=False):
             attach_qc_graphs(payload, column_sources)
     if info_sheets is not None:
         _xml_info(root, ns, info_sheets, skipped)
-    return _finish(tables, skipped, info_sheets)
+    return _finish(tables, skipped, info_sheets, import_warnings=import_warnings)
 
 
-def load_legacy(path, *, restore=False, info_sheets=None, initial_sheet=None):
+def load_legacy(path, *, restore=False, info_sheets=None, initial_sheet=None, import_warnings=None):
     with path.open("rb") as stream:
         header = stream.read(256)
     if header.startswith(b"PK") or is_zipfile(path):
-        return _legacy_zip(path, restore=restore, info_sheets=info_sheets, initial_sheet=initial_sheet)
+        return _legacy_zip(path, restore=restore, info_sheets=info_sheets,
+                           initial_sheet=initial_sheet, import_warnings=import_warnings)
     if path.stat().st_size > MAX_ENTRY:
         raise ValueError("Legacy input file exceeds 32 MiB.")
     if header.startswith(b"PCFFGRA4"):
         from .legacy_binary import load_legacy_binary
 
-        return load_legacy_binary(path, restore=restore, info_sheets=info_sheets)
+        return load_legacy_binary(path, restore=restore, info_sheets=info_sheets, import_warnings=import_warnings)
     xml_header = header.removeprefix(b"\xef\xbb\xbf").lstrip().startswith((b"<", b"\xff\xfe", b"\xfe\xff"))
     if header.startswith(b"PCFF") or (path.suffix.lower() in {".pzf", ".pzt"} and not xml_header):
         raise ValueError("This legacy binary project is unsupported. Save a copy as .prism or .pzfx in the source application.")
-    return _legacy_xml(path, info_sheets=info_sheets, restore=restore)
+    return _legacy_xml(path, info_sheets=info_sheets, restore=restore, import_warnings=import_warnings)

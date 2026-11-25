@@ -1783,6 +1783,45 @@ class QtShellTests(unittest.TestCase):
         action.trigger()
         self.assertTrue(self.app.clipboard().text())
 
+    def test_open_info_only_project_shows_the_first_sheet(self):
+        from analisi.data import save_project
+        from analisi.info import InfoSheet
+
+        first = InfoSheet("Study", (("Run", "005"),), "First note")
+        second = InfoSheet("Protocol", notes="Second note")
+        path = self.folder / "info.alab"
+        save_project(path, {}, info_sheets=[first, second])
+
+        self.window.open_path(path)
+        self.assertEqual(self.window.selected, ("info", first.uid))
+        self.assertEqual(self.window.info_editor.sheet, first)
+        self.assertFalse(self.window.project.dirty)
+
+    def test_legacy_info_recovers_fields_when_its_note_cannot_be_read(self):
+        import json
+        from zipfile import ZipFile
+
+        path = self.folder / "info.pzf"
+        with ZipFile(path, "w") as archive:
+            archive.writestr("document.json", json.dumps({"sheets": {"info": ["study"]}}))
+            archive.writestr("info/study/sheet.json", json.dumps({
+                "@class": "InfoSheet", "uid": "study", "title": "Study",
+                "constants": [{"name": "Run", "value": {"string": "005"}}],
+                "notesText": {"string": None},
+            }))
+        original = path.read_bytes()
+        self.window.open_path(path)
+        sheet = self.window.info_editor.sheet
+        self.assertEqual(sheet.fields, (("Run", "005"),))
+        self.assertEqual(sheet.notes, "")
+        self.assertIn(tr("import.skipped_info_note", name="Study"), self.window.message.text())
+
+        saved = self.folder / "converted.alab"
+        self.window.project.save(saved)
+        self.reopen(saved)
+        self.assertEqual(self.window.info_editor.sheet, sheet)
+        self.assertEqual(path.read_bytes(), original)
+
     def test_info_sheet_editing(self):
         from unittest import mock
         from analisi.info import NOTE_BOLD

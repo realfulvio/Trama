@@ -9,7 +9,8 @@ from zipfile import ZipFile
 import pandas as pd
 
 from analisi.data import Dataset, info_references, load_project, load_tables, load_workspace, save_project
-from analisi.info import NOTE_BOLD, InfoSheet, info_contexts
+from analisi.i18n import tr
+from analisi.info import MAX_INFO_NOTES, NOTE_BOLD, InfoSheet, info_contexts
 from analisi.info_widget import InfoEditor
 from test_legacy_binary import document, group, record
 
@@ -144,6 +145,7 @@ class InfoSheetTests(unittest.TestCase):
             InfoSheet("Study", (("Invalid", "\ud800"),))
 
     def test_xml_info_only_preserves_sequence_and_multiline_notes(self):
+        long_note = "x" * (MAX_INFO_NOTES + 1)
         with TemporaryDirectory() as directory:
             path = Path(directory) / "fixture.pzfx"
             path.write_text(
@@ -151,13 +153,18 @@ class InfoSheetTests(unittest.TestCase):
                 '<InfoSequence><Ref ID="B"/><Ref ID="A"/></InfoSequence>'
                 '<Info ID="A"><Title>Run A</Title><Notes>Readout μM\nSecond line</Notes>'
                 '<Constant><Name>Experiment ID</Name><Value>007</Value></Constant></Info>'
-                '<Info ID="B"><Title>Run B</Title><Notes/></Info></GraphPadPrismFile>', encoding="utf-8",
+                f'<Info ID="B"><Title>Run B</Title><Notes>{long_note}</Notes>'
+                '<Constant><Name>Scale</Name><Value>03</Value></Constant></Info></GraphPadPrismFile>',
+                encoding="utf-8",
             )
-            result = []
-            self.assertEqual(load_tables(path, info_sheets=result), {})
+            result, warnings = [], []
+            self.assertEqual(load_tables(path, info_sheets=result, import_warnings=warnings), {})
             self.assertEqual([sheet.title for sheet in result], ["Run B", "Run A"])
+            self.assertEqual(result[0].fields, (("Scale", "03"),))
+            self.assertEqual(result[0].notes, "")
             self.assertEqual(result[1].fields, (("Experiment ID", "007"),))
             self.assertEqual(result[1].notes, "Readout μM\nSecond line")
+            self.assertEqual(warnings, [tr("import.skipped_info_note", name="Run B")])
 
     def test_zip_info_recovers_text_and_supported_emphasis(self):
         with TemporaryDirectory() as directory:
@@ -225,10 +232,12 @@ class InfoSheetTests(unittest.TestCase):
             with self.subTest(suffix=suffix), TemporaryDirectory() as directory:
                 path = Path(directory) / f"fixture{suffix}"
                 path.write_bytes(content)
-                result = []
-                load_tables(path, info_sheets=result)
+                result, warnings = [], []
+                load_tables(path, info_sheets=result, import_warnings=warnings)
                 self.assertEqual([sheet.title for sheet in result], ["Readout", "Malformed", "Ambiguous"])
                 self.assertEqual(result[0].notes, "  Temperature 37 °C\n\nVolume\t5 µL\n")
+                self.assertEqual(warnings, [tr("import.skipped_info_note", name=title)
+                                            for title in ("Malformed", "Ambiguous")])
                 for sheet in result[1:]:
                     self.assertEqual(sheet.notes, "")
                     self.assertEqual(sheet.fields, (("Project", "Assay"),))
