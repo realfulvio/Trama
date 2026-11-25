@@ -46,9 +46,15 @@ class CategoryLevelsSmoke:
         screen = widget.screen() or self.app.primaryScreen()
         avail = screen.availableGeometry()
         frame = widget.frameGeometry()
-        limit_w = max_width if max_width is not None else avail.width()
-        limit_h = max_height if max_height is not None else avail.height()
-        if max_width is not None or self.app.platformName() != "offscreen":
+        client = QWidget.size(widget)
+        chrome_w = max(0, frame.width() - client.width())
+        chrome_h = max(0, frame.height() - client.height())
+        limit_w = max_width + chrome_w if max_width is not None else avail.width()
+        limit_h = max_height + chrome_h if max_height is not None else avail.height()
+        desktop = self.app.platformName() != "offscreen"
+        if desktop:
+            limit_w, limit_h = min(limit_w, avail.width()), min(limit_h, avail.height())
+        if max_width is not None or desktop:
             self.expect(
                 frame.width() <= limit_w and frame.height() <= limit_h,
                 f"{name}: {frame.width()}x{frame.height()} exceeds {limit_w}x{limit_h}",
@@ -101,6 +107,8 @@ class CategoryLevelsSmoke:
             window.resize(width, height)
             window.show()
             self._pump(0.1)
+            if self.app.platformName() != "offscreen":
+                theme.keep_on_screen(window)
 
             df = pd.DataFrame({
                 "Gruppo": pd.Series(["A", "B", "A", None, "Controllo $", "Procès"], dtype="string"),
@@ -150,7 +158,7 @@ class CategoryLevelsSmoke:
             if dialog.plan is not None:
                 window._apply_edit(title, lambda: window.project.apply_category_levels(title, dialog.plan))
             self._pump(0.08)
-            self._shot(window, f"{tag}-applied", max_width=width + 16, max_height=height + 16)
+            self._shot(window, f"{tag}-applied", max_width=width, max_height=height)
 
             ds = window.project.tables[title]
             self.expect(
