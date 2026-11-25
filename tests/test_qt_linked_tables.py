@@ -122,6 +122,20 @@ class QtLinkedTableTests(unittest.TestCase):
         self.app.processEvents()
         return dialog
 
+    def test_short_dialog_scrolls_the_fields_and_keeps_ok_in_view(self):
+        from trama_qt.theme import FitScrollArea
+
+        dialog = self.make_dialog()
+        dialog.resize(720, 440)
+        self.app.processEvents()
+        self.assertLessEqual(dialog.height(), 440)
+        area = dialog.findChild(FitScrollArea)
+        self.assertGreater(area.verticalScrollBar().maximum(), 0)
+        area.ensureWidgetVisible(dialog.y)
+        self.assertGreater(area.verticalScrollBar().value(), 0)
+        ok = dialog.buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self.assertTrue(dialog.rect().contains(ok.mapTo(dialog, ok.rect().bottomRight())))
+
     def test_the_dialog_previews_the_range_and_refuses_a_rectangle_over_the_limit_before_reading_it(self):
         title = self.big_project()
         dialog = self.make_dialog()

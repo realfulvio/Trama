@@ -19,6 +19,8 @@ from matplotlib.figure import Figure
 from analisi import linked_tables as lt
 from analisi.i18n import tr, translate_message
 
+from . import theme
+
 PREVIEW_ROWS, PREVIEW_COLUMNS = 200, 40
 HEADERS_LABEL = {value: f"linked_table.headers.{value}" for value in lt.HEADERS}
 ORIENTATION_LABEL = {value: f"linked_table.orientation.{value}" for value in lt.ORIENTATIONS}
@@ -64,7 +66,7 @@ class LinkedTableDialog(QDialog):
         self.setWindowTitle(tr("linked_table.dialog.edit" if record is not None else "linked_table.dialog.add"))
         self.choices = project.table_source_choices()
         self._syncing = False
-        outer = QVBoxLayout(self)
+        outer = theme.scroll_body(self)
         form = QFormLayout()
         outer.addLayout(form)
         self.place, self.targets = None, [reference for _, reference in targets or ()]
@@ -187,13 +189,13 @@ class LinkedTableDialog(QDialog):
         self.problem.setObjectName("errorBanner")
         self.problem.setWordWrap(True)
         self.problem.setVisible(False)
-        outer.addWidget(self.problem)
+        self.layout().addWidget(self.problem)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setText(tr("language.ok"))
         self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
-        outer.addWidget(self.buttons)
+        self.layout().addWidget(self.buttons)
 
         self.source.currentIndexChanged.connect(self._load_source)
         for signal in (self.headers.currentIndexChanged, self.orientation.currentIndexChanged,
