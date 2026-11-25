@@ -557,6 +557,9 @@ class MainWindow(QMainWindow):
         a("inspector", tr("graph.inspector.title"), self.toggle_inspector, icon="paintbrush", shortcut="Ctrl+Shift+I")
         a("annotations", tr("command.graph_annotations"), self.edit_annotations, icon="type")
         a("shapes", tr("shape.button"), self.edit_shapes, icon="shapes")
+        a("linked_table", tr("command.linked_table"), self.edit_linked_tables, icon="table-2")
+        a("linked_table_selection", tr("command.linked_table_selection"), self.insert_linked_table_from_selection,
+          icon="table-2")
         a("arrange_shapes", tr("command.arrange_shapes"), self.arrange_shapes, icon="shapes")
         a("pairwise", tr("command.pairwise"), self.pairwise_comparisons, icon="git-compare")
         a("compact_letters", tr("command.compact_letters"), lambda: self.pairwise_comparisons(letters=True),
@@ -945,6 +948,7 @@ class MainWindow(QMainWindow):
         self.actions["annotations"].setEnabled(graph and idle and self.project.runs[self.selected[1]].method
                                                not in LEGACY_GRAPH_METHODS)
         self.actions["shapes"].setEnabled(self.actions["annotations"].isEnabled())
+        self.actions["linked_table"].setEnabled(idle and (self.actions["annotations"].isEnabled() or kind == "layout"))
         self.actions["arrange_shapes"].setEnabled(idle and self.drawing.can_arrange())
         for key in ("pairwise", "compact_letters"):
             self.actions[key].setEnabled(graph and idle)
@@ -2001,6 +2005,7 @@ class MainWindow(QMainWindow):
         layout = self.project.layouts[index]
         page = Page(layout.name, tr("interface.layout_panels", count=len(layout.panels)))
         page.command(self.actions["edit_layout"])
+        page.command(self.actions["linked_table"])
         page.finish_actions()
         self._stale(page, self.project.layout_runs(layout))
         figure = self.project.layout_figure(layout)
@@ -2066,6 +2071,7 @@ class MainWindow(QMainWindow):
         if kind == "graph" and run.method not in LEGACY_GRAPH_METHODS:
             page.command(self.actions["annotations"]).setText(tr("annotation.button"))
             page.command(self.actions["draw"]).setText(tr("shape.button"))
+            page.command(self.actions["linked_table"])
         if kind == "graph":
             page.command(self.actions["inspector"])
         elif kind == "result":
@@ -3022,6 +3028,124 @@ class MainWindow(QMainWindow):
             self.error(error)
             return
         self.calculate_candidate(candidate, self.project.tables[run.title].frame(mask_excluded=True), index)
+
+    # -- linked tables -----------------------------------------------------------------------------
+    def linked_table_targets(self):
+        """Where a table can go: every native graph that can be formatted and every layout, as ``(caption, ref)``."""
+        from .gallery_catalog import graph_runs
+        targets = []
+        for index, run in graph_runs(self.project):
+            if (run.method not in LEGACY_GRAPH_METHODS and run.result is not None
+                    and self.project.graph_format_problem(run) is None):
+                targets.append((tr("linked_table.place.graph", name=self.project.sheet_title(("graph", index))),
+                                ("graph", index)))
+        for index, layout in enumerate(self.project.layouts):
+            targets.append((tr("linked_table.place.layout", name=layout.name), ("layout", index)))
+        return targets
+
+    def edit_linked_tables(self, *, preset=None, reference=None):
+        """Insert → Linked table…: the tables of the selected graph or layout (or of ``reference``)."""
+        from analisi.linked_tables import TABLES
+        from .linked_tables import LinkedTablesDialog
+        if self.busy():
+            return
+        reference = reference or self.selected
+        if not reference or reference[0] not in {"graph", "layout"}:
+            self.error(tr("linked_table.native"))
+            return
+        kind, key = reference
+        if kind == "graph":
+            run = self.project.runs[key]
+            problem = self.project.graph_format_problem(run)
+            if problem or run.method in LEGACY_GRAPH_METHODS:
+                self.error(problem or tr("linked_table.native"))
+                return
+            if not self.settle_graph_draft():
+                return
+            records, owner = (run.style or {}).get(TABLES, []), self.project.sheet_title(("graph", key))
+        else:
+            layout = self.project.layouts[key]
+            records, owner = layout.tables, layout.name
+        dialog = LinkedTablesDialog(self, self.project, records, owner=owner, preset=preset)
+        if dialog.exec() != LinkedTablesDialog.DialogCode.Accepted or dialog.result is None \
+                or dialog.result == list(records):
+            return
+        self.commit_linked_tables(reference, dialog.result)
+
+    def commit_linked_tables(self, reference, records):
+        """Store ``records`` as the tables of a graph or layout: one undoable step, then redraw."""
+        from dataclasses import replace as replaced
+        from analisi.linked_tables import TABLES
+        kind, key = reference
+        try:
+            if kind == "graph":
+                run = self.project.runs[key]
+                style = deepcopy(run.style or {})
+                before = deepcopy(style)
+                if records:
+                    style[TABLES] = records
+                else:
+                    style.pop(TABLES, None)
+                self.project.apply_format(run, style)
+                self.project.history.record_style_batch("Linked tables", {run.uid: before},
+                                                        {run.uid: deepcopy(style)})
+            else:
+                self.project.put_layout(replaced(self.project.layouts[key], tables=list(records)), key)
+        except ValueError as error:
+            self.error(translate_message(error, "linked_table.error."))
+            return False
+        self.show_sheet(kind, key)
+        self.status(tr("linked_table.applied"))
+        return True
+
+    def insert_linked_table_from_selection(self):
+        """Insert → Linked table from selection…: the selected cells of a worksheet or result, placed on a graph
+        or layout chosen in the window that opens."""
+        from analisi.linked_tables import MAX_TABLES, TABLES
+        from .linked_tables import LinkedTableDialog
+        if self.busy():
+            return
+        target = self.text_format.target()
+        if target is None:
+            self.error(tr("linked_table.no_selection"))
+            return
+        top, left, bottom, right = target.box
+        if self.selected[0] == "data":
+            title = self.selected[1]
+            dataset = self.project.tables[title]
+            choice = {"kind": "sheet", "sheet": title, "label": title, "rows": len(dataset.raw),
+                      "columns": len(dataset.columns)}
+            box = (top, left, min(bottom, len(dataset.raw) - 1), min(right, len(dataset.columns) - 1))
+        else:
+            run = self.project.runs[self.selected[1]]
+            name = tuple(run.result.tables)[self.result_tabs.currentIndex()]
+            if right == 0:
+                self.error(tr("linked_table.row_titles"))
+                return
+            choice = next((entry for entry in self.project.table_source_choices()
+                           if entry["kind"] == "result" and entry["analysis"] == run.uid and entry["table"] == name),
+                          None)
+            if choice is None:
+                self.error(tr("linked_table.no_selection"))
+                return
+            box = (top, max(left, 1) - 1, min(bottom, choice["rows"] - 1), right - 1)
+        targets = self.linked_table_targets()
+        if not targets:
+            self.error(tr("linked_table.no_target"))
+            return
+        reference = self.selected if self.selected in {ref for _, ref in targets} else None
+        dialog = LinkedTableDialog(self, self.project, preset=(choice, box), targets=targets)
+        if reference is not None:
+            dialog.choose_target(reference)
+        if dialog.exec() != LinkedTableDialog.DialogCode.Accepted or dialog.result is None:
+            return
+        kind, key = dialog.target
+        current = ((self.project.runs[key].style or {}).get(TABLES, []) if kind == "graph"
+                   else self.project.layouts[key].tables)
+        if len(current) >= MAX_TABLES:
+            self.error(tr("linked_table.limit", count=MAX_TABLES))
+            return
+        self.commit_linked_tables(dialog.target, [*current, dialog.result])
 
     def edit_annotations(self):
         from analisi.graph_annotations import ANNOTATIONS

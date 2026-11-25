@@ -26,6 +26,7 @@ from .analysis_chain import ChainCancelled, MAX_ANALYSIS_NODES, ResultSource
 from .analysis_labels import clean_label, valid_label
 from .data import Dataset, _worksheet_roles, info_references, save_project
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts
+from .linked_tables import TABLES, remap_sources
 from .pairwise_graph import SECTION, read_section
 from .presentation import Layout
 from .legacy_layout_edit import LEGACY_PANEL_DATA
@@ -583,6 +584,8 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph, bla
             else:
                 identities[title, slot] = old if old is not None else str(uuid4())
 
+    moved_analyses = {tables[title].analysis_ids[slot]: identity for (title, slot), identity in identities.items()
+                      if tables[title].analysis_ids.get(slot) not in (None, identity)}
     link_map = {}
     if renew:
         for title, slots in plan.slots.items():
@@ -619,6 +622,9 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph, bla
             series[:] = pd.NA
             raw.isetitem(column, series)
         styles = {mapping[slot]: deepcopy(style) for slot, style in dataset.graph_styles.items() if slot in mapping}
+        for style in styles.values():  # Linked tables of a copied graph read the copies made with it.
+            if style.get(TABLES):
+                style[TABLES] = remap_sources(style[TABLES], moved_analyses, table_names)
         if blanks.graph_titles:
             for slot in mapping.values():
                 styles.setdefault(slot, {})["title"] = ""
@@ -649,7 +655,8 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph, bla
         panels = [refs.get(tuple(panel), tuple(panel)) for panel in source.panels]
         name = new_names.layout_names[index] if new_names else source.name
         layout_refs[index] = len(out_layouts)
-        out_layouts.append(replace(source, name=name, panels=panels))
+        records = remap_sources(source.tables, moved_analyses, table_names) if source.tables else source.tables
+        out_layouts.append(replace(source, name=name, panels=panels, tables=deepcopy(records)))
 
     by_uid = {sheet.uid: sheet for sheet in infos}
     out_infos, info_ids, snapshot_ids = [], {}, {}

@@ -1061,6 +1061,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
             del record["panel_size"]
         if record.get("axis_alignment") == "none":
             del record["axis_alignment"]
+        if not record.get("tables"):
+            record.pop("tables", None)
         layout_records.append(record)
     data = {"version": 3 if linked else 2, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
@@ -1297,7 +1299,8 @@ def load_workspace(path, *, include_info=False):
         panels = [tuple(ref) for ref in record["panels"]]
         layout = Layout(record["name"], record["columns"], panels,
                         record.get("paper", AUTO_PAPER), record.get("background", WHITE),
-                        record.get("panel_size", "original"), record.get("axis_alignment", "none"))
+                        record.get("panel_size", "original"), record.get("axis_alignment", "none"),
+                        record.get("tables", []))
         if any(title not in result or index >= len(result[title].analyses) for title, index in panels):
             raise ValueError("Layout references an unknown analysis.")
         layouts.append(layout)

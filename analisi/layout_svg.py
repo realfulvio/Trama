@@ -23,6 +23,7 @@ from matplotlib.figure import Figure
 from .figure_export import DEFAULT_DPI, MM, check_destination, plan_export
 from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
 from .layout_panels import plan_panels
+from .linked_tables import overlay_figure
 from .presentation import Layout
 
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -103,13 +104,14 @@ def _verify(path, plan, images):
 
 
 def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAPER, background=WHITE,
-                      panel_size="original", axis_alignment="none"):
+                      panel_size="original", axis_alignment="none", tables=()):
     """Write the layout ``title`` with ``figures`` (panel order) to ``path`` as a vector SVG.
 
     ``settings`` are those of File → Export with options… with format ``svg``: ``width_mm``
     (None keeps the native page size), ``svg_text`` (``text`` or ``paths``) and ``transparent``.
     Every panel is rendered before anything is written; the SVG is written to a temporary file in
     the destination folder, checked, and only then replaces ``path``. Returns the export plan.
+    ``tables`` (``linked_tables.TableSpec``) are the tables of the page itself: one group above the panels.
     """
     try:
         figures = list(figures)
@@ -142,6 +144,10 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
                          background=WHITE if plan["transparent"] else background)
     page, page_children = _children(_render_svg(frame, plan, rc))
     _prefix_ids(page, "layout-")
+    table_children = []
+    if tables:
+        overlay, table_children = _children(_render_svg(overlay_figure((width_in, height_in), tables), plan, rc))
+        _prefix_ids(overlay, "tables-")
 
     ET.register_namespace("", SVG_NS)
     ET.register_namespace("xlink", XLINK_NS)
@@ -168,6 +174,8 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
         })
         inner = ET.SubElement(group, SVG + "g", {"clip-path": f"url(#panel{index}-viewport)"})
         inner.extend(children)
+    if table_children:
+        ET.SubElement(page, SVG + "g", {"id": "layout-tables"}).extend(table_children)
     data = ET.tostring(page, encoding="utf-8", xml_declaration=True)
 
     handle, name = tempfile.mkstemp(prefix=f".{path.stem}-", suffix=path.suffix, dir=path.parent)

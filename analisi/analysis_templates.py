@@ -39,6 +39,7 @@ from .data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY
 from .graph_annotations import ANNOTATIONS
 from .point_style import POINTS
 from .graph_shapes import SHAPES
+from .linked_tables import TABLES
 from .layout_geometry import AUTO_PAPER, WHITE
 from .legacy_project_metadata import IMPORTED_METHODS, is_import_option, saved_name
 from .presentation import Layout, validated_style
@@ -351,7 +352,8 @@ def plan_template(tables, layouts=(), info_sheets=None, *, cancel=None):
             style = dataset.graph_styles.get(slot)
             if style is not None:
                 style = deepcopy(style)
-                for key, code in ((SHAPES, "shapes"), (ANNOTATIONS, "annotations"), (POINTS, "points")):
+                for key, code in ((SHAPES, "shapes"), (ANNOTATIONS, "annotations"), (POINTS, "points"),
+                                  (TABLES, "linked_tables")):
                     if style.get(key):
                         omissions.append(Omission(code, spot, len(style[key])))
                     style.pop(key, None)
@@ -397,6 +399,8 @@ def plan_template(tables, layouts=(), info_sheets=None, *, cancel=None):
                 break
             panels.append(local[reference])
         else:
+            if layout.tables:
+                omissions.append(Omission("linked_tables", ("layout", index), len(layout.tables)))
             layout_specs.append(LayoutSpec(layout.name, layout.columns, tuple(panels), layout.paper,
                                            layout.background, layout.panel_size, layout.axis_alignment))
     template = None if problems else AnalysisTemplate(tuple(specs), tuple(layout_specs))
@@ -584,7 +588,7 @@ def _parse_tables(records):
                 _fail("type", f"The name of {identifier} is not valid.", field="file")
             style = item.get("style")
             if style is not None:
-                if not isinstance(style, dict) or SHAPES in style or ANNOTATIONS in style:
+                if not isinstance(style, dict) or SHAPES in style or ANNOTATIONS in style or TABLES in style:
                     _fail("type", f"The graph format of {identifier} is not valid.", field="file")
                 validated_style(deepcopy(style))
                 _json_value(style)

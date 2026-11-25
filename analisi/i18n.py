@@ -3871,6 +3871,12 @@ from .text_format_catalog import MESSAGES as _TEXT_FORMAT  # noqa: E402
 _EN.update({key: en for key, (en, _) in _TEXT_FORMAT.items()})
 _IT.update({key: it for key, (_, it) in _TEXT_FORMAT.items()})
 
+# Linked tables: Insert → Linked table…, and the states a table draws when it cannot read its source.
+from .linked_table_catalog import MESSAGES as _LINKED_TABLES  # noqa: E402
+
+_EN.update({key: en for key, (en, _) in _LINKED_TABLES.items()})
+_IT.update({key: it for key, (_, it) in _LINKED_TABLES.items()})
+
 _UI_PREFIXES = ("menu.", "command.", "ribbon.", "bar.", "nav.", "ttest.field.", "survival.ui.")
 KEY_BY_LABEL = {}
 for _key, _text in _EN.items():

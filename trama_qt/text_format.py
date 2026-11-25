@@ -231,6 +231,7 @@ class TextFormat:
         self.last = (target is not None, states)
         for key in ACTIONS:
             w.actions[key].setEnabled(target is not None)
+        w.actions["linked_table_selection"].setEnabled(target is not None)
         w.actions["text_graph"].setEnabled(graph)
         for key in ("text_font", "text_size"):
             w.actions[key].setEnabled(target is not None or graph)

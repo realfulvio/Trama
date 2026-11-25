@@ -1,6 +1,6 @@
 """Graph formatting and multi-panel layout composition."""
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from io import BytesIO
 from math import ceil, floor, isfinite
 import re
@@ -37,6 +37,7 @@ from .linked_axes import (LINKED_AXES, apply_linked_axes, clear_linked_axes, log
 from .graph_legend import (LEGEND_OPTIONS_KEY, apply_legend_options, is_non_native_figure,
                            restore_legend_snapshots, validate_legend_options)
 from .graph_shapes import SHAPES, draw_shapes, validate_shapes
+from .linked_tables import TABLES, draw_tables, validate_tables
 from .point_style import (GID_PREFIX as POINT_GID_PREFIX, INDICATOR_GID, POINTS, apply_point_styles,
                           restore_point_styles, validate_points)
 from .layout_geometry import (AUTO_PAPER, AXIS_ALIGNMENTS, LABEL_PAD, LABEL_SIZE, PANEL_SIZES, PAPER_SIZES, PT, WHITE,
@@ -53,6 +54,7 @@ class Layout:
     background: str = WHITE
     panel_size: str = "original"
     axis_alignment: str = "none"
+    tables: list = field(default_factory=list)  # linked tables on the page itself (``analisi.linked_tables``)
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name.strip() or len(self.name) > 160:
@@ -68,6 +70,8 @@ class Layout:
             raise ValueError("Use a six-digit hex colour for the layout background.")
         if self.panel_size not in PANEL_SIZES or self.axis_alignment not in AXIS_ALIGNMENTS:
             raise ValueError("Invalid layout panel arrangement.")
+        if self.tables:
+            self.tables = validate_tables(self.tables)
 
 
 SCALES = ("linear", "log", *PROBABILITY_SCALES)
@@ -208,7 +212,7 @@ def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
                     "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", LEGEND_OPTIONS_KEY, "series",
                     "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY,
-                    "hierarchical", AXIS_BREAKS, LINKED_AXES, POINTS},
+                    "hierarchical", AXIS_BREAKS, LINKED_AXES, POINTS, TABLES},
             "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
         if key in style and not _text(style[key]):
@@ -250,6 +254,8 @@ def validated_style(style):
         validate_points(style[POINTS])
     validate_annotations(style.get(ANNOTATIONS, []))
     validate_shapes(style.get(SHAPES, []))
+    if TABLES in style:
+        validate_tables(style[TABLES])
     if PANEL_KEY in style:
         normalize_panel_styles(style[PANEL_KEY])
     refs = style.get("reference_lines", [])
@@ -1150,7 +1156,8 @@ def apply_style(figure, style):
 
 
 def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHITE, panel_size="original",
-                   axis_alignment="none"):
+                   axis_alignment="none", tables=()):
+    """The layout page as one figure; ``tables`` (``linked_tables.TableSpec``) are drawn above the panels."""
     Layout(title, columns, [("panel", i) for i in range(len(figures))], paper, background,
            panel_size, axis_alignment)
     page_width, page_height = size = page_size(columns, len(figures), paper)
@@ -1171,4 +1178,5 @@ def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHIT
         panel.set_axis_off()
         panel.set_title(chr(ord("A") + i), loc="left", y=1, pad=LABEL_PAD * PT,
                         fontsize=LABEL_SIZE, fontweight="bold", color=ink)
+    draw_tables(figure, tables)
     return figure

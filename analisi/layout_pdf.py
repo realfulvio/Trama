@@ -8,6 +8,7 @@ from matplotlib.figure import Figure
 from .figure_export import MM, _render
 from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
 from .layout_panels import plan_panels
+from .linked_tables import overlay_figure
 from .presentation import Layout
 
 
@@ -22,6 +23,7 @@ class PdfLayoutPage:
     background: str = WHITE
     panel_size: str = "original"
     axis_alignment: str = "none"
+    tables: tuple = ()      # ``linked_tables.TableSpec`` objects drawn on the page itself, above the panels
 
     def __post_init__(self):
         Layout(self.title, self.columns, [("panel", index) for index in range(len(self.panels))],
@@ -67,6 +69,23 @@ def _place_form(document, page, source, matrix):
         raise ValueError("Could not insert the PDF panel.")
 
 
+def _add_tables(document, page, layout, plan):
+    """The tables of the layout page: one transparent PDF page drawn above every panel, text and rules as vectors."""
+    import pypdfium2 as pdfium
+    from pypdfium2 import raw
+
+    width, height = layout.size
+    page_scale = plan["width_mm"] / MM / width
+    overlay = overlay_figure((width, height), layout.tables)
+    with BytesIO() as buffer:
+        _render(overlay, {**plan, "width_mm": width * MM, "height_mm": height * MM, "transparent": True}, buffer)
+        buffer.seek(0)
+        with pdfium.PdfDocument(buffer) as source:
+            _place_form(document, page, source, raw.FS_MATRIX(page_scale, 0, 0, page_scale, 0, 0))
+    if not raw.FPDFPage_GenerateContent(page):
+        raise ValueError("Could not write the PDF layout tables.")
+
+
 def _add_panels(document, page, layout, plan):
     import pypdfium2 as pdfium
     from pypdfium2 import raw
@@ -86,6 +105,8 @@ def _add_panels(document, page, layout, plan):
                 _place_form(document, page, source, matrix)
     if not raw.FPDFPage_GenerateContent(page):
         raise ValueError("Could not write the PDF layout page.")
+    if layout.tables:
+        _add_tables(document, page, layout, plan)
 
 
 def _fill_snapshot(document, page, pdf, plan):
