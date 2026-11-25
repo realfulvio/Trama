@@ -1,19 +1,8 @@
-# Migrazione a PySide6/Qt
+# Classica Qt
 
-Trama offre l’interfaccia Classica in Tk e in PySide6/Qt. Entrambe usano il motore statistico in `analisi/` e leggono e scrivono progetti `.alab`.
+Avvia **Trama.exe** nel portabile Windows. Dal sorgente usa `python -m trama_qt [file.alab]`. Il motore statistico in `analisi/` continua a leggere e scrivere i progetti `.alab`.
 
-## Avvio
-
-| Comando | Interfaccia |
-| --- | --- |
-| `python tramastat.py [file]` | Tk classica (predefinita) |
-| `python tramastat.py --tk [file]` | Tk classica |
-| `python tramastat.py --qt [file]` | Qt classica |
-| `python -m trama_qt [file]` | Qt classica, avvio diretto |
-
-Nel portabile **Trama.exe** apre la Classica in Tk e **Trama - Qt.cmd** apre la Classica in PySide6/Qt.
-
-## Cosa c'è (fase 1, essenziale)
+## Area di lavoro
 
 - Foglio dati virtuale (`QTableView`): modifica, incolla/taglia/copia, Canc, inserisci/elimina righe e colonne, rinomina, escludi celle, annulla/ripeti. Colonne calcolate con Home → Formula…: si aggiungono o si cambiano, anche con doppio clic sull'intestazione, e l'espressione viene verificata prima di tenerla.
 - Dialogo analisi per tutti i 95 metodi del motore, con ricerca, campi tradotti e messaggio di errore sul campo.
@@ -32,11 +21,7 @@ Nel portabile **Trama.exe** apre la Classica in Tk e **Trama - Qt.cmd** apre la 
 - File → Importa nel progetto… su un file .csv/.tsv/.txt apre l'importazione guidata: separatore, decimali, intestazione, prima/ultima riga e colonna con salto, codice dei mancanti, `*` finale che esclude il valore, anteprima filtrata dal vivo. Aprire un file di testo senza importare resta diretto, come in Tk.
 - Layout (Ctrl+L): nuovo e modifica, con nome, carta, colonne, sfondo e fino a 12 pannelli ordinabili.
 - Interfaccia Classica con menu orizzontale, barra compatta a due righe, navigatore dei fogli e icone originali di Trama.
-- Dal foglio dati, **Visualizza → Anteprima del grafico** mostra i grafici collegati sotto la griglia. **Formato** apre a destra le informazioni della tabella e l’Ispettore. **Applica** conferma le modifiche sul grafico collegato. **Apri grafico** porta al foglio dedicato.
-
-## Cosa resta su Tk (fasi successive)
-
-Le funzioni della finestra classica sono tutte su Qt. Resta il collaudo su Windows reale (Codex), da fare con lo smoke Qt qui sotto.
+- Dal foglio dati, **Anteprima del grafico** mostra il grafico collegato sotto la griglia. **Formato**, sopra il foglio, apre le informazioni della tabella e l’Ispettore. Il pannello è a destra su schermi larghi e sotto l’anteprima su quelli stretti. **Applica** conferma le modifiche sul grafico collegato. **Apri grafico** porta al foglio dedicato.
 
 ## Smoke Qt (collaudo da desktop)
 
@@ -48,10 +33,10 @@ Le funzioni della finestra classica sono tutte su Qt. Resta il collaudo su Windo
 
 Per collaudare solo l’anteprima del foglio dati, usa `python -m trama_qt --smoke CARTELLA --scenario qt-worksheet-preview`.
 
-Un dialogo fallisce se non entra nell'area disponibile dello schermo o se un pulsante, una casella o un'etichetta è più stretta del suo testo. Va lanciato a 100% e a 150%. In Linux si emula uno schermo con `QT_QPA_PLATFORM="offscreen:configfile=schermo.json"`: per esempio 1366×768 al 150% è `{"screens": [{"name": "s", "x": 0, "y": 0, "width": 1366, "height": 768, "logicalDpi": 144, "logicalBaseDpi": 96, "dpr": 1.0}]}`. Lo smoke Tk (`python tramastat.py --smoke`) resta per la versione classica.
+Un dialogo fallisce se non entra nell'area disponibile dello schermo o se un pulsante, una casella o un'etichetta è più stretta del suo testo. Va lanciato a 100% e a 150%. In Linux si emula uno schermo con `QT_QPA_PLATFORM="offscreen:configfile=schermo.json"`: per esempio 1366×768 al 150% è `{"screens": [{"name": "s", "x": 0, "y": 0, "width": 1366, "height": 768, "logicalDpi": 144, "logicalBaseDpi": 96, "dpr": 1.0}]}`.
 
 ## Note per l'integrazione
 
 - Dipendenza nuova: `PySide6-Essentials==6.12.0` (LGPLv3, librerie dinamiche non modificate; avvisi in `THIRD_PARTY_NOTICES.md`).
 - `build.ps1` aggiunge `matplotlib.backends.backend_qtagg`; PyInstaller raccoglie PySide6 con il suo hook.
-- Test: `python -m unittest tests.test_qt_shell` (offscreen; saltato se PySide6 non c'è). Windows **non provato**.
+- Test: `python -m unittest tests.test_qt_shell` offscreen.

@@ -20,9 +20,11 @@ import re
 import unicodedata
 from uuid import uuid4
 
+import pandas as pd
+
 from .analysis_chain import ChainCancelled, MAX_ANALYSIS_NODES, ResultSource
 from .analysis_labels import clean_label, valid_label
-from .data import Dataset, info_references, save_project
+from .data import Dataset, _worksheet_roles, info_references, save_project
 from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts
 from .pairwise_graph import SECTION, read_section
 from .presentation import Layout
@@ -517,7 +519,28 @@ def _copy_raw(dataset):
     return raw
 
 
-def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph):
+@dataclass(frozen=True)
+class FamilyBlanks:
+    x: bool = False
+    values: bool = False
+    row_titles: bool = False
+    graph_titles: bool = False
+
+    def columns(self, dataset):
+        if not (self.x or self.values or self.row_titles):
+            return ()
+        if dataset.table_format.startswith("Imported editable"):
+            return ()
+        names = tuple(dataset.raw.columns)
+        row_title = names[0] if names and str(names[0]).casefold() == "row title" else None
+        columns = tuple(name for name in names if name != row_title)
+        roles = _worksheet_roles(dataset.raw)
+        x = set(roles["x"] if roles is not None else columns[:1] if dataset.table_format.lower().startswith("xy") else ())
+        return tuple(index for index, name in enumerate(names)
+                     if (self.row_titles if name == row_title else self.x if name in x else self.values))
+
+
+def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph, blanks=FamilyBlanks()):
     """Materialize ``plan``. ``new_names`` is a FamilyPreview for a copy, or None for an export."""
     infos = tuple(infos)
     table_names = new_names.table_names if new_names else {title: title for title in plan.tables}
@@ -575,11 +598,22 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph):
             label = (new_names.labels.get((title, slot)) if new_names else None) or dataset.analysis_labels.get(slot)
             if label is not None:
                 labels[mapping[slot]] = label
+        raw = _copy_raw(dataset)
+        cleared = set(blanks.columns(dataset))
+        for column in cleared:
+            series = raw.iloc[:, column].copy()
+            if pd.api.types.is_integer_dtype(series) or pd.api.types.is_bool_dtype(series):
+                series = series.convert_dtypes()
+            series[:] = pd.NA
+            raw.isetitem(column, series)
+        styles = {mapping[slot]: deepcopy(style) for slot, style in dataset.graph_styles.items() if slot in mapping}
+        if blanks.graph_titles:
+            for slot in mapping.values():
+                styles.setdefault(slot, {})["title"] = ""
         built[title] = Dataset(
-            _copy_raw(dataset), formulas=dict(dataset.formulas), analyses=analyses,
-            excluded=set(dataset.excluded), table_format=dataset.table_format,
-            graph_styles={mapping[slot]: deepcopy(style) for slot, style in dataset.graph_styles.items()
-                          if slot in mapping},
+            raw, formulas=dict(dataset.formulas), analyses=analyses,
+            excluded={(row, col) for row, col in dataset.excluded if col not in cleared},
+            table_format=dataset.table_format, graph_styles=styles,
             info={}, analysis_ids={mapping[slot]: identities[title, slot] for slot in slots
                                    if (title, slot) in identities},
             analysis_sources={}, analysis_labels=labels, column_order=dataset.column_order,
@@ -650,7 +684,8 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph):
                         snapshot_ids, layout_refs, plan.shared_panels, focus, plan)
 
 
-def duplicate_family(tables, layouts, infos, selected, *, name, include_layouts=True, cancel=None):
+def duplicate_family(tables, layouts, infos, selected, *, name, include_layouts=True, cancel=None,
+                     blanks=FamilyBlanks()):
     """Copy the family of ``selected`` into a detached bundle without touching the arguments.
 
     From a data table ``name`` is the new table name; from any other sheet it is a literal prefix.
@@ -661,7 +696,7 @@ def duplicate_family(tables, layouts, infos, selected, *, name, include_layouts=
     preview = preview_family(tables, layouts, infos, selected, name=name, include_layouts=include_layouts,
                              graph=graph)
     _cancelled(cancel)
-    return _build(tables, layouts, infos, preview.plan, preview, renew=True, cancel=cancel, graph=graph)
+    return _build(tables, layouts, infos, preview.plan, preview, renew=True, cancel=cancel, graph=graph, blanks=blanks)
 
 
 def same_file(first, second):

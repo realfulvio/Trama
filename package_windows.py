@@ -12,10 +12,8 @@ def main():
     bundle = root / "dist" / "Trama"
     if not (bundle / "Trama.exe").is_file():
         raise SystemExit("Build Trama.exe first.")
-    (bundle / "Trama - Tk.cmd").unlink(missing_ok=True)
-    (bundle / "Trama - Qt.cmd").write_bytes(
-        b'@echo off\r\nstart "" /D "%~dp0." "%~dp0Trama.exe" --qt %*\r\n'
-    )
+    for launcher in ("Trama - Tk.cmd", "Trama - Qt.cmd"):
+        (bundle / launcher).unlink(missing_ok=True)
     shutil.copy2(root / "README.md", bundle / "README.md")
     shutil.copy2(root / "LICENSE", bundle / "LICENSE.txt")
     shutil.copy2(root / "LICENSE", bundle / "LICENSE")

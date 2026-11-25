@@ -101,6 +101,21 @@ _EN = {
     "command.load_example": "Load example", "command.format_graph": "Format graph…",
     "command.edit_layout": "Edit layout…", "command.info_properties": "Info sheet properties…",
     "command.category_order": "Category order…",
+    "command.variable_properties": "Variable properties…",
+    "variables.title": "Variable properties",
+    "variables.name": "Name",
+    "variables.type": "Variable type",
+    "variables.observed": "Detected type",
+    "variables.auto": "Automatic",
+    "variables.numeric": "Numeric",
+    "variables.text": "Text",
+    "variables.categorical": "Categorical",
+    "variables.levels": "{count} levels",
+    "variables.calculated": "Calculated",
+    "variables.error.worksheet": "Select an editable multiple-variables table.",
+    "variables.error.numeric": "“{name}” contains values that cannot be converted to finite numbers without loss.",
+    "variables.error.names": "Use distinct names of 1 to 160 characters.",
+    "variables.error.reference": "“{name}” is used by a formula or analysis. Change the reference before renaming it.",
     "worksheet_order.note": "Set the display order for grouped distributions and scatter plots.",
     "worksheet_order.reset": "Use automatic order",
     "worksheet_order.select": "Select a cell in a source column.",
@@ -422,6 +437,21 @@ _IT = {
     "command.load_example": "Carica esempio", "command.format_graph": "Formatta grafico…",
     "command.edit_layout": "Modifica layout…", "command.info_properties": "Proprietà foglio Info…",
     "command.category_order": "Ordine categorie…",
+    "command.variable_properties": "Proprietà variabili…",
+    "variables.title": "Proprietà variabili",
+    "variables.name": "Nome",
+    "variables.type": "Tipo di variabile",
+    "variables.observed": "Tipo rilevato",
+    "variables.auto": "Automatico",
+    "variables.numeric": "Numerico",
+    "variables.text": "Testo",
+    "variables.categorical": "Categorico",
+    "variables.levels": "{count} livelli",
+    "variables.calculated": "Calcolata",
+    "variables.error.worksheet": "Seleziona una tabella modificabile a variabili multiple.",
+    "variables.error.numeric": "«{name}» contiene valori che non possono essere convertiti in numeri finiti senza perdita.",
+    "variables.error.names": "Usa nomi distinti da 1 a 160 caratteri.",
+    "variables.error.reference": "«{name}» è usata da una formula o un’analisi. Modifica il riferimento prima di rinominarla.",
     "worksheet_order.note": "Imposta l’ordine nei grafici a distribuzioni raggruppate e a dispersione.",
     "worksheet_order.reset": "Ordine automatico",
     "worksheet_order.select": "Seleziona una cella in una colonna sorgente.",
@@ -5320,6 +5350,10 @@ CATALOGS['en'].update({
     'family.prefix_label': 'Prefix for the copied sheets',
     'family.prefix_hint': 'The prefix is used literally and keeps a trailing space: "Repeat " turns "A" into "Repeat A".',
     'family.include_layouts': 'Include layouts',
+    'family.blank.x': 'Clear X values',
+    'family.blank.values': 'Clear other data values',
+    'family.blank.row_titles': 'Clear row titles',
+    'family.blank.graph_titles': 'Clear graph titles',
     'family.layout_required': 'A layout always travels with all its panels.',
     'family.layout_not_applicable': 'A recovered layout is copied with the graphs it shows.',
     'family.duplicate_button': 'Duplicate',
@@ -5378,6 +5412,10 @@ CATALOGS['it'].update({
     'family.prefix_label': 'Prefisso dei fogli copiati',
     'family.prefix_hint': 'Il prefisso è usato alla lettera e conserva lo spazio finale: "Ripeti " trasforma "A" in "Ripeti A".',
     'family.include_layouts': 'Includi i layout',
+    'family.blank.x': 'Svuota i valori X',
+    'family.blank.values': 'Svuota gli altri valori',
+    'family.blank.row_titles': 'Svuota i titoli di riga',
+    'family.blank.graph_titles': 'Svuota i titoli dei grafici',
     'family.layout_required': 'Un layout viene sempre copiato con tutti i suoi pannelli.',
     'family.layout_not_applicable': 'Un layout recuperato viene copiato insieme ai grafici che mostra.',
     'family.duplicate_button': 'Duplica',
@@ -5746,6 +5784,12 @@ from .linked_axes_text import EN as _LINKED_EN, IT as _LINKED_IT  # noqa: E402
 
 _EN.update(_LINKED_EN)
 _IT.update(_LINKED_IT)
+
+# Formatting of single points (analisi.point_style): messages, reasons and Inspector captions.
+from .point_style_text import EN as _POINT_EN, IT as _POINT_IT  # noqa: E402
+
+_EN.update(_POINT_EN)
+_IT.update(_POINT_IT)
 
 # Yuen's trimmed-mean test (analisi.yuen): captions, the dialog note and the exact engine messages.
 from .yuen_text import EN as _YUEN_EN, IT as _YUEN_IT  # noqa: E402

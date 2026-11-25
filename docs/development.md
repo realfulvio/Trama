@@ -2,7 +2,7 @@
 
 [Presentazione](../README.md) · [Archivio delle funzionalità](release-history.md)
 
-Trama usa Python, Tk e librerie scientifiche open source. La distribuzione Windows include il runtime; per sviluppare dal sorgente serve invece un ambiente Python compatibile con le dipendenze fissate.
+Trama usa Python, PySide6/Qt e librerie scientifiche open source. La distribuzione Windows include il runtime; per sviluppare dal sorgente serve invece un ambiente Python compatibile con le dipendenze fissate.
 
 ## Ambiente di sviluppo
 
@@ -11,17 +11,17 @@ Su Windows con Python 3.13:
 ```powershell
 py -3.13 -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
-.venv\Scripts\python tramastat.py
+.venv\Scripts\python -m trama_qt
 ```
 
-Su Linux è necessario anche Tk. Per i test GUI headless configura un display di almeno **1024×768**; una risoluzione inferiore non è un collaudo valido della disposizione dei dialoghi.
+Per i test GUI headless configura un display di almeno **1024×768**; una risoluzione inferiore non è un collaudo valido della disposizione dei dialoghi.
 
 ## Verifiche
 
 ```sh
-python -m unittest discover -s tests
+python -m unittest discover -s tests -p 'test_qt_*.py'
 python tests/legacy_reference.py
-python tramastat.py --smoke
+python -m trama_qt --smoke CARTELLA
 ```
 
 Il confronto con campioni esterni richiede i relativi file: la loro assenza non vale come confronto superato. Le fixture sintetiche incluse e le prove di regressione non certificano l'equivalenza universale con un altro programma.
@@ -42,5 +42,5 @@ Per contributi e segnalazioni usa gli strumenti del repository, senza allegare d
 
 ## Compatibilità dopo la rinomina
 
-Il prodotto e i nuovi pacchetti si chiamano **Trama**. Il punto d'ingresso sorgente `tramastat.py`, il formato `.alab`, i nomi tecnici delle preferenze e il protocollo degli appunti conservano i loro identificatori storici, così progetti salvati, impostazioni e script di collaudo restano compatibili. Le release fino alla 0.70.0 mantengono i nomi originali dei loro archivi ed eseguibili.
+Il prodotto e i nuovi pacchetti si chiamano **Trama**. Il formato `.alab`, i nomi tecnici delle preferenze e il protocollo degli appunti conservano i loro identificatori storici. Il codice Tk è archiviato in `tramastat.py` con i relativi test storici. Le release fino alla 0.70.0 mantengono i nomi originali dei loro archivi ed eseguibili.
 

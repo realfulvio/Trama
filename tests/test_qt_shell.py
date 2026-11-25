@@ -1421,7 +1421,14 @@ class QtShellTests(unittest.TestCase):
         self.assertIn(action, window.command_menus["View"].actions())
         self.assertIsNone(workspace.canvas)
 
-        action.trigger()
+        workspace.preview_box.click()
+        self.app.processEvents()
+        self.assertTrue(action.isChecked())
+        self.assertTrue(workspace.heading.isVisible())
+        self.assertEqual(workspace.title_label.text(), graph.title)
+        self.assertTrue(workspace.link_buttons["graph"].menu().actions())
+        self.assertLess(workspace.format_box.mapTo(workspace, workspace.format_box.rect().topLeft()).y(),
+                        workspace.grid.mapTo(workspace, workspace.grid.rect().topLeft()).y())
         self.assertIs(window.sheet, sheet)
         self.assertIs(figure.canvas, canvas)
         self.assertIsNot(workspace.canvas.figure, figure)
@@ -1447,7 +1454,7 @@ class QtShellTests(unittest.TestCase):
         self.assertIsNot(graph.result.figure, figure)
         self.assertIs(workspace.result, graph.result)
         self.assertEqual(workspace.canvas.figure.axes[0].get_title(), "Confirmed on Apply")
-        workspace.open_button.click()
+        workspace.link_buttons["graph"].menu().actions()[0].trigger()
         self.assertEqual(window.selected, ("graph", window.project.runs.index(graph)))
         self.assertIsNone(workspace.canvas)
 
@@ -1678,6 +1685,103 @@ class QtShellTests(unittest.TestCase):
         from analisi.data import load_workspace
         tables, _, _ = load_workspace(target, include_info=True)
         self.assertEqual(list(tables), ["groups"])
+
+    def test_duplicate_graph_with_empty_responses_opens_its_data_for_reuse(self):
+        from unittest.mock import patch
+        from trama_qt.family import FamilyDialog
+
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        window.open_sheet(("graph", window.project.runs.index(graph)))
+        source = window.project.tables["groups"]
+
+        def duplicate(dialog):
+            dialog.name.setText("Repeat ")
+            self.assertFalse(any(option.isChecked() for option in dialog.blank_options.values()))
+            dialog.blank_options["values"].setChecked(True)
+            dialog.blank_options["graph_titles"].setChecked(True)
+            dialog.accept()
+            return FamilyDialog.DialogCode.Accepted
+
+        with patch.object(FamilyDialog, "exec", duplicate):
+            window.actions["duplicate_family"].trigger()
+            self.wait()
+        copied = window.project.tables["Repeat groups"]
+        self.assertEqual(window.selected, ("data", "Repeat groups"))
+        self.assertTrue(copied.raw.isna().all().all())
+        self.assertTrue(source.raw.notna().any().any())
+        self.assertEqual(copied.analyses, source.analyses)
+        self.assertEqual(copied.graph_styles[0]["title"], "")
+
+    def test_variable_properties_validates_edits_and_survives_undo_and_save(self):
+        from unittest.mock import patch
+        import pandas as pd
+        from analisi.data import load_workspace, save_project
+        from analisi.variable_types import VARIABLE_TYPES
+        from trama_qt.variables import VariablesDialog
+
+        window = self.window
+        frame = pd.DataFrame({"ID": ["001", "002"], "Measurement": ["1,25", "2,50"], "Group": ["A", "B"]})
+        window.project.add_tables({"Variables": frame})
+        window.open_sheet(("data", "Variables"))
+        self.assertIn(window.actions["variable_properties"], window.command_menus["Change"].actions())
+
+        def apply(dialog):
+            dialog.table.item(0, 0).setText("Group")
+            dialog.accept()
+            self.assertTrue(dialog.problem.text())
+            self.assertFalse(window.project.tables["Variables"].raw.attrs.get(VARIABLE_TYPES))
+            dialog.table.item(0, 0).setText("Code")
+            dialog.types[1].setCurrentIndex(dialog.types[1].findData("numeric"))
+            dialog.types[2].setCurrentIndex(dialog.types[2].findData("categorical"))
+            dialog.accept()
+            return VariablesDialog.DialogCode.Accepted
+
+        with patch.object(VariablesDialog, "exec", apply):
+            window.actions["variable_properties"].trigger()
+        dataset = window.project.tables["Variables"]
+        self.assertEqual(list(dataset.raw["Measurement"]), [1.25, 2.50])
+        self.assertEqual(list(dataset.raw["Code"]), ["001", "002"])
+        self.assertEqual(dataset.raw.attrs[VARIABLE_TYPES], {"Measurement": "numeric", "Group": "categorical"})
+        window.actions["undo"].trigger()
+        self.assertEqual(list(dataset.raw), ["ID", "Measurement", "Group"])
+        self.assertNotIn(VARIABLE_TYPES, dataset.raw.attrs)
+        window.actions["redo"].trigger()
+        path = self.folder / "variables.alab"
+        save_project(path, window.project.tables)
+        tables, _ = load_workspace(path)
+        self.assertEqual(tables["Variables"].raw.attrs[VARIABLE_TYPES], dataset.raw.attrs[VARIABLE_TYPES])
+
+    def test_explicit_numeric_type_survives_empty_paste_and_protects_formula_references(self):
+        import pandas as pd
+        from analisi.data import Dataset
+        from trama_qt.project import Project
+
+        project = Project()
+        dataset = Dataset(pd.DataFrame({"Input": pd.Series([pd.NA], dtype="Float64")}),
+                          formulas={"Output": '=COL("Input") * 2'})
+        project.tables["Typed"] = dataset
+        with self.assertRaisesRegex(ValueError, "Input"):
+            project.change_variables("Typed", {"Input": ("Renamed", "numeric")})
+        project.change_variables("Typed", {"Input": ("Input", "numeric")})
+        with self.assertRaisesRegex(ValueError, "Input"):
+            project.paste("Typed", 0, 0, [["abc"]])
+        self.assertTrue(dataset.raw["Input"].isna().all())
+        project.paste("Typed", 0, 0, [["2,5"]])
+        self.assertEqual(dataset.frame()["Output"].iloc[0], 5)
+
+    def test_edit_menu_copies_the_visible_result_table(self):
+        window = self.window
+        self.open_example()
+        self.run_method("Descriptive statistics", {"Variables": ["Control", "Treated"]})
+        view = window.result_tabs.currentWidget()
+        view.setCurrentIndex(view.model().index(0, 0))
+        action = window.actions["copy"]
+        self.assertTrue(action.isEnabled())
+        self.assertIn(action, window.command_menus["Edit"].actions())
+        action.trigger()
+        self.assertTrue(self.app.clipboard().text())
 
     def test_info_sheet_editing(self):
         from unittest import mock
@@ -3076,12 +3180,8 @@ class QtShellTests(unittest.TestCase):
         self.assertIsNone(result[cal.COUNT])
         self.assertNotIn(cal.UNKNOWN_X, result)
 
-    def test_classic_file_menu_keeps_tk_open_reachable(self):
-        window = self.window
-        window.resize(760, 650)
-        self.app.processEvents()
-        self.assertIn(window.actions["classic"], window.command_menus["File"].actions())
-        self.assertTrue(window.actions["classic"].isEnabled())
+    def test_file_menu_uses_only_the_qt_interface(self):
+        self.assertNotIn("classic", self.window.actions)
 
     def test_home_creates_typed_worksheets_and_the_picker_follows_selection(self):
         from trama_qt.table_setup import TableSetup
@@ -3206,6 +3306,8 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(set(window.plot_tools._actions), {"home", "back", "forward", "pan", "zoom"})
         self.assertGreater(window.plot_tools.y(), window.page.canvases[0].parentWidget().y())
         self.assertTrue(window.actions["plot_margins"].isEnabled())
+        self.assertNotIn(window.actions["export"], window.plot_tools.actions())
+        self.assertIs(window.toolbar.buttons["export"].defaultAction(), window.actions["export"])
         for key in ("format_graph", "inspector", "export", "analysis_tables", "change", "recalculate"):
             self.assertTrue(window.actions[key].isEnabled(), key)
         window.search.setText(tr("command.analysis_results"))
@@ -3280,10 +3382,12 @@ class QtShellTests(unittest.TestCase):
         window.actions["load_example"].trigger()
         self.assertTrue(chooser.selection()[1])
         window.create_worksheet(*chooser.selection())
+        self.app.processEvents()
         _, title = window.selected
         self.assertTrue(window.toolbar.isVisible())
         self.assertTrue(window.nav_card.isVisible())
-        self.assertFalse(window.page.findChildren(QPushButton))
+        self.assertFalse(any(button.isVisible() for button in window.page.findChildren(QPushButton)))
+        self.assertTrue(window.page.worksheet_preview.preview_box.isVisible())
 
         sheet = InfoSheet.new("Measurements", title)
         window.project.update_info_sheets({sheet.uid: sheet})
@@ -3304,7 +3408,7 @@ class QtShellTests(unittest.TestCase):
         for key in ("edit_layout", "export", "recalculate"):
             self.assertTrue(window.actions[key].isEnabled(), key)
 
-    def test_classic_shortcuts_match_tk_for_exclusion_export_and_sheet_history(self):
+    def test_classic_shortcuts_for_exclusion_export_and_sheet_history(self):
         from unittest.mock import patch
         from PySide6.QtTest import QTest
         from PySide6.QtWidgets import QFileDialog

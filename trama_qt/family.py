@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QLabel, QLineEdit, QListWidget,
                                QListWidgetItem, QTextBrowser, QVBoxLayout)
 
-from analisi.family_workflow import FamilyError, display_name, export_plan, family_graph, plan_family, preview_family
+from analisi.family_workflow import FamilyBlanks, FamilyError, display_name, export_plan, family_graph, plan_family, preview_family
 from analisi.i18n import tr
 
 LISTED = 12  # Names shown per section of the preview; the rest is counted.
@@ -127,10 +127,29 @@ _STYLE = {"heading": "font-weight:600; margin-top:6px", "counts": "font-weight:6
           "item": "margin-left:14px", "note": "color:#176676; margin-top:4px"}
 
 
+def family_blank_choices(project, selected):
+    tables, layouts = project.tables, project.layouts
+    infos = tuple(project.info_sheets.values())
+    graph = family_graph(tables)
+
+    def choices(include):
+        try:
+            plan = plan_family(tables, layouts, infos, selected, include_layouts=include, graph=graph)
+        except FamilyError:
+            return set()
+        available = {key for key in ("x", "values", "row_titles")
+                     if any(FamilyBlanks(**{key: True}).columns(tables[title]) for title in plan.tables)}
+        if plan.analysis_count:
+            available.add("graph_titles")
+        return available
+
+    return choices
+
+
 class FamilyDialog(QDialog):
     """``mode`` is "duplicate" or "save"; ``result`` is ``(text, include_layouts)`` after OK."""
 
-    def __init__(self, parent, mode, kind, describe, *, initial=""):
+    def __init__(self, parent, mode, kind, describe, *, initial="", blank_choices=None):
         super().__init__(parent)
         self.setWindowTitle(tr("family.duplicate_title" if mode == "duplicate" else "family.save_title"))
         self.mode, self.describe, self.result = mode, describe, None
@@ -162,6 +181,22 @@ class FamilyDialog(QDialog):
             note.setObjectName("muted")
             note.setWordWrap(True)
             outer.addWidget(note)
+        self.blank_options = {}
+        if blank_choices is not None:
+            for key in ("x", "values", "row_titles", "graph_titles"):
+                option = self.blank_options[key] = QCheckBox(tr(f"family.blank.{key}"))
+                outer.addWidget(option)
+
+            def show_available():
+                available = blank_choices(self.include.isChecked())
+                for key, option in self.blank_options.items():
+                    option.setVisible(key in available)
+                    option.setEnabled(key in available)
+                    if key not in available:
+                        option.setChecked(False)
+
+            self.include.toggled.connect(show_available)
+            show_available()
         self.preview = QTextBrowser()
         outer.addWidget(self.preview, 1)
         buttons = QDialogButtonBox()
@@ -176,6 +211,9 @@ class FamilyDialog(QDialog):
         self.include.toggled.connect(self.refresh)
         self.refresh()
         self.resize(620, 520)
+
+    def blanks(self):
+        return FamilyBlanks(**{key: option.isChecked() for key, option in self.blank_options.items()})
 
     def text(self):
         return self.name.text() if self.name is not None else ""

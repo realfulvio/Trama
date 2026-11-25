@@ -380,7 +380,14 @@ class WorksheetView(QTableView):
     def _heading_menu(self, position):
         heading = self.horizontalHeader()
         menu = QMenu(self)
-        self._add_freeze_action(menu, heading.logicalIndexAt(position))
+        column = heading.logicalIndexAt(position)
+        model = self.model()
+        indices = model.dataset.source_indices
+        if not model.read_only and 0 <= column < len(indices) and indices[column] is not None:
+            menu.addAction(qt("qt.rename_column"), lambda: self.host.rename_column(column))
+            if self.host.actions["variable_properties"].isEnabled():
+                menu.addAction(tr("command.variable_properties"), lambda: self.host.edit_variable_properties(column))
+        self._add_freeze_action(menu, column)
         if not menu.isEmpty():
             menu.exec(heading.viewport().mapToGlobal(position))
         menu.deleteLater()
@@ -397,7 +404,7 @@ class WorksheetView(QTableView):
         menu.addAction(qt("qt.insert_row"), self.host.insert_row)
         menu.addAction(qt("qt.delete_rows"), self.host.delete_rows)
         menu.addAction(qt("qt.insert_column"), self.host.insert_column)
-        menu.addAction(qt("qt.delete_columns"), self.host.delete_columns)
+        menu.addAction(self.host.actions["delete_columns"])
         menu.addAction(qt("qt.rename_column"), lambda: self.host.rename_column(self.currentIndex().column()))
         self._add_freeze_action(menu, self.columnAt(position.x()))
         menu.addSeparator()

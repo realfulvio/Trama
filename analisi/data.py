@@ -24,6 +24,7 @@ from .info import InfoSheet, MAX_INFO_SHEETS, info_contexts, validate_info_sheet
 from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, valid_analysis_id
 from .analysis_labels import validate_labels
 from .category_order import CATEGORY_ORDER_VERSION, WORKSHEET_ORDERS, keep_source_columns, validated_orders
+from .variable_types import VARIABLE_TYPES, validated_types
 from .distribution_formulas import DISTRIBUTION_FUNCTIONS, argument_count_message
 from .formula_special import SPECIAL_FORMULA_FUNCTIONS
 from .formula_windows import WINDOW_CLAUSES, WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
@@ -1067,6 +1068,8 @@ def project_document(tables, *, layouts=(), info_sheets=None):
         if orders := raw.attrs.get(WORKSHEET_ORDERS):
             record[WORKSHEET_ORDERS] = validated_orders(orders, raw.columns)
             data["version"] = CATEGORY_ORDER_VERSION
+        if types := raw.attrs.get(VARIABLE_TYPES):
+            record[VARIABLE_TYPES] = validated_types(types, raw.columns)
         roles = _worksheet_roles(raw)
         if roles is not None:
             record["worksheet_roles"] = _validated_worksheet_roles(roles, raw.columns)
@@ -1135,6 +1138,8 @@ def load_workspace(path, *, include_info=False):
         if not isinstance(table_format, str):
             raise ValueError("Invalid saved table format.")
         data.table_format = saved_name(table_format)
+        if VARIABLE_TYPES in table:
+            data.raw.attrs[VARIABLE_TYPES] = validated_types(table[VARIABLE_TYPES], data.raw.columns)
         if "worksheet_roles" in table:
             data.raw.attrs["worksheet_roles"] = _validated_worksheet_roles(table["worksheet_roles"], data.raw.columns)
         if WORKSHEET_ORDERS in table:

@@ -8,5 +8,5 @@ import importlib.util
 
 
 def qt_available():
-    """True when PySide6 can be imported (the classic interface is used otherwise)."""
+    """True when PySide6 can be imported."""
     return importlib.util.find_spec("PySide6") is not None

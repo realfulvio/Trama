@@ -13,10 +13,10 @@ from . import theme
 MENUS = (
     ("File", ("new_project", "new_table", "open", "import", "import_excel", "recover", "|",
               "save", "save_as", "save_template", "new_from_template", "|", "export", "export_options",
-              "export_pdf", "export_batch", "export_report", "export_excel", "|", "close_project", "classic", "about", "exit")),
+              "export_pdf", "export_batch", "export_report", "export_excel", "|", "close_project", "about", "exit")),
     ("Edit", ("undo", "redo", "|", "cut", "copy", "paste", "paste_special", "paste_transpose", "paste_table",
-              "clear_cells", "|", "exclude", "delete_rows", "language")),
-    ("View", ("navigator", "find_sheet", "combined_navigator", "gallery", "previous_sheet", "next_sheet", "|",
+              "clear_cells", "|", "exclude", "delete_rows", "delete_columns")),
+    ("View", ("navigator", "find_sheet", "combined_navigator", "gallery", "previous_sheet", "next_sheet", "previous_project", "next_project", "|",
               "worksheet_preview", "analysis_graph", "analysis_tables", "inspector", "|",
               "sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset", "|",
               "theme_system", "theme_light", "theme_dark")),
@@ -25,7 +25,7 @@ MENUS = (
     ("Analyze", ("analyze", "change", "recalculate", "analyze_result", "source_analysis", "change_input",
                  "repeat_analysis", "use_result", "|", "descriptive", "ttest", "anova", "correlation", "correlation_matrix",
                  "linear", "nonlinear", "survival", "contingency", "load_example")),
-    ("Change", ("change", "format_graph", "graph_style_presets", "batch_figure_styles", "plot_margins", "edit_layout", "category_order", "cell_background", "clear_cell_background", "number_format", "|",
+    ("Change", ("change", "format_graph", "graph_style_presets", "batch_figure_styles", "plot_margins", "edit_layout", "variable_properties", "category_order", "cell_background", "clear_cell_background", "number_format", "|",
                 "info_properties", "info_up", "info_down", "remove_info")),
     ("Arrange", ("arrange_shapes", "new_layout", "edit_layout")),
     ("Family", ("family_data", "family_info", "family_results", "family_graphs", "family_gallery", "|",
@@ -36,14 +36,14 @@ MENUS = (
 
 # Group, first row, second row, tall button, and the density at which short captions fit.
 GROUPS = (
-    ("File", ("new_table", "open"), ("save", "save_as"), None, 2),
-    ("Sheet", ("insert_row", "insert_column", "new_info"), ("exclude", "formula"), None, 3),
-    ("Undo", ("undo",), ("redo",), None, 4),
-    ("Clipboard", ("cut", "copy"), ("paste_special", "paste_table"), "paste", 1),
+    ("File", ("new_table", "open"), ("save", "save_as"), None, 4),
+    ("Sheet", ("insert_row", "insert_column", "new_info"), ("exclude", "formula"), None, 5),
+    ("Undo", ("undo",), ("redo",), None, 6),
+    ("Clipboard", ("cut", "copy"), ("paste_special", "paste_table"), "paste", 2),
     ("Analysis", ("linear", "nonlinear"), ("descriptive", "correlation_matrix"), "analyze", 1),
-    ("Change", ("change", "format_graph"), (), None, 3),
-    ("Import / Export", ("export",), ("export_options",), "import", 1),
-    ("Graph", ("new_layout",), ("pairwise",), "new_graph", 3),
+    ("Change", ("change", "format_graph"), (), None, 5),
+    ("Import / Export", ("export",), ("export_options",), "import", 3),
+    ("Graph", ("new_layout",), ("pairwise",), "new_graph", 5),
 )
 
 SHORT = {"new_table": "ribbon.new", "open": "ribbon.open", "save": "ribbon.save",
@@ -183,7 +183,7 @@ class ClassicToolbar(QFrame):
 
     def _fit(self):
         count = len(self.groups)
-        for density in (3, 2, 1, 0):
+        for density in range(5, -1, -1):
             self._set_density(density)
             if self._content_width(count) <= self.width():
                 break

@@ -7,7 +7,7 @@
 1. Apri la pagina [Download](https://github.com/realfulvio/Trama/releases).
 2. Scarica `Trama-<versione>-Windows-x64.zip` (nelle release precedenti `TramaStat-<versione>-Windows-x64.zip`), non l'archivio del codice sorgente.
 3. Estrai **tutta** la cartella in una posizione in cui puoi leggere e scrivere.
-4. Nella cartella estratta, avvia **Trama.exe** per la Classica in Tk oppure **Trama - Qt.cmd** per la Classica in PySide6/Qt. Tieni entrambi i file accanto alla cartella `_internal`.
+4. Avvia **Trama.exe** nella cartella estratta per aprire Classica Qt. Tieni l’eseguibile accanto alla cartella `_internal`.
 
 Non serve installare Python. Sono supportati Windows 10 e 11 a 64 bit. Per vedere correttamente dialoghi e pulsanti è richiesto uno spazio schermo di almeno 1024 × 768 pixel.
 
@@ -19,7 +19,7 @@ Crea una tabella XY per coordinate e serie, Column per gruppi indipendenti o Gro
 
 Scegli un metodo da **Analyze / Analizza**, imposta le colonne e consulta i fogli dei risultati. Le analisi collegate si aggiornano dopo le modifiche dei dati. Il catalogo e i campi principali sono tradotti; parte delle tabelle dei risultati e alcuni editor specialistici restano in inglese. Una cella esclusa resta nel foglio e viene omessa dal calcolo; non viene cancellata.
 
-Apri il grafico, usa **Format Graph / Formatta grafico** o l'Inspector per personalizzarlo. Un layout raccoglie più grafici nello stesso foglio. I risultati possono diventare nuovi dati tramite **Use Result as Data**.
+Nel foglio seleziona **Anteprima del grafico** e **Formato** per lavorare sui dati, sul grafico collegato e sull’Ispettore. Nel foglio grafico usa **Format Graph / Formatta grafico** o l'Inspector per personalizzarlo. Un layout raccoglie più grafici nello stesso foglio. I risultati possono diventare nuovi dati tramite **Use Result as Data**.
 
 Salva il progetto in formato `.alab`: mantiene tabelle, formule, esclusioni, impostazioni delle analisi, stili, layout e fogli Info. Esporta le tabelle in CSV e le figure in SVG, PDF, PNG o TIFF; per una raccolta di figure è disponibile il PDF multipagina.
 

@@ -12,7 +12,7 @@ Trama è sviluppato dai contributori del progetto e si basa sul lavoro della com
 | --- | --- | --- |
 | [Python](https://www.python.org/) | Runtime | [PSF e avvisi inclusi](https://docs.python.org/3/license.html) |
 | [Qt for Python (PySide6)](https://doc.qt.io/qtforpython-6/) | Interfaccia desktop (dalla 0.95) | [LGPLv3, usata come libreria dinamica non modificata](https://doc.qt.io/qtforpython-6/licenses.html) |
-| [Tcl/Tk](https://www.tcl-lang.org/) | Interfaccia classica (`--tk`) | [Licenza Tcl/Tk](https://www.tcl-lang.org/software/tcltk/license.html) |
+| [Tcl/Tk](https://www.tcl-lang.org/) | Interfaccia storica conservata nel sorgente | [Licenza Tcl/Tk](https://www.tcl-lang.org/software/tcltk/license.html) |
 | [NumPy](https://numpy.org/) | Calcolo numerico | [Licenze del progetto e dei componenti incorporati](https://github.com/numpy/numpy/blob/main/LICENSE.txt) |
 | [SciPy](https://scipy.org/) | Statistica e ottimizzazione | [Licenze BSD e componenti incorporati](https://github.com/scipy/scipy/blob/main/LICENSE.txt) |
 | [pandas](https://pandas.pydata.org/) | Tabelle | [BSD-3-Clause](https://github.com/pandas-dev/pandas/blob/main/LICENSE) |

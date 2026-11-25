@@ -61,6 +61,19 @@ class FamilyCopyTests(TestCase):
         self.assertEqual(copy.layouts[0].panels, [('Repeat A', 2), ('B', 0)])
         self.assertEqual(copy.tables['Repeat A'].analysis_labels[2], 'Repeat Linear regression of Normalized')
 
+    def test_copy_can_keep_xy_coordinates_and_clear_labels_and_responses(self):
+        module = self.engine()
+        raw = pd.DataFrame({"Row title": ["A", "B"], "Dose": [1, 2], "Signal": [3, 4]})
+        dataset = Dataset(raw, table_format="xy", excluded={(0, 1), (0, 2)})
+        bundle = module.duplicate_family({"Dose": dataset}, [], [], ("data", "Dose"), name="Next dose",
+                                         blanks=module.FamilyBlanks(values=True, row_titles=True))
+        copied = bundle.tables["Next dose"]
+        self.assertEqual(list(copied.raw["Dose"]), [1, 2])
+        self.assertTrue(copied.raw["Signal"].isna().all())
+        self.assertTrue(copied.raw["Row title"].isna().all())
+        self.assertEqual(copied.excluded, {(0, 1)})
+        self.assertEqual(list(dataset.raw["Signal"]), [3, 4])
+
     def test_layout_family_copies_all_panel_inputs_without_unrelated_analyses(self):
         module = self.engine()
         copy = module.duplicate_family(self.tables, self.layouts, self.infos, ('layout', 0), name='Repeat ')
