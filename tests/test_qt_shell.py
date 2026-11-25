@@ -3421,7 +3421,7 @@ class QtShellTests(unittest.TestCase):
         window.open_sheet(("graph", index))
         self.app.processEvents()
         commands = {button.defaultAction() for button in window.page.actions_row.parentWidget().findChildren(QToolButton)}
-        self.assertEqual(commands, {window.actions[name] for name in ("annotations", "draw", "inspector")})
+        self.assertEqual(commands, {window.actions[name] for name in ("annotations", "draw", "linked_table", "inspector")})
         self.assertEqual(set(window.plot_tools._actions), {"home", "back", "forward", "pan", "zoom"})
         self.assertGreater(window.plot_tools.y(), window.page.canvases[0].parentWidget().y())
         self.assertTrue(window.actions["plot_margins"].isEnabled())
