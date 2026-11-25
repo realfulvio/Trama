@@ -303,16 +303,20 @@ def _read_once(path, cancel, progress):
 
 
 def same_file(path, stamp, sha256):
-    """True when ``path`` is still the file read: same size and time, or (a network folder may report another time
-    for the same bytes) the same SHA-256."""
+    """Confirm the preview still describes the bytes on disk, even if a copy preserved the timestamp."""
     try:
-        if stamp_of(path) == stamp:
-            return True
+        before = stamp_of(path)
+        if before[0] != stamp[0]:
+            return False
         digest = hashlib.sha256()
+        size = 0
         with Path(path).open("rb") as handle:
             while chunk := handle.read(CHUNK):
+                size += len(chunk)
+                if size > stamp[0]:
+                    return False
                 digest.update(chunk)
-        return digest.hexdigest() == sha256
+        return size == stamp[0] and stamp_of(path) == before and digest.hexdigest() == sha256
     except OSError:
         return False
 

@@ -295,6 +295,14 @@ class SourceLinkTests(unittest.TestCase):
         self.copy("aggiornato.csv")
         self.assertFalse(engine.same_file(path, source.stamp, source.sha256))
 
+    def test_equal_size_and_timestamp_do_not_hide_a_replaced_file(self):
+        path = self.copy("iniziale.csv")
+        source = engine.read_file(path)
+        path.write_bytes(path.read_bytes().replace(b"B,2,5", b"B,2,6"))
+        os.utime(path, ns=(source.mtime_ns, source.mtime_ns))
+        self.assertEqual(engine.stamp_of(path), source.stamp)
+        self.assertFalse(engine.same_file(path, source.stamp, source.sha256))
+
     def test_the_source_file_is_only_read(self):
         path = self.copy("iniziale.csv")
         project, title = link_file(path)
