@@ -92,12 +92,16 @@ class BatchRow:
 
 def navigator_graphs(project):
     """The run indexes listed under Graphs in the navigator, in the same order (see ``MainWindow.refresh``)."""
+    from analisi.paired_graphs import paired_plot_options
+    from analisi.rank_graphs import rank_plot_options
     from analisi.workbench import GRAPH_METHODS
 
     from .project import run_view
     return [index for index, run in enumerate(project.runs)
             if not project.sheet_state(("graph", index)).get("hidden")
             and (run_view(run.method) == "graph" or run.method in GRAPH_METHODS
+                 or (run.result is None and (paired_plot_options(run.method, run.options)
+                                             or rank_plot_options(run.method, run.options)))
                  or (run.result is not None and run.result.figure is not None and run_view(run.method) == "result"))]
 
 

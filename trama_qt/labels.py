@@ -28,6 +28,7 @@ _SOURCES = (
     ("pca_regression", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("pca_reports", ("LABEL_KEYS",), ()),
     ("pca_retention", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
+    ("rank_graphs_text", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("rank_tests", ("LABEL_KEYS",), ("CHOICE_KEYS",)),
     ("reference_normalization_dialog", ("LABEL_KEYS",), ()),
     ("rmcorr", ("LABEL_KEYS",), ("CHOICE_KEYS",)),

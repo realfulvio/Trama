@@ -8,6 +8,7 @@ import unicodedata
 
 from analisi.workbench import GRAPH_METHODS
 from analisi.paired_graphs import paired_plot_options
+from analisi.rank_graphs import rank_plot_options
 
 from .project import run_view
 
@@ -50,6 +51,7 @@ def graph_runs(project):
             if not project.sheet_state(("graph", index)).get("hidden")
             and (run_view(run.method) == "graph" or run.method in GRAPH_METHODS
             or (run.result is None and paired_plot_options(run.method, run.options))
+            or (run.result is None and rank_plot_options(run.method, run.options))
             or (run.result is not None and run.result.figure is not None and run_view(run.method) == "result"))]
 
 

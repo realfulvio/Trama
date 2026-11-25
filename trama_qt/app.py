@@ -88,6 +88,9 @@ def main(argv=None):
         elif only == "qt-mood-median":
             from .mood_median_smoke import MoodMedianSmoke
             status = "PASS" if MoodMedianSmoke(folder).run() == 0 else "FAIL"
+        elif only == "qt-rank-graphs":
+            from .rank_graphs_smoke import RankGraphsSmoke
+            status = "PASS" if RankGraphsSmoke(folder).run() == 0 else "FAIL"
         elif only == "qt-linked-axes":
             from .linked_axes_smoke import run
             status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
