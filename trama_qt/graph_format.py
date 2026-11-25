@@ -153,11 +153,15 @@ class GraphFormatDialog(QDialog):
         self._references()
         buttons = QDialogButtonBox()
         buttons.addButton(tr("graph.format.reset"), QDialogButtonBox.ButtonRole.ResetRole).clicked.connect(self.reset)
-        buttons.addButton(tr("graph.format.apply"), QDialogButtonBox.ButtonRole.AcceptRole).setDefault(True)
+        apply_button = buttons.addButton(tr("graph.format.apply"), QDialogButtonBox.ButtonRole.AcceptRole)
         buttons.addButton(tr("graph.format.cancel"), QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         outer.addWidget(buttons)
+        for button in self.findChildren(QPushButton):
+            button.setAutoDefault(False)
+        apply_button.setAutoDefault(True)
+        apply_button.setDefault(True)
         fit_dialog(self, 620, 560)
 
     # -- tabs ----------------------------------------------------------------------------------------

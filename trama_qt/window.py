@@ -698,6 +698,7 @@ class MainWindow(QMainWindow):
             button.setIcon(theme.classic_icon(icon))
             button.setAccessibleName(self.actions[key].text())
             status.addWidget(button)
+        status.addWidget(self._status_divider())
         self.section_buttons = {}
         for kind, key, icon in (("data", "data_tables", "data"), ("info", "info_sheets", "info"),
                                 ("result", "results", "result"), ("graph", "graphs", "graph"),
@@ -710,10 +711,16 @@ class MainWindow(QMainWindow):
             button.setAccessibleName(label)
             button.clicked.connect(lambda _checked=False, kind=kind: self.open_section(kind))
             status.addWidget(button)
+        status.addWidget(self._status_divider())
         status.addWidget(self.sheet_picker)
+        status.addWidget(self._status_divider())
         self.cell_label = QLabel("")
         status.addWidget(self.cell_label)
         self.message = StatusLabel(qt("qt.ready"))
+        self.message.setObjectName("statusMessage")
+        self._message_timer = QTimer(self)
+        self._message_timer.setSingleShot(True)
+        self._message_timer.timeout.connect(self._message_expired)
         status.addWidget(self.message, 1)
         self.progress = QProgressBar()
         self.progress.setFixedWidth(100)
@@ -727,6 +734,14 @@ class MainWindow(QMainWindow):
         self.cancel_button.ensurePolished()
         self.cancel_button.setMinimumWidth(self.cancel_button.minimumSizeHint().width())
         status.addPermanentWidget(self.cancel_button)
+
+    @staticmethod
+    def _status_divider():
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.VLine)
+        divider.setObjectName("statusDivider")
+        divider.setFixedHeight(16)
+        return divider
 
     def _project_strip(self):
         """One tab per open project, with New beside the last tab; each tab closes its own project."""
@@ -789,6 +804,19 @@ class MainWindow(QMainWindow):
 
     def status(self, text):
         self.message.setText(str(text))
+        self.message.setProperty("fresh", bool(text))
+        self.message.style().unpolish(self.message)
+        self.message.style().polish(self.message)
+        self._message_timer.start(6000)  # A message fades back to "Ready" after six seconds.
+
+    def _message_expired(self):
+        if self.job is not None:  # A calculation is still running: its message stays until it ends.
+            self._message_timer.start(6000)
+            return
+        self.message.setText(qt("qt.ready"))
+        self.message.setProperty("fresh", False)
+        self.message.style().unpolish(self.message)
+        self.message.style().polish(self.message)
 
     def busy(self, *, warn=True):
         if self.job is not None and warn:
