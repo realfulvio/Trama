@@ -209,7 +209,7 @@ class TableSetup(QWidget):
                                       "chart-column", "table-2", "table")):
             item = self.types.item(index)
             item.setSizeHint(QSize(136, 36))
-            item.setIcon(theme.icon(name, "#a9e3dd"))
+            item.setIcon(theme.icon(name, "setup_icon"))
         sidebar.addWidget(self.types, 1)
         sidebar.addStretch()
         sidebar.addWidget(self._button(tr("setup.quick_start"), self._quick_start, "book-open"))
@@ -285,7 +285,7 @@ class TableSetup(QWidget):
         button = QPushButton(label)
         button.clicked.connect(lambda: command())
         if icon is not None:
-            button.setIcon(theme.icon(icon, "#a9e3dd" if icon == "book-open" else "accent"))
+            button.setIcon(theme.icon(icon, "setup_icon" if icon == "book-open" else "accent"))
         return button
 
     @staticmethod
