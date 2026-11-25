@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QPushButton
 
 from analisi.i18n import set_language, tr
@@ -77,11 +76,8 @@ def exercise(smoke, window):
     assert window.close_project()
 
     setup = window.page.findChild(TableSetup)
-    recent = setup.recent.menu()
-    recent.popup(setup.recent.mapToGlobal(QPoint(0, setup.recent.height())))
     smoke.app.processEvents()
-    smoke.shot(recent, "startup-recent")
-    action = next(action for action in recent.actions() if action.toolTip() == str(path))
-    recent.hide()
-    action.trigger()
+    smoke.shot(window, "startup-recent")
+    card = next(button for button in setup.findChildren(QPushButton, "setupRecent") if button.toolTip() == str(path))
+    card.click()
     assert window.project.path == path and window.selected == ("data", title)

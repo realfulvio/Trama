@@ -3374,32 +3374,43 @@ class QtShellTests(unittest.TestCase):
         setup.sample.setChecked(True)
         self.assertEqual(setup.examples.count(), len(GROUPED_FORMATS))
 
-    def test_home_recent_projects_are_saved_and_open_through_the_menu(self):
+    def test_home_recent_projects_open_from_the_cards_and_the_more_menu(self):
         from unittest.mock import patch
+        from PySide6.QtWidgets import QPushButton
         from trama_qt.project import Project
-        from trama_qt.sessions import recent_projects
+        from trama_qt.sessions import recent_projects, remember_project
         from trama_qt.table_setup import TableSetup
 
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            path = root / "Recent & test.alab"
+            paths = tuple(root / name for name in ("Recent & test.alab", "Other.alab", "Oldest.alab"))
             project = Project()
             project.add_tables({"Measurements": pd.DataFrame({"X": [1., 2.], "Y": [3., 4.]})})
-            project.save(path)
+            for path in paths:
+                project.save(path)
             window = self.window
             with patch("trama_qt.sessions.config_path", return_value=root / "prefs.json"):
-                window.open_path(path)
-                self.assertEqual(recent_projects(), (path,))
+                for path in reversed(paths[1:]):
+                    remember_project(path)
+                window.open_path(paths[0])
+                self.assertEqual(recent_projects(), paths)
                 self.assertEqual(window.selected, ("data", "Measurements"))
                 self.assertTrue(window.close_project())
-                menu = window.page.findChild(TableSetup).recent.menu()
-                menu.aboutToShow.emit()
-                actions = menu.actions()
+                setup = window.page.findChild(TableSetup)
+                cards = setup.findChildren(QPushButton, "setupRecent")
+                self.assertEqual([card.toolTip() for card in cards], [str(path) for path in paths[:2]])
+                cards[0].click()
+                self.assertEqual(window.project.path, paths[0])
+                self.assertTrue(window.close_project())
+                setup = window.page.findChild(TableSetup)
+                more = next(button for button in setup.findChildren(QPushButton)
+                            if button.text() == tr("setup.more_projects"))
+                actions = more.menu().actions()
                 self.assertEqual(len(actions), 1)
-                self.assertEqual(actions[0].toolTip(), str(path))
+                self.assertEqual(actions[0].toolTip(), str(paths[2]))
                 actions[0].trigger()
                 self.assertEqual(window.selected, ("data", "Measurements"))
-                self.assertEqual(recent_projects(), (path,))
+                self.assertEqual(recent_projects(), (paths[2], *paths[:2]))
 
     def test_classic_toolbar_keeps_commands_reachable_without_overlap(self):
         from PySide6.QtCore import QPoint

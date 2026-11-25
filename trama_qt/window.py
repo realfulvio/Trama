@@ -1585,7 +1585,7 @@ class MainWindow(QMainWindow):
         self.nav_card.hide()
         self.statusBar().hide()
         page = Page("")
-        page.layout_.setContentsMargins(0, 0, 8, 8)
+        page.layout_.setContentsMargins(0, 0, 0, 0)
         page.finish_actions()
         chooser = page.add(TableSetup(page, open_project=self.open_dialog, open_path=self.open_path,
                                       create_info=self.new_info, recover=self.actions["recover"]))

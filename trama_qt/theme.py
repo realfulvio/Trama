@@ -315,16 +315,21 @@ def stylesheet():
         padding: 8px 12px; }}
     QToolButton:focus {{ border-color: {t['accent']}; }}
     QFrame#classicNavigator, QFrame#classicSheet {{ background: {t['panel']}; }}
-    QFrame#setupSidebar {{ background: #10333e; }}
+    QFrame#setupSidebar {{ background: #102f3a; }}
     QFrame#setupSidebar QLabel {{ color: #d7edee; }}
     QFrame#setupSidebar QPushButton, QFrame#setupSidebar QToolButton {{ text-align: left; background: #153f4d; color: #fff; border-color: #476873; }}
     QFrame#setupSidebar QPushButton:hover, QFrame#setupSidebar QToolButton:hover {{ background: #25505c; }}
     QFrame#setupSidebar QToolButton:disabled {{ color: #a4bbc2; }}
-    QPushButton#recentProjects {{ padding-left: 14px; padding-right: 22px; }}
-    QListWidget#setupTypes {{ background: #153f4d; color: #fff; border: 0; }}
-    QListWidget#setupTypes::item {{ color: #fff; padding: 2px 6px; }}
+    QListWidget#setupTypes {{ background: transparent; color: #e4f0f0; border: 0; }}
+    QListWidget#setupTypes::item {{ color: #e4f0f0; padding: 2px 6px; border-left: 3px solid transparent; }}
     QListWidget#setupTypes::item:hover {{ background: #25505c; }}
-    QListWidget#setupTypes::item:selected {{ background: #e8f4f3; color: #10333e; }}
+    QListWidget#setupTypes::item:selected {{ background: #22515b; color: #fff; border-left: 3px solid #54d3bf; }}
+    QWidget#setupWelcomeContent {{ background: {t['bg']}; }}
+    QFrame#setupCard {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 6px; }}
+    QLabel#setupCaption {{ font-size: 11pt; font-weight: 700; }}
+    QFrame#setupDivider {{ border: 0; background: {t['border']}; }}
+    QPushButton#setupRecent {{ text-align: left; background: {t['panel2']}; }}
+    QPushButton#setupRecent:hover {{ background: {t['tint']}; }}
     QToolBar#plotTools {{ border: none; background: transparent; spacing: 2px; }}
     QToolBar::separator {{ background: {t['border']}; width: 1px; margin: 6px 6px; }}
     QToolBar#plotTools QLabel {{ color: {t['text2']}; }}
