@@ -443,6 +443,8 @@ def stylesheet():
     QStatusBar::item {{ border: none; }}
     QStatusBar QToolButton[statusTool="true"] {{ padding: 2px; }}
     QStatusBar QLabel {{ padding: 0 6px; }}
+    QFrame#statusDivider {{ color: {t['field_hover']}; }}
+    QLabel#statusMessage[fresh="true"] {{ color: {t['accent_dark']}; font-weight: 600; }}
     QProgressBar {{ background: {t['border']}; border: none; border-radius: 0px; max-height: 6px; }}
     QProgressBar::chunk {{ background: {primary}; border-radius: 0px; }}
 

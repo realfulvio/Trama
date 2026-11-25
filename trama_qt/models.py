@@ -31,6 +31,18 @@ def _numeric(series):
     return pd.api.types.is_numeric_dtype(series.dtype) and not pd.api.types.is_bool_dtype(series.dtype)
 
 
+def _mostly_numeric(series):
+    """A result column that mixes labels and numbers (statistic / Value) is aligned like a number column."""
+    if _numeric(series):
+        return True
+    values = series.dropna()
+    if not len(values):
+        return False
+    numbers = sum(isinstance(v, (int, float, np.integer, np.floating)) and not isinstance(v, (bool, np.bool_))
+                  for v in values)
+    return numbers / len(values) >= 0.6
+
+
 _ALIGNMENTS = {"left": Qt.AlignmentFlag.AlignLeft, "center": Qt.AlignmentFlag.AlignHCenter,
                "right": Qt.AlignmentFlag.AlignRight}
 
@@ -274,7 +286,7 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
         self.formatters = formatters or {}
         self.backgrounds = backgrounds or {}
         self.formats = Renderer(number_formats)
-        self.numeric = [_numeric(frame.iloc[:, index]) for index in range(len(frame.columns))]
+        self.numeric = [_mostly_numeric(frame.iloc[:, index]) for index in range(len(frame.columns))]
 
     def cell_style(self, column, row):
         return self._style(column, row)
@@ -330,7 +342,8 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role == Qt.ItemDataRole.TextAlignmentRole and orientation == Qt.Orientation.Horizontal:
-            return int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            right = section > 0 and self.numeric[section - 1]
+            return int((Qt.AlignmentFlag.AlignRight if right else Qt.AlignmentFlag.AlignLeft) | Qt.AlignmentFlag.AlignVCenter)
         if role != Qt.ItemDataRole.DisplayRole or orientation == Qt.Orientation.Vertical:
             return None
         return self.index_title if section == 0 else str(self.frame.columns[section - 1])
