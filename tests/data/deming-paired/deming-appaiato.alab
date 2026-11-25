@@ -1,0 +1,106 @@
+{
+  "version": 2,
+  "tables": [
+    {
+      "title": "Misure appaiate",
+      "columns": [
+        "Row title",
+        "X",
+        "Controllo",
+        "Trattamento $"
+      ],
+      "kinds": [
+        "text",
+        "numeric",
+        "numeric",
+        "numeric"
+      ],
+      "rows": [
+        [
+          "U1",
+          1,
+          2.4,
+          1.9
+        ],
+        [
+          "U2",
+          2,
+          4.7,
+          3.8
+        ],
+        [
+          "U3",
+          3,
+          6.6,
+          4.5
+        ],
+        [
+          "U4",
+          4,
+          8.5,
+          6.7
+        ],
+        [
+          "U5",
+          5,
+          10.8,
+          7.7
+        ],
+        [
+          "U6",
+          6,
+          12.4,
+          9.3
+        ],
+        [
+          "U7",
+          7,
+          14.7,
+          10.8
+        ],
+        [
+          "U8",
+          8,
+          16.3,
+          12.6
+        ],
+        [
+          "U9",
+          9,
+          18.3,
+          null
+        ],
+        [
+          "U10",
+          10,
+          20.1,
+          16.2
+        ]
+      ],
+      "formulas": [],
+      "analyses": [
+        [
+          "Deming regression",
+          {
+            "X": "X",
+            "Y": "Controllo",
+            "Y series": [
+              "Controllo",
+              "Trattamento $"
+            ],
+            "Y / X error variance": 1.0,
+            "Confidence level (%)": 95.0
+          }
+        ]
+      ],
+      "excluded": [
+        [
+          9,
+          3
+        ]
+      ],
+      "graph_styles": {}
+    }
+  ],
+  "layouts": []
+}

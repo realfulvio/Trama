@@ -1,0 +1,14 @@
+{
+  "project": "deming-appaiato.alab",
+  "base_pair_counts": {
+    "Controllo": 10,
+    "Trattamento $": 8
+  },
+  "comparison_pair_count": 8,
+  "df": 7,
+  "expected": "oracolo.json",
+  "reverse_series": "Segni opposti per stime, estremi dell’intervallo invertiti e negati; p e SE uguali",
+  "same_curves_on_complete_rows": "Differenze 0; inferenza indisponibile perché SE è zero",
+  "too_few": "Escludi Trattamento $ nelle righe 1, 2 e 3. I fit individuali restano validi; segnala confronto indisponibile con 5 coppie.",
+  "legacy": "Con il confronto spento o assente, stessi fogli e numeri della base."
+}
