@@ -10,7 +10,7 @@ from scipy import integrate, linalg, optimize, stats
 from scipy.spatial.distance import cdist, pdist, squareform
 from statsmodels.stats.multitest import multipletests
 
-from . import cluster_consensus as consensus, kmeans_archive
+from . import cluster_consensus as consensus, dunnett_exact, kmeans_archive
 from .analysis_chain import ChainCancelled
 from .anova_terms import CONTROL_FIELD
 from .field_error import FieldError
@@ -368,6 +368,13 @@ def dunnett_scores(t, p, standardized, df, alpha):
             return _two_contrast_tail(x, angle, df)
 
         adjusted = np.clip([tail(x) for x in np.abs(t)], p, np.minimum(count * p, 1.))
+        tolerance = 1e-12
+    elif (loadings := dunnett_exact.one_factor_loadings(correlation)) is not None:
+        # Comparisons with one control: deterministic quadrature, about 1e-11 (0.109.x).
+        def tail(x):
+            return dunnett_exact.tail(x, loadings, df)
+
+        adjusted = _bounded_family_p(np.array([tail(x) for x in np.abs(t)]), p, count)
         tolerance = 1e-12
     else:
         def tail(x):
