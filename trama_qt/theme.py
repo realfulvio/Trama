@@ -299,8 +299,10 @@ def stylesheet():
     QFrame#classicNavigator, QFrame#classicSheet {{ background: {t['panel']}; }}
     QFrame#setupSidebar {{ background: #10333e; }}
     QFrame#setupSidebar QLabel {{ color: #d7edee; }}
-    QFrame#setupSidebar QPushButton {{ text-align: left; background: #153f4d; color: #fff; border-color: #476873; }}
-    QFrame#setupSidebar QPushButton:hover {{ background: #25505c; }}
+    QFrame#setupSidebar QPushButton, QFrame#setupSidebar QToolButton {{ text-align: left; background: #153f4d; color: #fff; border-color: #476873; }}
+    QFrame#setupSidebar QPushButton:hover, QFrame#setupSidebar QToolButton:hover {{ background: #25505c; }}
+    QFrame#setupSidebar QToolButton:disabled {{ color: #a4bbc2; }}
+    QPushButton#recentProjects {{ padding-left: 14px; padding-right: 22px; }}
     QListWidget#setupTypes {{ background: #153f4d; color: #fff; border: 0; }}
     QListWidget#setupTypes::item {{ color: #fff; padding: 2px 6px; }}
     QListWidget#setupTypes::item:hover {{ background: #25505c; }}
@@ -386,6 +388,7 @@ def stylesheet():
     QRadioButton::indicator:checked {{ border: 5px solid {t['accent']}; width: 6px; height: 6px;
         background: {t['panel']}; }}
     QRadioButton::indicator:disabled {{ background: {t['panel2']}; border-color: {t['field']}; }}
+    QRadioButton#setupMode::indicator {{ border-radius: 8px; }}
 
     QGroupBox {{ background: {t['panel']}; border: 1px solid {t['border']}; border-radius: 0px;
         margin-top: 20px; padding: 6px 0 0 0; }}

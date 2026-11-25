@@ -3269,7 +3269,7 @@ class QtShellTests(unittest.TestCase):
         window.show_home()
         setup = window.page.findChild(TableSetup)
         setup.types.setCurrentRow(7)
-        setup.mode.setCurrentIndex(1)
+        setup.sample.setChecked(True)
         window.create_worksheet(*setup.selection())
         second = window.selected
         self.assertEqual(window.project.tables[second[1]].table_format, "nested")
@@ -3278,6 +3278,60 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.selected, first)
         window.sheet_next.click()
         self.assertEqual(window.selected, second)
+
+    def test_home_options_and_examples_match_the_table_being_created(self):
+        from analisi.table_templates import GROUPED_FORMATS, TEMPLATES, XY_FORMATS
+        from trama_qt.table_setup import TableSetup
+
+        setup = self.window.page.findChild(TableSetup)
+        for index, template in enumerate(TEMPLATES):
+            with self.subTest(kind=template.kind):
+                setup.types.setCurrentRow(index)
+                setup.empty.setChecked(True)
+                self.assertFalse(setup.selection()[1])
+                self.assertIsNone(setup.preview.item(0, 0))
+                self.assertTrue(setup.replicates.isHidden())
+                setup.sample.setChecked(True)
+                self.assertEqual(setup.selection(), (template, True))
+                self.assertIsNotNone(setup.preview.item(0, 0))
+                self.assertTrue(setup.encoding.isHidden())
+                self.assertEqual(setup.create_label, tr("setup.create_example"))
+        setup.types.setCurrentRow(0)
+        setup.examples.setCurrentIndex(2)
+        self.assertEqual(setup.selection(), (list(XY_FORMATS.values())[2], True))
+        setup.empty.setChecked(True)
+        setup.encoding.setCurrentIndex(1)
+        self.assertFalse(setup.replicates.isHidden())
+        setup.types.setCurrentRow(2)
+        setup.sample.setChecked(True)
+        self.assertEqual(setup.examples.count(), len(GROUPED_FORMATS))
+
+    def test_home_recent_projects_are_saved_and_open_through_the_menu(self):
+        from unittest.mock import patch
+        from trama_qt.project import Project
+        from trama_qt.sessions import recent_projects
+        from trama_qt.table_setup import TableSetup
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "Recent & test.alab"
+            project = Project()
+            project.add_tables({"Measurements": pd.DataFrame({"X": [1., 2.], "Y": [3., 4.]})})
+            project.save(path)
+            window = self.window
+            with patch("trama_qt.sessions.config_path", return_value=root / "prefs.json"):
+                window.open_path(path)
+                self.assertEqual(recent_projects(), (path,))
+                self.assertEqual(window.selected, ("data", "Measurements"))
+                self.assertTrue(window.close_project())
+                menu = window.page.findChild(TableSetup).recent.menu()
+                menu.aboutToShow.emit()
+                actions = menu.actions()
+                self.assertEqual(len(actions), 1)
+                self.assertEqual(actions[0].toolTip(), str(path))
+                actions[0].trigger()
+                self.assertEqual(window.selected, ("data", "Measurements"))
+                self.assertEqual(recent_projects(), (path,))
 
     def test_classic_toolbar_fits_all_buttons_at_1024_pixels(self):
         window = self.window
@@ -3442,7 +3496,7 @@ class QtShellTests(unittest.TestCase):
         window = self.window
         self.assertFalse(window.toolbar.isVisible())
         self.assertFalse(window.nav_card.isVisible())
-        self.assertIn(tr("setup.create"), {button.text() for button in window.page.findChildren(QPushButton)})
+        self.assertIn(tr("setup.create_blank"), {button.text() for button in window.page.findChildren(QPushButton)})
         chooser = window.page.findChild(TableSetup)
         window.actions["load_example"].trigger()
         self.assertTrue(chooser.selection()[1])

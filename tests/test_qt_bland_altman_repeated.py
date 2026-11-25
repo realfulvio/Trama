@@ -123,7 +123,7 @@ class RepeatedAgreementDialogTests(unittest.TestCase):
         self.app.processEvents()
         self.assertIsNone(dialog.result)
         self.assertIn("rows 1 and 2", dialog.banner.text())
-        self.assertIs(self.app.focusWidget(), dialog.controls["Occasion"][1])
+        self.assertIs(dialog.focusWidget(), dialog.controls["Occasion"][1])
         fill(dialog, **{"Occasion": "", "Mode": "Log ratio"})
         dialog.accept()
         self.assertIsNotNone(dialog.result)

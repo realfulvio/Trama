@@ -65,7 +65,7 @@ from .recovery import RecoveryDialog, RecoverySettingsDialog, r as recovery_text
 from .project import (DATA_SUFFIXES, GRAPHING, GRAPH_TYPE_METHODS, LEGACY_GRAPH_METHODS, OPEN_FILTER, PROJECT_SUFFIXES,
                       SAVED_VIEWS, CalculationControl, Project, Run, compute, result_as_table, run_view,
                       stored_legacy_view)
-from .sessions import MAX_PROJECT_TABS, Sessions
+from .sessions import MAX_PROJECT_TABS, Sessions, remember_project
 from .templates import sync_actions as sync_template_actions, t as template_text
 from analisi.repeat_analysis_text import t as repeat_text
 from .shape_canvas import GraphDrawing
@@ -1549,12 +1549,10 @@ class MainWindow(QMainWindow):
         page = Page("")
         page.layout_.setContentsMargins(0, 0, 8, 8)
         page.finish_actions()
-        chooser = page.add(TableSetup(page, open_project=self.open_dialog, create_info=self.new_info))
+        chooser = page.add(TableSetup(page, open_project=self.open_dialog, open_path=self.open_path,
+                                      create_info=self.new_info, recover=self.actions["recover"]))
         page.canvases.append(chooser.chart)
-        create = QPushButton(tr("setup.create"))
-        create.setObjectName("primary")
-        create.clicked.connect(lambda: self.create_worksheet(*chooser.selection()))
-        page.layout_.addWidget(create, 0, Qt.AlignmentFlag.AlignRight)
+        chooser.bind_create(lambda: self.create_worksheet(*chooser.selection()))
         self._replace_page(page)
         self.refresh()
 
@@ -2459,7 +2457,7 @@ class MainWindow(QMainWindow):
         setup = self.page.findChild(TableSetup) if self.selected is None and self.gallery is None else None
         if setup is not None:
             if sample:
-                setup.mode.setCurrentIndex(setup.mode.findData(True))
+                setup.sample.setChecked(True)
             setup.types.setFocus()
             return
         chooser = TableSetupDialog(self, sample=sample)
@@ -3631,6 +3629,7 @@ class MainWindow(QMainWindow):
                 existing = self.sessions.find(path)
                 if existing is not None:
                     if self.switch_project(existing):
+                        remember_project(path)
                         self.status(qt("qt.already_open", name=path.name))
                     return
                 reuse = self.project.is_empty()
@@ -3644,6 +3643,7 @@ class MainWindow(QMainWindow):
                 if suffix != ".alab":
                     project.origin, project.dirty = path, False
                 self._put_project(project, reuse=reuse)
+                remember_project(path)
                 self.status(tr("status.opened", name=path.name))
             elif import_data and suffix in TEXT_SUFFIXES:  # Import text data: choose rows, columns and format.
                 from .text_import import TextImportDialog
@@ -3744,6 +3744,7 @@ class MainWindow(QMainWindow):
             return False
         if self.recovery is not None:
             self.recovery.saved(self.project)
+        remember_project(path)
         self.status(tr("status.saved", name=path.name))
         self.refresh()
         return True

@@ -10,15 +10,38 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
+from analisi.i18n import config_path, load_preferences, save_preferences
+
 from .strings import qt
 
 MAX_PROJECT_TABS = 6  # Same limit as the classic window (analisi.project_tabs, which imports Tk).
 LABEL_WIDTH = 32
+MAX_RECENT_PROJECTS = 8
 
 
 def canonical(path):
     """A path as the file system names it: absolute, links resolved, case folded where the system ignores case."""
     return os.path.normcase(os.path.realpath(os.fspath(path)))
+
+
+def recent_projects():
+    """Saved project paths, ordered most recent first and kept in the user's local preferences."""
+    entries = load_preferences(config_path()).get("recent_projects")
+    if not isinstance(entries, list):
+        return ()
+    return tuple(Path(path) for path in entries[:MAX_RECENT_PROJECTS]
+                 if isinstance(path, str) and path and "\0" not in path and Path(path).is_absolute())
+
+
+def remember_project(path):
+    path = Path(path).absolute()
+    target = canonical(path)
+    items = [path, *(other for other in recent_projects() if canonical(other) != target)]
+    try:
+        save_preferences(config_path(), recent_projects=[str(other) for other in items[:MAX_RECENT_PROJECTS]])
+    except OSError:
+        # A read-only profile must still be able to open and save projects.
+        pass
 
 
 @dataclass(eq=False)

@@ -106,6 +106,9 @@ def main(argv=None):
         elif only == "qt-mcnemar-power":
             from .mcnemar_power_smoke import run  # Paired-proportion power only: EN/IT, light and dark.
             status = run(folder)
+        elif only == "qt-startup":
+            from .table_setup_smoke import run
+            status = run(folder)
         elif only == "qt-point-style":
             from .point_style_smoke import run_dedicated
             status = run_dedicated(folder)
