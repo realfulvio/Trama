@@ -23,8 +23,8 @@ from analisi.linked_axes import linked_axes_status
 from analisi.observation_labels import LABELS, label_status_line
 from analisi.point_style import POINTS, point_styles_status
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES,
-                          EDITABLE_LEGACY_XY, MAX_ENTRY, Dataset, formula_column_references, info_references,
-                          load_tables, load_workspace, project_document, save_project)
+                          EDITABLE_LEGACY_XY, MAX_ENTRY, Dataset, info_references,
+                          load_tables, load_workspace, project_document, rename_formula_columns, save_project)
 from analisi.ecdf_graph import METHOD as ECDF_GRAPH, style_after_parameter_change as ecdf_style
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
 from analisi.interaction_plot import METHOD as INTERACTION_PLOT, style_after_parameter_change as interaction_style
@@ -1765,6 +1765,21 @@ class Project(WorksheetJoinSources, SheetCommands):
             dataset.text_styles = dataset.text_styles.drop(names)
         return self.edit(title, "Delete columns", change)
 
+    def _check_column_rename(self, title, names):
+        def uses_name(value, name):
+            if isinstance(value, str):
+                return value == name
+            if isinstance(value, dict):
+                return name in value or any(uses_name(item, name) for item in value.values())
+            if isinstance(value, (tuple, list)):
+                return any(uses_name(item, name) for item in value)
+            return False
+
+        readers = self.readers([title])
+        for name in names:
+            if any(uses_name(run.options, name) for run in readers):
+                raise ValueError(tr("variables.error.reference", name=name))
+
     def rename_column(self, title, column, name):
         def change(dataset):
             raw = dataset.raw
@@ -1775,10 +1790,17 @@ class Project(WorksheetJoinSources, SheetCommands):
             previous = raw.columns[source]
             if not name_ or (name_ != previous and (name_ in raw.columns or name_ in dataset.formulas)):
                 raise ValueError("Choose a new column name.")
-            frame = raw.rename(columns={previous: name_})
+            if name_ == previous:
+                return
+            rename = {previous: name_}
+            formulas = {key: rename_formula_columns(expr, rename) for key, expr in dataset.formulas.items()}
+            if formulas != dataset.formulas:
+                self._check_column_rename(title, rename)
+                dataset.formulas = formulas
+            frame = raw.rename(columns=rename)
             frame.attrs = dict(raw.attrs)
-            keep_source_columns(frame, {previous: name_})
-            store_column_ids(frame, column_ids_after_rename(raw, {previous: name_}))
+            keep_source_columns(frame, rename)
+            store_column_ids(frame, column_ids_after_rename(raw, rename))
             if dataset.column_order is not None:
                 order = dataset.column_order
                 dataset.column_order = (*order[:column], name_, *order[column + 1:])
@@ -1812,21 +1834,8 @@ class Project(WorksheetJoinSources, SheetCommands):
         if not (rename or kinds):
             return None
 
-        def uses_name(value, name):
-            if isinstance(value, str):
-                return value == name
-            if isinstance(value, dict):
-                return name in value or any(uses_name(item, name) for item in value.values())
-            if isinstance(value, (tuple, list)):
-                return any(uses_name(item, name) for item in value)
-            return False
-
         if rename:
-            referenced = set().union(*(formula_column_references(expr) for expr in dataset.formulas.values()))
-            readers = self.readers([title])
-            for name in rename:
-                if name in referenced or any(uses_name(run.options, name) for run in readers):
-                    raise ValueError(tr("variables.error.reference", name=name))
+            self._check_column_rename(title, rename)
 
         def change(candidate):
             frame = raw.rename(columns=rename)
@@ -1853,6 +1862,9 @@ class Project(WorksheetJoinSources, SheetCommands):
                 else:
                     frame.attrs.pop(key, None)
             candidate.raw = frame
+            if rename and candidate.formulas:
+                candidate.formulas = {key: rename_formula_columns(expr, rename)
+                                      for key, expr in candidate.formulas.items()}
             if candidate.column_order is not None:
                 candidate.column_order = tuple(names.get(name, name) for name in candidate.column_order)
             candidate.cell_backgrounds = {(row, names.get(name, name)): color

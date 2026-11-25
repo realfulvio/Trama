@@ -1753,7 +1753,7 @@ class QtShellTests(unittest.TestCase):
         tables, _ = load_workspace(path)
         self.assertEqual(tables["Variables"].raw.attrs[VARIABLE_TYPES], dataset.raw.attrs[VARIABLE_TYPES])
 
-    def test_explicit_numeric_type_survives_empty_paste_and_protects_formula_references(self):
+    def test_explicit_numeric_type_survives_empty_paste_after_renaming_a_formula_input(self):
         import pandas as pd
         from analisi.data import Dataset
         from trama_qt.project import Project
@@ -1762,14 +1762,43 @@ class QtShellTests(unittest.TestCase):
         dataset = Dataset(pd.DataFrame({"Input": pd.Series([pd.NA], dtype="Float64")}),
                           formulas={"Output": '=COL("Input") * 2'})
         project.tables["Typed"] = dataset
-        with self.assertRaisesRegex(ValueError, "Input"):
-            project.change_variables("Typed", {"Input": ("Renamed", "numeric")})
-        project.change_variables("Typed", {"Input": ("Input", "numeric")})
-        with self.assertRaisesRegex(ValueError, "Input"):
+        project.change_variables("Typed", {"Input": ("Renamed", "numeric")})
+        with self.assertRaisesRegex(ValueError, "Renamed"):
             project.paste("Typed", 0, 0, [["abc"]])
-        self.assertTrue(dataset.raw["Input"].isna().all())
+        self.assertTrue(dataset.raw["Renamed"].isna().all())
         project.paste("Typed", 0, 0, [["2,5"]])
         self.assertEqual(dataset.frame()["Output"].iloc[0], 5)
+
+    def test_grid_column_rename_keeps_chained_formulas_and_text_criteria(self):
+        from pandas.testing import assert_frame_equal
+
+        from analisi.data import Dataset
+        from trama_qt.project import Project
+
+        project = Project()
+        data = pd.DataFrame({"Amount": [1.0, 3.0, 4.0], "Treatment": ["Amount", "Amount", "Other"]})
+        formulas = {
+            "Twice": "=Amount * 2",
+            "Mean": "=AVERAGEIF(Treatment, 'Amount', COL ('Amount'))",
+            "Adjusted": "=COL ('Twice') - Mean",
+            "Filtered": '=MEAN(Amount) OVER Treatment WHERE Treatment = "Amount"',
+        }
+        dataset = Dataset(data, formulas=formulas, table_format="multivariable")
+        project.tables["Typed"] = dataset
+        expected = dataset.frame().rename(columns={"Amount": "Dose $"})
+
+        project.rename_column("Typed", 0, "Dose $")
+        assert_frame_equal(dataset.frame(), expected)
+        project.undo()
+        self.assertEqual(dataset.formulas, formulas)
+        project.undo(redo=True)
+        assert_frame_equal(dataset.frame(), expected)
+        path = self.folder / "renamed-formula-source.alab"
+        project.save(path)
+        restored = Project()
+        restored.load(path)
+        self.assertEqual(restored.tables["Typed"].formulas, dataset.formulas)
+        assert_frame_equal(restored.tables["Typed"].frame(), expected, check_dtype=False)
 
     def test_edit_menu_copies_the_visible_result_table(self):
         window = self.window

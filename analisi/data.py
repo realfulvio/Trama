@@ -25,10 +25,12 @@ from .analysis_chain import AnalysisGraph, MAX_ANALYSIS_NODES, ResultSource, val
 from .analysis_labels import validate_labels
 from .sheet_metadata import validate_sheet_metadata
 from .category_order import CATEGORY_ORDER_VERSION, WORKSHEET_ORDERS, keep_source_columns, validated_orders
+from .i18n import tr
 from .variable_types import VARIABLE_TYPES, validated_types
 from .distribution_formulas import DISTRIBUTION_FUNCTIONS, argument_count_message
 from .formula_special import SPECIAL_FORMULA_FUNCTIONS
-from .formula_windows import WINDOW_CLAUSES, WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
+from .formula_windows import (WINDOW_CLAUSES, WINDOW_FUNCTION, WINDOW_KEYWORDS, _missing, lower_window_clauses,
+                              worksheet_statistic)
 from .grid_headings import column_label
 from .worksheet_appearance import (assign_row_heights, background_records, paint_cells, read_backgrounds,
                                    read_row_heights, row_height_records)
@@ -488,6 +490,55 @@ def formula_column_references(expression, *, worksheet_columns=None):
                 and isinstance(call.args[0], ast.Constant) and isinstance(call.args[0].value, str)):
             references.add(call.args[0].value)
     return references
+
+
+def rename_formula_columns(expression, names):
+    """Rewrite column references while retaining worksheet formula syntax."""
+    references = formula_column_references(expression) & names.keys()
+    if not references:
+        return expression
+
+    class RenameColumns(ast.NodeTransformer):
+        def visit_Call(self, node):
+            if (isinstance(node.func, ast.Name) and node.func.id.upper() == "COL"
+                    and len(node.args) == 1 and isinstance(arg := node.args[0], ast.Constant)
+                    and isinstance(arg.value, str) and arg.value in references):
+                node.args[0] = ast.Constant(names[arg.value])
+            else:
+                node.args = [self.visit(arg) for arg in node.args]
+            return node
+
+        def visit_Name(self, node):
+            if node.id in references:
+                return ast.Call(func=ast.Name(id="COL", ctx=ast.Load()), args=[ast.Constant(names[node.id])], keywords=[])
+            return node
+
+    source = expression.strip().removeprefix("=").strip()
+    tokens = worksheet_logic_tokens(tokenize.generate_tokens(StringIO(source).readline))
+    window = any(previous == (tokenize.OP, ")") and value.upper() in WINDOW_CLAUSES
+                 for previous, (kind, value) in zip(tokens, tokens[1:]) if kind == tokenize.NAME)
+    updated = []
+    for index, (kind, value) in enumerate(tokens):
+        following = tokens[index + 1] if index + 1 < len(tokens) else None
+        if (kind == tokenize.STRING and index >= 2 and tokens[index - 2][0] == tokenize.NAME
+                and tokens[index - 2][1].upper() == "COL" and tokens[index - 1] == (tokenize.OP, "(")
+                and following == (tokenize.OP, ")")):
+            literal = ast.literal_eval(value)
+            if isinstance(literal, str) and literal in references:
+                value = repr(names[literal])
+        elif (kind == tokenize.NAME and value in references and following != (tokenize.OP, "(")
+              and not (value.upper() == "MOD" and index and _after_operand(tokens[index - 1]))
+              and not (window and value.upper() in WINDOW_KEYWORDS | {"BY"})):
+            updated.extend([(tokenize.NAME, "COL"), (tokenize.OP, "("),
+                            (tokenize.STRING, repr(names[value])), (tokenize.OP, ")")])
+            continue
+        updated.append((kind, value))
+    renamed = "=" + tokenize.untokenize(updated).strip()
+    before, seed = _formula_tree(expression)
+    after, updated_seed = _formula_tree(renamed)
+    if updated_seed != seed or ast.dump(after) != ast.dump(RenameColumns().visit(before)):
+        raise ValueError(tr("variables.error.formula_reference", name=min(references)))
+    return renamed
 
 
 @lru_cache(maxsize=32)
