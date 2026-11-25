@@ -727,7 +727,8 @@ class GraphFormatDialog(simpledialog.Dialog):
             self.ok()
 
     def _reset(self):
-        style = {key: deepcopy(self.style[key]) for key in (ANNOTATIONS, SHAPES, PANEL_KEY, "points") if self.style.get(key)}
+        style = {key: deepcopy(self.style[key]) for key in (ANNOTATIONS, SHAPES, PANEL_KEY, "points", "observation_labels")
+                 if self.style.get(key)}
         section = self._hierarchical_section()
         if section:
             style["hierarchical"] = section
@@ -745,7 +746,7 @@ class GraphFormatDialog(simpledialog.Dialog):
         style = {key: variable.get() for key, variable in self.inputs.items()
                  if key != "accent" or variable.get().strip()}
         # Linked secondary axes have no Tk editor: the saved record travels through Format Graph unchanged.
-        for key in ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, LINKED_AXES, "points"):
+        for key in ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, LINKED_AXES, "points", "observation_labels"):
             if self.style.get(key):
                 style[key] = deepcopy(self.style[key])
         section = self._hierarchical_section()

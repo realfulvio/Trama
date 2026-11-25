@@ -627,7 +627,7 @@ def _scatter(frame, o):
         positions = positions_of(frame, part.index)
         if positions is not None:  # The worksheet row of every point, so a single point can be formatted.
             attach_points(dots, positions, part[x].to_numpy(float), part[y].to_numpy(float), recipe,
-                          len(frame), row_spans=frame.attrs.get(ROW_SPANS))
+                          len(frame), row_spans=frame.attrs.get(ROW_SPANS), data=frame)
         if group:
             dots._tramastat_legend_key = f"group:{typed_group_token(label)}"
         point_colors[label] = dots.get_facecolor()[0]

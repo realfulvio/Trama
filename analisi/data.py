@@ -34,6 +34,9 @@ from .worksheet_appearance import (assign_row_heights, background_records, paint
                                    read_row_heights, row_height_records)
 from .worksheet_text import TextStyles, read_text_styles
 from .worksheet_row_identity import ROW_SPANS, current_spans, saved_spans
+from .worksheet_column_identity import (COLUMN_IDS, after_deletion as column_ids_after_deletion,
+                                        after_insertion as column_ids_after_insertion, current_ids, kept_ids,
+                                        saved_ids, store as store_column_ids)
 from .worksheet_number_format import (assign_formats, column_records, position_records, read_column_formats,
                                       read_position_formats)
 from .legacy_project_metadata import LEGACY_METADATA_VERSION, saved_analysis, saved_table_format, uses_import_metadata
@@ -837,6 +840,7 @@ class Dataset:
         computed = self.raw.copy()
         computed.attrs["table_format"] = self.table_format
         computed.attrs[ROW_SPANS] = current_spans(self.raw)
+        computed.attrs[COLUMN_IDS] = current_ids(self.raw, self.formulas)
         masked_columns = {column for _, column in self.excluded} if mask_excluded or self.formulas else set()
         for column in masked_columns:
             original = computed.iloc[:, column]
@@ -890,6 +894,7 @@ class Dataset:
         candidate = copy(self)
         candidate.raw = self.raw.drop(columns=name)
         keep_source_columns(candidate.raw)
+        store_column_ids(candidate.raw, column_ids_after_deletion(self.raw, [name]))
         if "worksheet_roles" in candidate.raw.attrs:
             roles = candidate.raw.attrs["worksheet_roles"]
             groups = [[member for member in group if member != name] for group in roles["y"]]
@@ -924,6 +929,7 @@ class Dataset:
         position = sum(index is not None for index in self.source_indices[:column])
         raw = self.raw.copy()
         raw.insert(position, name, values)
+        store_column_ids(raw, column_ids_after_insertion(self.raw, name))
         formulas = {key: expression for key, expression in self.formulas.items() if key != name}
         excluded = {(row, index + (index >= position)) for row, index in self.excluded}
         self.raw, self.formulas, self.excluded = raw, formulas, excluded
@@ -1147,6 +1153,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
             record[VARIABLE_TYPES] = validated_types(types, raw.columns)
         if ROW_SPANS in raw.attrs:
             record[ROW_SPANS] = saved_spans(raw.attrs[ROW_SPANS], len(raw))
+        if ids := kept_ids(raw.attrs.get(COLUMN_IDS) or {}, raw.columns):
+            record[COLUMN_IDS] = ids
         roles = _worksheet_roles(raw)
         if roles is not None:
             record["worksheet_roles"] = _validated_worksheet_roles(roles, raw.columns)
@@ -1222,6 +1230,8 @@ def load_workspace(path, *, include_info=False):
         data.table_format = saved_table_format(table_format)
         if ROW_SPANS in table:
             data.raw.attrs[ROW_SPANS] = saved_spans(table[ROW_SPANS], len(data.raw))
+        if COLUMN_IDS in table:
+            data.raw.attrs[COLUMN_IDS] = saved_ids(table[COLUMN_IDS], data.raw.columns)
         if VARIABLE_TYPES in table:
             data.raw.attrs[VARIABLE_TYPES] = validated_types(table[VARIABLE_TYPES], data.raw.columns)
         if "worksheet_roles" in table:

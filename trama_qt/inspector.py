@@ -15,6 +15,7 @@ from analisi.axis_breaks import AXIS_BREAKS
 from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.linked_axes import LINKED_AXES, linked_axes_status, supported_dimensions
 from analisi.i18n import tr, translate_message
+from analisi.observation_labels import LABELS
 from analisi.point_style import POINTS
 from analisi.presentation import (LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES, active_series_fields, apply_style,
                                   axis_has_numeric_ticks, capture_defaults, graph_groups, graph_series,
@@ -22,6 +23,7 @@ from analisi.presentation import (LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES
 from analisi.xy_series import XY_METHOD
 
 from .graph_format import LEGEND_LABELS, LINE_LABELS, MARKER_LABELS, SCALE_LABELS, Choice, _color_button, series_name
+from .label_inspector import LabelEditor
 from .point_inspector import PointEditor
 
 AUTO = "Default"
@@ -30,7 +32,7 @@ CAPTIONS = {key: "graph.inspector." + key
             for key in ("label", "color", "line_style", "width", "marker", "marker_size", "marker_color")}
 TEXT_FIELDS = {"title": 0, "xlabel": 1, "ylabel": 2}
 NUMBER_FIELDS = {"width", "marker_size"}
-SECTION_KEYS = {"data": ("series",), "points": (POINTS,),
+SECTION_KEYS = {"data": ("series",), "points": (POINTS,), "labels": (LABELS,),
                 "axes": ("xlabel", "ylabel", "xscale", "yscale", AXIS_BREAKS, LINKED_AXES),
                 "page": ("title", "grid", "legend")}
 PREVIEW_DELAY_MS = 350
@@ -42,13 +44,15 @@ class FieldProblem(ValueError):
 
 def _translated(error):
     """An engine message in the active language: graph messages first, then the linked-axes ones."""
+    from analisi.observation_labels import translate_label_error
     from analisi.point_style import translate_point_error
     from .linked_axes import translate_linked_error
 
     text = translate_message(error)
-    if text == str(error):
-        text = translate_point_error(error)
-    return text if text != str(error) else translate_linked_error(error)
+    for translate in (translate_point_error, translate_label_error, translate_linked_error):
+        if text == str(error):
+            text = translate(error)
+    return text
 
 
 def _number(text, what):
@@ -125,6 +129,7 @@ class GraphInspector(QFrame):
             self.body.addWidget(button)
         self._data_section()
         self.points = PointEditor(self)
+        self.labels = LabelEditor(self)
         self._axes_section()
         self._page_section()
         self.body.addStretch(1)
@@ -346,6 +351,7 @@ class GraphInspector(QFrame):
         finally:
             self._loading = False
         self.points.series_changed(keep=True)
+        self.labels.series_changed()
         self._refresh_states()
 
     def _load_element(self):
@@ -467,6 +473,7 @@ class GraphInspector(QFrame):
         self.show_status("")
         self._refresh_linked()
         self.points.refresh()
+        self.labels.refresh()
         self.canvas.draw_idle()
         return True
 
@@ -510,6 +517,8 @@ class GraphInspector(QFrame):
             self._write_element(style, source[8:])
         elif source == "point":
             self.points.write(style)
+        elif source.startswith("label"):
+            self.labels.write(style, source)
 
     def _write_axis(self, style, dimension, part):
         if part == "scale":
@@ -571,6 +580,7 @@ class GraphInspector(QFrame):
             return
         self._load_element()
         self.points.series_changed()
+        self.labels.series_changed()
         self._refresh_states()
 
     def select_group(self, key):
@@ -606,7 +616,7 @@ class GraphInspector(QFrame):
             self._tidy_axis(candidate)
         self._due = []
         self.timer.stop()
-        prefixes = {"data": ("element:",), "points": ("point",), "axes": ("x", "y"),
+        prefixes = {"data": ("element:",), "points": ("point",), "labels": ("label",), "axes": ("x", "y"),
                     "page": ("title", "legend", "grid")}[name]
         for source in [source for source in self.errors if source.startswith(prefixes)]:
             self._flag(source, None)
