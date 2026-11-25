@@ -26,4 +26,3 @@ Choose **Insert → Create numeric series…** (Italian: *Inserisci → Crea ser
 - Integer progressions support terms from −2^53 through 2^53, inclusive.
 - Calculated columns, text/categorical columns, multi-column ranges, frozen/read-only sheets, oversize ranges, and non-finite or non-representable values are rejected before writing, leaving existing data, recalculation buffers, and Undo/Redo history untouched.
 - Confirmed writes extend trailing rows and row identities atomically, record one Undo/Redo step, and trigger one recalculation pass for dependent recipes (such as XY series graphs).
-
