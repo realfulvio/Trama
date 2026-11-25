@@ -496,6 +496,7 @@ class MainWindow(QMainWindow):
         a("language", tr("command.language"), self.choose_language, icon="type")
         a("processes", tr("processes.command"), self.choose_processes, icon="sliders-horizontal")
         a("about", qt("qt.about"), self.about, icon="info")
+        a("help_shortcuts", qt("qt.shortcuts"), self.show_shortcuts, shortcut="F1")
         a("exit", tr("command.exit"), self.close, icon="x", shortcut="Ctrl+Q")
         a("undo", tr("command.undo"), self.undo, icon="undo-2", shortcut="Ctrl+Z")
         a("redo", tr("command.redo"), lambda: self.undo(redo=True), icon="redo-2", shortcut="Ctrl+Y")
@@ -614,7 +615,7 @@ class MainWindow(QMainWindow):
                                     ("sheet_zoom_reset", 0, "Ctrl+0")):
             a(key, tr(f"command.{key}"), lambda step=step: self.zoom_table(step), shortcut=shortcut)
         a("worksheet_preview", tr("modern.preview"), self.toggle_worksheet_preview).setCheckable(True)
-        a("search", qt("qt.search"), self.focus_search, shortcut="Ctrl+K")
+        a("search", qt("qt.search_command"), self.focus_search, shortcut="Ctrl+K")
         for name, method in (("descriptive", "Descriptive statistics"), ("ttest", "t-test"),
                              ("anova", "One-way ANOVA"), ("correlation", "Correlation"),
                              ("correlation_matrix", CORRELATION_MATRIX),
@@ -4346,6 +4347,10 @@ class MainWindow(QMainWindow):
                 self.error(error)
                 return
             QMessageBox.information(self, tr("command.language"), qt("qt.language_restart"))
+
+    def show_shortcuts(self):
+        from .shortcuts_dialog import ShortcutsDialog
+        ShortcutsDialog(self).exec()
 
     def about(self):
         QMessageBox.about(self, qt("qt.about"), qt("qt.about_text", version=VERSION, qt=PYSIDE_VERSION))
