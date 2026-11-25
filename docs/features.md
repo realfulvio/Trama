@@ -126,6 +126,8 @@ Normalità e lognormalità con quattro test, pannelli Q–Q affiancati e confron
 
 Nelle opzioni dell’ANOVA multifattoriale, attiva le [medie marginali stimate](anova-marginal-means.md) per ottenere una scheda con stima, errore standard, gradi di libertà residui e intervallo di confidenza. Ogni combinazione della griglia di riferimento ha lo stesso peso.
 
+Le opzioni di [visualizzazione dei risultati](release-111.md) impostano cifre significative e formato dei valori p per l’ANOVA multifattoriale, il test t, la regressione non lineare e Kaplan–Meier. Le impostazioni si salvano con la ricetta e si applicano alle tabelle a schermo e in stampa.
+
 ### ANOVA da statistiche riassuntive
 
 **Group Comparison → One-way ANOVA from summaries** confronta gruppi indipendenti
