@@ -35,6 +35,8 @@ from analisi import (
 )
 from analisi import cohen_kappa_options as kappa_text, cohen_kappa_workbench as kappa_form
 from analisi import extract_rearrange as extraction
+from analisi.deming import PAIRED as DEMING_PAIRED
+from analisi.deming import check_dialog as check_deming, format_error as deming_error, prune_paired as prune_deming
 from analisi.field_error import FieldError
 from analisi.parameter_intervals import REPORT_LOG_IC50, has_ic50
 from analisi.replicate_fit import MERGE_REPLICATES, replicate_groups
@@ -359,6 +361,24 @@ class AnalysisDialog(QDialog):
             self.configure_fields()
 
     # -- fields ----------------------------------------------------------------------------------
+    def _add_deming_paired(self, form, saved):
+        """The paired comparison is a Qt option. The classic dialog does not grow a control for it."""
+        caption = QLabel(field_label(DEMING_PAIRED))
+        caption.setWordWrap(True)
+        caption.setMinimumWidth(150)
+        caption.setMaximumWidth(230)
+        box = QCheckBox()
+        box.setObjectName("deming-paired")
+        box.setChecked(bool(saved.get(DEMING_PAIRED, False)))
+        note = QLabel(tr("deming.note.paired"))
+        note.setObjectName("deming-paired-note")
+        note.setWordWrap(True)
+        form.insertRow(0, note)
+        form.insertRow(0, caption, box)
+        self.deming_paired_note = note
+        self.controls[DEMING_PAIRED] = (False, box)
+        self.rows[DEMING_PAIRED] = (caption, box, form)
+
     def _saved(self):
         if not self.current or self.current[0] != self.method:
             if self.graph_type_source is None:
@@ -739,6 +759,8 @@ class AnalysisDialog(QDialog):
                 form.addRow(caption, widget)
             self.controls[label] = (kind, widget)
             self.rows[label] = (widget if bare else caption, widget, form)
+        if self.method == "Deming regression":
+            self._add_deming_paired(options, saved)
         variable_lists = [(self.rows[label][0], widget) for label, (kind, widget) in self.controls.items()
                           if kind in (MULTIPLE, OPTIONAL_MULTIPLE) and self.rows[label][2] is variables]
         if any(widget.count() > 8 for _, widget in variable_lists):
@@ -1372,6 +1394,9 @@ class AnalysisDialog(QDialog):
                 kappa.check_options(self.data, options)
             if self.method == SUMMARY_TWOWAY:
                 summary_twoway.check_options(self.data, options)
+            if self.method == "Deming regression":
+                prune_deming(options, self._saved())
+                check_deming(self.data, options)
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
@@ -1384,6 +1409,8 @@ class AnalysisDialog(QDialog):
     def _message(self, error, field=None):
         if self.method == SUMMARY_TWOWAY:
             return summary_twoway.format_error(error)
+        if self.method == "Deming regression":
+            return deming_error(error)
         if self.method == "Kaplan–Meier survival":
             return ui(str(error))
         if self.method == "t-test":

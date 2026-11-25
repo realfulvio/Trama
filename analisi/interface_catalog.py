@@ -1011,6 +1011,7 @@ CAPTIONS.update({
     "Y error SD": "SD dell’errore Y",
     "Y series": "Serie Y",
     "Show projections": "Mostra le proiezioni",
+    "Compare paired series": "Confronta le serie appaiate",
 })
 
 CAPTIONS.update({

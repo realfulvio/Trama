@@ -78,4 +78,4 @@ PNG, SVG and PDF export the figure. The sheets export to CSV with their canonica
 | The fit and every interval stay those of `exploration.deming` and the existing jackknife | The new features add no estimator and no new test of significance. |
 | New keys at their defaults are not written to a recipe that did not have them | An old project saved again keeps the same recipes. |
 
-Out of scope: SDs per point, R², new significance tests for the coefficients and a different ratio per series.
+Out of scope for 0.93: SDs per point, R² and a different ratio per series. A later Qt option compares the slope and intercept of two series that are paired by row: [Paired Deming comparison](deming-paired.md).

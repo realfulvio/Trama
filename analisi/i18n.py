@@ -5247,6 +5247,10 @@ _EN.update({
     "deming.error.projected": "The projected points are outside the representable range.",
     "deming.error.pairs": "Deming regression requires at least three pairs and a positive error variance ratio.",
     "deming.error.vary": "Deming regression needs varying variables with nonzero covariance.",
+    "deming.note.paired": "Paired by row: each row is the same unit measured in both series. The second selected "
+                          "series is compared with the first, on the rows where X and both series are valid.",
+    "deming.error.paired_flag": "Compare paired series must be on or off.",
+    "deming.error.paired_two": "The paired comparison needs exactly two Y series. The second is compared with the first.",
 })
 _IT.update({
     "deming.note.series": "Ogni serie Y viene adattata da sola contro X, con le stesse impostazioni di "
@@ -5284,6 +5288,12 @@ _IT.update({
     "deming.error.pairs": "La regressione di Deming richiede almeno tre coppie e un rapporto positivo tra le "
                           "varianze degli errori.",
     "deming.error.vary": "La regressione di Deming richiede variabili che variano, con covarianza diversa da zero.",
+    "deming.note.paired": "Confronto appaiato per riga: ogni riga è la stessa unità misurata in entrambe le serie. "
+                          "La seconda serie selezionata è confrontata con la prima, sulle righe in cui X e le due "
+                          "serie sono valide.",
+    "deming.error.paired_flag": "Confronta le serie appaiate deve essere attivo o disattivo.",
+    "deming.error.paired_two": "Il confronto appaiato richiede esattamente due serie Y. La seconda è confrontata "
+                               "con la prima.",
 })
 
 # Interface themes are local preferences, never translated recipe values.

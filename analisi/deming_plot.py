@@ -92,8 +92,8 @@ def _several(result, options):
     return figure
 
 
-def deming_result(frame, options):
-    """Fit, tabulate and draw. Returns the workbench Result with Deming regression, Data and Pairs."""
-    result = analyse_fit(frame, options)
+def deming_result(frame, options, cancel=None):
+    """Fit, tabulate and draw. The figure stays the series figure; a paired sheet is added only when requested."""
+    result = analyse_fit(frame, options, cancel=cancel)
     figure = _single(result, frame, options) if result.settings.series is None else _several(result, options)
     return Result(result.tables, figure)
