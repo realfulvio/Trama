@@ -20,7 +20,9 @@ from itertools import chain
 import math
 import re
 
-from .worksheet_row_identity import row_move_slices
+import numpy as np
+
+from .worksheet_row_identity import row_move_slices, validate_permutation
 
 FONT, SIZE, COLOR, BOLD, ITALIC, UNDERLINE, ALIGN = "font", "size", "color", "bold", "italic", "underline", "align"
 ATTRIBUTES = (FONT, SIZE, COLOR, BOLD, ITALIC, UNDERLINE, ALIGN)
@@ -285,6 +287,63 @@ class TextStyles:
                         out.append((offset + max(left, first) - first, offset + min(right, last) - first, style))
                 offset += last - first
             moved[key] = _coalesce(out)
+        return self if moved == self.runs else TextStyles(moved)
+
+    def reorder_rows(self, length, order, *, inverse=None):
+        """Remap text style row runs under permutation ``order``, coalescing adjacent compatible runs."""
+        if not self.runs or length <= 0:
+            return self
+        if inverse is None:
+            order_arr = validate_permutation(order, length)
+            if np.array_equal(order_arr, np.arange(length, dtype=np.intp)):
+                return self
+            inv = np.empty(length, dtype=np.intp)
+            inv[order_arr] = np.arange(length, dtype=np.intp)
+        else:
+            inv = np.asarray(inverse, dtype=np.intp)
+            if inv.ndim != 1 or len(inv) != length:
+                raise ValueError("Invalid inverse permutation.")
+        moved = {}
+        for key, column in self.runs.items():
+            if not column:
+                continue
+            if len(column) == 1 and column[0][0] <= 0 and column[0][1] >= length:
+                moved[key] = ((0, length, column[0][2]),)
+                continue
+            styles = []
+            style_ids = {}
+            pos_parts = []
+            sid_parts = []
+            for start, stop, style in column:
+                left = max(0, start)
+                right = min(length, stop)
+                if right <= left:
+                    continue
+                sid = style_ids.get(style)
+                if sid is None:
+                    sid = len(styles)
+                    style_ids[style] = sid
+                    styles.append(style)
+                pos_parts.append(inv[left:right])
+                sid_parts.append(np.full(right - left, sid, dtype=np.int32))
+            if not pos_parts:
+                continue
+            positions = np.concatenate(pos_parts) if len(pos_parts) > 1 else pos_parts[0]
+            sids = np.concatenate(sid_parts) if len(sid_parts) > 1 else sid_parts[0]
+            perm = np.argsort(positions, kind="quicksort")
+            s_pos = positions[perm]
+            s_sid = sids[perm]
+            if len(s_pos) > 1:
+                breaks = np.flatnonzero((s_pos[1:] != s_pos[:-1] + 1) | (s_sid[1:] != s_sid[:-1])) + 1
+                starts = np.concatenate((np.array([0], dtype=np.intp), breaks))
+                stops = np.concatenate((breaks, np.array([len(s_pos)], dtype=np.intp)))
+            else:
+                starts = (0,)
+                stops = (1,)
+            moved[key] = tuple(
+                (int(s_pos[s]), int(s_pos[e - 1]) + 1, styles[int(s_sid[s])])
+                for s, e in zip(starts, stops)
+            )
         return self if moved == self.runs else TextStyles(moved)
 
     def rename(self, old, new):

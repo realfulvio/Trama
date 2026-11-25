@@ -262,6 +262,9 @@ _TEXT = {
                              "Interruzione del calcolo: Trama si chiude appena termina."),
     "qt.edit_elsewhere": ("A change typed in another project was not applied here.",
                           "Una modifica scritta in un altro progetto non è stata applicata qui."),
+    "qt.sort_rows": ("Sort rows…", "Ordina righe…"),
+    "qt.sort_by_x": ("Sort by X", "Ordina per X"),
+    "qt.sort_by_row_title": ("Sort by row title", "Ordina per titolo di riga"),
 }
 
 

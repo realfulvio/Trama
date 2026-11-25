@@ -3,9 +3,21 @@
 import re
 from uuid import uuid4
 
+import numpy as np
+
 ROW_SPANS = "point_row_spans"
 _ORIGIN = re.compile(r"(?:base|[a-f0-9]{32})")
 _TOKEN = re.compile(r"(?:base|[a-f0-9]{32}):[1-9][0-9]{0,9}")
+
+
+class RowSpans(tuple):
+    """Immutable tuple of ``(origin, first, count)`` spans; skips O(N) deepcopy inside pandas attrs."""
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):
+        return self
 
 
 def valid_token(token):
@@ -16,8 +28,10 @@ def current_spans(frame):
     """Use positional IDs until the first structural edit. IDs are stored as contiguous ranges."""
     if ROW_SPANS in frame.attrs:
         spans = frame.attrs[ROW_SPANS]
-        return spans if sum(count for _, _, count in spans) == len(frame) else None
-    return (("base", 1, len(frame)),) if len(frame) else ()
+        if sum(count for _, _, count in spans) != len(frame):
+            return None
+        return spans if isinstance(spans, RowSpans) else RowSpans(spans)
+    return RowSpans((("base", 1, len(frame)),)) if len(frame) else RowSpans()
 
 
 def saved_spans(spans, length):
@@ -45,7 +59,7 @@ def saved_spans(spans, length):
         ranges.sort()
         if any(end > start for (_, end), (start, _) in zip(ranges, ranges[1:])):
             raise ValueError(problem)
-    return tuple(result)
+    return RowSpans(result)
 
 
 def _slice(spans, start, stop):
@@ -67,7 +81,7 @@ def _coalesce(spans):
             merged[-1] = (prev_origin, prev_first, prev_count + count)
         else:
             merged.append((origin, first, count))
-    return tuple(merged)
+    return RowSpans(merged)
 
 
 def moved_row_bounds(start, stop, destination):
@@ -141,7 +155,64 @@ def after_deletion(frame, removed):
         if start < end:
             result.append((origin, first + start - offset, end - start))
         offset = end
-    return tuple(result)
+    return RowSpans(result)
+
+
+def validate_permutation(order, length):
+    """Validate that ``order`` is a permutation of ``0..length - 1`` and return it as an ``np.intp`` array."""
+    if type(length) is not int or length < 0:
+        raise ValueError("Invalid row count.")
+    if isinstance(order, np.ndarray):
+        if order.dtype == np.bool_ or not np.issubdtype(order.dtype, np.integer) or order.ndim != 1 or len(order) != length:
+            raise ValueError("Invalid row permutation.")
+        arr = order.astype(np.intp, copy=False)
+    else:
+        try:
+            items = list(order)
+        except TypeError as error:
+            raise ValueError("Invalid row permutation.") from error
+        if len(items) != length or any(isinstance(item, bool) or not isinstance(item, (int, np.integer)) for item in items):
+            raise ValueError("Invalid row permutation.")
+        arr = np.asarray(items, dtype=np.intp)
+    if length > 0:
+        if int(arr.min()) < 0 or int(arr.max()) >= length:
+            raise ValueError("Invalid row permutation.")
+        if not np.array_equal(np.bincount(arr, minlength=length), np.ones(length, dtype=np.intp)):
+            raise ValueError("Invalid row permutation.")
+    return arr
+
+
+def after_permutation(frame, order):
+    """Update contiguous row-identity spans after applying row permutation ``order`` to ``frame``."""
+    length = len(frame)
+    order_arr = validate_permutation(order, length)
+    spans = current_spans(frame)
+    if spans is None:
+        raise ValueError("Invalid worksheet row identities.")
+    if length == 0:
+        return RowSpans()
+    if np.array_equal(order_arr, np.arange(length, dtype=np.intp)):
+        return spans
+    origins = []
+    origin_map = {}
+    orig_ids = np.empty(length, dtype=np.intp)
+    ordinals = np.empty(length, dtype=np.int64)
+    offset = 0
+    for origin, first, count in spans:
+        oid = origin_map.get(origin)
+        if oid is None:
+            oid = len(origins)
+            origin_map[origin] = oid
+            origins.append(origin)
+        orig_ids[offset:offset + count] = oid
+        ordinals[offset:offset + count] = np.arange(first, first + count, dtype=np.int64)
+        offset += count
+    p_orig = orig_ids[order_arr]
+    p_ord = ordinals[order_arr]
+    breaks = np.flatnonzero((p_orig[1:] != p_orig[:-1]) | (p_ord[1:] != p_ord[:-1] + 1)) + 1
+    starts = np.concatenate((np.array([0], dtype=np.intp), breaks))
+    stops = np.concatenate((breaks, np.array([length], dtype=np.intp)))
+    return RowSpans((origins[int(p_orig[s])], int(p_ord[s]), int(e - s)) for s, e in zip(starts, stops))
 
 
 def token_at(spans, row):
