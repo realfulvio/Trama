@@ -160,6 +160,35 @@ class NumericSeriesEngineTests(unittest.TestCase):
             set_language("en")
             self.assertEqual(format_preview((1, 0.75, 0.5), (0.25, 0), 5), "1, 0.75, 0.5, 0.25, 0")
 
+    def test_integer_series_rejects_an_inexact_term_before_editing(self):
+        project = Project()
+        project.add_tables({"Data": pd.DataFrame({"X": pd.Series([1, 2, 3], dtype="Int64")})})
+        dataset = project.tables["Data"]
+        original = dataset.raw.copy()
+        for mode, start, step, count in (
+            (ARITHMETIC, str(2**53 - 1), "1", 3),
+            (ARITHMETIC, str(-2**53 + 1), "-1", 3),
+            (GEOMETRIC, str(2**52 + 1), "2", 2),
+            (GEOMETRIC, str(2**53 + 1), "1/2", 2),
+        ):
+            with self.subTest(mode=mode, start=start):
+                with self.assertRaisesRegex(ValueError, "2\\^53"):
+                    project.create_numeric_series("Data", 0, 0, mode=mode, start_text=start,
+                                                  step_text=step, count=count, confirm_replace=True)
+                pd.testing.assert_frame_equal(dataset.raw, original)
+                self.assertFalse(project.history.changes)
+
+    def test_integer_series_keeps_the_exact_limit_and_wide_steps(self):
+        project = Project()
+        project.add_tables({"Data": pd.DataFrame({"X": pd.Series([1, 2, 3], dtype="Int64")})})
+        dataset = project.tables["Data"]
+        plan = plan_numeric_series(dataset, 0, 0, mode=ARITHMETIC, start_text=str(-2**53),
+                                   step_text=str(2**53 - 1), count=3)
+        project.create_numeric_series("Data", plan, confirm_replace=True)
+        self.assertEqual(dataset.raw["X"].tolist(), [-2**53, -1, 2**53 - 2])
+        limit = plan_numeric_series(dataset, 0, 0, mode=GEOMETRIC, start_text="1", step_text="2", count=54)
+        self.assertEqual(limit.preview_last, (2**52, 2**53))
+
     def test_fixed_legacy_xy_rejects_tail_growth(self):
         project = Project()
         frame = pd.DataFrame({"X": [1.0, 2.0], "Y": [3.0, 4.0]})

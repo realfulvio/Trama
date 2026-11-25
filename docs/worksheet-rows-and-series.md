@@ -23,6 +23,7 @@ Choose **Insert → Create numeric series…** (Italian: *Inserisci → Crea ser
 - Choose **Arithmetic** (first value + step, supporting negative steps such as `-0.25` / `-0,25`) or **Geometric** (first value × ratio, supporting fractional ratios such as `0.5` / `0,5` or `1/2`).
 - A single-column multi-row selection proposes that length; a single cell proposes `10` terms; a column heading selection proposes the current table length.
 - The dialog previews the target range, first and last terms using the active decimal separator, and the number of occupied cells to be replaced. Existing non-empty cells require explicit confirmation before inserting.
+- Integer progressions support terms from −2^53 through 2^53, inclusive.
 - Calculated columns, text/categorical columns, multi-column ranges, frozen/read-only sheets, oversize ranges, and non-finite or non-representable values are rejected before writing, leaving existing data, recalculation buffers, and Undo/Redo history untouched.
 - Confirmed writes extend trailing rows and row identities atomically, record one Undo/Redo step, and trigger one recalculation pass for dependent recipes (such as XY series graphs).
 

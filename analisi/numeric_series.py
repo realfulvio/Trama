@@ -21,6 +21,7 @@ GEOMETRIC = "geometric"
 DEFAULT_SINGLE_CELL_COUNT = 10
 
 _MAX_FLOAT_LOG = math.log(sys.float_info.max)
+_MAX_EXACT_INT = 2**53
 _MIN_SUBNORMAL_LOG = math.log(math.ldexp(1.0, -1074))
 
 _TEXT = {
@@ -100,6 +101,10 @@ _TEXT = {
     "err.integer_precision": (
         "Writing decimals here would reduce the precision of integers above 2^53.",
         "Scrivere valori decimali qui ridurrebbe la precisione di interi superiori a 2^53.",
+    ),
+    "err.integer_term": (
+        "Integer series terms must be between −2^53 and 2^53.",
+        "I termini interi della serie devono essere compresi tra −2^53 e 2^53.",
     ),
     "err.confirm_required": (
         "Confirm replacement of the existing occupied cells before applying.",
@@ -281,9 +286,20 @@ def _generate_values(start_frac, start_dec, step_frac, step_dec, count, mode):
     if type(count) is not int or count < 1:
         raise ValueError(series_text("err.count"))
 
+    integer_start = start_frac.denominator == 1
+    integer_step = step_frac.denominator == 1
+    if integer_start and abs(start_frac) > _MAX_EXACT_INT:
+        raise ValueError(series_text("err.integer_term"))
+
     if mode == ARITHMETIC:
+        last_frac = start_frac + (count - 1) * step_frac
+        if integer_start and (integer_step or count == 1):
+            if abs(last_frac) > _MAX_EXACT_INT:
+                raise ValueError(series_text("err.integer_term"))
+            step = int(step_frac) if count > 1 else 0
+            values = int(start_frac) + np.arange(count, dtype=np.int64) * step
+            return values.astype(np.float64), True
         try:
-            last_frac = start_frac + (count - 1) * step_frac
             last_f = float(last_frac)
         except OverflowError as error:
             raise ValueError(series_text("err.overflow")) from error
@@ -295,24 +311,33 @@ def _generate_values(start_frac, start_dec, step_frac, step_dec, count, mode):
             values = float(start_frac) + np.arange(count, dtype=np.float64) * float(step_frac)
         if not np.isfinite(values).all():
             raise ValueError(series_text("err.overflow"))
-        whole_ints = (start_frac.denominator == 1 and step_frac.denominator == 1)
-        return values, whole_ints
+        return values, False
 
     # Geometric progression: a * r^k
     if count == 1 or step_frac == 1:
         val_f = float(start_frac)
         values = np.full(count, val_f, dtype=np.float64)
-        return values, start_frac.denominator == 1
+        return values, integer_start
     if start_frac == 0:
         return np.zeros(count, dtype=np.float64), True
     if step_frac == 0:
         values = np.zeros(count, dtype=np.float64)
         values[0] = float(start_frac)
-        return values, start_frac.denominator == 1
+        return values, integer_start
     if step_frac == -1:
         val_f = float(start_frac)
         signs = np.where((np.arange(count) % 2) == 0, 1.0, -1.0)
-        return val_f * signs, start_frac.denominator == 1
+        return val_f * signs, integer_start
+
+    if integer_start and integer_step:
+        start, ratio = int(start_frac), int(step_frac)
+        exponent = count - 1
+        # A nonzero integer start and |ratio| ≥ 2 reach the limit after at most 53 steps.
+        if exponent > 53 or abs(start * ratio**exponent) > _MAX_EXACT_INT:
+            raise ValueError(series_text("err.integer_term"))
+        values = np.fromiter((start * ratio**index for index in range(count)),
+                             dtype=np.float64, count=count)
+        return values, True
 
     start_f = float(start_frac)
     step_f = float(step_frac)
@@ -336,18 +361,14 @@ def _generate_values(start_frac, start_dec, step_frac, step_dec, count, mode):
         if last_f == 0.0:
             raise ValueError(series_text("err.overflow"))
 
-    if count <= 5_000 and start_dec is not None and step_dec is not None and step_dec >= 0:
-        # Guard Decimal power magnitude and generate exact decimal-rounded float64 for clean small tables.
-        exponents = np.arange(count, dtype=np.float64)
-        values = start_f * np.power(step_f, exponents)
-    else:
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
         exponents = np.arange(count, dtype=np.float64)
         values = start_f * np.power(step_f, exponents)
     if not np.isfinite(values).all() or (values == 0.0).any():
         raise ValueError(series_text("err.overflow"))
 
     # Check if every generated value is an exact integer (e.g. 16 * 0.5^k for k=0..3 -> 16, 8, 4, 2)
-    whole_ints = bool(np.all(np.floor(values) == values) and np.all(np.abs(values) <= 2**53))
+    whole_ints = bool(np.all(np.floor(values) == values) and np.all(np.abs(values) <= _MAX_EXACT_INT))
     return values, whole_ints
 
 
