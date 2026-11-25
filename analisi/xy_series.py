@@ -309,6 +309,27 @@ def _source_label(label):
     return label
 
 
+def _source_labels(index):
+    """_source_label for many index labels: Python scalars, as one dict per row used to give."""
+    return [_source_label(label) for label in index] if index.dtype == object else index.tolist()
+
+
+def _sheet(parts):
+    """The XY points sheet from per-series parts, with the dtypes that a list of row dicts gave.
+
+    Each part is (source labels, X, series name, Y). The label and series columns are built from
+    Python lists so that pandas infers their dtype exactly as it did for one dict per point.
+    """
+    columns = [SOURCE_ROW, "X", Y_COLUMN, "Y"]
+    if not parts:
+        return pd.DataFrame([], columns=columns)
+    labels = [label for part in parts for label in part[0]]
+    names = [part[2] for part in parts for _ in range(len(part[1]))]
+    return pd.DataFrame({SOURCE_ROW: pd.Series(labels), "X": np.concatenate([part[1] for part in parts]),
+                         Y_COLUMN: pd.Series(names), "Y": np.concatenate([part[3] for part in parts])},
+                        columns=columns)
+
+
 def _legend_label(column):
     text = str(column)
     return text if text and not text.startswith("_") else None
@@ -387,15 +408,12 @@ def xy_series(frame, options, left_scale="linear"):
                           drawn=mask, row_spans=frame.attrs.get(ROW_SPANS), data=frame)
         if mask.any() and _legend_label(column):
             handles.append(artist)
-        for position, keep in enumerate(mask):
-            if not keep:
-                continue
-            rows.append({
-                SOURCE_ROW: _source_label(frame.index[position]),
-                "X": float(x_values[position]),
-                Y_COLUMN: column,
-                "Y": float(y_values[position]),
-            })
+        # One sheet row per plotted point, built column-wise (0.111.x: a Python dict per point took
+        # about one second per million points).
+        positions = np.flatnonzero(mask)
+        if len(positions):
+            rows.append((_source_labels(frame.index[positions]), np.asarray(x_values, dtype=float)[positions],
+                         column, np.asarray(y_values, dtype=float)[positions]))
     axes._tramastat_xy_order = order
     axes._tramastat_numeric_axes = ("x", "y")
     if handles:
@@ -407,5 +425,5 @@ def xy_series(frame, options, left_scale="linear"):
         axes.set_ylim(*left_limits)
     if right is not None and right_limits:
         right.set_ylim(*right_limits)
-    sheet = pd.DataFrame(rows, columns=[SOURCE_ROW, "X", Y_COLUMN, "Y"])
+    sheet = _sheet(rows)
     return Result({SHEET: sheet}, figure)
