@@ -3412,6 +3412,7 @@ class QtShellTests(unittest.TestCase):
         self.assertIsNone(window.job)
 
     def test_classic_graph_controls_and_canvas_navigation(self):
+        from PySide6.QtTest import QTest
         from PySide6.QtWidgets import QToolButton
         from analisi.i18n import tr
 
@@ -3431,13 +3432,16 @@ class QtShellTests(unittest.TestCase):
         self.assertIs(window.toolbar.buttons["export"].defaultAction(), window.actions["export"])
         for key in ("format_graph", "inspector", "export", "analysis_tables", "change", "recalculate"):
             self.assertTrue(window.actions[key].isEnabled(), key)
-        window.search.setText(tr("command.analysis_results"))
-        window.search.returnPressed.emit()
+        window.actions["search"].trigger()
+        dialog = window.search_dialog
+        dialog.query.setText(tr("command.analysis_results"))
+        QTest.keyClick(dialog.query, Qt.Key.Key_Return)
         self.assertEqual(window.selected, ("result", index))
         window.actions["analysis_graph"].trigger()
         self.assertEqual(window.selected, ("graph", index))
 
     def test_search_distinguishes_graph_and_family_results_in_both_languages(self):
+        from PySide6.QtTest import QTest
         from analisi.i18n import active_language, set_language
         from trama_qt.window import MainWindow
         from unittest.mock import patch
@@ -3456,9 +3460,11 @@ class QtShellTests(unittest.TestCase):
                         for key, target in (("analysis_tables", view), ("family_results", family)):
                             action = actions[key]
                             action.setEnabled(True)
-                            self.assertIn(action.text(), window.completer.model().stringList())
-                            window.search.setText(action.text())
-                            window.search.returnPressed.emit()
+                            actions["search"].trigger()
+                            dialog = window.search_dialog
+                            dialog.query.setText(action.text())
+                            self.assertEqual(dialog.results.currentItem().data(0, Qt.ItemDataRole.UserRole), key)
+                            QTest.keyClick(dialog.query, Qt.Key.Key_Return)
                             target.assert_called_once_with("result")
                         self.assertEqual(view.call_count, 1)
                 finally:
