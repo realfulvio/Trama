@@ -35,6 +35,7 @@ from .analysis_chain import ChainCancelled, MAX_ANALYSIS_NODES, ResultSource, re
 from .analysis_labels import MAX_LABEL, clean_label, valid_label
 from .data import validate_analysis_links
 from .graph_annotations import ANNOTATIONS
+from .linked_tables import TABLES
 from .graph_shapes import SHAPES
 from .legacy_project_metadata import IMPORTED_METHODS, is_import_option, saved_name
 from .legacy_restore import LEGACY_TITLE
@@ -490,6 +491,7 @@ def remap_style(style, columns):
     style = deepcopy(style)
     style.pop(SHAPES, None)
     style.pop(ANNOTATIONS, None)
+    style.pop(TABLES, None)  # A linked table reads the sheet or result it was made for, not a repetition of it.
     series = style.get("series")
     if isinstance(series, dict):
         renamed = {}

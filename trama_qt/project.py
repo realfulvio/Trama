@@ -28,6 +28,9 @@ from analisi.interaction_plot import METHOD as INTERACTION_PLOT, style_after_par
 from analisi.raincloud_plot import METHOD as RAINCLOUD_PLOT, style_after_parameter_change as raincloud_style
 from analisi.graph_annotations import ANNOTATIONS
 from analisi.graph_shapes import SHAPES
+from analisi import linked_tables
+from analisi.linked_tables import TABLES, FrameSource, Problem, TableSpec
+from analisi.worksheet_number_format import Renderer, automatic_text
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
 from analisi.category_levels import (LevelEditError, apply_level_plan, can_rename_levels, find_blocking_recipes,
                                      format_recipe_blockers)
@@ -71,7 +74,7 @@ from analisi.workbench import GROUPS, analyse
 from analisi import worksheet_join
 from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
 from analisi.worksheet_history import WorksheetChange, WorksheetHistory, WorksheetState
-from analisi.worksheet_row_identity import ROW_SPANS, after_deletion, after_insertion
+from analisi.worksheet_row_identity import ROW_SPANS, after_deletion, after_insertion, current_spans
 from .sheet_commands import SheetCommands
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
@@ -385,6 +388,66 @@ class ProjectHistory(WorksheetHistory):
             del self.changes[0]
 
 
+class TableLookup:
+    """Reads the sheets and results that linked tables point at, on the window thread.
+
+    It never calculates: a result that is not there yet, or whose last calculation failed, is reported as such.
+    The frame of a sheet is read once per lookup, so redrawing every table after an edit costs one pass."""
+
+    def __init__(self, project):
+        self.project = project
+        self._sheets = {}
+
+    def sheet(self, title):
+        if title in self._sheets:
+            return self._sheets[title]
+        dataset = self.project.tables.get(title)
+        if dataset is None:
+            found = Problem("missing", tr("linked_table.detail.sheet", name=title))
+        else:
+            try:
+                # Without formulas or a column order the stored frame is what the grid shows: no copy of a big sheet.
+                frame = dataset.raw if not dataset.formulas and dataset.column_order is None else dataset.frame()
+            except (ValueError, TypeError, ZeroDivisionError) as error:
+                found = Problem("error", str(error))
+            else:
+                formats = Renderer(dataset.displayed_number_formats)
+
+                def text(row, column, frame=frame, formats=formats):
+                    value = frame.iat[row, column]
+                    shown = formats.text(column, value)
+                    return automatic_text(value) if shown is None else shown
+
+                found = FrameSource(frame, text, spans=current_spans(dataset.raw))
+        self._sheets[title] = found
+        return found
+
+    def result(self, analysis, table):
+        run = next((other for other in self.project.runs if other.uid == analysis), None)
+        if run is None:
+            return Problem("missing", tr("linked_table.detail.analysis"))
+        if run.calculation_error:
+            return Problem("error", run.calculation_error)
+        if run.result is None:
+            return Problem("pending", tr("linked_table.detail.pending"))
+        frame = run.result.tables.get(table)
+        if frame is None:
+            return Problem("missing", tr("linked_table.detail.result_table", name=table))
+        formats = Renderer(self.project.tables[run.title].result_number_formats.get(run.slot, {}).get(table, {}))
+
+        def label(position, frame=frame):
+            value = frame.index[position]
+            return " · ".join(automatic_text(part) for part in value) if isinstance(value, tuple) \
+                else automatic_text(value)
+
+        def text(row, column, frame=frame, formats=formats):
+            value = frame.iat[row, column]
+            shown = formats.text(column + 1, value)  # Position 0 of a result grid is the row-title column.
+            return automatic_text(value) if shown is None else shown
+
+        return FrameSource(frame, text, row_label=label, labelled=not isinstance(frame.index, pd.RangeIndex))
+
+
 class Project(WorksheetJoinSources, SheetCommands):
     def __init__(self, number=1):
         self.number = number
@@ -679,7 +742,8 @@ class Project(WorksheetJoinSources, SheetCommands):
                 kind, identifier = sheet.worksheet.split(":", 1)
                 if kind in {"graph", "result", "saved-layout"}:
                     selected.add(identifier)
-        return selected | self.sheet_metadata.get("frozen_runs", {}).keys()
+        # A linked table reads a result by the identity of its analysis: that identity has to be saved with it.
+        return selected | self.sheet_metadata.get("frozen_runs", {}).keys() | self.table_analyses()
 
     def analysis_graph(self, *, replacement=None, additional=None):
         runs = list(self.runs)
@@ -751,7 +815,142 @@ class Project(WorksheetJoinSources, SheetCommands):
             return None
         return compose_layout(layout.name, layout.columns, tuple(run.result.figure for run in runs),
                               paper=layout.paper, background=layout.background, panel_size=layout.panel_size,
-                              axis_alignment=layout.axis_alignment)
+                              axis_alignment=layout.axis_alignment, tables=self.layout_table_specs(layout))
+
+    # -- linked tables ----------------------------------------------------------------------------
+    def table_analyses(self):
+        """The identities of the analyses whose results a linked table of this project reads."""
+        found = set()
+        for run in self.runs:
+            found |= linked_tables.source_analyses((run.style or {}).get(TABLES, ()))
+        for layout in self.layouts:
+            found |= linked_tables.source_analyses(layout.tables)
+        return found
+
+    def table_specs(self, records, lookup=None):
+        """The linked tables ``records`` with the values they show now (or why they cannot show any)."""
+        lookup = lookup or TableLookup(self)
+        return tuple(TableSpec(record, linked_tables.resolve(record, lookup)) for record in records)
+
+    def layout_table_specs(self, layout):
+        return self.table_specs(layout.tables) if layout.tables else ()
+
+    def sync_run_tables(self, run, lookup=None):
+        """Make the figure of ``run`` show the linked tables of its style. True when the figure changed."""
+        figure = None if run.result is None else run.result.figure
+        if figure is None or self.frozen(run):
+            return False
+        records = (run.style or {}).get(TABLES, ())
+        if not records and not getattr(figure, "_tramastat_tables_signature", ""):
+            return False
+        return linked_tables.sync_tables(figure, self.table_specs(records, lookup))
+
+    def update_linked_tables(self):
+        """Redraw the tables of every graph whose values or look changed; returns those runs.
+
+        Called after every change that can alter what a table reads: a worksheet edit, an Undo, a recalculation,
+        a deleted or renamed sheet. A project without linked tables does nothing."""
+        if not any((run.style or {}).get(TABLES) or getattr(getattr(run.result, "figure", None),
+                                                           "_tramastat_tables_signature", "")
+                   for run in self.runs):
+            return []
+        lookup = TableLookup(self)
+        return [run for run in self.runs if self.sync_run_tables(run, lookup)]
+
+    def linked_table_report(self):
+        """``(owner, record, resolved)`` of every linked table of the project: the owner is ``("graph", run)`` or
+        ``("layout", index)``. A reading aid for the window and for tests; nothing is calculated."""
+        lookup, report = TableLookup(self), []
+        for run in self.runs:
+            for record in (run.style or {}).get(TABLES, ()):
+                report.append((("graph", run), record, linked_tables.resolve(record, lookup)))
+        for index, layout in enumerate(self.layouts):
+            for record in layout.tables:
+                report.append((("layout", index), record, linked_tables.resolve(record, lookup)))
+        return report
+
+    def table_source_choices(self):
+        """Everything a linked table can read: every worksheet and every result table that exists now."""
+        choices = [{"kind": "sheet", "sheet": title, "label": title, "rows": len(dataset.raw),
+                    "columns": len(dataset.columns)} for title, dataset in self.tables.items()]
+        for run in self.runs:
+            if run.result is None or run.calculation_error:
+                continue
+            for name, frame in run.result.tables.items():
+                if len(frame) and len(frame.columns):
+                    choices.append({"kind": "result", "analysis": run.uid, "table": name,
+                                    "label": f"{run.name} · {name}", "rows": len(frame), "columns": len(frame.columns)})
+        return choices
+
+    def table_source_preview(self, choice, rows=200, columns=40):
+        """``(row labels, column labels, cells)`` of the top left corner of a source, for the range picker."""
+        found = self._lookup_choice(TableLookup(self), choice)
+        frame = found.frame
+        top = min(len(frame), rows)
+        left = min(len(frame.columns), columns)
+        row_labels = [str(row + 1) if choice["kind"] == "sheet" or not found.labelled else found.row_label(row)
+                      for row in range(top)]
+        return (row_labels, [str(name) for name in frame.columns[:left]],
+                [[found.text(row, column) for column in range(left)] for row in range(top)])
+
+    @staticmethod
+    def _lookup_choice(lookup, choice):
+        found = (lookup.sheet(choice["sheet"]) if choice["kind"] == "sheet"
+                 else lookup.result(choice["analysis"], choice["table"]))
+        if isinstance(found, Problem):
+            raise ValueError(found.detail or found.state)
+        return found
+
+    def table_record(self, choice, box, *, mode="linked", position=(.05, .05), size=linked_tables.DEFAULT_SIZE,
+                     headers=None, orientation="normal", grid=True, font=None, record_id=None):
+        """A linked table record for the rectangle ``box`` = (top, left, bottom, right), 0-based positions in the
+        data rows and columns of the source ``choice`` (see ``table_source_choices``).
+
+        The size of the range is checked before any cell is read. A linked record holds only the reference
+        (worksheet row identities; analysis identity, result table and row and column keys); a copy holds the text
+        the cells show now. Raises ``ValueError`` for an empty or too large range or a source that cannot be read."""
+        top, left, bottom, right = box
+        linked_tables.check_size(bottom - top + 1, right - left + 1)
+        lookup = TableLookup(self)
+        found = self._lookup_choice(lookup, choice)
+        frame = found.frame
+        if top < 0 or left < 0 or bottom >= len(frame) or right >= len(frame.columns):
+            raise ValueError(tr("linked_table.error.outside"))
+        names = [str(name) for name in frame.columns]
+        columns = names[left:right + 1]
+        if any(names.count(name) != 1 for name in columns):
+            raise ValueError(tr("linked_table.error.repeated_columns"))
+        rows = list(range(top, bottom + 1))
+        if choice["kind"] == "sheet":
+            source = {"kind": "sheet", "sheet": choice["sheet"], "rows": linked_tables.row_tokens(
+                self.tables[choice["sheet"]].raw, rows), "columns": columns}
+            origin = choice["label"]
+        else:
+            labels = [found.row_label(row) for row in range(len(frame))] if found.labelled else []
+            keyed = found.labelled and all(labels.count(labels[row]) == 1 for row in rows)
+            source = {"kind": "result", "analysis": choice["analysis"], "table": choice["table"],
+                      "rows": [labels[row] for row in rows] if keyed else rows,
+                      "by": "keys" if keyed else "position", "columns": columns}
+            if not keyed:
+                source["rows_total"] = len(frame)
+            origin = choice["label"]
+        first = (source["rows"][0] if choice["kind"] == "result" and keyed else str(top + 1))
+        origin = f"{origin}: {first}{'…' if len(rows) > 1 else ''} / {columns[0]}{'…' if len(columns) > 1 else ''}"
+        record = {"id": record_id or linked_tables.new_id(), "mode": "linked", "source": source,
+                  "position": list(position), "size": float(size), "orientation": orientation, "grid": grid,
+                  "headers": headers or ("both" if len(rows) * len(columns) > 1 else "none"),
+                  "origin": origin[:200]}
+        if font:
+            record["font"] = font
+        if mode == "copy":
+            resolved = linked_tables.resolve(record, lookup)
+            if not resolved.ok:
+                raise ValueError(resolved.detail or resolved.state)
+            record.pop("source")
+            record["mode"] = "copy"
+            record["values"] = {"rows": list(resolved.row_labels), "columns": list(resolved.column_labels),
+                                "cells": [list(line) for line in resolved.cells]}
+        return linked_tables.validate_table(record)
 
     def layout_runs(self, layout):
         by_reference = {run.reference: run for run in self.runs}
@@ -835,6 +1034,7 @@ class Project(WorksheetJoinSources, SheetCommands):
                 message = str(outcome.error)
                 run.calculation_error = message
                 errors.append(message)
+        self.update_linked_tables()
         return errors
 
     def mark_pending(self, job, message):
@@ -914,6 +1114,8 @@ class Project(WorksheetJoinSources, SheetCommands):
                 records = [record for record in previous_style.get(key, ()) if record["units"] == "axes"]
                 if records:
                     style[key] = deepcopy(records)
+            if previous_style.get(TABLES):  # Placed on the figure and read by the analysis identity, which stays.
+                style[TABLES] = deepcopy(previous_style[TABLES])
             style = style or None
         elif method == run.method == FREQUENCY:
             style = frequency_style(style, run.options, options)
@@ -964,6 +1166,7 @@ class Project(WorksheetJoinSources, SheetCommands):
                 or (read_pairwise(other.options)[0] or {}).get("slot") == run.slot and other.title == run.title)]
         self.dirty = True
         self.sync_links(persist=True)
+        self.update_linked_tables()
         return index, dependents
 
     def _check_graph_type_result(self, previous, result):
@@ -1045,7 +1248,8 @@ class Project(WorksheetJoinSources, SheetCommands):
     def layout_pdf_page(self, layout):
         from analisi.layout_pdf import PdfLayoutPage
         return PdfLayoutPage(layout.name, layout.columns, self.layout_panel_figures(layout), layout.paper,
-                             layout.background, layout.panel_size, layout.axis_alignment)
+                             layout.background, layout.panel_size, layout.axis_alignment,
+                             self.layout_table_specs(layout))
 
     def export_layout(self, layout, path, settings=None):
         """PDF and SVG keep the panels vector; PNG and TIFF render the page (300 dpi unless ``settings`` say).
@@ -1065,12 +1269,12 @@ class Project(WorksheetJoinSources, SheetCommands):
             from analisi.layout_svg import export_layout_svg
             export_layout_svg(layout.name, layout.columns, self.layout_panel_figures(layout), path, settings,
                               paper=layout.paper, background=layout.background, panel_size=layout.panel_size,
-                              axis_alignment=layout.axis_alignment)
+                              axis_alignment=layout.axis_alignment, tables=self.layout_table_specs(layout))
         else:
             background = WHITE if settings.get("transparent") else layout.background
             figure = compose_layout(layout.name, layout.columns, self.layout_panel_figures(layout),
                                     paper=layout.paper, background=background, panel_size=layout.panel_size,
-                                    axis_alignment=layout.axis_alignment)
+                                    axis_alignment=layout.axis_alignment, tables=self.layout_table_specs(layout))
             export_figure(figure, path, settings)
 
     def export_pdf_pages(self, refs, path, settings, names):
@@ -1164,6 +1368,8 @@ class Project(WorksheetJoinSources, SheetCommands):
             else:
                 self.tables[run.title].graph_styles[run.slot] = target
             sync_letters_table(run.result)
+        self.update_linked_tables()
+        self.sync_links(persist=True)
 
     def commit_style_batch(self, selected_uids, preset, *, expected=None, label="Apply figure style to graphs"):
         """Apply ``preset`` atomically to ``selected_uids`` as one undoable project transaction.
@@ -1223,6 +1429,8 @@ class Project(WorksheetJoinSources, SheetCommands):
         run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
+        self.sync_run_tables(run)
+        self.sync_links(persist=True)
         self.dirty = True
 
     def use_result_as_data(self, run, table):
@@ -1263,6 +1471,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         if not self.history.record(title, label, before, after):
             return None
         self.dirty = True
+        self.update_linked_tables()
         return self.table_runs(title)
 
     def set_table_background(self, title, box, color):
@@ -1313,13 +1522,17 @@ class Project(WorksheetJoinSources, SheetCommands):
         dataset = self.tables[title]
         before = WorksheetState.capture(dataset)
         dataset.set_number_format(names, spec)
-        return self._record_background(title, dataset, before, "Number format")
+        changed = self._record_background(title, dataset, before, "Number format")
+        self.update_linked_tables()  # A table linked to these cells shows them as the grid does.
+        return changed
 
     def set_result_number_format(self, title, slot, name, positions, spec):
         dataset = self.tables[title]
         before = WorksheetState.capture(dataset)
         dataset.set_result_number_format(slot, name, positions, spec)
-        return self._record_background(title, dataset, before, "Number format")
+        changed = self._record_background(title, dataset, before, "Number format")
+        self.update_linked_tables()
+        return changed
 
     def table_runs(self, title):
         affected = self.readers([title])
@@ -1595,6 +1808,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         self.dirty = True
         # False for colours and number formats: the window can refresh the open grid in place.
         self.undo_changed_data = change.before.data_changed(change.after)
+        self.update_linked_tables()  # Number formats are undone too, and a linked table shows them.
         return change.title, self.table_runs(change.title) if self.undo_changed_data else []
 
 

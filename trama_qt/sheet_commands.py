@@ -3,11 +3,12 @@ from copy import copy, deepcopy
 from dataclasses import replace
 from uuid import uuid4
 
-from analisi import worksheet_join
+from analisi import linked_tables, worksheet_join
 from analisi.data import info_references
 from analisi.info import InfoSheet, info_contexts
 from analisi.legacy_layout_edit import LEGACY_PANEL_DATA
 from analisi.legacy_restore import LEGACY_GRAPH_LINK
+from analisi.linked_tables import TABLES
 from analisi.pairwise_graph import SECTION as PAIRWISE_SECTION, read_section
 from analisi.sheet_metadata import HIGHLIGHTS, RUN_KINDS, validate_sheet_title
 from analisi.worksheet_history import WorksheetChange
@@ -159,20 +160,32 @@ class SheetCommands:
                             for uid, sheet in self.info_sheets.items()}
         def rename_panel_sources(layout):
             panels = [(name if owner == title else owner, slot) for owner, slot in layout.panels]
-            return replace(layout, panels=panels) if panels != layout.panels else layout
+            tables = linked_tables.rename_sheet(layout.tables, title, name) if layout.tables else layout.tables
+            if panels == layout.panels and tables is layout.tables:
+                return layout
+            return replace(layout, panels=panels, tables=tables)
+
+        def rename_table_sources(style):
+            if style and style.get(TABLES):
+                style[TABLES] = linked_tables.rename_sheet(style[TABLES], title, name)
 
         self.layouts = [rename_panel_sources(layout) for layout in self.layouts]
         for run in self.runs:
+            rename_table_sources(run.style)  # A linked table reads the sheet under its new name.
             if run.title == title:
                 run.title = name
             if run.method == worksheet_join.METHOD and worksheet_join.right_title(run.options) == title:
                 run.options = {**run.options, worksheet_join.RIGHT_SHEET: name}
                 self.tables[run.title].analyses[run.slot] = run.method, run.options
-        from .project import LayoutChange
+        from .project import LayoutChange, StyleBatchChange
 
         for index, change in enumerate(self.history.changes):
             if isinstance(change, WorksheetChange) and change.title == title:
                 self.history.changes[index] = replace(change, title=name)
+            elif isinstance(change, StyleBatchChange):
+                for styles in (change.before, change.after):
+                    for style in styles.values():
+                        rename_table_sources(style)
             elif isinstance(change, LayoutChange):
                 self.history.changes[index] = replace(change, before=rename_panel_sources(change.before),
                                                       after=rename_panel_sources(change.after))
@@ -180,6 +193,7 @@ class SheetCommands:
         if (state := records.pop(f"data:{title}", None)) is not None:
             records[f"data:{name}"] = state
         self.dirty = True
+        self.update_linked_tables()
         return name
 
     def duplicate_sheet(self, ref):
@@ -328,6 +342,7 @@ class SheetCommands:
                 records.pop(f"{view}:{removed.uid}", None)
         records.pop(project_key, None)
         self.dirty = True
+        self.update_linked_tables()  # A table that read the removed sheet or result now says so.
         return stale
 
     def _remove_history(self, predicate):

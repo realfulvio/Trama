@@ -72,6 +72,7 @@ _TEXT = {
     "omit.shapes": ("{place}: {count} drawn shape(s)", "{place}: {count} forme disegnate"),
     "omit.annotations": ("{place}: {count} free annotation(s)", "{place}: {count} annotazioni libere"),
     "omit.points": ("{place}: {count} formatted point(s)", "{place}: {count} punti formattati"),
+    "omit.linked_tables": ("{place}: {count} linked table(s)", "{place}: {count} tabelle collegate"),
     "omit.always": ("Results, history, file references and import attributes are never saved.",
                     "Risultati, cronologia, riferimenti a file e attributi delle importazioni non vengono mai salvati."),
     "place.project": ("Project", "Progetto"),
