@@ -228,6 +228,13 @@ class LegacyProjectRecipeTests(unittest.TestCase):
         _, _, options = restore_recipe(*args, results)
         self.assertTrue(options["Effect sizes"])
         self.assertEqual(options["Alpha"], 0.025)
+        from analisi import result_display
+        content["output"] = {"significantDigitCount": 4,
+                             "pValueStyle": {"type": "P_VALUE_STYLE_GP", "decimalDigitCount": 6}}
+        _, _, presentation = restore_recipe(*args, results)
+        self.assertEqual(presentation, {**options, result_display.DIGITS: 4,
+                                        result_display.P_STYLE: result_display.VALUE_AND_STARS})
+        content.pop("output")
 
         # Incomplete or inconsistent cache metadata must leave the supported base recipe usable.
         terms[-1]["fTest"] = {"pValue": {"level": 0.05}}

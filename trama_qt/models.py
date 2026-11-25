@@ -277,7 +277,7 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
     """A read-only result table; the row labels become the first column, as in the classic grid."""
 
     def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None, number_formats=None,
-                 text_styles=None, header_labels=None):
+                 text_styles=None, header_labels=None, result_display=None):
         super().__init__(parent)
         self.text_styles = text_styles or TextStyles()
         self.frame = frame
@@ -286,6 +286,7 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
         self.formatters = formatters or {}
         self.backgrounds = backgrounds or {}
         self.header_labels = header_labels or {}
+        self.result_display = result_display
         self.formats = Renderer(number_formats)
         self.numeric = [_mostly_numeric(frame.iloc[:, index]) for index in range(len(frame.columns))]
 
@@ -306,6 +307,12 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
             if (column and self.formats and self.frame.columns[column - 1] not in self.formatters
                     and (text := self.formats.text(column, self.frame.iat[row, column - 1])) is not None):
                 return text  # A column formatted by its analysis (ROC thresholds) keeps that renderer.
+            if column and self.result_display is not None:
+                name = self.frame.columns[column - 1]
+                if name not in self.formatters:
+                    formatted = self.result_display(name, self.frame.iat[row, column - 1])
+                    if formatted is not None:
+                        return formatted
             return self.plain_text(row, column)
         style = self._style(column, row)
         if role == Qt.ItemDataRole.TextAlignmentRole:

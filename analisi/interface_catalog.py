@@ -121,6 +121,12 @@ Nonlinear regression|Regressione non lineare
 Compare nonlinear models|Confronta modelli non lineari
 Compare models (AICc)|Confronta modelli (AICc)
 Multifactor ANOVA|ANOVA multifattoriale
+Result significant digits (0 = automatic)|Cifre significative nei risultati (0 = automatico)
+P-value display|Visualizzazione dei valori p
+P-value decimal places|Cifre decimali dei valori p
+P-value decimals|Valore p con decimali fissi
+Significance stars|Asterischi di significatività
+P value and significance stars|Valore p e asterischi di significatività
 Planned contrasts…|Contrasti pianificati…
 Planned contrast weights|Pesi dei contrasti pianificati
 No inference|Nessuna inferenza

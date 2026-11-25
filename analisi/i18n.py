@@ -3831,6 +3831,11 @@ _IT.update({key: it for key, (_, it) in _WORKSHEET_APPEARANCE.items()})
 
 # Change → Number format… on worksheets and result tables (display only).
 _WORKSHEET_NUMBER_FORMAT = {
+    "anova.output.significant_error": ("Choose 0 for automatic display or 1 to 15 significant digits.",
+                                       "Scegli 0 per il formato automatico o da 1 a 15 cifre significative."),
+    "anova.output.style_error": ("Choose a p-value display format.", "Scegli un formato per i valori p."),
+    "anova.output.decimals_error": ("Choose 1 to 12 decimal places for p values.",
+                                    "Scegli da 1 a 12 cifre decimali per i valori p."),
     "command.number_format": ("Number format…", "Formato numerico…"),
     "number_format.title": ("Number format", "Formato numerico"),
     "number_format.mode": ("Show numbers as", "Mostra i numeri con"),

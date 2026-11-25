@@ -4,7 +4,7 @@ import tokenize
 import numpy as np
 from pandas.api.types import is_numeric_dtype
 
-from . import anova_diagnostics as diag, ttest_options
+from . import anova_diagnostics as diag, result_display, ttest_options
 from .anova_terms import MODEL_TERMS, SELECTED, TERM_SELECTION, active_factors, canonical_terms, full_terms
 from .replicate_fit import MERGE_REPLICATES, replicate_groups
 from .stats import GEOMETRIC_REPORT, SUMMARY_CONFIDENCE, SUMMARY_FORMAT, SUMMARY_SUM, summary_confidence
@@ -210,6 +210,7 @@ def _factorial(frame, content, results):
         "Response": response, "Factors": factors, "Interaction order": order,
         **selection, **diagnostics, **_anova_effect_options(results, len(terms)),
         **_anova_post_tests(frame, post, response, factors),
+        **result_display.imported_output(content.get("output")),
     }
 
 

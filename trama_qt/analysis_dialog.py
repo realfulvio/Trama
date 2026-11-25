@@ -22,7 +22,7 @@ from analisi.anova_marginal_means import OVERALL as MEANS_OVERALL, PANEL as MEAN
 from analisi.anova_planned_contrasts import ALPHA as CONTRAST_ALPHA, CONTRAST_LIST, CORRECTION as CONTRAST_CORRECTION
 from analisi.anova_planned_contrasts import FACTOR_LIST as CONTRAST_FACTOR_LIST
 from analisi.anova_terms import TERM_LIST
-from analisi import curve_pipeline, curve_pipeline_dialog, lognormal_tests, regression_range, ttest_options
+from analisi import curve_pipeline, curve_pipeline_dialog, lognormal_tests, regression_range, result_display, ttest_options
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
 from analisi.data import decimal_comma
 from analisi import (
@@ -556,6 +556,8 @@ class AnalysisDialog(QDialog):
         fields = {} if self.method in {reshape_editor.METHOD, SELECT_TRANSFORM, join_editor.wj.METHOD} else METHODS[self.method]
         if self.method == "t-test":
             fields = {**fields, **dict.fromkeys(TTEST_PLOTS, False)}
+        elif self.method == result_display.METHOD:
+            fields = {**fields, **result_display.OPTIONS}
         for label, kind in fields.items():
             if kind == CONTRAST_FACTOR_LIST or (kind != CONTRAST_LIST and label in PLANNED_PANEL_FIELDS
                                                 and CONTRAST_LIST in METHODS[self.method].values()):
@@ -842,6 +844,14 @@ class AnalysisDialog(QDialog):
             design.currentIndexChanged.connect(show_ttest_fields)
             layout.currentIndexChanged.connect(show_ttest_fields)
             show_ttest_fields()
+        if self.method == result_display.METHOD:
+            p_style = self.controls[result_display.P_STYLE][1]
+
+            def show_p_decimals():
+                self._set_field_visibility({result_display.P_DECIMALS: p_style.currentData() == result_display.DECIMALS})
+
+            p_style.currentIndexChanged.connect(show_p_decimals)
+            show_p_decimals()
         if yuen_method:
             note = QLabel(tr("yuen.note"))
             note.setWordWrap(True)
@@ -1294,6 +1304,11 @@ class AnalysisDialog(QDialog):
             options = self.ecdf.ordered(options)  # series in the order they were ticked
         if self.pareto is not None:
             options = self.pareto.canonical(options)
+        if self.method == result_display.METHOD:
+            presentation = result_display.canonical(options)
+            for name in result_display.OPTIONS:
+                options.pop(name, None)
+            options.update(presentation)
         return self.anova.canonical(options) if self.anova is not None else options
 
     def accept(self):

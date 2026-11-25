@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboB
                                QToolButton, QTreeWidget, QTreeWidgetItem, QTreeWidgetItemIterator, QVBoxLayout, QWidget)
 
 from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power, mean_permutation, parallel, power_plan, rmst
-from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
+from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, result_display
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
 from analisi.axis_breaks import AXIS_BREAKS
@@ -2105,6 +2105,7 @@ class MainWindow(QMainWindow):
         if kind == "result":
             results = ResultTabs()
             self.result_tabs = results.tabs
+            presentation = result_display.renderer(run.method, run.options)
             for title, frame in result.tables.items():
                 formatters = ({"Threshold": threshold_text} if threshold_text and run.method == "ROC curve"
                               and title == "Diagnostic thresholds" else None)
@@ -2113,7 +2114,8 @@ class MainWindow(QMainWindow):
                 text_styles = self.project.tables[run.title].result_text_styles.get(run.slot, {}).get(title)
                 caption, headers = result_labels(run.method, title)
                 view = FrameView(frame, formatters, backgrounds=backgrounds, number_formats=number_formats,
-                                 text_styles=text_styles, host=self, header_labels=headers)
+                                 text_styles=text_styles, host=self, header_labels=headers,
+                                 result_display=presentation)
                 if self.table_font != ("", None) or self.table_zoom != 100:
                     set_table_appearance(view, self.table_font, self.table_zoom)
                 self.text_format.watch(view)

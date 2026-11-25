@@ -21,7 +21,7 @@ except ImportError:
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-from analisi import anova_marginal_means as means
+from analisi import anova_marginal_means as means, result_display
 from analisi.i18n import active_language, set_language
 from tests.test_anova_marginal_means import ORACLE, assert_close, combination, oracle_frame, overall
 
@@ -78,6 +78,47 @@ class DialogTests(unittest.TestCase):
         self.assertEqual(panel.confidence.text(), "95")
         panel.enabled.setChecked(False)
         self.assertFalse(set(means.KEYS) & set(dialog.options()))
+
+    def test_anova_output_controls_round_trip_and_validate_only_active_fields(self):
+        frame = oracle_frame()
+        dialog = self._dialog(frame, {"Response": "Y", "Factors": ["A", "B"]}, language="it")
+        style = dialog.controls[result_display.P_STYLE][1]
+        self.assertEqual(dialog.rows[result_display.P_STYLE][0].text(), "Visualizzazione dei valori p")
+        self.assertFalse(result_display.OPTIONS.keys() & dialog.options().keys())
+        self.assertIn(result_display.P_DECIMALS, dialog.hidden)
+        style.setCurrentIndex(style.findData(result_display.DECIMALS))
+        self.assertNotIn(result_display.P_DECIMALS, dialog.hidden)
+        dialog.controls[result_display.DIGITS][1].setText("4")
+        decimals = dialog.controls[result_display.P_DECIMALS][1]
+        decimals.setText("0")
+        dialog.accept()
+        self.assertIsNone(dialog.result)
+        self.assertIn("da 1 a 12", dialog.banner.text())
+        decimals.setText("6")
+        dialog.accept()
+        options = dialog.result[1]
+        self.assertEqual({name: options[name] for name in result_display.OPTIONS},
+                         {result_display.DIGITS: 4, result_display.P_STYLE: result_display.DECIMALS,
+                          result_display.P_DECIMALS: 6})
+        reopened = self._dialog(frame, options, language="en")
+        self.assertEqual(reopened.controls[result_display.P_DECIMALS][1].text(), "6")
+        style = reopened.controls[result_display.P_STYLE][1]
+        style.setCurrentIndex(style.findData(result_display.STARS))
+        self.assertNotIn(result_display.P_DECIMALS, reopened.options())
+
+    def test_localized_output_keeps_p_values_distinct_from_other_numbers(self):
+        opts = {result_display.DIGITS: 4, result_display.P_STYLE: result_display.VALUE_AND_STARS}
+        for language, mark in (("en", "."), ("it", ",")):
+            with self.subTest(language=language):
+                set_language(language)
+                render = result_display.renderer(METHOD, opts)
+                self.assertEqual(render("MS", 1.23456789), f"1{mark}235")
+                self.assertEqual(render("p", 8.7e-7), f"<0{mark}0001 (****)")
+                self.assertEqual(render("Adjusted p", .05), f"0{mark}0500 (*)")
+                self.assertEqual(render("Uncorrected p", .5), f"0{mark}5000 (ns)")
+                self.assertIsNone(render("p", pd.NA))
+                self.assertIsNone(render("p", "Error"))
+                self.assertIsNone(result_display.renderer(METHOD, {}))
 
     def test_a_zero_percent_is_refused_and_95_is_stored_as_a_proportion(self):
         dialog = self._dialog(oracle_frame())
@@ -219,6 +260,49 @@ class WindowTests(unittest.TestCase):
         with mock.patch.object(AnalysisDialog, "exec", run):
             yield
         self.assertEqual(queue, [])
+
+    def test_output_format_survives_reopen_without_changing_result_values(self):
+        from PySide6.QtWidgets import QTableView
+        from analisi.anova_ss import SHEETS, TYPE_III
+        from analisi.workbench import analyse
+        from trama_qt.models import display
+        from trama_qt.printing import table_sheet
+        from trama_qt.project import compute
+
+        frame = oracle_frame()
+        recipe = {"Response": "Y", "Factors": ["A", "B"], "Interaction order": 2}
+        formatted = {**recipe, result_display.DIGITS: 4, result_display.P_STYLE: result_display.VALUE_AND_STARS}
+        window = self.window
+        window.project.add_tables({"Oracle": frame})
+        run = window.project.candidate("Oracle", METHOD, formatted)
+        window.project.add_result(run, compute(run, frame))
+        sheet = SHEETS[TYPE_III]
+        raw = analyse(METHOD, frame, recipe).tables[sheet]
+        row = next(index for index, value in enumerate(raw["p"]) if pd.notna(value))
+        column = raw.columns.get_loc("p") + 1
+        path = self.folder / "result-display.alab"
+        window.project.save(path)
+        self.assertTrue(window.close_project())
+        window.open_path(path)
+        window.open_sheet(("result", 0))
+        self.wait()
+        run = window.project.runs[0]
+        self.assertEqual(run.options[result_display.P_STYLE], result_display.VALUE_AND_STARS)
+        assert_frame_equal(run.result.tables[sheet], raw)
+        view = window.result_tabs.widget(list(run.result.tables).index(sheet))
+        self.assertIsInstance(view, QTableView)
+        model = view.model()
+        self.assertEqual(model.plain_text(row, column), display(raw["p"].iloc[row]))
+        shown = model.index(row, column).data()
+        self.assertIn("(", shown)
+        self.assertNotEqual(shown, model.plain_text(row, column))
+        view.setCurrentIndex(model.index(row, column))
+        view.copy()
+        self.assertEqual(self.app.clipboard().text().strip(), model.plain_text(row, column))
+        printed = table_sheet("ANOVA", model)
+        self.assertIn(shown.replace("<", "&lt;"), "".join(printed.html_chunks(900)))
+        model.set_number_formats({column: {"mode": "fixed", "digits": 6}})
+        self.assertEqual(model.index(row, column).data(), f'{raw["p"].iloc[row]:.6f}')
 
     def test_oracle_save_edit_and_a_legacy_recipe(self):
         from analisi.data import Dataset, save_project
