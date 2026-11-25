@@ -98,6 +98,15 @@ def move_row_index(row, start, stop, destination):
     return row
 
 
+def row_move_slices(length, start, stop, destination):
+    """Source row intervals in their order after a validated block move."""
+    if destination < start:
+        return (0, destination), (start, stop), (destination, start), (stop, length)
+    if destination > stop:
+        return (0, start), (stop, destination), (start, stop), (destination, length)
+    return ((0, length),)
+
+
 def after_insertion(frame, position, count):
     spans = current_spans(frame)
     return _coalesce((*_slice(spans, 0, position), (uuid4().hex, 1, count), *_slice(spans, position, len(frame))))
@@ -112,13 +121,8 @@ def after_move(frame, start, stop, destination):
     spans = current_spans(frame)
     if start <= destination <= stop:
         return spans
-    if destination < start:
-        segments = (*_slice(spans, 0, destination), *_slice(spans, start, stop),
-                    *_slice(spans, destination, start), *_slice(spans, stop, length))
-    else:
-        segments = (*_slice(spans, 0, start), *_slice(spans, stop, destination),
-                    *_slice(spans, start, stop), *_slice(spans, destination, length))
-    return _coalesce(segments)
+    return _coalesce(span for first, last in row_move_slices(length, start, stop, destination)
+                     for span in _slice(spans, first, last))
 
 
 def after_deletion(frame, removed):

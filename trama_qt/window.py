@@ -50,6 +50,7 @@ from analisi.sheet_metadata import HIGHLIGHTS, RUN_KINDS, validate_sheet_title
 from analisi.numeric_series import validate_series_target
 from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
 from analisi.worksheet_row_identity import moved_row_bounds
+from analisi.worksheet_text import TextStyles
 from analisi.paired_graphs import shows_paired_estimation
 
 from . import global_catalog
@@ -72,6 +73,7 @@ from .templates import sync_actions as sync_template_actions, t as template_text
 from analisi.repeat_analysis_text import t as repeat_text
 from .shape_canvas import GraphDrawing
 from .sheet import FrameView, WorksheetView, selection_box, set_table_appearance
+from .text_format import TextFormat
 from .batch_export import safe_stem
 from .batch_export_dialog import text as batch_text
 from .status_label import StatusLabel
@@ -613,6 +615,8 @@ class MainWindow(QMainWindow):
             a(name, method_label(method), lambda method=method: self.analyze(method=method))
         self.drawing = GraphDrawing(self)  # Pointer tools of the graph canvas: actions before the ribbon.
         self.drawing.create_actions()
+        self.text_format = TextFormat(self)  # The Text group: font, size, colour, bold, italic, underline, alignment.
+        self.text_format.create_actions()
         self.command_menus = build_menus(self)
         self._command_search()
 
@@ -915,6 +919,7 @@ class MainWindow(QMainWindow):
             self.actions[key].setEnabled(has_table)
         for key in ("cell_background", "clear_cell_background", "number_format"):
             self.actions[key].setEnabled(has_table and idle and not locked)
+        self.text_format.update()
         graph_clipboard = kind == "graph" and self.drawing.problem() is None
         self.actions["copy"].setEnabled(has_table or graph_clipboard)
         self.actions["paste"].setEnabled((editable and idle) or graph_clipboard)
@@ -1614,7 +1619,7 @@ class MainWindow(QMainWindow):
         elif self.selected[0] == "data" and self.sheet is not None:
             current = self.sheet.currentIndex()
             self.sheet.model().reload()
-            self.sheet.apply_row_heights(self.table_zoom)
+            self.sheet.refresh_text(self.project.tables[self.selected[1]].text_styles)
             if current.isValid():
                 self.sheet.setCurrentIndex(self.sheet.model().index(current.row(), current.column()))
             if self.formula_editor is not None:
@@ -1640,6 +1645,7 @@ class MainWindow(QMainWindow):
                                                                                  project=project),
                                read_only=read_only)
         self.sheet = WorksheetView(model, self)
+        self.text_format.watch(self.sheet)
         if self.table_font != ("", None) or self.table_zoom != 100:
             set_table_appearance(self.sheet, self.table_font, self.table_zoom)
         else:
@@ -1683,10 +1689,12 @@ class MainWindow(QMainWindow):
         dataset = self.project.tables[run.title]
         sheets = dataset.result_backgrounds.get(run.slot, {})
         formats = dataset.result_number_formats.get(run.slot, {})
+        texts = dataset.result_text_styles.get(run.slot, {})
         for index, name in enumerate(run.result.tables):
             view = self.result_tabs.widget(index)
             view.set_backgrounds(sheets.get(name, {}))
             view.set_number_formats(formats.get(name, {}))
+            view.set_text_styles(texts.get(name) or TextStyles())
 
     def change_number_format(self):
         """Change → Number format…: what the selected numeric columns show; the stored values do not change."""
@@ -2090,9 +2098,12 @@ class MainWindow(QMainWindow):
                               and title == "Diagnostic thresholds" else None)
                 backgrounds = self.project.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})
                 number_formats = self.project.tables[run.title].result_number_formats.get(run.slot, {}).get(title, {})
-                view = FrameView(frame, formatters, backgrounds=backgrounds, number_formats=number_formats)
+                text_styles = self.project.tables[run.title].result_text_styles.get(run.slot, {}).get(title)
+                view = FrameView(frame, formatters, backgrounds=backgrounds, number_formats=number_formats,
+                                 text_styles=text_styles, host=self)
                 if self.table_font != ("", None) or self.table_zoom != 100:
                     set_table_appearance(view, self.table_font, self.table_zoom)
+                self.text_format.watch(view)
                 results.add_table(view, str(title))
             page.add(results, 1)
         elif result.figure is not None:
@@ -2568,11 +2579,11 @@ class MainWindow(QMainWindow):
                 return
         if (not affected and not self.project.undo_changed_data and self.selected == ("data", title)
                 and self.sheet is not None):
-            # Colours and number formats only: the grid keeps its selection, current cell and scrolling.
+            # Presentation-only changes keep the selection, current cell and scrolling.
             model = self.sheet.model()
             model.refresh_backgrounds()
             model.refresh_formats()
-            self.sheet.apply_row_heights(self.table_zoom)
+            self.sheet.refresh_text(self.project.tables[title].text_styles)
             self.update_title()
             self.update_actions()
             return
@@ -3088,6 +3099,7 @@ class MainWindow(QMainWindow):
 
     def _edit_drawings(self, key, dialog_class, native, applied):
         """Annotations or shapes of the selected native graph: a list dialog, then one style change."""
+        from analisi.graph_annotations import ANNOTATIONS
         if self.busy() or not self.selected or self.selected[0] != "graph":
             return
         run = self.project.runs[self.selected[1]]
@@ -3098,6 +3110,7 @@ class MainWindow(QMainWindow):
         if not self.settle_graph_draft():
             return
         style = deepcopy(run.style or {})
+        before = deepcopy(style)
         dialog = dialog_class(self, run.result.figure.axes[0], style.get(key, []))
         if dialog.exec() != dialog_class.DialogCode.Accepted or dialog.result is None \
                 or dialog.result == style.get(key, []):
@@ -3111,6 +3124,8 @@ class MainWindow(QMainWindow):
         except ValueError as error:
             self.error(error)
             return
+        if key == ANNOTATIONS:  # Shapes have their own history; annotations are one Undo step like a cell format.
+            self.project.history.record_style_batch("Annotations", {run.uid: before}, {run.uid: deepcopy(style)})
         self.show_sheet(*self.selected)
         self.status(tr(applied))
 

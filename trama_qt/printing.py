@@ -145,7 +145,25 @@ def table_sheet(title, model, *, worksheet=False):
         key = (row, model.frame.columns[column]) if worksheet else (row, column)
         backgrounds = model.dataset.cell_backgrounds if worksheet else model.backgrounds
         colour = backgrounds.get(key)
-        style = f' style="background-color:{colour}; color:{text_on_background(colour)}"' if colour else ""
+        look = model.cell_style(column, row)
+        css = []
+        if colour:
+            css += [f"background-color:{colour}", f"color:{look.get('color') or text_on_background(colour)}"]
+        elif "color" in look:
+            css.append(f"color:{look['color']}")
+        if "font" in look:
+            css.append(f"font-family:'{escape(look['font'])}'")
+        if "size" in look:
+            css.append(f"font-size:{look['size']:g}pt")
+        if look.get("bold"):
+            css.append("font-weight:bold")
+        if look.get("italic"):
+            css.append("font-style:italic")
+        if look.get("underline"):
+            css.append("text-decoration:underline")
+        if "align" in look:
+            align = f' align="{look["align"]}"'
+        style = f' style="{"; ".join(css)}"' if css else ""
         return f"<td{align}{style}>{text}</td>"
 
     def html_chunks(width):

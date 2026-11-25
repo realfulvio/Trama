@@ -15,7 +15,7 @@ from analisi.worksheet_history import WorksheetChange
 from .strings import qt
 
 
-SLOT_RECORDS = ("graph_styles", "result_backgrounds", "result_number_formats", "analysis_ids",
+SLOT_RECORDS = ("graph_styles", "result_backgrounds", "result_number_formats", "result_text_styles", "analysis_ids",
                 "analysis_sources", "analysis_labels")
 
 
@@ -254,7 +254,7 @@ class SheetCommands:
         dataset = self.tables[run.title]
         if twin.style is not None:
             dataset.graph_styles[twin.slot] = twin.style
-        for field in ("result_backgrounds", "result_number_formats"):
+        for field in ("result_backgrounds", "result_number_formats", "result_text_styles"):
             entries = getattr(dataset, field)
             if run.slot in entries:
                 entries[twin.slot] = deepcopy(entries[run.slot])

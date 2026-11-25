@@ -1,6 +1,6 @@
 """Table views: the editable worksheet and the read-only result tables."""
 from PySide6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, QRect, QThread, Qt
-from PySide6.QtGui import QAction, QColor, QFont, QGuiApplication, QKeySequence, QPainter, QPen
+from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics, QGuiApplication, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QApplication, QDialog, QDialogButtonBox,
                                QFormLayout, QHeaderView, QLabel, QMenu, QSpinBox, QTableView, QVBoxLayout)
 
@@ -11,6 +11,17 @@ from analisi.worksheet_appearance import MAX_ROW_HEIGHT, MIN_ROW_HEIGHT
 from . import theme
 from .models import FrameModel, display
 from .strings import qt
+from .text_format import GRID_MENU
+
+
+def add_text_menu(menu, host):
+    """The Text commands as a submenu of a grid's selection menu."""
+    submenu = menu.addMenu(tr("command.text_menu"))
+    for key in GRID_MENU:
+        if key == "|":
+            submenu.addSeparator()
+        else:
+            submenu.addAction(host.actions[key])
 
 
 def _setup(view):
@@ -26,6 +37,26 @@ def _setup(view):
     view.verticalHeader().setHighlightSections(False)
 
 
+def _styled_height(view):
+    """Row height the biggest explicit text size asks for (0 when no text style sets a size)."""
+    model = view.model()
+    styles = getattr(model, "text_styles", None)
+    largest = styles.largest_size(0) if styles else 0
+    if not largest:
+        return 0
+    font = QFont(view.font())
+    font.setPointSizeF(largest * model.text_scale)
+    return QFontMetrics(font).height() + 4
+
+
+def fit_rows(view):
+    """Uniform row height: the table font, or the largest text size a style asks for if that is taller."""
+    height = view.fontMetrics().height() + 4
+    if isinstance(view, FrameView):
+        height = max(height, round(26 * view.model().text_scale))
+    view.verticalHeader().setDefaultSectionSize(max(height, _styled_height(view)))
+
+
 def set_table_appearance(view, preference, zoom):
     family, size = preference
     base = size if size is not None else 9.5
@@ -38,10 +69,7 @@ def set_table_appearance(view, preference, zoom):
     heading = view.horizontalHeader()
     heading.setFont(font)
     view.verticalHeader().setFont(font)
-    row_height = view.fontMetrics().height() + 4
-    if isinstance(view, FrameView):
-        row_height = max(row_height, round(26 * zoom / 100))
-    view.verticalHeader().setDefaultSectionSize(row_height)
+    view.model().refresh_text(scale=zoom / 100)  # An explicit text size follows the table zoom.
     if isinstance(view, WorksheetView):
         widths = [view.columnWidth(column) for column in range(heading.count())]
         heading.setDefaultSectionSize(round(112 * font.pointSizeF() / 9.5))
@@ -51,6 +79,7 @@ def set_table_appearance(view, preference, zoom):
         heading.updateGeometry()
         heading.viewport().update()
     else:
+        fit_rows(view)
         view._fit_columns()
     if view.currentIndex().isValid():
         view.scrollTo(view.currentIndex())
@@ -432,7 +461,7 @@ class WorksheetView(QTableView):
         self.setModel(model)
         _setup(self)
         self.setObjectName("classicWorksheet")
-        self.verticalHeader().setDefaultSectionSize(self.fontMetrics().height() + 4)
+        fit_rows(self)
         for column, (first, stop, band, title) in enumerate(model.bands):
             span = stop - first
             minimum = 76 if band == "Row titles" else 73 if span > 1 else 92 if model.roles else 105
@@ -465,11 +494,11 @@ class WorksheetView(QTableView):
 
     def apply_row_heights(self, zoom=100):
         header = self.verticalHeader()
-        default_height = self.fontMetrics().height() + 4
-        header.setDefaultSectionSize(default_height)
         model = self.model()
         if model is None:
             return
+        fit_rows(self)
+        default_height = header.defaultSectionSize()
         data_rows = len(model.frame)
         wanted = {row: max(MIN_ROW_HEIGHT, round(height * zoom / 100))
                   for row, height in model.dataset.row_heights.items() if 0 <= row < data_rows}
@@ -497,6 +526,11 @@ class WorksheetView(QTableView):
 
     def box(self):
         return selection_box(self)
+
+    def refresh_text(self, text_styles=None):
+        """Draw the text styles again (undo, redo, a new format); selection and scrolling stay."""
+        self.model().refresh_text(text_styles)
+        self.apply_row_heights(round(self.model().text_scale * 100))
 
     def highlight_formula_columns(self, columns):
         if self.formula_columns != columns:
@@ -707,31 +741,59 @@ class WorksheetView(QTableView):
         menu.addAction(self.host.actions["cell_background"])
         menu.addAction(self.host.actions["clear_cell_background"])
         menu.addAction(self.host.actions["number_format"])
+        add_text_menu(menu, self.host)
         menu.exec(self.viewport().mapToGlobal(position))
 
 
 class FrameView(QTableView):
     """A result table with copy (tab-separated, decimal point as in the classic grid)."""
 
-    def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None, number_formats=None):
+    def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None, number_formats=None,
+                 text_styles=None, host=None):
         super().__init__(parent)
-        self.setModel(FrameModel(frame, formatters, self, backgrounds=backgrounds, number_formats=number_formats))
+        self.host = host
+        self.setModel(FrameModel(frame, formatters, self, backgrounds=backgrounds, number_formats=number_formats,
+                                 text_styles=text_styles))
         _setup(self)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ContiguousSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.verticalHeader().setVisible(False)
+        if self.model().text_styles:
+            fit_rows(self)
         self._fit_columns()
         action = QAction(self)
         action.setShortcut(QKeySequence.StandardKey.Copy)
         action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
         action.triggered.connect(self.copy)
         self.addAction(action)
+        if host is not None:
+            self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            self.customContextMenuRequested.connect(self._context_menu)
+
+    def _context_menu(self, position):
+        menu = QMenu(self)
+        menu.addAction(tr("command.copy_cells"), self.copy)
+        menu.addSeparator()
+        for key in ("cell_background", "clear_cell_background", "number_format"):
+            menu.addAction(self.host.actions[key])
+        add_text_menu(menu, self.host)
+        menu.exec(self.viewport().mapToGlobal(position))
+        menu.deleteLater()
 
     def set_backgrounds(self, backgrounds):
         model = self.model()
         model.backgrounds = backgrounds
         if model.rowCount():
             model.dataChanged.emit(model.index(0, 0), model.index(model.rowCount() - 1, model.columnCount() - 1))
+
+    def set_text_styles(self, text_styles):
+        """Display only; the row height follows the largest size, the columns are fitted to the new fonts."""
+        model = self.model()
+        if text_styles == model.text_styles:
+            return
+        model.refresh_text(text_styles)
+        fit_rows(self)
+        self._fit_columns()
 
     def set_number_formats(self, number_formats):
         """Display only; the columns are fitted again to the new texts, the selection and scrolling stay."""
@@ -747,8 +809,14 @@ class FrameView(QTableView):
         scale = self.font().pointSizeF() / 9.5
         for column in range(model.columnCount()):
             title = str(model.headerData(column, Qt.Orientation.Horizontal) or "")
-            texts = [model.data(model.index(row, column)) or "" for row in range(min(model.rowCount(), 100))]
-            width = max([metrics.horizontalAdvance(text) for text in [title, *texts]] or [40]) + 24
+            widths = [metrics.horizontalAdvance(title)]
+            for row in range(min(model.rowCount(), 100)):
+                index = model.index(row, column)
+                text = model.data(index) or ""
+                font = model.data(index, Qt.ItemDataRole.FontRole)
+                cell = QFontMetrics(font.resolve(self.font())) if font is not None else metrics
+                widths.append(cell.horizontalAdvance(text))
+            width = max(widths or [40]) + 24
             self.setColumnWidth(column, max(round(70 * scale), min(round(360 * scale), width)))
 
     def copy(self):

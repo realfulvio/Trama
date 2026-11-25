@@ -32,6 +32,7 @@ from .formula_windows import WINDOW_CLAUSES, WINDOW_FUNCTION, _missing, lower_wi
 from .grid_headings import column_label
 from .worksheet_appearance import (assign_row_heights, background_records, paint_cells, read_backgrounds,
                                    read_row_heights, row_height_records)
+from .worksheet_text import TextStyles, read_text_styles
 from .worksheet_row_identity import ROW_SPANS, current_spans, saved_spans
 from .worksheet_number_format import (assign_formats, column_records, position_records, read_column_formats,
                                       read_position_formats)
@@ -687,6 +688,11 @@ class Dataset:
     number_formats: dict[str, dict] = field(default_factory=dict)
     result_number_formats: dict[int, dict[str, dict[int, dict]]] = field(default_factory=dict)
     row_heights: dict[int, int] = field(default_factory=dict)
+    # Display-only text styles (font, size, color, bold, italic, underline, alignment) as row runs per column:
+    # by column name on the data, by position per analysis slot and result sheet on the results. Immutable
+    # stores, replaced on every change, so undo snapshots and recovery copies can share them.
+    text_styles: TextStyles = field(default_factory=TextStyles)
+    result_text_styles: dict[int, dict[str, TextStyles]] = field(default_factory=dict)
 
     @property
     def displayed_backgrounds(self):
@@ -725,6 +731,37 @@ class Dataset:
         self.result_number_formats = ({**self.result_number_formats, slot: sheets} if sheets else
                                       {key: value for key, value in self.result_number_formats.items()
                                        if key != slot})
+
+    def set_text_style(self, box, changes):
+        """Change the text of the cells in ``box`` (top, left, bottom, right) of the data table.
+
+        ``changes`` maps attributes to values, or to ``None`` to inherit them again. Only the rows and columns
+        that exist take a style; nothing recalculates."""
+        top, left, bottom, right = box
+        columns = self.columns
+        keys = list(columns[max(0, left):max(0, right + 1)])
+        self.text_styles = self.text_styles.apply(keys, max(0, top), min(len(self.raw), bottom + 1), changes)
+
+    def clear_text_style(self, box):
+        top, left, bottom, right = box
+        columns = self.columns
+        keys = list(columns[max(0, left):max(0, right + 1)])
+        self.text_styles = self.text_styles.clear(keys, max(0, top), min(len(self.raw), bottom + 1))
+
+    def set_result_text_style(self, slot, name, box, shape, changes):
+        """The same on a result sheet of analysis ``slot``; ``changes=None`` restores the text."""
+        sheets = self.result_text_styles.get(slot, {})
+        current = sheets.get(name, TextStyles())
+        top, left, bottom, right = box
+        rows, columns = shape
+        keys = list(range(max(0, left), min(columns, right + 1)))
+        top, stop = max(0, top), min(rows, bottom + 1)
+        changed = current.clear(keys, top, stop) if changes is None else current.apply(keys, top, stop, changes)
+        if changed is current:
+            return
+        sheets = {**sheets, name: changed} if changed else {key: value for key, value in sheets.items() if key != name}
+        self.result_text_styles = ({**self.result_text_styles, slot: sheets} if sheets else
+                                   {key: value for key, value in self.result_text_styles.items() if key != slot})
 
     def set_result_background(self, slot, name, box, shape, color):
         sheets = self.result_backgrounds.get(slot, {})
@@ -1084,6 +1121,13 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
                 slot: {name: position_records(formats) for name, formats in sorted(sheets.items())}
                 for slot, sheets in sorted(dataset.result_number_formats.items())
             }
+        if dataset.text_styles:
+            record["text_styles"] = dataset.text_styles.records(dataset.columns)
+        if dataset.result_text_styles:
+            record["result_text_styles"] = {
+                slot: {name: styles.records() for name, styles in sorted(sheets.items())}
+                for slot, sheets in sorted(dataset.result_text_styles.items())
+            }
         if order != tuple(dataset.formulas):
             record["formula_order"] = list(dataset.formulas)
         if dataset.column_order is not None:
@@ -1200,6 +1244,8 @@ def load_workspace(path, *, include_info=False):
             data.row_heights = read_row_heights(table["row_heights"], len(data.raw))
         if "number_formats" in table:
             data.number_formats = read_column_formats(table["number_formats"], set(data.columns))
+        if "text_styles" in table:
+            data.text_styles = read_text_styles(table["text_styles"], len(data.raw), set(data.columns))
         entries = table.get("analyses", [])
         limit = MAX_ANALYSIS_NODES if version >= 3 else 256
         if len(entries) > limit or any(not isinstance(method, str) or not isinstance(options, dict)
@@ -1218,6 +1264,13 @@ def load_workspace(path, *, include_info=False):
             read = {name: read_position_formats(formats, MAX_CELLS) for name, formats in formatted.items()}
             if read := {name: formats for name, formats in read.items() if formats}:
                 data.result_number_formats[slot] = read
+        for slot, styled in _analysis_slots(table.get("result_text_styles", {}), len(entries)).items():
+            if not isinstance(styled, dict):
+                raise ValueError("Invalid saved result text styles.")
+            read = {name: read_text_styles(records, MAX_CELLS, range(MAX_CELLS), integer_keys=True)
+                    for name, records in styled.items()}
+            if read := {name: styles for name, styles in read.items() if styles}:
+                data.result_text_styles[slot] = read
         data.analysis_ids = _analysis_slots(table.get("analysis_ids", {}), len(entries))
         sources = _analysis_slots(table.get("analysis_sources", {}), len(entries))
         if sources and version < 3:

@@ -101,6 +101,37 @@ class RowHeightPersistenceTests(unittest.TestCase):
 
 
 class ProjectRowOperationsTests(unittest.TestCase):
+    def test_move_carries_text_runs_with_duplicate_rows_and_persists_them(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project, _ = _open_fixture(tmp)
+            title = "Serie XY"
+            dataset = project.tables[title]
+            project.set_table_text_style(title, (1, 2, 3, 2), {"bold": True})
+            project.set_table_text_style(title, (2, 2, 2, 2), {"color": "#126c65"})
+            project.set_row_heights(title, [2], 42)
+            original = dataset.text_styles
+
+            project.move_rows(title, 2, 3, 0)
+            styles = dataset.text_styles
+            self.assertEqual(styles.style_at("Segnale", 0), {"color": "#126c65", "bold": True})
+            self.assertEqual(styles.style_at("Segnale", 1), {})
+            self.assertEqual(styles.style_at("Segnale", 2), {"bold": True})
+            self.assertEqual(styles.style_at("Segnale", 3), {"bold": True})
+            self.assertEqual(styles.run_count(), 2)
+            self.assertEqual(dataset.row_heights, {0: 42})
+
+            project.undo()
+            self.assertEqual(dataset.text_styles, original)
+            self.assertEqual(dataset.row_heights, {2: 42})
+            project.undo(redo=True)
+            self.assertEqual(dataset.text_styles, styles)
+            saved = Path(tmp) / "styled-rows.alab"
+            project.save(saved)
+            reopened = Project()
+            reopened.load(saved)
+            self.assertEqual(reopened.tables[title].text_styles, styles)
+            self.assertEqual(reopened.tables[title].row_heights, {0: 42})
+
     def test_scenario_identita_riga_with_point_style_undo_redo_and_save(self):
         with tempfile.TemporaryDirectory() as tmp:
             project, _ = _open_fixture(tmp)

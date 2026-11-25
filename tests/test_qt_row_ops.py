@@ -107,6 +107,22 @@ class QtRowOpsTests(unittest.TestCase):
         self.assertEqual(self.window.project.tables["XY"].row_heights, {})
         self.assertEqual(header.sectionSize(2), view.fontMetrics().height() + 4)
 
+    def test_text_sizing_coexists_with_custom_row_height_and_undo(self):
+        project = self.window.project
+        header = self.window.sheet.verticalHeader()
+        automatic = header.sectionSize(0)
+        self.window.set_row_height(2, 46)
+        project.set_table_text_style("XY", (0, 1, 0, 1), {"size": 36})
+        self.window.reshow()
+        self.assertGreater(header.sectionSize(0), automatic)
+        self.assertEqual(header.sectionSize(2), 46)
+
+        self.window.undo()
+        self.assertEqual(header.sectionSize(0), automatic)
+        self.assertEqual(header.sectionSize(2), 46)
+        self.window.undo(redo=True)
+        self.assertGreater(header.sectionSize(0), automatic)
+
     def test_header_context_menu_and_shortcuts_in_italian_and_english(self):
         for lang, labels in (
             ("en", ("Move up", "Move down", "Reset height")),

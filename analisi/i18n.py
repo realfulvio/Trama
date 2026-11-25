@@ -3865,6 +3865,12 @@ _WORKSHEET_NUMBER_FORMAT = {
 _EN.update({key: en for key, (en, _) in _WORKSHEET_NUMBER_FORMAT.items()})
 _IT.update({key: it for key, (_, it) in _WORKSHEET_NUMBER_FORMAT.items()})
 
+# Text group: font, size, color, bold, italic, underline, alignment, subscript and superscript.
+from .text_format_catalog import MESSAGES as _TEXT_FORMAT  # noqa: E402
+
+_EN.update({key: en for key, (en, _) in _TEXT_FORMAT.items()})
+_IT.update({key: it for key, (_, it) in _TEXT_FORMAT.items()})
+
 _UI_PREFIXES = ("menu.", "command.", "ribbon.", "bar.", "nav.", "ttest.field.", "survival.ui.")
 KEY_BY_LABEL = {}
 for _key, _text in _EN.items():

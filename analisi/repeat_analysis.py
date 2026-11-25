@@ -594,6 +594,8 @@ def _detached(dataset):
     twin.cell_backgrounds = dict(dataset.cell_backgrounds)
     twin.row_heights = dict(dataset.row_heights)
     twin.result_backgrounds = deepcopy(dataset.result_backgrounds)
+    twin.text_styles = dataset.text_styles
+    twin.result_text_styles = {slot: dict(sheets) for slot, sheets in dataset.result_text_styles.items()}
     return twin
 
 

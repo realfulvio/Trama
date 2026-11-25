@@ -3339,7 +3339,7 @@ class QtShellTests(unittest.TestCase):
         self.open_example()
         self.app.processEvents()
         buttons = window.toolbar.buttons.values()
-        self.assertEqual(len(buttons), 29)
+        self.assertEqual(len(buttons), 39)  # 29 and the ten buttons of the Text group
         self.assertFalse(window.toolbar.overflow.isVisible())
         actions = [button.defaultAction() for button in buttons]
         self.assertEqual(actions.count(window.actions["formula"]), 1)

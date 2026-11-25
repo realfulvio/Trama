@@ -74,7 +74,8 @@ from analisi.workbench import GROUPS, analyse
 from analisi import worksheet_join
 from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
 from analisi.worksheet_history import WorksheetChange, WorksheetHistory, WorksheetState
-from analisi.worksheet_row_identity import ROW_SPANS, after_deletion, after_insertion, after_move, move_row_index
+from analisi.worksheet_row_identity import (ROW_SPANS, after_deletion, after_insertion, after_move, move_row_index,
+                                            row_move_slices)
 from .sheet_commands import SheetCommands
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
@@ -376,6 +377,11 @@ class ProjectHistory(WorksheetHistory):
                 for sheets in (state.result_number_formats or {}).values():
                     for formats in sheets.values():
                         backgrounds[id(formats)] = len(formats) * 160
+                if state.text_styles:
+                    backgrounds[id(state.text_styles)] = state.text_styles.run_count() * 200
+                for sheets in (state.result_text_styles or {}).values():
+                    for styles in sheets.values():
+                        backgrounds[id(styles)] = styles.run_count() * 200
             style_bytes = sum(len(repr(change.before)) + len(repr(change.after))
                               for change in self.changes if isinstance(change, StyleBatchChange))
             self.frame_sizes = sizes
@@ -1264,6 +1270,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         dataset.cell_backgrounds = candidate.cell_backgrounds
         dataset.number_formats = candidate.number_formats
         dataset.row_heights = candidate.row_heights
+        dataset.text_styles = candidate.text_styles
         after = WorksheetState.capture(dataset)
         if not self.history.record(title, label, before, after):
             return None
@@ -1297,6 +1304,27 @@ class Project(WorksheetJoinSources, SheetCommands):
         before = WorksheetState.capture(dataset)
         dataset.set_result_background(slot, name, box, shape, color)
         return self._record_background(title, dataset, before)
+
+    def set_table_text_style(self, title, box, changes):
+        """Text of the cells in ``box``: display only, so no analysis is recalculated. One undoable step.
+
+        ``changes=None`` restores the text of the cells (their font, size, colour, style and alignment) and
+        leaves backgrounds and number formats alone. False when nothing changed."""
+        if self.sheet_locked(("data", title)):
+            raise ValueError(qt("qt.sheet_frozen_notice"))
+        dataset = self.tables[title]
+        before = WorksheetState.capture(dataset)
+        if changes is None:
+            dataset.clear_text_style(box)
+        else:
+            dataset.set_text_style(box, changes)
+        return self._record_background(title, dataset, before, "Text format")
+
+    def set_result_text_style(self, title, slot, name, box, shape, changes):
+        dataset = self.tables[title]
+        before = WorksheetState.capture(dataset)
+        dataset.set_result_text_style(slot, name, box, shape, changes)
+        return self._record_background(title, dataset, before, "Text format")
 
     def _record_background(self, title, dataset, before, label="Cell background"):
         if self.history.record(title, label, before, WorksheetState.capture(dataset)):
@@ -1366,6 +1394,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             if count > 0:
                 frame.attrs[ROW_SPANS] = after_insertion(raw, at, count)
             _remap_row_metadata(dataset, lambda row: row + count if row >= at else row)
+            dataset.text_styles = dataset.text_styles.insert_rows(at, count)
             dataset.raw = frame
         return self.edit(title, "Insert rows", change)
 
@@ -1381,6 +1410,7 @@ class Project(WorksheetJoinSources, SheetCommands):
                 frame.attrs[ROW_SPANS] = after_deletion(raw, rows)
             mapping = {old: new for new, old in enumerate(keep)}
             _remap_row_metadata(dataset, mapping.get)
+            dataset.text_styles = dataset.text_styles.delete_rows(row for row in rows if 0 <= row < len(raw))
             dataset.raw = frame
         return self.edit(title, "Delete rows", change)
 
@@ -1397,16 +1427,13 @@ class Project(WorksheetJoinSources, SheetCommands):
 
         def change(candidate):
             raw = candidate.raw
-            if destination < start:
-                order = np.concatenate((np.arange(0, destination), np.arange(start, stop),
-                                        np.arange(destination, start), np.arange(stop, length)))
-            else:
-                order = np.concatenate((np.arange(0, start), np.arange(stop, destination),
-                                        np.arange(start, stop), np.arange(destination, length)))
+            order = np.concatenate([np.arange(first, last)
+                                    for first, last in row_move_slices(length, start, stop, destination)])
             frame = raw.iloc[order].reset_index(drop=True)
             frame.attrs = dict(raw.attrs)
             frame.attrs[ROW_SPANS] = after_move(raw, start, stop, destination)
             _remap_row_metadata(candidate, lambda row: move_row_index(row, start, stop, destination))
+            candidate.text_styles = candidate.text_styles.move_rows(length, start, stop, destination)
             candidate.raw = frame
 
         return self.edit(title, "Move rows", change)
@@ -1457,6 +1484,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             if any(name in dataset.number_formats for name in names):
                 dataset.number_formats = {name: spec for name, spec in dataset.number_formats.items()
                                           if name not in names}
+            dataset.text_styles = dataset.text_styles.drop(names)
         return self.edit(title, "Delete columns", change)
 
     def rename_column(self, title, column, name):
@@ -1482,6 +1510,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             if previous != name_ and previous in dataset.number_formats:
                 dataset.number_formats = {name_ if key == previous else key: spec
                                           for key, spec in dataset.number_formats.items()}
+            dataset.text_styles = dataset.text_styles.rename(previous, name_)
         return self.edit(title, "Rename column", change)
 
     def change_variables(self, title, changes):
@@ -1548,6 +1577,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             candidate.cell_backgrounds = {(row, names.get(name, name)): color
                                           for (row, name), color in candidate.cell_backgrounds.items()}
             candidate.number_formats = {names.get(name, name): spec for name, spec in candidate.number_formats.items()}
+            candidate.text_styles = candidate.text_styles.rename_many(names)
 
         return self.edit(title, tr("variables.title"), change)
 
