@@ -5270,6 +5270,14 @@ _EN.update({
                           "series is compared with the first, on the rows where X and both series are valid.",
     "deming.error.paired_flag": "Compare paired series must be on or off.",
     "deming.error.paired_two": "The paired comparison needs exactly two Y series. The second is compared with the first.",
+    "passing.error.level": "Confidence level (%) must be finite and strictly between 0 and 100.",
+    "passing.error.identity": "Identity line must be on or off.",
+    "passing.error.columns": "Select two different columns for X and Y.",
+    "passing.error.pairs": "Passing–Bablok regression needs at least {count} finite pairs; {available} are available.",
+    "passing.error.limit": "Passing–Bablok regression stops before allocating pairwise slopes: "
+                           "{count} complete pairs would need {slopes} slopes, above the limit of {limit}.",
+    "passing.error.x_missing": 'X column "{name}" is not in the worksheet.',
+    "passing.error.y_missing": 'Y column "{name}" is not in the worksheet.',
 })
 _IT.update({
     "deming.note.series": "Ogni serie Y viene adattata da sola contro X, con le stesse impostazioni di "
@@ -5313,6 +5321,15 @@ _IT.update({
     "deming.error.paired_flag": "Confronta le serie appaiate deve essere attivo o disattivo.",
     "deming.error.paired_two": "Il confronto appaiato richiede esattamente due serie Y. La seconda è confrontata "
                                "con la prima.",
+    "passing.error.level": "Il livello di confidenza (%) deve essere finito e strettamente compreso tra 0 e 100.",
+    "passing.error.identity": "La retta di identità deve essere attiva o disattiva.",
+    "passing.error.columns": "Scegli due colonne diverse per X e Y.",
+    "passing.error.pairs": "La regressione di Passing–Bablok richiede almeno {count} coppie finite; "
+                           "ne sono disponibili {available}.",
+    "passing.error.limit": "La regressione di Passing–Bablok si ferma prima di allocare le pendenze a coppie: "
+                           "{count} coppie complete richiederebbero {slopes} pendenze, oltre il limite di {limit}.",
+    "passing.error.x_missing": 'La colonna X "{name}" non è nel foglio dati.',
+    "passing.error.y_missing": 'La colonna Y "{name}" non è nel foglio dati.',
 })
 
 # Interface themes are local preferences, never translated recipe values.

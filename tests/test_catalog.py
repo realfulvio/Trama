@@ -136,6 +136,7 @@ class CatalogTests(unittest.TestCase):
             "Cohen's kappa": {"First rating": "Group", "Second rating": "Factor"},
             "Intraclass correlation": {"Raters": ["x", "y", "z"], "Subject": "Subject"},
             "Deming regression": {"X": "x", "Y": "y", "Y / X error variance": 1.},
+            "Passing–Bablok regression": {"X": "x", "Y": "y", "Confidence level (%)": 95.0, "Identity line": False},
             "Area under curve": {"X": "x", "Y": "y", "Baseline": 10.},
             "Interpolate a standard curve": {"X": "x", "Y": "y", "Unknown responses": "Unknown"},
             "Plot a function": {"Model": "Straight line", "X source": "Worksheet", "X column": "x",

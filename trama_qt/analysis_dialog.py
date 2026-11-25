@@ -37,6 +37,8 @@ from analisi import cohen_kappa_options as kappa_text, cohen_kappa_workbench as 
 from analisi import extract_rearrange as extraction
 from analisi.deming import PAIRED as DEMING_PAIRED
 from analisi.deming import check_dialog as check_deming, format_error as deming_error, prune_paired as prune_deming
+from analisi.passing_bablok import METHOD as PASSING_BABLOK
+from analisi.passing_bablok import check_dialog as check_passing, format_error as passing_error
 from analisi.field_error import FieldError
 from analisi.parameter_intervals import REPORT_LOG_IC50, has_ic50
 from analisi.replicate_fit import MERGE_REPLICATES, replicate_groups
@@ -1459,6 +1461,8 @@ class AnalysisDialog(QDialog):
             if self.method == "Deming regression":
                 prune_deming(options, self._saved())
                 check_deming(self.data, options)
+            if self.method == PASSING_BABLOK:
+                check_passing(options)
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
@@ -1484,6 +1488,8 @@ class AnalysisDialog(QDialog):
             return summary_twoway.format_error(error)
         if self.method == "Deming regression":
             return deming_error(error)
+        if self.method == PASSING_BABLOK:
+            return passing_error(error)
         if self.method == "Kaplan–Meier survival":
             return ui(str(error))
         if self.method == "t-test":

@@ -1232,8 +1232,10 @@ class AnalysisDialog(simpledialog.Dialog):
         self.methods.delete(*self.methods.get_children())
         self.method_by_item = {}
         search = self.query.get().strip().casefold()
+        from analisi.passing_bablok import listed_in_classic
         for group, methods in GROUPS.items():
-            matches = [name for name in methods if (not self.only or name in self.only)
+            matches = [name for name in methods if listed_in_classic(name, self.method)
+                       and (not self.only or name in self.only)
                        and (name != HIERARCHY_GRAPH or name == self.method or hierarchy_view_available(self.data))
                        and (name != kmeans_reports.MODEL_GRAPH or name == self.method
                             or kmeans_reports.model_plot_available(self.data))

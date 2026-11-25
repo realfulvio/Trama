@@ -264,6 +264,7 @@ Repeated measures ANOVA|ANOVA a misure ripetute
 ROC curve|Curva ROC
 Compare paired ROC curves|Confronta curve ROC appaiate
 Deming regression|Regressione di Deming
+Passing–Bablok regression|Regressione di Passing–Bablok
 Area under curve|Area sotto la curva
 Interpolate a standard curve|Interpola una curva di calibrazione
 Fit spline/LOWESS|Adatta spline/LOWESS

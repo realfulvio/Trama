@@ -30,6 +30,7 @@ from .anova_terms import (CHOICES as TERM_CHOICES, MODEL_TERMS, SHEET as MODEL_T
                           active_factors as anova_active_factors, check_comparison_controls as check_anova_comparisons,
                           selection as anova_term_selection, terms_table as anova_terms_table)
 from .additional import EXTRA_METHODS, extra_analysis
+from .passing_bablok import METHOD as PASSING_BABLOK
 from .category_graphs import (COLUMN_GRAPH, COLUMN_STYLES, GROUPED_GRAPH, GROUPED_OPTIONS, OPTIONS as CATEGORY_OPTIONS,
                               category_graph)
 from .ancova import ANCOVA, OPTIONS as ANCOVA_OPTIONS, ancova
@@ -442,7 +443,7 @@ GROUPS = {
                                     "Histogram", FREQUENCY, GOODNESS_OF_FIT,
                                     "Area under curve", "Principal component analysis",
                                     "Adjust a stack of p values", "Control false discoveries", META_ANALYSIS),
-    "Regression and Curves": ("Linear regression", COMPARE_LINES, "Deming regression", "Multiple regression",
+    "Regression and Curves": ("Linear regression", COMPARE_LINES, "Deming regression", PASSING_BABLOK, "Multiple regression",
                               NB2, LOGISTIC_VALIDATION, "Nonlinear regression", "Global nonlinear regression", "Compare nonlinear models",
                               COMPARE_MODELS, ROBUST_CURVE, CUSTOM_EQUATION, GLOBAL_CUSTOM_EQUATION,
                               "Interpolate a standard curve", SPLINE_FIT,
@@ -467,7 +468,7 @@ GROUPS = {
 GRAPH_METHODS = frozenset({
     anova_comparison_plot.METHOD, anova_diagnostics.METHOD, anova_grouped_plot.METHOD,
     *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", ba_repeated.METHOD, icc.METHOD, "Correlation", CORRELATE_CONTROL,
-    COMPARE_INDEPENDENT, CORRELATION_MATRIX, COHEN_KAPPA, "Deming regression",
+    COMPARE_INDEPENDENT, CORRELATION_MATRIX, COHEN_KAPPA, "Deming regression", PASSING_BABLOK,
     "Global nonlinear regression", "Hierarchical clustering", HIERARCHY_GRAPH, "Histogram", FREQUENCY,
     "Interpolate a standard curve",
     "K-means clustering", "K-means model selection", KMEANS_STABILITY, kmeans_reports.MODEL_GRAPH,
