@@ -36,7 +36,7 @@ from matplotlib.textpath import TextToPath
 from matplotlib.transforms import Affine2D, ScaledTranslation
 
 from .i18n import tr
-from .worksheet_row_identity import current_spans, valid_token
+from .worksheet_row_identity import row_tokens, rows_of, valid_token
 
 TABLES = "linked_tables"
 MODES = ("linked", "copy")
@@ -290,33 +290,6 @@ class Resolved:
         return self.state == "ok"
 
 
-def _token_rows(spans, tokens):
-    """Current row of every token (a ``base:7`` style row identity), or None for a row that no longer exists."""
-    wanted = {}
-    for token in tokens:
-        origin, _, number = token.rpartition(":")
-        wanted.setdefault(origin, []).append((int(number), token))
-    rows, offset = {}, 0
-    for origin, first, count in spans or ():
-        for number, token in wanted.get(origin, ()):
-            if first <= number < first + count:
-                rows[token] = offset + number - first
-        offset += count
-    return [rows.get(token) for token in tokens]
-
-
-def row_tokens(frame, positions):
-    """The row identities of the worksheet rows ``positions``."""
-    spans, offset, result = current_spans(frame) or (), 0, {}
-    wanted = set(positions)
-    for origin, first, count in spans:
-        for position in wanted:
-            if offset <= position < offset + count:
-                result[position] = f"{origin}:{first + position - offset}"
-        offset += count
-    return [result[position] for position in positions]
-
-
 def _column_positions(frame, names):
     labels = [str(name) for name in frame.columns]
     found = []
@@ -358,7 +331,7 @@ def resolve(record, lookup):
     if problem:
         return Resolved(problem.state, problem.detail)
     if source["kind"] == "sheet":
-        rows = _token_rows(found.spans, source["rows"])
+        rows = rows_of(found.spans, source["rows"])
         if None in rows:
             return Resolved("missing", tr("linked_table.detail.row_removed"))
         labels = tuple(str(row + 1) for row in rows)

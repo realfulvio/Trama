@@ -1,5 +1,6 @@
 from base64 import b64encode
 from hashlib import sha256
+import json
 from pathlib import Path
 from struct import pack, pack_into
 from tempfile import TemporaryDirectory
@@ -224,6 +225,64 @@ class LegacyXmlErrorBarsTests(unittest.TestCase):
                 self.assertEqual(frame.shape, (3, 5))
                 self.assertEqual(info[0].title, "Notebook")
                 self.assertFalse(Dataset(frame).analyses)
+
+    def test_error_direction_stays_with_its_source_row(self):
+        from trama_qt.project import Project
+
+        title = "Measurements"
+        project = Project()
+        project.load(self.project(compress(template())))
+
+        def lower_side(project):
+            dataset = project.tables[title]
+            method, options = dataset.analyses[0]
+            points = analyse(method, dataset.frame(mask_excluded=True), options).tables["Saved XY coordinates"]
+            return {label: dict(zip(group["X"], group["Y minus"].gt(0), strict=True))
+                    for label, group in points.groupby("Series")}
+
+        before = lower_side(project)
+        project.insert_rows(title, 1)
+        # A new observation with the same replicate values as the annotated row.
+        project.paste(title, 1, 0, [["2.5", "10", "12", "20", "22"]])
+        project.move_rows(title, 3, 4, 0)
+        expected = {"A": {**before["A"], 2.5: True}, "B": {**before["B"], 2.5: False}}
+        self.assertEqual(lower_side(project), expected)
+
+        native = self.path / "reordered.alab"
+        project.save(native)
+        reopened = Project()
+        reopened.load(native)
+        self.assertEqual(lower_side(reopened), expected)
+        reopened.delete_rows(title, [0])
+        reopened.insert_rows(title, 0)
+        reopened.paste(title, 0, 0, [["3", "10", "12", "20", "22"]])
+        expected["A"][3] = True
+        expected["B"][3] = False
+        self.assertEqual(lower_side(reopened), expected)
+
+    def test_workspace_migrates_overrides_from_saved_row_ordinals(self):
+        from trama_qt.project import Project
+
+        title = "Measurements"
+        project = Project()
+        project.load(self.project(compress(template())))
+        project.move_rows(title, 2, 3, 0)
+        native = self.path / "older.alab"
+        project.save(native)
+        older = json.loads(native.read_text(encoding="utf-8"))
+        options = older["tables"][0]["analyses"][0][1]
+        for series in options["Legacy XML XY errors"]["series"]:
+            # The older format selected the third physical row, which now has X=2.
+            series["changes"] = [[2, 1 - series["default"]]]
+        native.write_text(json.dumps(older), encoding="utf-8")
+
+        reopened = Project()
+        reopened.load(native)
+        reopened.move_rows(title, 2, 3, 0)
+        dataset = reopened.tables[title]
+        method, options = dataset.analyses[0]
+        points = analyse(method, dataset.frame(mask_excluded=True), options).tables["Saved XY coordinates"]
+        self.assertEqual(points.loc[points["Series"].eq("B") & points["Y minus"].gt(0), "X"].tolist(), [2])
 
     def test_legacy_log_x_recalculates_from_the_source_after_reopening(self):
         source = self.project(compress(template(transform_heading=b"Transform: X=Log(X)")))

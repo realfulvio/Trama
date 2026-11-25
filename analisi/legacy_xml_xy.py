@@ -20,6 +20,7 @@ from .legacy_binary_editable import (_axis_config, _id_array, _one, _project_rec
                                     _text_object)
 from .legacy_binary_graphs import _read_title
 from .legacy_binary_results import _title
+from .legacy_project_metadata import XML_ERROR_BARS
 from .legacy_restore import LEGACY_NOTES, LEGACY_TITLE, SAVED_XY, _append_linked_recipe
 from .legacy_xml_binding import indexed_analyses, restored_binding_recipes
 from .legacy_xml_binding_layout import attach_binding_layout
@@ -29,9 +30,9 @@ from .legacy_xml_range_fit import attach_bounded_line
 from .reference_normalization import EACH, KEEP, MAXIMUM, METHOD, MINIMUM, NORMALIZED, PERCENTAGES, RAW
 from .repeated_input import SAVED_REPLICATE_DISPLAY, _series_name
 from .reporting import Result
+from .worksheet_row_identity import current_spans, row_tokens, rows_of, valid_token
 from .worksheet_series import series_columns
 
-XML_ERROR_BARS = "Legacy XML XY errors"
 _TEMPLATE_TYPE = "{urn:schemas-microsoft-com:datatypes}dt"
 _MARKERS = {1: "s", 5: "o"}
 _LINKS = Struct("<3i")
@@ -311,7 +312,7 @@ def _point_directions(payload, dataset, rows):
         if flag == 0x41:
             direction = payload[offset + 77]
             _require(direction in (0, 1))
-            changes.append([row, direction])
+            changes.append([f"base:{row + 1}", direction])
     return changes
 
 
@@ -393,6 +394,24 @@ def render_xml_error_graph(frame, options):
         raise ValueError("Invalid source columns or settings for the saved XY graph.") from error
 
 
+def pin_error_directions(style, frame):
+    """Keep the rendered meaning of older positional overrides from this saved worksheet."""
+    if not isinstance(style, dict) or not isinstance(series := style.get("series"), list) or len(series) > 128:
+        return style
+    pinned = []
+    for item in series:
+        changes = item.get("changes") if isinstance(item, dict) else None
+        if (changes and isinstance(changes, list) and len(changes) <= _MAX_GRAPH_POINTS
+                and all(isinstance(point, (list, tuple)) and len(point) == 2
+                        and type(point[0]) is int and 0 <= point[0] < _MAX_GRAPH_POINTS
+                        and point[1] in (0, 1) for point in changes)):
+            present = [(row, side) for row, side in changes if row < len(frame)]
+            tokens = row_tokens(frame, (row for row, _ in present))
+            item = {**item, "changes": [[token, side] for token, (_, side) in zip(tokens, present, strict=True)]}
+        pinned.append(item)
+    return {**style, "series": pinned}
+
+
 def _render(frame, options):
     style = options[XML_ERROR_BARS]
     series, scales = style["series"], style["axes"]
@@ -418,6 +437,7 @@ def _render(frame, options):
 
     x = pd.to_numeric(frame[options["X"]], errors="coerce").to_numpy(dtype=float, na_value=np.nan)
     tables = []
+    spans = current_spans(frame)
     for item in series:
         columns, changes = item["columns"], item["changes"]
         _require(isinstance(columns, list) and len(columns) >= 2 and len(columns) == len(set(columns))
@@ -438,9 +458,19 @@ def _render(frame, options):
             raise ValueError("The saved XY graph has values outside the supported numerical range.")
 
         direction = np.full(len(frame), item["default"], dtype=np.int8)
-        for row, side in changes:
-            _require(type(row) is int and 0 <= row < _MAX_GRAPH_POINTS and side in (0, 1))
-            if row < len(frame):
+        overrides = {}
+        for reference, side in changes:
+            _require(side in (0, 1))
+            if type(reference) is int:
+                # Direct calls may still supply a recipe predating worksheet identities.
+                _require(0 <= reference < _MAX_GRAPH_POINTS)
+                if reference < len(frame):
+                    direction[reference] = side
+            else:
+                _require(valid_token(reference))
+                overrides[reference] = side
+        for row, side in zip(rows_of(spans, overrides), overrides.values(), strict=True):
+            if row is not None:
                 direction[row] = side
         below = np.where(direction == 1, deviation, 0)
         above = np.where(direction == 0, deviation, 0)

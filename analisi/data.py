@@ -1264,7 +1264,7 @@ def load_workspace(path, *, include_info=False):
         if len(entries) > limit or any(not isinstance(method, str) or not isinstance(options, dict)
                                     for method, options in entries):
             raise ValueError("Invalid saved analysis settings.")
-        data.analyses = [saved_analysis(method, options) for method, options in entries]
+        data.analyses = [saved_analysis(method, options, row_frame=data.raw) for method, options in entries]
         for slot, colored in _analysis_slots(table.get("result_backgrounds", {}), len(entries)).items():
             if not isinstance(colored, dict):
                 raise ValueError("Invalid saved result backgrounds.")

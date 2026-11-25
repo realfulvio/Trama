@@ -1,5 +1,6 @@
 """Stable worksheet row references for graph presentation and structural edits."""
 
+from bisect import bisect_left
 import re
 from uuid import uuid4
 
@@ -221,6 +222,43 @@ def token_at(spans, row):
             return f"{origin}:{first + row - 1}"
         row -= count
     return None
+
+
+def row_tokens(frame, positions):
+    """Return worksheet row identities for zero-based positions, in the requested order."""
+    positions = tuple(positions)
+    if not positions:
+        return []
+    wanted = sorted(set(positions))
+    result, offset = {}, 0
+    for origin, first, count in current_spans(frame) or ():
+        begin = bisect_left(wanted, offset)
+        end = bisect_left(wanted, offset + count, lo=begin)
+        for position in wanted[begin:end]:
+            result[position] = f"{origin}:{first + position - offset}"
+        offset += count
+    return [result[position] for position in positions]
+
+
+def rows_of(spans, tokens):
+    """Return the zero-based current position of each identity, or None for a deleted row."""
+    tokens = tuple(tokens)
+    if not tokens:
+        return []
+    wanted = {}
+    for token in set(tokens):
+        origin, number = token.split(":")
+        wanted.setdefault(origin, {})[int(number)] = token
+    numbers_by_origin = {origin: sorted(numbers) for origin, numbers in wanted.items()}
+    result, offset = {}, 0
+    for origin, first, count in spans or ():
+        numbers = numbers_by_origin.get(origin, ())
+        begin = bisect_left(numbers, first)
+        end = bisect_left(numbers, first + count, lo=begin)
+        for number in numbers[begin:end]:
+            result[wanted[origin][number]] = offset + number - first
+        offset += count
+    return [result.get(token) for token in tokens]
 
 
 def row_of(spans, token):

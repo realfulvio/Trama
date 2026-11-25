@@ -4,6 +4,7 @@ from hashlib import sha256
 
 
 LEGACY_METADATA_VERSION = 4
+XML_ERROR_BARS = "Legacy XML XY errors"
 IMPORT_OPTION_PREFIX = "Legacy "
 _RETIRED_OPTION_PREFIX = "f8ea2124fa5c166f915801f2e295cf105f8f3ba81d0a5c374985de7884aa2e42"
 
@@ -25,7 +26,7 @@ IMPORTED_FORMATS = frozenset({
     'Imported result snapshot',
 })
 IMPORTED_FIELDS = frozenset({
-    'Legacy XML XY errors',
+    XML_ERROR_BARS,
     'Legacy XML binding graph',
     'Legacy XML generated XY graph',
     'Legacy XML linked descriptive graph',
@@ -97,13 +98,17 @@ def saved_table_format(value):
     return "multivariable" if name.casefold() == "multiplevariables" else name
 
 
-def saved_analysis(method, options):
+def saved_analysis(method, options, *, row_frame=None):
     translated = {}
     for key, value in options.items():
         name = saved_name(key)
         if name in translated:
             raise ValueError(f"Duplicate versioned analysis option: {name}.")
         translated[name] = value
+    if row_frame is not None and XML_ERROR_BARS in translated:
+        from .legacy_xml_xy import pin_error_directions
+
+        translated[XML_ERROR_BARS] = pin_error_directions(translated[XML_ERROR_BARS], row_frame)
     return saved_name(method), translated
 
 
