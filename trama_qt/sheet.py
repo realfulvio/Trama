@@ -2,7 +2,8 @@
 from PySide6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, QRect, QThread, Qt
 from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics, QGuiApplication, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QApplication, QDialog, QDialogButtonBox,
-                               QFormLayout, QHeaderView, QLabel, QMenu, QSpinBox, QTableView, QVBoxLayout)
+                               QFormLayout, QHeaderView, QLabel, QLineEdit, QMenu, QSpinBox, QStyledItemDelegate,
+                               QTableView, QVBoxLayout)
 
 from analisi.grid_data import clipboard_decimal_mark, clipboard_rows, copy_block, filter_clipboard_rows
 from analisi.i18n import tr, ui
@@ -447,6 +448,28 @@ class WorksheetRowHeader(QHeaderView):
         menu.deleteLater()
 
 
+class WorksheetEditorDelegate(QStyledItemDelegate):
+    """Keep the editor readable even in a manually shortened row."""
+
+    def createEditor(self, parent, option, index):
+        editor = super().createEditor(parent, option, index)
+        if isinstance(editor, QLineEdit):
+            editor.setObjectName("worksheetEditor")
+            editor.setFont(index.data(Qt.ItemDataRole.FontRole) or option.font)
+        return editor
+
+    def updateEditorGeometry(self, editor, option, index):
+        super().updateEditorGeometry(editor, option, index)
+        if not isinstance(editor, QLineEdit):
+            return
+        rect = editor.geometry()
+        available = editor.parentWidget().rect()
+        height = min(available.height(), max(rect.height(), editor.sizeHint().height()))
+        if height > rect.height():
+            top = max(available.top(), min(rect.center().y() - height // 2, available.bottom() - height + 1))
+            editor.setGeometry(rect.x(), top, rect.width(), height)
+
+
 class WorksheetView(QTableView):
     """The data grid: typing, F2 and double click edit; Ctrl+C/X/V and Delete work on the selection."""
 
@@ -461,6 +484,7 @@ class WorksheetView(QTableView):
         self.setModel(model)
         _setup(self)
         self.setObjectName("classicWorksheet")
+        self.setItemDelegate(WorksheetEditorDelegate(self))
         fit_rows(self)
         for column, (first, stop, band, title) in enumerate(model.bands):
             span = stop - first

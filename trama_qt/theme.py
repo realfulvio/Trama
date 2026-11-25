@@ -292,6 +292,9 @@ def stylesheet():
     QMenuBar::item:selected {{ background: {t['tint']}; color: {t['text']}; }}
     QFrame#classicToolbar {{ background: {t['panel2']}; border-bottom: 1px solid {t['border']}; }}
     QFrame#classicToolbar QToolButton {{ padding: 2px 3px; }}
+    QFrame#classicToolbar QComboBox#toolbarFont, QFrame#classicToolbar QComboBox#toolbarSize {{
+        padding: 1px 3px; }}
+    QFrame#classicToolbar QComboBox QLineEdit {{ border: none; padding: 0; background: transparent; }}
     QFrame#classicToolbar QToolButton#primary {{ padding: 2px 7px; background: {t['accent']}; }}
     QFrame#classicToolbar QToolButton#primary:disabled {{ background: {t['field']}; }}
     QFrame#classicDivider {{ color: {t['field_hover']}; }}
@@ -418,6 +421,7 @@ def stylesheet():
 
     QTableView {{ background: {t['panel']}; border: none; gridline-color: {t['grid']};
         selection-background-color: {t['tint']}; selection-color: {t['text']}; outline: 0; }}
+    QLineEdit#worksheetEditor {{ padding: 0 3px; border: 1px solid {t['accent']}; }}
     QHeaderView {{ background: {t['header']}; border: none; }}
     QHeaderView::section {{ background: {t['header']}; color: {t['text2']}; border: none;
         border-right: 1px solid {t['grid']}; border-bottom: 1px solid {t['border']}; padding: 3px 6px; }}

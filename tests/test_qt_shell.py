@@ -3333,47 +3333,49 @@ class QtShellTests(unittest.TestCase):
                 self.assertEqual(window.selected, ("data", "Measurements"))
                 self.assertEqual(recent_projects(), (path,))
 
-    def test_classic_toolbar_fits_all_buttons_at_1024_pixels(self):
-        window = self.window
-        window.resize(1024, 720)
-        self.open_example()
-        self.app.processEvents()
-        buttons = window.toolbar.buttons.values()
-        self.assertEqual(len(buttons), 39)  # 29 and the ten buttons of the Text group
-        self.assertFalse(window.toolbar.overflow.isVisible())
-        actions = [button.defaultAction() for button in buttons]
-        self.assertEqual(actions.count(window.actions["formula"]), 1)
-        self.assertIn(window.actions["formula"], window.command_menus["Insert"].actions())
-        for button in buttons:
-            self.assertTrue(button.isVisible(), button.accessibleName())
-            self.assertFalse(button.icon().isNull(), button.accessibleName())
-            self.assertLessEqual(button.mapTo(window.toolbar, button.rect().bottomRight()).x(),
-                                 window.toolbar.width(), button.accessibleName())
-
-    def test_classic_toolbar_overflow_keeps_all_commands_reachable_without_overlap(self):
+    def test_classic_toolbar_keeps_commands_reachable_without_overlap(self):
         from PySide6.QtCore import QPoint
 
         window = self.window
         self.open_example()
-        window.resize(643, 460)
-        self.app.processEvents()
         bar = window.toolbar
-        self.assertTrue(bar.overflow.isVisible())
-        visible = [button for button in bar.buttons.values() if button.isVisible()]
-        self.assertIn(bar.buttons["analyze"], visible)
-        listed = [action for group in bar.overflow.menu().actions() for action in group.menu().actions()]
-        self.assertCountEqual([button.defaultAction() for button in visible] + listed,
-                              [button.defaultAction() for button in bar.buttons.values()])
-        bounds = []
-        for button in [*visible, bar.overflow]:
-            rect = button.rect().translated(button.mapTo(bar, QPoint()))
-            self.assertLess(rect.right(), bar.width(), button.accessibleName())
-            self.assertTrue(all(not rect.intersects(other) for other in bounds), button.accessibleName())
-            bounds.append(rect)
-        window.resize(1024, 720)
-        self.app.processEvents()
-        self.assertFalse(bar.overflow.isVisible())
-        self.assertTrue(all(button.isVisible() for button in bar.buttons.values()))
+        controls = {**bar.buttons, **bar.fields}
+        previous = {
+            "new_table", "open", "save", "save_as", "insert_row", "insert_column", "new_info", "exclude",
+            "formula", "undo", "redo", "cut", "copy", "paste_special", "paste_table", "paste", "linear",
+            "nonlinear", "descriptive", "correlation_matrix", "analyze", "change", "format_graph", "text_font",
+            "text_size", "text_bold", "text_italic", "text_underline", "text_color", "text_align_left",
+            "text_align_center", "text_align_right", "text_restore", "export", "export_options", "import",
+            "new_layout", "pairwise", "new_graph",
+        }
+        self.assertFalse(previous - controls.keys())
+        self.assertIn(window.actions["formula"], window.command_menus["Insert"].actions())
+        for key, button in bar.buttons.items():
+            self.assertIs(button.defaultAction(), window.actions[key])
+            if key not in {"text_grow", "text_shrink"}:
+                self.assertFalse(button.icon().isNull(), key)
+            self.assertTrue(button.toolTip(), key)
+            self.assertTrue(button.accessibleName(), key)
+        for width in (1920, 1680, 1366, 1024, 800, 643, 560, 1920):
+            with self.subTest(width=width):
+                window.resize(width, 720)
+                self.app.processEvents()
+                visible = {key: control for key, control in controls.items() if control.isVisible()}
+                self.assertIn("analyze", visible)
+                self.assertEqual(bar.overflow.isVisible(), len(visible) != len(controls))
+                if width == 1920:
+                    self.assertFalse(bar.overflow.isVisible())
+                if width == 643:
+                    self.assertTrue(bar.overflow.isVisible())
+                listed = [action for group in bar.overflow.menu().actions() for action in group.menu().actions()]
+                self.assertCountEqual([window.actions[key] for key in visible] + listed,
+                                      [window.actions[key] for key in controls])
+                bounds = []
+                for item in [*visible.values(), *([bar.overflow] if bar.overflow.isVisible() else [])]:
+                    rect = item.rect().translated(item.mapTo(bar, QPoint()))
+                    self.assertTrue(bar.rect().contains(rect), (item.accessibleName(), rect))
+                    self.assertFalse(any(rect.intersects(other) for other in bounds), item.accessibleName())
+                    bounds.append(rect)
 
     def test_result_selector_preserves_the_active_table_as_the_window_resizes(self):
         from analisi.reporting import Result

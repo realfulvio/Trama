@@ -177,13 +177,15 @@ def main(argv=None):
 
         # 3. Reachability: every command is on the toolbar, or in the More menu when the window is narrow.
         window.toolbar._fit()
+        controls = {**window.toolbar.buttons, **window.toolbar.fields}
+        overflow = {action for group in window.toolbar.overflow.menu().actions() for action in group.menu().actions()}
         for key in ACTIONS:
             if key == "text_graph":
                 continue
-            button = window.toolbar.buttons.get(key)
-            check(button is not None and button.isVisibleTo(window.toolbar)
-                  and button.mapTo(window.toolbar, button.rect().bottomRight()).x() <= window.toolbar.width(),
-                  f"{key} is not reachable on the toolbar")
+            button = controls.get(key)
+            visible = (button is not None and button.isVisibleTo(window.toolbar)
+                       and button.mapTo(window.toolbar, button.rect().bottomRight()).x() < window.toolbar.width())
+            check(visible or window.actions[key] in overflow, f"{key} is missing from the toolbar and More menu")
         wide = window.width()
         window.resize(520, window.height())
         settle()

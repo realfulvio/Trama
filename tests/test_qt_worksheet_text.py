@@ -421,7 +421,7 @@ class QtTextTests(unittest.TestCase):
         self.app.processEvents()
         toolbar._fit()
         for key in TEXT_ACTIONS:
-            button = toolbar.buttons[key]
+            button = {**toolbar.buttons, **toolbar.fields}[key]
             self.assertTrue(button.isVisibleTo(toolbar), key)
             self.assertLessEqual(button.mapTo(toolbar, button.rect().bottomRight()).x(), toolbar.width(), key)
         window.resize(560, 768)
@@ -434,6 +434,98 @@ class QtTextTests(unittest.TestCase):
         group = next(action.menu() for action in toolbar.overflow.menu().actions() if action.text() == "Text")
         self.assertEqual({action.text() for action in group.actions()} >= {"Bold", "Italic", "Underline"}, True)
 
+    def test_direct_toolbar_font_and_size_in_pixels_and_points(self):
+        from PySide6.QtTest import QTest
+
+        window = self.window
+        title, view, model = self.sheet()
+        self.select(view, 0, 0, 1, 0)
+        controls = window.toolbar.text_controls
+        editor = controls.size.lineEdit()
+        undo_steps = len(window.project.history.changes)
+
+        def enter(text):
+            editor.setFocus()
+            editor.selectAll()
+            QTest.keyClicks(editor, text)
+            QTest.keyClick(editor, Qt.Key.Key_Return)
+            self.app.processEvents()
+
+        enter("16 px")
+        self.assertEqual(self.state("size"), ("uniform", 12))
+        self.assertEqual(editor.text(), "16 px")
+        self.assertEqual(len(window.project.history.changes), undo_steps + 1)
+        enter("12 pt")
+        self.assertEqual(editor.text(), "12 pt")
+        self.assertEqual(len(window.project.history.changes), undo_steps + 1)
+        enter("14,5 pt")
+        self.assertEqual(self.state("size"), ("uniform", 14.5))
+        enter("invalid")
+        self.assertEqual(self.state("size"), ("uniform", 14.5))
+        self.assertEqual(editor.text(), "14.5 pt")
+        self.assertGreaterEqual(editor.width(), editor.fontMetrics().horizontalAdvance(editor.text()) + 4)
+        window.actions["text_grow"].trigger()
+        self.assertGreater(self.state("size")[1], 14.5)
+        window.undo()
+        self.assertEqual(self.state("size"), ("uniform", 14.5))
+
+        font = controls.font
+        family = font.itemData(1)
+        self.assertTrue(family)
+        font.setCurrentIndex(1)
+        font.activated.emit(1)
+        self.assertEqual(self.state("font"), ("uniform", family))
+        self.assertEqual(font.currentText(), family)
+
+    def test_worksheet_editor_has_room_to_type_in_a_short_formatted_row(self):
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QAbstractItemView, QLineEdit, QStyle, QStyleOptionFrame
+
+        window = self.window
+        title, view, model = self.sheet()
+        self.select(view, 0, 0, 0, 0)
+        window.text_format.apply({"size": 24, "bold": True})
+        window.set_row_height(0, 19)
+        for zoom in (100, 150):
+            with self.subTest(zoom=zoom):
+                if zoom == 150:
+                    window.zoom_table(3)
+                    self.assertEqual(window.table_zoom, zoom)
+                view = window.sheet
+                self.select(view, 0, 0, 0, 0)
+                index = view.currentIndex()
+                height = view.rowHeight(0)
+                view.setFocus()
+                QTest.keyClick(view, Qt.Key.Key_F2)
+                self.app.processEvents()
+                editor = view.findChild(QLineEdit, "worksheetEditor")
+                self.assertIsNotNone(editor)
+                self.assertEqual(editor.font(), index.data(Qt.ItemDataRole.FontRole))
+                option = QStyleOptionFrame()
+                option.initFrom(editor)
+                option.lineWidth = editor.style().pixelMetric(QStyle.PixelMetric.PM_DefaultFrameWidth)
+                content = editor.style().subElementRect(QStyle.SubElement.SE_LineEditContents, option, editor)
+                self.assertGreaterEqual(content.height(), editor.fontMetrics().height())
+                self.assertGreater(editor.height(), height)
+                editor.selectAll()
+                value = f"A longer worksheet note at {zoom} percent"
+                QTest.keyClicks(editor, value)
+                self.assertEqual(editor.text(), value)
+                self.assertEqual(editor.cursorPosition(), len(value))
+                QTest.keyClick(editor, Qt.Key.Key_Return if zoom == 100 else Qt.Key.Key_Escape)
+                expected = "A longer worksheet note at 100 percent"
+                deadline = time.monotonic() + 2
+                while time.monotonic() < deadline:
+                    current = window.sheet
+                    saved = current.model().index(0, 0).data(Qt.ItemDataRole.EditRole)
+                    if current.state() != QAbstractItemView.State.EditingState and saved == expected:
+                        break
+                    QTest.qWait(10)
+                self.assertEqual(saved, expected)
+                self.assertNotEqual(current.state(), QAbstractItemView.State.EditingState)
+                self.assertEqual(window.sheet.rowHeight(0), height)
+        self.assertEqual(window.project.tables[title].row_heights[0], 19)
+
     def test_the_toolbar_follows_150_percent_scale_and_both_themes(self):
         from trama_qt import theme
         window = self.window
@@ -445,7 +537,8 @@ class QtTextTests(unittest.TestCase):
             self.app.processEvents()
             image = window.toolbar.grab()
             self.assertFalse(image.isNull())
-            for key in ("text_bold", "text_font"):
+            self.assertTrue(window.toolbar.fields["text_font"].currentText())
+            for key in ("text_bold", "text_color"):
                 icon = window.actions[key].icon()
                 self.assertFalse(icon.pixmap(24, 24).isNull(), (mode, key))
         theme.set_mode("system")

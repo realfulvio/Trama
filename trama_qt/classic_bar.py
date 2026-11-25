@@ -1,14 +1,16 @@
 """The Classica menu and compact two-row toolbar, backed by the window's Qt actions."""
 
-from itertools import zip_longest
+from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QMenu, QSizePolicy, QToolButton, QVBoxLayout, QWidget
 
 from analisi.i18n import tr, ui
 
 from . import theme
-from .text_format import FIRST_ROW as TEXT_FIRST_ROW, ICONS as TEXT_ICONS, MENU as TEXT_MENU, SECOND_ROW as TEXT_SECOND_ROW
+from .strings import qt
+from .text_format import ICONS as TEXT_ICONS, MENU as TEXT_MENU, ToolbarTextControls
 
 
 MENUS = (
@@ -44,21 +46,42 @@ MENUS = (
     ("Settings", ("language", "table_font", "processes", "recovery_settings")),
 )
 
-# Group, first row, second row, tall button, and the density at which short captions fit.
+# In reading order. Compact groups show icons before moving into More.
 GROUPS = (
-    ("File", ("new_table", "open"), ("save", "save_as"), None, 4),
-    ("Sheet", ("insert_row", "insert_column", "new_info"), ("exclude", "formula"), None, 5),
-    ("Undo", ("undo",), ("redo",), None, 6),
-    ("Clipboard", ("cut", "copy"), ("paste_special", "paste_table"), "paste", 2),
-    ("Analysis", ("linear", "nonlinear"), ("descriptive", "correlation_matrix"), "analyze", 1),
-    ("Change", ("change", "format_graph"), (), None, 5),
-    ("Text", TEXT_FIRST_ROW, TEXT_SECOND_ROW, None, 6),
-    ("Import / Export", ("export",), ("export_options",), "import", 3),
-    ("Graph", ("new_layout",), ("pairwise",), "new_graph", 5),
+    ("File", ("new_table", "open"), ("save", "save_as")),
+    ("Sheet", ("insert_row", "insert_column", "new_info"), ("exclude",)),
+    ("Undo", ("undo",), ("redo",)),
+    ("Clipboard", ("cut", "copy", "paste"), ("paste_special", "paste_table")),
+    ("Analysis", ("analyze", "linear", "nonlinear"), ("descriptive", "correlation_matrix", "new_graph", "new_layout", "pairwise")),
+    ("Change", ("change",), ("format_graph",)),
+    ("Data", ("formula",), ("variable_properties",)),
+    ("Import", ("import",), ("import_excel",)),
+    ("Draw", ("shapes",), ("annotations",)),
+    ("Write", ("sheet_notes",), ("linked_table",)),
+    ("Text", ("text_size", "text_font", "text_color"),
+     ("text_grow", "text_shrink", "text_bold", "text_italic", "text_underline",
+      "text_align_left", "text_align_center", "text_align_right", "text_restore")),
+    ("Export", ("export",), ("export_options",)),
+    ("Print", ("print",), ("print_preview",)),
+    ("Send", ("send_word",), ("send_powerpoint",)),
+    ("Help", ("about",), ("search",)),
 )
+OVERFLOW_ORDER = ("Help", "Send", "Print", "Write", "Draw", "Export", "Import", "Data", "Change",
+                  "Sheet", "Text", "Undo", "Clipboard", "File", "Analysis")
+GROUP_LABELS = {"Data": "qt.toolbar_data", "Draw": "qt.toolbar_draw", "Write": "qt.toolbar_write",
+                "Send": "qt.toolbar_send", "Help": "qt.toolbar_help", "Print": "qt.print_title"}
 
-SHORT = {"new_table": "ribbon.new", "open": "ribbon.open", "save": "ribbon.save",
-         "save_as": "ribbon.save_as", "import": "ribbon.import", "export": "ribbon.export"}
+SHORT = {
+    "change": "qt.toolbar_parameters", "format_graph": "qt.toolbar_format",
+    "formula": "qt.toolbar_formula", "variable_properties": "qt.toolbar_properties",
+    "import": "qt.toolbar_import_data", "import_excel": "qt.toolbar_excel",
+    "shapes": "qt.toolbar_shapes", "annotations": "qt.toolbar_annotate",
+    "sheet_notes": "qt.toolbar_note", "linked_table": "qt.toolbar_linked_table",
+    "export": "qt.toolbar_export_figure", "export_options": "qt.toolbar_export_options",
+    "print": "qt.print_title", "print_preview": "qt.toolbar_preview",
+    "send_word": "qt.toolbar_word", "send_powerpoint": "qt.toolbar_powerpoint",
+    "about": "qt.toolbar_about", "search": "qt.toolbar_search",
+}
 
 ICONS = {
     "new_table": "new", "open": "open", "save": "save", "save_as": "saveas",
@@ -68,9 +91,13 @@ ICONS = {
     "linear": "linreg", "nonlinear": "curve", "descriptive": "bars", "correlation_matrix": "heatmap",
     "analyze": "analyze", "change": "params", "format_graph": "format", "import": "import",
     "export": "export", "export_options": "exportopts", "new_layout": "layout",
-    "pairwise": "pairwise", "new_graph": "graph",
+    "pairwise": "pairwise", "new_graph": "graph", "variable_properties": "data", "shapes": "shapes",
+    "annotations": "annotation", "sheet_notes": "annotation", "linked_table": "link", "print_preview": "result",
+    "about": "info", "search": "search",
     **TEXT_ICONS,
 }
+QT_ICONS = {"print": "printer", "send_word": "file-up", "send_powerpoint": "move-up-right"}
+STEPS = {"text_grow": "A+", "text_shrink": "A−"}
 
 
 def build_menus(window):
@@ -90,99 +117,130 @@ def build_menus(window):
     return menus
 
 
+@dataclass
+class ToolbarGroup:
+    name: str
+    widget: QWidget
+    divider: QFrame | None
+    menu: QMenu
+    grid: QGridLayout
+
+
 class ClassicToolbar(QFrame):
-    def __init__(self, actions, parent=None):
+    def __init__(self, actions, text_format, parent=None):
         super().__init__(parent)
         self.setObjectName("classicToolbar")
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.actions = actions
         self.buttons = {}
-        self.compact = []
         self.groups = []
-        self.density = None
+        self.text_controls = text_format.toolbar_controls = ToolbarTextControls(text_format)
+        self.fields = {"text_font": self.text_controls.font, "text_size": self.text_controls.size}
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 2, 5, 1)
-        layout.setSpacing(3)
-        for index, (title, first, second, lead, threshold) in enumerate(GROUPS):
-            divider = None
-            if index:
-                divider = QFrame()
-                divider.setFrameShape(QFrame.Shape.VLine)
-                divider.setObjectName("classicDivider")
-                layout.addWidget(divider)
-            group = QWidget()
-            column = QVBoxLayout(group)
-            column.setContentsMargins(0, 0, 0, 0)
-            column.setSpacing(1)
-            row = QHBoxLayout()
-            row.setContentsMargins(0, 0, 0, 0)
-            row.setSpacing(2)
-            lead_button = None
-            if lead:
-                button = self._button(lead, actions[lead])
-                button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-                if lead == "analyze":
-                    button.setObjectName("primary")
-                button.ensurePolished()
-                button.setMinimumWidth(button.sizeHint().width())
-                row.addWidget(button)
-                lead_button = button
-            grid = QGridLayout()
-            grid.setContentsMargins(0, 0, 0, 0)
-            grid.setSpacing(1)
-            rows = []
-            for line, keys in enumerate((first, second)):
-                row_buttons = []
-                for position, key in enumerate(keys):
-                    button = self._button(key, actions[key])
-                    self.compact.append((button, threshold))
-                    grid.addWidget(button, line, position, Qt.AlignmentFlag.AlignLeft)
-                    row_buttons.append(button)
-                rows.append(row_buttons)
-            row.addLayout(grid)
-            column.addLayout(row)
-            label = QLabel(ui(title))
-            label.setObjectName("classicGroup")
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            column.addWidget(label)
-            menu = QMenu(label.text(), self)
-            for key in ((lead,) if lead else ()) + first + second:
-                menu.addAction(actions[key])
-            self.groups.append((group, divider, menu, label, lead_button, tuple(zip_longest(*rows))))
-            layout.addWidget(group)
+        layout.setContentsMargins(5, 2, 5, 2)
+        layout.setSpacing(2)
+        for title, first, second in GROUPS:
+            self._add_group(title, first, second)
         self.overflow = QToolButton()
         self.overflow.setText(tr("theme.more"))
+        self.overflow.setToolTip(qt("qt.toolbar_more_tip"))
+        self.overflow.setAccessibleName(tr("theme.more"))
         self.overflow.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.overflow.setMenu(QMenu(self.overflow))
-        layout.addWidget(self.overflow)
+        layout.addWidget(self.overflow, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.overflow.hide()
         layout.addStretch()
-        self._set_density(0)
 
-    def _button(self, key, action):
-        if key in SHORT:
-            action.setIconText(tr(SHORT[key]))
-        action.setIcon(theme.classic_icon(ICONS[key], "on_accent" if key == "analyze" else None))
+    def _add_group(self, title, first, second):
+        divider = None
+        if self.groups:
+            divider = QFrame()
+            divider.setFrameShape(QFrame.Shape.VLine)
+            divider.setObjectName("classicDivider")
+            self.layout().addWidget(divider)
+        group = QWidget()
+        group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        column = QVBoxLayout(group)
+        column.setContentsMargins(3, 0, 3, 0)
+        column.setSpacing(1)
+        label = QLabel(qt(GROUP_LABELS[title]) if title in GROUP_LABELS else ui(title))
+        label.setObjectName("classicGroup")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        column.addWidget(label)
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(2)
+        grid.setVerticalSpacing(1)
+        column.addLayout(grid)
+        if title == "Text":
+            top = QHBoxLayout()
+            top.setSpacing(2)
+            for key in first:
+                top.addWidget(self.fields[key] if key in self.fields else self._button(key))
+            grid.addLayout(top, 0, 0, 1, len(second))
+            for position, key in enumerate(second):
+                grid.addWidget(self._button(key), 1, position, Qt.AlignmentFlag.AlignCenter)
+        else:
+            for line, keys in enumerate((first, second)):
+                for position, key in enumerate(keys):
+                    alignment = Qt.AlignmentFlag.AlignLeft if key in SHORT or key == "analyze" else Qt.AlignmentFlag.AlignCenter
+                    grid.addWidget(self._button(key), line, position, alignment)
+        menu = QMenu(label.text(), self)
+        for key in first + second:
+            menu.addAction(self.actions[key])
+        self.groups.append(ToolbarGroup(title, group, divider, menu, grid))
+        self.layout().addWidget(group)
+
+    @staticmethod
+    def _sync_tooltip(button, action):
+        name = action.text().replace("&&", "\0").replace("&", "").replace("\0", "&")
+        tip = action.toolTip() or name
+        shortcut = action.shortcut().toString(QKeySequence.SequenceFormat.NativeText)
+        if shortcut and shortcut not in tip:
+            tip = f"{tip} ({shortcut})"
+        button.setToolTip(tip)
+        button.setAccessibleName(name)
+        button.setAccessibleDescription(tip)
+
+    def _button(self, key):
+        action = self.actions[key]
+        if key in STEPS:
+            action.setIconText(STEPS[key])
+        elif key in SHORT:
+            action.setIconText(qt(SHORT[key]))
+        if key in ICONS:
+            action.setIcon(theme.classic_icon(ICONS[key], "on_accent" if key == "analyze" else None))
+        elif key in QT_ICONS:
+            action.setIcon(theme.icon(QT_ICONS[key]))
         button = QToolButton(self)
         button.setDefaultAction(action)
-        button.setToolTip(action.toolTip() or action.text())
-        button.setAccessibleName(action.text())
         button.setIconSize(theme.icon_size(14))
         button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        button.setMinimumHeight(24)
+        if key == "analyze":
+            button.setObjectName("primary")
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        if key in STEPS:
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         if action.menu() is not None:
             button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self._sync_tooltip(button, action)
+        action.changed.connect(lambda: self._sync_tooltip(button, action))
         self.buttons[key] = button
         return button
 
-    def _set_density(self, level):
-        if level == self.density:
-            return
-        self.density = level
-        for button, threshold in self.compact:
-            text = level >= threshold
-            style = Qt.ToolButtonStyle.ToolButtonTextBesideIcon if text else Qt.ToolButtonStyle.ToolButtonIconOnly
-            button.setToolButtonStyle(style)
-            button.setFixedWidth(button.sizeHint().width())
-        self.layout().invalidate()
+    def _measure_groups(self, captions):
+        style = (Qt.ToolButtonStyle.ToolButtonTextBesideIcon if captions
+                 else Qt.ToolButtonStyle.ToolButtonIconOnly)
+        for key in SHORT:
+            self.buttons[key].setToolButtonStyle(style)
+        widths = {}
+        for group in self.groups:
+            group.grid.invalidate()
+            layout = group.widget.layout()
+            layout.invalidate()
+            widths[group.name] = layout.sizeHint().width()
+        return widths
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -194,44 +252,46 @@ class ClassicToolbar(QFrame):
         self._fit()
 
     def _fit(self):
-        count = len(self.groups)
-        for density in range(5, -1, -1):
-            self._set_density(density)
-            if self._content_width(count) <= self.width():
+        names = {group.name for group in self.groups}
+        widths = self._measure_groups(captions=True)
+        if self._content_width(names, widths) > self.width():
+            widths = self._measure_groups(captions=False)
+        hidden = []
+        for name in OVERFLOW_ORDER:
+            if self._content_width(names, widths) <= self.width():
                 break
-        if density == 0:
-            while count and self._content_width(count) > self.width():
-                count -= 1
+            names.remove(name)
+            hidden.append(name)
+        for name in reversed(hidden):
+            if self._content_width(names | {name}, widths) <= self.width():
+                names.add(name)
 
         menu = self.overflow.menu()
         menu.clear()
-        for index, (group, divider, group_menu, *_sizes) in enumerate(self.groups):
-            visible = index < count
-            group.setVisible(visible)
-            if divider is not None:
-                divider.setVisible(visible)
-            if not visible:
-                menu.addMenu(group_menu)
+        first = True
+        for group in self.groups:
+            visible = group.name in names
+            group.widget.setFixedWidth(widths[group.name])
+            group.widget.setVisible(visible)
+            if group.divider is not None:
+                group.divider.setVisible(visible and not first)
+            if visible:
+                first = False
             else:
-                # Refresh the group's size hint before laying out the toolbar.
-                group.layout().activate()
-                group.updateGeometry()
-        self.overflow.setVisible(count < len(self.groups))
+                menu.addMenu(group.menu)
+        self.overflow.setVisible(not menu.isEmpty())
         self.layout().invalidate()
         self.layout().activate()
 
-    def _content_width(self, count):
+    def _content_width(self, names, widths):
         layout = self.layout()
         margins = layout.contentsMargins()
+        groups = [group for group in self.groups if group.name in names]
         width = margins.left() + margins.right()
-        for _group, divider, _menu, label, lead, columns in self.groups[:count]:
-            grid = sum(max(button.minimumWidth() for button in column if button is not None) for column in columns)
-            grid += max(0, len(columns) - 1)  # Grid spacing.
-            if lead is not None:
-                grid += lead.minimumWidth() + 2
-            width += max(label.sizeHint().width(), grid) + layout.spacing()
-            if divider is not None:
-                width += divider.sizeHint().width() + layout.spacing()
-        if count < len(self.groups):
+        for index, group in enumerate(groups):
+            width += widths[group.name] + layout.spacing()
+            if index:
+                width += group.divider.sizeHint().width() + layout.spacing()
+        if len(groups) < len(self.groups):
             width += self.overflow.sizeHint().width() + layout.spacing()
         return width

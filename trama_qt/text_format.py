@@ -17,9 +17,11 @@ from PySide6.QtWidgets import (QColorDialog, QComboBox, QDialog, QDialogButtonBo
                                QMenu, QVBoxLayout)
 
 from analisi.data import decimal_comma
-from analisi.i18n import tr
+from analisi.i18n import active_language, tr
 from analisi.worksheet_text import (ALIGN, ALIGNMENTS, BOLD, COLOR, FONT, INHERITED, ITALIC, MAX_SIZE, MIN_SIZE, MIXED,
                                     SIZE, SIZE_CHOICES, UNDERLINE, UNIFORM, TextStyles)
+
+from .strings import qt
 
 
 FIRST_ROW = ("text_font", "text_size", "text_bold", "text_italic", "text_underline")
@@ -34,6 +36,113 @@ ICONS = {"text_font": "textfont", "text_size": "textsize", "text_bold": "bold", 
          "text_align_center": "aligncenter", "text_align_right": "alignright", "text_restore": "textrestore",
          "text_graph": "format"}
 _KEEP, _INHERIT = "keep", "inherit"
+_PIXELS_PER_POINT = 96 / 72
+
+
+def _read_size(text, unit="pt"):
+    value = text.strip().lower()
+    if value.endswith(("px", "pt")):
+        value, unit = value[:-2], value[-2:]
+    try:
+        points = float(decimal_comma(value.strip()))
+    except ValueError:
+        points = float("nan")
+    if unit == "px":
+        points /= _PIXELS_PER_POINT
+    if not MIN_SIZE <= points <= MAX_SIZE:
+        raise ValueError(tr("text.error.size", low=MIN_SIZE, high=MAX_SIZE))
+    return points, unit
+
+
+def _selection_size(target, state):
+    if state.kind == UNIFORM:
+        return state.value
+    return target.view.font().pointSizeF() / target.view.model().text_scale
+
+
+class ToolbarTextControls:
+    """Direct formatting controls, using points in the project and either unit in the toolbar."""
+
+    def __init__(self, controller):
+        self.controller = controller
+        self.unit = "px"
+        self.font = QComboBox()
+        self.font.setObjectName("toolbarFont")
+        self.font.setEditable(True)
+        self.font.lineEdit().setReadOnly(True)
+        self.font.setFixedWidth(144)
+        self.font.setMinimumHeight(24)
+        self.font.setAccessibleName(tr("worksheet.font_family"))
+        self.font.addItem(tr("text.dialog.reset"), None)
+        for family in QFontDatabase.families():
+            self.font.addItem(family, family)
+        self.font.activated.connect(self._choose_family)
+
+        self.size = QComboBox()
+        self.size.setObjectName("toolbarSize")
+        self.size.setEditable(True)
+        self.size.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.size.setFixedWidth(77)
+        self.size.setMinimumHeight(24)
+        self.size.setAccessibleName(qt("qt.toolbar_font_size"))
+        self._fill_sizes()
+        self.size.activated.connect(self._choose_size)
+        self.size.lineEdit().returnPressed.connect(self._enter_size)
+        self.size.lineEdit().editingFinished.connect(self.controller.update)
+
+    def _format_size(self, points):
+        size = points * _PIXELS_PER_POINT if self.unit == "px" else points
+        number = f"{size:.2f}".rstrip("0").rstrip(".")
+        if active_language() == "it":
+            number = number.replace(".", ",")
+        return f"{number} {self.unit}"
+
+    def _fill_sizes(self):
+        self.size.clear()
+        self.size.addItem(tr("text.dialog.reset"), None)
+        for points in SIZE_CHOICES:
+            self.size.addItem(self._format_size(points), points)
+
+    def _choose_family(self, index):
+        self.controller.apply({FONT: self.font.itemData(index)})
+        self.controller.update()
+
+    def _choose_size(self, index):
+        self.size.lineEdit().setModified(False)
+        self.controller.apply({SIZE: self.size.itemData(index)})
+        self.controller.update()
+
+    def _enter_size(self):
+        editor = self.size.lineEdit()
+        if not editor.isModified():
+            return
+        editor.setModified(False)
+        try:
+            points, unit = _read_size(editor.text(), self.unit)
+        except ValueError as error:
+            self.controller.window.status(str(error))
+            self.controller.update()
+            return
+        if unit != self.unit:
+            self.unit = unit
+            self._fill_sizes()
+        self.controller.apply({SIZE: points})
+        self.controller.update()
+
+    def update(self, target, states):
+        for field in (self.font, self.size):
+            field.setEnabled(target is not None)
+        self.font.setCurrentIndex(-1)
+        self.size.setCurrentIndex(-1)
+        if target is None:
+            self.font.setEditText("")
+            self.size.setEditText("")
+            return
+        font, size = states[FONT], states[SIZE]
+        mixed = tr("text.state.mixed")
+        family = font.value if font.kind == UNIFORM else target.view.font().family()
+        self.font.setEditText(mixed if font.kind == MIXED else family)
+        self.size.setEditText(mixed if size.kind == MIXED else self._format_size(_selection_size(target, size)))
 
 
 @dataclass(frozen=True)
@@ -115,13 +224,7 @@ class TextFontDialog(QDialog):
         index = self.size.findText(text)
         if index >= 0 and self.size.itemData(index) in (_KEEP, _INHERIT):
             return self.size.itemData(index)
-        try:
-            value = float(decimal_comma(text))
-        except ValueError:
-            value = float("nan")
-        if not MIN_SIZE <= value <= MAX_SIZE:
-            raise ValueError(tr("text.error.size", low=MIN_SIZE, high=MAX_SIZE))
-        return value
+        return _read_size(text)[0]
 
     def accept(self):
         try:
@@ -145,6 +248,7 @@ class TextFormat:
     def __init__(self, window):
         self.window = window
         self.size_menu = None
+        self.toolbar_controls = None
         self.last = None  # (enabled, states) of the last update, for the tests and the screenshots
 
     # -- actions ---------------------------------------------------------------------------------
@@ -152,6 +256,8 @@ class TextFormat:
         w = self.window
         w._action("text_font", tr("command.text_font"), self.choose_font)
         w._action("text_size", tr("command.text_size"), self.choose_size)
+        w._action("text_grow", qt("qt.toolbar_font_grow"), lambda: self.step_size(1))
+        w._action("text_shrink", qt("qt.toolbar_font_shrink"), lambda: self.step_size(-1))
         for key, attribute in TOGGLES.items():
             w._action(key, tr(f"command.{key}"), lambda attribute=attribute: self.toggle(attribute)).setCheckable(True)
         w._action("text_color", tr("command.text_color"), self.choose_color)
@@ -235,6 +341,8 @@ class TextFormat:
         w.actions["text_graph"].setEnabled(graph)
         for key in ("text_font", "text_size"):
             w.actions[key].setEnabled(target is not None or graph)
+        for key in ("text_grow", "text_shrink"):
+            w.actions[key].setEnabled(target is not None)
         if states is None:
             states = {attribute: type("S", (), {"kind": INHERITED, "value": None})() for attribute in
                       (FONT, SIZE, COLOR, BOLD, ITALIC, UNDERLINE, ALIGN)}
@@ -249,6 +357,11 @@ class TextFormat:
         self._mark("text_font", states[FONT].kind, self._tip("text_font", FONT, states, graph and target is None))
         self._mark("text_size", states[SIZE].kind, self._tip("text_size", SIZE, states, graph and target is None))
         self._mark("text_color", states[COLOR].kind, self._tip("text_color", COLOR, states, False))
+        if self.toolbar_controls is not None:
+            self.toolbar_controls.font.setToolTip(w.actions["text_font"].toolTip())
+            state = self._words(states[SIZE], SIZE)
+            self.toolbar_controls.size.setToolTip(f"{qt('qt.toolbar_size_tip')} · {state}")
+            self.toolbar_controls.update(target, states)
 
     def _words(self, state, attribute):
         if state.kind == MIXED:
@@ -373,6 +486,12 @@ class TextFormat:
                                                 float(start), MIN_SIZE, MAX_SIZE, 1)
         if accepted:
             self.apply({SIZE: size})
+
+    def step_size(self, step):
+        target = self.target()
+        if target is not None:
+            size = _selection_size(target, self.states(target)[SIZE])
+            self.apply({SIZE: min(MAX_SIZE, max(MIN_SIZE, size + step))})
 
     def _fill_sizes(self):
         menu = self.size_menu

@@ -627,7 +627,7 @@ class MainWindow(QMainWindow):
         root = QVBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-        self.toolbar = ClassicToolbar(self.actions)
+        self.toolbar = ClassicToolbar(self.actions, self.text_format)
         root.addWidget(self.toolbar)
         self.project_strip = self._project_strip()
         root.addWidget(self.project_strip)
