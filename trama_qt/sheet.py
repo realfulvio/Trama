@@ -786,11 +786,11 @@ class FrameView(QTableView):
     """A result table with copy (tab-separated, decimal point as in the classic grid)."""
 
     def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None, number_formats=None,
-                 text_styles=None, host=None):
+                 text_styles=None, host=None, header_labels=None):
         super().__init__(parent)
         self.host = host
         self.setModel(FrameModel(frame, formatters, self, backgrounds=backgrounds, number_formats=number_formats,
-                                 text_styles=text_styles))
+                                 text_styles=text_styles, header_labels=header_labels))
         _setup(self)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ContiguousSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -864,8 +864,7 @@ class FrameView(QTableView):
         model = self.model()
         lines = []
         if top == 0 and bottom == model.rowCount() - 1:
-            lines.append("\t".join(str(model.headerData(column, Qt.Orientation.Horizontal) or "")
-                                   for column in range(left, right + 1)))
+            lines.append("\t".join(model.plain_header(column) for column in range(left, right + 1)))
         for row in range(top, bottom + 1):
             # The stored numbers, not the number format on screen.
             lines.append("\t".join(model.plain_text(row, column) or "" for column in range(left, right + 1)))

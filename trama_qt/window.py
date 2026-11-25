@@ -7,9 +7,9 @@ from weakref import WeakKeyDictionary
 from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from PySide6 import __version__ as PYSIDE_VERSION
-from PySide6.QtCore import QEvent, QSignalBlocker, QStringListModel, Qt, QTimer
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence
-from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboBox, QCompleter, QDialog, QFileDialog, QFrame,
+from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboBox, QDialog, QFileDialog, QFrame,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QScrollArea, QSplitter, QTabBar, QToolBar,
                                QToolButton, QTreeWidget, QTreeWidgetItem, QTreeWidgetItemIterator, QVBoxLayout, QWidget)
@@ -63,7 +63,7 @@ from .flow import FlowLayout
 from .gallery import GalleryPage, g as gallery_text
 from .labels import method_label
 from .report_dialog import text as report_text
-from .result_tabs import ResultTabs
+from .result_tabs import ResultTabs, result_labels
 from .models import WorksheetModel, column_label
 from .printing import FIGURE_KINDS, PrintCommands
 from .recovery import RecoveryDialog, RecoverySettingsDialog, r as recovery_text
@@ -628,7 +628,7 @@ class MainWindow(QMainWindow):
         self.text_format = TextFormat(self)  # The Text group: font, size, colour, bold, italic, underline, alignment.
         self.text_format.create_actions()
         self.command_menus = build_menus(self)
-        self._command_search()
+        self.search_dialog = None
 
         central = QWidget()
         root = QVBoxLayout(central)
@@ -775,25 +775,6 @@ class MainWindow(QMainWindow):
         row.addStretch(1)
         return strip
 
-    def _command_search(self):
-        self.search_dialog = QDialog(self)
-        self.search_dialog.setWindowTitle(qt("qt.search"))
-        layout = QVBoxLayout(self.search_dialog)
-        self.search = QLineEdit(self.search_dialog)
-        self.search.setPlaceholderText(qt("qt.search"))
-        self.search.setAccessibleName(qt("qt.search"))
-        self.search.setClearButtonEnabled(True)
-        self.search.setMinimumWidth(330)
-        self.completer = QCompleter(self)
-        self.completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self.completer.activated.connect(self._run_search)
-        self.search.setCompleter(self.completer)
-        self.search.returnPressed.connect(lambda: self._run_search(self.search.text()))
-        layout.addWidget(self.search)
-        names = [action.text().replace("&", "") for action in self.actions.values() if action.text()]
-        self.completer.setModel(QStringListModel(sorted(set(names)), self))
-
     def _theme_changed(self):
         """Colours that are not in the style sheet (navigator headings) are redrawn in the new theme."""
         for mode in theme.MODES:
@@ -849,20 +830,10 @@ class MainWindow(QMainWindow):
                 item.setHidden(bool(needle) and item is not self.search_results)
 
     def focus_search(self):
-        self.search_dialog.show()
-        self.search_dialog.raise_()
-        self.search_dialog.activateWindow()
-        self.search.setFocus()
-        self.search.selectAll()
-
-    def _run_search(self, text):
-        text = (text or "").strip().casefold()
-        for action in self.actions.values():
-            if action.text().replace("&", "").casefold() == text and action.isEnabled():
-                self.search.clear()
-                self.search_dialog.hide()
-                action.trigger()
-                return
+        if self.search_dialog is None:
+            from .command_search import CommandSearchDialog
+            self.search_dialog = CommandSearchDialog(self)
+        self.search_dialog.open_search()
 
     def _sheet_call(self, name, **options):
         if self.sheet is not None:
@@ -2140,12 +2111,13 @@ class MainWindow(QMainWindow):
                 backgrounds = self.project.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})
                 number_formats = self.project.tables[run.title].result_number_formats.get(run.slot, {}).get(title, {})
                 text_styles = self.project.tables[run.title].result_text_styles.get(run.slot, {}).get(title)
+                caption, headers = result_labels(run.method, title)
                 view = FrameView(frame, formatters, backgrounds=backgrounds, number_formats=number_formats,
-                                 text_styles=text_styles, host=self)
+                                 text_styles=text_styles, host=self, header_labels=headers)
                 if self.table_font != ("", None) or self.table_zoom != 100:
                     set_table_appearance(view, self.table_font, self.table_zoom)
                 self.text_format.watch(view)
-                results.add_table(view, str(title))
+                results.add_table(view, caption)
             page.add(results, 1)
         elif result.figure is not None:
             try:

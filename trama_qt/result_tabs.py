@@ -2,7 +2,45 @@
 
 from PySide6.QtWidgets import QComboBox, QTabWidget, QVBoxLayout, QWidget
 
+from analisi.distribution_graphs import BOX_VIOLIN
+
 from .strings import qt
+
+
+_TAB_KEYS = {
+    BOX_VIOLIN: {
+        "Group summary": "qt.result_group_summary",
+        "Plotted observations": "qt.result_plotted",
+        "Violin density": "qt.result_violin_density",
+        "Settings": "qt.result_settings",
+    },
+    "Descriptive statistics": {"Summary": "qt.result_summary"},
+    "Linear regression": {
+        "Regression": "qt.result_regression",
+        "Residuals": "qt.result_residuals",
+        "Curve coordinates": "qt.result_curve_coordinates",
+        "Pointwise confidence band": "qt.result_confidence_band",
+        "Pointwise prediction band": "qt.result_prediction_band",
+        "Linear estimates": "qt.result_linear_estimates",
+    },
+}
+_DISTRIBUTION_HEADERS = {
+    "Row": "qt.result_row", "Group": "qt.result_group", "Value": "qt.result_value",
+    "Median": "qt.result_median", "Minimum": "qt.result_minimum", "Maximum": "qt.result_maximum",
+    "Mean": "qt.result_mean", "Bandwidth": "qt.result_bandwidth", "Note": "qt.result_note",
+    "Lower whisker": "qt.result_lower_whisker", "Upper whisker": "qt.result_upper_whisker",
+    "Outside whiskers": "qt.result_outside_whiskers", "Role": "qt.result_role", "Density": "qt.result_density",
+    "Half-width": "qt.result_half_width",
+}
+
+
+def result_labels(method, title):
+    """Localize the view while keeping the result keys and frame columns for linked recipes."""
+    key = _TAB_KEYS.get(method, {}).get(title)
+    if key is None:
+        return str(title), {}
+    headers = {name: qt(label) for name, label in _DISTRIBUTION_HEADERS.items()} if method == BOX_VIOLIN else {}
+    return qt(key), headers
 
 
 class ResultTabs(QWidget):

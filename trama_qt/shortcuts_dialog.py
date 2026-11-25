@@ -14,7 +14,7 @@ STANDARD = {"cut": QKeySequence.StandardKey.Cut, "copy": QKeySequence.StandardKe
             "paste": QKeySequence.StandardKey.Paste}
 
 
-def _shortcut(key, action):
+def shortcut_text(key, action):
     sequence = action.shortcut()
     if sequence.isEmpty() and key in STANDARD:
         sequence = QKeySequence(STANDARD[key])
@@ -54,7 +54,7 @@ class ShortcutsDialog(QDialog):
             rows = []
             for key in keys:
                 action = window.actions.get(key) if key != "|" else None
-                shortcut = _shortcut(key, action) if action is not None else ""
+                shortcut = shortcut_text(key, action) if action is not None else ""
                 if not shortcut or key in seen:
                     continue
                 seen.add(key)

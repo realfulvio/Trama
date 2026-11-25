@@ -25,7 +25,7 @@ def main():
                  "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "qt-report.md", "worksheet-join.md", "qt-recovery.md", "qt-analysis-templates.md",
                  "qt-excel-workbook.md", "worksheet-number-format.md", "repeat-analysis.md",
                  "worksheet-rows-and-series.md", "summary-twoway-anova.md", "text-format.md", "linked-tables.md",
-                 "release-108.md", "release-107.md", "worksheet-sort-rows.md", "deming-paired.md",
+                 "release-109.md", "release-108.md", "release-107.md", "worksheet-sort-rows.md", "deming-paired.md",
                  "validation-deming-paired.md",
                  "cluster-silhouette-092.md", "paired-proportions.md", "power-from-summary.md", "mcnemar-power.md",
                  "qt-batch-figure-styles.md", "ecdf-graph.md", "interaction-plot.md", "raincloud-plot.md",

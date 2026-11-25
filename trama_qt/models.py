@@ -277,7 +277,7 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
     """A read-only result table; the row labels become the first column, as in the classic grid."""
 
     def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None, number_formats=None,
-                 text_styles=None):
+                 text_styles=None, header_labels=None):
         super().__init__(parent)
         self.text_styles = text_styles or TextStyles()
         self.frame = frame
@@ -285,6 +285,7 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
             else " / ".join(str(name or "") for name in frame.index.names) or "Row"
         self.formatters = formatters or {}
         self.backgrounds = backgrounds or {}
+        self.header_labels = header_labels or {}
         self.formats = Renderer(number_formats)
         self.numeric = [_mostly_numeric(frame.iloc[:, index]) for index in range(len(frame.columns))]
 
@@ -346,4 +347,8 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
             return int((Qt.AlignmentFlag.AlignRight if right else Qt.AlignmentFlag.AlignLeft) | Qt.AlignmentFlag.AlignVCenter)
         if role != Qt.ItemDataRole.DisplayRole or orientation == Qt.Orientation.Vertical:
             return None
+        title = self.plain_header(section)
+        return self.header_labels.get(title, title)
+
+    def plain_header(self, section):
         return self.index_title if section == 0 else str(self.frame.columns[section - 1])
