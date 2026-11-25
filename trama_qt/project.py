@@ -35,6 +35,7 @@ from analisi.category_levels import (LevelEditError, apply_level_plan, can_renam
                                      format_recipe_blockers)
 from analisi.category_order import WORKSHEET_ORDERS, keep_source_columns
 from analisi.variable_types import TYPES, VARIABLE_TYPES, convert_type
+from analisi.numeric_series import NumericSeriesPlan, apply_numeric_series, plan_numeric_series, series_text
 from analisi.i18n import tr, ui
 from analisi.info import InfoSheet, info_contexts, validate_info_sheets
 from analisi.legacy_notes import WORKSHEET_NOTES
@@ -1332,6 +1333,27 @@ class Project(WorksheetJoinSources, SheetCommands):
 
     def clear(self, title, selection):
         return self.edit(title, "Clear cells", lambda dataset: clear_block(dataset, selection))
+
+    def create_numeric_series(self, title, plan_or_start_row, column=None, *, mode=None,
+                              start_text=None, count=None, step_text=None, confirm_replace=False):
+        dataset = self.editable(title)
+        if isinstance(plan_or_start_row, NumericSeriesPlan):
+            plan = plan_or_start_row
+        else:
+            plan = plan_numeric_series(
+                dataset,
+                plan_or_start_row,
+                column,
+                mode=mode,
+                start_text=start_text,
+                count=count,
+                step_text=step_text,
+                locked=self.sheet_locked(("data", title)),
+                read_only=stored_legacy_view(dataset),
+            )
+        if plan.occupied_count > 0 and not confirm_replace:
+            raise ValueError(series_text("err.confirm_required"))
+        return self.edit(title, "Create numeric series", lambda candidate: apply_numeric_series(candidate, plan))
 
     def insert_rows(self, title, position, count=1):
         def change(dataset):

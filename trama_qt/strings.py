@@ -185,6 +185,7 @@ _TEXT = {
                           "Calcola i grafici di questo layout per mostrarlo."),
     "qt.insert_row": ("Insert row", "Inserisci riga"),
     "qt.insert_column": ("Insert column", "Inserisci colonna"),
+    "qt.create_numeric_series": ("Create numeric series…", "Crea serie numerica…"),
     "qt.delete_rows": ("Delete rows", "Elimina righe"),
     "qt.delete_columns": ("Delete columns", "Elimina colonne"),
     "qt.move_rows_up": ("Move up", "Sposta su"),

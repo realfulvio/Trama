@@ -652,6 +652,16 @@ class WorksheetView(QTableView):
             menu.addAction(tr("worksheet.formula.freeze"),
                            lambda: self.host.freeze_worksheet_formula(column))
 
+    def _can_series_column(self, column):
+        model = self.model()
+        if model is None or model.read_only or column < 0:
+            return False
+        if column == len(model.frame.columns):
+            return model.grows_columns()
+        if column > len(model.frame.columns):
+            return False
+        return column not in model.calculated and column not in model.locked and model.numeric[column]
+
     def _heading_menu(self, position):
         heading = self.horizontalHeader()
         menu = QMenu(self)
@@ -662,12 +672,18 @@ class WorksheetView(QTableView):
             menu.addAction(qt("qt.rename_column"), lambda: self.host.rename_column(column))
             if self.host.actions["variable_properties"].isEnabled():
                 menu.addAction(tr("command.variable_properties"), lambda: self.host.edit_variable_properties(column))
+        if self._can_series_column(column):
+            menu.addAction(qt("qt.create_numeric_series"),
+                           lambda: self.host.create_numeric_series(column=column, start_row=0, full_column=True))
         self._add_freeze_action(menu, column)
         if not menu.isEmpty():
             menu.exec(heading.viewport().mapToGlobal(position))
         menu.deleteLater()
 
     def _context_menu(self, position):
+        index = self.indexAt(position)
+        if index.isValid() and not self.selectionModel().isSelected(index):
+            self.setCurrentIndex(index)
         menu = QMenu(self)
         for label, handler in ((tr("command.cut_cells"), self.cut), (tr("command.copy_cells"), self.copy),
                                (tr("ribbon.paste"), self.paste),
@@ -681,6 +697,9 @@ class WorksheetView(QTableView):
         menu.addAction(qt("qt.insert_column"), self.host.insert_column)
         menu.addAction(self.host.actions["delete_columns"])
         menu.addAction(qt("qt.rename_column"), lambda: self.host.rename_column(self.currentIndex().column()))
+        column = index.column() if index.isValid() else self.currentIndex().column()
+        if self._can_series_column(column):
+            menu.addAction(self.host.actions["create_numeric_series"])
         self._add_freeze_action(menu, self.columnAt(position.x()))
         menu.addSeparator()
         menu.addAction(tr("command.toggle_exclusion"), self.host.toggle_exclusion)

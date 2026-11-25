@@ -47,6 +47,7 @@ from analisi.tolerance_intervals import SHOW_GRAPH as TOLERANCE_GRAPH, TOLERANCE
 from analisi.weibull_aft import METHOD as WEIBULL_AFT, SHOW_GRAPH as WEIBULL_GRAPH
 from analisi.workbench import GRAPH_METHODS
 from analisi.sheet_metadata import HIGHLIGHTS, RUN_KINDS, validate_sheet_title
+from analisi.numeric_series import validate_series_target
 from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
 from analisi.worksheet_row_identity import moved_row_bounds
 from analisi.paired_graphs import shows_paired_estimation
@@ -522,6 +523,7 @@ class MainWindow(QMainWindow):
         a("save_family", ui("Save family as…"), self.save_family_as, icon="save")
         a("insert_row", qt("qt.insert_row"), self.insert_row, icon="rows-3")
         a("insert_column", qt("qt.insert_column"), self.insert_column, icon="columns-3")
+        a("create_numeric_series", qt("qt.create_numeric_series"), self.create_numeric_series, icon="hash")
         a("formula", ui("Formula…"), self.edit_formula, icon="sigma")
         a("delete_rows", qt("qt.delete_rows"), self.delete_rows, icon="trash-2")
         a("move_rows_up", qt("qt.move_rows_up"), self.move_rows_up, icon="chevron-up", shortcut="Alt+Up")
@@ -902,7 +904,8 @@ class MainWindow(QMainWindow):
         self.actions["next_sheet"].setEnabled(idle and self._sheet_history_target(1) is not None)
         self.actions["combined_navigator"].setChecked(self.sessions.active.combined_navigator)
         for key in ("cut", "paste_special", "paste_transpose", "clear_cells", "insert_row",
-                    "insert_column", "delete_rows", "delete_columns", "exclude", "formula", "category_order"):
+                    "insert_column", "create_numeric_series", "delete_rows", "delete_columns",
+                    "exclude", "formula", "category_order"):
             self.actions[key].setEnabled(editable and idle)
         self._update_row_actions(data, editable, idle)
         self.actions["variable_properties"].setEnabled(
@@ -2280,6 +2283,44 @@ class MainWindow(QMainWindow):
             size = len(dataset.raw.columns) if dataset.column_order is None else len(dataset.columns)
             position = column + 1 if 0 <= column < size else size
             self._apply_edit(title, lambda: self.project.insert_column(title, position, name.strip()))
+
+    def create_numeric_series(self, column=None, start_row=None, *, full_column=False):
+        from .numeric_series_dialog import NumericSeriesDialog
+
+        title = self._active_table()
+        if title is None or self.sheet is None:
+            return
+        dataset = self.project.tables[title]
+        if column is None:
+            box = self.sheet.box()
+            if (box is not None and box[0] == 0 and box[2] == self.sheet.model().rowCount() - 1
+                    and len(dataset.raw) > 0):
+                full_column = True
+        else:
+            row = 0 if start_row is None else start_row
+            box = (row, column, row, column)
+        try:
+            target = validate_series_target(
+                dataset,
+                box,
+                locked=self.project.sheet_locked(("data", title)),
+                read_only=stored_legacy_view(dataset),
+                full_column=full_column,
+            )
+        except ValueError as error:
+            self.error(error)
+            return
+        dialog = NumericSeriesDialog(self, dataset, target)
+        try:
+            if dialog.exec() != dialog.DialogCode.Accepted or dialog.plan is None:
+                return
+            plan = dialog.plan
+        finally:
+            dialog.deleteLater()
+        self._apply_edit(title, lambda: self.project.create_numeric_series(title, plan, confirm_replace=True))
+        if self.selected == ("data", title) and self.sheet is not None:
+            self.sheet.select_block(plan.start_row, plan.column, plan.start_row + plan.count - 1, plan.column)
+            self.update_actions()
 
     def delete_columns(self):
         title = self._active_table()
