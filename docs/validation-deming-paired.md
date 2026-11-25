@@ -1,6 +1,6 @@
 # Verifica del confronto appaiato Deming
 
-Base pubblica `v0.107.0`, commit `fa9d945f2568a4e891ae29ab2c13b882a48f7b25`. Macchina del notebook: Linux 7.3.5-2-cachyos x86_64, Python 3.14.10, PySide6 6.12.0. I comandi partono dal worktree, con `uv run --no-project python`. Il candidato è la testa del branch `deming-confronto-appaiato`.
+Base pubblica `v0.107.0`, commit `fa9d945f2568a4e891ae29ab2c13b882a48f7b25`. Macchina del notebook: Linux 7.3.5-2-cachyos x86_64, Python 3.14.10, PySide6 6.12.0. I comandi partono dal worktree, con `uv run --no-project python`. Il codice verificato è `354dcdb380ffdff5c724696e3e503d71fc5b36b8`, sul branch `deming-confronto-appaiato`. Questo commit nomina quella revisione e non cambia il calcolo.
 
 ## Test
 
