@@ -71,7 +71,7 @@ def main():
     # drawings are research evidence, not approved redistribution assets.
     for folder in ("workflows-093", "kmeans-stability-096", "hartigan-wong-092", "pca-import-091", "pca-regression-090", "pca-regression-087", "pca-overlays-089", "categorical-scatter-088", "pca-reports-087", "anova-ellipses-085", "anova-terms-083", "anova-ss-types", "rm-sphericity", "hierarchical-style-084", "conditional-hierarchical", "graph-legends", "experiment-families", "variance-ratio-079", "hierarchical-import", "analysis-chains", "fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
                    "anova-diagnostics-070", "variance-assumptions-070", "reference-normalization",
-                   "logistic-validation-096", "cox-fit-diagnostics", "anova-marginal-means"):
+                   "logistic-validation-096", "cox-fit-diagnostics", "anova-marginal-means", "text-format", "linked-tables"):
         source = root / "docs" / "media" / folder
         if source.is_dir():
             shutil.copytree(source, bundle / "docs" / "media" / folder, dirs_exist_ok=True,
