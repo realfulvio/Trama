@@ -145,6 +145,7 @@ class PointInspectorTests(unittest.TestCase):
         self.assertFalse(points.reset_point_button.isEnabled())
         self.assertFalse(points.reason.isVisible())
         self.assertEqual(points.model.data(points.model.index(2)), "Row 3 · X = 2 · Y = 4")
+        self.assertEqual(points.reason.objectName(), "infoBanner")  # a notice, not an error
 
     def test_selecting_a_row_shows_series_row_and_coordinates_and_ring(self):
         self.panel.row(2)

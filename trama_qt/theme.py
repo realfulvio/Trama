@@ -39,12 +39,14 @@ LIGHT = dict(bg="#EEF1F4", panel="#FAFBFC", panel2="#F4F6F8", border="#D3DAE0", 
              text2="#586874", text3="#A3AFB7", accent="#0A7C76", accent_dark="#075F5B", accent_hi="#14908A",
              tint="#DCEFED", field="#D3DAE0", field_hover="#B1BCC5", hover="#E8ECEF", on_accent="#FFFFFF",
              grid="#E1E6EA", scroll="#C9D2D7", scroll_hover="#A9B6BD", warning_bg="#FBEFE9", warning="#7A2E12",
-             error_bg="#FDF2F1", error="#B3261E", header="#EEF1F4", icon_ink="#3A4E5A")
+             error_bg="#FDF2F1", error="#B3261E", header="#EEF1F4", icon_ink="#3A4E5A", icon_off="#7E8D98",
+             group_ink="#465661", kind_data="#0A7C76", kind_result="#3F6498", kind_graph="#B0611A")
 DARK = dict(bg="#0D1417", panel="#152025", panel2="#18252B", border="#22323A", text="#E3EBEE",
             text2="#9BABB3", text3="#6F808A", accent="#35B8AC", accent_dark="#6AD3C9", accent_hi="#4CC9BD",
             tint="#123936", field="#2E424B", field_hover="#445C66", hover="#1D2C32", on_accent="#04211E",
             grid="#1E2B31", scroll="#33464E", scroll_hover="#4A626C", warning_bg="#3A2319", warning="#F3B79E",
-            error_bg="#3B1C1F", error="#F2A7A9", header="#18252B", icon_ink="#C3D0D6")
+            error_bg="#3B1C1F", error="#F2A7A9", header="#18252B", icon_ink="#C3D0D6", icon_off="#7F929C",
+            group_ink="#B6C4CB", kind_data="#4CC9BD", kind_result="#8DB0E0", kind_graph="#E5A765")
 # Shadows under the panels (blur, vertical offset, opacity) and the veil over a window behind a modal dialog.
 SHADOWS = {False: ((18, 5, 0.10), (3, 1, 0.06)), True: ((20, 6, 0.55), (3, 1, 0.35))}
 SHADOW_RGB = {False: (18, 42, 52), True: (0, 0, 0)}
@@ -215,7 +217,7 @@ class ClassicIcon(SvgIcon):
 
 
 def classic_icon(name, colour=None):
-    return QIcon(ClassicIcon(name, colour))
+    return QIcon(ClassicIcon(name, colour, "icon_off"))
 
 
 def icon_size(size=18):
@@ -298,7 +300,20 @@ def stylesheet():
     QFrame#classicToolbar QToolButton#primary {{ padding: 2px 7px; background: {t['accent']}; }}
     QFrame#classicToolbar QToolButton#primary:disabled {{ background: {t['field']}; }}
     QFrame#classicDivider {{ color: {t['field_hover']}; }}
-    QLabel#classicGroup {{ color: {t['text2']}; font-size: 8pt; }}
+    QLabel#classicGroup {{ color: {t['group_ink']}; font-size: 9pt; }}
+    QFrame#classicToolbar QToolButton:hover {{ background: {t['hover']}; border-color: {t['field']}; }}
+    QFrame#classicToolbar QToolButton:pressed {{ background: {t['tint']}; border-color: {t['accent']}; }}
+    QFrame#classicToolbar QToolButton:focus {{ border: 1px solid {t['accent']}; }}
+    QFrame#classicToolbar QToolButton:disabled {{ color: {t['icon_off']}; }}
+    QToolButton#pageAction {{ background: {t['panel']}; border: 1px solid {t['field']};
+        border-bottom-color: {t['field_hover']}; padding: 4px 12px; }}
+    QToolButton#pageAction:hover {{ background: {t['hover']}; border-color: {t['field_hover']}; }}
+    QToolButton#pageAction:pressed {{ background: {t['tint']}; border-color: {t['accent']}; }}
+    QToolButton#pageAction:focus {{ border-color: {t['accent']}; }}
+    QToolButton#pageAction:disabled {{ background: {t['panel2']}; border-color: {t['border']}; color: {t['icon_off']}; }}
+    QLabel#infoBanner {{ background: {t['tint']}; color: {t['accent_dark']}; border-left: 3px solid {t['accent']};
+        padding: 8px 12px; }}
+    QToolButton:focus {{ border-color: {t['accent']}; }}
     QFrame#classicNavigator, QFrame#classicSheet {{ background: {t['panel']}; }}
     QFrame#setupSidebar {{ background: #10333e; }}
     QFrame#setupSidebar QLabel {{ color: #d7edee; }}

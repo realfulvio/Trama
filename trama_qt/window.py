@@ -326,6 +326,7 @@ class Page(QWidget):
 
     def command(self, action):
         button = QToolButton()
+        button.setObjectName("pageAction")
         button.setDefaultAction(action)
         button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         if action.menu() is not None:
@@ -1101,7 +1102,7 @@ class MainWindow(QMainWindow):
     def _entry(self, section, text, ref, icon):
         item = QTreeWidgetItem([text])
         item.setData(0, Qt.ItemDataRole.UserRole, ref)
-        item.setIcon(0, theme.classic_icon(icon))
+        item.setIcon(0, theme.classic_icon(icon, {"data": "kind_data", "result": "kind_result", "graph": "kind_graph"}.get(ref[0])))
         markers = [text]
         state = self.project.sheet_state(ref)
         if color := state.get("highlight"):
