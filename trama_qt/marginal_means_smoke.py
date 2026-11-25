@@ -118,6 +118,7 @@ def _panel_usable(smoke, panel, name):
 def exercise(smoke, window):
     from analisi.i18n import active_language
     from analisi.workbench import analyse
+    from . import theme
     from .window import safe_csv
     app = QApplication.instance()
     language = active_language()
@@ -154,6 +155,8 @@ def exercise(smoke, window):
         dialog.banner.hide()
         narrow = dialog.size()
         dialog.resize(min(640, smoke.screen_rect(dialog).width()), min(700, smoke.screen_rect(dialog).height()))
+        app.processEvents()
+        theme.keep_on_screen(dialog)
         app.processEvents()
         _panel_usable(smoke, panel, "means narrow")
         smoke.shot(dialog, "means-options-narrow")
