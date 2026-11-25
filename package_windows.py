@@ -25,7 +25,8 @@ def main():
                  "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "qt-report.md", "worksheet-join.md", "qt-recovery.md", "qt-analysis-templates.md",
                  "qt-excel-workbook.md", "worksheet-number-format.md", "repeat-analysis.md",
                  "worksheet-rows-and-series.md", "summary-twoway-anova.md", "text-format.md", "linked-tables.md",
-                 "release-107.md",
+                 "release-108.md", "release-107.md", "worksheet-sort-rows.md", "deming-paired.md",
+                 "validation-deming-paired.md",
                  "cluster-silhouette-092.md", "paired-proportions.md", "power-from-summary.md", "mcnemar-power.md",
                  "qt-batch-figure-styles.md", "ecdf-graph.md", "interaction-plot.md", "raincloud-plot.md",
                  "yuen-trimmed-means.md", "brunner-munzel.md", "mood-median.md", "pareto-plot.md",
@@ -80,11 +81,18 @@ def main():
     if robust_image.is_file():
         (bundle / "docs" / "media").mkdir(exist_ok=True)
         shutil.copy2(robust_image, bundle / "docs" / "media" / robust_image.name)
-    # Remove research material that could remain in a reused build directory.
+    deming_media = ("deming-paired-en-note.png", "deming-paired-it-note.png", "deming-paired-it-error.png",
+                    "deming-paired-en-result.png", "deming-paired-en-note-150.png")
+    for name in deming_media:
+        source = root / "docs" / "media" / name
+        target = bundle / "docs" / "media" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+
     for name in ("Laboratorio.alab", "rm-two-way-sphericity.alab", "Curve-pipeline.alab", "Assi-interrotti.alab",
                  "Stabilita-KMeans.alab", "Validazione-Logistica.alab", "Bland-Altman-ripetute.alab",
                  "rimodella-visite.alab", "ICC-valutatori.alab", "Precisione-Richiamo.alab",
-                 "Formato-numerico.alab", "Ripeti-analisi.alab"):
+                 "Formato-numerico.alab", "Ripeti-analisi.alab", "deming-paired-confronto.alab"):
         example = root / "docs" / "examples" / name
         if example.is_file():
             (bundle / "docs" / "examples").mkdir(exist_ok=True)

@@ -111,8 +111,10 @@ def main(argv=None):
         fixture_path.write_bytes(_fallback_fixture_bytes())
 
     window = MainWindow()
-    window.resize(1024, 720)
+    available = window.screen().availableGeometry()
+    window.resize(min(1024, available.width()), min(720, available.height()))
     window.show()
+    theme.keep_on_screen(window)
     settle()
 
     try:

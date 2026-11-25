@@ -120,6 +120,16 @@ def main(argv=None):
             language = _option(argv, "--lang") or "it"
             mode = _option(argv, "--theme") or "light"
             status = "PASS" if rows_smoke([folder, "--lang", language, "--theme", mode]) == 0 else "FAIL"
+        elif only == "qt-sort-rows":
+            from .sort_rows_smoke import main as sort_smoke
+            language = _option(argv, "--lang") or "it"
+            mode = _option(argv, "--theme") or "light"
+            status = "PASS" if sort_smoke([folder, "--lang", language, "--theme", mode]) == 0 else "FAIL"
+        elif only == "qt-deming-paired":
+            from .deming_paired_smoke import main as deming_smoke
+            language = _option(argv, "--lang") or "it"
+            mode = _option(argv, "--theme") or "light"
+            status = "PASS" if deming_smoke([folder, "--languages", language, "--themes", mode]) == 0 else "FAIL"
         elif only == "qt-summary-twoway":
             from .summary_twoway_smoke import main as summary_smoke
             status = "PASS" if summary_smoke([folder]) == 0 else "FAIL"

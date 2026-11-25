@@ -12,6 +12,8 @@ Le [analisi collegate](analysis-chains.md) usano una tabella di risultati come i
 
 Le [ricette gerarchiche ZIP supportate](hierarchical-import.md) diventano analisi native modificabili: trasformazioni, clustering di righe e colonne, heat map e report si ricalcolano dai dati importati. La formattazione nativa non riproduce ogni dettaglio del documento originale.
 
+In Classica Qt puoi [ordinare le righe del foglio](worksheet-sort-rows.md) per una colonna sorgente, X o titolo di riga.
+
 ## Interfaccia
 
 Una [schermata di avvio con cerchio animato](startup-screen.md) accompagna il caricamento e si chiude quando la finestra principale è pronta.
