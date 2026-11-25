@@ -212,8 +212,10 @@ class PrintTests(unittest.TestCase):
         with patch.object(office, "ON_WINDOWS", False), patch.object(QPrintDialog, "exec", return_value=1):
             actions["print"].trigger()
         notes = self.read_pages(output)[0]
-        self.assertIn("Researcher · A < B", notes)
-        self.assertIn("Ipsum", notes)
+        # PDF text extraction may introduce spaces inside words with the Windows offscreen font fallback.
+        text = "".join(notes.split())
+        self.assertIn("Researcher·A<B", text)
+        self.assertIn("Ipsum", text)
         window.error.assert_not_called()
         self.assertEqual(window.selected, ref)
         self.assertFalse(window.project.dirty)

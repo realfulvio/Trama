@@ -392,6 +392,24 @@ class SuspendedPointTests(unittest.TestCase):
         self.assertNotIn(ps.POINTS, panel.commits[0])
         self.assertEqual(points.styled.count(), 0)
 
+    def test_replacing_the_styled_row_with_an_identical_one_does_not_move_the_style(self):
+        self.insert_identical_row()
+        # The old styled row 2 is now row 3. Delete it, leaving the same data
+        # and row count as before the insertion, but a different observation.
+        recalc(self.project, self.project.delete_rows(self.title, [2]))
+        run = self.project.runs[0]
+        self.assertEqual(ps.point_statuses(run.result.figure)[0].state, "suspended")
+        self.assertEqual(overlays(run.result.figure), [])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "replacement.alab"
+            self.project.save(path)
+            reopened = Project()
+            reopened.load(path)
+            run = reopened.runs[0]
+            drawn = compute(run, reopened.tables[run.title].frame(mask_excluded=True))
+            self.assertEqual(ps.point_statuses(drawn.figure)[0].state, "suspended")
+            self.assertEqual(overlays(drawn.figure), [])
+
     def test_deleting_an_unrelated_row_keeps_the_point(self):
         runs = self.project.delete_rows(self.title, [2])
         recalc(self.project, runs)

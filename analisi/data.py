@@ -31,6 +31,7 @@ from .formula_special import SPECIAL_FORMULA_FUNCTIONS
 from .formula_windows import WINDOW_CLAUSES, WINDOW_FUNCTION, _missing, lower_window_clauses, worksheet_statistic
 from .grid_headings import column_label
 from .worksheet_appearance import background_records, paint_cells, read_backgrounds
+from .worksheet_row_identity import ROW_SPANS, current_spans, saved_spans
 from .worksheet_number_format import (assign_formats, column_records, position_records, read_column_formats,
                                       read_position_formats)
 from .legacy_project_metadata import LEGACY_METADATA_VERSION, saved_analysis, saved_table_format, uses_import_metadata
@@ -793,6 +794,7 @@ class Dataset:
     def frame(self, mask_excluded=False):
         computed = self.raw.copy()
         computed.attrs["table_format"] = self.table_format
+        computed.attrs[ROW_SPANS] = current_spans(self.raw)
         masked_columns = {column for _, column in self.excluded} if mask_excluded or self.formulas else set()
         for column in masked_columns:
             original = computed.iloc[:, column]
@@ -1090,6 +1092,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
             data["version"] = CATEGORY_ORDER_VERSION
         if types := raw.attrs.get(VARIABLE_TYPES):
             record[VARIABLE_TYPES] = validated_types(types, raw.columns)
+        if ROW_SPANS in raw.attrs:
+            record[ROW_SPANS] = saved_spans(raw.attrs[ROW_SPANS], len(raw))
         roles = _worksheet_roles(raw)
         if roles is not None:
             record["worksheet_roles"] = _validated_worksheet_roles(roles, raw.columns)
@@ -1163,6 +1167,8 @@ def load_workspace(path, *, include_info=False):
         if not isinstance(table_format, str):
             raise ValueError("Invalid saved table format.")
         data.table_format = saved_table_format(table_format)
+        if ROW_SPANS in table:
+            data.raw.attrs[ROW_SPANS] = saved_spans(table[ROW_SPANS], len(data.raw))
         if VARIABLE_TYPES in table:
             data.raw.attrs[VARIABLE_TYPES] = validated_types(table[VARIABLE_TYPES], data.raw.columns)
         if "worksheet_roles" in table:

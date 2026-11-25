@@ -106,6 +106,12 @@ def main(argv=None):
         elif only == "qt-mcnemar-power":
             from .mcnemar_power_smoke import run  # Paired-proportion power only: EN/IT, light and dark.
             status = run(folder)
+        elif only == "qt-point-style":
+            from .point_style_smoke import run_dedicated
+            status = run_dedicated(folder)
+        elif only == "qt-anova-marginal-means":
+            from .marginal_means_smoke import main as means_smoke
+            status = "PASS" if means_smoke([folder]) == 0 else "FAIL"
         elif only == "qt-category-levels":
             from .category_levels_smoke import run_smoke
             screen = app.primaryScreen().availableGeometry()

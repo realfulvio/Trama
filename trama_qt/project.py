@@ -71,6 +71,7 @@ from analisi.workbench import GROUPS, analyse
 from analisi import worksheet_join
 from analisi.worksheet_join_app import WorksheetJoinSources, stored_legacy_view
 from analisi.worksheet_history import WorksheetChange, WorksheetHistory, WorksheetState
+from analisi.worksheet_row_identity import ROW_SPANS, after_deletion, after_insertion
 from .sheet_commands import SheetCommands
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
@@ -501,6 +502,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             title = names[name]
             source = frame.reset_index(drop=True)
             source.attrs.pop(WORKSHEET_NOTES, None)
+            source.attrs.pop(ROW_SPANS, None)
             dataset = datasets[title] = Dataset(source, info=contexts.get(title, contexts[None]))
             imported_runs.extend(self.runs_for(title, dataset))
         self.info_sheets = sheets
@@ -1241,6 +1243,9 @@ class Project(WorksheetJoinSources, SheetCommands):
         dataset = self.editable(title)
         candidate = copy(dataset)
         change(candidate)
+        added_rows = len(candidate.raw) - len(dataset.raw)
+        if added_rows > 0 and candidate.raw.attrs.get(ROW_SPANS) == dataset.raw.attrs.get(ROW_SPANS):
+            candidate.raw.attrs[ROW_SPANS] = after_insertion(dataset.raw, len(dataset.raw), added_rows)
         if candidate.formulas:
             candidate.frame()  # A formula that no longer evaluates rejects the edit.
         before = WorksheetState.capture(dataset)
@@ -1312,6 +1317,8 @@ class Project(WorksheetJoinSources, SheetCommands):
             order = [*range(at), *range(len(raw), len(raw) + count), *range(at, len(raw))]
             frame = grown.iloc[order].reset_index(drop=True)
             frame.attrs = dict(raw.attrs)
+            if count > 0:
+                frame.attrs[ROW_SPANS] = after_insertion(raw, at, count)
             dataset.excluded = {(row + count if row >= at else row, column) for row, column in dataset.excluded}
             if dataset.cell_backgrounds:
                 dataset.cell_backgrounds = {(row + count if row >= at else row, name): color
@@ -1327,6 +1334,8 @@ class Project(WorksheetJoinSources, SheetCommands):
             keep = [index for index in range(len(raw)) if index not in rows]
             frame = raw.iloc[keep].reset_index(drop=True)
             frame.attrs = dict(raw.attrs)
+            if len(frame) != len(raw):
+                frame.attrs[ROW_SPANS] = after_deletion(raw, rows)
             mapping = {old: new for new, old in enumerate(keep)}
             dataset.excluded = {(mapping[row], column) for row, column in dataset.excluded if row in mapping}
             if dataset.cell_backgrounds:

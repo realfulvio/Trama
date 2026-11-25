@@ -29,7 +29,7 @@ def main():
                  "yuen-trimmed-means.md", "brunner-munzel.md", "mood-median.md", "pareto-plot.md",
                  "tolerance-intervals-093.md", "weibull-aft.md", "ordinal-logit.md", "restricted-mean-survival.md", "cohen-kappa.md", "mean-permutation-test.md", "xy-mixed-series.md",
                  "survival-simultaneous-bands.md", "linked-axes.md",
-                 "release-105.md", "release-104.md", "release-103.md", "release-102.md", "release-101.md", "release-100.md", "release-099.md", "release-098.md", "release-097.md", "release-094.md",
+                 "point-style.md", "anova-marginal-means.md", "release-106.md", "release-105.md", "release-104.md", "release-103.md", "release-102.md", "release-101.md", "release-100.md", "release-099.md", "release-098.md", "release-097.md", "release-094.md",
                  "release-093.md", "validation-093.md",
                  "release-092.md", "validation-092.md", "release-091.md", "validation-091.md",
                  "pca-regression-087.md", "release-090.md", "validation-090.md",
@@ -69,7 +69,7 @@ def main():
     # drawings are research evidence, not approved redistribution assets.
     for folder in ("workflows-093", "kmeans-stability-096", "hartigan-wong-092", "pca-import-091", "pca-regression-090", "pca-regression-087", "pca-overlays-089", "categorical-scatter-088", "pca-reports-087", "anova-ellipses-085", "anova-terms-083", "anova-ss-types", "rm-sphericity", "hierarchical-style-084", "conditional-hierarchical", "graph-legends", "experiment-families", "variance-ratio-079", "hierarchical-import", "analysis-chains", "fdr-axis", "startup", "custom-parameter-profiles", "global-custom-parameter-profiles", "nonlinear-parameter-intervals", "homepage", "interface-themes", "summary-unequal-anova", "linear-point-estimates", "pca-selection-070",
                    "anova-diagnostics-070", "variance-assumptions-070", "reference-normalization",
-                   "logistic-validation-096", "cox-fit-diagnostics"):
+                   "logistic-validation-096", "cox-fit-diagnostics", "anova-marginal-means"):
         source = root / "docs" / "media" / folder
         if source.is_dir():
             shutil.copytree(source, bundle / "docs" / "media" / folder, dirs_exist_ok=True,

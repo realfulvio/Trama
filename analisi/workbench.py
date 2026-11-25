@@ -116,6 +116,7 @@ from .select_transform import SELECT_OPTIONS, SELECT_TRANSFORM, select_transform
 from .parts_of_whole import GOODNESS_OF_FIT, GOODNESS_OPTIONS, PARTS_GRAPH, PARTS_OPTIONS, goodness_of_fit, parts_graph
 from .pareto_plot import METHOD as PARETO_PLOT, OPTIONS as PARETO_PLOT_OPTIONS, pareto_plot
 from .reporting import Result, _plot, _report
+from .worksheet_row_identity import ROW_SPANS
 from .point_style import attach_points, positions_of
 from .xy_series import XY_METHOD, xy_series
 from .processing import FieldError
@@ -623,7 +624,8 @@ def _scatter(frame, o):
         dots = axes.scatter(part[x], part[y], label=legend_label)
         positions = positions_of(frame, part.index)
         if positions is not None:  # The worksheet row of every point, so a single point can be formatted.
-            attach_points(dots, positions, part[x].to_numpy(float), part[y].to_numpy(float), recipe, len(frame))
+            attach_points(dots, positions, part[x].to_numpy(float), part[y].to_numpy(float), recipe,
+                          len(frame), row_spans=frame.attrs.get(ROW_SPANS))
         if group:
             dots._tramastat_legend_key = f"group:{typed_group_token(label)}"
         point_colors[label] = dots.get_facecolor()[0]

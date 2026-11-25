@@ -1,6 +1,6 @@
 """Desktop acceptance of the formatting of single points in the Graph Inspector, with screenshots.
 
-    python tests/smoke_qt_point_style.py OUT [--lang en|it] [--theme light|dark]
+    python -m trama_qt.point_style_smoke OUT [--lang en|it] [--theme light|dark]
 
 Run it on a real screen or on a virtual one (``xvfb-run -a -s '-screen 0 1024x768x24' ...``) and, for 150 %,
 with ``QT_SCALE_FACTOR=1.5`` on a screen of 1536×1152 pixels (``-screen 0 1536x1152x24``), which Qt sees as 1024×768
@@ -59,7 +59,7 @@ def main(argv=None):
     app = QApplication.instance() or QApplication(["trama-point-smoke"])
     from trama_qt import theme
     theme.load_fonts()
-    theme.apply(app, dark=args.theme == "dark")
+    theme.set_mode(args.theme, app, remember=False)
     theme.install_qt_translations(app, args.lang)
     from trama_qt.project import Project, compute
     from trama_qt.window import MainWindow, export_graph
@@ -92,6 +92,7 @@ def main(argv=None):
     available = (window.screen() or app.primaryScreen()).availableGeometry()
     window.resize(min(1024, available.width()), min(768, available.height()))
     window.show()
+    app.processEvents()
     theme.keep_on_screen(window)
 
     def wait():
@@ -301,6 +302,20 @@ def main(argv=None):
         shot(window, "ambiguous-inspector")
         close_inspector()
 
+        # Replacing the original styled row can leave the values and count unchanged.
+        window.open_sheet(("data", title))
+        wait()
+        window.sheet.setCurrentIndex(window.sheet.model().index(2, 0))
+        window.delete_rows()
+        wait()
+        window.open_sheet(("graph", 0))
+        wait()
+        run = window.project.runs[0]
+        check(not overlays(run.result.figure) and ps.point_statuses(run.result.figure)[0].state == "suspended",
+              "the replacement row received the style")
+        shot(window, "replaced-row")
+        window.project.save(out / "casi-riga-sostituita.alab")
+
         # -- a graph that cannot be formatted ---------------------------------------------------------------
         window.open_sheet(("graph", 2))
         wait()
@@ -340,7 +355,8 @@ def main(argv=None):
     lines = [f"Single point smoke · {tag} · PySide6 {pyside} · platform {app.platformName()} · {sys.platform}",
              f"Screen {screen.name()}: available {geometry.width()}×{geometry.height()}, device pixel ratio "
              f"{screen.devicePixelRatio()}, logical DPI {screen.logicalDotsPerInch()}"
-             f" (QT_SCALE_FACTOR={os.environ.get('QT_SCALE_FACTOR', '1')}; emulated, not a native DPI setting)",
+             + (f" (QT_SCALE_FACTOR={os.environ['QT_SCALE_FACTOR']}; scale override)"
+                if "QT_SCALE_FACTOR" in os.environ else " (system scale)"),
              f"Window {window.width()}×{window.height()}", f"Commits made by Apply: {len(commits)}",
              f"Screenshots: {len(shots)}", ""] + (problems or ["No problems found."])
     (out / f"{tag}-report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -350,6 +366,15 @@ def main(argv=None):
     for problem in problems:
         print("  -", problem)
     return 0 if status == "PASS" else 1
+
+
+def run_dedicated(folder):
+    folder = Path(folder)
+    failures = [main([str(folder / f"{language}-{mode}"), "--lang", language, "--theme", mode])
+                for language in ("en", "it") for mode in ("light", "dark")]
+    status = "FAIL" if any(failures) else "PASS"
+    (folder / "status.txt").write_text(status + "\n", encoding="utf-8")
+    return status
 
 
 if __name__ == "__main__":

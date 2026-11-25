@@ -13,7 +13,8 @@ Identity. The builders of the graph record, for every artist, which worksheet ro
 (``attach_points``): rows are 1-based positions in the worksheet, before missing cells and exclusions remove
 points. A record stores that row, the length of the worksheet, the coordinates, the position among the points
 of the series that share exactly those coordinates (``copy`` of ``copies``) and the columns the graph reads.
-``resolve`` finds the point again after a recalculation:
+A project worksheet also supplies a stable row token, which changes when that row is replaced.
+When there is no token, ``resolve`` uses the recorded row and coordinates:
 
 - the graph reads other columns than when the point was styled: the style is suspended;
 - the worksheet keeps its length: the row position is trusted. A row that is excluded or has a missing value
@@ -47,6 +48,8 @@ from matplotlib.legend_handler import HandlerLine2D
 from matplotlib.lines import Line2D
 from matplotlib.markers import MarkerStyle
 import matplotlib.patheffects as path_effects
+
+from .worksheet_row_identity import row_of, token_at, valid_token
 
 POINTS = "points"
 MAX_POINT_STYLES = 256
@@ -86,6 +89,7 @@ class PointMap:
     drawn: np.ndarray
     recipe: tuple
     sheet_rows: int
+    row_spans: tuple | None = None
 
     def __post_init__(self):
         if not (len(self.rows) == len(self.x) == len(self.y) == len(self.drawn)):
@@ -95,14 +99,14 @@ class PointMap:
         return len(self.rows)
 
 
-def attach_points(artist, positions, x, y, recipe, sheet_rows, drawn=None):
+def attach_points(artist, positions, x, y, recipe, sheet_rows, drawn=None, *, row_spans=None):
     """Record the source rows of ``artist``'s vertices. ``positions`` are 1-based worksheet positions."""
     positions = np.asarray(positions, dtype=np.int64)
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     shown = np.ones(len(positions), dtype=bool) if drawn is None else np.asarray(drawn, dtype=bool)
     setattr(artist, POINT_MAP_ATTR, PointMap(positions, x, y, shown, tuple(str(name) for name in recipe),
-                                             int(sheet_rows)))
+                                             int(sheet_rows), row_spans))
 
 
 def positions_of(frame, index):
@@ -120,9 +124,12 @@ def point_map(artist):
 def source_record(pmap, index):
     """The identity record of the drawn vertex ``index``."""
     same = np.flatnonzero(pmap.drawn & (pmap.x == pmap.x[index]) & (pmap.y == pmap.y[index]))
-    return {"row": int(pmap.rows[index]), "rows": int(pmap.sheet_rows), "x": float(pmap.x[index]),
-            "y": float(pmap.y[index]), "copy": int(np.searchsorted(same, index)) + 1, "copies": int(len(same)),
-            "recipe": list(pmap.recipe)}
+    source = {"row": int(pmap.rows[index]), "rows": int(pmap.sheet_rows), "x": float(pmap.x[index]),
+              "y": float(pmap.y[index]), "copy": int(np.searchsorted(same, index)) + 1,
+              "copies": int(len(same)), "recipe": list(pmap.recipe)}
+    if pmap.row_spans is not None and (token := token_at(pmap.row_spans, source["row"])):
+        source["row_token"] = token
+    return source
 
 
 @dataclass(frozen=True)
@@ -146,6 +153,19 @@ def resolve(source, pmap):
     if list(pmap.recipe) != list(source["recipe"]):
         return PointStatus("suspended", None, "recipe", source["row"])
     same = np.flatnonzero(pmap.drawn & (pmap.x == source["x"]) & (pmap.y == source["y"]))
+    if "row_token" in source:
+        row = row_of(pmap.row_spans, source["row_token"]) if pmap.row_spans is not None else None
+        if row is None:
+            return PointStatus("suspended", None, "not_found", source["row"])
+        here = np.flatnonzero((pmap.rows == row) & pmap.drawn)
+        if not len(here):
+            return PointStatus("hidden", None, "not_drawn", source["row"])
+        # Changing the number of identical plotted observations after a row edit
+        # can suspend a style. Never choose a different observation in its place.
+        if (pmap.sheet_rows != source["rows"] and len(same) != source["copies"]
+                and min(len(same), source["copies"]) > 0 and max(len(same), source["copies"]) > 1):
+            return PointStatus("suspended", None, "ambiguous", source["row"])
+        return PointStatus(OK, int(here[0]), None, source["row"])
     here = np.flatnonzero(pmap.rows == source["row"])
     at = int(here[0]) if len(here) else None
     if pmap.sheet_rows == source["rows"]:
@@ -177,7 +197,8 @@ def _whole(value, low=1):
 
 
 def _check_source(source):
-    if not isinstance(source, dict) or source.keys() != SOURCE_KEYS:
+    if (not isinstance(source, dict) or source.keys() - {"row_token"} != SOURCE_KEYS
+            or ("row_token" in source and not valid_token(source["row_token"]))):
         raise ValueError("Invalid point reference.")
     if not (_whole(source["row"]) and _whole(source["rows"]) and source["row"] <= source["rows"]
             and _whole(source["copy"]) and _whole(source["copies"]) and source["copy"] <= source["copies"]):
@@ -211,8 +232,9 @@ def validate_points(records):
             raise ValueError("Choose a valid symbol.")
         if "marker_size" in record and not (_number(record["marker_size"]) and 0.1 <= record["marker_size"] <= 72):
             raise ValueError("Enter line widths and symbol sizes between 0.1 and 72 points.")
-        identity = (key, record["source"]["row"], record["source"]["x"], record["source"]["y"],
-                    record["source"]["copy"])
+        source = record["source"]
+        identity = ((key, source["row_token"]) if "row_token" in source
+                    else (key, source["row"], source["x"], source["y"], source["copy"]))
         if identity in seen:
             raise ValueError("A point is formatted twice.")
         seen.add(identity)

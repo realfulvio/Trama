@@ -119,6 +119,10 @@ Spearman dettagliato e contro controllo: test esatti con legami fino a 17 coppie
 
 Normalità e lognormalità con quattro test, pannelli Q–Q affiancati e confronto dei due modelli mediante verosimiglianze, AIC e pesi relativi. Vedi [guida](lognormality.md).
 
+### Medie marginali stimate
+
+Nelle opzioni dell’ANOVA multifattoriale, attiva le [medie marginali stimate](anova-marginal-means.md) per ottenere una scheda con stima, errore standard, gradi di libertà residui e intervallo di confidenza. Ogni combinazione della griglia di riferimento ha lo stesso peso.
+
 ### ANOVA da statistiche riassuntive
 
 **Group Comparison → One-way ANOVA from summaries** confronta gruppi indipendenti

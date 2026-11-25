@@ -30,6 +30,7 @@ import pandas as pd
 
 from .axis_breaks import mark_supported
 from .linked_axes import mark_linked_axes
+from .worksheet_row_identity import ROW_SPANS
 from .point_style import attach_points
 from .processing import FieldError
 from .reporting import Result, _plot
@@ -383,7 +384,7 @@ def xy_series(frame, options, left_scale="linear"):
             order.append(artist.get_gid())
             # One vertex per worksheet row, so a single point can be formatted and found again.
             attach_points(artist, np.arange(1, len(frame) + 1), x_values, y_values, (x_name, column), len(frame),
-                          drawn=mask)
+                          drawn=mask, row_spans=frame.attrs.get(ROW_SPANS))
         if mask.any() and _legend_label(column):
             handles.append(artist)
         for position, keep in enumerate(mask):

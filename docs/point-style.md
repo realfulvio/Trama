@@ -15,16 +15,17 @@ A point that is marked in the list with ● is formatted. The ring is never part
 
 ## Identity of a point: the source row
 
-A style belongs to a worksheet row, not to a position on the screen and not to a pair of coordinates. The graph builders record, for every point, the **worksheet row** it comes from (1-based, counted before missing cells and exclusions remove points). A saved style stores that row, the length of the worksheet, the coordinates, which copy it is among the points of the series with exactly those coordinates (`copy` of `copies`) and the columns the graph reads. After a recalculation the point is found again like this:
+A style belongs to a worksheet row. The graph records where each observation came from before missing or excluded cells are removed. A saved style holds the source row and stable identity, the coordinates, the graph's column names and the count of points at the same coordinates.
 
 | Situation | What happens |
 | --- | --- |
-| The graph reads other columns than when the point was formatted | **Suspended**: the message says the columns changed. |
-| The worksheet keeps its length | The row position is trusted. A row that is excluded or has a missing value is simply not drawn: the style **waits** and comes back with the value. A row whose values were edited keeps its style. If the old values now sit in another row, the style follows them only when they are unique; otherwise it is **suspended**. |
-| Rows were inserted or deleted | Positions cannot be trusted, so the values decide. They must be found as many times as when the point was formatted, and the same copy is taken. A duplicate row that was added or removed makes the association uncertain and the style is **suspended**. |
-| The series is gone | **Suspended**: *the series is no longer in this graph*. |
+| The graph reads other columns, or the series is gone | The style is suspended and the graph shows the reason. |
+| A source cell changes value | The style follows the same row. If the point has a missing or excluded value, the style waits and returns when the point can be drawn. |
+| An unrelated row is inserted or removed | The style follows the original row. |
+| Inserting or removing a row changes the number of identical visible coordinates | The style can be suspended. |
+| The original row is deleted or replaced | The style is suspended. The replacement keeps its series style, even with identical values. |
 
-A waiting or suspended style is **never given to another row**. The record stays in the project, the graph shows a message (also in the page notice) and the Inspector lists it with the reason, so it can be reset. Example: rows 1 and 2 are identical and row 2 is formatted. Insert a third identical row above them and nothing can say which copy was meant, so no point takes the style.
+Suspended and waiting styles stay in the Inspector and can always be reset. A format record that predates row identities uses its saved row, coordinates and duplicate count.
 
 ## Which graphs, and when it says no
 
@@ -46,7 +47,7 @@ The formatted points are one section of the graph style (`points`), stored in th
 {
   "points": [
     {"series": "scatter:1:C",
-     "source": {"row": 2, "rows": 5, "x": 1.0, "y": 2.0, "copy": 2, "copies": 2, "recipe": ["X", "Y", "Group"]},
+     "source": {"row": 2, "rows": 5, "x": 1.0, "y": 2.0, "copy": 2, "copies": 2, "recipe": ["X", "Y", "Group"], "row_token": "base:2"},
      "color": "#ac4320", "marker": "s", "marker_size": 9}
   ]
 }
@@ -64,6 +65,6 @@ The series keeps its artist, its data, its limits and its legend. The formatted 
 
 - `tests/test_point_style.py`: the engine, the identity cases above, validation, legend and limits, exports (PNG, SVG, PDF), layout, ring.
 - `tests/test_qt_point_style.py`: the Inspector (list, click, overlap, preview, Apply once, Cancel, reset), recalculation after edit, insertion, deletion and exclusion, save and reopen, family copy, exports.
-- `tests/smoke_qt_point_style.py`: the real window with screenshots, in English and Italian, light and dark, at 1024×768 and at an emulated 150 %.
+- `python -m trama_qt --smoke FOLDER --only qt-point-style`: the real window with screenshots, in English and Italian, light and dark, at 1024×768 and at an emulated 150 %.
 - `tests/bench_point_style.py`: ten thousand points, one hundred edits.
 - Data: `tests/data/point_style/casi.json` and `casi.csv` (rows 1 and 2 identical).
