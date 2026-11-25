@@ -214,7 +214,7 @@ def main(argv=None):
             window.open_sheet(("result", 0))
             settle()
             tabs = window.result_tabs
-            names = [tabs.tabText(index) for index in range(tabs.count())]
+            names = tuple(window.project.runs[0].result.tables)
             tabs.setCurrentIndex(names.index("Regression"))
             view = tabs.currentWidget()
             model = view.model()
