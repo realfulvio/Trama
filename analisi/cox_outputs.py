@@ -8,13 +8,11 @@ call the original function and return exactly its sheets.
 """
 from dataclasses import dataclass
 import numbers
-import warnings
 
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_complex_dtype, is_numeric_dtype
-from statsmodels.duration.hazard_regression import PHReg
-from statsmodels.tools.sm_exceptions import ConvergenceWarning
+from . import cox_newton
 
 from . import models
 from .cox_fit_diagnostics import (COX_SNELL, SCALED, SCALED_GRAPH, SCALED_SHEET, SNELL_GRAPH, SNELL_HAZARD_SHEET,
@@ -226,10 +224,10 @@ def fit_cox(frame, options):
     if ties not in {"breslow", "efron"}:
         raise ValueError("Choose Breslow or Efron ties handling.")
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", ConvergenceWarning)
-            model = PHReg(data[time], design, status=data[event], ties=ties).fit(maxiter=100)
-    except (ConvergenceWarning, np.linalg.LinAlgError) as error:
+        # Vectorised Newton–Raphson (0.109.x): the same partial likelihood as statsmodels PHReg,
+        # about twenty times faster; see cox_newton.
+        model = cox_newton.fit(data[time], design, data[event], ties, maxiter=100)
+    except (cox_newton.CoxConvergenceError, np.linalg.LinAlgError) as error:
         raise ValueError("The Cox regression did not converge.") from error
     tables = models._report(model, design, references, len(frame), True)
     return CoxFit(data, design, references, np.asarray(model.params, dtype=float),

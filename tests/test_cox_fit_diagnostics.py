@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from statsmodels.duration.hazard_regression import PHReg
 
-from analisi import cox_fit_diagnostics as diagnostics, cox_outputs as cox, i18n
+from analisi import cox_fit_diagnostics as diagnostics, cox_newton, cox_outputs as cox, i18n
 from analisi.cox_dialog import cox_message
 from analisi.processing import FieldError
 from analisi.workbench import analyse
@@ -215,13 +215,13 @@ class CompatibilityTests(unittest.TestCase):
 
     def test_the_fit_is_called_once_whatever_is_asked(self):
         calls = []
-        original = PHReg.fit
+        original = cox_newton.fit
 
-        def counted(self, *args, **kwargs):
+        def counted(*args, **kwargs):
             calls.append(1)
-            return original(self, *args, **kwargs)
+            return original(*args, **kwargs)
 
-        with patch.object(PHReg, "fit", counted):
+        with patch.object(cox_newton, "fit", counted):
             everything(**{cox.GRAPH: cox.SNELL_GRAPH})
             run(**{SCALED: True, SNELL: True})
             run(**{SCALED: True, cox.SCHOENFELD: True, cox.GRAPH: cox.SCALED_GRAPH})
