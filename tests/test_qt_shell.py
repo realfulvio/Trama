@@ -3116,6 +3116,7 @@ class QtShellTests(unittest.TestCase):
 
         from analisi.layout_panels import panel_rectangle
         from analisi.presentation import Layout
+        from trama_qt.layout_dialog import LayoutGraphDialog
         from trama_qt.layout_geometry_dialog import PanelPositionDialog
 
         self.open_example()
@@ -3146,7 +3147,8 @@ class QtShellTests(unittest.TestCase):
             self.assertIsNotNone(dialog.targets)
             return dialog.DialogCode.Accepted
 
-        with patch.object(PanelPositionDialog, "exec", change):
+        with (patch.object(PanelPositionDialog, "exec", change),
+              patch.object(LayoutGraphDialog, "exec", return_value=LayoutGraphDialog.EDIT_GEOMETRY)):
             QTest.mouseDClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(x, y))
         self.app.processEvents()
         arrangement = window.project.layouts[key].arrangement
@@ -3177,6 +3179,7 @@ class QtShellTests(unittest.TestCase):
 
         from analisi.layout_panels import panel_rectangle
         from analisi.presentation import Layout
+        from trama_qt.layout_dialog import LayoutGraphDialog
         from trama_qt.layout_geometry_dialog import PanelPositionDialog
 
         self.open_example()
@@ -3206,7 +3209,8 @@ class QtShellTests(unittest.TestCase):
             self.assertIsNotNone(dialog.targets)
             return dialog.DialogCode.Accepted
 
-        with patch.object(PanelPositionDialog, "exec", change):
+        with (patch.object(PanelPositionDialog, "exec", change),
+              patch.object(LayoutGraphDialog, "exec", return_value=LayoutGraphDialog.EDIT_GEOMETRY)):
             QTest.mouseDClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(x, y))
         self.app.processEvents()
         current = window.page.layout_selection.panels[0]
@@ -3227,6 +3231,90 @@ class QtShellTests(unittest.TestCase):
         window.open_sheet(ref)
         self.wait()
         self.assertEqual(window.project.layouts[key].arrangement, arrangement)
+
+    def test_layout_replace_graph_keeps_panel_style_and_round_trips(self):
+        from unittest.mock import patch
+
+        from PySide6.QtCore import QPoint
+        from PySide6.QtTest import QTest
+
+        from analisi import ttest_options as tt
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_panels import panel_rectangle
+        from analisi.paired_graphs import TTEST_DIFFERENCES, TTEST_ESTIMATION
+        from analisi.presentation import Layout
+        from trama_qt.layout_dialog import LayoutGraphDialog
+
+        window = self.window
+        frame = pd.DataFrame({"Subject": list("abcde"), "Control": [4., 7., 6., 8., 5.],
+                              "Treated": [9., 7., 5., 3., 6.]})
+        name, = window.project.add_tables({"groups": frame})
+        window.show_sheet("data", name)
+        first = self.run_method("XY series", {"X": "Control", "Y columns": ["Treated"]})
+        window.show_sheet("data", "groups")
+        other = self.run_method("t-test", {tt.INPUT: tt.COLUMNS, tt.FIRST: "Control", tt.SECOND: "Treated",
+                                          "Design": "Paired", "Subject": "Subject",
+                                          TTEST_ESTIMATION: True, TTEST_DIFFERENCES: True})
+        arrangement = PanelArrangement(scales=((0, .55),), rotations=((0, 90),),
+                                       crops=((0, .06, 0., -.03, 0.),),
+                                       borders=((0, 2., "#1a7536", "dashed"),), layers=(1, 0))
+        initial = Layout("Replace graph", 2, [first.reference, first.reference], arrangement=arrangement)
+        ref = ("layout", window.project.put_layout(initial))
+        window.open_sheet(ref)
+        self.wait()
+        selection = window.page.layout_selection
+        source = selection.panels[0]
+        self.assertTrue(window.navigator.dragEnabled())
+        self.assertFalse(window.actions["place_layout_graph"].isEnabled())
+        self.assertEqual(window.layout_drag_graph(("graph", 1)), other.uid)
+        left, top, right, bottom = panel_rectangle(source)
+        canvas = selection.canvas
+        x = round((left + right) / 2 / selection.page[0] * canvas.width())
+        y = round((top + bottom) / 2 / selection.page[1] * canvas.height())
+
+        def choose(dialog):
+            self.assertEqual(dialog.graphs.currentData(), first.reference)
+            self.assertIsNotNone(dialog.preview.pixmap())
+            self.assertTrue(dialog.geometry_button.isEnabled())
+            choice = next(i for i in range(dialog.graphs.count()) if dialog.graphs.itemData(i) == other.reference)
+            dialog.graphs.setCurrentIndex(choice)
+            self.assertFalse(dialog.geometry_button.isEnabled())
+            return dialog.DialogCode.Accepted
+
+        with patch.object(LayoutGraphDialog, "exec", choose):
+            QTest.mouseDClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(x, y))
+        current = window.project.layouts[0]
+        self.assertEqual(current.panels, [other.reference, first.reference])
+        panel = window.page.layout_selection.panels[0]
+        self.assertIs(panel.figure, other.result.figure)
+        self.assertNotEqual(tuple(panel.size), tuple(source.size))
+        for actual, old in zip(panel.box, source.box, strict=True):
+            self.assertAlmostEqual(actual, old)
+        self.assertEqual(panel.border, source.border)
+        self.assertEqual(panel.angle, source.angle)
+        self.assertEqual(current.arrangement.layers, arrangement.layers)
+        for old, old_size, new, new_size in zip(source.crop, source.size * 2, panel.crop, panel.size * 2, strict=True):
+            self.assertAlmostEqual(old * old_size * source.box[2], new * new_size * panel.box[2])
+
+        window.undo()
+        self.assertEqual(window.project.layouts[0], initial)
+        window.undo(redo=True)
+        self.assertEqual(window.project.layouts[0], current)
+        path = self.folder / "reassigned.alab"
+        window.project.save(path)
+        self.reopen(path)
+        window.open_sheet(ref)
+        self.wait()
+        self.assertEqual(window.project.layouts[0], current)
+        selection = window.page.layout_selection
+        reopened = selection.panels[0]
+        self.assertEqual(tuple(reopened.size), tuple(panel.size))
+        self.assertEqual(reopened.crop, panel.crop)
+        selection.select((0,))
+        window.arrange_layout_selection("lock")
+        window._assign_layout_graph(0, 0, first.reference)
+        self.assertEqual(window.project.layouts[0].panels, current.panels)
+        self.assertFalse(window.actions["replace_layout_graph"].isEnabled())
 
     def test_layout_panel_arrangement_undo_and_exports(self):
         from unittest.mock import patch

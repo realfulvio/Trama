@@ -6,7 +6,7 @@ from math import isclose
 
 from matplotlib.figure import Figure
 
-from .layout_arrangement import EMPTY_CROP, PanelArrangement
+from .layout_arrangement import EMPTY_CROP, PanelArrangement, valid_crop
 from .layout_geometry import AUTO_PAPER, PT, page_size, panel_boxes, panel_cells
 
 
@@ -296,6 +296,28 @@ def layout_shifts(panels, objects, command):
         deltas = [center - (low + high) / 2 for low, high in zip(lows, highs, strict=True)]
     return {index: (0., delta) if direction else (delta, 0.)
             for delta, members in zip(deltas, objects, strict=True) for index in members}
+
+
+def replacement_geometry(old, replacement, page):
+    """Keep the anchor, drawing scale and physical trim distances when assigning a different graph."""
+    x, y, scale = old.box
+    _, _, old_right, old_bottom = panel_rectangle(old)
+    crop_inches = tuple(value * size * scale for value, size in zip(old.crop, old.size * 2, strict=True))
+    left, top, right, bottom = crop_inches
+    trim_w, trim_h = left + right, top + bottom
+    if old.angle:
+        trim_w, trim_h = trim_h, trim_w
+    width, height = replacement.size[::-1] if old.angle else replacement.size
+    # Keep graphs on the page without increasing any existing overflow.
+    scale = min(scale, (max(page[0], old_right) - x + trim_w) / width,
+                (max(page[1], old_bottom) - y + trim_h) / height)
+    if not scale > 0:
+        raise ValueError("The replacement graph does not fit the layout.")
+    crop = tuple(float(distance / (size * scale))
+                 for distance, size in zip(crop_inches, replacement.size * 2, strict=True))
+    if not valid_crop(crop):
+        raise ValueError("The panel crop would hide the replacement graph.")
+    return (x, y, scale), crop
 
 
 def rotation_target(panel, box, angle, page, *, fixed):

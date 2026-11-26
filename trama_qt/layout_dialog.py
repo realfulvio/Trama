@@ -1,5 +1,6 @@
 """Compose or edit a layout on Qt: name, paper, columns, background and up to twelve graph panels."""
-from PySide6.QtGui import QColor, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QKeySequence, QPixmap, QShortcut
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QSpinBox,
                                QVBoxLayout)
@@ -215,34 +216,77 @@ class LayoutDialog(QDialog):
 
 
 class LayoutGraphDialog(QDialog):
-    """Choose one empty panel and a graph to place there."""
+    """Choose a graph for an empty or occupied panel on the active layout."""
+
+    EDIT_GEOMETRY = 2
 
     def __init__(self, parent, layout, runs, panel=None):
         super().__init__(parent)
-        self.setWindowTitle(qt("qt.layout_place_graph").rstrip("…"))
-        QShortcut(QKeySequence("F1"), self, parent.show_shortcuts)
+        self.runs = {run.reference: run for run in runs}
+        self.current = layout.panels[panel] if panel is not None else None
+        self.setWindowTitle(qt("qt.layout_replace_graph" if self.current else "qt.layout_place_graph").rstrip("…"))
+        QShortcut(QKeySequence("F1"), self, self.show_shortcuts)
         form = QFormLayout(self)
         self.panels = QComboBox()
         self.panels.setAccessibleName(qt("qt.layout_panel"))
         for index, reference in enumerate(layout.panels):
-            if reference is None and (panel is None or index == panel):
+            if (panel is None and reference is None and index not in layout.arrangement.locked) or index == panel:
                 self.panels.addItem(chr(ord("A") + index), index)
         form.addRow(qt("qt.layout_panel"), self.panels)
+        self.panels.setEnabled(panel is None)
         self.graphs = QComboBox()
         self.graphs.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.graphs.setMinimumContentsLength(24)
         self.graphs.setAccessibleName(qt("qt.layout_graph"))
         for run in runs:
             self.graphs.addItem(f"{run.name} · {run.title} ({run.slot + 1})", run.reference)
+        if self.current is not None:
+            index = next((i for i in range(self.graphs.count()) if self.graphs.itemData(i) == self.current), 0)
+            self.graphs.setCurrentIndex(index)
         form.addRow(qt("qt.layout_graph"), self.graphs)
+        self.preview = QLabel()
+        self.preview.setAccessibleName(qt("qt.layout_graph_preview"))
+        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview.setMinimumHeight(145)
+        form.addRow(self.preview)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setDefault(True)
+        cancel = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        cancel.setText(tr("setup.cancel"))
+        cancel.setAutoDefault(False)
+        self.ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self.geometry_button = None
+        if self.current is not None and len(layout.arrangement.objects((panel,))[0]) == 1:
+            self.geometry_button = buttons.addButton(qt("qt.layout_position"), QDialogButtonBox.ButtonRole.ActionRole)
+            self.geometry_button.setAutoDefault(False)
+            self.geometry_button.clicked.connect(lambda: self.done(self.EDIT_GEOMETRY))
+        self.ok_button.setDefault(True)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+        self.graphs.currentIndexChanged.connect(self.update_preview)
+        self.update_preview()
         self.graphs.setFocus()
-        fit_dialog(self, 460, 160)
+        fit_dialog(self, 520, self.sizeHint().height())
+
+    def show_shortcuts(self):
+        self.parentWidget().show_shortcuts()
+        self.ok_button.setDefault(True)
+
+    def update_preview(self, *_):
+        from .gallery_thumbs import figure_image
+
+        graph = self.graphs.currentData()
+        self.graphs.setToolTip(self.graphs.currentText())
+        if self.geometry_button is not None:
+            self.geometry_button.setEnabled(graph == self.current)
+        run = self.runs.get(graph)
+        self.preview.clear()
+        if run is None or run.result is None or run.result.figure is None:
+            return
+        try:
+            self.preview.setPixmap(QPixmap.fromImage(figure_image(run.result.figure, 410, 145)))
+        except (ValueError, RuntimeError):
+            self.preview.setText(qt("qt.layout_graph_no_preview"))
 
 
 class ImportedPanelDialog(QDialog):

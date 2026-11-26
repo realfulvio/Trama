@@ -210,6 +210,20 @@ class LayoutArrangementTests(unittest.TestCase):
                 self.assertEqual(source.get("transform"), "translate(-72.0000 -36.0000)")
         self.assertEqual(figure_state(graph), before)
 
+    def test_replacing_a_wider_graph_scales_to_page_with_trim_unchanged(self):
+        from analisi.layout_panels import LayoutPanel, replacement_geometry
+
+        old = LayoutPanel(Figure(), (4., 2.), (3., 1., 1.), crop=(.15, 0., -.05, 0.))
+        replacement = LayoutPanel(Figure(), (6., 3.), (0., 0., 1.))
+        (x, y, scale), crop = replacement_geometry(old, replacement, (8., 4.))
+        self.assertEqual((x, y), (3., 1.))
+        self.assertAlmostEqual(scale, .9)
+        self.assertAlmostEqual(crop[0] * replacement.size[0] * scale, .6)
+        self.assertAlmostEqual(crop[2] * replacement.size[0] * scale, -.2)
+        self.assertAlmostEqual(x + (1 - crop[0] - crop[2]) * replacement.size[0] * scale, 8.)
+        with self.assertRaises(ValueError):
+            replacement_geometry(old, LayoutPanel(Figure(), (.5, 1.), (0., 0., 1.)), (8., 4.))
+
     def test_coincident_corners_use_only_the_visible_panel_letter(self):
         from analisi.layout_arrangement import PanelArrangement
         from analisi.layout_panels import layout_labels

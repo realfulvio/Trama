@@ -1,6 +1,6 @@
-"""Copy graph references from the navigator into empty layout panels."""
+"""Assign graph references from the navigator to layout panels."""
 
-from PySide6.QtCore import QEvent, QMimeData, QObject, Qt
+from PySide6.QtCore import QEvent, QMimeData, QObject, Qt, QTimer
 from PySide6.QtGui import QDrag
 from PySide6.QtWidgets import QTreeWidget
 
@@ -12,6 +12,7 @@ class GraphNavigator(QTreeWidget):
     def __init__(self, graph_id):
         super().__init__()
         self.graph_id = graph_id
+        self.pending_drop = None
 
     def startDrag(self, _actions):
         item = self.currentItem()
@@ -23,7 +24,14 @@ class GraphNavigator(QTreeWidget):
         data.setData(GRAPH_MIME, identifier.encode("ascii"))
         drag = QDrag(self)
         drag.setMimeData(data)
-        drag.exec(Qt.DropAction.CopyAction)
+        self.pending_drop = None
+        try:
+            if drag.exec(Qt.DropAction.CopyAction) == Qt.DropAction.CopyAction and self.pending_drop is not None:
+                # The drop can replace the canvas and rebuild the tree. Leave the native drag first.
+                QTimer.singleShot(0, self.pending_drop)
+        finally:
+            self.pending_drop = None
+            drag.deleteLater()
 
 
 class LayoutDrop(QObject):
@@ -49,5 +57,9 @@ class LayoutDrop(QObject):
         else:
             event.acceptProposedAction()
             if phase == QEvent.Type.Drop:
-                self.assign(slot, graph)
+                def finish():
+                    if (current := self.resolve(identifier)) is not None:
+                        self.assign(slot, current)
+
+                self.navigator.pending_drop = finish
         return True
