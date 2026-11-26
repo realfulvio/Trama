@@ -220,7 +220,7 @@ from analisi.legacy_restore import (LEGACY_GRAPH_LINK, LEGACY_GRAPH_STYLE,
                                    paired_graph_index, panel_source_style, resolve_layout_panel_graphs)
 from analisi.legacy_zip_layout import ZIP_LAYOUT, imported_paper
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY, curve_series_labels
-from analisi.repeated_workbench import INPUT_FIELDS, check_global_weighting
+from analisi.repeated_workbench import INPUT_FIELDS, check_global_weighting, check_mixed_options
 from analisi.replicate_fit import MERGE_REPLICATES, replicate_groups
 from analisi.roc import threshold_text
 from analisi.rank_tests import (CHOICE_KEYS as RANK_CHOICE_KEYS, CONTINUITY as RANK_CONTINUITY, EXACT as RANK_EXACT,
@@ -1951,6 +1951,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 if self.method == POWER_METHOD:
                     default = POWER_TEXT_DEFAULTS.get(label, default)
                 raw_saved = saved.get(label, default)
+                if kind == TEXT and isinstance(raw_saved, (list, tuple)):
+                    from analisi.ar1 import VISIT_ORDER
+                    if label == VISIT_ORDER:
+                        raw_saved = ", ".join(str(item) for item in raw_saved)
                 variable = tk.StringVar(value=str(default if raw_saved is None else raw_saved))
                 if self.method == POWER_METHOD and label == POWER_GROUP_MEANS:
                     field = MultilineEntry(parent, variable)
@@ -2588,6 +2592,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 self.controls[name][1].bind("<<ListboxSelect>>", lambda _: self.update_mixed_comparisons())
             for name in ("Subject", "Row labels"):
                 self.controls[name][1].trace_add("write", lambda *_: self.update_mixed_comparisons())
+            from analisi.ar1 import COVARIANCE
+            self.controls[COVARIANCE][1].trace_add("write", lambda *_: self.show_fields(self.mixed_covariance_fields()))
+            self.show_fields(self.mixed_covariance_fields())
         if self.method == "Global nonlinear regression":
             model = self.controls["Model"][1]
             self.parameters = GlobalParameters(self.fields, model.get(), saved)
@@ -2770,6 +2777,13 @@ class AnalysisDialog(simpledialog.Dialog):
         box = self.controls["Y columns"][1]
         options["Y columns"] = [box.get(i) for i in box.curselection()]
         self.series_parameters.set_labels(curve_series_labels(self.data, options))
+
+    def mixed_covariance_fields(self):
+        if self.method != "Mixed-effects model (REML)":
+            return {}
+        from analisi.ar1 import AR1, COVARIANCE, VISIT_ORDER
+        selected = self.controls[COVARIANCE][1].get() == AR1
+        return {VISIT_ORDER: selected, "Denominator method": not selected}
 
     def show_input_fields(self):
         choices = INPUT_FIELDS[self.method]
@@ -4318,7 +4332,8 @@ class AnalysisDialog(simpledialog.Dialog):
                       **self.weighting_visibility(),
                       **self.band_fields(), **self.xy_error_fields(), **self.custom_fields(),
                       **self.global_custom_fields(), **self.robust_fields(), **self.competing_fields(),
-                      **self.weibull_fields(), **self.rmst_fields(), **self.reference_visibility()}
+                      **self.weibull_fields(), **self.rmst_fields(), **self.reference_visibility(),
+                      **self.mixed_covariance_fields()}
         if self.method == "Descriptive statistics":
             visibility.update(summary_fields(self.controls[SUMMARY_FORMAT][1].get()))
         try:
@@ -4711,6 +4726,8 @@ class AnalysisDialog(simpledialog.Dialog):
             if self.method == "Global nonlinear regression":
                 # A zero response under 1/abs(Y) or 1/Y² names the Weighting field; the fit itself runs on the worker.
                 check_global_weighting(self.data, options)
+            if self.method == "Mixed-effects model (REML)":
+                check_mixed_options(self.data, options)
             if self.parameters is not None:
                 options.update(self.parameters.values())
                 self.series_parameters.set_labels(curve_series_labels(self.data, options))
@@ -4720,6 +4737,9 @@ class AnalysisDialog(simpledialog.Dialog):
         except (ValueError, OverflowError) as error:
             field = getattr(error, "field", name)
             message = str(error)
+            if self.method == "Mixed-effects model (REML)":
+                from analisi.ar1 import format_error
+                message = format_error(error)
             if self.method == CUSTOM_EQUATION:
                 message = translate_custom_error(error)
                 label = tr("custom.field." + field) if field else ""

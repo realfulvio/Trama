@@ -71,6 +71,8 @@ from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_FIELDS, PAIRWI
                                      pairwise_corrections, pairwise_scope)
 from analisi.summary_twoway import METHOD as SUMMARY_TWOWAY
 from analisi import summary_twoway
+from analisi.ar1 import VISIT_ORDER, format_error as mixed_error
+from analisi.repeated_workbench import check_mixed_options
 from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS, MULTIPLE, OPTIONAL,
                                OPTIONAL_MULTIPLE, TEXT, check_survival_options, classic_roles)
 from analisi.stats import GEOMETRIC_REPORT, SUMMARY_FORMAT, summary_confidence, summary_fields
@@ -95,6 +97,7 @@ from . import kappa_options, ordinal_options, permutation_options, rmst_options,
 from .function_curves import FunctionCurves
 from .transpose_sets import TransposeSets
 from .labels import choice_label, field_label, method_label
+from .mixed_covariance import VisitOrder, attach as attach_mixed_covariance
 from .predictor_profiles import Profiles
 from .strings import qt
 from .theme import fit_dialog
@@ -697,6 +700,8 @@ class AnalysisDialog(QDialog):
                 value = saved.get(label, kind)
                 text = mcnemar_power.canonical(value) if type(value) in (int, float) else "" if value is None else str(value)
                 widget = QLineEdit(text)
+            elif self.method == "Mixed-effects model (REML)" and label == VISIT_ORDER:
+                widget = VisitOrder(saved.get(label))
             elif type(kind) in (int, float) or kind == TEXT:
                 default = text_defaults.get(label, "") if kind == TEXT else kind
                 value = saved.get(label, default)
@@ -1031,6 +1036,7 @@ class AnalysisDialog(QDialog):
             options.addRow(note)
         if self.method == "Multiple regression":
             self._configure_lack_of_fit(pages["lack-of-fit"], scrolls["lack-of-fit"])
+        attach_mixed_covariance(self)
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
 
@@ -1374,6 +1380,8 @@ class AnalysisDialog(QDialog):
                 if type(kind) is float and not np.isfinite(value):
                     raise FieldError(name, qt("qt.number", name=field_label(name)))
                 options[name] = value
+            elif isinstance(control, VisitOrder):
+                options[name] = control.values()
             elif kind == TEXT:
                 options[name] = control.text()
             elif kind in (TERM_LIST, select_editor.EDITOR, plot_function.CURVE_LIST, transpose_xy.SETS_LIST,
@@ -1541,6 +1549,8 @@ class AnalysisDialog(QDialog):
                 check_deming(self.data, options)
             if self.method == PASSING_BABLOK:
                 check_passing(options)
+            if self.method == "Mixed-effects model (REML)":
+                check_mixed_options(self.data, options)
         except FieldError as error:
             self.show_error(self.anova.message(error) if self.anova is not None else error, error.field)
             return
@@ -1595,6 +1605,8 @@ class AnalysisDialog(QDialog):
         if self.method == GROUPED_GRAPH:
             translated = translate_grouped_error(error)
             return translated if translated != str(error) else ui(str(error))
+        if self.method == "Mixed-effects model (REML)":
+            return mixed_error(error)
         if self.method == SUMMARY_TWOWAY:
             return summary_twoway.format_error(error)
         if self.method == "Deming regression":
