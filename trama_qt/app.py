@@ -180,6 +180,9 @@ def main(argv=None):
         elif only == "qt-replicate-lack-of-fit":
             from .replicate_lack_of_fit_smoke import main as lack_of_fit_smoke
             status = "PASS" if lack_of_fit_smoke([folder]) == 0 else "FAIL"
+        elif only == "qt-weighted-logrank":
+            from .weighted_logrank_smoke import run as weighted_logrank_smoke
+            status = weighted_logrank_smoke(folder)
         else:
             from .smoke import SCENARIOS, run
             if scenario is not None and scenario not in SCENARIOS:

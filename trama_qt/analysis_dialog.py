@@ -61,6 +61,7 @@ from analisi import weibull_aft_workbench as weibull_form
 from analisi.i18n import active_language, tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
 from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
+from analisi import weighted_logrank
 from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_FIELDS, PAIRWISE_SCOPE, PAIRWISE_PAIR_LIST,
                                      pairwise_corrections, pairwise_scope)
 from analisi.summary_twoway import METHOD as SUMMARY_TWOWAY
@@ -613,7 +614,7 @@ class AnalysisDialog(QDialog):
                 form = hierarchy_forms[label]
             if lognormal_method:
                 form = variables if label in lognormal_tests.DATA_FIELDS else options
-            if survival_method and label in PAIRWISE_FIELDS:
+            if survival_method and label in (*PAIRWISE_FIELDS, *weighted_logrank.FIELDS):
                 form = pages["survival-pairs"]
             if self.method in regression_range.METHODS and label in (*regression_range.FIELDS, regression_range.SHOW_OUTSIDE):
                 form = pages["range"]
@@ -1392,6 +1393,8 @@ class AnalysisDialog(QDialog):
                 for key in (rank_tests.P_VALUE, rank_tests.ALTERNATIVE, rank_tests.CONTINUITY,
                             rank_tests.ZERO_DIFFERENCES):
                     options.pop(key, None)
+        if self.method == "Kaplan–Meier survival":
+            options = weighted_logrank.canonical(options)
         return self.anova.canonical(options) if self.anova is not None else options
 
     def accept(self):
@@ -1529,7 +1532,9 @@ class AnalysisDialog(QDialog):
         if self.method == PASSING_BABLOK:
             return passing_error(error)
         if self.method == "Kaplan–Meier survival":
-            return ui(str(error))
+            text = str(error)
+            translated = translate_message(text, "weight.error.", convert={"field": field_label})
+            return ui(text) if translated == text else translated
         if self.method == "t-test":
             return translate_message(str(error), "ttest.error.")
         if self.method == lognormal_tests.LOGNORMAL:

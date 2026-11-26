@@ -25,6 +25,7 @@ from analisi.kmeans_options import METHODS as KMEANS_METHODS
 from analisi.kmeans_reports import FIT_DIAGNOSTICS_TABLE, FIT_REASON, FIT_SOURCE
 from analisi.correlation_matrix import CORRELATION_MATRIX
 from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
+from analisi.weighted_logrank import WeightedComparisonCancelled
 from analisi.plot_function import CURVES as FUNCTION_CURVES, PLOT_FUNCTION
 from analisi.transpose_xy import TRANSPOSE_XY
 from analisi.presentation import apply_style, validate_graph_style
@@ -2172,6 +2173,9 @@ class MainWindow(QMainWindow):
                 if run.method == "Multiple regression" and title == "Lack of fit on replicates":
                     from analisi.ols_diagnostics import show_component, show_note
                     formatters = {"Component": show_component, "Note": show_note}
+                if run.method == "Kaplan–Meier survival":
+                    from analisi.weighted_logrank import cell_formatters
+                    formatters = cell_formatters(title) or formatters
                 if run.method in KMEANS_METHODS and title == FIT_DIAGNOSTICS_TABLE:
                     formatters = {FIT_REASON: ui, FIT_SOURCE: ui}
                 backgrounds = self.project.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})
@@ -3488,7 +3492,7 @@ class MainWindow(QMainWindow):
                 return
             try:
                 result = future.result()
-            except (MonteCarloCancelled, ChainCancelled):
+            except (MonteCarloCancelled, ChainCancelled, WeightedComparisonCancelled):
                 self.status(qt("qt.cancelled"))
                 return
             except Exception as error:  # Field and data errors reopen the dialog with the message.
@@ -3551,7 +3555,7 @@ class MainWindow(QMainWindow):
             recovery = None
             try:
                 outcomes = future.result()
-            except ChainCancelled:
+            except (ChainCancelled, WeightedComparisonCancelled):
                 self.project.restore_after_cancel(job, qt("qt.cancelled"))
                 self.status(qt("qt.cancelled"))
             except Exception as error:
@@ -3667,7 +3671,7 @@ class MainWindow(QMainWindow):
             from .family import family_error_text
             try:
                 outcome = future.result()
-            except ChainCancelled:
+            except (ChainCancelled, WeightedComparisonCancelled):
                 self.status(cancelled)
                 return
             except Exception as error:
