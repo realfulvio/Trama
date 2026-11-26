@@ -49,6 +49,9 @@ def verify(directory):
                                     term["fTest"]["pValue"]["value"]], rtol=1e-9)
     print("PASS three-factor ANOVA (all seven terms)")
 
+    if (directory / "MVEffectSizesforANOVA.prismt").is_file():
+        verify_anova_effect_sizes(directory)
+
     data, ref = read_example(directory, "MVSimplesurvivalKaplanMeieranalysis")
     curves, test = survival(data, "Time (days)", "Event", "Treatment")
     logrank = ref["curveComparison"]["logrankMantelCoxTest"]
@@ -132,6 +135,24 @@ def verify(directory):
     for merge, observed in zip(expected, fit.tree, strict=True):
         assert set(observed[:2]) == {merge["node1"]["id"], merge["node2"]["id"]}
     print("PASS hierarchical clustering (42 merge distances and node pairs)")
+
+
+def verify_anova_effect_sizes(directory):
+    name = "MVEffectSizesforANOVA"
+    _, stored = read_example(directory, name)
+    tables = load_tables(directory / (name + ".prismt"), restore_legacy=True)
+    source = Dataset(next(iter(tables.values())))
+    method, options = next((name, values) for name, values in source.analyses if name == "Multifactor ANOVA")
+    assert options["Effect sizes"] is True
+    result = analyse(method, source.frame(mask_excluded=True), options).tables["Effect sizes"]
+    terms = stored["ordinaryModel"]["anovaTable"]["fixedEffects"]
+    observed_terms = [":".join(part.strip() for part in term["name"].split(":")) for term in terms]
+    assert set(result.index) == set(observed_terms)
+    columns = ["Partial eta squared", "Cohen f", "% total variation"]
+    for term, label in zip(terms, observed_terms, strict=True):
+        expected = [term["partialEta2"], term["CohenF"], 100 * term["variation"]]
+        np.testing.assert_allclose(result.loc[label, columns].to_numpy(dtype=float), expected, rtol=1e-10)
+    print(f"PASS ANOVA effect sizes ({len(terms)} saved terms with partial eta squared, Cohen f and variation)")
 
 
 def verify_legacy(directory):
