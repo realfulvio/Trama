@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from math import cos, isclose, radians, sin
 
-from matplotlib.figure import Figure
+from matplotlib.figure import Figure, SubFigure
 
 from .layout_arrangement import EMPTY_CROP, PanelArrangement, valid_crop
 from .layout_geometry import AUTO_PAPER, PT, page_size, panel_boxes, panel_cells
@@ -22,6 +22,24 @@ def rotation_bounds(width, height, angle):
     left = min(0., c * width) + min(0., -s * height)
     top = min(0., s * width) + min(0., c * height)
     return left, top, abs(c) * width + abs(s) * height, abs(s) * width + abs(c) * height, c, s
+
+
+@contextmanager
+def panel_background(figure, clear):
+    """Hide the graph's background surfaces for one drawing and restore them afterwards."""
+    if not clear:
+        yield
+        return
+    patches = [figure.patch, *(axis.patch for axis in figure.axes),
+               *(subfigure.patch for subfigure in figure.findobj(SubFigure))]
+    visible = [patch.get_visible() for patch in patches]
+    try:
+        for patch in patches:
+            patch.set_visible(False)
+        yield
+    finally:
+        for patch, original in zip(patches, visible, strict=True):
+            patch.set_visible(original)
 
 
 @contextmanager
@@ -75,6 +93,7 @@ class LayoutPanel:
     angle: int = 0  # Clockwise, as seen on the page.
     border: tuple[float, str, str] | None = None
     crop: tuple[float, float, float, float] = EMPTY_CROP
+    clear_background: bool = False
 
     @property
     def crop_bounds(self):
@@ -96,8 +115,11 @@ class LayoutPanel:
         x, y = round(left * width), round(top * height)
         return x, y, max(x + 1, round((1 - right) * width)), max(y + 1, round((1 - bottom) * height))
 
+    @contextmanager
     def render(self):
-        return _panel_figure(self.figure, self.size, self.axes, self.bounds)
+        with (_panel_figure(self.figure, self.size, self.axes, self.bounds) as figure,
+              panel_background(figure, self.clear_background)):
+            yield figure
 
 
 def _plot_bounds(panel):
@@ -194,6 +216,8 @@ def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original
         panels[index] = replace(panels[index], border=tuple(border))
     for index, *crop in arrangement.crops:
         panels[index] = replace(panels[index], crop=tuple(crop))
+    for index in arrangement.clear_backgrounds:
+        panels[index] = replace(panels[index], clear_background=True)
     if axis_alignment != "none" and len(panels) > 1:
         measurements = []
         for panel in panels:

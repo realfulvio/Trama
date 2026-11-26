@@ -133,6 +133,72 @@ class LayoutArrangementTests(unittest.TestCase):
                                   for point in ((x, y), outside)], expected)
         self.assertEqual([tuple(graph.get_size_inches()) for graph in graphs], original_sizes)
 
+    def test_clear_background_keeps_lower_artwork_visible_in_preview_and_exports(self):
+        import pypdfium2 as pdfium
+        from PIL import Image
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+        from analisi.figure_export import export_pdf_bundle
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_pdf import PdfLayoutPage
+        from analisi.layout_picture import capture_picture, picture_figure
+        from analisi.presentation import compose_layout
+
+        back = Figure(figsize=(4, 3), facecolor="#e02020")
+        front = Figure(figsize=(4, 3), facecolor="#2040e0")
+        axis = front.add_axes((.2, .2, .6, .6), facecolor="#40c020")
+        axis.plot([0, 1], [.2, .2], color="#101010", gid="native-line")
+        axis.set(xlim=(0, 1), ylim=(0, 1))
+        axis.set_xticks([])
+        axis.set_yticks([])
+        graphs = (back, front)
+        arrangement = PanelArrangement(offsets=((1, -.5, 0),), clear_backgrounds=(1,))
+        self.assertEqual(arrangement.remap((1, 0)).clear_backgrounds, (0,))
+        self.assertEqual(arrangement.remap((0,)).clear_backgrounds, ())
+        original = figure_state(front)
+        page = PdfLayoutPage("Overlap", 2, graphs, arrangement=arrangement)
+        left, top, right, bottom = panel_rectangle(page.placements[1])
+        points = ((left + .11 * (right - left), top + .1 * (bottom - top)),
+                  ((left + right) / 2, (top + bottom) / 2))
+        red = (224, 32, 32)
+
+        def pixel(image, point):
+            return image.getpixel((round(image.width * point[0] / page.size[0]),
+                                   round(image.height * point[1] / page.size[1])))
+
+        canvas = FigureCanvasAgg(compose_layout("Overlap", 2, graphs, arrangement=arrangement))
+        canvas.draw()
+        preview = Image.frombuffer("RGBA", canvas.get_width_height(), canvas.buffer_rgba()).convert("RGB")
+        self.assertEqual([pixel(preview, point) for point in points], [red, red])
+
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "panel.pdf"
+            export_pdf_bundle([page], target, {"format": "pdf"})
+            with pdfium.PdfDocument(str(target)) as document:
+                sheet = document[0]
+                bitmap = sheet.render(scale=2)
+                try:
+                    self.assertEqual([pixel(bitmap.to_pil().convert("RGB"), point) for point in points],
+                                     [red, red])
+                finally:
+                    bitmap.close()
+                    sheet.close()
+            target = target.with_suffix(".svg")
+            export_layout_svg("Overlap", 2, graphs, target, {"format": "svg"}, arrangement=arrangement)
+            output = target.read_text(encoding="utf-8")
+            self.assertIn("native-line", output)
+            self.assertIn("#e02020", output)
+            self.assertNotIn("#2040e0", output)
+            self.assertNotIn("#40c020", output)
+            self.assertNotIn("<image", output)
+
+        snapshot = capture_picture(front, clear_background=True)
+        fallback = picture_figure(snapshot, transparent=True)
+        self.assertEqual(fallback.axes[0].images[0].get_array()[0, 0, 3], 0)
+        self.assertEqual(figure_state(front), original)
+        self.assertTrue(front.patch.get_visible())
+        self.assertTrue(axis.patch.get_visible())
+
     def test_rotated_graph_and_dashed_border_stay_vector_in_exports(self):
         import pypdfium2 as pdfium
         from matplotlib.backends.backend_agg import FigureCanvasAgg

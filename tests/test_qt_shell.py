@@ -3546,6 +3546,92 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.project.layouts[key], layout)
         self.assertEqual(len(window.sessions), 1)
 
+    def test_layout_panel_background_menu_persists_and_undoes_without_changing_source(self):
+        import json
+        from unittest.mock import patch
+
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_picture import capture_picture
+        from analisi.presentation import Layout
+        from trama_qt.layout_dialog import LayoutGraphDialog
+        from trama_qt.project import Project
+
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        picture = capture_picture(graph.result.figure)
+        patches = [graph.result.figure.patch, *(axis.patch for axis in graph.result.figure.axes)]
+        backgrounds = [(patch.get_visible(), patch.get_facecolor()) for patch in patches]
+        layout = Layout("Plate", 2, [graph.reference, None],
+                        arrangement=PanelArrangement(pictures=((1, *picture),)))
+        key = window.project.put_layout(layout)
+        window.open_sheet(("layout", key))
+
+        action = window.actions["layout_clear_background"]
+        self.assertFalse(action.isEnabled())
+        window.page.layout_selection.select((1,))
+        self.assertFalse(action.isEnabled())
+        window.page.layout_selection.select((0,))
+        self.assertTrue(action.isEnabled())
+        action.trigger()
+        self.assertTrue(action.isChecked())
+        self.assertEqual(window.project.layouts[key].arrangement.clear_backgrounds, (0,))
+        self.assertEqual([(patch.get_visible(), patch.get_facecolor()) for patch in patches], backgrounds)
+        window.undo()
+        self.assertFalse(window.project.layouts[key].arrangement.clear_backgrounds)
+        window.undo(redo=True)
+        self.assertEqual(window.project.layouts[key].arrangement.clear_backgrounds, (0,))
+        output = self.folder / "clear-background.alab"
+        window.project.save(output)
+        record = json.loads(output.read_text(encoding="utf-8"))
+        self.assertEqual(record["version"], 14)
+        restored = Project()
+        restored.load(output)
+        self.assertEqual(restored.layouts[key].arrangement.clear_backgrounds, (0,))
+        with patch.object(LayoutGraphDialog, "exec", return_value=LayoutGraphDialog.DialogCode.Accepted):
+            window.place_layout_graph(0)
+        self.assertEqual(window.project.layouts[key].arrangement.clear_backgrounds, (0,))
+        window._assign_layout_graph(key, 0, None)
+        self.assertFalse(window.project.layouts[key].arrangement.clear_backgrounds)
+        self.assertEqual(window.project.layouts[key].empty_panels, (0,))
+        self.assertEqual(window.project.layouts[key].arrangement.picture(1), picture)
+
+    def test_linked_panel_remembers_opaque_and_transparent_drawings_offline(self):
+        from matplotlib.figure import Figure
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_graph_link import LayoutGraphLink
+        from analisi.layout_picture import capture_picture
+        from analisi.presentation import Layout
+        from trama_qt.live_layout import LinkedGraphView
+        from trama_qt.project import Project
+
+        figure = Figure(facecolor="#704020")
+        picture = capture_picture(figure)
+        link = LayoutGraphLink(str(self.folder / "outside.alab"), "Data", 0, "Linear regression")
+        layout = Layout("Plate", 2, [None, None],
+                        arrangement=PanelArrangement(pictures=((0, *picture), (1, *picture))),
+                        graph_links=((0, link), (1, link)))
+        window = self.window
+        key = window.project.put_layout(layout)
+        window.project.set_linked_graph_views({link: LinkedGraphView(figure=figure)})
+        window.open_sheet(("layout", key))
+        window.page.layout_selection.select((1,))
+        window.actions["layout_clear_background"].trigger()
+        updated = window.project.layouts[key]
+        self.assertEqual(updated.arrangement.clear_backgrounds, (1,))
+        self.assertEqual(updated.arrangement.picture(0), picture)
+        self.assertNotEqual(updated.arrangement.picture(1), picture)
+        self.assertEqual([link for _, link in updated.graph_links], [link] * 2)
+
+        path = self.folder / "transparency-link.alab"
+        window.project.save(path)
+        restored = Project()
+        restored.load(path)
+        opaque, clear = restored.layout_figures(restored.layouts[key])
+        self.assertEqual(tuple(opaque.axes[0].images[0].get_array()[0, 0]), (112, 64, 32))
+        self.assertEqual(clear.axes[0].images[0].get_array()[0, 0, 3], 0)
+        self.assertTrue(figure.patch.get_visible())
+
     def test_layout_clear_graph_retains_placeholder_until_refilled(self):
         from dataclasses import replace
         import json

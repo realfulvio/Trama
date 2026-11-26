@@ -1326,9 +1326,11 @@ class Project(WorksheetJoinSources, SheetCommands):
                 link = links.get(slot)
                 view = self.linked_graph_views.get(link)
                 if view is not None and view.figure is not None:
-                    if link not in pictures:
-                        pictures[link] = capture_picture(view.figure)
-                    picture = pictures[link]
+                    clear = slot in layout.arrangement.clear_backgrounds
+                    key = (link, clear)
+                    if key not in pictures:
+                        pictures[key] = capture_picture(view.figure, clear_background=clear)
+                    picture = pictures[key]
                 records.append((slot, *picture))
             layouts.append(replace(layout, arrangement=replace(layout.arrangement, pictures=tuple(records))))
         return layouts
@@ -1357,7 +1359,7 @@ class Project(WorksheetJoinSources, SheetCommands):
                     figures.append(EMPTY_PANEL)
                 else:
                     from analisi.layout_picture import picture_figure
-                    figures.append(picture_figure(picture))
+                    figures.append(picture_figure(picture, transparent=index in layout.arrangement.clear_backgrounds))
             else:
                 run = by_reference.get(reference)
                 if run is None or run.result is None or run.result.figure is None:

@@ -7,6 +7,7 @@ from io import BytesIO
 from matplotlib.figure import Figure
 
 from .legacy_pdf_preview import pdf_dimensions, render_pdf
+from .layout_panels import panel_background
 
 MAX_PICTURE_TEXT = 16 * 1024 * 1024
 
@@ -25,14 +26,14 @@ def validate_picture(width, height, payload):
     source_size(payload)
 
 
-def capture_picture(figure):
+def capture_picture(figure, *, clear_background=False):
     """Snapshot the currently confirmed drawing, with no reference to data or analysis state."""
     size = tuple(map(float, figure.get_size_inches()))
     pdf = getattr(figure, "_trama_frozen_pdf", None)
     if pdf is None:
         original_canvas = figure.canvas
         try:
-            with BytesIO() as output:
+            with panel_background(figure, clear_background), BytesIO() as output:
                 figure.savefig(output, format="pdf", metadata={"CreationDate": None})
                 pdf = output.getvalue()
         finally:
@@ -43,15 +44,15 @@ def capture_picture(figure):
 
 
 @lru_cache(maxsize=4)
-def _preview(payload):
-    return render_pdf(b64decode(payload, validate=True), 2200)
+def _preview(payload, transparent):
+    return render_pdf(b64decode(payload, validate=True), 2200, transparent=transparent)
 
 
-def picture_figure(picture):
+def picture_figure(picture, *, transparent=False):
     width, height, payload = picture
     figure = Figure(figsize=(width, height))
     axes = figure.add_axes((0, 0, 1, 1))
-    axes.imshow(_preview(payload), aspect="auto")
+    axes.imshow(_preview(payload, transparent), aspect="auto")
     axes.set_axis_off()
     figure._trama_layout_picture_pdf = b64decode(payload, validate=True)
     figure._trama_layout_picture_size = source_size(payload)

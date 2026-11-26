@@ -696,6 +696,8 @@ class MainWindow(QMainWindow):
         a("edit_layout", tr("command.edit_layout"), lambda: self.new_layout(edit=True), icon="layout-grid")
         a("place_layout_graph", qt("qt.layout_place_graph"), self.place_layout_graph, icon="chart-line")
         a("replace_layout_graph", qt("qt.layout_replace_graph"), self.replace_layout_graph, icon="chart-line")
+        a("layout_clear_background", qt("qt.layout_clear_background"), self.toggle_layout_panel_background,
+          tip=qt("qt.layout_clear_background_tip")).setCheckable(True)
         a("layout_go_origin", qt("qt.layout_go_origin"), self.go_to_layout_origin, icon="move-up-right",
           shortcut="Ctrl+Alt+G")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
@@ -3696,9 +3698,12 @@ class MainWindow(QMainWindow):
         previous = layout.arrangement.picture(slot)
         if previous is None and not picture and layout.panels[slot] == graph:
             return
-        if (external_figure is None and graph is not None
-                and not any(run.reference == graph for run in self.project.layout_candidates())):
-            return
+        figure = external_figure
+        if figure is None and graph is not None:
+            run = next((run for run in self.project.layout_candidates() if run.reference == graph), None)
+            if run is None:
+                return
+            figure = run.result.figure
         controller = self._active_layout_selection()
         retained = {index: tuple(size) for index, *size in layout.arrangement.empty_sizes}
         pictures = {index: (w, h, pdf) for index, w, h, pdf in layout.arrangement.pictures if index != slot}
@@ -3715,8 +3720,12 @@ class MainWindow(QMainWindow):
             retained.pop(slot, None)
         panels = list(layout.panels)
         panels[slot] = graph
+        clear = layout.arrangement.clear_backgrounds
+        if figure is None or (picture and link is None) or getattr(figure, "_trama_frozen_pdf", None):
+            clear = tuple(index for index in clear if index != slot)
         arrangement = replace(layout.arrangement, empty_sizes=tuple((index, *size) for index, size in retained.items()),
-                              pictures=tuple((index, *record) for index, record in pictures.items()))
+                              pictures=tuple((index, *record) for index, record in pictures.items()),
+                              clear_backgrounds=clear)
         candidate = replace(layout, panels=panels, arrangement=arrangement, graph_links=links)
         manual = any(entry[0] == slot for entries in (layout.arrangement.scales, layout.arrangement.offsets,
                                                       layout.arrangement.rotations, layout.arrangement.crops)
@@ -3808,6 +3817,12 @@ class MainWindow(QMainWindow):
         self.actions["layout_position"].setEnabled(single)
         self.actions["replace_layout_graph"].setEnabled(
             single and next(iter(controller.selected)) not in controller.layout.empty_panels)
+        background = self.actions["layout_clear_background"]
+        slot = next(iter(controller.selected)) if single else None
+        figure = controller.panels[slot].figure if slot is not None else None
+        background.setEnabled(figure is not None and not getattr(figure, "_trama_frozen_pdf", None)
+                              and not hasattr(figure, "_trama_layout_picture_pdf"))
+        background.setChecked(slot is not None and slot in controller.layout.arrangement.clear_backgrounds)
         self.actions["layout_go_origin"].setEnabled(self._layout_origin(controller) is not None)
         self.actions["layout_equalize"].setEnabled(controller is not None and len(self._layout_scalable(controller)) >= 2)
         self.actions["layout_ungroup"].setEnabled(movable and any(len(obj) > 1 for obj in objects))
@@ -3833,6 +3848,29 @@ class MainWindow(QMainWindow):
         if refreshed is not None:
             refreshed.select(selected)
             refreshed.canvas.setFocus()
+
+    def toggle_layout_panel_background(self):
+        controller = self._active_layout_selection()
+        if controller is None or not self.actions["layout_clear_background"].isEnabled():
+            return
+        slot, = controller.selected
+        arrangement = controller.layout.arrangement
+        cleared = set(arrangement.clear_backgrounds)
+        clear = slot not in cleared
+        cleared.symmetric_difference_update((slot,))
+        if controller.layout.graph_link(slot) is not None:
+            # Keep the last drawing usable even when its source is offline on the next launch.
+            from analisi.layout_picture import capture_picture
+
+            try:
+                picture = capture_picture(controller.panels[slot].figure, clear_background=clear)
+            except (ValueError, RuntimeError, OSError):
+                self.status(qt("qt.layout_picture_failed"))
+                self.update_layout_arrangement_actions()
+                return
+            arrangement = replace(arrangement, pictures=tuple(
+                (slot, *picture) if entry[0] == slot else entry for entry in arrangement.pictures))
+        self._commit_layout_arrangement(controller, replace(arrangement, clear_backgrounds=tuple(sorted(cleared))))
 
     def move_layout_selection(self, shift):
         controller = self._active_layout_selection()

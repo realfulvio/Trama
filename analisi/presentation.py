@@ -84,6 +84,10 @@ class Layout:
         if any(self.panels[index] is not None for index, *_ in self.arrangement.pictures):
             raise ValueError("A layout panel cannot contain a graph and a picture.")
         self.graph_links = graph_links(self.graph_links, len(self.panels), self.panels, self.arrangement)
+        linked_slots = {index for index, _ in self.graph_links}
+        if any(self.panels[index] is None and index not in linked_slots
+               for index in self.arrangement.clear_backgrounds):
+            raise ValueError("A transparent layout panel needs a graph.")
 
     def graph_link(self, index):
         return next((link for slot, link in self.graph_links if slot == index), None)

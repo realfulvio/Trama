@@ -24,6 +24,7 @@ class PanelArrangement:
     # Cleared pictures can have separate displayed and original fitting dimensions.
     empty_sizes: tuple[tuple[int, float, float] | tuple[int, float, float, float, float], ...] = ()
     pictures: tuple[tuple[int, float, float, str], ...] = ()
+    clear_backgrounds: tuple[int, ...] = ()
 
     def record(self):
         return {key: value for key, value in vars(self).items() if value}
@@ -60,14 +61,16 @@ class PanelArrangement:
                                 tuple(sorted((mapping[index], *crop) for index, *crop in self.crops if index in mapping)),
                                 tuple(sorted((mapping[index], *size) for index, *size in self.empty_sizes if index in mapping)),
                                 tuple(sorted((mapping[index], w, h, pdf) for index, w, h, pdf in self.pictures
-                                             if index in mapping)))
+                                             if index in mapping)),
+                                tuple(sorted(mapping[index] for index in self.clear_backgrounds if index in mapping)))
 
 
 def validated_arrangement(value, count):
     if isinstance(value, PanelArrangement):
         value = value.record()
     if not isinstance(value, dict) or set(value) - {
-        "offsets", "groups", "locked", "scales", "layers", "rotations", "borders", "crops", "empty_sizes", "pictures"
+        "offsets", "groups", "locked", "scales", "layers", "rotations", "borders", "crops", "empty_sizes", "pictures",
+        "clear_backgrounds",
     }:
         raise ValueError("Invalid layout panel arrangement.")
 
@@ -145,7 +148,8 @@ def validated_arrangement(value, count):
                             tuple(sorted((i, float(w), c.lower(), s) for i, w, c, s in borders)),
                             tuple(sorted((i, *map(float, crop)) for i, *crop in crops if any(crop))),
                             tuple(sorted((index, *map(float, size)) for index, *size in sizes)),
-                            tuple(sorted((index, float(w), float(h), pdf) for index, w, h, pdf in pictures)))
+                            tuple(sorted((index, float(w), float(h), pdf) for index, w, h, pdf in pictures)),
+                            indices(value.get("clear_backgrounds", ())))
 
 
 def change_objects(arrangement, objects, command):

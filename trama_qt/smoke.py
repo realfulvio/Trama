@@ -773,9 +773,42 @@ def _layout_crop_scenario(smoke, window):
     smoke.shot(window, "layout-picture")
 
 
+def _layout_background_scenario(smoke, window):
+    from dataclasses import replace
+
+    ref = ("layout", smoke.build()["layout"])
+    layout = window.project.layouts[ref[1]]
+    arrangement = replace(layout.arrangement, offsets=((1, -.36, .12),), scales=((1, .75),))
+    window.project.put_layout(replace(layout, arrangement=arrangement, background="#e4ebf3"), ref[1])
+    window.open_sheet(ref)
+    window.page.layout_selection.select((1,))
+    command = window.actions["layout_clear_background"]
+    smoke.expect(command.isEnabled() and not command.isChecked(), "the panel has no background command")
+    smoke.shot(window, "panel-background-before")
+    command.trigger()
+    smoke.expect(command.isChecked(), "the panel background command did not remain checked")
+    smoke.shot(window, "panel-background-after")
+    window.undo()
+    smoke.expect(not window.project.layouts[ref[1]].arrangement.clear_backgrounds, "the background did not undo")
+    window.undo(redo=True)
+    layout = window.project.layouts[ref[1]]
+    smoke.expect(layout.arrangement.clear_backgrounds == (1,), "the background did not redo")
+    root = smoke.folder / f"{smoke.language}-panel-background"
+    for suffix in (".pdf", ".svg", ".png"):
+        window.project.export_layout(layout, root.with_suffix(suffix))
+    window.project.save(root.with_suffix(".alab"))
+    window.close_project()
+    window.open_path(root.with_suffix(".alab"))
+    window.open_sheet(ref)
+    smoke.wait()
+    smoke.expect(window.project.layouts[ref[1]].arrangement.clear_backgrounds == (1,),
+                 "the panel background did not survive reopening")
+
+
 SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
              "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
-             "qt-batch-figure-styles": _batch_figure_styles_scenario, "qt-layout-crop": _layout_crop_scenario}
+             "qt-batch-figure-styles": _batch_figure_styles_scenario, "qt-layout-crop": _layout_crop_scenario,
+             "qt-layout-background": _layout_background_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

@@ -1125,6 +1125,7 @@ LAYOUT_CROP_VERSION = 10
 LAYOUT_EMPTY_SIZE_VERSION = 11
 LAYOUT_PICTURE_VERSION = 12
 LAYOUT_GRAPH_LINK_VERSION = 13
+LAYOUT_PANEL_BACKGROUND_VERSION = 14
 
 
 def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=None):
@@ -1177,6 +1178,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         version = LAYOUT_PICTURE_VERSION
     if any("graph_links" in record for record in layout_records):
         version = LAYOUT_GRAPH_LINK_VERSION
+    if any("clear_backgrounds" in record.get("arrangement", ()) for record in layout_records):
+        version = LAYOUT_PANEL_BACKGROUND_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
@@ -1316,7 +1319,7 @@ def load_workspace(path, *, include_info=False):
     versions = (1, 2, 3, LEGACY_METADATA_VERSION, CATEGORY_ORDER_VERSION,
                 LAYOUT_PLACEHOLDER_VERSION, LAYOUT_ARRANGEMENT_VERSION, LAYOUT_SCALE_VERSION,
                 LAYOUT_APPEARANCE_VERSION, LAYOUT_CROP_VERSION, LAYOUT_EMPTY_SIZE_VERSION, LAYOUT_PICTURE_VERSION,
-                LAYOUT_GRAPH_LINK_VERSION)
+                LAYOUT_GRAPH_LINK_VERSION, LAYOUT_PANEL_BACKGROUND_VERSION)
     if version not in versions or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
@@ -1450,6 +1453,9 @@ def load_workspace(path, *, include_info=False):
             raise ValueError("Layout pictures require project format version 12.")
         if version < LAYOUT_GRAPH_LINK_VERSION and "graph_links" in record:
             raise ValueError("Linked layout graphs require project format version 13.")
+        if (version < LAYOUT_PANEL_BACKGROUND_VERSION and isinstance(arrangement, dict)
+                and "clear_backgrounds" in arrangement):
+            raise ValueError("Transparent layout panels require project format version 14.")
         layout = Layout(record["name"], record["columns"], panels,
                         record.get("paper", AUTO_PAPER), record.get("background", WHITE),
                         record.get("panel_size", "original"), record.get("axis_alignment", "none"),

@@ -247,6 +247,7 @@ class LayoutGraphDialog(QDialog):
         self.finished.connect(self._discard_source_request)
         self.picture = layout.arrangement.picture(panel)
         self.current_link = layout.graph_link(panel)
+        self.clear_background = panel in layout.arrangement.clear_backgrounds
         self.source_path = None
         self.current = self.CURRENT_PICTURE if self.picture else layout.panels[panel] if panel is not None else None
         self.setWindowTitle(qt("qt.layout_replace_graph" if self.current else "qt.layout_place_graph").rstrip("…"))
@@ -529,7 +530,8 @@ class LayoutGraphDialog(QDialog):
             if graph == self.CURRENT_PICTURE:
                 from analisi.layout_picture import picture_figure
                 view = self.parentWidget().project.linked_graph_views.get(self.current_link)
-                figure = view.figure if view and view.figure is not None else picture_figure(self.picture)
+                figure = (view.figure if view and view.figure is not None
+                          else picture_figure(self.picture, transparent=self.clear_background))
             elif run is not None and run.result is not None:
                 figure = run.result.figure
             else:

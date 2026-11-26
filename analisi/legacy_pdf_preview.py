@@ -36,14 +36,15 @@ def pdf_dimensions(data):
         return dimensions
 
 
-def _render_page(page, dimensions, max_side):
-    bitmap = page.render(scale=max_side / max(dimensions), draw_annots=False)
+def _render_page(page, dimensions, max_side, *, transparent=False):
+    fill = (0, 0, 0, 0) if transparent else (255, 255, 255, 255)
+    bitmap = page.render(scale=max_side / max(dimensions), draw_annots=False, fill_color=fill)
     try:
-        return bitmap.to_pil().convert("RGB")
+        return bitmap.to_pil().convert("RGBA" if transparent else "RGB")
     finally:
         bitmap.close()
 
 
-def render_pdf(data, max_side):
+def render_pdf(data, max_side, *, transparent=False):
     with _page(data) as (page, dimensions):
-        return _render_page(page, dimensions, max_side)
+        return _render_page(page, dimensions, max_side, transparent=transparent)
