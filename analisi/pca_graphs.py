@@ -212,7 +212,20 @@ def _annotate(axes, x, y, text):
     axes.annotate(_literal(text), (x, y), textcoords="offset points", xytext=(4, 4), fontsize=8, zorder=4)
 
 
-def _observation_points(axes, coordinates, group_column, values, marker_colors):
+def _saved_score_markers(options, group_column):
+    appearance = options.get(pca_overlays.SAVED_APPEARANCE)
+    if not group_column or not isinstance(appearance, dict) or appearance.get("column") != group_column:
+        return {}
+    from .legacy_mv_scatter import marker_record
+
+    try:
+        style = marker_record(appearance.get("marker_style"))
+    except ValueError:
+        return {}
+    return {"marker": "o", "s": style["size"] ** 2, "edgecolors": style["edge"], "linewidths": style["width"]}
+
+
+def _observation_points(axes, coordinates, group_column, values, marker_colors, marker_style):
     if group_column is None:
         artist = axes.scatter(coordinates[:, 0], coordinates[:, 1], zorder=3)
         return [("All", "All", slice(None), artist.get_facecolors()[0])]
@@ -231,7 +244,7 @@ def _observation_points(axes, coordinates, group_column, values, marker_colors):
             caption = f"{caption} ({identity})"
         label = _literal(caption)
         artist = axes.scatter(coordinates[rows, 0], coordinates[rows, 1], label=label,
-                              color=marker_colors.get(key.removeprefix("group:")), zorder=3)
+                              color=marker_colors.get(key.removeprefix("group:")), zorder=3, **marker_style)
         artist._tramastat_legend_key = key
         artists.append(artist)
         captions.append(label)
@@ -243,7 +256,7 @@ def _observation_points(axes, coordinates, group_column, values, marker_colors):
 
 def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, variable_xy, row_labels,
             variable_names, show_rows, parallel=None, *, group_column=None, group_values=None, overlay=None,
-            marker_colors=None, viewport=None):
+            marker_colors=None, marker_style=None, viewport=None):
     if view == SCREE:
         figure, axes = _plot("Scree", "Principal component", "Eigenvalue")
         numbers = np.arange(1, len(eigenvalues) + 1)
@@ -279,7 +292,8 @@ def _figure(view, names, variance, eigenvalues, horizontal, vertical, row_xy, va
     zero_x = axes.axvline(0, color="#d0d5dd", linewidth=.8, zorder=0)
     contours = None
     if view in POINT_VIEWS:
-        point_groups = _observation_points(axes, row_xy, group_column, group_values, marker_colors or {})
+        point_groups = _observation_points(axes, row_xy, group_column, group_values,
+                                          marker_colors or {}, marker_style or {})
         if overlay is not None:
             contours = pca_overlays.draw(axes, row_xy, point_groups, overlay)
         if show_rows:
@@ -433,6 +447,7 @@ def pca_result(frame, options):
                                labels, variables, drawn, parallel, group_column=group_column,
                                group_values=group_values, overlay=overlay,
                                marker_colors=pca_overlays.saved_point_colors(options, group_column),
+                               marker_style=_saved_score_markers(options, group_column) if view == SCORES else None,
                                viewport=options.get(SAVED_VIEWPORT))
     tables = {"Explained variance": parts, "Eigenvectors": eigenvectors, "Scores": scores,
               COORDINATES: table, SETTINGS: settings}

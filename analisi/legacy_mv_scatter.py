@@ -28,6 +28,27 @@ def _number(value, low, high):
     return float(value)
 
 
+def marker_record(raw):
+    """Validate marker styling imported from a graph or reopened from a project."""
+    if not isinstance(raw, dict):
+        raise ValueError("Invalid saved scatter marker.")
+    return {
+        "edge": _rgba(raw.get("edge")),
+        "width": _number(raw.get("width"), 0, 20),
+        "size": _number(raw.get("size"), .1, 100),
+    }
+
+
+def saved_circle_marker(symbols):
+    size = symbols["sizeEvaluator"]
+    mark, = symbols["rowSymbolSettings"].values()
+    if (symbols["@class"] != "BubblesFigure::Settings" or size["@class"] != "SymbolSizeEvaluator"
+            or set(symbols["rowSymbolSettings"]) != {"common"} or mark["symbolShape"] != "circleFill"):
+        raise ValueError("Unsupported saved scatter marker.")
+    return marker_record({"edge": mark["symbolBorderColor"], "width": mark["symbolBorderThickness"],
+                          "size": size["symbolSize"]})
+
+
 def _text(value):
     if not isinstance(value, str) or not 1 <= len(value) <= 240:
         raise ValueError("Invalid saved scatter label.")
@@ -100,8 +121,7 @@ def appearance_record(raw):
         raise ValueError("Invalid saved scatter palette.")
     style = {
         "palette": {_text(key): _rgba(value) for key, value in palette.items()},
-        "edge": _rgba(raw.get("edge")), "width": _number(raw.get("width"), 0, 20),
-        "size": _number(raw.get("size"), .1, 100), "legend": _text(raw.get("legend")),
+        "legend": _text(raw.get("legend")), **marker_record(raw),
     }
     for key in ("x", "y"):
         style[key] = fixed_axis_record(raw.get(key))
@@ -122,15 +142,10 @@ def saved_scatter(sheet, frames, remaining_cells):
         category = _column(frame, [symbols["colorVariable"]])
         if len({x, y, category}) != 3 or not all(pd.api.types.is_numeric_dtype(frame[name]) for name in (x, y)):
             return None
-        size = symbols["sizeEvaluator"]
-        mark = symbols["rowSymbolSettings"]["common"]
-        if (symbols["@class"] != "BubblesFigure::Settings" or size["@class"] != "SymbolSizeEvaluator"
-                or mark["symbolShape"] != "circleFill" or set(symbols["rowSymbolSettings"]) != {"common"}):
-            return None
         legend, palette = _legend(graph, symbols)
         style = appearance_record({
             "legend": legend, "palette": palette,
-            "size": size["symbolSize"], "edge": mark["symbolBorderColor"], "width": mark["symbolBorderThickness"],
+            **saved_circle_marker(symbols),
             "x": _axis(graph["axisX"], "horizontal"), "y": _axis(graph["axisY"], "vertical"),
         })
         values = frame[[x, y]].to_numpy(dtype=float, na_value=np.nan)

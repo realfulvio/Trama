@@ -9,7 +9,7 @@ from . import ellipse_workbench as ellipses, pca_overlays, pca_parallel_archive,
 from .graph_legend import typed_group_token
 from .pca_graphs import COLOR_GROUPS, HORIZONTAL, SAVED_VIEWPORT, VERTICAL
 from .legacy_import import _identifier, _json_object
-from .legacy_mv_scatter import fixed_axis_record
+from .legacy_mv_scatter import fixed_axis_record, saved_circle_marker
 
 
 _COLOR = re.compile(r"#[0-9a-fA-F]{8}")
@@ -220,7 +220,12 @@ def saved_score_overlay(archive, analysis, input_frame, view_sources, options):
             markers = {tokens[label]: color for label, color in _point_colors(graph, tokens.keys()).items()}
         except (KeyError, TypeError, ValueError, AttributeError):
             pass  # Geometry and confidence level remain usable if the palette is incomplete.
-    restored[pca_overlays.SAVED_APPEARANCE] = {"column": group, "fill": fill, "styles": styles, "markers": markers}
+    appearance = {"column": group, "fill": fill, "styles": styles, "markers": markers}
+    try:
+        appearance["marker_style"] = saved_circle_marker(graph["gdoSettings"]["symbols"])
+    except (AttributeError, KeyError, TypeError, ValueError):
+        pass  # The ellipse and the remaining appearance do not depend on the marker shape.
+    restored[pca_overlays.SAVED_APPEARANCE] = appearance
     if viewport := _score_viewport(graph, x, y):
         restored[SAVED_VIEWPORT] = viewport
     return uid, restored

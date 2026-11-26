@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from zipfile import ZipFile
 
+from matplotlib import rcParams
 from matplotlib.colors import to_hex
 import numpy as np
 import pandas as pd
@@ -30,7 +31,7 @@ def fixture():
     return source("PCA", "0.0.0", content, frame, INPUT)
 
 
-def add_score_graph(path, *, level=90., linked=True, fill=True, viewport=False):
+def add_score_graph(path, *, level=90., linked=True, fill=True, viewport=False, marker_shape="circleFill"):
     frame, _ = sample()
     frame.loc[2, "Signal (2)"] = 2.4
     with ZipFile(path) as reader:
@@ -56,7 +57,10 @@ def add_score_graph(path, *, level=90., linked=True, fill=True, viewport=False):
         "uid": "scatter", "settingsSource": "pca" if linked else "other", "analysisSettingsID": 7,
         "graph": {"@class": "MVGraph", "dataSheet": "score", "xVariables": ["pc1"], "yVariables": ["pc2"],
                   "gdoTypesExt": {"defaults": ["symbols", "confidence ellipses"]},
-                  "gdoSettings": {"symbols": {"colorVariable": "groups",
+                  "gdoSettings": {"symbols": {"@class": "BubblesFigure::Settings", "colorVariable": "groups",
+                                              "sizeEvaluator": {"@class": "SymbolSizeEvaluator", "symbolSize": 3.0},
+                                              "rowSymbolSettings": {"common": {"symbolShape": marker_shape,
+                                                  "symbolBorderColor": "#12345680", "symbolBorderThickness": 1.25}},
                                               "colormap": {"colors": dict(enumerate(markers))}}},
                   "gdoSettingsExt": {"confidence ellipses": {
                       "@class": "ConfidenceEllipsesFigure::Settings", "groupingVariable": "groups",
@@ -225,8 +229,32 @@ class LegacyPCARecipeTests(unittest.TestCase):
             axes = result.figure.axes[0]
             self.assertEqual([to_hex(item.get_facecolors()[0], keep_alpha=True) for item in axes.collections],
                              ["#0077cc80", "#ee992280"])
+            for item in axes.collections:
+                np.testing.assert_array_equal(item.get_sizes(), [9.0])
+                self.assertEqual(item.get_linewidths()[0], 1.25)
+                self.assertEqual(to_hex(item.get_edgecolors()[0], keep_alpha=True), "#12345680")
             self.assertEqual([to_hex(item.get_facecolor(), keep_alpha=True) for item in axes.patches
                               if item.get_facecolor()[3]], ["#0077cc40", "#ee992240"])
+            appearance = options[pca_overlays.SAVED_APPEARANCE]
+            bad = {**options, pca_overlays.SAVED_APPEARANCE: {
+                **appearance, "marker_style": {**appearance["marker_style"], "size": 0}}}
+            for other in (bad, {**options, GRAPH: BIPLOT}):
+                points = analyse(method, reopened.frame(), other).figure.axes[0].collections
+                for item in points:
+                    np.testing.assert_array_equal(item.get_sizes(), [rcParams["lines.markersize"] ** 2])
+
+    def test_unknown_marker_keeps_the_ellipse_and_default_marker_size(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "overlay.prismt"
+            write_project(path)
+            add_score_graph(path, marker_shape="unknown")
+            data = Dataset(load_tables(path, restore_legacy=True)[SOURCE_NAME])
+            method, options = data.analyses[0]
+            self.assertNotIn("marker_style", options[pca_overlays.SAVED_APPEARANCE])
+            result = analyse(method, data.frame(), options)
+            self.assertEqual(result.tables[pca_overlays.SHEET]["Status"].tolist(), ["Drawn", "Drawn"])
+            for item in result.figure.axes[0].collections:
+                np.testing.assert_array_equal(item.get_sizes(), [rcParams["lines.markersize"] ** 2])
 
     def test_imported_score_ellipses_show_the_dispersion_of_each_group(self):
         with TemporaryDirectory() as directory:
