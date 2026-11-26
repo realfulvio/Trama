@@ -841,7 +841,7 @@ def _layout_copy_center_scenario(smoke, window):
     smoke.expect(window.project.layouts[ref[1]] == copies, "centering did not undo")
     window.undo(redo=True)
     smoke.expect(window.project.layouts[ref[1]] == layout, "centering did not redo")
-    smoke.shot(window, "layout-panels-centered")
+    smoke.shot(window, "layout-panels-centered-preview")
     root = smoke.folder / f"{smoke.language}-layout-panels-centered"
     for suffix in (".pdf", ".svg", ".png"):
         window.project.export_layout(layout, root.with_suffix(suffix))
