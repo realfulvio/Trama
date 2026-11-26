@@ -98,6 +98,16 @@ class Processes:
             os.environ[parallel.ENVIRONMENT] = self.previous
 
 
+def ready_workers(timeout=120):
+    """Start the workers and wait for the first: a request reaches them only once they are ready."""
+    parallel.warm_up()
+    deadline = time.monotonic() + timeout
+    while not parallel._pool.warm and time.monotonic() < deadline:
+        time.sleep(0.02)
+    if not parallel._pool.warm:
+        raise AssertionError("the calculation workers did not start")
+
+
 class SettingTests(unittest.TestCase):
     def test_parse_setting(self):
         for value, expected in [("auto", "auto"), (None, "auto"), ("", "auto"), ("4", 4), (4, 4), (1, 1),
@@ -178,7 +188,7 @@ class SerialEquivalenceTests(unittest.TestCase):
 
     def test_workers_are_lean_and_never_nest(self):
         with Processes(3):
-            parallel.warm_up()
+            ready_workers()
             found = parallel.run_tasks(environment, range(12))
             nested_found = parallel.run_tasks(nested, [5, 6, 7])
         remote = [item for item in found if item["in_worker"]]
@@ -193,7 +203,7 @@ class SerialEquivalenceTests(unittest.TestCase):
         previous = active_language()
         try:
             with Processes(3):
-                parallel.warm_up()
+                ready_workers()
                 for code, command in (("it", "Calcolo multicore…"), ("en", "Multicore calculation…")):
                     set_language(code)
                     found = parallel.run_tasks(language, range(12))
@@ -204,14 +214,14 @@ class SerialEquivalenceTests(unittest.TestCase):
 
     def test_a_crashed_worker_falls_back_to_this_process(self):
         with Processes(3):
-            parallel.warm_up()
+            ready_workers()
             self.assertEqual(parallel.run_tasks(crash_in_worker, range(6)), [value + 100 for value in range(6)])
             self.assertEqual(parallel.run_tasks(square, range(8)), [value * value for value in range(8)])
 
     def test_cancellation_reaches_running_and_queued_items(self):
         cancel = threading.Event()
         with Processes(3):
-            parallel.warm_up()
+            ready_workers()
             timer = threading.Timer(0.5, cancel.set)
             timer.start()
             started = time.monotonic()

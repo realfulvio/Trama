@@ -165,7 +165,28 @@ def export_graph(figure, path, settings=None, *, size_inches=None):
 _KEEP = object()  # ``_ask``: keep the input of the analysis.
 
 
-class PaperCanvas(FigureCanvasQTAgg):
+class SheetCanvas(FigureCanvasQTAgg):
+    """The canvas of a page: it renders only once it has a size.
+
+    A page builds its canvas, toolbar and inspector before Qt lays them out, and some of them ask for a redraw
+    while doing so. Rendered at once, the figure was drawn at a size the canvas never has and drawn again when
+    the page was shown: two full renders for every sheet opened (0.05 s each for an ordinary graph, more than a
+    second for a million points). A request made before the first resize is dropped; that resize asks for the
+    one draw, at the real size.
+    """
+
+    _laid_out = False
+
+    def resizeEvent(self, event):
+        self._laid_out = True
+        super().resizeEvent(event)
+
+    def draw_idle(self, *args, **kwargs):
+        if self._laid_out:
+            super().draw_idle(*args, **kwargs)
+
+
+class PaperCanvas(SheetCanvas):
     """Change preview resolution while keeping the saved paper size."""
 
     def __init__(self, figure, paper):
@@ -544,9 +565,12 @@ class MainWindow(QMainWindow):
         a("delete_rows", qt("qt.delete_rows"), self.delete_rows, icon="trash-2")
         a("move_rows_up", qt("qt.move_rows_up"), self.move_rows_up, icon="chevron-up", shortcut="Alt+Up")
         a("move_rows_down", qt("qt.move_rows_down"), self.move_rows_down, icon="chevron-down", shortcut="Alt+Down")
+        a("move_rows_first", qt("qt.move_rows_first"), lambda: self.move_rows_to_edge(first=True))
+        a("move_rows_last", qt("qt.move_rows_last"), lambda: self.move_rows_to_edge(first=False))
         a("sort_rows", qt("qt.sort_rows"), self.sort_rows, icon="arrow-up-down")
         a("sort_by_x", qt("qt.sort_by_x"), self.sort_by_x)
         a("sort_by_row_title", qt("qt.sort_by_row_title"), self.sort_by_row_title)
+        a("reverse_rows", qt("qt.reverse_rows"), self.reverse_rows)
         a("reset_row_height", qt("qt.reset_row_height"), self.reset_row_height, shortcut="Alt+0")
         a("exclude", tr("ribbon.exclude"), self.toggle_exclusion, icon="filter", shortcut="Ctrl+E")
         a("analyze", tr("ribbon.analyze"), self.analyze, icon="sigma", shortcut="Ctrl+Shift+A")
@@ -1911,7 +1935,7 @@ class MainWindow(QMainWindow):
             self._worksheet_command(self.selected, "delete")
 
     def _canvas(self, page, figure, *, toolbar=True, run=None, paper=None, imported_layout=False):
-        canvas = FigureCanvasQTAgg(figure) if paper is None else PaperCanvas(figure, paper)
+        canvas = SheetCanvas(figure) if paper is None else PaperCanvas(figure, paper)
         canvas.setMinimumSize(200, 160)
         page.canvases.append(canvas)
         if toolbar:
@@ -1937,8 +1961,7 @@ class MainWindow(QMainWindow):
             self.drawing.attach(page, canvas, tools if toolbar else None, run)
         if run is not None and self.inspector_wanted and self.project.graph_format_problem(run) is None:
             self._open_inspector(run, canvas, line)
-        canvas.draw_idle()
-        return canvas
+        return canvas  # No draw_idle(): showing the page resizes the canvas, which draws it once (SheetCanvas).
 
     def fit_preview(self):
         if self.plot_tools is not None and self.gallery is None and not self.busy():
@@ -2244,9 +2267,12 @@ class MainWindow(QMainWindow):
         reorder = bool(can_reorder and box is not None and 0 <= box[0] <= box[2] < data_rows)
         self.actions["move_rows_up"].setEnabled(reorder and box[0] > 0)
         self.actions["move_rows_down"].setEnabled(reorder and box[2] + 1 < data_rows)
+        self.actions["move_rows_first"].setEnabled(reorder and box[0] > 0)
+        self.actions["move_rows_last"].setEnabled(reorder and box[2] + 1 < data_rows)
         self.actions["sort_rows"].setEnabled(can_reorder and bool(sortable_columns(dataset)))
         self.actions["sort_by_x"].setEnabled(can_reorder and x_sort_column(dataset) is not None)
         self.actions["sort_by_row_title"].setEnabled(can_reorder and row_title_sort_column(dataset) is not None)
+        self.actions["reverse_rows"].setEnabled(can_reorder and data_rows > 1)
         has_custom = bool(editable and idle and dataset is not None and box is not None and dataset.row_heights
                           and any(row in dataset.row_heights for row in range(box[0], min(box[2] + 1, data_rows))))
         self.actions["reset_row_height"].setEnabled(has_custom)
@@ -2321,29 +2347,43 @@ class MainWindow(QMainWindow):
         if not plan.changed:
             self.status(sort_text("already_sorted", key=plan.key_name, direction=sort_text(plan.direction).lower()))
             return
-        box = self.sheet.box()
-        current = self.sheet.currentIndex()
-        current_row = current.row() if current.isValid() else None
-        current_col = current.column() if current.isValid() else (box[1] if box is not None else 0)
-        length = len(dataset.raw)
-        before_revision = self.project.revision
-        self._apply_edit(
-            title,
+        if self._apply_row_permutation(
+            title, plan.inverse,
             lambda: self.project.sort_rows(
                 title, plan.key_name, plan.direction, plan=plan,
                 expected_revision=expected_revision, expected_raw=expected_raw,
             ),
-        )
+        ) and not self.project.table_runs(title):
+            self.status(sort_text("done", rows=plan.row_count, key=plan.key_name,
+                                  direction=sort_text(plan.direction).lower()))
+
+    def reverse_rows(self):
+        if not self.can_reorder_active_rows() or self.sheet is None:
+            return
+        title = self.selected[1]
+        length = len(self.project.tables[title].raw)
+        if length > 1 and self._apply_row_permutation(
+            title, range(length - 1, -1, -1), lambda: self.project.reverse_rows(title),
+        ) and not self.project.table_runs(title):
+            self.status(qt("qt.rows_reversed"))
+
+    def _apply_row_permutation(self, title, inverse, change):
+        box = self.sheet.box()
+        current = self.sheet.currentIndex()
+        current_row = current.row() if current.isValid() else None
+        current_col = current.column() if current.isValid() else (box[1] if box is not None else 0)
+        length = len(inverse)
+        before_revision = self.project.revision
+        self._apply_edit(title, change)
         if self.project.revision != before_revision and self.selected == ("data", title) and self.sheet is not None:
-            restored = remap_selection_after_sort(plan.inverse, length, box, current_row, current_col)
+            restored = remap_selection_after_sort(inverse, length, box, current_row, current_col)
             if restored is not None:
                 top, left, bottom, right, active_row, active_col = restored
                 self.sheet.select_block(top, left, bottom, right, current_row=active_row, current_col=active_col)
                 self.sheet.scrollTo(self.sheet.model().index(active_row, active_col))
             self.update_actions()
-            if not self.project.table_runs(title):
-                self.status(sort_text("done", rows=plan.row_count, key=plan.key_name,
-                                      direction=sort_text(plan.direction).lower()))
+            return True
+        return False
 
     def move_rows(self, start, stop, destination):
         title = self._active_table()
@@ -2355,11 +2395,13 @@ class MainWindow(QMainWindow):
         right = box[3] if box is not None else max(0, self.sheet.model().columnCount() - 1)
         row_offset = (current.row() - start) if current.isValid() and start <= current.row() < stop else 0
         col_cur = current.column() if current.isValid() else left
+        before_revision = self.project.revision
         self._apply_edit(title, lambda: self.project.move_rows(title, start, stop, destination))
-        if self.selected == ("data", title) and self.sheet is not None:
+        if self.project.revision != before_revision and self.selected == ("data", title) and self.sheet is not None:
             new_start, new_stop = moved_row_bounds(start, stop, destination)
             self.sheet.select_block(new_start, left, new_stop - 1, right,
                                     current_row=new_start + row_offset, current_col=col_cur)
+            self.sheet.scrollTo(self.sheet.model().index(new_start + row_offset, col_cur))
             self.update_actions()
 
     def move_rows_up(self):
@@ -2375,6 +2417,14 @@ class MainWindow(QMainWindow):
         top, _, bottom, _ = box
         if bottom + 1 < len(self.sheet.model().frame):
             self.move_rows(top, bottom + 1, bottom + 2)
+
+    def move_rows_to_edge(self, *, first):
+        if not self.can_reorder_active_rows() or self.sheet is None or (box := self.sheet.box()) is None:
+            return
+        top, _, bottom, _ = box
+        length = len(self.project.tables[self.selected[1]].raw)
+        if 0 <= top <= bottom < length:
+            self.move_rows(top, bottom + 1, 0 if first else length)
 
     def set_row_height(self, row, height):
         title = self._active_table()

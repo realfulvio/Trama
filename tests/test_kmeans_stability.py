@@ -14,6 +14,7 @@ from analisi import kmeans_stability as ks
 from analisi.field_error import FieldError
 from analisi.hartigan_wong import IterationLimitError
 from analisi.workbench import GRAPH_METHODS, GROUPS, METHODS, analyse
+from tests.test_parallel import ready_workers
 
 DATA = Path(__file__).resolve().parent / "data" / "kmeans_stability"
 VARIABLES = ["Marker A", "Marker B"]
@@ -411,6 +412,8 @@ class PoolTests(unittest.TestCase):
 
         with mock.patch.dict("os.environ", {"TRAMA_PROCESSES": str(processes)}), \
                 mock.patch.object(ks, "run_tasks", side_effect=recording):
+            if processes > 1:
+                ready_workers()  # a request reaches the workers only once they are ready
             result = ks.analysis(frame, recipe, **keywords)
         return result, seen
 

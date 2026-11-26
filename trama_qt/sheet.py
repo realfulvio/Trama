@@ -440,6 +440,8 @@ class WorksheetRowHeader(QHeaderView):
         menu = QMenu(self)
         menu.addAction(self.view.host.actions["move_rows_up"])
         menu.addAction(self.view.host.actions["move_rows_down"])
+        menu.addAction(self.view.host.actions["move_rows_first"])
+        menu.addAction(self.view.host.actions["move_rows_last"])
         menu.addAction(self.view.host.actions["reset_row_height"])
         menu.addSeparator()
         menu.addAction(self.view.host.actions["insert_row"])

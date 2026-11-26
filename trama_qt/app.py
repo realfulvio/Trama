@@ -1,5 +1,6 @@
-"""Start Trama on Qt: language, fonts, theme, a short splash and the main window."""
+"""Start Trama on Qt: the splash first, then language, fonts, theme and the main window."""
 import os
+from pathlib import Path
 import sys
 
 # The worksheet and graphs are drawn with the Qt backend; set before pyplot can be imported anywhere.
@@ -18,6 +19,20 @@ def _option(argv, name):
     if name in argv and argv.index(name) + 1 < len(argv):
         return argv[argv.index(name) + 1]
     return None
+
+
+def splash_logo():
+    """The splash image, found without importing ``theme``.
+
+    ``theme`` imports ``analisi`` and with it NumPy, pandas, SciPy and matplotlib: two to three seconds, seven
+    on a first launch. The splash is there to cover that wait, so its image is located here with the rule of
+    ``theme.asset_root`` (tests/test_qt_splash_first.py keeps the two together).
+    """
+    bundle = getattr(sys, "_MEIPASS", None)
+    roots = [Path(__file__).resolve().parent.parent / "assets"]
+    if bundle:
+        roots.insert(0, Path(bundle) / "assets")
+    return next((root for root in roots if root.is_dir()), roots[-1]) / "brand" / "trama-wordmark-light.png"
 
 
 def main(argv=None):
@@ -41,9 +56,8 @@ def main(argv=None):
     app.setApplicationName("Trama")
     app.setOrganizationName("TramaStat")
 
-    from . import theme
     splash = None
-    logo = QPixmap(str(theme.ASSETS / "brand" / "trama-wordmark-light.png"))
+    logo = QPixmap(str(splash_logo()))
     if not logo.isNull():
         ratio = app.primaryScreen().devicePixelRatio() if app.primaryScreen() else 1.0
         logo = logo.scaledToWidth(int(420 * ratio), Qt.TransformationMode.SmoothTransformation)
@@ -52,6 +66,7 @@ def main(argv=None):
         splash.show()
         app.processEvents()
 
+    from . import theme  # the scientific stack loads here, behind the splash
     from analisi import parallel
     from analisi.i18n import active_language, config_path, load_language, set_language
     path = config_path()

@@ -13,6 +13,7 @@ from analisi.field_error import FieldError
 from analisi.i18n import set_language
 from analisi.parallel_analyses import LOCAL_METHODS, analysis_task, precompute
 from analisi.workbench import METHODS, analyse
+from tests.test_parallel import ready_workers
 
 
 def recipe(method, **options):
@@ -61,6 +62,7 @@ class PrecomputeTests(unittest.TestCase):
     def setUpClass(cls):
         cls.previous = os.environ.get(parallel.ENVIRONMENT)
         os.environ[parallel.ENVIRONMENT] = "3"
+        ready_workers()  # a request reaches the workers only once they are ready
 
     @classmethod
     def tearDownClass(cls):
