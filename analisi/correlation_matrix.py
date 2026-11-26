@@ -100,7 +100,12 @@ def _unit_centered(values):
 
 
 def _coefficient_and_p(x, y, alternative):
-    r = float(np.clip(_unit_centered(x) @ _unit_centered(y), -1., 1.))
+    return _centered_coefficient_and_p(_unit_centered(x), _unit_centered(y), alternative)
+
+
+def _centered_coefficient_and_p(x, y, alternative):
+    """Coefficient and p value of two vectors already passed through :func:`_unit_centered`."""
+    r = float(np.clip(x @ y, -1., 1.))
     n = len(x)
     shape = n / 2 - 1
     if alternative == "two-sided":
@@ -123,6 +128,44 @@ def _confidence_interval(coefficient, n, critical, spearman):
     delta = critical * np.sqrt(variance / (n - 3))
     center = np.arctanh(coefficient)
     return np.tanh(center - delta), np.tanh(center + delta)
+
+
+class _PairColumns:
+    """The two columns of a pair in the rows where both have a value, each prepared for the coefficient.
+
+    Preparing a column means: is it constant, its ranks (Spearman), its unit-centred vector. All three depend
+    only on the values that enter the pair. When the other column drops none of them (always, in a table
+    without gaps or with listwise deletion), they are the values of the previous pair with this column, and the
+    preparation is kept: a column is ranked and centred once, not once for each of its pairs. The kept arrays
+    are read-only, so the numbers are those of preparing the column again for every pair, bit for bit.
+    """
+
+    def __init__(self, matrix, finite, counts, spearman):
+        self.matrix, self.finite, self.counts, self.spearman = matrix, finite, counts, spearman
+        self._whole = {}
+
+    def _prepare(self, values):
+        """``(scores, unit-centred scores)``, or None for a constant column (it has no coefficient)."""
+        if values.min() == values.max():
+            return None
+        scores = stats.rankdata(values) if self.spearman else values
+        centered = _unit_centered(scores)
+        scores.flags.writeable = centered.flags.writeable = False
+        return scores, centered
+
+    def __call__(self, i, j):
+        """The prepared columns ``i`` and ``j`` of the pair (None where one is constant in its rows)."""
+        n, both, found = self.counts[i, j], None, []
+        for column in (i, j):
+            if n == self.counts[column, column]:  # the pair keeps every value of this column
+                if column not in self._whole:
+                    self._whole[column] = self._prepare(self.matrix[self.finite[:, column], column])
+                found.append(self._whole[column])
+            else:
+                if both is None:
+                    both = self.finite[:, i] & self.finite[:, j]
+                found.append(self._prepare(self.matrix[both, column]))
+        return found
 
 
 def _heat_map(coefficients, names):
@@ -177,16 +220,16 @@ def correlation_matrix(frame, options):
         observed = matrix[finite[:, index], index]
         if n >= 3 and observed.min() != observed.max():
             r[index, index] = 1.
+    columns = _PairColumns(matrix, finite, counts, spearman)
     for i, j in combinations(range(len(names)), 2):
         n = counts[i, j]
         if n < 3:
             continue
-        x, y = matrix[finite[:, i] & finite[:, j]][:, [i, j]].T
-        if x.min() == x.max() or y.min() == y.max():
+        first, second = columns(i, j)
+        if first is None or second is None:
             continue
-        if spearman:
-            x, y = stats.rankdata(x), stats.rankdata(y)
-        coefficient, probability = _coefficient_and_p(x, y, alternative)
+        (x, centered_x), (y, centered_y) = first, second  # ranks for Spearman, the values themselves for Pearson
+        coefficient, probability = _centered_coefficient_and_p(centered_x, centered_y, alternative)
         if spearman:
             label = "Approximate"
             if p_values == P_VALUES[0] and n <= MAX_EXACT_N:
