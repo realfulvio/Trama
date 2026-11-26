@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFormLayout, QFram
                                QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from analisi.axis_breaks import AXIS_BREAKS
+from analisi.bubble_style import describe_bubble_artists
 from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.linked_axes import LINKED_AXES, linked_axes_status, supported_dimensions
 from analisi.i18n import tr, translate_message
@@ -34,6 +35,7 @@ TEXT_FIELDS = {"title": 0, "xlabel": 1, "ylabel": 2}
 NUMBER_FIELDS = {"width", "marker_size"}
 SECTION_KEYS = {"data": ("series",), "points": (POINTS,), "labels": (LABELS,),
                 "axes": ("xlabel", "ylabel", "xscale", "yscale", AXIS_BREAKS, LINKED_AXES),
+                "bubble": ("bubble",),
                 "page": ("title", "grid", "legend")}
 PREVIEW_DELAY_MS = 350
 
@@ -127,6 +129,10 @@ class GraphInspector(QFrame):
             button = QPushButton(tr("hierarchy.style.button"))
             button.clicked.connect(self.edit_hierarchical)
             self.body.addWidget(button)
+        self.bubble_section = None
+        if describe_bubble_artists(self.figure):
+            from .bubble_style import BubbleInspectorSection
+            self.bubble_section = BubbleInspectorSection(self)
         self._data_section()
         self.points = PointEditor(self)
         self.labels = LabelEditor(self)
@@ -348,6 +354,8 @@ class GraphInspector(QFrame):
                 keys = [item["key"] for item in self.elements]
                 self.selector.setCurrentIndex(keys.index(self._element_key) if self._element_key in keys else 0)
             self._load_element()
+            if self.bubble_section is not None:
+                self.bubble_section.load(self.draft)
         finally:
             self._loading = False
         self.points.series_changed(keep=True)
@@ -426,6 +434,23 @@ class GraphInspector(QFrame):
             candidate.pop("hierarchical", None)
         if candidate != self.draft:
             self._preview(candidate)
+
+    def edit_bubble(self):
+        from .bubble_style import BubbleStyleDialog
+
+        self._flush()
+        dialog = BubbleStyleDialog(self, self.figure, self.draft.get("bubble"), full_style=self.draft)
+        if dialog.exec() != BubbleStyleDialog.DialogCode.Accepted:
+            return
+        candidate = deepcopy(self.draft)
+        if dialog.result:
+            candidate["bubble"] = dialog.result
+        else:
+            candidate.pop("bubble", None)
+        if candidate != self.draft:
+            self._preview(candidate)
+        if self.bubble_section is not None:
+            self.bubble_section.load(self.draft)
 
     def _schedule(self, source):
         if self._loading:
@@ -519,6 +544,8 @@ class GraphInspector(QFrame):
             self.points.write(style)
         elif source.startswith("label"):
             self.labels.write(style, source)
+        elif source.startswith("bubble:") and self.bubble_section is not None:
+            self.bubble_section.write(style)
 
     def _write_axis(self, style, dimension, part):
         if part == "scale":
@@ -617,6 +644,7 @@ class GraphInspector(QFrame):
         self._due = []
         self.timer.stop()
         prefixes = {"data": ("element:",), "points": ("point",), "labels": ("label",), "axes": ("x", "y"),
+                    "bubble": ("bubble:",),
                     "page": ("title", "legend", "grid")}[name]
         for source in [source for source in self.errors if source.startswith(prefixes)]:
             self._flag(source, None)

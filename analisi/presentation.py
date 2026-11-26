@@ -213,7 +213,7 @@ def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
                     "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", LEGEND_OPTIONS_KEY, "series",
                     "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY,
-                    "hierarchical", AXIS_BREAKS, LINKED_AXES, POINTS, LABELS, TABLES},
+                    "hierarchical", "bubble", AXIS_BREAKS, LINKED_AXES, POINTS, LABELS, TABLES},
             "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
         if key in style and not _text(style[key]):
@@ -285,6 +285,10 @@ def validated_style(style):
         from .hierarchical_style import validate_hierarchical_style
 
         style["hierarchical"] = validate_hierarchical_style(style["hierarchical"])
+    if "bubble" in style:
+        from .bubble_style import validate_bubble_style
+
+        style["bubble"] = validate_bubble_style(style["bubble"])
     return style
 
 
@@ -600,6 +604,10 @@ def _check_linked_axes(style, scales):
 
 def validate_graph_style(axes, style):
     validated_style(style)
+    if "bubble" in style:
+        from .bubble_style import validate_bubble_style
+
+        validate_bubble_style(style["bubble"], figure=axes.figure)
     for key in ("title", "xlabel", "ylabel"):
         if key in style:
             _check_math_text(style[key])
@@ -1079,6 +1087,11 @@ def apply_style(figure, style):
     restore_observation_labels(figure)
     if LEGEND_OPTIONS_KEY in style or LEGEND_OPTIONS_KEY in previous:
         restore_legend_snapshots(figure)
+    from .bubble_style import apply_bubble_style, describe_bubble_artists
+
+    bubble_state = describe_bubble_artists(figure)
+    if bubble_state and ("bubble" in style or bubble_state["effective_encoding"] != bubble_state["default_encoding"]):
+        apply_bubble_style(figure, style.get("bubble", {}), style=style)
     clear_axis_guides_and_bands(axes)
     clear_axis_breaks(figure)
     clear_linked_axes(axes)

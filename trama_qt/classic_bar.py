@@ -36,7 +36,7 @@ MENUS = (
     ("Analyze", ("analyze", "change", "recalculate", "analyze_result", "source_analysis", "change_input",
                  "repeat_analysis", "use_result", "|", "descriptive", "ttest", "anova", "correlation", "correlation_matrix",
                  "linear", "nonlinear", "survival", "contingency", "load_example")),
-    ("Change", ("change", "change_graph_type", "format_graph", "graph_style_presets", "batch_figure_styles",
+    ("Change", ("change", "change_graph_type", "format_graph", "bubble_style", "graph_style_presets", "batch_figure_styles",
                 "plot_margins", "edit_layout", "variable_properties", "category_order", "cell_background",
                 "clear_cell_background", "number_format", "|",
                 *TEXT_MENU, "|",
