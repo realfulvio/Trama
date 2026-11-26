@@ -26,6 +26,18 @@ def where(value):
     return value, parallel.in_worker(), os.getpid()
 
 
+def work_through_worker_start(value):
+    # Keep the first local item busy until the pool actually becomes ready.
+    # A fixed-length workload may finish before a loaded machine starts a worker.
+    if value == 0 and not parallel.in_worker():
+        deadline = time.monotonic() + 120
+        while not parallel._pool.warm:
+            if time.monotonic() >= deadline:
+                raise AssertionError("the calculation workers did not start during the first item")
+            time.sleep(0.02)
+    return square(value)
+
+
 class ColdStartTests(unittest.TestCase):
     def setUp(self):
         parallel.shutdown()  # every test starts without workers
@@ -41,18 +53,14 @@ class ColdStartTests(unittest.TestCase):
 
     def test_a_long_first_request_starts_here_and_moves_to_the_workers(self):
         with Processes(3):
-            found = parallel.run_tasks(slow_square, range(120), outcomes=True)
-            self.assertEqual([outcome.value for outcome in found], [value * value for value in range(120)])
-            here = [index for index, outcome in enumerate(found) if not outcome.remote]
-            self.assertTrue(parallel._pool.warm)
-            self.assertGreater(len(here), 0)
-            self.assertLess(len(here), 120, "no item reached a worker")
-            # in order from the first item, then nothing but workers
-            self.assertEqual(here, list(range(len(here))))
+            found = parallel.run_tasks(work_through_worker_start, range(6), outcomes=True)
+            self.assertEqual(found[0], parallel.Outcome(value=0))
+            self.assertEqual([outcome.value for outcome in found], [value * value for value in range(6)])
+            self.assertTrue(all(outcome.remote for outcome in found[1:]))
 
     def test_the_second_request_uses_the_workers_from_its_first_item(self):
         with Processes(3):
-            parallel.run_tasks(slow_square, range(120))
+            self.assertEqual(parallel.run_tasks(work_through_worker_start, range(3)), [0, 1, 4])
             found = parallel.run_tasks(where, range(12), outcomes=True)
             self.assertTrue(all(outcome.remote for outcome in found))
 
