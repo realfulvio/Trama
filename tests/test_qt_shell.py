@@ -2821,6 +2821,94 @@ class QtShellTests(unittest.TestCase):
         import pypdfium2 as pdfium
         self.assertEqual(len(pdfium.PdfDocument(str(self.folder / "bundle.pdf"))), 2)
 
+    def test_empty_layout_panels_can_be_saved_filled_and_exported(self):
+        import json
+        import xml.etree.ElementTree as ET
+        from unittest.mock import patch
+
+        from matplotlib.backend_bases import MouseEvent
+        from PySide6.QtWidgets import QFileDialog
+
+        from analisi.analysis_templates import read_template, write_template
+        from analisi.data import load_workspace
+        from analisi.family_workflow import save_family
+        from analisi.layout_svg import SVG
+        from trama_qt.gallery_catalog import READY, describe
+        from trama_qt.layout_dialog import LayoutDialog, LayoutGraphDialog
+
+        window = self.window
+
+        def create(dialog):
+            self.assertEqual(dialog.order, [None])
+            dialog.add_empty()
+            dialog.add_empty()
+            dialog.accept()
+            return dialog.DialogCode.Accepted
+
+        self.assertTrue(window.actions["new_layout"].isEnabled())
+        with patch.object(LayoutDialog, "exec", create):
+            window.actions["new_layout"].trigger()
+        ref = ("layout", 0)
+        self.assertEqual(window.selected, ref)
+        self.assertEqual(window.project.layouts[0].panels, [None, None, None])
+        self.assertFalse(window.actions["place_layout_graph"].isEnabled())
+
+        saved = self.folder / "empty-layout.alab"
+        with patch.object(QFileDialog, "getSaveFileName", return_value=(str(saved), "")):
+            self.assertTrue(window.save())
+        self.assertEqual(json.loads(saved.read_text())["layouts"][0]["panels"], [None, None, None])
+        self.reopen(saved)
+        self.assertEqual(window.selected, ref)
+        self.assertEqual(window.project.layouts[0].panels, [None, None, None])
+
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        window.open_sheet(ref)
+        self.wait()
+        self.assertTrue(window.actions["place_layout_graph"].isEnabled())
+
+        def choose(dialog):
+            self.assertEqual(dialog.panels.count(), 1)
+            self.assertEqual(dialog.panels.currentData(), 1)
+            self.assertEqual(dialog.graphs.currentData(), graph.reference)
+            return dialog.DialogCode.Accepted
+
+        canvas = window.page.canvases[0]
+        axis = next(axis for axis in canvas.figure.axes if axis.get_gid() == "layout-slot-1")
+        x, y = axis.transAxes.transform((.5, .5))
+        with patch.object(LayoutGraphDialog, "exec", choose):
+            MouseEvent("button_press_event", canvas, x, y, button=1, dblclick=True)._process()
+        layout = window.project.layouts[0]
+        self.assertEqual(layout.panels, [None, graph.reference, None])
+        self.assertEqual(describe(window.project, ref).state, READY)
+        self.assertEqual([axis.get_gid() for axis in window.project.layout_figure(layout).axes], [None])
+        window.undo()
+        self.assertEqual(window.project.layouts[0].panels, [None, None, None])
+        window.undo(redo=True)
+        self.assertEqual(window.project.layouts[0].panels, layout.panels)
+        for extension in ("svg", "pdf", "png"):
+            target = self.folder / f"sparse.{extension}"
+            window.project.export_layout(layout, target)
+            self.assertGreater(target.stat().st_size, 1000)
+        root = ET.parse(self.folder / "sparse.svg")
+        self.assertIsNone(root.find(f".//{SVG}g[@id='panel1']"))
+        self.assertIsNotNone(root.find(f".//{SVG}g[@id='panel2']"))
+        self.assertIsNone(root.find(f".//{SVG}g[@id='panel3']"))
+
+        project = window.project
+        project.rename_sheet(("data", graph.title), "Renamed")
+        layout = project.layouts[0]
+        self.assertEqual(layout.panels, [None, ("Renamed", graph.slot), None])
+        family = self.folder / "empty-panel-family.alab"
+        save_family(family, project.tables, project.layouts, (), ref)
+        _tables, saved_layouts = load_workspace(family)
+        self.assertEqual(saved_layouts[0].panels, layout.panels)
+        template = self.folder / "empty-panel.tramatpl"
+        write_template(template, project.tables, layouts=project.layouts)
+        slots = read_template(template).layouts[0].panels
+        self.assertEqual((slots[0], slots[2]), (None, None))
+        self.assertTrue(slots[1])
+
     def test_layout_panel_arrangement_undo_and_exports(self):
         from unittest.mock import patch
         from analisi.presentation import Layout

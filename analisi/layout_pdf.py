@@ -7,7 +7,7 @@ from matplotlib.figure import Figure
 
 from .figure_export import MM, _render
 from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
-from .layout_panels import plan_panels
+from .layout_panels import EMPTY_PANEL, plan_panels
 from .linked_tables import overlay_figure
 from .presentation import Layout
 
@@ -18,7 +18,7 @@ class PdfLayoutPage:
 
     title: str
     columns: int
-    panels: tuple[Figure, ...]
+    panels: tuple  # Calculated figures and EMPTY_PANEL slots
     paper: str = AUTO_PAPER
     background: str = WHITE
     panel_size: str = "original"
@@ -29,6 +29,8 @@ class PdfLayoutPage:
         Layout(self.title, self.columns, [("panel", index) for index in range(len(self.panels))],
                self.paper, self.background, self.panel_size, self.axis_alignment)
         for index, figure in enumerate(self.panels):
+            if figure is EMPTY_PANEL:
+                continue
             if not isinstance(figure, Figure):
                 raise ValueError(f"Panel {chr(ord('A') + index)} has no figure to export.")
             if not all(isfinite(value) and value > 0 for value in figure.get_size_inches()):
@@ -45,8 +47,8 @@ class PdfLayoutPage:
 
     def frame(self, plan):
         scale = plan["width_mm"] / MM / self.size[0]
-        return layout_frame(self.title, self.size, [panel.box for panel in self.placements],
-                            scale, background=WHITE if plan["transparent"] else self.background)
+        boxes = [panel.box if panel.figure is not None else None for panel in self.placements]
+        return layout_frame(self.title, self.size, boxes, scale, background=WHITE if plan["transparent"] else self.background)
 
 
 def _place_form(document, page, source, matrix):
@@ -93,6 +95,8 @@ def _add_panels(document, page, layout, plan):
     width, height = layout.size
     page_scale = plan["width_mm"] / MM / width
     for panel in layout.placements:
+        if panel.figure is None:
+            continue
         w, h = panel.size
         x, y, fit = panel.box
         # PDF uses points with the origin at the bottom left. The form's bounding box clips the panel.

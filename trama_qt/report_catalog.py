@@ -162,13 +162,14 @@ def candidates(project):
             options["panel_size"] = layout.panel_size
         if layout.axis_alignment != "none":
             options["axis_alignment"] = layout.axis_alignment
-        if any(entry is None for entry in panels):
+        if any(entry is None and reference is not None for reference, entry in zip(layout.panels, panels, strict=True)):
             reason = text("layout_missing")
         else:
-            waiting = [run.name for _i, run in panels
+            existing = [entry[1] for entry in panels if entry is not None]
+            waiting = [run.name for run in existing
                        if run.result is None or run.result.figure is None or run.calculation_error
                        or run.method in LEGACY_GRAPH_METHODS or not run.result.figure.axes]
-            errors = [run.calculation_error for _i, run in panels if run.calculation_error]
+            errors = [run.calculation_error for run in existing if run.calculation_error]
             reason = text("layout", names=", ".join(waiting)) if waiting else ""
             if reason and errors:
                 reason += f" ({errors[0]})"

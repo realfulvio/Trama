@@ -88,7 +88,8 @@ def describe(project, ref):
             return None
     except (IndexError, TypeError):
         return None
-    state, detail = _state(runs, expected)
+    required = sum(panel is not None for panel in layout.panels) if kind == "layout" else expected
+    state, detail = _state(runs, required)
     figures = tuple(run.result.figure if run.result is not None else None for run in runs)
     return Entry(tuple(ref), name, GRAPH if kind == "graph" else LAYOUT, state, detail,
                  panels=expected if kind == "layout" else 0, folded=fold(name),

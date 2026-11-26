@@ -1117,6 +1117,9 @@ def _analysis_slots(value, count):
     return result
 
 
+LAYOUT_PLACEHOLDER_VERSION = 6
+
+
 def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=None):
     """The JSON document of a .alab project, validated as ``save_project`` writes it. Pure: reads its arguments only,
     so a detached copy of a project can be serialised away from the GUI thread (Qt recovery copies)."""
@@ -1142,7 +1145,9 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         if not record.get("tables"):
             record.pop("tables", None)
         layout_records.append(record)
-    data = {"version": 3 if linked else 2, "tables": [], "layouts": layout_records}
+    version = LAYOUT_PLACEHOLDER_VERSION if any(None in record["panels"] for record in layout_records) else (
+        3 if linked else 2)
+    data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
     if sheet_metadata:
@@ -1222,7 +1227,7 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
             record["analysis_labels"] = dict(sorted(dataset.analysis_labels.items()))
         if orders := raw.attrs.get(WORKSHEET_ORDERS):
             record[WORKSHEET_ORDERS] = validated_orders(orders, raw.columns)
-            data["version"] = CATEGORY_ORDER_VERSION
+            data["version"] = max(data["version"], CATEGORY_ORDER_VERSION)
         if types := raw.attrs.get(VARIABLE_TYPES):
             record[VARIABLE_TYPES] = validated_types(types, raw.columns)
         if ROW_SPANS in raw.attrs:
@@ -1278,7 +1283,7 @@ def load_workspace(path, *, include_info=False):
         raise ValueError("Project file exceeds 32 MiB.")
     obj = json.loads(path.read_text(encoding="utf-8-sig"))
     version = obj["version"]
-    if version not in (1, 2, 3, LEGACY_METADATA_VERSION, CATEGORY_ORDER_VERSION) or len(obj["tables"]) > 256:
+    if version not in (1, 2, 3, LEGACY_METADATA_VERSION, CATEGORY_ORDER_VERSION, LAYOUT_PLACEHOLDER_VERSION) or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
     if (not isinstance(stored_info, list) or len(stored_info) > MAX_INFO_SHEETS
@@ -1388,12 +1393,17 @@ def load_workspace(path, *, include_info=False):
         raise ValueError("A project supports up to 128 layouts.")
     layouts = []
     for record in stored_layouts:
-        panels = [tuple(ref) for ref in record["panels"]]
+        if not isinstance(record["panels"], list) or any(
+                ref is not None and not isinstance(ref, list) for ref in record["panels"]):
+            raise ValueError("Invalid layout panel reference.")
+        panels = [tuple(ref) if ref is not None else None for ref in record["panels"]]
+        if None in panels and version < LAYOUT_PLACEHOLDER_VERSION:
+            raise ValueError("Empty layout panels require project format version 6.")
         layout = Layout(record["name"], record["columns"], panels,
                         record.get("paper", AUTO_PAPER), record.get("background", WHITE),
                         record.get("panel_size", "original"), record.get("axis_alignment", "none"),
                         record.get("tables", []))
-        if any(title not in result or index >= len(result[title].analyses) for title, index in panels):
+        if any(title not in result or index >= len(result[title].analyses) for title, index in (ref for ref in panels if ref is not None)):
             raise ValueError("Layout references an unknown analysis.")
         layouts.append(layout)
     validate_info_sheets(sheets, result)

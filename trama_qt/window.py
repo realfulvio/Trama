@@ -1,6 +1,7 @@
 """The Trama main window on Qt: command bar, navigator, sheets and background calculations."""
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from weakref import WeakKeyDictionary
 
@@ -12,7 +13,7 @@ from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon,
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboBox, QDialog, QFileDialog, QFrame,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QScrollArea, QSlider, QSplitter, QTabBar, QToolBar,
-                               QToolButton, QTreeWidget, QTreeWidgetItem, QTreeWidgetItemIterator, QVBoxLayout, QWidget)
+                               QToolButton, QTreeWidgetItem, QTreeWidgetItemIterator, QVBoxLayout, QWidget)
 
 from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power, mean_permutation, parallel, power_plan, rmst
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, result_display
@@ -61,6 +62,7 @@ from analisi.paired_graphs import paired_plot_options
 from analisi.rank_graphs import RANK_PLOT, rank_plot_options
 from analisi.rank_tests import MANN_WHITNEY, WILCOXON
 
+from .layout_drop import GraphNavigator, LayoutDrop
 from . import global_catalog
 from . import gui_gc, office, theme
 from .analysis_dialog import AnalysisDialog
@@ -662,6 +664,7 @@ class MainWindow(QMainWindow):
           icon="type")
         a("new_layout", tr("command.new_layout"), self.new_layout, icon="layout-grid", shortcut="Ctrl+L")
         a("edit_layout", tr("command.edit_layout"), lambda: self.new_layout(edit=True), icon="layout-grid")
+        a("place_layout_graph", qt("qt.layout_place_graph"), self.place_layout_graph, icon="chart-line")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
         a("use_result", qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
         a("analysis_graph", qt("qt.show_analysis_graph"), lambda: self.switch_run_view("graph"), icon="chart-line")
@@ -749,7 +752,7 @@ class MainWindow(QMainWindow):
         self.sheet_search.addAction(theme.classic_icon("search"), QLineEdit.ActionPosition.LeadingPosition)
         self.sheet_search.textChanged.connect(self.filter_sheets)
         nav_layout.addWidget(self.sheet_search)
-        self.navigator = QTreeWidget()
+        self.navigator = GraphNavigator(self.layout_drag_graph)
         self.navigator.setObjectName("navigator")
         self.navigator.setHeaderHidden(True)
         self.navigator.setRootIsDecorated(True)
@@ -1125,8 +1128,13 @@ class MainWindow(QMainWindow):
             self.actions[key].setEnabled(graph and idle)
         if self.inspector is not None:
             self.inspector.setEnabled(idle)
-        self.actions["new_layout"].setEnabled(idle and bool(self.project.layout_candidates()))
-        self.actions["edit_layout"].setEnabled(idle and kind == "layout")
+        self.actions["new_layout"].setEnabled(idle)
+        layout_editable = idle and kind == "layout" and not locked
+        self.actions["edit_layout"].setEnabled(layout_editable)
+        self.actions["place_layout_graph"].setEnabled(
+            layout_editable and None in self.project.layouts[self.selected[1]].panels
+            and bool(self.project.layout_candidates()))
+        self.navigator.setDragEnabled(self.actions["place_layout_graph"].isEnabled())
         self.actions["recalculate"].setEnabled((on_run and not locked or kind == "layout") and idle)
         self.actions["use_result"].setEnabled(kind == "result" and idle)
         run = self.project.runs[self.selected[1]] if kind in {"result", "graph"} else None
@@ -2273,17 +2281,41 @@ class MainWindow(QMainWindow):
         layout = self.project.layouts[index]
         page = Page(layout.name, tr("interface.layout_panels", count=len(layout.panels)))
         page.command(self.actions["edit_layout"])
+        if None in layout.panels:
+            page.command(self.actions["place_layout_graph"])
         page.command(self.actions["linked_table"])
         page.command(self.actions["linked_table_move"])
         page.finish_actions()
         self._stale(page, self.project.layout_runs(layout))
-        figure = self.project.layout_figure(layout)
+        figure = self.project.layout_figure(layout, show_empty=True)
         if figure is None:
             page.notice(qt("qt.layout_missing"))
             page.layout_.addStretch(1)
         else:
             self.layout_figure = figure
-            self._canvas(page, figure, paper=figure.get_size_inches(), reference=("layout", index))
+            canvas = self._canvas(page, figure, paper=figure.get_size_inches(), reference=("layout", index))
+            if None in layout.panels:
+                slots = {axis: int(axis.get_gid().removeprefix("layout-slot-")) for axis in figure.axes
+                         if (axis.get_gid() or "").startswith("layout-slot-")}
+
+                def open_slot(event):
+                    if (event.dblclick and event.button == 1 and event.inaxes in slots
+                            and not self.table_move.active and not self.plot_tools.mode):
+                        self.place_layout_graph(slots[event.inaxes])
+
+                canvas.mpl_connect("button_press_event", open_slot)
+                project = self.project
+
+                def resolve_graph(identifier):
+                    if (self.project is not project or self.selected != ("layout", index) or self.job is not None
+                            or self.table_move.active or canvas is not self.page.canvases[0]
+                            or project.sheet_locked(("layout", index))):
+                        return None
+                    return next((run.reference for run in project.layout_candidates() if run.uid == identifier), None)
+
+                # Hold the filter for the lifetime of the canvas.
+                canvas.layout_drop = LayoutDrop(canvas, self.navigator, slots, resolve_graph,
+                                                lambda slot, graph: self._assign_layout_graph(index, slot, graph))
         return page
 
     def _stale(self, page, runs):
@@ -3441,23 +3473,64 @@ class MainWindow(QMainWindow):
         if self.busy():
             return
         key = self.selected[1] if edit and self.selected and self.selected[0] == "layout" else None
-        if edit and key is None:
+        if edit and (key is None or self.project.sheet_locked(("layout", key))):
             return
         current = self.project.layouts[key] if key is not None else None
         candidates = self.project.layout_candidates(current)
-        if not candidates:
-            self.error(ui("Create one or more graphs before composing a layout."))
-            return
         from .layout_dialog import LayoutDialog
         dialog = LayoutDialog(self, candidates, current)
-        if dialog.exec() != LayoutDialog.DialogCode.Accepted or dialog.result is None or dialog.result == current:
-            return
         try:
+            if dialog.exec() != LayoutDialog.DialogCode.Accepted or dialog.result is None or dialog.result == current:
+                return
             key = self.project.put_layout(dialog.result, key)
         except ValueError as error:
             self.error(error)
             return
+        finally:
+            dialog.deleteLater()
         self.open_sheet(("layout", key))
+
+    def layout_drag_graph(self, reference):
+        if (reference and reference[0] == "graph" and self.selected and self.selected[0] == "layout"
+                and self.actions["place_layout_graph"].isEnabled()):
+            run = self.project.runs[reference[1]]
+            if run.result is not None and run.result.figure is not None:
+                return run.uid
+        return None
+
+    def place_layout_graph(self, panel=None):
+        project, reference = self.project, self.selected
+        if self.busy() or not reference or reference[0] != "layout" or project.sheet_locked(reference):
+            return
+        key = reference[1]
+        layout = project.layouts[key]
+        if None not in layout.panels or (panel is not None and layout.panels[panel] is not None):
+            return
+        candidates = project.layout_candidates()
+        if not candidates:
+            self.status(qt("qt.layout_no_graph"))
+            return
+        from .layout_dialog import LayoutGraphDialog
+        dialog = LayoutGraphDialog(self, layout, candidates, panel)
+        try:
+            if dialog.exec() != LayoutGraphDialog.DialogCode.Accepted:
+                return
+            if (self.project is not project or self.selected != reference or self.busy()
+                    or key >= len(project.layouts) or project.layouts[key] is not layout
+                    or project.sheet_locked(reference)):
+                return
+            slot, graph = dialog.panels.currentData(), dialog.graphs.currentData()
+        finally:
+            dialog.deleteLater()
+        self._assign_layout_graph(key, slot, graph)
+
+    def _assign_layout_graph(self, key, slot, graph):
+        layout = self.project.layouts[key]
+        if layout.panels[slot] is None:
+            panels = list(layout.panels)
+            panels[slot] = graph
+            self.project.put_layout(replace(layout, panels=panels), key)
+            self.open_sheet(("layout", key))
 
     def edit_imported_panel(self, index):
         if self.busy():
@@ -4413,6 +4486,8 @@ class MainWindow(QMainWindow):
             self.open_sheet((preferred_view(run, run.result), 0))
         elif replace and self.project.info_sheets:
             self.show_sheet("info", next(iter(self.project.info_sheets)))
+        elif replace and self.project.layouts:
+            self.open_sheet(("layout", 0))
         else:
             self.refresh()
 
@@ -4446,6 +4521,8 @@ class MainWindow(QMainWindow):
             self.show_sheet("data", sheets[0])
         elif project.info_sheets:
             self.show_sheet("info", next(iter(project.info_sheets)))
+        elif project.layouts:
+            self.open_sheet(("layout", 0))
         else:
             self.refresh()
         return True
@@ -4477,7 +4554,7 @@ class MainWindow(QMainWindow):
 
             self._deferred.append(save_after_edit)
             return False
-        if not self.project.tables and not self.project.info_sheets:
+        if not (project.tables or project.info_sheets or project.layouts):
             return False
         path = self.project.path if not as_new else None
         if path is None:

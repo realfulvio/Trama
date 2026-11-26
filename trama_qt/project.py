@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
+from analisi.layout_panels import EMPTY_PANEL
 from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCancelled, ResultSource,
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
@@ -518,7 +519,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         return str(path) if path is not None else self.recovered_from
 
     def is_empty(self):
-        return not self.tables and not self.info_sheets and not self.dirty and self.path is None
+        return not self.tables and not self.info_sheets and not self.layouts and not self.dirty and self.path is None
 
     def unique_title(self, title, *, occupied=None):
         occupied = self.tables if occupied is None else occupied
@@ -842,14 +843,16 @@ class Project(WorksheetJoinSources, SheetCommands):
                         panel_source_style(graph.method, graph.options))
                 for panel, graph in self.layout_panel_graphs(run).items()}
 
-    def layout_figure(self, layout):
-        by_reference = {run.reference: run for run in self.runs}
-        runs = [by_reference.get(reference) for reference in layout.panels]
-        if not all(run is not None and run.result is not None and run.result.figure is not None for run in runs):
+    def layout_figure(self, layout, *, show_empty=False):
+        figures = self.layout_figures(layout)
+        if figures is None:
             return None
-        return compose_layout(layout.name, layout.columns, tuple(run.result.figure for run in runs),
-                              paper=layout.paper, background=layout.background, panel_size=layout.panel_size,
-                              axis_alignment=layout.axis_alignment, tables=self.layout_table_specs(layout))
+        def label(letter):
+            return qt("qt.layout_empty_preview", letter=letter)
+
+        return compose_layout(layout.name, layout.columns, figures, paper=layout.paper, background=layout.background,
+                              panel_size=layout.panel_size, axis_alignment=layout.axis_alignment,
+                              tables=self.layout_table_specs(layout), empty_label=label if show_empty else None)
 
     # -- linked tables ----------------------------------------------------------------------------
     def table_analyses(self):
@@ -1271,13 +1274,27 @@ class Project(WorksheetJoinSources, SheetCommands):
             preview = edit_panel_artwork(frame, options[LEGACY_GRAPH_STYLE], preview)
         export_binary_graph(path, preview, layout=run.method == SAVED_BINARY_LAYOUT)
 
+    def layout_figures(self, layout):
+        """One figure per panel, including empty slots. None for the page means a graph is still missing."""
+        by_reference = {run.reference: run for run in self.runs}
+        figures = []
+        for reference in layout.panels:
+            if reference is None:
+                figures.append(EMPTY_PANEL)
+            else:
+                run = by_reference.get(reference)
+                if run is None or run.result is None or run.result.figure is None:
+                    return None
+                figures.append(run.result.figure)
+        return tuple(figures)
+
     def layout_panel_figures(self, layout):
-        runs = self.layout_runs(layout)
-        if len(runs) != len(layout.panels) or any(run.result is None or run.result.figure is None for run in runs):
+        figures = self.layout_figures(layout)
+        if figures is None:
             raise ValueError(ui("Recalculate the layout panels before exporting the layout."))
-        if any(run.calculation_error for run in runs):
+        if any(run.calculation_error for run in self.layout_runs(layout)):
             raise ValueError(tr("reference.stale_export"))
-        return tuple(run.result.figure for run in runs)
+        return figures
 
     def layout_pdf_page(self, layout):
         from analisi.layout_pdf import PdfLayoutPage

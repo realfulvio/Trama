@@ -29,22 +29,27 @@ def page_size(columns, count, paper=AUTO_PAPER):
     return PAPER_SIZES[paper] or (CELL_W * columns, CELL_H * ceil(count / columns) + TITLE_H)
 
 
-def panel_boxes(columns, sizes, paper=AUTO_PAPER, *, panel_size="original"):
-    """Place each source figure in its cell as (left, top, scale) in page inches."""
-    page_width, page_height = page_size(columns, len(sizes), paper)
+def panel_cells(columns, count, paper=AUTO_PAPER):
+    """Grid cell and inner graph sizes in page inches."""
+    page_width, page_height = page_size(columns, count, paper)
     cell_width = page_width / columns
-    cell_height = (page_height - TITLE_H) / ceil(len(sizes) / columns)
-    width, height = cell_width - 2 * PAD, cell_height - LABEL_H - PAD
-    if panel_size == "width":
-        common_width = min(width, height / max(h / w for w, h in sizes))
-        scales = [common_width / w for w, _ in sizes]
-    elif panel_size == "height":
-        common_height = min(height, width / max(w / h for w, h in sizes))
-        scales = [common_height / h for _, h in sizes]
-    else:
-        scales = [min(width / w, height / h) for w, h in sizes]
+    cell_height = (page_height - TITLE_H) / ceil(count / columns)
+    return cell_width, cell_height, cell_width - 2 * PAD, cell_height - LABEL_H - PAD
+
+
+def panel_boxes(columns, sizes, paper=AUTO_PAPER, *, panel_size="original"):
+    """Place figures in their cells. An empty cell takes the full available rectangle."""
+    cell_width, cell_height, width, height = panel_cells(columns, len(sizes), paper)
+    populated = [size for size in sizes if size is not None]
+    common_width, common_height = width, height
+    if populated and panel_size == "width":
+        common_width = min(width, height / max(h / w for w, h in populated))
+    elif populated and panel_size == "height":
+        common_height = min(height, width / max(w / h for w, h in populated))
     boxes = []
-    for index, ((w, h), scale) in enumerate(zip(sizes, scales, strict=True)):
+    for index, size in enumerate(sizes):
+        w, h = size if size is not None else (width, height)
+        scale = min(common_width / w, common_height / h) if size is not None else 1
         row, column = divmod(index, columns)
         x = column * cell_width + PAD + (width - w * scale) / 2
         y = TITLE_H + row * cell_height + LABEL_H + (height - h * scale) / 2
@@ -66,7 +71,10 @@ def layout_frame(title, size, boxes, scale=1, *, background=WHITE, panel_letters
     frame.suptitle(title, x=.5, y=1 - TITLE_H / 2 / height, ha="center", va="center",
                    fontsize=TITLE_SIZE * scale, fontweight="bold", parse_math=False, color=ink)
     if panel_letters:
-        for index, (x, y, _) in enumerate(boxes):
+        for index, box in enumerate(boxes):
+            if box is None:
+                continue
+            x, y, _ = box
             frame.text(x / width, 1 - (y - LABEL_PAD) / height, chr(ord("A") + index), ha="left", va="bottom",
                        fontsize=LABEL_SIZE * scale, fontweight="bold", parse_math=False, color=ink)
     return frame

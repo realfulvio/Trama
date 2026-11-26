@@ -24,6 +24,7 @@ from analisi.data import load_tables
 from analisi.i18n import active_language
 
 from . import theme
+from .strings import qt
 from .theme import fit_dialog
 
 LISTED = 40  # Rows of a section shown in the confirmation; the rest is counted.
@@ -300,7 +301,9 @@ def plan_html(plan, tables, layouts):
             items(lines)
         if template.layouts:
             heading(t("section.layouts"))
-            items([f"{layout.name}: " + ", ".join(names[panel] for panel in layout.panels)
+            empty = qt("qt.layout_empty_slot")
+            items([f"{layout.name}: " + ", ".join(names[panel] if panel is not None else empty
+                                                  for panel in layout.panels)
                    for layout in template.layouts])
     heading(t("section.omitted"))
     omitted = []

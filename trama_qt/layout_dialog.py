@@ -1,7 +1,7 @@
 """Compose or edit a layout on Qt: name, paper, columns, background and up to twelve graph panels."""
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
-                               QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton,
+                               QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QSpinBox,
                                QVBoxLayout)
 
 from analisi.i18n import tr, ui
@@ -9,6 +9,7 @@ from analisi.layout_geometry import AUTO_PAPER, AXIS_ALIGNMENTS, PANEL_SIZES, PA
 from analisi.presentation import Layout
 from analisi.legacy_layout_edit import edited_layout_preview
 
+from .strings import qt
 from .theme import fit_dialog
 
 PANEL_LIMIT = 12
@@ -22,7 +23,8 @@ class LayoutDialog(QDialog):
         self.setWindowTitle(tr("layout.edit" if current else "layout.create"))
         self.runs, self.current, self.result = runs, current, None
         by_reference = {run.reference: index for index, run in enumerate(runs)}
-        self.order = [by_reference[ref] for ref in current.panels if ref in by_reference] if current else []
+        self.order = [by_reference.get(ref) for ref in current.panels] if current else ([] if runs else [None])
+        QShortcut(QKeySequence("F1"), self, parent.show_shortcuts)
         counts, self.labels = {}, []
         for run in runs:
             counts[run.name] = counts.get(run.name, 0) + 1
@@ -80,10 +82,20 @@ class LayoutDialog(QDialog):
         self.panels.setAccessibleName(chosen.title())
         chosen.layout().addWidget(self.panels)
         commands = QVBoxLayout()
-        for key, handler in (("layout.add", self.add_selected), ("layout.remove", self.remove_selected),
-                             ("layout.up", lambda: self.move_selected(-1)),
-                             ("layout.down", lambda: self.move_selected(1))):
-            button = QPushButton(tr(key))
+        empty = QHBoxLayout()
+        self.empty_count = QSpinBox()
+        self.empty_count.setRange(1, PANEL_LIMIT)
+        self.empty_count.setAccessibleName(qt("qt.layout_empty_count"))
+        self.empty_count.setToolTip(qt("qt.layout_empty_count"))
+        empty.addWidget(self.empty_count)
+        add_empty = QPushButton(qt("qt.layout_add_empty"))
+        add_empty.clicked.connect(self.add_empty)
+        empty.addWidget(add_empty, 1)
+        commands.addLayout(empty)
+        for label, handler in ((tr("layout.add"), self.add_selected), (tr("layout.remove"), self.remove_selected),
+                               (tr("layout.up"), lambda: self.move_selected(-1)),
+                               (tr("layout.down"), lambda: self.move_selected(1))):
+            button = QPushButton(label)
             button.clicked.connect(handler)
             commands.addWidget(button)
         commands.addStretch(1)
@@ -102,6 +114,11 @@ class LayoutDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         outer.addWidget(buttons)
+        for button in self.findChildren(QPushButton):
+            button.setAutoDefault(False)
+        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        ok.setAutoDefault(True)
+        ok.setDefault(True)
         self._swatch()
         self.fill_panels()
         fit_dialog(self, 720, 520)
@@ -136,7 +153,8 @@ class LayoutDialog(QDialog):
     def fill_panels(self, selection=None):
         self.panels.clear()
         for i, graph in enumerate(self.order):
-            self.panels.addItem(f"{chr(ord('A') + i)} · {self.labels[graph]}")
+            label = self.labels[graph] if graph is not None else qt("qt.layout_empty_slot")
+            self.panels.addItem(f"{chr(ord('A') + i)} · {label}")
         if selection is not None and self.order:
             self.panels.setCurrentRow(min(selection, len(self.order) - 1))
         self.show_problem("")
@@ -149,6 +167,14 @@ class LayoutDialog(QDialog):
         if chosen:
             self.order.extend(chosen)
             self.fill_panels(len(self.order) - 1)
+
+    def add_empty(self):
+        count = self.empty_count.value()
+        if len(self.order) + count > PANEL_LIMIT:
+            self.show_problem(tr("layout.panel_limit"))
+            return
+        self.order.extend([None] * count)
+        self.fill_panels(len(self.order) - 1)
 
     def remove_selected(self):
         index = self.panels.currentRow()
@@ -165,18 +191,49 @@ class LayoutDialog(QDialog):
 
     def accept(self):
         if not self.order:
-            self.show_problem(tr("layout.select"))
-            self.available.setFocus()
+            self.show_problem(qt("qt.layout_needs_slot"))
+            self.empty_count.setFocus()
             return
         try:
             self.result = Layout(self.name.text().strip(), int(self.columns.currentText()),
-                                 [self.runs[i].reference for i in self.order], self.paper.currentData(),
-                                 self.background.text().strip(), self.panel_size.currentData(),
-                                 self.axis_alignment.currentData())
+                                 [self.runs[i].reference if i is not None else None for i in self.order],
+                                 self.paper.currentData(), self.background.text().strip(), self.panel_size.currentData(),
+                                 self.axis_alignment.currentData(), self.current.tables if self.current else [])
         except ValueError as error:
             self.show_problem(str(error))
             return
         super().accept()
+
+
+class LayoutGraphDialog(QDialog):
+    """Choose one empty panel and a graph to place there."""
+
+    def __init__(self, parent, layout, runs, panel=None):
+        super().__init__(parent)
+        self.setWindowTitle(qt("qt.layout_place_graph").rstrip("…"))
+        QShortcut(QKeySequence("F1"), self, parent.show_shortcuts)
+        form = QFormLayout(self)
+        self.panels = QComboBox()
+        self.panels.setAccessibleName(qt("qt.layout_panel"))
+        for index, reference in enumerate(layout.panels):
+            if reference is None and (panel is None or index == panel):
+                self.panels.addItem(chr(ord("A") + index), index)
+        form.addRow(qt("qt.layout_panel"), self.panels)
+        self.graphs = QComboBox()
+        self.graphs.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.graphs.setMinimumContentsLength(24)
+        self.graphs.setAccessibleName(qt("qt.layout_graph"))
+        for run in runs:
+            self.graphs.addItem(f"{run.name} · {run.title} ({run.slot + 1})", run.reference)
+        form.addRow(qt("qt.layout_graph"), self.graphs)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setDefault(True)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+        self.graphs.setFocus()
+        fit_dialog(self, 460, 160)
 
 
 class ImportedPanelDialog(QDialog):

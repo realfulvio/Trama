@@ -127,7 +127,7 @@ class AnalysisSpec:
 class LayoutSpec:
     name: str
     columns: int
-    panels: tuple                 # local analysis ids
+    panels: tuple                 # local analysis ids or empty slots
     paper: str = AUTO_PAPER
     background: str = WHITE
     panel_size: str = "original"
@@ -389,6 +389,9 @@ def plan_template(tables, layouts=(), info_sheets=None, *, cancel=None):
     for index, layout in enumerate(layouts):
         panels = []
         for panel in layout.panels:
+            if panel is None:
+                panels.append(None)
+                continue
             reference = tuple(panel)
             if reference not in local:
                 problems.append(Problem("broken-layout", ("layout", index), "A panel of this layout shows a "
@@ -609,10 +612,10 @@ def _parse_layouts(records, ids):
     for position, record in enumerate(_list(records, "layouts", MAX_LAYOUTS), 1):
         _record(record, _LAYOUT_KEYS, ("name", "columns", "panels"), f"Layout {position}")
         panels = _list(record["panels"], f"The panels of layout {position}", 12)
-        if any(not isinstance(panel, str) or panel not in ids for panel in panels):
+        if any(not isinstance(panel, str) or panel not in ids for panel in panels if panel is not None):
             _fail("missing-reference", f"A panel of layout {position} refers to a missing analysis.", field="file")
         try:
-            layout = Layout(record["name"], record["columns"], [ids[panel] for panel in panels],
+            layout = Layout(record["name"], record["columns"], [ids[panel] if panel is not None else None for panel in panels],
                             record.get("paper", AUTO_PAPER), record.get("background", WHITE),
                             record.get("panel_size", "original"), record.get("axis_alignment", "none"))
         except (ValueError, TypeError) as error:
@@ -836,7 +839,7 @@ def instantiate_template(template, sources, mapping, *, avoid=(), cancel=None):
         tables[table.name] = dataset
     _cancelled(cancel)
     validate_analysis_links(tables)
-    layouts = [Layout(layout.name, layout.columns, [where[panel] for panel in layout.panels], layout.paper,
+    layouts = [Layout(layout.name, layout.columns, [where[panel] if panel is not None else None for panel in layout.panels], layout.paper,
                       layout.background, layout.panel_size, layout.axis_alignment) for layout in template.layouts]
     return tables, layouts
 

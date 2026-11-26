@@ -176,8 +176,8 @@ class SheetCommands:
         from .project import LayoutChange, StyleBatchChange
 
         def remap_layout(layout):
-            panels = ([(name if owner == title else owner, slot) for owner, slot in layout.panels]
-                      if name is not None else layout.panels)
+            panels = [(name, ref[1]) if name is not None and ref is not None and ref[0] == title else ref
+                      for ref in layout.panels]
             tables = linked_tables.rename_sheet(layout.tables, title, name) if layout.tables else layout.tables
             if panels == layout.panels and tables is layout.tables:
                 return layout
@@ -378,7 +378,8 @@ class SheetCommands:
         from .project import LayoutChange, StyleBatchChange
 
         def shift_panels(layout):
-            panels = [(title, index - (title == removed.title and index > slot)) for title, index in layout.panels]
+            panels = [(ref[0], ref[1] - 1) if ref is not None and ref[0] == removed.title and ref[1] > slot else ref
+                      for ref in layout.panels]
             return replace(layout, panels=panels) if panels != layout.panels else layout
 
         def refers_to_deleted_sheet(edit):

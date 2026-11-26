@@ -253,8 +253,7 @@ def plan_family(tables, layouts, infos, selected, *, include_layouts=True, expor
         seeds = {(key, slot) for slot in range(len(tables[key].analyses))}
     elif kind == "layout":
         seeds = set()
-        for panel in layouts[key].panels:
-            title, slot = panel
+        for title, slot in (panel for panel in layouts[key].panels if panel is not None):
             if title not in tables or not 0 <= slot < len(tables[title].analyses):
                 raise FamilyError("layout-panel", "A layout panel refers to an analysis that is not in the project.")
             seeds.add((title, slot))
@@ -271,13 +270,13 @@ def plan_family(tables, layouts, infos, selected, *, include_layouts=True, expor
         chosen = [key]
     elif wanted:
         chosen = [index for index, layout in enumerate(layouts)
-                  if any(tuple(panel) in members for panel in layout.panels)]
+                  if any(panel is not None and tuple(panel) in members for panel in layout.panels)]
         saved = [node for node in graph.saved_layouts if node not in members
                  and any(source in members for source in graph.panel_sources(node, strict=False))]
     if export and wanted:
         extra = set(saved)
         for index in chosen:
-            for title, slot in map(tuple, layouts[index].panels):
+            for title, slot in (panel for panel in layouts[index].panels if panel is not None):
                 if title in tables and type(slot) is int and 0 <= slot < len(tables[title].analyses):
                     extra.add((title, slot))
         members = graph.ancestors(members | extra)
@@ -297,7 +296,7 @@ def plan_family(tables, layouts, infos, selected, *, include_layouts=True, expor
     if not export:
         for index in chosen:
             if kind != "layout":
-                shared += sum(1 for panel in layouts[index].panels if tuple(panel) not in members)
+                shared += sum(1 for panel in layouts[index].panels if panel is not None and tuple(panel) not in members)
         for node in members:
             if graph.is_saved_layout(node) and node not in seeds:
                 shared += sum(1 for source in graph.panel_sources(node, strict=False) if source not in members)
@@ -652,7 +651,7 @@ def _build(tables, layouts, infos, plan, new_names, *, renew, cancel, graph, bla
     out_layouts, layout_refs = [], {}
     for index in plan.layouts:
         source = layouts[index]
-        panels = [refs.get(tuple(panel), tuple(panel)) for panel in source.panels]
+        panels = [refs.get(tuple(panel), tuple(panel)) if panel is not None else None for panel in source.panels]
         name = new_names.layout_names[index] if new_names else source.name
         layout_refs[index] = len(out_layouts)
         records = remap_sources(source.tables, moved_analyses, table_names) if source.tables else source.tables

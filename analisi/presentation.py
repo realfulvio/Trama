@@ -51,7 +51,7 @@ from .layout_panels import plan_panels
 class Layout:
     name: str
     columns: int
-    panels: list[tuple[str, int]]
+    panels: list[tuple[str, int] | None]
     paper: str = AUTO_PAPER
     background: str = WHITE
     panel_size: str = "original"
@@ -63,8 +63,8 @@ class Layout:
             raise ValueError("Enter a layout name of up to 160 characters.")
         if type(self.columns) is not int or not 1 <= self.columns <= 4 or not 1 <= len(self.panels) <= 12:
             raise ValueError("A layout needs 1 to 12 panels in 1 to 4 columns.")
-        if any(not isinstance(title, str) or type(index) is not int or index < 0
-               for title, index in self.panels):
+        if any(not isinstance(ref, (tuple, list)) or len(ref) != 2 or not isinstance(ref[0], str)
+               or type(ref[1]) is not int or ref[1] < 0 for ref in self.panels if ref is not None):
             raise ValueError("Invalid layout panel reference.")
         if not isinstance(self.paper, str) or self.paper not in PAPER_SIZES:
             raise ValueError("Choose a layout paper size.")
@@ -1175,7 +1175,7 @@ def apply_style(figure, style):
 
 
 def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHITE, panel_size="original",
-                   axis_alignment="none", tables=()):
+                   axis_alignment="none", tables=(), empty_label=None):
     """The layout page as one figure; ``tables`` (``linked_tables.TableSpec``) are drawn above the panels."""
     Layout(title, columns, [("panel", i) for i in range(len(figures))], paper, background,
            panel_size, axis_alignment)
@@ -1187,6 +1187,19 @@ def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHIT
     for i, placement in enumerate(placements):
         w, h = placement.size
         x, y, scale = placement.box
+        if placement.figure is None:
+            if empty_label is not None:
+                panel = figure.add_axes((x / page_width, 1 - (y + h) / page_height,
+                                         w / page_width, h / page_height))
+                panel.set_gid(f"layout-slot-{i}")
+                panel.set(xticks=[], yticks=[], facecolor="none")
+                for spine in panel.spines.values():
+                    spine.set_color(ink)
+                    spine.set_alpha(.35)
+                    spine.set_linestyle("--")
+                panel.text(.5, .5, empty_label(chr(ord("A") + i)), ha="center", va="center",
+                           fontsize=LABEL_SIZE, color=ink, parse_math=False)
+            continue
         with placement.render() as graph, BytesIO() as buffer:
             graph.savefig(buffer, format="png", dpi=150)
             buffer.seek(0)

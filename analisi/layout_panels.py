@@ -6,7 +6,11 @@ from math import isclose
 
 from matplotlib.figure import Figure
 
-from .layout_geometry import AUTO_PAPER, panel_boxes
+from .layout_geometry import AUTO_PAPER, panel_boxes, panel_cells
+
+
+# Explicit empty slot passed to the renderers. A missing figure still signals an error.
+EMPTY_PANEL = object()
 
 
 @contextmanager
@@ -51,7 +55,7 @@ def _panel_figure(figure, size, axes=(), bounds=None, *, measuring=False):
 
 @dataclass(frozen=True)
 class LayoutPanel:
-    figure: Figure
+    figure: Figure | None
     size: tuple
     box: tuple                  # left, top, scale in the layout page
     axes: tuple = ()
@@ -123,17 +127,20 @@ def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original
     """Match panel sizes and axes, yielding after each measured graph for the gallery."""
 
     figures = tuple(figures)
-    sizes = [tuple(figure.get_size_inches()) for figure in figures]
-    if panel_size == "both":
-        # Reflow all panels onto a common canvas. Its dimensions accommodate every source canvas.
-        common_size = tuple(max(values) for values in zip(*sizes, strict=True))
-        sizes = [common_size] * len(sizes)
+    sizes = [None if figure is EMPTY_PANEL else tuple(figure.get_size_inches()) for figure in figures]
+    populated = [size for size in sizes if size is not None]
+    if populated and panel_size == "both":
+        # Reflow the graphs onto a common canvas. Empty slots are not part of the measurement.
+        common_size = tuple(max(values) for values in zip(*populated, strict=True))
+        sizes = [common_size if size is not None else None for size in sizes]
     boxes = panel_boxes(columns, sizes, paper, panel_size=panel_size)
-    panels = [LayoutPanel(figure, size, box) for figure, size, box in zip(figures, sizes, boxes, strict=True)]
+    _, _, width, height = panel_cells(columns, len(sizes), paper)
+    panels = [LayoutPanel(figure if size is not None else None, size or (width, height), box)
+              for figure, size, box in zip(figures, sizes, boxes, strict=True)]
     if axis_alignment != "none" and len(panels) > 1:
         measurements = []
         for panel in panels:
-            measurements.append(_plot_bounds(panel))
+            measurements.append(_plot_bounds(panel) if panel.figure is not None else None)
             yield
         return _align_panels(panels, columns, axis_alignment, measurements)
     return panels

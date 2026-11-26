@@ -258,7 +258,7 @@ class RecoveryController(QObject):
             keys.add(project.recovery_key)
             tracked = self._track(project)
             if (not self.enabled or not project.dirty or project.revision == tracked.captured
-                    or (not project.tables and not project.info_sheets)):
+                    or not (project.tables or project.info_sheets or project.layouts)):
                 tracked.since = None
                 continue
             if tracked.since is None:

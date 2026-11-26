@@ -22,7 +22,7 @@ from matplotlib.figure import Figure
 
 from .figure_export import DEFAULT_DPI, MM, check_destination, plan_export
 from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
-from .layout_panels import plan_panels
+from .layout_panels import EMPTY_PANEL, plan_panels
 from .linked_tables import overlay_figure
 from .presentation import Layout
 
@@ -120,7 +120,7 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
     Layout(title, columns, [("panel", index) for index in range(len(figures))], paper, background,
            panel_size, axis_alignment)
     for index, figure in enumerate(figures):
-        if not isinstance(figure, Figure):
+        if figure is not EMPTY_PANEL and not isinstance(figure, Figure):
             raise ValueError(f"Panel {chr(ord('A') + index)} has no figure to export.")
     if settings.get("format", "svg") != "svg":
         raise ValueError("The vector layout export writes SVG only.")
@@ -134,12 +134,15 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
     placements = plan_panels(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment)
     panels = []
     for placement in placements:
-        with placement.render() as figure:
-            panels.append(_render_svg(figure, plan, rc))
+        if placement.figure is None:
+            panels.append(None)
+        else:
+            with placement.render() as figure:
+                panels.append(_render_svg(figure, plan, rc))
 
     # The page itself (background, title and panel letters) comes from Matplotlib too, so the
     # Text/Paths choice and the fonts are the same as in the panels.
-    boxes = [placement.box for placement in placements]
+    boxes = [placement.box if placement.figure is not None else None for placement in placements]
     frame = layout_frame(title, (width_in, height_in), boxes,
                          background=WHITE if plan["transparent"] else background)
     page, page_children = _children(_render_svg(frame, plan, rc))
@@ -160,6 +163,8 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
     images = 0
     defs = ET.SubElement(page, SVG + "defs")
     for index, (document, placement) in enumerate(zip(panels, placements, strict=True), start=1):
+        if document is None:
+            continue
         w, h = placement.size
         x, y, scale = placement.box
         panel, children = _children(document)

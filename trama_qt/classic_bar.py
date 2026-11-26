@@ -38,7 +38,7 @@ MENUS = (
               "theme_system", "theme_light", "theme_dark")),
     ("Insert", ("new_table", "new_info", "sheet_notes", "insert_row", "insert_column",
                 "create_numeric_series", "formula", "|",
-                "new_graph", "new_layout", "pairwise", "compact_letters", "annotations", "shapes", "|",
+                "new_graph", "new_layout", "place_layout_graph", "pairwise", "compact_letters", "annotations", "shapes", "|",
                 "linked_table", "linked_table_selection", "linked_table_move")),
     ("Analyze", ("analyze", "change", "recalculate", "analyze_result", "source_analysis", "change_input",
                  "repeat_analysis", "use_result", "|", "descriptive", "ttest", "anova", "correlation", "correlation_matrix",
