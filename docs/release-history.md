@@ -3,6 +3,7 @@
 The public repository begins with **Trama 0.73.0 beta**. All 0.x versions are
 beta builds; no final stable release has been declared.
 
+- [0.114 beta — Worksheet preview and imported PCA graphs](release-114.md).
 - [0.113 beta — Row order and performance](release-113.md).
 - [0.112 beta — Start screen, linked data and Passing–Bablok regression](release-112.md).
 - [0.107 beta — Worksheet rows, numeric series, text formatting and linked tables](release-107.md).
