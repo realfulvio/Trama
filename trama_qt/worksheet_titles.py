@@ -4,7 +4,7 @@ from dataclasses import replace
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QDialog, QDialogButtonBox, QFormLayout, QHeaderView, QLabel,
-                               QTableView, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+                               QSpinBox, QTableView, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from analisi.i18n import tr, ui
 from .strings import qt
@@ -44,9 +44,13 @@ class TitleList(QAbstractTableModel):
 
 
 class TableFormatDialog(QDialog):
-    def __init__(self, parent, model, *, tab=0, column=0):
+    def __init__(self, parent, model, *, tab=0, column=0, resize_replicates=None, replicate_limits=None):
         super().__init__(parent)
         self.source = model
+        self.resize_replicates = resize_replicates
+        self.affected_runs = None
+        self.replicate_count = None
+        self.initial_count = None
         self.original = model.dataset.worksheet_titles
         self.title_groups = [c for c, (start, _, band, _) in enumerate(model.bands)
                              if c == start and band.startswith("Group ")]
@@ -73,6 +77,15 @@ class TableFormatDialog(QDialog):
         form.addRow(self.show_rows)
         self.widths = self.check("qt.heading_widths", self.original.automatic_widths)
         form.addRow(self.widths)
+        if replicate_limits is not None:
+            self.initial_count, maximum = replicate_limits
+            self.replicate_count = QSpinBox()
+            self.replicate_count.setRange(2, maximum)
+            self.replicate_count.setValue(self.initial_count)
+            form.addRow(qt("qt.replicate_count"), self.replicate_count)
+            note = QLabel(qt("qt.replicate_count_note"))
+            note.setWordWrap(True)
+            form.addRow(note)
         self.preview = QTableWidget()
         self.preview.setAccessibleName(tr("setup.preview_title"))
         self.preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -115,12 +128,31 @@ class TableFormatDialog(QDialog):
             if column in self.replicates:
                 key = self.rep_key(column, self.shared_mode)
                 self.subcolumns.selectRow(self.subrows.index(key))
+        self.problem = QLabel()
+        self.problem.setObjectName("errorBanner")
+        self.problem.setWordWrap(True)
+        self.problem.hide()
+        layout.addWidget(self.problem)
+        if self.replicate_count is not None:
+            self.replicate_count.valueChanged.connect(self.problem.hide)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
         buttons.button(QDialogButtonBox.StandardButton.Ok).setDefault(True)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def accept(self):
+        if self.replicate_count is not None and self.replicate_count.value() != self.initial_count:
+            try:
+                self.affected_runs = self.resize_replicates(self.replicate_count.value(), self.settings())
+            except ValueError as error:
+                self.problem.setText(ui(str(error)))
+                self.problem.show()
+                self.tabs.setCurrentIndex(0)
+                self.replicate_count.setFocus()
+                return
+        super().accept()
 
     @staticmethod
     def check(key, value):

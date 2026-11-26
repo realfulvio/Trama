@@ -5,13 +5,14 @@ import unittest
 from unittest.mock import patch
 
 import pandas as pd
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QApplication, QDialog
 from matplotlib.figure import Figure
 
 from analisi.data import load_project
 from analisi.i18n import active_language, set_language
 from analisi.xy_series import xy_series
+from trama_qt.project import Run
 from trama_qt.window import MainWindow, Page
 from trama_qt.worksheet_titles import TableFormatDialog
 
@@ -154,3 +155,71 @@ class WorksheetTitlesTest(unittest.TestCase):
         page.figure_view.set_percent(100)
         self.app.processEvents()
         self.assertEqual(canvas.width(), width)
+
+    def change_replicates(self, count, *, blocked=False):
+        result = []
+        def check_dialog():
+            dialog = self.app.activeModalWidget()
+            try:
+                self.assertIsInstance(dialog, TableFormatDialog)
+                dialog.replicate_count.setValue(count)
+                dialog.accept()
+                if blocked:
+                    self.assertTrue(dialog.isVisible())
+                    self.assertIn("contains data", dialog.problem.text())
+                    dialog.reject()
+                result.append(True)
+            except Exception as error:
+                result.append(error)
+                dialog.reject()
+        QTimer.singleShot(0, check_dialog)
+        self.window.actions["format_data_table"].trigger()
+        self.assertEqual(result, [True])
+        self.app.processEvents()
+
+    def test_resize_replicates_preserves_coordinates_formulas_and_history(self):
+        self.apply()
+        self.dataset.set_formula("Difference", 'COL("Treated [1]") - COL("Control [1]")')
+        self.view.model().reload()
+        self.dataset.excluded = {(1, 4)}
+        original = self.dataset.frame()
+        old_ids = original.attrs["column_ids"]
+        self.view.setCurrentIndex(self.model.index(0, 4))
+        self.change_replicates(4)
+        after = self.dataset.frame()
+        self.assertEqual(after.columns.tolist(), [
+            "Row title", "X", "Control [1]", "Control [2]", "Control [3]", "Control [4]",
+            "Treated [1]", "Treated [2]", "Treated [3]", "Treated [4]", "Difference"])
+        pd.testing.assert_frame_equal(original, after.loc[:, original.columns], check_flags=False)
+        self.assertEqual(self.dataset.excluded, {(1, 6)})
+        self.assertEqual(self.view.currentIndex().column(), 6)
+        self.assertTrue(after[["Control [3]", "Control [4]", "Treated [3]", "Treated [4]"]].isna().all().all())
+        self.assertEqual({name: after.attrs["column_ids"][name] for name in old_ids}, old_ids)
+        with TemporaryDirectory() as folder:
+            filename = Path(folder) / "replicates.alab"
+            self.window.project.save(filename)
+            loaded = load_project(filename)[self.title]
+            self.assertEqual(loaded.columns, self.dataset.columns)
+            self.assertEqual(loaded.worksheet_titles, self.dataset.worksheet_titles)
+            self.assertEqual(self.window.project.worksheet_replicate_limits(self.title)[0], 4)
+        self.window.undo()
+        self.assertEqual(self.dataset.columns, tuple(original.columns))
+        self.window.undo(redo=True)
+        self.assertEqual(self.dataset.columns, tuple(after.columns))
+        self.change_replicates(2)
+        self.assertEqual(self.dataset.columns, tuple(original.columns))
+        self.assertEqual(self.dataset.excluded, {(1, 4)})
+
+    def test_reduce_keeps_data_and_references(self):
+        self.change_replicates(3)
+        project = self.window.project
+        name = "Control [3]"
+        project.edit_cell(self.title, 0, self.dataset.columns.index(name), "0")
+        self.window.reshow()
+        self.change_replicates(2, blocked=True)
+        self.assertEqual(self.dataset.raw[name].iat[0], 0)
+        project.edit_cell(self.title, 0, self.dataset.columns.index(name), "")
+        project.runs.append(Run("Linear regression", self.title, {"X": "X", "Y": name}))
+        with self.assertRaisesRegex(ValueError, "Control"):
+            project.resize_worksheet_replicates(self.title, 2, self.dataset.worksheet_titles)
+        self.assertIn(name, self.dataset.columns)

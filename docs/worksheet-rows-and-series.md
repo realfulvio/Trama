@@ -14,6 +14,8 @@ Choose **Change → Format data table…** (*Cambia → Formato tabella dati…*
 
 Give replicates a shared name when they have the same meaning in each series, for example *Morning*. Turn off shared titles to label individual replicates. The first series keeps the shared names as a starting point. **OK** applies the edits together. **Cancel** discards the draft. Undo, Redo and saving the project include these titles. Formulas and analyses continue to use the same source columns.
 
+In an existing native XY table with an equal number of replicates in each series, **Replicates per series** adds blank columns after each series. You can remove only trailing replicates that are empty and unused by analyses or formulas. The entire change is one Undo step, and surviving replicates keep their values and references.
+
 The bottom bar identifies the current sheet. On a worksheet it also shows the current row, series and replicate. In a results sheet its selector switches between output tables. Use the zoom control at the right to enlarge a worksheet, graph or layout. Click the percentage to return to 100%.
 
 [Worksheet with an active replicate on Windows](media/worksheet-titles/worksheet-it.png) · [Editing the replicate titles](media/worksheet-titles/replicate-titles-en.png)

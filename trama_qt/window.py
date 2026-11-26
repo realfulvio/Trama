@@ -1856,9 +1856,26 @@ class MainWindow(QMainWindow):
             return
         from .worksheet_titles import TableFormatDialog
         title = self.selected[1]
-        dialog = TableFormatDialog(self, self.sheet.model(), tab=tab, column=column)
+        model = self.sheet.model()
+        current = self.sheet.currentIndex()
+        row, selected_column = current.row(), current.column()
+        name = model.frame.columns[selected_column] if 0 <= selected_column < len(model.frame.columns) else None
+        dialog = TableFormatDialog(self, model, tab=tab, column=column,
+                                   replicate_limits=self.project.worksheet_replicate_limits(title),
+                                   resize_replicates=lambda count, settings:
+                                       self.project.resize_worksheet_replicates(title, count, settings))
         try:
             if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            if dialog.affected_runs is not None:
+                self.reshow()
+                new_model = self.sheet.model()
+                if row >= 0 and name in new_model.frame.columns:
+                    self.sheet.setCurrentIndex(new_model.index(row, new_model.frame.columns.get_loc(name)))
+                if dialog.affected_runs:
+                    self.refresh_runs(dialog.affected_runs)
+                else:
+                    self.status(qt("qt.edited"))
                 return
             settings = dialog.settings()
             if self.project.set_worksheet_titles(title, settings):

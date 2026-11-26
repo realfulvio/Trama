@@ -14,6 +14,25 @@ def column_label(index):
     return label
 
 
+def xy_replicate_groups(frame, table_format):
+    """Return uniform, sequential replicate groups that can be resized in place."""
+    if table_format.casefold() != "xy with replicates" or "legacy_columns" in frame.attrs:
+        return ()
+    names = list(frame.columns)
+    bands, _ = heading_bands(frame, names, len(names), table_format)
+    groups = []
+    for column, (first, stop, band, title) in enumerate(bands):
+        if column != first or not band.startswith("Group "):
+            continue
+        members = names[first:stop]
+        if members != [f"{title} [{index}]" for index in range(1, len(members) + 1)]:
+            return ()
+        if len(members) < 2 or (groups and len(members) != len(groups[0][1])):
+            return ()
+        groups.append((title, members))
+    return groups
+
+
 def heading_bands(frame, names, source_columns, table_format, *, calculated=None):
     """Map each visible column to its display band and optional subcolumn role."""
     if calculated is None:

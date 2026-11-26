@@ -2,18 +2,23 @@
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QDialogButtonBox, QPushButton
 
+from analisi.data import load_project
 from analisi.i18n import set_language, tr
-from analisi.table_templates import TEMPLATES
+from analisi.table_templates import TEMPLATES, XY_FORMATS
 from . import theme
 from .smoke import LANGUAGES, Smoke
 from .table_setup import TableSetup
 from .window import MainWindow
+from .shortcuts_dialog import ShortcutsDialog
+from .worksheet_titles import TableFormatDialog
 
 
 def run(folder):
-    smoke = Smoke(folder)
+    smoke = Smoke(Path(folder).resolve())
     for mode in ("light", "dark"):
         theme.set_mode(mode, smoke.app, remember=False)
         for language in LANGUAGES:
@@ -81,3 +86,56 @@ def exercise(smoke, window):
     card = next(button for button in setup.findChildren(QPushButton, "setupRecent") if button.toolTip() == str(path))
     card.click()
     assert window.project.path == path and window.selected == ("data", title)
+    exercise_existing_replicates(smoke, window)
+
+
+def exercise_existing_replicates(smoke, window):
+    window.create_worksheet(XY_FORMATS["Replicates in side-by-side subcolumns"], sample=True)
+    _, title = window.selected
+    dataset = window.project.tables[title]
+    existing = dataset.columns
+    failures = []
+
+    def step():
+        dialog = smoke.app.activeModalWidget()
+        try:
+            assert isinstance(dialog, TableFormatDialog), "The table format dialog did not open."
+            assert dialog.replicate_count.value() == 2, "Expected two original replicates."
+            dialog.tabs.tabBar().setFocus()
+            QTest.keyClick(dialog.tabs.tabBar(), Qt.Key.Key_Tab)
+            assert dialog.focusWidget() is not dialog.tabs.tabBar(), "Tab did not move focus."
+            help_opened = []
+
+            def close_help():
+                helper = smoke.app.activeModalWidget()
+                if isinstance(helper, ShortcutsDialog):
+                    help_opened.append(True)
+                    helper.reject()
+
+            QTimer.singleShot(100, close_help)
+            QTest.keyClick(dialog.focusWidget(), Qt.Key.Key_F1)
+            assert help_opened, "F1 did not open the shortcuts."
+            dialog.replicate_count.setValue(4)
+            smoke.shot(dialog, "resize-replicates")
+            ok = dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Ok)
+            ok.setFocus()
+            QTest.keyClick(ok, Qt.Key.Key_Return)
+        except Exception as error:
+            failures.append(error)
+            if dialog is not None:
+                dialog.reject()
+
+    QTimer.singleShot(120, step)
+    window.actions["format_data_table"].trigger()
+    assert not failures, failures
+    assert len(dataset.columns) == len(existing) + 4
+    assert dataset.raw["Control [4]"].isna().all()
+    assert dataset.raw["Treatment [4]"].isna().all()
+    smoke.shot(window, "resized-worksheet")
+    path = Path(smoke.folder) / f"{smoke.language}-replicates.alab"
+    window.project.save(path)
+    assert load_project(path)[title].columns == dataset.columns
+    window.undo()
+    assert dataset.columns == existing
+    window.undo(redo=True)
+    assert len(dataset.columns) == len(existing) + 4

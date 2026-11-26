@@ -23,7 +23,7 @@ from analisi.linked_axes import linked_axes_status
 from analisi.observation_labels import LABELS, label_status_line
 from analisi.point_style import POINTS, point_styles_status
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES,
-                          EDITABLE_LEGACY_XY, MAX_ENTRY, Dataset, info_references,
+                          EDITABLE_LEGACY_XY, MAX_CELLS, MAX_COLUMNS, MAX_ENTRY, Dataset, info_references,
                           load_tables, load_workspace, project_document, rename_formula_columns, save_project)
 from analisi.ecdf_graph import METHOD as ECDF_GRAPH, style_after_parameter_change as ecdf_style
 from analisi.frequency import FREQUENCY, style_after_parameter_change as frequency_style
@@ -34,6 +34,7 @@ from analisi.graph_shapes import SHAPES
 from analisi import linked_tables
 from analisi.linked_tables import TABLES, FrameSource, Problem, TableSpec
 from analisi.worksheet_number_format import Renderer, automatic_text
+from analisi.grid_headings import xy_replicate_groups
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
 from analisi.category_levels import (LevelEditError, apply_level_plan, can_rename_levels, find_blocking_recipes,
                                      format_recipe_blockers)
@@ -1511,6 +1512,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         dataset.row_heights = candidate.row_heights
         dataset.text_styles = candidate.text_styles
         dataset.source_link = candidate.source_link
+        dataset.worksheet_titles = candidate.worksheet_titles
         after = WorksheetState.capture(dataset)
         if not self.history.record(title, label, before, after):
             return None
@@ -1581,6 +1583,73 @@ class Project(WorksheetJoinSources, SheetCommands):
         before = WorksheetState.capture(dataset)
         dataset.worksheet_titles = settings
         return self._record_background(title, dataset, before, qt("qt.format_data_table"))
+
+    def worksheet_replicate_limits(self, title):
+        dataset = self.tables[title]
+        groups = xy_replicate_groups(dataset.raw, dataset.table_format)
+        if not groups or dataset.source_link is not None:
+            return None
+        current = len(groups[0][1])
+        fixed = len(dataset.columns) - len(groups) * current
+        max_width = min(MAX_COLUMNS, MAX_CELLS // max(1, len(dataset.raw)))
+        return current, max(current, min(256, (max_width - fixed) // len(groups)))
+
+    def resize_worksheet_replicates(self, title, count, settings):
+        """Resize each series in a single undoable edit, preserving source and drawing identities."""
+        dataset = self.editable(title)
+        limits = self.worksheet_replicate_limits(title)
+        if limits is None or type(count) is not int or not 2 <= count <= limits[1] or count == limits[0]:
+            raise ValueError(qt("qt.replicate_count_unavailable"))
+        raw = dataset.raw
+        groups = xy_replicate_groups(raw, dataset.table_format)
+        removed = [name for _, members in groups for name in members[count:]]
+        for name in removed:
+            if raw[name].notna().any():
+                raise ValueError(qt("qt.replicate_not_empty", column=name))
+        self._check_column_rename(title, removed)
+
+        additions = {members[-1]: [f"{group} [{index}]" for index in range(len(members) + 1, count + 1)]
+                     for group, members in groups}
+        added = [name for names in additions.values() for name in names]
+        if set(added) & set(dataset.columns):
+            raise ValueError(qt("qt.replicate_count_unavailable"))
+        dropped = set(removed)
+
+        def ordered(names):
+            return [column for name in names if name not in dropped for column in (name, *additions.get(name, ()))]
+
+        def change(candidate):
+            raw_order = ordered(raw.columns)
+            frame = raw.reindex(columns=raw_order)
+            frame.attrs = dict(raw.attrs)
+            for name in added:
+                frame[name] = pd.Series(pd.NA, index=frame.index, dtype="Float64")
+            keep_source_columns(frame)
+            ids = column_ids_after_insertion(raw, *added)
+            store_column_ids(frame, ids)
+            if roles := raw.attrs.get("worksheet_roles"):
+                frame.attrs["worksheet_roles"] = {"x": roles["x"], "y": [ordered(group) for group in roles["y"]]}
+            indices = {name: column for column, name in enumerate(raw_order)}
+            candidate.excluded = {(row, indices[raw.columns[column]]) for row, column in dataset.excluded
+                                  if raw.columns[column] not in dropped}
+            candidate.raw = frame
+            if dataset.column_order is not None:
+                candidate.column_order = tuple(ordered(dataset.column_order))
+            candidate.cell_backgrounds = {cell: color for cell, color in dataset.cell_backgrounds.items()
+                                          if cell[1] not in dropped}
+            candidate.number_formats = {name: spec for name, spec in dataset.number_formats.items()
+                                        if name not in dropped}
+            candidate.text_styles = dataset.text_styles.drop(removed)
+            dropped_ids = {ids[name] for name in removed}
+            captions = {token: text for token, text in settings.columns.items() if token not in dropped_ids}
+            for previous, names in additions.items():
+                if ids[previous] in captions:
+                    for name in names:
+                        captions[ids[name]] = captions[ids[previous]]
+            individual = {token: text for token, text in settings.individual.items() if token not in dropped_ids}
+            candidate.worksheet_titles = replace(settings, columns=captions, individual=individual)
+
+        return self.edit(title, qt("qt.replicate_count"), change)
 
     def set_table_number_format(self, title, names, spec):
         """Display-only: no analysis is recalculated. One undoable step; False when nothing changed."""
