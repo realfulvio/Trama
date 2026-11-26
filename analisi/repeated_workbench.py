@@ -11,6 +11,17 @@ from . import regression_range as rr
 from .i18n import ui
 from .legacy_fit_graph import FIT_GRAPH_SPEC, absolute_fit_overlay, draw_absolute_fit_midpoints
 from .fit_weights import GLOBAL_WEIGHTINGS, observed_scales, uses_observed_y
+from .ar1 import (
+    AR1,
+    COVARIANCE,
+    NO_CORRELATION,
+    ONE_WITHIN,
+    SUBJECT_EFFECTS,
+    UNKNOWN_STRUCTURE,
+    VISIT_ORDER,
+    align_visit_order,
+)
+from .field_error import FieldError
 from .repeated_input import SAVED_REPLICATE_DISPLAY, _series_name, curve_input, decode_series_constraints, mixed_input
 from .reporting import Result, _plot, _report
 from .stats import complete
@@ -23,6 +34,8 @@ METHODS = {
         "Measurement columns": "Multiple (optional)", "Row labels": "Optional",
         "Repeat across": ("Columns only", "Rows only", "Rows and columns"),
         "Subject IDs": ("Unique across groups", "Restart within between groups"),
+        COVARIANCE: (SUBJECT_EFFECTS, AR1),
+        VISIT_ORDER: "Text",
         "Denominator method": ("Satterthwaite", "Kenward–Roger"),
         "Post-hoc": ("None", "Holm", "Šídák", "Bonferroni", "Unadjusted"),
         "Comparison factor": "Optional", "Condition on factors": "Multiple (optional)",
@@ -52,6 +65,48 @@ INPUT_FIELDS = {
 }
 
 
+def _prepared_mixed(frame, options):
+    data, response, within, between, subject = mixed_input(frame, options)
+    from .mixed import _design
+
+    prepared = _design(data, response, [*within, *between], subject, within)
+    return within, prepared
+
+
+def check_mixed_options(frame, options):
+    """Refuse an AR(1) recipe the dialog can already see, without fitting rho."""
+    structure = options.get(COVARIANCE) or SUBJECT_EFFECTS
+    if structure == SUBJECT_EFFECTS:
+        return
+    if structure != AR1:
+        raise FieldError(COVARIANCE, UNKNOWN_STRUCTURE)
+    if options.get("Input format", "Long table") == "Long table" and len(options.get("Within factors") or []) != 1:
+        raise FieldError(COVARIANCE, ONE_WITHIN)
+    within, (y, _cell, subjects, levels, _counts) = _prepared_mixed(frame, options)
+    if len(within) != 1:
+        raise FieldError(COVARIANCE, ONE_WITHIN)
+    align_visit_order(options.get(VISIT_ORDER), levels[0])
+    if len(y) == 0 or int(np.bincount(subjects).max()) < 2:
+        raise FieldError(COVARIANCE, NO_CORRELATION)
+
+
+def mixed_coverage(frame, options):
+    """Partial subjects and omitted responses for the visit-order note, or None when the roles are incomplete."""
+    try:
+        within, (_y, _cell, _subjects, levels, counts) = _prepared_mixed(frame, options)
+        if len(within) != 1:
+            return None
+    except (ValueError, KeyError, TypeError, IndexError):
+        return None
+    used = counts["Observations used"] > 0
+    incomplete = counts["Cells missing"] > 0
+    return {
+        "partial": int((used & incomplete).sum()),
+        "excluded": int(counts["Response rows omitted"].sum()),
+        "levels": list(levels[0]),
+    }
+
+
 def check_global_weighting(frame, options):
     """Name the Weighting field when an observed-Y weighting meets a zero response.
 
@@ -66,7 +121,7 @@ def check_global_weighting(frame, options):
     observed_scales(clean["Response"].to_numpy(), weighting)
 
 
-def mixed_analysis(frame, options):
+def mixed_analysis(frame, options, cancel=None):
     from .mixed import mixed_effects_anova
 
     data, response, within, between, subject = mixed_input(frame, options)
@@ -78,8 +133,11 @@ def mixed_analysis(frame, options):
                   "family": options.get("Comparison families", "Separate").lower()} if posthoc or compare or condition else {}
     inference = {"Satterthwaite": "satterthwaite",
                  "Kenward–Roger": "kenward-roger"}[options.get("Denominator method", "Satterthwaite")]
+    structure = options.get(COVARIANCE) or SUBJECT_EFFECTS
     tables = mixed_effects_anova(data, response, [*within, *between], subject,
-                                 within=within, posthoc=posthoc, inference=inference, **comparison)
+                                 within=within, posthoc=posthoc, inference=inference,
+                                 covariance=structure, visit_order=options.get(VISIT_ORDER),
+                                 cancel=cancel, **comparison)
     means = tables["Estimated marginal means"]
     figure, axes = _plot("Mixed-effects estimated marginal means", "", response)
     ticks = np.arange(len(means))
