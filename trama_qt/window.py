@@ -2326,7 +2326,7 @@ class MainWindow(QMainWindow):
 
         project = self.project
         self.inspector = GraphInspector(run, canvas, confirmed=lambda: run.style,
-                                        commit=lambda style: self.commit_style(run, style, project=project),
+                                        commit=lambda style: self.commit_style(run, style, project=project, record_history=True),
                                         closed=closed, element=self.inspector_element)
         line.addWidget(self.inspector)
 
@@ -2357,11 +2357,12 @@ class MainWindow(QMainWindow):
         if self.inspector is not None:
             self.inspector.selector.setFocus()
 
-    def commit_style(self, run, style, project=None):
+    def commit_style(self, run, style, project=None, *, record_history=False):
         project = self.project if project is None else project  # The run's own project, never another tab's.
-        project.commit_style(run, style)
+        project.commit_style(run, style, record_history=record_history)
         if project is self.project:
             self.update_title()
+            self.update_actions()
             self.status(qt("qt.style_applied"))
         else:
             self._sync_tabs()
@@ -3114,7 +3115,7 @@ class MainWindow(QMainWindow):
 
     def _history_target(self, *, redo=False):
         """Return ``('shape', run)`` or ``('project', None)`` for Undo/Redo, or ``None`` if unavailable."""
-        from .project import LayoutChange, StyleBatchChange
+        from .project import FormatChange, LayoutChange, StyleBatchChange
 
         shape_run = self.drawing.history_run()
         proj_change = self.project.history.next_change(redo=redo)
@@ -3123,7 +3124,7 @@ class MainWindow(QMainWindow):
         if shape_run is not None:
             shape_hist = shape_run.shape_history
             shape_can = shape_hist.can_apply(redo=redo)
-            if isinstance(proj_change, (LayoutChange, StyleBatchChange)):
+            if isinstance(proj_change, (FormatChange, LayoutChange, StyleBatchChange)):
                 if not shape_can:
                     return ("project", None)
                 seqs = getattr(shape_hist, "_trama_seqs", ())
@@ -3151,8 +3152,9 @@ class MainWindow(QMainWindow):
         if source == "shape":
             self.drawing.apply_history(shape_run, redo=redo)
             return
-        from .project import LayoutChange, StyleBatchChange
-        if isinstance(self.project.history.next_change(redo=redo), (LayoutChange, StyleBatchChange)):
+        from .project import FormatChange, LayoutChange, StyleBatchChange
+        next_change = self.project.history.next_change(redo=redo)
+        if isinstance(next_change, (FormatChange, LayoutChange, StyleBatchChange)):
             if not self.settle_graph_draft():
                 return
         was_moving = self.table_move.active
@@ -3171,9 +3173,14 @@ class MainWindow(QMainWindow):
             return
         if self.project.undo_style_uids:
             from .batch_figure_styles_dialog import t as batch_style_text
+            status_text = (
+                tr("command.redo") if redo else tr("command.undo")
+                if isinstance(next_change, FormatChange)
+                else batch_style_text("redone" if redo else "undone", count=len(self.project.undo_style_uids))
+            )
             self._after_style_batch(
                 self.project.undo_style_uids,
-                batch_style_text("redone" if redo else "undone", count=len(self.project.undo_style_uids)),
+                status_text,
             )
             if (was_moving and prev_selected is not None and prev_selected[0] == "graph"
                     and self.selected == prev_selected and self.table_move.problem() is None):
@@ -3472,17 +3479,27 @@ class MainWindow(QMainWindow):
             return
         from .graph_format import GraphFormatDialog
         style, xy = self.project.format_inputs(run)
-        dialog = GraphFormatDialog(self, run.result.figure.axes[0], style, xy=xy, initial_axis=axis)
+        grouped = self.project.grouped_format_inputs(run)
+        dialog = GraphFormatDialog(self, run.result.figure.axes[0], style, xy=xy, grouped=grouped,
+                                   initial_axis=axis)
         try:
             if dialog.exec() != GraphFormatDialog.DialogCode.Accepted or dialog.result is None:
                 return
-            self.project.apply_format(run, dialog.result, xy_update=dialog.xy_update, xy_result=dialog.xy_result)
+            self.project.apply_format(
+                run,
+                dialog.result,
+                xy_update=dialog.xy_update,
+                xy_result=dialog.xy_result,
+                grouped_update=dialog.grouped_update,
+                grouped_result=dialog.grouped_result,
+            )
         except ValueError as error:
             self.error(error)
             return
         finally:
             dialog.deleteLater()
         self.show_sheet(*self.selected)
+        self.update_actions()
         self.status(qt("qt.style_applied"))
 
     def _change_legend(self, run, options, label):

@@ -90,6 +90,9 @@ from analisi.worksheet_row_identity import (ROW_SPANS, after_deletion, after_ins
 from analisi import source_link
 from analisi.worksheet_sort import ASCENDING, plan_row_sort, sort_text, validate_sort_key
 from .sheet_commands import SheetCommands
+from analisi.category_graphs import (AS_GRAPH, BARS as GROUPED_BARS, GROUPED_GRAPH, GROUPED_SERIES_COMPATIBLE_STYLES,
+                                     SERIES_STYLE, STACKED_PLACEMENTS, grouped_series_names,
+                                     grouped_style_after_parameter_change, prune_series_styles)
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
 from .graph_style_presets import TRANSFERABLE, plan_preset_batch
@@ -313,6 +316,18 @@ class StyleBatchChange:
     seq: int = 0
 
 
+@dataclass(frozen=True, eq=False)
+class FormatChange:
+    """One undoable graph format step capturing options (if recalculated) and style."""
+    uid: str
+    label: str
+    before_options: dict | None
+    after_options: dict | None
+    before_style: dict | None
+    after_style: dict | None
+    seq: int = 0
+
+
 @dataclass(frozen=True)
 class LayoutChange:
     index: int
@@ -361,6 +376,18 @@ class ProjectHistory(WorksheetHistory):
             return False
         del self.changes[self.position:]
         self.changes.append(StyleBatchChange(label, deepcopy(before), deepcopy(after), self.next_seq()))
+        self._trim()
+        self.position = len(self.changes)
+        return True
+
+    def record_format(self, uid, label, before_options, after_options, before_style, after_style):
+        if (before_options == after_options) and ((before_style or None) == (after_style or None)):
+            return False
+        del self.changes[self.position:]
+        self.changes.append(FormatChange(
+            uid, label, deepcopy(before_options), deepcopy(after_options),
+            deepcopy(before_style), deepcopy(after_style), self.next_seq(),
+        ))
         self._trim()
         self.position = len(self.changes)
         return True
@@ -1186,7 +1213,19 @@ class Project(WorksheetJoinSources, SheetCommands):
             style = raincloud_style(style, run.options, options)
         elif method == run.method == "Kaplan–Meier survival":
             style = survival_style(style, run.options, options)
-        elif method == run.method == XY_METHOD:
+        elif method == run.method == GROUPED_GRAPH:
+            raw = self.tables[run.title].raw
+            placement = options.get("Placement of groups")
+            graph_style = options.get("Graph style", GROUPED_BARS)
+            if (SERIES_STYLE not in options and SERIES_STYLE in run.options
+                    and placement not in STACKED_PLACEMENTS
+                    and graph_style in GROUPED_SERIES_COMPATIBLE_STYLES):
+                options[SERIES_STYLE] = deepcopy(run.options[SERIES_STYLE])
+            options = prune_series_styles(options, grouped_series_names(raw, options))
+            if placement in STACKED_PLACEMENTS or graph_style not in GROUPED_SERIES_COMPATIBLE_STYLES:
+                options.pop(SERIES_STYLE, None)
+            style = grouped_style_after_parameter_change(style, options, raw)
+        elif method == XY_METHOD:
             style = xy_style(style, options)
         candidate = Run(method, run.title, options, slot=run.slot, style=style, uid=run.uid, source=run.source,
                         label=run.label)
@@ -1447,6 +1486,12 @@ class Project(WorksheetJoinSources, SheetCommands):
             xy = {"frame": self.tables[run.title].frame(mask_excluded=True), "options": dict(run.options)}
         return style, xy
 
+    def grouped_format_inputs(self, run):
+        """Grouped worksheet data and recipe when formatting a grouped graph, else None."""
+        if run.method != GROUPED_GRAPH:
+            return None
+        return {"frame": self.tables[run.title].frame(mask_excluded=True), "options": deepcopy(run.options)}
+
     def record_shapes(self, run, style):
         """One step of the graph's drawing history when ``style`` changes its shapes."""
         before_pos = run.shape_history.position
@@ -1461,14 +1506,17 @@ class Project(WorksheetJoinSources, SheetCommands):
             if len(seqs) > len(run.shape_history.changes):
                 del seqs[:-len(run.shape_history.changes)]
 
-    def commit_style(self, run, style, *, record_shapes=True):
+    def commit_style(self, run, style, *, record_shapes=True, record_history=False):
         """Store a style already drawn on the figure (the Inspector and the canvas tools preview it first)."""
+        before_style = deepcopy(run.style) if record_history else None
         if record_shapes:
             self.record_shapes(run, style)
         run.style = style
         run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
+        if record_history:
+            self.history.record_format(run.uid, "Format graph", None, None, before_style, deepcopy(style))
         self.dirty = True
 
     def _apply_style_updates(self, targets, styles_by_uid):
@@ -1551,20 +1599,43 @@ class Project(WorksheetJoinSources, SheetCommands):
         self.dirty = True
         return BatchStyleOutcome(preset["name"], tuple(ids), changed_uids, unchanged_uids)
 
-    def apply_format(self, run, style, *, xy_update=None, xy_result=None):
+    def apply_format(self, run, style, *, xy_update=None, xy_result=None,
+                     grouped_update=None, grouped_result=None, record_history=True):
+        before_options = deepcopy(run.options)
+        before_style = deepcopy(run.style)
+        recalculated = False
         if run.method == XY_METHOD and xy_update is not None:
             run.options = xy_update
             run.result = xy_result
             self.tables[run.title].analyses[run.slot] = (run.method, run.options)
+            recalculated = True
+        elif run.method == GROUPED_GRAPH and grouped_update is not None:
+            run.options = grouped_update
+            run.result = grouped_result
+            self.tables[run.title].analyses[run.slot] = (run.method, run.options)
+            recalculated = True
         else:
             apply_style(run.result.figure, style)
+        pairwise = self.pairwise_snapshot(run) if recalculated else None
+        if pairwise is not None and run.result.figure is not None and run.result.figure.axes:
+            _attach_pairwise(run.result, self.tables[run.title].frame(mask_excluded=True), pairwise, run.method)
         self.record_shapes(run, style)
         run.style = style
         run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
         self.sync_run_tables(run)
+        self.update_linked_tables()
         self.sync_links(persist=True)
+        if record_history:
+            self.history.record_format(
+                run.uid,
+                "Format graph",
+                before_options if recalculated else None,
+                deepcopy(run.options) if recalculated else None,
+                before_style,
+                deepcopy(style),
+            )
         self.dirty = True
 
     def change_graph_style_option(self, run, key, value, label):
@@ -2309,6 +2380,10 @@ class Project(WorksheetJoinSources, SheetCommands):
             return self.sheet_metadata.get("frozen_runs", {}).keys().isdisjoint(change.before)
         if isinstance(change, LayoutFamilyChange):
             return not self.sheet_locked(("layout", change.index))
+        if isinstance(change, FormatChange):
+            if change.uid in self.sheet_metadata.get("frozen_runs", {}):
+                return False
+            return any(run.uid == change.uid for run in self.runs)
         return isinstance(change, LayoutChange)
 
     def undo(self, *, redo=False):
@@ -2330,6 +2405,37 @@ class Project(WorksheetJoinSources, SheetCommands):
             self.history.position += 1 if redo else -1
             self.dirty = True
             self.undo_layout_index = change.index
+            return None, []
+        if isinstance(change, FormatChange):
+            run = next((item for item in self.runs if item.uid == change.uid), None)
+            if run is None:
+                raise ValueError("The formatted graph is no longer in this project.")
+            target_options = deepcopy(change.after_options if redo else change.before_options)
+            target_style = deepcopy(change.after_style if redo else change.before_style)
+            if target_options is not None and target_options != run.options:
+                temp = Run(run.method, run.title, target_options, slot=run.slot, style=target_style,
+                           uid=run.uid, source=run.source, label=run.label)
+                frame = self.tables[run.title].frame(mask_excluded=True)
+                fresh = compute(temp, frame, pairwise=self.pairwise_snapshot(temp))
+                run.options = target_options
+                run.result = fresh
+                self.tables[run.title].analyses[run.slot] = (run.method, run.options)
+            else:
+                apply_style(run.result.figure, deepcopy(target_style or {}))
+            run.style = target_style
+            run.result.style_warning = graph_warning(run.result.figure, target_style)
+            if target_style is None:
+                self.tables[run.title].graph_styles.pop(run.slot, None)
+            else:
+                self.tables[run.title].graph_styles[run.slot] = deepcopy(target_style)
+            sync_letters_table(run.result)
+            self.sync_run_tables(run)
+            self.update_linked_tables()
+            self.sync_links(persist=True)
+            self.history.position += 1 if redo else -1
+            self.dirty = True
+            self.undo_changed_data = False
+            self.undo_style_uids = (run.uid,)
             return None, []
         if isinstance(change, StyleBatchChange):
             by_uid = {run.uid: run for run in self.runs}
