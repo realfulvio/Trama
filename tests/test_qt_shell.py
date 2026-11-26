@@ -3316,6 +3316,76 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.project.layouts[0].panels, current.panels)
         self.assertFalse(window.actions["replace_layout_graph"].isEnabled())
 
+    def test_layout_insert_graph_from_file_as_picture_or_editable_copy(self):
+        from unittest.mock import patch
+
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QFileDialog
+
+        from analisi.presentation import Layout
+        from trama_qt.layout_dialog import LayoutGraphDialog
+        from trama_qt.project import Project
+
+        path = self.folder / "other-project.alab"
+        source = Project()
+        source.add_tables({"Measurements": pd.DataFrame({"X": [1., 2., 3.], "Y": [3., 5., 7.]})})
+        source.tables["Measurements"].analyses.append(("Linear regression", {"X": "X", "Y": "Y"}))
+        source.save(path)
+        original = path.read_bytes()
+        window, project = self.window, self.window.project
+        initial = Layout("Plate", 1, [None])
+        key = project.put_layout(initial)
+        window.open_sheet(("layout", key))
+        self.wait()
+        self.assertTrue(window.actions["place_layout_graph"].isEnabled())
+
+        def choose(dialog):
+            dialog.show()
+            self.assertFalse(dialog.ok_button.isEnabled())
+            dialog._browse()
+            end = time.monotonic() + 10
+            while not dialog.ok_button.isEnabled() and dialog.pending is not None and time.monotonic() < end:
+                QTest.qWait(20)
+            self.assertTrue(dialog.ok_button.isEnabled(), dialog.preview.text())
+            self.assertIsNotNone(dialog.preview.pixmap())
+            if editable:
+                dialog.method.setCurrentIndex(dialog.method.findData("family"))
+                self.assertTrue(dialog.prefix.isVisible())
+                dialog.prefix.setText("Copy ")
+            dialog.accept()
+            return dialog.DialogCode.Accepted
+
+        for editable in (False, True):
+            with self.subTest(editable=editable), patch.object(QFileDialog, "getOpenFileName", return_value=(str(path), "")), \
+                    patch.object(LayoutGraphDialog, "exec", choose):
+                window.place_layout_graph()
+                self.wait()
+                received = project.layouts[key]
+                if editable:
+                    self.assertEqual(tuple(project.tables), ("Copy Measurements",))
+                    self.assertEqual(received.panels, [("Copy Measurements", 0)])
+                    self.assertIsNotNone(project.runs[0].result.figure)
+                else:
+                    self.assertEqual(len(project.tables), 0)
+                    self.assertIsNotNone(received.arrangement.picture(0))
+                self.assertEqual(len(window.sessions), 1)
+                self.assertEqual(path.read_bytes(), original)
+                window.undo()
+                self.assertEqual(project.layouts[key], initial)
+                self.assertEqual(len(project.tables), 0)
+                self.assertEqual(len(project.runs), 0)
+                window.undo(redo=True)
+                self.assertEqual(project.layouts[key], received)
+                if editable:
+                    project.save(self.folder / "received.alab")
+                    self.reopen(self.folder / "received.alab")
+                    window.open_sheet(("layout", key))
+                    self.wait()
+                    self.assertEqual(window.project.layouts[key].panels, [("Copy Measurements", 0)])
+                    self.assertIsNotNone(window.page.layout_selection.panels[0].figure)
+                else:
+                    window.undo()
+
     def test_layout_clear_graph_retains_placeholder_until_refilled(self):
         from dataclasses import replace
         import json

@@ -1161,10 +1161,9 @@ class MainWindow(QMainWindow):
         layout_editable = idle and kind == "layout" and not locked
         self.actions["edit_layout"].setEnabled(layout_editable)
         layout = self.project.layouts[self.selected[1]] if layout_editable else None
-        placeable = bool(layout and self.project.layout_candidates())
-        unlocked = set(range(len(layout.panels))) - set(layout.arrangement.locked) if placeable else set()
+        unlocked = set(range(len(layout.panels))) - set(layout.arrangement.locked) if layout else set()
         self.actions["place_layout_graph"].setEnabled(bool(unlocked and unlocked.intersection(layout.empty_panels)))
-        self.navigator.setDragEnabled(bool(unlocked))
+        self.navigator.setDragEnabled(bool(unlocked and self.project.layout_candidates()))
         self.update_layout_arrangement_actions()
         self.actions["recalculate"].setEnabled((on_run and not locked or kind == "layout") and idle)
         self.actions["use_result"].setEnabled(kind == "result" and idle)
@@ -3564,9 +3563,6 @@ class MainWindow(QMainWindow):
             existing = next((run for run in project.runs if run.reference == current), None)
             if existing is not None:
                 candidates.insert(0, existing)
-        if not candidates and (panel is None or panel in layout.empty_panels):
-            self.status(qt("qt.layout_no_graph"))
-            return
         from .layout_dialog import LayoutGraphDialog
         dialog = LayoutGraphDialog(self, layout, candidates, panel)
         try:
@@ -3584,18 +3580,42 @@ class MainWindow(QMainWindow):
             if graph == dialog.CURRENT_PICTURE:
                 return
             picture = dialog.embed.isEnabled() and dialog.embed.isChecked()
+            source, figure = dialog.source_project, dialog.source_figure
+            method, prefix = dialog.method.currentData(), dialog.prefix.text()
         finally:
             dialog.deleteLater()
+        if source is not None:
+            if figure is None:
+                return
+            if method == "picture":
+                self._assign_layout_graph(key, slot, graph, picture=True, external_figure=figure)
+                return
+            from .layout_transfer import prepare_family
+
+            control = CalculationControl()
+            destination = (project.tables.copy(), tuple(project.layouts), tuple(project.info_sheets.values()))
+
+            def place(outcome):
+                if key < len(project.layouts) and project.layouts[key] is layout and self.selected == reference:
+                    bundle, runs, run = outcome
+                    self._assign_layout_graph(key, slot, run.reference, external_figure=run.result.figure,
+                                              imported=(bundle, runs))
+
+            self._family_job(lambda: prepare_family(source, graph, destination, prefix, control), control,
+                             running=tr("family.copying"), cancelled=tr("family.cancelled"), failed="family.failed",
+                             finish=place, discard_when_cancelled=True)
+            return
         self._assign_layout_graph(key, slot, graph, picture=picture)
 
-    def _assign_layout_graph(self, key, slot, graph, *, picture=False):
+    def _assign_layout_graph(self, key, slot, graph, *, picture=False, external_figure=None, imported=None):
         layout = self.project.layouts[key]
         if slot is None or slot in layout.arrangement.locked:
             return
         previous = layout.arrangement.picture(slot)
         if previous is None and not picture and layout.panels[slot] == graph:
             return
-        if graph is not None and not any(run.reference == graph for run in self.project.layout_candidates()):
+        if (external_figure is None and graph is not None
+                and not any(run.reference == graph for run in self.project.layout_candidates())):
             return
         controller = self._active_layout_selection()
         retained = {index: tuple(size) for index, *size in layout.arrangement.empty_sizes}
@@ -3620,8 +3640,13 @@ class MainWindow(QMainWindow):
                      for entry in entries)
         if picture and (graph is None or controller is None):
             return
-        if graph is not None and controller is not None and (replacing or manual or picture):
-            figures = self.project.layout_figures(candidate)
+        if graph is not None and controller is not None and (replacing or manual or picture or imported is not None):
+            if external_figure is None:
+                figures = self.project.layout_figures(candidate)
+            else:
+                figures = self.project.layout_figures(layout)
+                if figures is not None:
+                    figures = tuple(external_figure if index == slot else value for index, value in enumerate(figures))
             if figures is None:
                 return
             planned = plan_panels(candidate.columns, figures, candidate.paper, panel_size=candidate.panel_size,
@@ -3657,10 +3682,10 @@ class MainWindow(QMainWindow):
             except ValueError:
                 self.status(qt("qt.layout_geometry_limits"))
                 return
-        self.project.put_layout(candidate, key)
+        self.project.put_layout(candidate, key, family=imported)
         self.open_sheet(("layout", key))
         refreshed = self._active_layout_selection()
-        if refreshed is not None and (replacing or graph is None or picture):
+        if refreshed is not None and (replacing or graph is None or picture or imported is not None):
             refreshed.select((slot,))
 
     def _active_layout_selection(self):

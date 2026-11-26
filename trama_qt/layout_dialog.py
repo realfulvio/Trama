@@ -1,10 +1,13 @@
 """Compose or edit a layout on Qt: name, paper, columns, background and up to twelve graph panels."""
+from pathlib import Path
+
 from PySide6.QtGui import QColor, QKeySequence, QPixmap, QShortcut
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QSpinBox,
                                QVBoxLayout)
 
+from analisi.family_workflow import MAX_PREFIX
 from analisi.i18n import tr, ui
 from analisi.layout_arrangement import PanelArrangement
 from analisi.layout_geometry import AUTO_PAPER, AXIS_ALIGNMENTS, PANEL_SIZES, PAPER_SIZES, WHITE
@@ -230,6 +233,12 @@ class LayoutGraphDialog(QDialog):
     def __init__(self, parent, layout, runs, panel=None):
         super().__init__(parent)
         self.runs = {run.reference: run for run in runs}
+        self.local_runs = self.runs
+        self.source_project = self.source_figure = None
+        self.pending = None
+        self.poll = QTimer(self, interval=40)
+        self.poll.timeout.connect(self._receive_source)
+        self.finished.connect(self._discard_source_request)
         self.picture = layout.arrangement.picture(panel)
         self.current = self.CURRENT_PICTURE if self.picture else layout.panels[panel] if panel is not None else None
         self.setWindowTitle(qt("qt.layout_replace_graph" if self.current else "qt.layout_place_graph").rstrip("…"))
@@ -242,27 +251,45 @@ class LayoutGraphDialog(QDialog):
                 self.panels.addItem(chr(ord("A") + index), index)
         form.addRow(qt("qt.layout_panel"), self.panels)
         self.panels.setEnabled(panel is None)
+        self.sources = QComboBox()
+        self.sources.setAccessibleName(qt("qt.layout_source"))
+        self.sources.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.sources.setMinimumContentsLength(18)
+        self.sources.addItem(qt("qt.layout_current_source"))
+        for session, (caption, tip) in zip(parent.sessions, parent.sessions.labels(), strict=True):
+            if session is not parent.sessions.active:
+                self.sources.addItem(caption, session)
+                self.sources.setItemData(self.sources.count() - 1, tip, Qt.ItemDataRole.ToolTipRole)
+        browse = QPushButton(qt("qt.layout_source_browse"))
+        browse.setAutoDefault(False)
+        browse.clicked.connect(self._browse)
+        source_row = QHBoxLayout()
+        source_row.addWidget(self.sources, 1)
+        source_row.addWidget(browse)
+        form.addRow(qt("qt.layout_source"), source_row)
         self.graphs = QComboBox()
         self.graphs.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.graphs.setMinimumContentsLength(24)
         self.graphs.setAccessibleName(qt("qt.layout_graph"))
-        if self.current is not None:
-            self.graphs.addItem(qt("qt.layout_no_assigned_graph"), None)
-        if self.picture is not None:
-            self.graphs.addItem(qt("qt.layout_picture"), self.CURRENT_PICTURE)
-        for run in runs:
-            self.graphs.addItem(f"{run.name} · {run.title} ({run.slot + 1})", run.reference)
-        if self.current is not None:
-            index = next((i for i in range(1, self.graphs.count()) if self.graphs.itemData(i) == self.current), 1)
-            self.graphs.setCurrentIndex(index)
         form.addRow(qt("qt.layout_graph"), self.graphs)
         self.embed = QCheckBox(qt("qt.layout_picture_create"))
         self.embed.setToolTip(qt("qt.layout_picture_tip"))
         form.addRow(self.embed)
+        self.method = QComboBox()
+        self.method.setAccessibleName(qt("qt.layout_transfer_method"))
+        self.method.addItem(qt("qt.layout_transfer_picture"), "picture")
+        self.method.addItem(qt("qt.layout_transfer_editable"), "family")
+        form.addRow(qt("qt.layout_transfer_method"), self.method)
+        self.prefix = QLineEdit()
+        self.prefix.setMaxLength(MAX_PREFIX)
+        self.prefix.setAccessibleName(qt("qt.layout_transfer_prefix"))
+        self.prefix.setToolTip(qt("qt.layout_transfer_prefix_tip"))
+        form.addRow(qt("qt.layout_transfer_prefix"), self.prefix)
         self.preview = QLabel()
         self.preview.setAccessibleName(qt("qt.layout_graph_preview"))
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview.setMinimumHeight(145)
+        self.preview.setWordWrap(True)
         form.addRow(self.preview)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         cancel = buttons.button(QDialogButtonBox.StandardButton.Cancel)
@@ -278,26 +305,158 @@ class LayoutGraphDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+        self.sources.currentIndexChanged.connect(self._change_source)
+        self.method.currentIndexChanged.connect(self._show_transfer_options)
         self.graphs.currentIndexChanged.connect(self.update_preview)
-        self.update_preview()
+        self._change_source()
         self.graphs.setFocus()
         fit_dialog(self, 520, self.sizeHint().height())
+
+    def _browse(self):
+        from .project import PROJECT_SUFFIXES
+
+        extensions = " ".join(f"*{suffix}" for suffix in sorted(PROJECT_SUFFIXES))
+        name, _ = QFileDialog.getOpenFileName(self, qt("qt.layout_source_files"), "",
+                                             f'{qt("qt.layout_source_files")} ({extensions})')
+        if not name:
+            return
+        sessions = self.parentWidget().sessions
+        session = sessions.find(name)
+        if session is sessions.active:
+            self.sources.setCurrentIndex(0)
+        elif session is not None:
+            self.sources.setCurrentIndex(next(i for i in range(self.sources.count())
+                                              if self.sources.itemData(i) is session))
+        else:
+            path = Path(name)
+            index = next((i for i in range(self.sources.count()) if self.sources.itemData(i) == path), -1)
+            if index < 0:
+                self.sources.addItem(path.name, path)
+                index = self.sources.count() - 1
+                self.sources.setItemData(index, str(path), Qt.ItemDataRole.ToolTipRole)
+            self.sources.setCurrentIndex(index)
+
+    def _show_transfer_options(self, *_):
+        external = self.sources.currentIndex() > 0
+        self.layout().setRowVisible(self.embed, not external)
+        self.layout().setRowVisible(self.method, external)
+        self.layout().setRowVisible(self.prefix, external and self.method.currentData() == "family")
+
+    def _fill_graphs(self, runs, *, local=False):
+        self.runs = runs
+        with QSignalBlocker(self.graphs):
+            self.graphs.clear()
+            if local and self.current is not None:
+                self.graphs.addItem(qt("qt.layout_no_assigned_graph"), None)
+                if self.picture is not None:
+                    self.graphs.addItem(qt("qt.layout_picture"), self.CURRENT_PICTURE)
+            for run in runs.values():
+                self.graphs.addItem(f"{run.name} · {run.title} ({run.slot + 1})", run.reference)
+            if local and self.current is not None:
+                match = next((i for i in range(self.graphs.count()) if self.graphs.itemData(i) == self.current), 0)
+                self.graphs.setCurrentIndex(match)
+        self.graphs.setEnabled(bool(self.graphs.count()))
+
+    def _change_source(self, *_):
+        from .layout_transfer import read_source
+
+        self._discard_source_request()
+        self.source_project = self.source_figure = None
+        self._show_transfer_options()
+        if self.geometry_button is not None:
+            self.geometry_button.setEnabled(False)
+        source = self.sources.currentData()
+        if source is None:
+            self._fill_graphs(self.local_runs, local=True)
+            self.update_preview()
+            return
+        self._fill_graphs({})
+        try:
+            snapshot = None if isinstance(source, Path) else source.project.snapshot()
+        except Exception as error:
+            self._show_source_error(error)
+            return
+        self._request_source(lambda _: read_source(source, snapshot), self._source_loaded)
+
+    def _request_source(self, job, ready):
+        from .project import CalculationControl
+
+        self._discard_source_request()
+        control = CalculationControl()
+        self.pending = (self.parentWidget().worker.submit(job, control), control, ready)
+        self.ok_button.setEnabled(False)
+        self.preview.setToolTip("")
+        self.preview.setText(qt("qt.layout_source_loading"))
+        self.poll.start()
+
+    def _discard_source_request(self, *_):
+        if self.pending is not None:
+            future, control, _ = self.pending
+            control.cancel.set()
+            future.cancel()
+            self.pending = None
+        self.poll.stop()
+
+    def _receive_source(self):
+        future, _, ready = self.pending
+        if not future.done():
+            return
+        self.pending = None
+        self.poll.stop()
+        try:
+            ready(future.result())
+        except Exception as error:
+            self._show_source_error(error)
+
+    def _show_source_error(self, error):
+        self.ok_button.setEnabled(False)
+        self.preview.setToolTip(str(error))
+        self.preview.setText(qt("qt.layout_source_error", error=str(error)[:160]))
+
+    def _source_loaded(self, outcome):
+        self.source_project, runs = outcome
+        self._fill_graphs({run.reference: run for run in runs})
+        self.update_preview()
+
+    def _show_figure(self, figure):
+        from .gallery_thumbs import figure_image
+
+        self.preview.setPixmap(QPixmap.fromImage(figure_image(figure, 410, 145)))
+
+    def _external_preview(self, figure):
+        self._show_figure(figure)
+        self.source_figure = figure
+        self.ok_button.setEnabled(True)
 
     def show_shortcuts(self):
         self.parentWidget().show_shortcuts()
         self.ok_button.setDefault(True)
 
     def update_preview(self, *_):
-        from .gallery_thumbs import figure_image
-
+        self.preview.clear()
+        self.preview.setToolTip("")
         graph = self.graphs.currentData()
         self.graphs.setToolTip(self.graphs.currentText())
+        external = self.source_project is not None
         if self.geometry_button is not None:
-            self.geometry_button.setEnabled(graph == self.current)
+            self.geometry_button.setEnabled(self.sources.currentIndex() == 0 and graph == self.current)
         run = self.runs.get(graph)
+        self.ok_button.setEnabled(not external and bool(self.graphs.count()))
+        if external:
+            from .layout_transfer import prepare_preview
+
+            self.source_figure = None
+            if run is None:
+                self.preview.setText(qt("qt.layout_source_empty"))
+            else:
+                source = self.source_project
+                self._request_source(lambda control: prepare_preview(source, run, control), self._external_preview)
+            return
         self.embed.setEnabled(run is not None and run.result is not None and run.result.figure is not None
                               and not run.calculation_error)
-        self.preview.clear()
+        if self.graphs.count() == 0:
+            self.preview.setText(qt("qt.layout_no_graph"))
+            return
         if graph is None and self.current is not None:
             self.preview.setText(qt("qt.layout_clear_preview"))
             return
@@ -310,7 +469,7 @@ class LayoutGraphDialog(QDialog):
             else:
                 figure = None
             if figure is not None:
-                self.preview.setPixmap(QPixmap.fromImage(figure_image(figure, 410, 145)))
+                self._show_figure(figure)
         except (ValueError, RuntimeError):
             self.preview.setText(qt("qt.layout_graph_no_preview"))
 

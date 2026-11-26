@@ -322,6 +322,12 @@ class LayoutChange:
 
 
 @dataclass(frozen=True)
+class LayoutFamilyChange(LayoutChange):
+    bundle: object
+    runs: tuple
+
+
+@dataclass(frozen=True)
 class BatchStyleOutcome:
     """Outcome of applying a figure style preset to a selection of graphs."""
     preset_name: str
@@ -359,9 +365,10 @@ class ProjectHistory(WorksheetHistory):
         self.position = len(self.changes)
         return True
 
-    def record_layout(self, index, before, after):
+    def record_layout(self, index, before, after, *, family=None):
         del self.changes[self.position:]
-        self.changes.append(LayoutChange(index, deepcopy(before), deepcopy(after), self.next_seq()))
+        args = index, deepcopy(before), deepcopy(after), self.next_seq()
+        self.changes.append(LayoutChange(*args) if family is None else LayoutFamilyChange(*args, *family))
         self._trim()
         self.position = len(self.changes)
 
@@ -400,6 +407,13 @@ class ProjectHistory(WorksheetHistory):
                         backgrounds[id(styles)] = styles.run_count() * 200
             style_bytes = sum(len(repr(change.before)) + len(repr(change.after))
                               for change in self.changes if isinstance(change, StyleBatchChange))
+            for change in self.changes:
+                if isinstance(change, LayoutFamilyChange):
+                    for dataset in change.bundle.tables.values():
+                        key = id(dataset.raw)
+                        if key not in sizes:
+                            size = self.frame_sizes.get(key)
+                            sizes[key] = size if size is not None else int(dataset.raw.memory_usage(deep=True).sum())
             self.frame_sizes = sizes
             total_bytes = sum(sizes.values()) + sum(exclusions.values()) + sum(backgrounds.values()) + style_bytes
             if len(self.changes) == 1 or (len(self.changes) <= 24 and total_bytes <= self.memory_budget):
@@ -669,17 +683,22 @@ class Project(WorksheetJoinSources, SheetCommands):
             self.info_sheets = dict(sheets)
             self.dirty = True
 
-    def apply_family(self, bundle):
+    def apply_family(self, bundle, *, prepared=None):
         """Add a finished family copy, all or nothing. Returns the navigator reference of the copied focus."""
         for title in bundle.tables:
             if title in self.tables:
                 raise ValueError(f'A data table named "{title}" already exists.')
+        if any(sheet.uid in self.info_sheets for sheet in bundle.infos):
+            raise ValueError("An Info sheet of the copied family already exists.")
         runs_before, layouts_before = len(self.runs), len(self.layouts)
         infos_before, dirty_before = self.info_sheets, self.dirty
         try:
             self.tables.update(bundle.tables)
-            for title, dataset in bundle.tables.items():
-                self.runs.extend(self.runs_for(title, dataset))
+            if prepared is None:
+                for title, dataset in bundle.tables.items():
+                    self.runs.extend(self.runs_for(title, dataset))
+            else:
+                self.runs.extend(prepared)
             self.layouts.extend(bundle.layouts)
             if bundle.infos:
                 additions = {}
@@ -1230,7 +1249,7 @@ class Project(WorksheetJoinSources, SheetCommands):
                     and run.result is not None and run.result.figure is not None)
                 or (current is not None and run.reference in current.panels)]
 
-    def put_layout(self, layout, key=None):
+    def put_layout(self, layout, key=None, *, family=None):
         if key is None:
             if len(self.layouts) >= 128:
                 raise ValueError(ui("A project supports up to 128 layouts."))
@@ -1240,7 +1259,10 @@ class Project(WorksheetJoinSources, SheetCommands):
             current = self.layouts[key]
             if current == layout:
                 return key
-            self.history.record_layout(key, current, layout)
+            if family is not None:
+                bundle, runs = family
+                self.apply_family(bundle, prepared=runs)
+            self.history.record_layout(key, current, layout, family=family)
             self.layouts[key] = layout
         self.dirty = True
         return key
@@ -2171,11 +2193,53 @@ class Project(WorksheetJoinSources, SheetCommands):
         counts["points"] = points
         return {name: count for name, count in counts.items() if count}
 
+    def _remove_layout_family(self, change):
+        bundle, runs = change.bundle, change.runs
+        titles = bundle.tables.keys()
+        uids = {run.uid for run in runs}
+        refs = {run.reference for run in runs}
+        info_ids = {sheet.uid for sheet in bundle.infos}
+        owners = {f"{kind}:{uid}" for kind in ("graph", "result", "saved-layout") for uid in uids}
+        owners.update(f"info:{uid}" for uid in info_ids)
+
+        def reads_copy(records):
+            return bool(uids.intersection(linked_tables.source_analyses(records))) or any(
+                record.get("source", {}).get("kind") == "sheet"
+                and record["source"]["sheet"] in titles for record in records)
+
+        # Existing navigator references are indices. Removing a suffix leaves all other references valid.
+        if (len(runs) > len(self.runs)
+                or any(old is not current for old, current in zip(runs, self.runs[-len(runs):], strict=True))
+                or any(self.tables.get(title) is not dataset for title, dataset in bundle.tables.items())
+                or any(self.info_sheets.get(sheet.uid) != sheet for sheet in bundle.infos)
+                or any(sheet.uid not in info_ids and (sheet.table in titles or sheet.worksheet in owners)
+                       for sheet in self.info_sheets.values())
+                or any(run.title in titles or run.source and run.source.analysis_id in uids
+                       or run.method == worksheet_join.METHOD and worksheet_join.right_title(run.options) in titles
+                       or reads_copy((run.style or {}).get(TABLES, ())) for run in self.runs[:-len(runs)])
+                or any(refs.intersection(layout.panels) or reads_copy(layout.tables)
+                       for index, layout in enumerate(self.layouts) if index != change.index)):
+            raise ValueError(tr("layout.undo_unavailable"))
+        for title in titles:
+            del self.tables[title]
+        del self.runs[-len(runs):]
+        if info_ids:
+            self.update_info_sheets({uid: sheet for uid, sheet in self.info_sheets.items() if uid not in info_ids})
+        records = self.sheet_metadata.get("sheets", {})
+        for title in titles:
+            records.pop(f"data:{title}", None)
+        for uid in uids:
+            for kind in ("graph", "result", "saved-layout"):
+                records.pop(f"{kind}:{uid}", None)
+            self.sheet_metadata.get("frozen_runs", {}).pop(uid, None)
+
     def can_apply_history(self, change):
         if isinstance(change, WorksheetChange):
             return not self.sheet_locked(("data", change.title))
         if isinstance(change, StyleBatchChange):
             return self.sheet_metadata.get("frozen_runs", {}).keys().isdisjoint(change.before)
+        if isinstance(change, LayoutFamilyChange):
+            return not self.sheet_locked(("layout", change.index))
         return isinstance(change, LayoutChange)
 
     def undo(self, *, redo=False):
@@ -2188,6 +2252,11 @@ class Project(WorksheetJoinSources, SheetCommands):
             expected, target = (change.before, change.after) if redo else (change.after, change.before)
             if change.index >= len(self.layouts) or self.layouts[change.index] != expected:
                 raise ValueError(tr("layout.undo_unavailable"))
+            if isinstance(change, LayoutFamilyChange):
+                if redo:
+                    self.apply_family(change.bundle, prepared=change.runs)
+                else:
+                    self._remove_layout_family(change)
             self.layouts[change.index] = deepcopy(target)
             self.history.position += 1 if redo else -1
             self.dirty = True

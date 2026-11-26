@@ -9,6 +9,7 @@ import pandas as pd
 from analisi.analysis_chain import ResultSource
 from analisi.data import Dataset
 from analisi.info import InfoSheet
+from analisi.linked_tables import TABLES
 from analisi.presentation import Layout
 
 
@@ -60,6 +61,28 @@ class FamilyCopyTests(TestCase):
                          ['Transform', 'Normalize', 'Linear regression'])
         self.assertEqual(copy.layouts[0].panels, [('Repeat A', 2), ('B', 0)])
         self.assertEqual(copy.tables['Repeat A'].analysis_labels[2], 'Repeat Linear regression of Normalized')
+
+    def test_external_graph_copies_overlay_sources_and_scopes_project_constants(self):
+        source = self.tables["A"]
+        source.graph_styles[2][TABLES] = [
+            {"id": "values", "mode": "linked", "source": {"kind": "sheet", "sheet": "B"}},
+            {"id": "fit", "mode": "linked", "source": {"kind": "result", "analysis": self.ids[4]}},
+        ]
+        shared = InfoSheet("Source settings", (("Dose", "42"), ("Scale", "3")))
+        target = InfoSheet("Target settings", (("Scale", "99"),))
+        copied = self.engine().copy_graph_family(
+            self.tables, [*self.infos, shared], ("A", 2), ({"QA A": source}, [], [target]), prefix="QA ")
+        name, slot = copied.focus[1]
+        self.assertNotEqual(name, "QA A")
+        self.assertEqual(set(copied.tables), {name, "QA B"})
+        self.assertEqual(copied.tables[name].info["dose"], "2")
+        self.assertEqual(copied.tables[name].info["scale"], "3")
+        self.assertEqual(copied.tables["QA B"].info["dose"], "42")
+        self.assertTrue(all(sheet.table in copied.tables for sheet in copied.infos))
+        table, result = copied.tables[name].graph_styles[slot][TABLES]
+        self.assertEqual(table["source"]["sheet"], "QA B")
+        self.assertEqual(result["source"]["analysis"], copied.tables["QA B"].analysis_ids[0])
+        self.assertNotEqual(result["source"]["analysis"], self.ids[4])
 
     def test_copy_can_keep_xy_coordinates_and_clear_labels_and_responses(self):
         module = self.engine()

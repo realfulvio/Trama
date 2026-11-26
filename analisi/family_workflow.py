@@ -108,7 +108,7 @@ class _Graph:
     """Analyses as nodes; edges for result inputs and comparison sources (structural) and for the panel
     graphs of recovered layouts (panel edges). Everything is iterative: a chain may be 65,536 long."""
 
-    def __init__(self, tables):
+    def __init__(self, tables, *, graph_tables=False):
         self.tables = tables
         self.by_id = {}
         for title, dataset in tables.items():
@@ -117,6 +117,7 @@ class _Graph:
                     raise FamilyError("identity", "Two analyses share one persistent identity.")
                 self.by_id[identifier] = (title, slot)
         self.parents, self.children = {}, {}
+        self.overlay_sheets, self.broken_overlays = {}, set()
         self.editable, self.saved_layouts = {}, []
         for title, dataset in tables.items():
             count = len(dataset.analyses)
@@ -133,6 +134,17 @@ class _Graph:
                 settings, _ = read_section(options)
                 if settings is not None and settings["slot"] < count and settings["slot"] != slot:
                     found.append((title, settings["slot"]))
+                if graph_tables:
+                    for overlay in (dataset.graph_styles.get(slot) or {}).get(TABLES, ()):
+                        if overlay.get("mode") != "linked":
+                            continue
+                        source = overlay["source"]
+                        if source["kind"] == "sheet" and source["sheet"] in tables:
+                            self.overlay_sheets.setdefault(node, set()).add(source["sheet"])
+                        elif source["kind"] == "result" and source["analysis"] in self.by_id:
+                            found.append(self.by_id[source["analysis"]])
+                        else:
+                            self.broken_overlays.add(node)
                 for parent in dict.fromkeys(found):
                     self.parents.setdefault(node, []).append(parent)
                     self.children.setdefault(parent, []).append(node)
@@ -289,6 +301,10 @@ def plan_family(tables, layouts, infos, selected, *, include_layouts=True, expor
     # A self-contained export also carries the right worksheet of every join, so the joins open on their own.
     # A copy in the same project keeps reading the original right sheet, which is certainly there.
     joined = _join_sources(tables, members) if export else set()
+    if export:
+        if members & graph.broken_overlays:
+            raise FamilyError("missing-source", "A graph in this family refers to a missing table.")
+        joined.update(title for node in members for title in graph.overlay_sheets.get(node, ()))
     included = [title for title in tables if title in by_table or title == start or title in joined]
     slots = {title: tuple(sorted(by_table.get(title, ()))) for title in included}
 
@@ -375,6 +391,11 @@ def preview_family(tables, layouts, infos, selected, *, name, include_layouts=Tr
     """Validate ``name`` and the budgets, then name every sheet of the copy. Raises FamilyError."""
     infos = tuple(infos)
     plan = plan_family(tables, layouts, infos, selected, include_layouts=include_layouts, graph=graph)
+    return _name_family(tables, layouts, infos, plan, name, (tables, layouts, infos))
+
+
+def _name_family(tables, layouts, infos, plan, name, destination, *, allow_empty_prefix=False):
+    target_tables, target_layouts, target_infos = destination
     if not isinstance(name, str):
         raise FamilyError("name-empty", "Enter a name.", field="name", mode="prefix")
     named = plan.kind == "data"
@@ -385,9 +406,10 @@ def preview_family(tables, layouts, infos, selected, *, name, include_layouts=Tr
             raise FamilyError("name-taken", f'A data table named "{text}" already exists.', field="name", name=text)
     else:
         text = name
-        _check_name(text, MAX_PREFIX, "prefix")
+        if text or not allow_empty_prefix:
+            _check_name(text, MAX_PREFIX, "prefix")
 
-    taken = set(tables)
+    taken = set(target_tables)
     table_names = {}
     for title in plan.tables:
         if named:
@@ -403,12 +425,12 @@ def preview_family(tables, layouts, infos, selected, *, name, include_layouts=Tr
     def rename(old):
         return _fit(_replace_names(old, table_names) if named else text + old, limit=MAX_NAME)
 
-    layout_names, used = {}, {layout.name for layout in layouts}
+    layout_names, used = {}, {layout.name for layout in target_layouts}
     for index in plan.layouts:
         layout_names[index] = _unique(rename(layouts[index].name), used)
         used.add(layout_names[index])
     by_uid = {sheet.uid: sheet for sheet in infos}
-    info_titles, used = {}, {sheet.title for sheet in infos}
+    info_titles, used = {}, {sheet.title for sheet in target_infos}
     for uid in plan.infos:
         info_titles[uid] = _unique(rename(by_uid[uid].title), used)
         used.add(info_titles[uid])
@@ -434,14 +456,14 @@ def preview_family(tables, layouts, infos, selected, *, name, include_layouts=Tr
 
     counts = {"tables": len(plan.tables), "analyses": plan.analysis_count, "layouts": len(plan.layouts),
               "infos": len(plan.infos) + len(snapshot_titles)}
-    if len(tables) + counts["tables"] > MAX_TABLES:
+    if len(target_tables) + counts["tables"] > MAX_TABLES:
         raise FamilyError("budget-tables", f"A project supports up to {MAX_TABLES} data tables.", limit=MAX_TABLES)
-    if len(layouts) + counts["layouts"] > MAX_LAYOUTS:
+    if len(target_layouts) + counts["layouts"] > MAX_LAYOUTS:
         raise FamilyError("budget-layouts", f"A project supports up to {MAX_LAYOUTS} layouts.", limit=MAX_LAYOUTS)
-    if len(infos) + counts["infos"] > MAX_INFO_SHEETS:
+    if len(target_infos) + counts["infos"] > MAX_INFO_SHEETS:
         raise FamilyError("budget-infos", f"A project supports up to {MAX_INFO_SHEETS} Info sheets.",
                           limit=MAX_INFO_SHEETS)
-    if sum(len(dataset.analyses) for dataset in tables.values()) + counts["analyses"] > MAX_ANALYSIS_NODES:
+    if sum(len(dataset.analyses) for dataset in target_tables.values()) + counts["analyses"] > MAX_ANALYSIS_NODES:
         raise FamilyError("budget-analyses", f"A project supports up to {MAX_ANALYSIS_NODES:,} analysis nodes.",
                           limit=MAX_ANALYSIS_NODES)
     return FamilyPreview(plan, "name" if named else "prefix", text, table_names, layout_names, info_titles,
@@ -733,6 +755,30 @@ def duplicate_family(tables, layouts, infos, selected, *, name, include_layouts=
                              graph=graph)
     _cancelled(cancel)
     return _build(tables, layouts, infos, preview.plan, preview, renew=True, cancel=cancel, graph=graph, blanks=blanks)
+
+
+def copy_graph_family(tables, infos, graph_ref, destination, *, prefix="", cancel=None):
+    """Make an editable graph and its dependencies independent of the source project."""
+    graph = _Graph(tables, graph_tables=True)
+    infos = tuple(infos)
+    plan = plan_family(tables, (), infos, ("graph", graph_ref), include_layouts=False, export=True, graph=graph)
+    # Copy project-wide Info sheets into worksheet scopes. A copied constant must neither change a
+    # destination worksheet nor acquire a different value because the destination uses the same label.
+    scoped = []
+    globals_ = [sheet for sheet in infos if sheet.table is None and sheet.worksheet is None]
+    contexts = info_contexts(infos)
+    for title in plan.tables:
+        _cancelled(cancel)
+        local = contexts[title].maps[0] if title in contexts else {}
+        scoped.extend(replace(sheet, table=title, uid=uuid4().hex,
+                              fields=tuple((name, value) for name, value in sheet.fields
+                                           if not sheet.use_constants or name.strip().casefold() not in local))
+                      for sheet in globals_)
+    infos = infos + tuple(scoped)
+    plan = replace(plan, infos=plan.infos + tuple(sheet.uid for sheet in scoped), global_infos=())
+    names = _name_family(tables, (), infos, plan, prefix, destination, allow_empty_prefix=True)
+    _cancelled(cancel)
+    return _build(tables, (), infos, plan, names, renew=True, cancel=cancel, graph=graph)
 
 
 def same_file(first, second):
