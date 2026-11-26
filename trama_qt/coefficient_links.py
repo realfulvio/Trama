@@ -132,7 +132,8 @@ def preview(records):
         return [], None
     try:
         coefficients = single_coefficients([_single(record) for record in records])
-        effective, plan = link_coefficients(coefficients)
+        local_names = {record["name"] for record in records if record.get("shared") is False}
+        effective, plan = link_coefficients(coefficients, local_names=local_names)
     except (ValueError, OverflowError) as error:
         return None, str(error)
     starts = plan.apply({c.name: c.start for c in coefficients})
@@ -144,7 +145,8 @@ def preview(records):
         if factor == 0 or original[root].fixed:
             lines.append(f"{formula} · {tr('links.constant', name=target, value=shown(starts[target]))}")
         else:
-            lines.append(f"{formula} · {tr('links.start', name=target, value=shown(starts[target]))}")
+            key = "links.default_start" if root in local_names else "links.start"
+            lines.append(f"{formula} · {tr(key, name=target, value=shown(starts[target]))}")
     lines.append(tr("links.order", order=plan.dependency_text()))
     for c in effective:
         before = original[c.name]

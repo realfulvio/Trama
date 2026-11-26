@@ -445,7 +445,7 @@ def _carry_links(s, labels, lower, upper, fixed, starts):
     common = {c.name: [-np.inf if c.lower is None else c.lower, np.inf if c.upper is None else c.upper]
               for c in s.coefficients}
     s.plan.carry_limits(common, {c.name: c.start for c in s.coefficients if c.fixed},
-                        {c.name: c.start for c in s.coefficients if _estimated(c)})
+                        {c.name: c.start for c in s.coefficients if c.shared and _estimated(c)})
     # Then every series with its own constraints: what fails now comes from Series constraints.
     per_series = links.Plan(s.coefficients, "Series constraints")
     for label in labels:

@@ -452,7 +452,8 @@ class GlobalCoefficientEditor(QWidget):
         for values in self.rows():
             if not values["name"]:
                 continue
-            record = {"name": values["name"], "fixed": values["scope"] == "Fixed"}
+            record = {"name": values["name"], "fixed": values["scope"] == "Fixed",
+                      "shared": values["scope"] in ("Shared", "Linked shared", "Fixed")}
             for key in ("start", "lower", "upper"):
                 try:
                     record[key] = parse_number(values[key])

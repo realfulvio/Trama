@@ -20,6 +20,7 @@ before every evaluation of the equation. Rules fixed by this module:
   factor.
 """
 from dataclasses import dataclass
+from math import isfinite
 
 import numpy as np
 
@@ -48,8 +49,12 @@ def number_text(value):
 
 
 def _finite(value):
-    return (not isinstance(value, (bool, np.bool_)) and isinstance(value, (int, float, np.integer, np.floating))
-            and bool(np.isfinite(value)))
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)):
+        return False
+    try:
+        return isfinite(float(value))
+    except OverflowError:
+        return False
 
 
 def read_link(record, name, field="Parameters"):
@@ -123,7 +128,13 @@ class Plan:
         for target in self.order:
             link = self.links[target]
             root, factor, offset = self.composed.get(link.source, (link.source, 1.0, 0.0))
-            self.composed[target] = (root, link.factor * factor, link.factor * offset + link.offset)
+            multiplier = link.factor * factor
+            intercept = link.factor * offset + link.offset
+            if (not isfinite(multiplier) or not isfinite(intercept)
+                    or (multiplier == 0 and link.factor != 0 and factor != 0)):
+                raise FieldError(field, f"{target}: the combined link exceeds numerical precision. "
+                                        "Rescale the coefficients or shorten the chain.")
+            self.composed[target] = (root, multiplier, intercept)
 
     def _order(self, names):
         """Targets with their sources first; a cycle names its path."""

@@ -157,7 +157,7 @@ def coefficients_from(records, syntax=ARITHMETIC):
     return tuple(found)
 
 
-def link_coefficients(coefficients):
+def link_coefficients(coefficients, *, local_names=()):
     """Validate the links and carry the limits of every linked coefficient onto its root.
 
     Returns ``(coefficients, plan)``; a root keeps its recipe limits intersected with the ones implied by its
@@ -169,7 +169,7 @@ def link_coefficients(coefficients):
     limits = {c.name: [-np.inf if c.lower is None else c.lower, np.inf if c.upper is None else c.upper]
               for c in coefficients}
     constant = {c.name: c.start for c in coefficients if c.fixed}
-    start = {c.name: c.start for c in coefficients if not c.fixed and c.link is None}
+    start = {c.name: c.start for c in coefficients if not c.fixed and c.link is None and c.name not in local_names}
     narrowed = plan.carry_limits(limits, constant, start)
     found = []
     for c in coefficients:

@@ -133,6 +133,22 @@ class LinkEditorTests(unittest.TestCase):
             dialog.accept()
             self.assertEqual(dialog.result[1]["Parameters"], GLOBAL["Parameters"], language)
 
+    def test_global_preview_accepts_effective_starts_of_local_coefficients(self):
+        set_language("en")
+        recipe = deepcopy(GLOBAL)
+        recipe["Parameters"][0].update(start=0.0, shared=False)
+        recipe["Parameters"][2].update(lower=1.5, shared=False)
+        recipe["Series constraints"] = [
+            {"series": label, "parameters": {"A": {"initial": 3.0}}} for label in ("Uno", "Due")
+        ]
+        dialog = self.dialog("Global fit custom equation", recipe)
+        summary, problem = dialog.controls["Parameters"][1].preview.texts()
+        self.assertEqual(problem, "")
+        self.assertIn("Default starting value C", summary)
+        dialog.accept()
+        self.assertIsNotNone(dialog.result)
+        self.assertEqual(dialog.result[1]["Series constraints"], recipe["Series constraints"])
+
     def test_global_source_choice_sets_the_scope_and_errors_name_the_series(self):
         recipe = deepcopy(GLOBAL)
         del recipe["Parameters"][2]["link"]

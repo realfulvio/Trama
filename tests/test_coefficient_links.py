@@ -123,6 +123,33 @@ class OracleTests(unittest.TestCase):
 
 
 class RuleTests(unittest.TestCase):
+    def test_local_starts_are_checked_after_each_series_override(self):
+        parameters = [record("A", start=0, shared=False), record("B", shared=True),
+                      record("C", lower=2, shared=False, link=("A", 1, 0))]
+        overrides = [{"series": group, "parameters": {"A": {"initial": 3}}} for group in ("Due", "Uno")]
+        options = global_options(parameters, **{"Series constraints": overrides})
+        table = global_custom_fit(CURVES, options).tables["Parameters"]
+        self.assertTrue((table.loc[table["Parameter"] == "C", "Estimate"] >= 2).all())
+        with self.assertRaises(FieldError) as raised:
+            global_custom_fit(CURVES, {**options, "Series constraints": overrides[:1]})
+        self.assertEqual(raised.exception.field, "Series constraints")
+        self.assertIn("Uno", str(raised.exception))
+
+    def test_unrepresentable_composition_is_reported_before_fitting(self):
+        for first, second, offset in ((1e-220, 1e-150, 0), (1e240, 1e160, 0), (1, 2, 1e308)):
+            with self.subTest(first=first, second=second, offset=offset):
+                parameters = [record("A"), record("B", link=("A", first, offset)),
+                              record("C", link=("B", second, 0))]
+                with self.assertRaises(FieldError) as raised:
+                    resolve_single(UNO, single_options(parameters))
+                self.assertEqual(raised.exception.field, "Parameters")
+                self.assertIn("C", str(raised.exception))
+
+    def test_integer_link_constants_are_validated_in_the_precision_used_by_the_fit(self):
+        self.assertEqual(links.read_link({"link": {"source": "A", "offset": 10**30}}, "C").offset, 1e30)
+        with self.assertRaises(FieldError):
+            links.read_link({"link": {"source": "A", "offset": 10**400}}, "C")
+
     def test_negative_factor_carries_reversed_limits(self):
         parameters = [record("A", -1.0), record("B"), record("C", 3.0, 1.0, 5.0, link=("A", -2.0, 1.0))]
         s = resolve_single(UNO, single_options(parameters))
