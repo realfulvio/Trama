@@ -2165,6 +2165,52 @@ class QtShellTests(unittest.TestCase):
         self.assertIn('id="xybar:Right:0"', text)
         self.assertNotIn("<image", text)
 
+    def test_xy_drawing_order_is_saved_and_undoable_without_reordering_the_legend(self):
+        from json import loads
+        from unittest.mock import patch
+        from analisi.data import XY_SERIES_ORDER_VERSION
+        from analisi.presentation import graph_series
+        from analisi.series_layers import XY_SERIES_ORDER
+        from trama_qt.series_order import SeriesOrderDialog
+
+        window = self.window
+        path = self.folder / "layers.csv"
+        pd.DataFrame({"X": [1, 2, 3], "A": [2, 4, 6], "B": [2, 4, 6], "C": [2, 4, 6]}).to_csv(path, index=False)
+        window.open_path(path)
+        run = self.run_method("XY series", {"X": "X", "Y columns": ["A", "B", "C"]})
+        options = dict(run.options)
+        axes = run.result.figure.axes[0]
+        a, b, c = graph_series(axes)
+
+        def reorder(dialog):
+            dialog.list.setCurrentRow(0)
+            dialog.front.click()
+            dialog.front.click()
+            dialog.accept()
+            return dialog.DialogCode.Accepted
+
+        with patch.object(SeriesOrderDialog, "exec", reorder):
+            window.actions["series_drawing_order"].trigger()
+        self.assertEqual(run.style[XY_SERIES_ORDER], [b.key, c.key, a.key])
+        self.assertLess(b.artist.get_zorder(), c.artist.get_zorder())
+        self.assertLess(c.artist.get_zorder(), a.artist.get_zorder())
+        self.assertEqual([text.get_text() for text in axes.get_legend().get_texts()], ["A", "B", "C"])
+        self.assertEqual(run.options, options)
+        window.actions["undo"].trigger()
+        self.assertEqual([item.artist.get_zorder() for item in (a, b, c)], [2, 2, 2])
+        window.actions["redo"].trigger()
+        self.assertGreater(a.artist.get_zorder(), c.artist.get_zorder())
+        saved = self.folder / "drawing-order.alab"
+        window.project.save(saved)
+        self.assertEqual(loads(saved.read_text())["version"], XY_SERIES_ORDER_VERSION)
+        self.reopen(saved)
+        window.open_sheet(("graph", 0))
+        self.wait()
+        restored, = window.project.runs
+        self.assertEqual(restored.style[XY_SERIES_ORDER], [b.key, c.key, a.key])
+        a, b, c = graph_series(restored.result.figure.axes[0])
+        self.assertGreater(a.artist.get_zorder(), c.artist.get_zorder())
+
     def test_direct_legend_editor_follows_entry_identity_and_keeps_style_history(self):
         from PySide6.QtCore import QPoint
         from PySide6.QtTest import QTest

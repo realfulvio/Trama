@@ -1126,6 +1126,8 @@ LAYOUT_EMPTY_SIZE_VERSION = 11
 LAYOUT_PICTURE_VERSION = 12
 LAYOUT_GRAPH_LINK_VERSION = 13
 LAYOUT_PANEL_BACKGROUND_VERSION = 14
+XY_SERIES_ORDER_VERSION = 15
+XY_SERIES_ORDER = "xy_series_order"
 
 
 def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=None):
@@ -1180,6 +1182,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         version = LAYOUT_GRAPH_LINK_VERSION
     if any("clear_backgrounds" in record.get("arrangement", ()) for record in layout_records):
         version = LAYOUT_PANEL_BACKGROUND_VERSION
+    if any(style and XY_SERIES_ORDER in style for table in tables.values() for style in table.graph_styles.values()):
+        version = XY_SERIES_ORDER_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
@@ -1319,7 +1323,7 @@ def load_workspace(path, *, include_info=False):
     versions = (1, 2, 3, LEGACY_METADATA_VERSION, CATEGORY_ORDER_VERSION,
                 LAYOUT_PLACEHOLDER_VERSION, LAYOUT_ARRANGEMENT_VERSION, LAYOUT_SCALE_VERSION,
                 LAYOUT_APPEARANCE_VERSION, LAYOUT_CROP_VERSION, LAYOUT_EMPTY_SIZE_VERSION, LAYOUT_PICTURE_VERSION,
-                LAYOUT_GRAPH_LINK_VERSION, LAYOUT_PANEL_BACKGROUND_VERSION)
+                LAYOUT_GRAPH_LINK_VERSION, LAYOUT_PANEL_BACKGROUND_VERSION, XY_SERIES_ORDER_VERSION)
     if version not in versions or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
@@ -1420,6 +1424,8 @@ def load_workspace(path, *, include_info=False):
         for index, style in table.get("graph_styles", {}).items():
             if not index.isdecimal() or not 0 <= int(index) < len(data.analyses):
                 raise ValueError("Graph style references an unknown analysis.")
+            if version < XY_SERIES_ORDER_VERSION and isinstance(style, dict) and XY_SERIES_ORDER in style:
+                raise ValueError("XY series drawing order requires project format version 15 or later.")
             data.graph_styles[int(index)] = validated_style(style)
         if table["title"] in result:
             raise ValueError("Duplicate data table title.")

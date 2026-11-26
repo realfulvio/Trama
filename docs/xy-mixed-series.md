@@ -7,6 +7,12 @@ In Qt, open **Format Graph → Series** to choose the draw style and value axis 
 the shared bar cluster width. Use the **Inspector** to preview and confirm visibility and other active
 style settings. **Change parameters** keeps the saved drawing options when you change the data selection.
 
+## Drawing order
+
+In Classica Qt, **Change → Series drawing order…** (`Ctrl+Alt+Y`) lists the XY series from back to front. Move a series towards the front to make it cover an earlier series where their marks overlap. **Reverse series drawing order** reverses each list. With two independent Y axes, the series can be reordered within each axis. These commands preserve bar positions, worksheet data, the graph recipe and legend order. Use Undo and Redo to restore either order.
+
+Projects with a custom order use ALAB format 15. The order follows the graph in layouts and exports. **Restore default order** clears the override.
+
 ## Recipe
 
 - `Series style` stores the canonical values `Step` and `Bars` next to the existing ones. Older recipes need no change.

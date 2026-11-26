@@ -35,7 +35,8 @@ from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
 from analisi.weighted_logrank import WeightedComparisonCancelled
 from analisi.plot_function import CURVES as FUNCTION_CURVES, PLOT_FUNCTION
 from analisi.transpose_xy import TRANSPOSE_XY
-from analisi.presentation import apply_style, validate_graph_style
+from analisi.presentation import apply_style, graph_series, validate_graph_style
+from analisi.series_layers import MAX_ORDERED_SERIES, XY_SERIES_ORDER, xy_layer_groups, xy_order_record
 from analisi.legacy_binary_range import BINARY_XY_RANGE
 from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_EDITS
 from analisi.legacy_fit_graph import FIT_GRAPH
@@ -665,6 +666,10 @@ class MainWindow(QMainWindow):
             a(f"format_axis_{axis}", qt(f"qt.format_axis_{axis}"), lambda axis=axis: self.format_graph(axis=axis))
         a("format_legend", tr("legend_editor.button"), self.format_legend, icon="rows-3", shortcut="Ctrl+Alt+L")
         a("reverse_legend", qt("qt.reverse_legend"), self.reverse_legend, icon="arrow-up-down")
+        a("series_drawing_order", qt("qt.series_drawing_order"), self.edit_series_drawing_order,
+          icon="rows-3", shortcut="Ctrl+Alt+Y")
+        a("reverse_series_drawing_order", qt("qt.reverse_series_drawing_order"), self.reverse_series_drawing_order,
+          icon="arrow-up-down")
         from .graph_style_preset_dialog import t as preset_text
         a("graph_style_presets", preset_text("action"), self.graph_style_presets, icon="sparkles")
         from .batch_figure_styles_dialog import t as batch_style_text
@@ -1164,6 +1169,14 @@ class MainWindow(QMainWindow):
         legends = visible_legends(axis_graph.result.figure) if axis_graph is not None else ()
         self.actions["format_legend"].setEnabled(bool(legends))
         self.actions["reverse_legend"].setEnabled(any(len(legend.get_texts()) > 1 for legend in legends))
+        groups = ()
+        if axis_graph is not None and axis_graph.method == XY_METHOD:
+            figure = axis_graph.result.figure
+            groups = xy_layer_groups(figure, graph_series(figure.axes[0]))
+        can_order_series = (any(len(group) > 1 for _, group in groups)
+                            and sum(len(group) for _, group in groups) <= MAX_ORDERED_SERIES)
+        self.actions["series_drawing_order"].setEnabled(can_order_series)
+        self.actions["reverse_series_drawing_order"].setEnabled(can_order_series)
         self.actions["graph_style_presets"].setEnabled(graph and idle)
         from .gallery_catalog import graph_runs
         self.actions["batch_figure_styles"].setEnabled(idle and bool(graph_runs(self.project)))
@@ -3476,7 +3489,7 @@ class MainWindow(QMainWindow):
         from .legend import translate_legend_error
 
         try:
-            changed = self.project.change_legend(run, options, label)
+            changed = self.project.change_graph_style_option(run, LEGEND_OPTIONS_KEY, options, label)
         except ValueError as error:
             self.error(translate_legend_error(error))
             return
@@ -3509,6 +3522,48 @@ class MainWindow(QMainWindow):
         if not options.pop("reverse", False):
             options["reverse"] = True
         self._change_legend(run, options, qt("qt.reverse_legend"))
+
+    def _apply_series_drawing_order(self, run, series, previous, order, label):
+        record = xy_order_record(run.result.figure, series, previous, order) if order else []
+        try:
+            changed = self.project.change_graph_style_option(run, XY_SERIES_ORDER, record, label)
+        except ValueError as error:
+            self.error(qt("qt.series_order_invalid") if str(error) == "Invalid XY series drawing order." else error)
+            return
+        if changed:
+            self._after_style_batch((run.uid,), qt("qt.style_applied"))
+
+    def edit_series_drawing_order(self):
+        from .series_order import SeriesOrderDialog
+
+        if not self.actions["series_drawing_order"].isEnabled() or not self.settle_graph_draft():
+            return
+        project, reference = self.project, self.selected
+        run = project.runs[reference[1]]
+        figure = run.result.figure
+        series = graph_series(figure.axes[0])
+        previous = list((run.style or {}).get(XY_SERIES_ORDER, ()))
+        dialog = SeriesOrderDialog(self, xy_layer_groups(figure, series, previous),
+                                  xy_layer_groups(figure, series), figure.axes[0])
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        order = dialog.order
+        dialog.deleteLater()
+        if (accepted and order is not None and self.project is project and self.selected == reference
+                and reference[1] < len(project.runs) and project.runs[reference[1]] is run
+                and run.result is not None and run.result.figure is figure
+                and list((run.style or {}).get(XY_SERIES_ORDER, ())) == previous):
+            self._apply_series_drawing_order(run, series, previous, order, qt("qt.series_drawing_order"))
+
+    def reverse_series_drawing_order(self):
+        if not self.actions["reverse_series_drawing_order"].isEnabled() or not self.settle_graph_draft():
+            return
+        run = self.project.runs[self.selected[1]]
+        figure = run.result.figure
+        series = graph_series(figure.axes[0])
+        previous = list((run.style or {}).get(XY_SERIES_ORDER, ()))
+        groups = xy_layer_groups(figure, series, previous)
+        order = [item.key for _, group in groups for item in reversed(group)]
+        self._apply_series_drawing_order(run, series, previous, order, qt("qt.reverse_series_drawing_order"))
 
     def graph_style_presets(self):
         """Graph → Figure styles…: preview a saved style on the graph on screen and commit it once."""

@@ -417,12 +417,16 @@ def _uniform(artist):
     return len(artist.get_paths()) <= 1 and len(artist.get_facecolor()) <= 1 and len(artist.get_sizes()) <= 1
 
 
+POINT_DEPTH_OFFSET = "_tramastat_series_point_offset"
+
+
 def _overlays(artist, key, x, y, looks, state):
     """One marker line for every distinct look, in the data coordinates of the series."""
     for number, ((face, edge, marker, size), indexes) in enumerate(looks.items()):
         overlay = Line2D(x[indexes], y[indexes], linestyle="None", marker=marker, markersize=size,
                          markerfacecolor=face, markeredgecolor=edge, markeredgewidth=_edge_width(artist),
-                         alpha=artist.get_alpha(), zorder=artist.get_zorder() + 0.01, label="_nolegend_",
+                         alpha=artist.get_alpha(), label="_nolegend_",
+                         zorder=artist.get_zorder() + getattr(artist, POINT_DEPTH_OFFSET, 0.01),
                          gid=f"{GID_PREFIX}{key}:{number + 1}", visible=artist.get_visible())
         overlay.set_transform(_data_transform(artist))
         artist.axes.add_artist(overlay)

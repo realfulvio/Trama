@@ -23,6 +23,7 @@ from matplotlib.ticker import (AutoMinorLocator, FixedFormatter, FuncFormatter, 
 from matplotlib.transforms import IdentityTransform
 
 from .xy_series import X_ERROR_ARTISTS
+from .series_layers import XY_SERIES_ORDER, apply_xy_layers, validate_xy_order
 from .field_error import FieldError
 from .axis_guides import (AXIS_BANDS, AXIS_GUIDES, apply_axis_guides_and_bands, clear_axis_guides_and_bands,
                           normalise_bands, normalise_guides, validate_axis_guides_domain)
@@ -235,7 +236,7 @@ def _check_groups(groups):
 def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
                     "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", LEGEND_OPTIONS_KEY, "series",
-                    "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY,
+                    XY_SERIES_ORDER, "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY,
                     "hierarchical", AXIS_BREAKS, LINKED_AXES, POINTS, LABELS, TABLES},
             "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
@@ -265,6 +266,8 @@ def validated_style(style):
         raise ValueError("Choose a valid legend position.")
     if LEGEND_OPTIONS_KEY in style:
         validate_legend_options(style[LEGEND_OPTIONS_KEY])
+    if XY_SERIES_ORDER in style:
+        validate_xy_order(style[XY_SERIES_ORDER])
     axes = _record(style.get("axis", {}), {"x", "y"}, "Invalid graph axis.")
     for dimension, options in axes.items():
         _check_axis_options(options, style.get(dimension + "scale"))
@@ -1171,9 +1174,12 @@ def apply_style(figure, style):
                 break
         if not has_color:
             setter(style["accent"])
-    apply_point_styles(figure, [series for series, _ in defaults["series"].values()], style.get(POINTS, []),
+    series = [item for item, _ in defaults["series"].values()]
+    if XY_SERIES_ORDER in style or XY_SERIES_ORDER in previous:
+        apply_xy_layers(figure, series, style.get(XY_SERIES_ORDER, []))
+    apply_point_styles(figure, series, style.get(POINTS, []),
                        breaks=bool(style.get(AXIS_BREAKS)))
-    apply_observation_labels(figure, [series for series, _ in defaults["series"].values()], style.get(LABELS, []),
+    apply_observation_labels(figure, series, style.get(LABELS, []),
                              breaks=bool(style.get(AXIS_BREAKS)), font_family=style.get("font_family"))
     _apply_legend(axes, style, defaults, bool(series_options or "accent" in style))
     _apply_xy_legend(axes, style)

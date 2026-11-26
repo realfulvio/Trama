@@ -912,13 +912,17 @@ def _graph_legend_direct_scenario(smoke, window):
     from .graph_legend_direct_smoke import check_direct_legend
     check_direct_legend(smoke, window)
 
+def _xy_series_layers_scenario(smoke, window):
+    from .xy_series_layers_smoke import check_xy_series_layers
+    check_xy_series_layers(smoke, window)
+
 
 SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
              "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
              "qt-batch-figure-styles": _batch_figure_styles_scenario, "qt-layout-crop": _layout_crop_scenario,
              "qt-layout-background": _layout_background_scenario, "qt-layout-copy-center": _layout_copy_center_scenario,
              "qt-layout-rulers": _layout_rulers_scenario, "qt-graph-axis-click": _graph_axis_click_scenario,
-             "qt-graph-legend-direct": _graph_legend_direct_scenario}
+             "qt-graph-legend-direct": _graph_legend_direct_scenario, "qt-xy-series-layers": _xy_series_layers_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

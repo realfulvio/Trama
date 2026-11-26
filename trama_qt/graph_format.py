@@ -30,6 +30,7 @@ from analisi.presentation import (FONT_FAMILIES, LEGEND_LOCATIONS, LINE_STYLES, 
                                   validate_graph_style, zero_baseline_axes)
 from analisi.probability_scale import FRACTION_SCALE, PERCENT_SCALE, PROBABILITY_SCALES
 from analisi.qq_panels import PANEL_KEY
+from analisi.series_layers import XY_SERIES_ORDER
 from analisi.xy_series import (BAR_WIDTH, BARS, DRAW_STYLES, RECIPE_KEYS, SCALES as XY_SCALES, SIDES, STEP,
                                assign_colors, parse_bar_width, prune_options, xy_series)
 
@@ -79,7 +80,7 @@ def choice_text(labels, value):
 
 
 # Kept as they are: edited by their own dialogs (annotations, shapes) or not editable on Qt yet.
-KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical", POINTS, LABELS, TABLES)
+KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical", POINTS, LABELS, TABLES, XY_SERIES_ORDER)
 
 
 class Choice(QComboBox):
