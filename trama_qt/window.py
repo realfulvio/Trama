@@ -165,7 +165,28 @@ def export_graph(figure, path, settings=None, *, size_inches=None):
 _KEEP = object()  # ``_ask``: keep the input of the analysis.
 
 
-class PaperCanvas(FigureCanvasQTAgg):
+class SheetCanvas(FigureCanvasQTAgg):
+    """The canvas of a page: it renders only once it has a size.
+
+    A page builds its canvas, toolbar and inspector before Qt lays them out, and some of them ask for a redraw
+    while doing so. Rendered at once, the figure was drawn at a size the canvas never has and drawn again when
+    the page was shown: two full renders for every sheet opened (0.05 s each for an ordinary graph, more than a
+    second for a million points). A request made before the first resize is dropped; that resize asks for the
+    one draw, at the real size.
+    """
+
+    _laid_out = False
+
+    def resizeEvent(self, event):
+        self._laid_out = True
+        super().resizeEvent(event)
+
+    def draw_idle(self, *args, **kwargs):
+        if self._laid_out:
+            super().draw_idle(*args, **kwargs)
+
+
+class PaperCanvas(SheetCanvas):
     """Change preview resolution while keeping the saved paper size."""
 
     def __init__(self, figure, paper):
@@ -1911,7 +1932,7 @@ class MainWindow(QMainWindow):
             self._worksheet_command(self.selected, "delete")
 
     def _canvas(self, page, figure, *, toolbar=True, run=None, paper=None, imported_layout=False):
-        canvas = FigureCanvasQTAgg(figure) if paper is None else PaperCanvas(figure, paper)
+        canvas = SheetCanvas(figure) if paper is None else PaperCanvas(figure, paper)
         canvas.setMinimumSize(200, 160)
         page.canvases.append(canvas)
         if toolbar:
@@ -1937,8 +1958,7 @@ class MainWindow(QMainWindow):
             self.drawing.attach(page, canvas, tools if toolbar else None, run)
         if run is not None and self.inspector_wanted and self.project.graph_format_problem(run) is None:
             self._open_inspector(run, canvas, line)
-        canvas.draw_idle()
-        return canvas
+        return canvas  # No draw_idle(): showing the page resizes the canvas, which draws it once (SheetCanvas).
 
     def fit_preview(self):
         if self.plot_tools is not None and self.gallery is None and not self.busy():
