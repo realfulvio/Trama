@@ -34,7 +34,8 @@ and the workbook is only ever opened for reading. This page lists only what diff
   open the workbook in Excel, let it calculate, save it and update again. Without a link the import keeps such cells
   empty and says which.
 - **Limits.** As for File → Import Excel workbook…: `.xlsx` only (no macros, no `.xls`/`.xlsb`), 32 MiB on disk and
-  the worksheet size limits. Reading 50 000 rows × 10 columns takes a few seconds (openpyxl); Cancel stops the read.
+  the worksheet size limits. Reading 50 000 rows × 10 columns takes a few seconds. The dialog stays responsive
+  during the read. You can cancel or switch sheets, and Import is enabled once the current preview is ready.
   A workbook has no exclusion mark: the cells keep the exclusions made in the worksheet.
 
 ![A renamed sheet: the preview offers the sheets the workbook has now](media/source-link-xlsx/foglio-rinominato-it.png)

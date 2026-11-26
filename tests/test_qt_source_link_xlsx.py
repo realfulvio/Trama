@@ -7,6 +7,8 @@ Skipped without PySide6."""
 import csv
 from pathlib import Path
 import shutil
+from threading import Event
+from time import monotonic
 import unittest
 from unittest import mock
 
@@ -31,14 +33,24 @@ class WorkbookLinkWindowTests(SourceLinkWindowCase):
     def use(self, fixture):
         shutil.copyfile(DATA / fixture, self.book)
 
+    def wait_preview(self, dialog):
+        from PySide6.QtTest import QTest
+
+        until = monotonic() + 10
+        while dialog.loading and monotonic() < until:
+            QTest.qWait(20)
+        self.assertFalse(dialog.loading, "the Excel preview is still being prepared")
+
     def import_book(self, sheet="Misure", key="ID", header=1, link=True, look=None):
         from trama_qt.workbook_link import WorkbookImportDialog
         seen = {}
 
         def choose(dialog):
+            self.wait_preview(dialog)
             seen["sheets"] = [dialog.sheet_box.itemText(index) for index in range(dialog.sheet_box.count())]
             seen["default"] = dialog.import_button.isDefault()
             dialog.set_choice(sheet, header)
+            self.wait_preview(dialog)
             dialog.link.setChecked(link)
             dialog.set_key(key)
             seen["names"] = [dialog.grid.horizontalHeaderItem(column).text()
@@ -240,7 +252,9 @@ class WorkbookLinkWindowTests(SourceLinkWindowCase):
         self.app.processEvents()
 
         def choose(dialog):
+            self.wait_preview(dialog)
             dialog.set_choice("Misure")
+            self.wait_preview(dialog)
             dialog.set_key("ID")
             return True
 
@@ -264,6 +278,7 @@ class WorkbookLinkWindowTests(SourceLinkWindowCase):
             self.assertEqual(dialog.import_button.text(), "Importa")
             self.assertEqual(dialog.by_position.text(), "Senza intestazione: leggi le colonne per posizione")
         finally:
+            dialog.reject()
             dialog.deleteLater()
         set_language("en")
         title, _ = self.import_book()
@@ -274,6 +289,55 @@ class WorkbookLinkWindowTests(SourceLinkWindowCase):
         self.use("rinominato.xlsx")
         seen = self.update(lambda dialog: False)
         self.assertIn("La cartella non ha più il foglio Misure", seen["blocked"])
+
+    def test_incomplete_or_cancelled_preview_cannot_import_the_previous_sheet(self):
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        from analisi import xlsx_source
+        from analisi.xlsx_exchange import ExchangeCancelled
+        from trama_qt.workbook_link import WorkbookImportDialog
+
+        original = xlsx_source.load_sheet
+        entered, cancelled = Event(), Event()
+
+        def delayed(content, sheet, *, cancel=None):
+            if sheet != "Misure":
+                return original(content, sheet, cancel=cancel)
+            entered.set()
+            deadline = monotonic() + 5
+            while not cancel() and monotonic() < deadline:
+                cancelled.wait(.01)
+            if cancel():
+                cancelled.set()
+                raise ExchangeCancelled("Cancelled.")
+            raise RuntimeError("The Excel read was not cancelled.")
+
+        dialog = WorkbookImportDialog(self.window, self.book)
+        self.addCleanup(dialog.deleteLater)
+        self.addCleanup(dialog.reject)
+        dialog.show()
+        self.wait_preview(dialog)
+        self.assertTrue(dialog.import_button.isEnabled())
+        with mock.patch.object(xlsx_source, "load_sheet", delayed):
+            for close in (False, True):
+                entered.clear()
+                cancelled.clear()
+                dialog.set_choice("Misure")
+                self.assertTrue(entered.wait(2))
+                self.assertFalse(dialog.import_button.isEnabled())
+                dialog.accept()
+                self.assertIsNone(dialog.result)
+                self.assertTrue(dialog.isVisible())
+                if close:
+                    QTest.keyClick(dialog, Qt.Key.Key_Escape)
+                    self.assertFalse(dialog.isVisible())
+                else:
+                    dialog.set_choice("Riepilogo")
+                    self.wait_preview(dialog)
+                    self.assertEqual(dialog.table.sheet, "Riepilogo")
+                    self.assertTrue(dialog.import_button.isEnabled())
+                self.assertTrue(cancelled.wait(2))
+        self.assertEqual(list(self.window.project.tables), [])
 
 
 if __name__ == "__main__":

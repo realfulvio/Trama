@@ -175,9 +175,18 @@ def main(argv=None):
     try:
         # -- File → Import data… on a workbook: the sheet by name, the link and the key ------------------------------
         def import_linked(dialog):
+            def wait_for_preview():
+                until = time.monotonic() + 20
+                while dialog.loading and time.monotonic() < until:
+                    QTest.qWait(25)
+                if dialog.loading:
+                    raise TimeoutError("The selected Excel sheet is still being read.")
+
+            wait_for_preview()
             sheets = [dialog.sheet_box.itemText(index) for index in range(dialog.sheet_box.count())]
             check(sheets == ["Riepilogo", "Misure"], f"sheets in workbook order {sheets}")
             dialog.set_choice("Misure", 1)
+            wait_for_preview()
             dialog.link.setChecked(True)
             dialog.set_key("ID")
             dialog.sheet_box.setFocus()

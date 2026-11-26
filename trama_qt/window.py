@@ -5106,11 +5106,16 @@ class MainWindow(QMainWindow):
             elif import_data and suffix == ".xlsx":  # One sheet, its header row, and optionally a link to it.
                 from .workbook_link import WorkbookImportDialog
                 dialog = WorkbookImportDialog(self, path)
-                if dialog.exec() != WorkbookImportDialog.DialogCode.Accepted or dialog.result is None:
+                try:
+                    accepted = dialog.exec() == WorkbookImportDialog.DialogCode.Accepted
+                    sheet, frame, link = dialog.sheet, dialog.result, dialog.link_spec
+                finally:
+                    dialog.deleteLater()
+                if not accepted or frame is None:
                     return
-                titles = self.project.add_tables({dialog.sheet: dialog.result})
-                if dialog.link_spec is not None:  # File → Update from file… reads this sheet again.
-                    self.project.attach_source(titles[0], dialog.link_spec)
+                titles = self.project.add_tables({sheet: frame})
+                if link is not None:  # File → Update from file… reads this sheet again.
+                    self.project.attach_source(titles[0], link)
                 self.status(qt("qt.imported", count=len(titles)))
             else:
                 titles = self.project.load(path, import_warnings=import_warnings)

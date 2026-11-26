@@ -6,10 +6,12 @@ the names the columns take in Trama and, for a link, the key column. The workboo
 for the link, read-only, with the results Excel stored for its formulas (``analisi.xlsx_source``).
 File → Import Excel workbook… still imports several sheets at once, without a link.
 """
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 
 import pandas as pd
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QGroupBox, QHBoxLayout, QHeaderView, QLabel, QSpinBox, QTableWidget, QTableWidgetItem,
                                QVBoxLayout)
@@ -23,6 +25,7 @@ from analisi.xlsx_source import WORKBOOK, WorkbookOptions
 from . import theme
 
 PREVIEW_ROWS = 12
+_READERS = ThreadPoolExecutor(max_workers=1, thread_name_prefix="Trama-Excel")
 _ITALIAN = {
     "Import Excel sheet": "Importa foglio Excel",
     "One sheet becomes one worksheet. To import several sheets at once without a link, use File → Import Excel "
@@ -53,6 +56,8 @@ _ITALIAN = {
     "Import is not available:": "Importa non è disponibile:",
     "Choose a worksheet that holds values.": "Scegli un foglio che contenga valori.",
     "The workbook has no worksheet.": "La cartella non ha fogli di lavoro.",
+    "Reading the workbook…": "Lettura della cartella Excel…",
+    "Reading the selected worksheet…": "Lettura del foglio selezionato…",
 }
 
 
@@ -81,11 +86,29 @@ def cell_text(value):
     return str(value)
 
 
+def _read_workbook(path, cancel):
+    source = engine.read_file(path, cancel=cancel, text=False)
+    if cancel():
+        raise engine.UpdateCancelled
+    names = xlsx_source.sheet_names(source.content)
+    if not names:
+        raise ValueError(t("The workbook has no worksheet."))
+    return source, names
+
+
+def _read_preview(content, options, loaded, cancel):
+    if loaded is None or loaded.sheet != options.sheet:
+        loaded = xlsx_source.load_sheet(content, options.sheet, cancel=cancel)
+    if cancel():
+        raise engine.UpdateCancelled
+    return loaded, loaded.table(options.header)
+
+
 class WorkbookImportDialog(QDialog):
     """``result`` is the imported frame after Import (every column of the sheet), ``sheet`` its sheet name,
     ``link_spec`` the link to create (or None). ``preset`` (a workbook ``SourceLink``) starts from its choices;
     ``relink`` is Change source…: the frame is not kept here (the worker reads the file again) and ``names`` lists
-    the worksheet names of the columns. Reading the workbook may raise ValueError."""
+    the worksheet names of the columns. Files and previews are read on a worker."""
 
     def __init__(self, parent, path, *, preset=None, relink=False):
         super().__init__(parent)
@@ -93,13 +116,11 @@ class WorkbookImportDialog(QDialog):
         self.path, self.relink = Path(path), relink
         self.result = self.link_spec = self.sheet = None
         self.names = []
-        source = engine.read_file(self.path, text=False)
-        self.content, self.size, self.sha256 = source.content, source.size, source.sha256
-        self.sheets = xlsx_source.sheet_names(self.content)
-        if not self.sheets:
-            raise ValueError(t("The workbook has no worksheet."))
-        self.loaded, self.table, self.error = {}, None, None
+        self.content, self.sheets = None, ()
+        self.loaded = self.table = self.error = self._pending = None
+        self.loading = ""
         preset = preset if preset is not None and preset.kind == WORKBOOK else None
+        self.preset = preset
         self.preset_key = preset.key if preset is not None else None
 
         outer = theme.scroll_body(self)
@@ -120,8 +141,6 @@ class WorkbookImportDialog(QDialog):
         form = QFormLayout(group)
         self.sheet_box = QComboBox()
         self.sheet_box.setObjectName("workbookSheet")
-        for name in self.sheets:
-            self.sheet_box.addItem(name, name)
         form.addRow(t("Sheet"), self.sheet_box)
         self.header = QSpinBox()
         self.header.setObjectName("workbookHeader")
@@ -185,27 +204,27 @@ class WorkbookImportDialog(QDialog):
         self.import_button = buttons.addButton(t("Read into the worksheet" if relink else "Import"),
                                                QDialogButtonBox.ButtonRole.AcceptRole)
         self.import_button.setDefault(True)
-        buttons.addButton(t("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
+        buttons.addButton(t("Cancel"), QDialogButtonBox.ButtonRole.RejectRole).setAutoDefault(False)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         self.layout().addWidget(buttons)
 
-        if preset is not None:
-            if preset.options.sheet in self.sheets:
-                self.sheet_box.setCurrentIndex(self.sheets.index(preset.options.sheet))
-            self.by_position.setChecked(preset.options.header is None)
-            self.header.setValue(preset.options.header or 1)
-        self.header.setEnabled(not self.by_position.isChecked())
+        self.sheet_box.setEnabled(False)
+        self.by_position.setEnabled(False)
+        self.header.setEnabled(False)
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(160)
         self.timer.timeout.connect(self.refresh_preview)
+        self.poll = QTimer(self)
+        self.poll.setInterval(30)
+        self.poll.timeout.connect(self._receive)
         self.sheet_box.currentIndexChanged.connect(self.refresh_preview)
-        self.header.valueChanged.connect(self.timer.start)
+        self.header.valueChanged.connect(self._schedule_preview)
         self.by_position.toggled.connect(self._position_toggled)
         self.link.toggled.connect(self._link_toggled)
         self.key.currentIndexChanged.connect(self._sync)
-        self.refresh_preview()
+        self._start_read(_read_workbook, (self.path,), self._workbook_ready, t("Reading the workbook…"))
         hint_size = self.sizeHint()
         theme.fit_dialog(self, max(860, hint_size.width()), max(540, hint_size.height()))
 
@@ -216,10 +235,11 @@ class WorkbookImportDialog(QDialog):
 
     def set_choice(self, sheet, header=1):
         """Choose ``sheet`` and the header row ``header`` (``None``: by position); the preview follows."""
-        self.sheet_box.setCurrentIndex(self.sheets.index(sheet))
-        self.by_position.setChecked(header is None)
-        if header is not None:
-            self.header.setValue(header)
+        with QSignalBlocker(self.sheet_box), QSignalBlocker(self.by_position), QSignalBlocker(self.header):
+            self.sheet_box.setCurrentIndex(self.sheets.index(sheet))
+            self.by_position.setChecked(header is None)
+            self.header.setValue(header or 1)
+        self.header.setEnabled(header is not None)
         self.refresh_preview()
 
     def set_key(self, name):
@@ -233,25 +253,67 @@ class WorkbookImportDialog(QDialog):
         self.key.setEnabled(checked)
         self._sync()
 
-    def _loaded(self, sheet):
-        if sheet not in self.loaded:
-            try:
-                self.loaded[sheet] = xlsx_source.load_sheet(self.content, sheet)
-            except ValueError as error:
-                self.loaded[sheet] = error
-        return self.loaded[sheet]
+    def _cancel_read(self):
+        if self._pending is not None:
+            future, cancel, _ = self._pending
+            cancel.set()
+            future.cancel()
+            self._pending = None
+        self.poll.stop()
+
+    def _start_read(self, operation, arguments, receive, status):
+        self._cancel_read()
+        self._clear_preview(status)
+        cancel = Event()
+        self._pending = _READERS.submit(operation, *arguments, cancel.is_set), cancel, receive
+        self.poll.start()
+
+    def _receive(self):
+        future, _, receive = self._pending
+        if not future.done():
+            return
+        self._pending = None
+        self.poll.stop()
+        self.loading = ""
+        try:
+            result = future.result()
+        except Exception as error:  # Reading happens outside the GUI event loop.
+            self.error = _translate(error)
+            self._fill()
+            self._sync()
+        else:
+            receive(result)
+
+    def _workbook_ready(self, result):
+        source, self.sheets = result
+        self.content, self.size, self.sha256 = source.content, source.size, source.sha256
+        with QSignalBlocker(self.sheet_box):
+            for name in self.sheets:
+                self.sheet_box.addItem(name, name)
+        self.sheet_box.setEnabled(True)
+        self.by_position.setEnabled(True)
+        options = self.preset.options if self.preset is not None else None
+        sheet = options.sheet if options is not None and options.sheet in self.sheets else self.sheets[0]
+        self.set_choice(sheet, options.header if options is not None else 1)
+
+    def _clear_preview(self, status):
+        self.table = self.error = None
+        self.loading = status
+        self._fill()
+        self._sync()
+
+    def _schedule_preview(self):
+        self._cancel_read()
+        self._clear_preview(t("Reading the selected worksheet…"))
+        self.timer.start()
 
     def refresh_preview(self, *_):
         self.timer.stop()
-        options = self.options()
-        self.table = self.error = None
-        loaded = self._loaded(options.sheet)
-        try:
-            if isinstance(loaded, Exception):
-                raise loaded
-            self.table = loaded.table(options.header)
-        except ValueError as error:
-            self.error = _translate(error)
+        self._start_read(_read_preview, (self.content, self.options(), self.loaded), self._preview_ready,
+                         t("Reading the selected worksheet…"))
+
+    def _preview_ready(self, result):
+        self.loaded, self.table = result
         self._fill()
         self._key_choices()
         self._sync()
@@ -262,7 +324,7 @@ class WorkbookImportDialog(QDialog):
         if table is None:
             self.grid.setRowCount(0)
             self.grid.setColumnCount(0)
-            self.summary.setText("")
+            self.summary.setText(self.loading)
             self.notes.setVisible(False)
             return
         frame = table.frame
@@ -335,12 +397,20 @@ class WorkbookImportDialog(QDialog):
         return None
 
     def _sync(self, *_):
+        if self.loading:
+            self.blocked.hide()
+            self.import_button.setEnabled(False)
+            self.key.setEnabled(False)
+            return
+        self.key.setEnabled(self.table is not None and self.link.isChecked())
         problem = self.problem()
         self.blocked.setText(f"{t('Import is not available:')}\n{problem}" if problem else "")
         self.blocked.setVisible(bool(problem))
         self.import_button.setEnabled(problem is None)
 
     def accept(self):
+        if self.loading:
+            return
         if self.problem() is not None:
             self._sync()
             return
@@ -358,3 +428,9 @@ class WorkbookImportDialog(QDialog):
             self.link_spec = LinkSpec(self.path, self.size, self.sha256, "", options, sources,
                                       sources[names.index(key)] if key is not None else None, kind=WORKBOOK)
         super().accept()
+
+    def done(self, result):
+        self.timer.stop()
+        self._cancel_read()
+        self.content = self.loaded = self.table = None
+        super().done(result)

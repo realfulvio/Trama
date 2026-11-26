@@ -276,7 +276,7 @@ def _sheet_members(archive):
     return members
 
 
-def _scan_member(archive, member):
+def _scan_member(archive, member, *, cancel=None):
     """Coordinates of formulas without a stored result, error cells and external-link formulas.
 
     Only parsed when the raw XML contains formulas or error cells at all, so plain sheets cost one quick pass
@@ -287,6 +287,7 @@ def _scan_member(archive, member):
     found, tail = False, b""
     with archive.open(member) as handle:
         while chunk := handle.read(1 << 20):
+            _check_cancel(cancel)
             if _FORMULA_SCAN.search(tail + chunk):
                 found = True
                 break
@@ -300,6 +301,8 @@ def _scan_member(archive, member):
             if event == "start":
                 if tag == "row":
                     row_number = int(node.get("r") or row_number + 1)
+                    if row_number % 256 == 0:
+                        _check_cancel(cancel)
                     column_number = 0
                 continue
             if tag != "c":

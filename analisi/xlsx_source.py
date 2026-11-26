@@ -199,7 +199,9 @@ def load_sheet(content, sheet_name, *, cancel=None):
         if stop.is_set():
             raise ExchangeCancelled("Cancelled.")
         try:
-            uncached, errors, external = _scan_member(archive, _sheet_members(archive).get(sheet_name))
+            uncached, errors, external = _scan_member(archive, _sheet_members(archive).get(sheet_name), cancel=stop)
+        except ExchangeCancelled:
+            raise
         except Exception as error:  # noqa: BLE001 - damaged XML
             raise ValueError(f'Worksheet "{sheet_name}" could not be read.') from error
     finally:
