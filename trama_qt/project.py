@@ -224,6 +224,8 @@ def compute(run, frame, control=None, layout_data=None, pairwise=None, *, result
             _attach_pairwise(result, frame, pairwise, run.method)
         finally:
             sync_letters_table(result)
+    from analisi.bubble_style import sync_bubble_tables
+    sync_bubble_tables(result)
     return result
 
 
@@ -1357,6 +1359,8 @@ class Project(WorksheetJoinSources, SheetCommands):
         run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
+        from analisi.bubble_style import sync_bubble_tables
+        sync_bubble_tables(run.result)
         self.dirty = True
 
     def _apply_style_updates(self, targets, styles_by_uid):
@@ -1390,6 +1394,8 @@ class Project(WorksheetJoinSources, SheetCommands):
             else:
                 self.tables[run.title].graph_styles[run.slot] = target
             sync_letters_table(run.result)
+            from analisi.bubble_style import sync_bubble_tables
+            sync_bubble_tables(run.result)
         self.update_linked_tables()
         self.sync_links(persist=True)
 
@@ -1451,6 +1457,8 @@ class Project(WorksheetJoinSources, SheetCommands):
         run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
+        from analisi.bubble_style import sync_bubble_tables
+        sync_bubble_tables(run.result)
         self.sync_run_tables(run)
         self.sync_links(persist=True)
         self.dirty = True

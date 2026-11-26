@@ -58,6 +58,8 @@ from analisi import rmst_dialog, rmst_workbench as rmst_form
 from analisi import tolerance_intervals as tolerance
 from analisi import weibull_aft as weibull
 from analisi import weibull_aft_workbench as weibull_form
+from analisi import bubble as bubble_engine
+from analisi import bubble_style as bubble_style_engine
 from analisi.i18n import active_language, tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
 from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
@@ -132,6 +134,9 @@ def _text_defaults(method):
                 defaults.update(GRADIENT_COLORS)
                 from analisi.heatmap_cell_labels import CELL_LABEL_COLOR, DEFAULT_LABEL_COLOR
                 defaults[CELL_LABEL_COLOR] = DEFAULT_LABEL_COLOR
+            if method == bubble_engine.BUBBLE:
+                defaults[bubble_engine.FIXED_COLOR] = bubble_engine.DEFAULT_FIXED_COLOR
+                defaults[bubble_engine.MISSING_COLOR] = bubble_engine.DEFAULT_MISSING_COLOR
     except Exception:  # pragma: no cover - defaults are a convenience only
         pass
     return defaults
@@ -605,6 +610,10 @@ class AnalysisDialog(QDialog):
                 variable = True
             if self.method == ecdf_binding.METHOD and label == ecdf_binding.INPUT:
                 variable = True
+            if self.method == bubble_engine.BUBBLE and label in (
+                bubble_engine.SIZE_MODE, bubble_engine.FILL_MODE, bubble_engine.SHAPE_MODE,
+            ):
+                variable = True
             form = (power_forms.get(label) or pages.get(global_fit.page_of(self.method, label))
                     or (variables if variable else options))
             if self.method == "Multiple regression" and label == "Replicate lack-of-fit test":
@@ -681,6 +690,23 @@ class AnalysisDialog(QDialog):
                 value = saved.get(label, kind)
                 text = mcnemar_power.canonical(value) if type(value) in (int, float) else "" if value is None else str(value)
                 widget = QLineEdit(text)
+            elif self.method == bubble_engine.BUBBLE and label in (bubble_engine.FIXED_COLOR, bubble_engine.MISSING_COLOR):
+                from .bubble_style import ColorField
+                widget = ColorField(saved.get(label, text_defaults.get(label, "")))
+            elif self.method == bubble_engine.BUBBLE and label in (bubble_engine.FIXED_SHAPE, bubble_engine.MISSING_SHAPE):
+                from .bubble_style import MarkerCombo
+                default_shape = (bubble_engine.DEFAULT_FIXED_SHAPE if label == bubble_engine.FIXED_SHAPE
+                                 else bubble_engine.DEFAULT_MISSING_SHAPE)
+                widget = MarkerCombo(bubble_engine.SHAPE_CHOICES, saved.get(label, default_shape))
+            elif self.method == bubble_engine.BUBBLE and label == bubble_engine.PALETTE:
+                from .bubble_style import PaletteCombo
+                widget = PaletteCombo(saved.get(label, "Viridis"), reverse=bool(saved.get(bubble_engine.REVERSE_PALETTE, False)))
+            elif self.method == bubble_engine.BUBBLE and label == bubble_engine.CATEGORY_COLORS:
+                from .bubble_style import MappingFieldWidget
+                widget = MappingFieldWidget("bubble.style.colors_button")
+            elif self.method == bubble_engine.BUBBLE and label == bubble_engine.SHAPE_MAP:
+                from .bubble_style import MappingFieldWidget
+                widget = MappingFieldWidget("bubble.style.symbols_button")
             elif type(kind) in (int, float) or kind == TEXT:
                 default = text_defaults.get(label, "") if kind == TEXT else kind
                 value = saved.get(label, default)
@@ -851,6 +877,9 @@ class AnalysisDialog(QDialog):
         self.anova = anova_model.attach(self, saved)
         global_fit.attach(self)
         global_catalog.attach(self, pages, saved)
+        if self.method == bubble_engine.BUBBLE:
+            from .bubble_style import attach_analysis_dialog as attach_bubble_dialog
+            attach_bubble_dialog(self, saved)
         if self.method == "t-test":
             design = self.controls["Design"][1]
             layout = self.controls[ttest_options.INPUT][1]
@@ -1340,6 +1369,12 @@ class AnalysisDialog(QDialog):
                 options[name] = value
             elif kind == TEXT:
                 options[name] = control.text()
+            elif self.method == bubble_engine.BUBBLE and name in (bubble_engine.CATEGORY_COLORS, bubble_engine.SHAPE_MAP):
+                options[name] = control.mapping()
+            elif self.method == bubble_engine.BUBBLE and name in (
+                bubble_engine.FIXED_SHAPE, bubble_engine.MISSING_SHAPE, bubble_engine.PALETTE,
+            ):
+                options[name] = control.value()
             elif kind in (TERM_LIST, select_editor.EDITOR, plot_function.CURVE_LIST, transpose_xy.SETS_LIST,
                           PAIRWISE_PAIR_LIST):
                 options[name] = control.values()
@@ -1470,6 +1505,8 @@ class AnalysisDialog(QDialog):
                 self.join.check(options)
             if self.method == cluster_silhouette.METHOD:
                 cluster_silhouette.check_options(self.data, options)
+            if self.method == bubble_engine.BUBBLE:
+                bubble_engine.check_options(self.data, options)
             if self.method == plot_function.PLOT_FUNCTION:
                 model = plot_function.check_model(options)
                 plot_function.check_curves(model, options.get(plot_function.CURVES))
@@ -1574,6 +1611,11 @@ class AnalysisDialog(QDialog):
             if str(error) == f"Choose a column for {field}.":
                 return qt("qt.choose_column", name=field_label(field))
             return ui(str(error))
+        if self.method == bubble_engine.BUBBLE:
+            from analisi.bubble_catalog import translate_bubble_error
+            if str(error).startswith("Choose a column for "):
+                return qt("qt.choose_column", name=field_label(field))
+            return translate_bubble_error(error)
         if self.method == join_editor.wj.METHOD:
             return join_editor.message(error)
         if self.method == cluster_silhouette.METHOD:

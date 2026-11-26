@@ -1,37 +1,63 @@
-"""Bubble plot: one symbol per row, with X, Y and marker area taken from three numeric columns.
+"""Bubble plot: encode X, Y, Size/Fixed area, Fill color/scale and Symbol shape from one worksheet."""
+from math import isfinite
 
-Marker area is proportional to Size: area = Maximum area × size / largest drawn size, so a size four
-times larger has twice the diameter. The scale is shared by every group and is recomputed from the rows
-that are drawn, after missing and excluded cells are removed.
-"""
-from math import isfinite, sqrt
-
-from matplotlib.legend import Legend
-from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 
+from .bubble_style import (
+    ALPHA, AREA_LIMIT, ATTR, BUBBLE, BUBBLE_PALETTES, CATEGORY_COLORS, COLOR_COLUMN, COLOR_LEGEND,
+    COLOR_LIMITS, COLOR_MAX, COLOR_MID, COLOR_MIN, COLOR_TITLE, DEFAULT_AREA, DEFAULT_FIXED_AREA,
+    DEFAULT_FIXED_COLOR, DEFAULT_FIXED_SHAPE, DEFAULT_MISSING_COLOR, DEFAULT_MISSING_SHAPE,
+    FILL_BY_CATEGORY, FILL_CONTINUOUS, FILL_FIXED, FILL_MODE, FILL_MODES, FIXED_AREA, FIXED_COLOR,
+    FIXED_SHAPE, LIMITS_AUTO, LIMITS_MANUAL, LIMITS_MODES, MAX_AREA, MAX_LABELS, MISSING_COLOR,
+    MISSING_SHAPE, NEUTRAL, NEUTRAL_COLOR, PALETTE, REVERSE_PALETTE, SHAPE_BY_CATEGORY,
+    SHAPE_CHOICES, SHAPE_COLUMN, SHAPE_FIXED, SHAPE_LEGEND, SHAPE_MAP, SHAPE_MODE, SHAPE_MODES,
+    SHEET, SHOW_LABELS, SIZE_BY_COLUMN, SIZE_FIXED, SIZE_LEGEND, SIZE_MODE, SIZE_MODES,
+    BubbleStyleError, apply_bubble_style, build_bubble_tables, resolve_category_levels,
+    validate_bubble_style,
+)
 from .category_graphs import COLORS, MAX_POINTS
+from .category_order import WORKSHEET_ORDERS
 from .processing import FieldError, _column
-from .reporting import Result, _plot, _report
+from .reporting import Result, _plot
 
 
-BUBBLE = "Bubble plot"
-MAX_AREA = "Maximum area (pt²)"
-SHOW_LABELS = "Show labels"
-SIZE_LEGEND = "Show size legend"
-OPTIONS = {"X": None, "Y": None, "Size": None, "Group": "Optional", "Label": "Optional",
-           MAX_AREA: 400.0, SHOW_LABELS: True, SIZE_LEGEND: True}
-DEFAULT_AREA = 400.
-AREA_LIMIT = 10_000.
-# Beyond this many labeled points the annotations would hide the graph: labels stay in the sheet only.
-MAX_LABELS = 60
-NEUTRAL = "No group"
-NEUTRAL_COLOR = "#7d8894"
-ALPHA = .62
-SHEET = "Bubble values"
-ZERO_POLICY = ("A size of zero is an invisible point: the row is omitted from the graph, "
-               "from the sheet and from the scale maximum.")
+OPTIONS = {
+    "X": None,
+    "Y": None,
+    "Size": None,
+    "Group": "Optional",
+    "Label": "Optional",
+    COLOR_COLUMN: "Optional",
+    SHAPE_COLUMN: "Optional",
+    SIZE_MODE: SIZE_MODES,
+    MAX_AREA: DEFAULT_AREA,
+    FIXED_AREA: DEFAULT_FIXED_AREA,
+    SIZE_LEGEND: True,
+    FILL_MODE: FILL_MODES,
+    FIXED_COLOR: "Text",
+    CATEGORY_COLORS: "Category color map",
+    PALETTE: tuple(BUBBLE_PALETTES),
+    REVERSE_PALETTE: False,
+    COLOR_LIMITS: LIMITS_MODES,
+    COLOR_MIN: "Text",
+    COLOR_MID: "Text",
+    COLOR_MAX: "Text",
+    MISSING_COLOR: "Text",
+    COLOR_LEGEND: True,
+    COLOR_TITLE: "Text",
+    SHAPE_MODE: SHAPE_MODES,
+    FIXED_SHAPE: SHAPE_CHOICES,
+    SHAPE_MAP: "Symbol map",
+    MISSING_SHAPE: SHAPE_CHOICES,
+    SHAPE_LEGEND: True,
+    SHOW_LABELS: True,
+}
+
+ZERO_POLICY = (
+    "A size of zero is an invisible point: the row is omitted from the graph, "
+    "from the sheet and from the scale maximum."
+)
 
 
 def _flag(options, name, default):
@@ -41,13 +67,20 @@ def _flag(options, name, default):
     return bool(value)
 
 
-def _maximum_area(options):
-    value = options.get(MAX_AREA, DEFAULT_AREA)
+def _choice(options, name, choices, default):
+    value = options.get(name, default)
+    if value not in choices:
+        raise FieldError(name, f"Choose a valid {name.lower()}.")
+    return value
+
+
+def _positive_area(options, name, default, message):
+    value = options.get(name, default)
     if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)):
-        raise FieldError(MAX_AREA, "The maximum area must be a number of square points.")
+        raise FieldError(name, message)
     value = float(value)
     if not isfinite(value) or not 0 < value <= AREA_LIMIT:
-        raise FieldError(MAX_AREA, f"The maximum area must be greater than 0 and at most {AREA_LIMIT:,.0f} pt².")
+        raise FieldError(name, message)
     return value
 
 
@@ -63,128 +96,231 @@ def _role(frame, options, name, optional=False):
 
 
 def _text(value):
-    """Group and label cells as display text; blanks become None."""
+    """Label cells as display text; blanks become None."""
     if value is None or (not isinstance(value, str) and pd.isna(value)):
         return None
     text = value if isinstance(value, str) else str(value.item() if isinstance(value, np.generic) else value)
     return text if text.strip() else None
 
 
-def _legend_values(sizes):
-    """Up to three distinct reference sizes: the smallest, the median and the largest drawn size."""
-    picked = []
-    for value in (float(sizes.max()), float(np.median(sizes)), float(sizes.min())):
-        label = f"{value:.4g}"
-        if all(label != existing for _, existing in picked):
-            picked.append((value, label))
-    return picked
+def _worksheet_category_order(frame, col_name):
+    orders = frame.attrs.get(WORKSHEET_ORDERS) or frame.attrs.get("category_orders") or {}
+    return orders.get(col_name) if isinstance(orders, dict) else None
+
+
+def check_options(frame, options):
+    """Cheap pre-worker validation for Qt AnalysisDialog (never draws or mutates frame)."""
+    if not frame.columns.is_unique:
+        raise FieldError("X", "Worksheet column names must be unique.")
+
+    size_mode = _choice(options, SIZE_MODE, SIZE_MODES, SIZE_BY_COLUMN)
+    fill_mode = _choice(options, FILL_MODE, FILL_MODES, FILL_BY_CATEGORY)
+    shape_mode = _choice(options, SHAPE_MODE, SHAPE_MODES, SHAPE_FIXED)
+
+    x_name = _role(frame, options, "X")
+    y_name = _role(frame, options, "Y")
+    if y_name == x_name:
+        raise FieldError("Y", "Choose different columns for X and Y.")
+
+    size_name = _role(frame, options, "Size", optional=(size_mode == SIZE_FIXED))
+    if size_name is not None and size_name in {x_name, y_name}:
+        raise FieldError("Size", "Choose three different columns for X, Y and Size.")
+
+    group_name = _role(frame, options, "Group", optional=True)
+    color_name = _role(frame, options, COLOR_COLUMN, optional=(fill_mode != FILL_CONTINUOUS))
+    if color_name is not None and color_name in {x_name, y_name, size_name}:
+        raise FieldError(COLOR_COLUMN, "Choose a Color column different from X, Y and Size.")
+
+    shape_name = _role(frame, options, SHAPE_COLUMN, optional=(shape_mode != SHAPE_BY_CATEGORY))
+    label_name = _role(frame, options, "Label", optional=True)
+
+    maximum_area = _positive_area(
+        options, MAX_AREA, DEFAULT_AREA,
+        f"The maximum area must be greater than 0 and at most {AREA_LIMIT:,.0f} pt².",
+    )
+    fixed_area = _positive_area(
+        options, FIXED_AREA, DEFAULT_FIXED_AREA,
+        f"Fixed area must be greater than 0 and at most {AREA_LIMIT:,.0f} pt².",
+    )
+    show_labels = _flag(options, SHOW_LABELS, True)
+    size_legend = _flag(options, SIZE_LEGEND, True)
+    color_legend = _flag(options, COLOR_LEGEND, True)
+    shape_legend = _flag(options, SHAPE_LEGEND, True)
+
+    style_payload = {
+        "size_mode": size_mode,
+        "maximum_area": maximum_area,
+        "fixed_area": fixed_area,
+        "show_size_legend": size_legend,
+        "fill_mode": fill_mode,
+        "fixed_color": options.get(FIXED_COLOR) or DEFAULT_FIXED_COLOR,
+        "category_colors": dict(options.get(CATEGORY_COLORS) or {}),
+        "palette": options.get(PALETTE, "Viridis"),
+        "reverse": _flag(options, REVERSE_PALETTE, False),
+        "limits_mode": _choice(options, COLOR_LIMITS, LIMITS_MODES, LIMITS_AUTO),
+        "color_min": options.get(COLOR_MIN, None) if options.get(COLOR_MIN, "") != "" else None,
+        "color_mid": options.get(COLOR_MID, None) if options.get(COLOR_MID, "") != "" else None,
+        "color_max": options.get(COLOR_MAX, None) if options.get(COLOR_MAX, "") != "" else None,
+        "missing_color": options.get(MISSING_COLOR) or DEFAULT_MISSING_COLOR,
+        "show_color_legend": color_legend,
+        "color_title": str(options.get(COLOR_TITLE) or ""),
+        "shape_mode": shape_mode,
+        "fixed_shape": options.get(FIXED_SHAPE, DEFAULT_FIXED_SHAPE),
+        "shape_map": dict(options.get(SHAPE_MAP) or {}),
+        "missing_shape": options.get(MISSING_SHAPE, DEFAULT_MISSING_SHAPE),
+        "show_shape_legend": shape_legend,
+        "show_labels": show_labels,
+    }
+    try:
+        baseline = validate_bubble_style(style_payload)
+    except BubbleStyleError as err:
+        from .bubble_style import STYLE_TO_FIELD
+        raise FieldError(STYLE_TO_FIELD.get(err.field, err.field), str(err)) from None
+    if baseline["limits_mode"] == LIMITS_MANUAL:
+        cmin, cmax, cmid = baseline["color_min"], baseline["color_max"], baseline["color_mid"]
+        if cmin is None or cmax is None:
+            raise FieldError(COLOR_MIN if cmin is None else COLOR_MAX,
+                             "Enter finite Color minimum and Color maximum when limits are Manual.")
+        if cmin >= cmax:
+            raise FieldError(COLOR_MIN, "Color minimum must be strictly less than Color maximum.")
+        if cmid is not None and not (cmin < cmid < cmax):
+            raise FieldError(COLOR_MID, "Diverging midpoint must lie strictly between Color minimum and Color maximum.")
+    return (size_mode, fill_mode, shape_mode, x_name, y_name, size_name, group_name,
+            color_name, shape_name, label_name, baseline)
 
 
 def bubble_plot(frame, options):
-    if not frame.columns.is_unique:
-        raise FieldError("X", "Worksheet column names must be unique.")
-    x_name, y_name, size_name = (_role(frame, options, name) for name in ("X", "Y", "Size"))
-    if len({x_name, y_name, size_name}) < 3:
-        field = "Y" if y_name == x_name else "Size"
-        raise FieldError(field, "Choose three different columns for X, Y and Size.")
-    group_name = _role(frame, options, "Group", optional=True)
-    label_name = _role(frame, options, "Label", optional=True)
-    maximum_area = _maximum_area(options)
-    show_labels = _flag(options, SHOW_LABELS, True)
-    size_legend = _flag(options, SIZE_LEGEND, True)
+    """Build a multivariate Bubble plot Result from ``frame`` and canonical ``options``."""
+    (size_mode, fill_mode, shape_mode, x_name, y_name, size_name, group_name,
+     color_name, shape_name, label_name, baseline) = check_options(frame, options)
+    show_labels = baseline["show_labels"]
 
     x = _column(frame, x_name, "X").to_numpy(dtype=float)
     y = _column(frame, y_name, "Y").to_numpy(dtype=float)
-    size = _column(frame, size_name, "Size").to_numpy(dtype=float)
-    if (size < 0).any():
-        row = int(np.flatnonzero(size < 0)[0]) + 1
-        raise FieldError("Size", f'Column "{size_name}" contains a negative size (row {row}). '
-                                 "Sizes must be zero or positive.")
-    complete = np.isfinite(x) & np.isfinite(y) & np.isfinite(size)
-    zero = complete & (size == 0)
-    drawn = complete & (size > 0)
-    if not drawn.any():
-        if zero.any():
-            raise FieldError("Size", "Every complete row has a size of zero, so no bubble can be drawn. "
-                                     "Choose a Size column with positive values.")
-        raise FieldError("Size", "No row has numeric X, Y and Size values.")
-    if drawn.sum() > MAX_POINTS:
+
+    if size_name is not None:
+        size = _column(frame, size_name, "Size").to_numpy(dtype=float)
+        if (size < 0).any():
+            row = int(np.flatnonzero(size < 0)[0]) + 1
+            raise FieldError(
+                "Size",
+                f'Column "{size_name}" contains a negative size (row {row}). Sizes must be zero or positive.',
+            )
+    else:
+        size = None
+
+    if color_name is not None:
+        color_series = _column(frame, color_name, COLOR_COLUMN).to_numpy(dtype=float)
+    else:
+        color_series = None
+
+    complete = np.isfinite(x) & np.isfinite(y)
+    if size_mode == SIZE_BY_COLUMN:
+        complete = complete & np.isfinite(size)
+        zero = complete & (size == 0)
+        drawn = complete & (size > 0)
+        if not drawn.any():
+            if zero.any():
+                raise FieldError(
+                    "Size",
+                    "Every complete row has a size of zero, so no bubble can be drawn. "
+                    "Choose a Size column with positive values.",
+                )
+            raise FieldError("Size", "No row has numeric X, Y and Size values.")
+    else:
+        zero = np.zeros(len(frame), dtype=bool)
+        drawn = complete
+        if not drawn.any():
+            raise FieldError("X", "No row has numeric X and Y values.")
+
+    if int(drawn.sum()) > MAX_POINTS:
         raise FieldError("X", "Select fewer rows to draw this graph.")
 
     rows = np.flatnonzero(drawn)
-    largest = float(size[rows].max())
-    areas = maximum_area * (size[rows] / largest)
-    groups = [_text(value) for value in frame[group_name].to_numpy(dtype=object)[rows]] if group_name else None
-    labels = [_text(value) for value in frame[label_name].to_numpy(dtype=object)[rows]] if label_name else None
+    size_values = size[rows] if size is not None else None
+    color_values = color_series[rows] if color_series is not None else None
 
-    sheet = pd.DataFrame({"Source row": rows + 1, "X": x[rows], "Y": y[rows], "Size": size[rows],
-                          "Marker area (pt²)": areas})
+    group_raw = frame[group_name].to_numpy(dtype=object)[rows] if group_name else None
     if group_name:
-        sheet["Group"] = frame[group_name].to_numpy(dtype=object)[rows]
-    if label_name:
-        sheet["Label"] = frame[label_name].to_numpy(dtype=object)[rows]
+        group_levels, group_display_map, group_rows = resolve_category_levels(
+            group_raw,
+            column_order=_worksheet_category_order(frame, group_name),
+            preserve_first_seen=True,
+        )
+        has_blank_group = any(entry is None for entry in group_rows)
+    else:
+        group_levels, group_display_map, group_rows, has_blank_group = [], {}, [], False
 
-    figure, axes = _plot(BUBBLE, x_name, y_name)
-    order = list(dict.fromkeys(name if name is not None else NEUTRAL for name in groups)) if groups else [None]
-    palette = iter(COLORS * (len(order) // len(COLORS) + 1))
-    collections = []
-    for name in order:
-        if name is None:
-            member = np.ones(len(rows), dtype=bool)
-        else:
-            member = np.array([(g if g is not None else NEUTRAL) == name for g in groups])
-        color = NEUTRAL_COLOR if name == NEUTRAL else next(palette)
-        artist = axes.scatter(x[rows][member], y[rows][member], s=areas[member], marker="o",
-                              color=color, alpha=ALPHA, edgecolors="white", linewidths=.7,
-                              label=name if name is not None else "_nolegend_", zorder=2.5)
-        artist.set_gid(f"bubble:{name if name is not None else ''}")
-        collections.append(artist)
-    axes.margins(.08)
+    shape_raw = frame[shape_name].to_numpy(dtype=object)[rows] if shape_name else None
+    if shape_name:
+        shape_levels, shape_display_map, shape_rows = resolve_category_levels(
+            shape_raw,
+            column_order=_worksheet_category_order(frame, shape_name),
+            preserve_first_seen=False,
+        )
+    else:
+        shape_levels, shape_display_map, shape_rows = [], {}, []
 
-    labeled = [(index, text) for index, text in enumerate(labels or ()) if text is not None]
-    label_note = "No Label column." if not label_name else "Hidden by option." if not show_labels else ""
-    if label_name and show_labels:
-        if len(labeled) > MAX_LABELS:
-            label_note = (f"Not drawn: {len(labeled)} labeled points exceed the limit of {MAX_LABELS}. "
-                          f"Every label remains in the {SHEET} sheet.")
-        else:
-            for index, text in labeled:
-                offset = sqrt(areas[index]) / 2 + 2
-                note = axes.annotate(text, (x[rows][index], y[rows][index]), xytext=(offset, 0),
-                                     textcoords="offset points", va="center", ha="left", fontsize=8,
-                                     color="#34414f", zorder=3)
-                note.set_parse_math(False)
-            label_note = f"{len(labeled)} drawn (limit {MAX_LABELS})."
+    label_raw = frame[label_name].to_numpy(dtype=object)[rows] if label_name else None
+    labels = [_text(v) for v in label_raw] if label_name else None
+    labeled_count = sum(1 for txt in (labels or ()) if txt is not None)
+    if not label_name:
+        label_note = "No Label column."
+    elif not show_labels:
+        label_note = "Hidden by option."
+    elif labeled_count > MAX_LABELS:
+        label_note = (
+            f"Not drawn: {labeled_count} labeled points exceed the limit of {MAX_LABELS}. "
+            f"Every label remains in the {SHEET} sheet."
+        )
+    else:
+        label_note = f"{labeled_count} drawn (limit {MAX_LABELS})."
 
-    if groups:
-        legend = axes.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0, title=group_name)
-        for handle in legend.legend_handles:
-            handle.set_sizes([64.])
-        for text in [legend.get_title(), *legend.get_texts()]:
-            text.set_parse_math(False)
-    references = _legend_values(size[rows])
-    if size_legend:
-        handles = [Line2D([], [], marker="o", linestyle="none", markersize=sqrt(maximum_area * value / largest),
-                          markerfacecolor=(.55, .6, .65, ALPHA), markeredgecolor="white")
-                   for value, _ in references]
-        legend = Legend(axes, handles, [label for _, label in references], title=size_name,
-                        loc="lower left", bbox_to_anchor=(1.02, 0), borderaxespad=0, labelspacing=1.4,
-                        borderpad=.9, frameon=False)
-        legend.get_title().set_parse_math(False)
-        legend.set_gid("bubble-size-legend")
-        axes.add_artist(legend)
-        axes._tramastat_size_legend = legend
+    recipe_names = tuple(str(v) for v in (x_name, y_name, size_name, group_name, label_name, color_name, shape_name) if v)
+    source_positions = rows + 1
 
-    omitted_zero = int(zero.sum())
-    omitted_missing = int((~complete).sum())
-    settings = {"X": x_name, "Y": y_name, "Size": size_name, "Group": group_name or "None",
-                "Label": label_name or "None", "Rows drawn": len(rows),
-                "Rows omitted (missing or excluded X, Y or Size)": omitted_missing,
-                "Rows omitted (size zero)": omitted_zero,
-                "Area rule": "area = Maximum area × Size / largest drawn Size (shared by every group)",
-                "Largest drawn size": largest, MAX_AREA: maximum_area,
-                "Size legend": (", ".join(label for _, label in references) if size_legend else "Hidden"),
-                "Zero sizes": ZERO_POLICY, "Labels": label_note}
-    if groups and NEUTRAL in order:
-        settings["Blank groups"] = f'Drawn in gray as "{NEUTRAL}".'
-    return Result({SHEET: sheet, "Settings": _report(settings)}, figure)
+    state = {
+        "x_column": x_name,
+        "y_column": y_name,
+        "size_column": size_name,
+        "group_column": group_name,
+        "color_column": color_name,
+        "shape_column": shape_name,
+        "label_column": label_name,
+        "has_size": size_name is not None,
+        "has_group": group_name is not None,
+        "has_color": color_name is not None,
+        "has_shape": shape_name is not None,
+        "has_label": label_name is not None,
+        "source_rows": source_positions,
+        "x": x[rows],
+        "y": y[rows],
+        "size_values": size_values,
+        "color_values": color_values,
+        "group_raw": group_raw,
+        "group_levels": group_levels,
+        "group_display_map": group_display_map,
+        "group_rows": group_rows,
+        "has_blank_group": has_blank_group,
+        "shape_raw": shape_raw,
+        "shape_levels": shape_levels,
+        "shape_display_map": shape_display_map,
+        "shape_rows": shape_rows,
+        "label_raw": label_raw,
+        "labels": labels,
+        "label_note": label_note,
+        "omitted_zero": int(zero.sum()),
+        "omitted_missing": int((~complete).sum()),
+        "zero_policy": ZERO_POLICY,
+        "recipe_names": recipe_names,
+        "sheet_rows": len(frame),
+        "row_spans_data": frame,
+        "default_encoding": baseline,
+        "effective_encoding": dict(baseline),
+    }
+
+    figure, _axes = _plot(BUBBLE, x_name, y_name)
+    setattr(figure, ATTR, state)
+    apply_bubble_style(figure, {})
+    sheet, settings = build_bubble_tables(state)
+    return Result({SHEET: sheet, "Settings": settings}, figure)

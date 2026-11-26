@@ -28,6 +28,7 @@ from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
 from analisi.plot_function import CURVES as FUNCTION_CURVES, PLOT_FUNCTION
 from analisi.transpose_xy import TRANSPOSE_XY
 from analisi.presentation import apply_style, validate_graph_style
+from analisi.bubble_style import BUBBLE as BUBBLE_METHOD, describe_bubble_artists
 from analisi.legacy_binary_range import BINARY_XY_RANGE
 from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_EDITS
 from analisi.legacy_fit_graph import FIT_GRAPH
@@ -603,6 +604,7 @@ class MainWindow(QMainWindow):
           shortcut="Ctrl+Shift+P")
         a("change_graph_type", qt("qt.change_graph_type"), self.change_graph_type, icon="chart-column")
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
+        a("bubble_style", tr("bubble.style.button"), self.edit_bubble_style, icon="shapes", shortcut="Ctrl+Shift+B")
         from .graph_style_preset_dialog import t as preset_text
         a("graph_style_presets", preset_text("action"), self.graph_style_presets, icon="sparkles")
         from .batch_figure_styles_dialog import t as batch_style_text
@@ -992,6 +994,9 @@ class MainWindow(QMainWindow):
         change_type.setToolTip(type_problem or change_type.text())
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
+        bubble_fig = (self.project.runs[self.selected[1]].result.figure
+                      if graph and self.project.runs[self.selected[1]].result is not None else None)
+        self.actions["bubble_style"].setEnabled(graph and idle and bool(bubble_fig and describe_bubble_artists(bubble_fig)))
         self.actions["graph_style_presets"].setEnabled(graph and idle)
         from .gallery_catalog import graph_runs
         self.actions["batch_figure_styles"].setEnabled(idle and bool(graph_runs(self.project)))
@@ -2035,9 +2040,22 @@ class MainWindow(QMainWindow):
         if self.inspector is not None:
             self.inspector.selector.setFocus()
 
-    def commit_style(self, run, style, project=None):
+    def commit_style(self, run, style, project=None, *, record_bubble_undo=True):
         project = self.project if project is None else project  # The run's own project, never another tab's.
+        before = deepcopy(run.style)
         project.commit_style(run, style)
+        if (
+            record_bubble_undo
+            and project is self.project
+            and before != style
+            and run.result is not None
+            and run.result.figure is not None
+            and describe_bubble_artists(run.result.figure)
+            and ((before or {}).get("bubble") != (style or {}).get("bubble"))
+        ):
+            self.project.history.record_style_batch(
+                tr("bubble.style.title"), {run.uid: before}, {run.uid: deepcopy(style)},
+            )
         if project is self.project:
             self.update_title()
             self.status(qt("qt.style_applied"))
@@ -2139,6 +2157,8 @@ class MainWindow(QMainWindow):
             page.command(self.actions["linked_table"])
             page.command(self.actions["linked_table_move"])
         if kind == "graph":
+            if result is not None and result.figure is not None and describe_bubble_artists(result.figure):
+                page.command(self.actions["bubble_style"])
             page.command(self.actions["inspector"])
         elif kind == "result":
             page.command(self.actions["analyze_result"])
@@ -3081,6 +3101,49 @@ class MainWindow(QMainWindow):
             return
         self.show_sheet(*self.selected)
         self.status(qt("qt.style_applied"))
+
+    def edit_bubble_style(self):
+        """Change -> Symbols & encoding…: preview and commit Bubble encoding in one undoable step."""
+        if self.busy() or not self.selected or self.selected[0] != "graph":
+            return
+        if not self.settle_graph_draft():
+            return
+        index = self.selected[1]
+        run = self.project.runs[index]
+        problem = self.project.graph_format_problem(run)
+        if problem:
+            self.error(problem)
+            return
+        figure = run.result.figure
+        if not describe_bubble_artists(figure):
+            return
+        confirmed = deepcopy(run.style or {})
+        from .bubble_style import BubbleStyleDialog
+        dialog = BubbleStyleDialog(self, figure, confirmed.get("bubble"), full_style=confirmed)
+        accepted = dialog.exec() == BubbleStyleDialog.DialogCode.Accepted and dialog.result is not None
+        section = dialog.result
+        dialog.deleteLater()
+        if not accepted:
+            return
+        new_style = deepcopy(confirmed)
+        if section:
+            new_style["bubble"] = section
+        else:
+            new_style.pop("bubble", None)
+        if new_style == confirmed:
+            return
+        try:
+            validate_graph_style(figure.axes[0], new_style)
+            apply_style(figure, new_style)
+        except ValueError as error:
+            try:
+                apply_style(figure, confirmed)
+            except ValueError:
+                pass
+            self.error(error)
+            return
+        self.commit_style(run, new_style)
+        self.show_sheet(*self.selected)
 
     def graph_style_presets(self):
         """Graph → Figure styles…: preview a saved style on the graph on screen and commit it once."""

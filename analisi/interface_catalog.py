@@ -1569,3 +1569,10 @@ from .summary_twoway_catalog import MESSAGES as _SUMMARY_TWOWAY_MESSAGES  # noqa
 
 CAPTIONS.update(_SUMMARY_TWOWAY_CAPTIONS)
 MESSAGES.update(_SUMMARY_TWOWAY_MESSAGES)
+
+# Multivariate bubble plot: captions and engine/style messages.
+from .bubble_catalog import CAPTIONS as _BUBBLE_CAPTIONS  # noqa: E402
+from .bubble_catalog import MESSAGES as _BUBBLE_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_BUBBLE_CAPTIONS)
+MESSAGES.update(_BUBBLE_MESSAGES)
