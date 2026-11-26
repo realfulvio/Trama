@@ -5488,6 +5488,48 @@ class QtShellTests(unittest.TestCase):
         self.wait()
         self.assertEqual(window.project.runs[ex_idx].options[SERIES_STYLE], {"Trattamento": LINE_SYMBOLS})
 
+    def test_grouped_placement_is_undoable_and_rejects_non_bar_stacks(self):
+        from json import loads
+
+        from analisi.category_graphs import GROUPED_GRAPH, LINE_SYMBOLS, SERIES_PLACEMENT, STACK_PREVIOUS
+        from analisi.data import GROUPED_SERIES_PLACEMENT_VERSION
+        from trama_qt.graph_format import GraphFormatDialog
+
+        source = self.folder / "placement.csv"
+        source.write_text("A,B,C\n2,3,7\n-2,-6,4\n5,,8\n", encoding="utf-8")
+        window = self.window
+        window.open_path(source)
+        run = self.run_method(GROUPED_GRAPH, {"Variables": ["A", "B", "C"]})
+        window.open_sheet(("graph", 0))
+        project = window.project
+        style, _ = project.format_inputs(run)
+        dialog = GraphFormatDialog(window, run.result.figure.axes[0], style,
+                                   grouped=project.grouped_format_inputs(run))
+        self.addCleanup(dialog.deleteLater)
+        self.assertFalse(dialog.grouped_place.isEnabled())
+        dialog.selector.setCurrentIndex(1)
+        self.assertTrue(dialog.grouped_place.isEnabled())
+        dialog.grouped_draw.set(LINE_SYMBOLS)
+        dialog.grouped_place.set(STACK_PREVIOUS)
+        self.assertFalse(dialog.preview())
+        self.assertIsNone(dialog.grouped_update)
+        self.assertNotIn(SERIES_PLACEMENT, run.options)
+        dialog.grouped_draw.set("As graph")
+        dialog.accept()
+        self.assertEqual(dialog.grouped_update[SERIES_PLACEMENT], {"B": STACK_PREVIOUS})
+        project.apply_format(run, dialog.result, grouped_update=dialog.grouped_update,
+                             grouped_result=dialog.grouped_result)
+        window.undo()
+        self.assertNotIn(SERIES_PLACEMENT, run.options)
+        window.undo(redo=True)
+        self.assertEqual(run.options[SERIES_PLACEMENT], {"B": STACK_PREVIOUS})
+
+        path = self.folder / "placement.alab"
+        project.save(path)
+        self.assertEqual(loads(path.read_text(encoding="utf-8"))["version"], GROUPED_SERIES_PLACEMENT_VERSION)
+        self.reopen(path)
+        self.assertEqual(window.project.runs[0].options[SERIES_PLACEMENT], {"B": STACK_PREVIOUS})
+
     def test_grouped_series_stacked_unavailable_and_reset_confirm(self):
         from unittest.mock import patch
         from analisi.category_graphs import GROUPED_GRAPH, INTERLEAVED, LINE_SYMBOLS, PERCENT_STACKED, POINTS, RANGE, SERIES_STYLE, STACKED

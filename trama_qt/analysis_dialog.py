@@ -62,7 +62,7 @@ from analisi.grid_headings import xy_source_roles
 from analisi.i18n import active_language, tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
 from analisi.category_graphs import (BARS as GROUPED_BARS, GROUPED_GRAPH, GROUPED_SERIES_COMPATIBLE_STYLES,
-                                     SERIES_STYLE, STACKED_PLACEMENTS, has_series_style_overrides)
+                                     SERIES_PLACEMENT, SERIES_STYLE, STACKED_PLACEMENTS, has_series_style_overrides)
 from analisi.grouped_series_catalog import translate_grouped_error
 from analisi.xy_series import X_DISTANCE, XY_METHOD, check_xy_options, retain_recipe_options
 from analisi import weighted_logrank
@@ -1542,8 +1542,8 @@ class AnalysisDialog(QDialog):
                 return
         if self.method == GROUPED_GRAPH:
             saved = self._saved()
-            if has_series_style_overrides(saved):
-                saved_series_styles = saved[SERIES_STYLE]
+            saved_placements = saved.get(SERIES_PLACEMENT)
+            if has_series_style_overrides(saved) or saved_placements:
                 placement = options.get("Placement of groups")
                 graph_style = options.get("Graph style", GROUPED_BARS)
                 incompatible = (
@@ -1551,10 +1551,11 @@ class AnalysisDialog(QDialog):
                     or graph_style not in GROUPED_SERIES_COMPATIBLE_STYLES
                 )
                 if incompatible:
+                    prefix = "grouped.placement" if saved_placements else "grouped.confirm"
                     answer = QMessageBox.question(
                         self,
-                        tr("grouped.confirm.reset_title"),
-                        tr("grouped.confirm.reset_body"),
+                        tr(f"{prefix}.reset_title"),
+                        tr(f"{prefix}.reset_body"),
                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                         QMessageBox.StandardButton.No,
                     )
@@ -1563,8 +1564,12 @@ class AnalysisDialog(QDialog):
                         self.focus_field(target_field)
                         return
                     options[SERIES_STYLE] = {}
+                    options[SERIES_PLACEMENT] = {}
                 else:
-                    options[SERIES_STYLE] = deepcopy(saved_series_styles)
+                    if SERIES_STYLE in saved:
+                        options[SERIES_STYLE] = deepcopy(saved[SERIES_STYLE])
+                    if saved_placements:
+                        options[SERIES_PLACEMENT] = deepcopy(saved_placements)
         self.result = (self.method, options)
         super().accept()
 

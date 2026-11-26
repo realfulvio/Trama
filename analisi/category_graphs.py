@@ -35,6 +35,9 @@ RAW, SUMMARIES = INPUTS = ("Raw replicates", "Precomputed summaries")
 INTERLEAVED, SUPERIMPOSED, STACKED, PERCENT_STACKED = GROUP_PLACEMENTS = (
     "Interleaved", "Superimposed", "Stacked", "100% stacked")
 STACKED_PLACEMENTS = frozenset({STACKED, PERCENT_STACKED})
+SERIES_PLACEMENT = "Series placement"
+SIDE_BY_SIDE, OVERLAY_PREVIOUS, STACK_PREVIOUS, GAP_BEFORE = RELATIVE_PLACEMENTS = (
+    "Beside previous", "Overlay previous", "Stack on previous", "Separate from previous")
 DISTANCES, LIMITS = "Distances from estimate (minus/plus)", "Limits on axis (lower/upper)"
 SUMMARY_ERRORS = ("None", "SD", "SEM", DISTANCES, LIMITS)
 ENTERED_SEM, DERIVED_SEM = SEM_SOURCES = ("Entered SEM, else SD / √N", "SD / √N")
@@ -449,6 +452,40 @@ def has_series_style_overrides(options):
     return isinstance(raw, dict) and any(val in SERIES_DRAW_STYLES and val != AS_GRAPH for val in raw.values())
 
 
+def series_placements(options, names=None):
+    """Read the explicit placement of each series relative to the preceding series."""
+    placements = options.get(SERIES_PLACEMENT, {})
+    if not isinstance(placements, dict) or len(placements) > MAX_CATEGORIES or any(
+        not isinstance(name, str) or not name or mode not in RELATIVE_PLACEMENTS
+        for name, mode in placements.items()
+    ):
+        raise FieldError(SERIES_PLACEMENT, "Choose a valid placement for each series.")
+    if names is None:
+        return placements
+    return {name: placements[name] for name in names[1:] if name in placements}
+
+
+def _series_positions(names, placements, layout):
+    default = OVERLAY_PREVIOUS if layout == SUPERIMPOSED else SIDE_BY_SIDE
+    slots = [0.]
+    stacks = [[0]]
+    for index, name in enumerate(names[1:], 1):
+        placement = placements.get(name, default)
+        if placement == GAP_BEFORE:
+            slots.append(slots[-1] + 1.65)
+        elif placement == SIDE_BY_SIDE:
+            slots.append(slots[-1] + 1.)
+        else:
+            slots.append(slots[-1])
+        if placement == STACK_PREVIOUS:
+            stacks[-1].append(index)
+        else:
+            stacks.append([index])
+    span = .76 / (slots[-1] + 1.)
+    offsets = [(slot - slots[-1] / 2.) * span for slot in slots]
+    return offsets, .88 * span, [members for members in stacks if len(members) > 1]
+
+
 def grouped_series_names(frame, options):
     """Return the ordered series titles resolved by ``options`` without plotting."""
     names = options.get("Variables", [])
@@ -512,15 +549,26 @@ def grouped_style_after_parameter_change(style, options, frame=None):
     return updated
 
 
-def _draw_series(axes, series, summaries, style, width, show_points, placement, rng, *, grouped_track=False):
+def _draw_series(axes, series, summaries, style, width, show_points, placement, rng, *,
+                 grouped_track=False, bottom=None):
     x, color = series.x, series.color
     center, lower, upper = np.asarray(summaries).T
     observed = np.isfinite(center)
     interval = np.isfinite(lower) & np.isfinite(upper)
     primary = err = pts = None
     if style == BARS:
-        primary = axes.bar(x[observed], center[observed], width, color=to_rgba(color, .76), edgecolor=color,
-                           linewidth=1.15, label=series.name, zorder=2.5)
+        base = 0. if bottom is None else bottom[observed]
+        primary = axes.bar(x[observed], center[observed], width, bottom=base, color=to_rgba(color, .76),
+                           edgecolor=color, linewidth=1.15, label=series.name, zorder=2.5)
+        if bottom is not None:
+            show_points = False
+            with np.errstate(over="ignore", invalid="ignore"):
+                lower, upper = lower + bottom, upper + bottom
+            if np.any(interval & ~(np.isfinite(lower) & np.isfinite(upper))):
+                raise FieldError("Variables", "The stacked totals exceed the numeric range for this graph.")
+            for patch, value in zip(primary.patches, center[observed], strict=True):
+                if value == 0:
+                    patch.set_linewidth(0)
     elif style == RANGE:
         primary = axes.bar(x[interval], upper[interval] - lower[interval], width, bottom=lower[interval],
                            color=to_rgba(color, .22), edgecolor=color, linewidth=1.4, label=series.name, zorder=2.5)
@@ -560,6 +608,23 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
     return primary
 
 
+def _stack_bottoms(heights):
+    """Find each segment baseline, with independent positive and negative sums."""
+    positive, negative = np.zeros(len(heights)), np.zeros(len(heights))
+    bottoms = np.full(heights.shape, np.nan)
+    for index, height in enumerate(heights.T):
+        drawn = np.isfinite(height)
+        bottom = np.where(height < 0, negative, positive)
+        bottoms[drawn, index] = bottom[drawn]
+        with np.errstate(over="ignore", invalid="ignore"):
+            positive += np.where(drawn & (height > 0), height, 0)
+            negative += np.where(drawn & (height < 0), height, 0)
+            span = positive.max() - negative.min()
+        if not np.isfinite(span):
+            raise FieldError("Variables", "The stacked totals exceed the numeric range for this graph.")
+    return bottoms
+
+
 def _draw_stacks(axes, plots, centers, width, percent, row_names):
     """Stack the center of each row and series, keeping positive and negative totals apart."""
     heights = centers
@@ -585,19 +650,11 @@ def _draw_stacks(axes, plots, centers, width, percent, row_names):
         if not np.isfinite(heights).any():
             raise FieldError("Variables", "No row has a positive total to show as 100%. Enter positive values "
                                           "in at least one row, or choose Stacked.")
-    positive, negative = np.zeros(len(centers)), np.zeros(len(centers))
-    bottoms = np.full(centers.shape, np.nan)
+    bottoms = _stack_bottoms(heights)
     for index, plot in enumerate(plots):
         height = heights[:, index]
         drawn = np.isfinite(height)
-        bottom = np.where(height < 0, negative, positive)
-        bottoms[drawn, index] = bottom[drawn]
-        with np.errstate(over="ignore", invalid="ignore"):
-            positive = positive + np.where(drawn & (height > 0), height, 0)
-            negative = negative + np.where(drawn & (height < 0), height, 0)
-            span = positive.max() - negative.min()
-        if not np.isfinite(span):
-            raise FieldError("Variables", "The stacked totals exceed the numeric range for this graph.")
+        bottom = bottoms[:, index]
         if drawn.any():
             bars = axes.bar(plot.x[drawn], height[drawn], width, bottom=bottom[drawn],
                             color=to_rgba(plot.color, .76), edgecolor=plot.color, linewidth=1.15, label=plot.name)
@@ -653,6 +710,9 @@ def category_graph(frame, options, *, grouped=False):
             raise FieldError("Graph style",
                              "Per-series drawing styles are available for Bars and Center and interval only. "
                              "Reset every series to As graph first.")
+    relative_placements = series_placements(options)
+    if relative_placements and (not grouped or stacked or style not in GROUPED_SERIES_COMPATIBLE_STYLES):
+        raise FieldError(SERIES_PLACEMENT, "Choose a grouped bar or center graph with side-by-side or overlaid placement.")
     if source == SUMMARIES and style not in SUMMARY_STYLES:
         raise FieldError("Graph style", "Precomputed summaries can be drawn as Bars or Center and interval. "
                                         "Individual points and floating ranges need raw replicates.")
@@ -742,14 +802,29 @@ def category_graph(frame, options, *, grouped=False):
         anchors = {}
         series_supports_per_series = grouped and style in GROUPED_SERIES_COMPATIBLE_STYLES
         legend_handles = []
-        effective_styles = {}
-        for plot, summary, count in zip(plots, summaries, counts, strict=True):
-            chosen_style = series_overrides.get(plot.name, AS_GRAPH) if series_supports_per_series else style
-            eff_style = style if chosen_style == AS_GRAPH else chosen_style
-            effective_styles[plot.name] = eff_style
+        effective_styles = {
+            plot.name: series_overrides.get(plot.name, style) if series_supports_per_series else style
+            for plot in plots
+        }
+        bottoms_by_index = {}
+        custom = series_placements(options, [plot.name for plot in plots]) if relative_placements else {}
+        if custom:
+            offsets, width, piles = _series_positions([plot.name for plot in plots], custom, layout)
+            category_centers = np.arange(len(row_names), dtype=float)
+            ticks, legend = (category_centers, row_names), True
+            for plot, offset in zip(plots, offsets, strict=True):
+                plot.x = category_centers + offset
+            for members in piles:
+                if any(effective_styles[plots[index].name] != BARS for index in members):
+                    raise FieldError(SERIES_PLACEMENT, "All series in the same stack must use bars.")
+                heights = np.column_stack([np.asarray(summaries[index])[:, 0] for index in members])
+                bottoms_by_index.update(zip(members, _stack_bottoms(heights).T, strict=True))
+            if piles:
+                axes._tramastat_zero_baseline = ("y",)
+        for index, (plot, summary, count) in enumerate(zip(plots, summaries, counts, strict=True)):
             primary = _draw_series(
-                axes, plot, summary, eff_style, width, show_points, placement, rng,
-                grouped_track=series_supports_per_series,
+                axes, plot, summary, effective_styles[plot.name], width, show_points, placement, rng,
+                grouped_track=series_supports_per_series, bottom=bottoms_by_index.get(index),
             )
             if primary is not None:
                 legend_handles.append(primary)

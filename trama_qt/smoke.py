@@ -920,6 +920,10 @@ def _grouped_series_scenario(smoke, window):
     from .grouped_series_smoke import check_grouped_series
     check_grouped_series(smoke, window)
 
+def _grouped_placement_scenario(smoke, window):
+    from .grouped_placement_smoke import check_grouped_placement
+    check_grouped_placement(smoke, window)
+
 
 SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
              "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
@@ -927,7 +931,7 @@ SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-exce
              "qt-layout-background": _layout_background_scenario, "qt-layout-copy-center": _layout_copy_center_scenario,
              "qt-layout-rulers": _layout_rulers_scenario, "qt-graph-axis-click": _graph_axis_click_scenario,
              "qt-graph-legend-direct": _graph_legend_direct_scenario, "qt-xy-series-layers": _xy_series_layers_scenario,
-             "qt-grouped-series": _grouped_series_scenario}
+             "qt-grouped-series": _grouped_series_scenario, "qt-grouped-placement": _grouped_placement_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

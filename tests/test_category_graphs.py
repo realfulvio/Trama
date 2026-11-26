@@ -8,8 +8,9 @@ import numpy as np
 import pandas as pd
 
 from analisi.category_graphs import (
-    AS_GRAPH, BARS, GROUPED_OPTIONS, INTERLEAVED, LINE_SYMBOLS, PERCENT_STACKED, POINTS, RANGE,
-    SERIES_STYLE, STACKED, SUMMARIES, SUPERIMPOSED, SYMBOLS, category_graph, default_grouped_input,
+    AS_GRAPH, BARS, GAP_BEFORE, GROUPED_OPTIONS, INTERLEAVED, LINE_SYMBOLS, OVERLAY_PREVIOUS,
+    PERCENT_STACKED, POINTS, RANGE, SERIES_PLACEMENT, SERIES_STYLE, STACKED, STACK_PREVIOUS,
+    SUPERIMPOSED, SYMBOLS, category_graph, default_grouped_input,
     grouped_series_names,
 )
 from analisi.data import Dataset
@@ -18,6 +19,66 @@ from analisi.presentation import active_series_fields, apply_style, graph_series
 
 
 class CategoryGraphTests(unittest.TestCase):
+    def test_grouped_stack_and_side_by_side_keep_signed_bottoms_and_missing_positions(self):
+        frame = pd.read_csv(StringIO(
+            "Visit,A [1],A [2],B [1],B [2],C [1],C [2]\n"
+            "V1,1,3,2,4,6,8\nV2,-3,-1,-7,-5,3,5\n"
+            "V3,4,6,,,7,9\nV4,1,3,-4,-2,2,4\n"
+        ))
+        options = {"Variables": list(frame.columns[1:]), "Row titles": "Visit",
+                   "Placement of groups": INTERLEAVED, "Interval": "SEM", "Overlay observations": True}
+        baseline = category_graph(frame, options, grouped=True)
+        result = category_graph(frame, {**options, SERIES_PLACEMENT: {"B": STACK_PREVIOUS}}, grouped=True)
+        pd.testing.assert_frame_equal(baseline.tables["Graph data"], result.tables["Graph data"])
+        axis, = result.figure.axes
+        a, b, c = [series.artist for series in graph_series(axis)]
+        np.testing.assert_allclose([patch.get_y() for patch in b.patches], [2, -2, 0])
+        np.testing.assert_allclose([patch.get_height() for patch in b.patches], [3, -6, -3])
+        self.assertEqual(len(a.patches), 4)
+        self.assertEqual(len(c.patches), 4)
+
+        def centers(artist):
+            return [patch.get_x() + patch.get_width() / 2 for patch in artist.patches]
+
+        np.testing.assert_allclose(centers(a), np.arange(4) - .19)
+        np.testing.assert_allclose(centers(b), [centers(a)[row] for row in (0, 1, 3)])
+        np.testing.assert_allclose(centers(c), np.arange(4) + .19)
+        self.assertEqual([x.get_text() for x in axis.get_legend().get_texts()], ["A", "B", "C"])
+        for member in (a, b):
+            self.assertIsNone(member._tramastat_grouped_series["points"])
+        _, _, whiskers = b._tramastat_grouped_series["errorbar"].lines
+        np.testing.assert_allclose([segment[:, 1] for segment in whiskers[0].get_segments()],
+                                   [[4, 6], [-9, -7], [-4, -2]])
+        self.assertIsNotNone(c._tramastat_grouped_series["errorbar"])
+        self.assertIsNotNone(c._tramastat_grouped_series["points"])
+        apply_style(result.figure, {"series": {"grouped:1:B": {"label": "B ($)"}}})
+        self.assertEqual([x.get_text() for x in axis.get_legend().get_texts()], ["A", "B ($)", "C"])
+
+    def test_grouped_summary_spacing_and_overlay_have_separate_baselines(self):
+        frame = pd.DataFrame({"Visit": ["V1", "V2"], "A [Mean]": [2, 1], "B [Mean]": [3, 4],
+                              "C [Mean]": [5, 6], "D [Mean]": [2, 3], "E [Mean]": [7, 8]})
+        options = {"Variables": list(frame.columns[1:]), "Row titles": "Visit", **SUMMARIES,
+                   SERIES_PLACEMENT: {"B": STACK_PREVIOUS, "C": OVERLAY_PREVIOUS,
+                                      "D": STACK_PREVIOUS, "E": GAP_BEFORE}}
+        figure = category_graph(frame, options, grouped=True).figure
+        a, b, c, d, e = [series.artist.patches[0] for series in graph_series(figure.axes[0])]
+        self.assertEqual([patch.get_y() for patch in (a, b, c, d, e)], [0, 2, 0, 5, 0])
+        np.testing.assert_allclose([patch.get_x() for patch in (a, b, c, d)],
+                                   np.repeat(a.get_x(), 4))
+        self.assertGreater(e.get_x() - d.get_x(), 1.65 * d.get_width())
+
+    def test_grouped_placements_reject_non_bars_inside_a_stack(self):
+        frame = pd.DataFrame({"A": [1, 3], "B": [2, 4], "C": [5, 7]})
+        options = {"Variables": list(frame), SERIES_PLACEMENT: {"B": STACK_PREVIOUS}}
+        with self.assertRaisesRegex(FieldError, "must use bars"):
+            category_graph(frame, {**options, SERIES_STYLE: {"A": LINE_SYMBOLS}}, grouped=True)
+        with self.assertRaisesRegex(FieldError, "side-by-side or overlaid"):
+            category_graph(frame, {**options, "Placement of groups": STACKED}, grouped=True)
+        with self.assertRaisesRegex(FieldError, "valid placement"):
+            category_graph(frame, {**options, SERIES_PLACEMENT: {"B": ["unsupported"]}}, grouped=True)
+        result = category_graph(frame, {**options, SERIES_STYLE: {"C": LINE_SYMBOLS}}, grouped=True)
+        self.assertEqual([series.kind for series in graph_series(result.figure.axes[0])], ["bar", "bar", "line"])
+
     def test_columns_bars_and_sample_confidence_intervals(self):
         frame = pd.DataFrame({"Control": [1., 2., 3., None], "Treatment": [2., 4., 6., 8.]})
         result = category_graph(frame, {"Variables": list(frame), "Graph style": "Bars",

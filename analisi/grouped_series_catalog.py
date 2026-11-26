@@ -11,6 +11,32 @@ CAPTIONS = {
 }
 
 MESSAGES = {
+    "grouped.series.placement": ("Placement", "Disposizione"),
+    "grouped.placement.beside": ("Beside previous", "Affianca alla precedente"),
+    "grouped.placement.overlay": ("Overlay previous", "Sovrapponi alla precedente"),
+    "grouped.placement.stack": ("Stack on previous", "Impila sulla precedente"),
+    "grouped.placement.gap": ("Separate from previous", "Distanzia dalla precedente"),
+    "grouped.placement.first": ("The first series starts the group.", "La prima serie apre il gruppo."),
+    "grouped.placement.previous": ("Position relative to {name}.", "Posizione rispetto a {name}."),
+    "grouped.placement.stacks_note": (
+        "In a stack, intervals refer to individual series. Individual observations stay visible outside the stacks.",
+        "Nelle pile gli intervalli si riferiscono alle singole serie. Le osservazioni individuali restano visibili fuori dalle pile.",
+    ),
+    "grouped.placement.error_value": (
+        "Choose a valid placement for each series.", "Scegli una disposizione valida per ogni serie.",
+    ),
+    "grouped.placement.error_graph": (
+        "Choose a grouped bar or center graph with side-by-side or overlaid placement.",
+        "Scegli un grafico raggruppato a barre o con centri e una disposizione affiancata o sovrapposta.",
+    ),
+    "grouped.placement.error_stack": (
+        "All series in the same stack must use bars.", "Tutte le serie della stessa pila devono usare le barre.",
+    ),
+    "grouped.placement.reset_title": ("Reset per-series settings", "Ripristina impostazioni per serie"),
+    "grouped.placement.reset_body": (
+        "The chosen graph settings require resetting the drawing and placement of individual series. Continue?",
+        "Le impostazioni del grafico richiedono il ripristino del disegno e della disposizione per serie. Continuare?",
+    ),
     "grouped.series.drawing": ("Drawing", "Disegno"),
     "grouped.draw.as_graph": ("As graph", "Come il grafico"),
     "grouped.draw.bars": ("Bars", "Barre"),
@@ -53,6 +79,9 @@ MESSAGES = {
 }
 
 _ENGLISH_TO_KEY = {
+    "Choose a valid placement for each series.": "grouped.placement.error_value",
+    "Choose a grouped bar or center graph with side-by-side or overlaid placement.": "grouped.placement.error_graph",
+    "All series in the same stack must use bars.": "grouped.placement.error_stack",
     "Stacked bars cannot mix per-series drawing styles. Reset every series to As graph first.":
         "grouped.error.stacked_overrides",
     "Per-series drawing styles are available for Bars and Center and interval only. Reset every series to As graph first.":

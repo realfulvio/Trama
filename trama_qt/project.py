@@ -91,8 +91,8 @@ from analisi import source_link
 from analisi.worksheet_sort import ASCENDING, plan_row_sort, sort_text, validate_sort_key
 from .sheet_commands import SheetCommands
 from analisi.category_graphs import (AS_GRAPH, BARS as GROUPED_BARS, GROUPED_GRAPH, GROUPED_SERIES_COMPATIBLE_STYLES,
-                                     SERIES_STYLE, STACKED_PLACEMENTS, grouped_series_names,
-                                     grouped_style_after_parameter_change, prune_series_styles)
+                                     SERIES_PLACEMENT, SERIES_STYLE, STACKED_PLACEMENTS, grouped_series_names,
+                                     grouped_style_after_parameter_change, prune_series_styles, series_placements)
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
 from .graph_style_presets import TRANSFERABLE, plan_preset_batch
@@ -1233,9 +1233,15 @@ class Project(WorksheetJoinSources, SheetCommands):
                     and placement not in STACKED_PLACEMENTS
                     and graph_style in GROUPED_SERIES_COMPATIBLE_STYLES):
                 options[SERIES_STYLE] = deepcopy(run.options[SERIES_STYLE])
-            options = prune_series_styles(options, grouped_series_names(raw, options))
+            names = grouped_series_names(raw, options)
+            options = prune_series_styles(options, names)
             if placement in STACKED_PLACEMENTS or graph_style not in GROUPED_SERIES_COMPATIBLE_STYLES:
                 options.pop(SERIES_STYLE, None)
+                options.pop(SERIES_PLACEMENT, None)
+            else:
+                record = options.pop(SERIES_PLACEMENT, run.options.get(SERIES_PLACEMENT, {}))
+                if placements := series_placements({SERIES_PLACEMENT: record}, names):
+                    options[SERIES_PLACEMENT] = placements
             style = grouped_style_after_parameter_change(style, options, raw)
         elif method == XY_METHOD:
             style = xy_style(style, options)
