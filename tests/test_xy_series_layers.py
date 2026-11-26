@@ -2,6 +2,7 @@ import unittest
 
 import pandas as pd
 
+from analisi.data import MAX_COLUMNS
 from analisi.presentation import apply_style, graph_series, validated_style
 from analisi.axis_breaks import AXIS_BREAKS, segment_axes
 from analisi.point_style import GID_PREFIX, POINTS, point_map, source_record
@@ -77,3 +78,9 @@ class XYSeriesLayersTests(unittest.TestCase):
         for order in (["xy:1:A", "xy:1:A"], ["bar:1:B"], "xy:1:A"):
             with self.subTest(order=order), self.assertRaisesRegex(ValueError, "Invalid XY series drawing order"):
                 validated_style({XY_SERIES_ORDER: order})
+
+    def test_order_supports_the_full_worksheet_column_budget(self):
+        order = [f"xy:1:S{index}" for index in range(MAX_COLUMNS)]
+        self.assertEqual(validated_style({XY_SERIES_ORDER: order})[XY_SERIES_ORDER], order)
+        with self.assertRaisesRegex(ValueError, "Invalid XY series drawing order"):
+            validated_style({XY_SERIES_ORDER: [*order, "xy:1:Extra"]})

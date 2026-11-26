@@ -4,11 +4,11 @@ from itertools import chain
 
 from matplotlib.container import BarContainer
 
-from .data import XY_SERIES_ORDER
+from .data import MAX_COLUMNS, XY_SERIES_ORDER
 from .point_style import POINT_DEPTH_OFFSET
 from .xy_series import X_ERROR_ARTISTS
 
-MAX_ORDERED_SERIES = 256
+MAX_ORDERED_SERIES = MAX_COLUMNS
 _ORIGINAL_DEPTH = "_tramastat_series_original_depth"
 
 
@@ -56,7 +56,15 @@ def xy_order_record(figure, series, previous, requested):
         return []
     shown = set(current)
     next_key = iter(requested)
-    return [next(next_key) if key in shown else key for key in previous] + list(next_key)
+    retained = []
+    absent_budget = MAX_ORDERED_SERIES - len(requested)
+    for key in previous:
+        if key in shown:
+            retained.append(next(next_key))
+        elif absent_budget > 0:
+            retained.append(key)
+            absent_budget -= 1
+    return retained + list(next_key)
 
 
 def apply_xy_layers(figure, series, order):
