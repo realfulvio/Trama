@@ -97,8 +97,11 @@ def _formatted_label(payload, fonts):
     offset = 0
     for length, style, font in Struct("<BBB").iter_unpack(formatting):
         part = plain[offset:offset + length]
-        if not length or len(part) != length or style != 1:
+        # Both display styles occur within one title. The font selects the glyph.
+        if not length or len(part) != length or style not in (0x01, 0x41):
             raise _UnsupportedSheet("Unrecognized text formatting")
+        if style == 0x41 and fonts.get(font - 1) not in (b"Arial", b"Symbol"):
+            raise _UnsupportedSheet("Unrecognized font encoding")
         if font == 1 and fonts.get(0) not in (b"Symbol", b"Wingdings"):
             parts.append(part.decode("ascii"))
         elif fonts.get(font - 1) == b"Symbol" and part in (b"m", b"g"):
@@ -144,18 +147,23 @@ def _cell_storage(records, count, *, text=False):
     return cells, attributes[16:], stride
 
 
-def _numeric_values(records, count, *, grouped_integers=False):
+def _numeric_values(records, count, *, grouped_integers=False, excluded_slots=None):
     cells, attributes, stride = _cell_storage(records, count)
+    can_exclude = (excluded_slots is not None and stride == 4
+                   and unpack_from("<H", _record_once(records, 0x10))[0] == 0)
     values = []
     for i, (status, width, value) in enumerate(cells):
         # Status 105 marks integers in the archived single-column-per-group profile.
         integer_status = grouped_integers and stride == 4 and status == 105 and width == 0 and value.is_integer()
         # Status zero can retain an earlier value after the cell was cleared.
         expected = (0, status, 0, 0) if stride == 16 else (0,)
-        if ((status not in (0, 1, 5) and not integer_status)
+        excluded = status == 3 and can_exclude
+        if ((status not in (0, 1, 5) and not integer_status and not excluded)
                 or unpack_from("<4I" if stride == 16 else "<I", attributes, i * stride) != expected
                 or (status and not isfinite(value))):
             raise _UnsupportedSheet("Unrecognized numeric cell status")
+        if excluded:
+            excluded_slots.append(i)
         values.append(value if status else None)
     return values
 
@@ -334,6 +342,7 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
         return None
 
     headers, kinds, columns = [], [], []
+    excluded_cells = []
     for uid in order:
         role, _, form, repeats, _, count, records = fields[uid]
         name_payload = _record_once(records, 9)
@@ -358,7 +367,12 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
         elif legacy:
             values = _legacy_values(records, count, xs[0] if legacy_xy else -1)
         else:
-            values = _numeric_values(records, count, grouped_integers=grouped and form == _PLAIN and role == 8)
+            slots = [] if analysis_id == -1 and role == 8 and form in (_PLAIN, _REPLICATES) else None
+            values = _numeric_values(records, count, grouped_integers=grouped and form == _PLAIN and role == 8,
+                                     excluded_slots=slots)
+            if slots:
+                start = len(columns)
+                excluded_cells.extend((i // repeats, start + i % repeats) for i in slots)
         if role == 4:
             headers.append(name or "X")
         else:
@@ -374,6 +388,8 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
         kinds.extend([None] * repeats)
         columns.extend(values[index::repeats] for index in range(repeats))
     frame = _table(headers, [list(row) for row in zip_longest(*columns)], kinds)
+    if excluded_cells:
+        frame.attrs["excluded"] = sorted(excluded_cells)
     frame.attrs["table_format"] = "xy" if xs else "grouped" if grouped or mode != _PLAIN else "column"
     if xs or grouped:
         column = len(frame.columns) - sum(fields[uid][3] for uid in ys)
@@ -444,7 +460,10 @@ def load_legacy_binary(path, *, restore=False, info_sheets=None, import_warnings
             continue
         if frame is not None:
             _store_table(tables, title, frame)
-            sources[uid] = frame
+            # Historical recipe matching compares raw grids. Preserve the saved views
+            # until a matcher can independently verify a fit on masked observations.
+            if not frame.attrs.get("excluded"):
+                sources[uid] = frame
             cells += frame.size
     if restore:
         from .legacy_restore import restore_binary_views
