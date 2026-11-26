@@ -312,6 +312,14 @@ class DrawingTests(unittest.TestCase):
         left, top = corner(figure, artist)
         self.assertAlmostEqual(left / figure.dpi, .1 * 6, places=4)
         self.assertAlmostEqual(top / figure.dpi, .2 * 4, places=4)
+        # Resizing the figure moves the existing artist to the resized normalized position.
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        FigureCanvasAgg(figure)
+        figure.set_size_inches(12, 8)
+        figure.canvas.draw()
+        left_big, top_big = corner(figure, artist)
+        self.assertAlmostEqual(left_big / figure.dpi, .1 * 12, places=4)
+        self.assertAlmostEqual(top_big / figure.dpi, .2 * 8, places=4)
 
     def test_the_largest_table_stays_small(self):
         figure = Figure(figsize=(6, 4))

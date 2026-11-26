@@ -311,6 +311,8 @@ def stylesheet():
         border-bottom-color: {t['field_hover']}; padding: 4px 12px; }}
     QToolButton#pageAction:hover {{ background: {t['hover']}; border-color: {t['field_hover']}; }}
     QToolButton#pageAction:pressed {{ background: {t['tint']}; border-color: {t['accent']}; }}
+    QToolButton#pageAction:checked {{ background: {t['tint']}; border-color: {t['accent']}; color: {t['accent_dark']}; }}
+    QToolButton#pageAction:checked:hover {{ background: {t['tint']}; border-color: {t['accent_dark']}; }}
     QToolButton#pageAction:focus {{ border-color: {t['accent']}; }}
     QToolButton#pageAction:disabled {{ background: {t['panel2']}; border-color: {t['border']}; color: {t['icon_off']}; }}
     QLabel#infoBanner {{ background: {t['tint']}; color: {t['accent_dark']}; border-left: 3px solid {t['accent']};
