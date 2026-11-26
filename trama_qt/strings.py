@@ -119,6 +119,8 @@ _TEXT = {
     "qt.layout_transfer_live": ("Link to the original graph", "Collega al grafico di origine"),
     "qt.layout_linked_graph": ("Linked graph · {file}", "Grafico collegato · {file}"),
     "qt.layout_link_missing": ("Source file unavailable.", "File di origine non disponibile."),
+    "qt.layout_link_graph_unavailable": ("The linked graph was removed, renamed, or is no longer unique.",
+                                         "Il grafico collegato è stato rimosso, rinominato o non è più univoco."),
     "qt.layout_link_checking": ("Checking the source file…", "Verifica del file di origine…"),
     "qt.layout_link_manual": ("Choose Recalculate to read this location.",
                               "Scegli Ricalcola per leggere questo percorso."),

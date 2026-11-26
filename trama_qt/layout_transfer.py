@@ -9,6 +9,7 @@ from analisi.linked_tables import TABLES, source_analyses
 
 from .gallery_catalog import graph_runs
 from .project import PROJECT_SUFFIXES, Project
+from .strings import qt
 
 
 def read_source(path, snapshot=None):
@@ -76,7 +77,7 @@ def linked_run(source, link):
         candidates = [run for run in source.runs if (run.title, run.method, run.label)
                       == (link.title, link.method, link.label)]
     if len(candidates) != 1:
-        raise ValueError("The linked graph was removed, renamed, or is no longer unique.")
+        raise ValueError(qt("qt.layout_link_graph_unavailable"))
     return candidates[0]
 
 
