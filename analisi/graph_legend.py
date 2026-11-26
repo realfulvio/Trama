@@ -233,6 +233,24 @@ def _figure_legends(figure):
     return found
 
 
+def visible_legends(figure):
+    """Legends a native figure currently draws, including figure-level legends."""
+    if is_non_native_figure(figure):
+        return ()
+    return tuple(legend for _, axes, legend in _figure_legends(figure)
+                 if legend.get_visible() and (axes is None or axes.get_visible()))
+
+
+def legend_entry_key(figure, legend, text):
+    """Identify a displayed text artist even after reordering or renaming its entry."""
+    for scope, axes, current in _figure_legends(figure):
+        if current is legend:
+            snapshot = _snapshot_legend(figure, scope, axes, legend)
+            return next((entry["key"] for entry in snapshot["entries"]
+                         if entry["textbox"]._text is text), None)
+    return None
+
+
 def _series_key_map(figure):
     """Map artist ``id(artist)`` -> canonical ``GraphSeries.key`` across all axes in ``figure``."""
     from .presentation import graph_series

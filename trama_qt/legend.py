@@ -2,15 +2,19 @@
 from copy import deepcopy
 from math import isfinite
 
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
-                               QLineEdit, QScrollArea, QVBoxLayout, QWidget)
+                               QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from analisi.data import decimal_comma
 from analisi.graph_legend import (MAX_LEGEND_BORDER_WIDTH, MAX_LEGEND_COLUMNS, MAX_LEGEND_TEXT_LENGTH,
-                                  collect_legend_entries, is_non_native_figure, validate_legend_options)
+                                  collect_legend_entries, is_non_native_figure, legend_entry_key,
+                                  validate_legend_options, visible_legends)
 from analisi.i18n import tr, translate_message
 
 from .graph_format import Choice, _color_button
+from .theme import fit_dialog
 
 FRAME_DEFAULT, FRAME_SHOWN, FRAME_HIDDEN = "Analysis default", "shown", "hidden"
 FRAME_LABELS = {FRAME_DEFAULT: "legend_editor.frame.default", FRAME_SHOWN: "legend_editor.frame.shown",
@@ -25,6 +29,22 @@ def translate_legend_error(error):
 
 def legend_summary(options):
     return tr("legend_editor.summary_custom") if options else tr("legend_editor.summary_none")
+
+
+def legend_at(event):
+    """Return the clicked legend and the key of the clicked text, if any."""
+    canvas = event.canvas
+    renderer = getattr(canvas, "renderer", None)
+    if renderer is None:
+        return None
+    point = event.x, event.y
+    for legend in reversed(visible_legends(canvas.figure)):
+        if legend.get_window_extent(renderer).contains(*point):
+            for label in legend.get_texts():
+                if label.get_visible() and label.get_window_extent(renderer).contains(*point):
+                    return legend, legend_entry_key(canvas.figure, legend, label)
+            return legend, None
+    return None
 
 
 def _optional(text, low, high, message, integer=False):
@@ -43,7 +63,7 @@ def _optional(text, low, high, message, integer=False):
 class LegendEditor(QDialog):
     """``result`` is the canonical ``legend_options`` dictionary after Apply (``{}`` for the defaults)."""
 
-    def __init__(self, parent, figure, options=None):
+    def __init__(self, parent, figure, options=None, *, entry=None):
         super().__init__(parent)
         self.setWindowTitle(tr("legend_editor.dialog_title"))
         self.initial, self.result = deepcopy(options or {}), None
@@ -98,9 +118,10 @@ class LegendEditor(QDialog):
         entries = QGroupBox(tr("legend_editor.section.entries"))
         form = QFormLayout(entries)
         self.labels = {}
-        for entry in self.entries:
-            self.labels[entry.key] = QLineEdit(self.initial.get("labels", {}).get(entry.key, ""))
-            form.addRow(entry.display_name, self.labels[entry.key])
+        for item in self.entries:
+            field = self.labels[item.key] = QLineEdit(self.initial.get("labels", {}).get(item.key, ""))
+            field.setPlaceholderText(item.label)
+            form.addRow(item.display_name, field)
         if not self.entries:
             hint = QLabel(tr("legend_editor.hint.no_legend"))
             hint.setObjectName("muted")
@@ -124,13 +145,22 @@ class LegendEditor(QDialog):
         buttons.addButton(tr("legend_editor.btn.reset"), QDialogButtonBox.ButtonRole.ResetRole).clicked.connect(
             self.reset_fields)
         apply = buttons.addButton(tr("legend_editor.btn.apply"), QDialogButtonBox.ButtonRole.AcceptRole)
-        apply.setDefault(True)
         apply.setEnabled(not self.non_native)
         buttons.addButton(tr("legend_editor.btn.cancel"), QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         outer.addWidget(buttons)
-        self.resize(520, 560)
+        for button in self.findChildren(QPushButton):
+            button.setAutoDefault(False)
+        apply.setDefault(True)
+        apply.setAutoDefault(True)
+        fit_dialog(self, 520, 560)
+        if hasattr(parent, "show_shortcuts"):
+            QShortcut(QKeySequence("F1"), self, parent.show_shortcuts)
+        field = self.labels.get(entry, self.title)
+        field.setFocus()
+        field.selectAll()
+        QTimer.singleShot(0, self, lambda: scroll.ensureWidgetVisible(field))
 
     def read_options(self):
         if self.non_native:

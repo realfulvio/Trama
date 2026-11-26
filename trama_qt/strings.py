@@ -156,6 +156,7 @@ _TEXT = {
     "qt.format_axis_x": ("X axis…", "Asse X…"),
     "qt.format_axis_y": ("Y axis (left)…", "Asse Y (sinistro)…"),
     "qt.format_axis_right": ("Y axis (right)…", "Asse Y (destro)…"),
+    "qt.reverse_legend": ("Reverse legend order", "Inverti ordine della legenda"),
     "qt.x_error_column": ("Horizontal error bars (X)", "Barre d’errore orizzontali (X)"),
     "qt.x_error_heading": ("Error bar", "Barra d’errore"),
     "qt.x_error_column_hint": ("Add a column after X for symmetric error distances in X units. Leave cells blank when no distance is available.",

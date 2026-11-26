@@ -5,11 +5,23 @@ import unittest
 from matplotlib.figure import Figure
 import pandas as pd
 
-from analisi.graph_legend import apply_legend_options, collect_legend_entries
+from analisi.graph_legend import apply_legend_options, collect_legend_entries, legend_entry_key
 from analisi.normality import normality
 
 
 class LegendPanelIdentityTests(unittest.TestCase):
+    def test_equal_display_labels_keep_their_keys_when_reversed(self):
+        figure = Figure()
+        axes = figure.subplots()
+        axes.plot([0, 1], [0, 1], label="First")
+        axes.plot([0, 1], [1, 0], label="Second")
+        legend = axes.legend()
+        keys = [entry.key for entry in collect_legend_entries(figure)]
+        apply_legend_options(figure, {"reverse": True, "labels": dict.fromkeys(keys, "Replica")})
+        texts = legend.get_texts()
+        self.assertEqual([text.get_text() for text in texts], ["Replica", "Replica"])
+        self.assertEqual([legend_entry_key(figure, legend, text) for text in texts], keys[::-1])
+
     def test_duplicate_figure_legend_labels_have_distinct_editor_captions(self):
         fig = Figure()
         ax = fig.subplots()

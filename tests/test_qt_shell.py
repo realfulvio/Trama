@@ -2165,6 +2165,64 @@ class QtShellTests(unittest.TestCase):
         self.assertIn('id="xybar:Right:0"', text)
         self.assertNotIn("<image", text)
 
+    def test_direct_legend_editor_follows_entry_identity_and_keeps_style_history(self):
+        from PySide6.QtCore import QPoint
+        from PySide6.QtTest import QTest
+        from unittest.mock import patch
+        from analisi.graph_legend import LEGEND_OPTIONS_KEY, collect_legend_entries
+        from trama_qt.legend import LegendEditor
+
+        window = self.window
+        path = self.folder / "legends.csv"
+        pd.DataFrame({"X": [1, 2, 4], "First": [2, 4, 6], "Second": [8, 6, 4]}).to_csv(path, index=False)
+        window.open_path(path)
+        self.assertFalse(window.actions["format_legend"].isEnabled())
+        run = self.run_method("XY series", {"X": "X", "Y columns": ["First", "Second"]})
+        figure = run.result.figure
+        original_options = dict(run.options)
+        first, second = collect_legend_entries(figure)
+        def texts():
+            return [label.get_text() for label in figure.axes[0].get_legend().get_texts()]
+
+        self.assertEqual(texts(), ["First", "Second"])
+        window.actions["reverse_legend"].trigger()
+        self.assertEqual(texts(), ["Second", "First"])
+        self.app.processEvents()
+        canvas = window.plot_tools.canvas
+        canvas.draw()
+        label = figure.axes[0].get_legend().get_texts()[0]
+        box = label.get_window_extent(canvas.renderer)
+        ratio = canvas.device_pixel_ratio
+        point = QPoint(round((box.x0 + box.x1) / (2 * ratio)),
+                       round(canvas.height() - (box.y0 + box.y1) / (2 * ratio)))
+        opened = []
+
+        def edit(dialog):
+            dialog.show()
+            self.app.processEvents()
+            self.assertIs(dialog.focusWidget(), dialog.labels[second.key])
+            self.assertEqual(dialog.labels[first.key].text(), "")
+            dialog.labels[second.key].setText("Second $ renamed")
+            dialog.accept()
+            self.assertIsNotNone(dialog.result, dialog.problem.text())
+            opened.append(True)
+            return LegendEditor.DialogCode.Accepted
+
+        with patch.object(LegendEditor, "exec", edit):
+            QTest.mouseDClick(canvas, Qt.MouseButton.LeftButton, pos=point)
+            self.app.processEvents()
+        self.assertEqual(opened, [True])
+        self.assertEqual(texts(), ["Second $ renamed", "First"])
+        self.assertEqual(run.style[LEGEND_OPTIONS_KEY], {"reverse": True, "labels": {second.key: "Second $ renamed"}})
+        self.assertEqual(run.options, original_options)
+        window.actions["undo"].trigger()
+        self.assertEqual(texts(), ["Second", "First"])
+        window.actions["undo"].trigger()
+        self.assertEqual(texts(), ["First", "Second"])
+        window.actions["redo"].trigger()
+        window.actions["redo"].trigger()
+        self.assertEqual(texts(), ["Second $ renamed", "First"])
+
     def test_double_click_formats_visible_axes_and_keeps_navigation_modes(self):
         from PySide6.QtCore import QPoint
         from PySide6.QtTest import QTest

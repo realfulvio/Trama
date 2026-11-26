@@ -26,6 +26,7 @@ from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
 from analisi.axis_breaks import AXIS_BREAKS
 from analisi.field_error import FieldError
+from analisi.graph_legend import LEGEND_OPTIONS_KEY, visible_legends
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, translate_message, ui
 from analisi.kmeans_options import METHODS as KMEANS_METHODS
 from analisi.kmeans_reports import FIT_DIAGNOSTICS_TABLE, FIT_REASON, FIT_SOURCE
@@ -662,6 +663,8 @@ class MainWindow(QMainWindow):
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
         for axis in ("x", "y", "right"):
             a(f"format_axis_{axis}", qt(f"qt.format_axis_{axis}"), lambda axis=axis: self.format_graph(axis=axis))
+        a("format_legend", tr("legend_editor.button"), self.format_legend, icon="rows-3", shortcut="Ctrl+Alt+L")
+        a("reverse_legend", qt("qt.reverse_legend"), self.reverse_legend, icon="arrow-up-down")
         from .graph_style_preset_dialog import t as preset_text
         a("graph_style_presets", preset_text("action"), self.graph_style_presets, icon="sparkles")
         from .batch_figure_styles_dialog import t as batch_style_text
@@ -1158,6 +1161,9 @@ class MainWindow(QMainWindow):
         self.actions["format_axis_y"].setEnabled(has_axes)
         self.actions["format_axis_right"].setEnabled(
             has_axes and axis_graph.method == XY_METHOD and right_y_axes(axis_graph.result.figure.axes[0]) is not None)
+        legends = visible_legends(axis_graph.result.figure) if axis_graph is not None else ()
+        self.actions["format_legend"].setEnabled(bool(legends))
+        self.actions["reverse_legend"].setEnabled(any(len(legend.get_texts()) > 1 for legend in legends))
         self.actions["graph_style_presets"].setEnabled(graph and idle)
         from .gallery_catalog import graph_runs
         self.actions["batch_figure_styles"].setEnabled(idle and bool(graph_runs(self.project)))
@@ -2246,14 +2252,14 @@ class MainWindow(QMainWindow):
         if run is not None:
             self.drawing.attach(page, canvas, tools if toolbar else None, run)
             if toolbar:
-                canvas.mpl_connect("button_press_event", lambda event: self._graph_axis_click(event, page, run))
+                canvas.mpl_connect("button_press_event", lambda event: self._graph_format_click(event, page, run))
         if reference is not None:
             self.table_move.attach(page, canvas, tools if toolbar else None, reference, figure)
         if run is not None and self.inspector_wanted and self.project.graph_format_problem(run) is None:
             self._open_inspector(run, canvas, line)
         return canvas  # No draw_idle(): showing the page resizes the canvas, which draws it once (SheetCanvas).
 
-    def _graph_axis_click(self, event, page, run):
+    def _graph_format_click(self, event, page, run):
         def active():
             return (self.page is page and self.selected and self.selected[0] == "graph"
                     and self.project.runs[self.selected[1]] is run and self.gallery is None
@@ -2262,6 +2268,12 @@ class MainWindow(QMainWindow):
                     and not (self.drawing.controller and self.drawing.controller.mode))
 
         if not event.dblclick or event.button != 1 or not active():
+            return
+        from .legend import legend_at
+
+        legend = legend_at(event) if self.actions["format_legend"].isEnabled() else None
+        if legend is not None:
+            QTimer.singleShot(0, page, lambda: self.format_legend(entry=legend[1]) if active() else None)
             return
         axis = axis_at(event, include_right=run.method == XY_METHOD)
         if axis is None:
@@ -3459,6 +3471,44 @@ class MainWindow(QMainWindow):
             dialog.deleteLater()
         self.show_sheet(*self.selected)
         self.status(qt("qt.style_applied"))
+
+    def _change_legend(self, run, options, label):
+        from .legend import translate_legend_error
+
+        try:
+            changed = self.project.change_legend(run, options, label)
+        except ValueError as error:
+            self.error(translate_legend_error(error))
+            return
+        if changed:
+            self._after_style_batch((run.uid,), qt("qt.style_applied"))
+
+    def format_legend(self, *, entry=None):
+        from .legend import LegendEditor
+
+        if not self.actions["format_legend"].isEnabled() or not self.settle_graph_draft():
+            return
+        project, reference = self.project, self.selected
+        run = project.runs[reference[1]]
+        figure = run.result.figure
+        previous = deepcopy(run.style or {})
+        dialog = LegendEditor(self, figure, previous.get(LEGEND_OPTIONS_KEY), entry=entry)
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        options = dialog.result
+        dialog.deleteLater()
+        if (accepted and options is not None and self.project is project and self.selected == reference
+                and reference[1] < len(project.runs) and project.runs[reference[1]] is run
+                and run.result is not None and run.result.figure is figure and (run.style or {}) == previous):
+            self._change_legend(run, options, tr("legend_editor.dialog_title"))
+
+    def reverse_legend(self):
+        if not self.actions["reverse_legend"].isEnabled() or not self.settle_graph_draft():
+            return
+        run = self.project.runs[self.selected[1]]
+        options = dict((run.style or {}).get(LEGEND_OPTIONS_KEY, {}))
+        if not options.pop("reverse", False):
+            options["reverse"] = True
+        self._change_legend(run, options, qt("qt.reverse_legend"))
 
     def graph_style_presets(self):
         """Graph → Figure styles…: preview a saved style on the graph on screen and commit it once."""

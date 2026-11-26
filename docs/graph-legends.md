@@ -1,10 +1,10 @@
 # Legende dei grafici nativi
 
-Apri **Formatta grafico → Aspetto → Formato legenda…**, oppure lo stesso pulsante nella sezione Pagina dell’Inspector. L’editor modifica la presentazione senza ripetere l’analisi statistica.
+In Classica Qt apri **Cambia → Formato legenda…** (`Ctrl+Alt+L`) o fai doppio clic sulla legenda. Il doppio clic su un’etichetta porta il cursore al campo della voce corrispondente. **Cambia → Inverti ordine della legenda** inverte le voci visibili a partire dall’ordine corrente. Entrambi i comandi usano Annulla e Ripeti. L’editor è disponibile anche da **Formatta grafico → Aspetto → Formato legenda…**.
 
 Puoi impostare un titolo, da una a otto colonne, l’ordine inverso delle voci, etichette personalizzate, cornice, sfondo, colore e larghezza del bordo e opacità. L’opacità riguarda solo cornice e sfondo: dati e testo restano leggibili. Nascondere la cornice conserva le impostazioni del bordo. Posizione, visibilità e dimensione del testo restano nei controlli già presenti in Formatta grafico.
 
-**Anteprima** aggiorna la figura. **Annulla** ripristina lo stato precedente. **Applica** accetta le opzioni nell’editor; conferma anche Formatta grafico o l’Inspector per salvarle nello stile. **Ripristina** rimuove le personalizzazioni di questa sezione. I pulsanti restano fuori dal corpo scorrevole della finestra.
+**Applica** salva le opzioni della legenda. Se sei entrato da **Formatta grafico**, conferma anche quel dialogo. **Annulla** chiude l’editor senza applicare. Per tornare all’etichetta generata dal grafico, svuota il campo della voce. **Ripristina** rimuove le personalizzazioni di questa sezione. I pulsanti restano fuori dal corpo scorrevole della finestra.
 
 Titolo ed etichette sono testo letterale: dollari, parentesi e caratteri Unicode non vengono interpretati come formule. Le legende multiple intenzionali, comprese quelle delle dimensioni delle bolle e le legende dell’intera figura, restano distinte. Le serie sull’asse destro restano nella legenda XY. Nei Q–Q affiancati puoi rinominare una voce del pannello normale senza modificare quello lognormale, anche dopo il ricalcolo o il cambio della distribuzione visualizzata.
 

@@ -17,6 +17,7 @@ import pandas as pd
 
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot
 from analisi.layout_panels import EMPTY_PANEL
+from analisi.graph_legend import LEGEND_OPTIONS_KEY
 from analisi.analysis_chain import (MAX_ANALYSIS_NODES, AnalysisGraph, ChainCancelled, ResultSource,
                                     evaluate_graph, result_frame)
 from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
@@ -1566,6 +1567,22 @@ class Project(WorksheetJoinSources, SheetCommands):
         self.sync_run_tables(run)
         self.sync_links(persist=True)
         self.dirty = True
+
+    def change_legend(self, run, options, label):
+        """Store a legend edit in the same history used by other figure-style changes."""
+        style = deepcopy(run.style or {})
+        if options:
+            style[LEGEND_OPTIONS_KEY] = options
+        else:
+            style.pop(LEGEND_OPTIONS_KEY, None)
+        if style == (run.style or {}):
+            return False
+        before = {run.uid: deepcopy(run.style)}
+        after = {run.uid: style}
+        self._apply_style_updates([(run.uid, run)], after)
+        self.history.record_style_batch(label, before, deepcopy(after))
+        self.dirty = True
+        return True
 
     def use_result_as_data(self, run, table):
         frame = run.result.tables[table]
