@@ -110,8 +110,18 @@ class RowByRowConflictTests(unittest.TestCase):
         self.write("iniziale.csv")
         calm = plan_for(project, title)
         self.assertEqual(calm.conflict_items, [])
+        past = decisions(plan, CASE)
+        self.assertIn("do not match this preview", str(engine.can_apply(calm, decisions=past)))
         with self.assertRaisesRegex(ValueError, "do not match this preview"):
-            project.update_from_source(title, calm, decisions=decisions(plan, CASE))
+            project.update_from_source(title, calm, decisions=past)
+
+    def test_explicit_replacement_does_not_read_conflict_decisions(self):
+        project, title = self.edited()
+        plan = plan_for(project, title)
+        self.assertEqual(plan.conflicts, 4)
+        self.assertIsNone(engine.can_apply(plan, replace_rows=True))
+        project.update_from_source(title, plan, replace_rows=True)
+        self.assertEqual(rows_of(project, title), expected("aggiornato.csv"))
 
     def test_undo_redo_save_reopen_and_a_second_update(self):
         project, title = self.edited()

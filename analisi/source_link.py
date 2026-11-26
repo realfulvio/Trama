@@ -944,7 +944,7 @@ def can_apply(plan, *, choice=None, decisions=None, replace_rows=False):
         return plan.problems[0]
     if plan.identity_problem is not None and not replace_rows:
         return plan.identity_problem
-    if plan.conflict_items and not replace_rows:
+    if not replace_rows and (plan.conflict_items or choice is not None or decisions):
         try:
             decided = decisions_for(plan, choice=choice, decisions=decisions)
         except ValueError as error:
@@ -978,10 +978,6 @@ def arrange(plan, *, choice=None, decisions=None, replace_rows=False):
     the rows the file removed that the project keeps). Every conflict needs a decision; nothing is guessed."""
     if (problem := can_apply(plan, choice=choice, decisions=decisions, replace_rows=replace_rows)) is not None:
         raise ValueError(str(problem))
-    decided = {} if replace_rows else decisions_for(plan, choice=choice, decisions=decisions)
-    by_row = {item.row: decided[item.identity] == FILE for item in plan.conflict_items if item.row >= 0}
-    by_position = {item.position: decided[item.identity] == FILE for item in plan.conflict_items
-                   if item.kind == REMOVED_CONFLICT}
     order, take, host, tokens = [], [], [], []
     removed = set()
     if replace_rows:
@@ -989,8 +985,12 @@ def arrange(plan, *, choice=None, decisions=None, replace_rows=False):
             order.append(-1), take.append(row), host.append(row), tokens.append(None)
         removed = {position for position, _ in plan.removed} | {int(position) for position in plan.match
                                                                if position >= 0}
-        kept = [position for position in plan.project_rows]
+        kept = list(plan.project_rows)
     else:
+        decided = decisions_for(plan, choice=choice, decisions=decisions)
+        by_row = {item.row: decided[item.identity] == FILE for item in plan.conflict_items if item.row >= 0}
+        by_position = {item.position: decided[item.identity] == FILE for item in plan.conflict_items
+                       if item.kind == REMOVED_CONFLICT}
         for row, state in enumerate(plan.states.tolist()):
             position = int(plan.match[row])
             if state == ADDED:
