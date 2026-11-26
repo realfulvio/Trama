@@ -41,14 +41,14 @@ LIGHT = dict(bg="#EEF1F4", panel="#FAFBFC", panel2="#F4F6F8", border="#D3DAE0", 
              grid="#E1E6EA", scroll="#C9D2D7", scroll_hover="#A9B6BD", warning_bg="#FBEFE9", warning="#7A2E12",
              error_bg="#FDF2F1", error="#B3261E", header="#EEF1F4", icon_ink="#3A4E5A", icon_off="#7E8D98",
              group_ink="#465661", kind_data="#0A7C76", kind_result="#3F6498", kind_graph="#B0611A",
-             setup_icon="#A9E3DD")
+             table_move_ink="#176676", setup_icon="#A9E3DD")
 DARK = dict(bg="#0D1417", panel="#152025", panel2="#18252B", border="#22323A", text="#E3EBEE",
             text2="#9BABB3", text3="#6F808A", accent="#35B8AC", accent_dark="#6AD3C9", accent_hi="#4CC9BD",
             tint="#123936", field="#2E424B", field_hover="#445C66", hover="#1D2C32", on_accent="#04211E",
             grid="#1E2B31", scroll="#33464E", scroll_hover="#4A626C", warning_bg="#3A2319", warning="#F3B79E",
             error_bg="#3B1C1F", error="#F2A7A9", header="#18252B", icon_ink="#C3D0D6", icon_off="#7F929C",
             group_ink="#B6C4CB", kind_data="#4CC9BD", kind_result="#8DB0E0", kind_graph="#E5A765",
-            setup_icon="#A9E3DD")
+            table_move_ink="#35B8AC", setup_icon="#A9E3DD")
 # Shadows under the panels (blur, vertical offset, opacity) and the veil over a window behind a modal dialog.
 SHADOWS = {False: ((18, 5, 0.10), (3, 1, 0.06)), True: ((20, 6, 0.55), (3, 1, 0.35))}
 SHADOW_RGB = {False: (18, 42, 52), True: (0, 0, 0)}

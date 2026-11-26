@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
@@ -129,14 +129,23 @@ def exercise(smoke, window, sizes):
         return
     _numbers(smoke, run.result, "opened")
 
-    shortcuts = ShortcutsDialog(window)
-    shortcuts.show()
+    shortcuts_opened = []
+
+    def capture_shortcuts():
+        dialog = app.activeModalWidget()
+        if isinstance(dialog, ShortcutsDialog):
+            shortcuts_opened.append(dialog.windowTitle())
+            smoke.shot(dialog, "lack-of-fit-shortcuts")
+            dialog.reject()
+
+    window.activateWindow()
+    window.setFocus()
     app.processEvents()
-    smoke.shot(shortcuts, "lack-of-fit-shortcuts")
-    if shortcuts.windowTitle() == "":
-        smoke.problem("lack of fit: the shortcuts dialog has no title")
-    shortcuts.close()
-    shortcuts.deleteLater()
+    QTimer.singleShot(120, capture_shortcuts)
+    QTest.keyClick(window, Qt.Key.Key_F1)
+    QTest.qWait(160)
+    if not any(shortcuts_opened):
+        smoke.problem("lack of fit: F1 did not open the shortcuts dialog")
 
     def confirm(dialog):
         box = dialog.controls[REPLICATE_LACK_OF_FIT][1]

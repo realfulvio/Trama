@@ -85,6 +85,20 @@ class ReferenceTests(unittest.TestCase):
         np.testing.assert_allclose(moved["SS"].to_numpy(dtype=float), original["SS"].to_numpy(dtype=float))
         self.assertEqual(moved["df"].tolist(), original["df"].tolist())
 
+    def test_repeated_row_labels_do_not_change_the_fit(self):
+        data = reference_frame()
+        data.index = ["A", "B"] * 4
+        pd.testing.assert_frame_equal(sheet_of(data), sheet_of(reference_frame()))
+
+    def test_replicate_dispersion_with_large_common_offset(self):
+        offset = 2.0**50
+        predictors = pd.DataFrame({"X": np.repeat([0, 1, 2], 3)})
+        predicted = offset + predictors["X"].to_numpy()
+        observed = predicted + np.tile([0, 0.25, 0.25], 3)
+        table = build_lack_of_fit_table(observed, predicted, observed - predicted, predictors, [], 2)
+        np.testing.assert_allclose(table["SS"], [0.375, 0.125, 0.25], rtol=0, atol=1e-14)
+        self.assertAlmostEqual(table.loc["Lack of fit", "F"], 12.0)
+
     def test_excluded_measurement_matches_an_independent_fit(self):
         data = Dataset(reference_frame())
         data.excluded.add((7, 2))  # the last Y, source row 8

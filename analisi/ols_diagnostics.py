@@ -313,8 +313,11 @@ def build_lack_of_fit_table(observed, predicted, residual, predictors, categorie
     replicate_groups = int(np.count_nonzero(counts > 1))
     ordered_y = observed[order]
     ordered_fit = predicted[order]
-    means = np.add.reduceat(ordered_y, starts) / counts
-    centered = ordered_y - np.repeat(means, counts)
+    # Center around an observed value first. A large common offset can round away
+    # a group mean even when the small differences between replicates are exact.
+    local = ordered_y - np.repeat(ordered_y[starts], counts)
+    means = np.add.reduceat(local, starts) / counts
+    centered = local - np.repeat(means, counts)
     pure = float(centered @ centered)
     fit_max = np.maximum.reduceat(ordered_fit, starts)
     fit_min = np.minimum.reduceat(ordered_fit, starts)
@@ -346,12 +349,11 @@ def lack_of_fit_sheet(options, fitted, data, rank, weights=None):
     count = int(len(fitted))
     if weights is not None:
         return _unavailable_frame(count, NOTE_WEIGHTS)
-    try:
-        predictors = data.loc[fitted.index, list(options["Predictors"])]
-    except (KeyError, ValueError):
+    # The fit builds both tables in the same complete-case order. Looking up
+    # rows by label would multiply rows when the source has non-unique labels.
+    if not data.index.equals(fitted.index):
         return _unavailable_frame(count, NOTE_RESIDUALS)
-    if len(predictors) != count:
-        return _unavailable_frame(count, NOTE_RESIDUALS)
+    predictors = data.loc[:, list(options["Predictors"])]
     return build_lack_of_fit_table(
         fitted["Observed"].to_numpy(dtype=float), fitted["Fitted"].to_numpy(dtype=float),
         fitted["Residual"].to_numpy(dtype=float), predictors, options["Categorical predictors"], rank)

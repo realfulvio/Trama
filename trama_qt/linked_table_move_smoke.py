@@ -33,7 +33,7 @@ def main(argv=None):
 
     import pandas as pd
     from PySide6 import __version__ as pyside
-    from PySide6.QtCore import QEvent, QPoint, Qt
+    from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
     from PySide6.QtGui import QFocusEvent, QKeySequence
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication, QDialog, QPushButton
@@ -133,12 +133,22 @@ def main(argv=None):
         wait()
 
         # F1 shortcuts lists Ctrl+Shift+M; menu / toolbar present.
-        shortcuts = ShortcutsDialog(window)
-        shortcuts.show()
+        shortcuts_opened = []
+
+        def capture_shortcuts():
+            dialog = app.activeModalWidget()
+            if isinstance(dialog, ShortcutsDialog):
+                shortcuts_opened.append(dialog.windowTitle())
+                shot(dialog, "shortcuts-f1")
+                dialog.reject()
+
+        window.activateWindow()
+        window.setFocus()
         settle()
-        shot(shortcuts, "shortcuts-f1")
-        shortcuts.reject()
-        shortcuts.deleteLater()
+        QTimer.singleShot(120, capture_shortcuts)
+        QTest.keyClick(window, Qt.Key.Key_F1)
+        settle()
+        check(bool(shortcuts_opened), "F1 did not open shortcuts")
         check(window.actions["linked_table_move"].shortcut() == QKeySequence("Ctrl+Shift+M"),
               "missing Ctrl+Shift+M shortcut")
 
@@ -219,7 +229,14 @@ def main(argv=None):
         defaults = [b for b in dialog.findChildren(QPushButton) if b.isDefault()]
         check(len(defaults) == 1 and defaults[0].text() == tr("graph.format.apply"), "Apply is not default")
         shot(dialog, "linked-tables-dialog")
-        dialog.reject()
+        previous_focus = dialog.focusWidget()
+        QTest.keyClick(previous_focus or dialog, Qt.Key.Key_Tab)
+        settle()
+        check(dialog.focusWidget() is not None and dialog.focusWidget() is not previous_focus,
+              "Tab did not move focus in the linked tables dialog")
+        QTest.keyClick(dialog, Qt.Key.Key_Return)
+        settle()
+        check(dialog.result == moved_layout, "Enter did not confirm the linked tables dialog")
         dialog.deleteLater()
 
         # 3. Change B4 (7 -> 9), save, reopen, verify 2.6 vs 2, export PDF/SVG clean.

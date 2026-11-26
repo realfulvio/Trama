@@ -51,6 +51,7 @@ Il [test binomiale esatto](exact-binomial.md) confronta due conteggi osservati c
 
 ## Regressioni, curve e calibrazione
 
+- La regressione lineare multipla senza pesi offre il [test di mancato adattamento con repliche](replicate-lack-of-fit.md).
 - Regressione lineare, confronto fra rette, Deming, regressioni multiple OLS (anche pesate con pesi fissi gaussiani: 1/|Y|, 1/Y², 1/|Y|^K, 1/SD² o colonna di pesi), logistiche e Poisson con esposizione e diagnostica. [Validazione fuori campione del modello logistico binario](logistic-validation.md): validazione incrociata a K fold stratificata o con colonna di fold, Brier, log loss, AUC ROC, precisione media, matrice di confusione e calibrazione per classi. [Regressione binomiale negativa (NB2)](nb2-regression.md) per conteggi sovradispersi: esposizione, predittori categorici, α stimata per massima verosimiglianza o fissa, IRR con intervalli di Wald e residui di Pearson.
 - [Confronto appaiato di due rette Deming](deming-paired.md) nel dialogo Qt. L’opzione parte spenta. Con due serie Y e la stessa X confronta pendenza e intercetta della seconda serie con la prima, sulle righe in cui la stessa unità è misurata in entrambe. I fogli di ogni serie restano quelli di prima.
 - [Regressione di Passing–Bablok](passing-bablok.md) nel dialogo Qt, accanto a Deming. Metrica tangente, intervalli analitici, retta di identità facoltativa e limite di lavoro prima di allocare le pendenze. La finestra classica non la propone come comando nuovo.

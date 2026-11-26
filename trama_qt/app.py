@@ -157,6 +157,11 @@ def main(argv=None):
         elif only == "qt-linked-tables":
             from .linked_table_smoke import run_dedicated as linked_tables
             status = linked_tables(folder)
+        elif only == "qt-linked-table-move":
+            from .linked_table_move_smoke import main as table_move_smoke
+            language = _option(argv, "--lang") or "it"
+            mode = _option(argv, "--theme") or "light"
+            status = "PASS" if table_move_smoke([folder, "--lang", language, "--theme", mode]) == 0 else "FAIL"
         elif only == "qt-anova-marginal-means":
             from .marginal_means_smoke import main as means_smoke
             status = "PASS" if means_smoke([folder]) == 0 else "FAIL"

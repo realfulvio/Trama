@@ -26,6 +26,23 @@
 
 Editing a table keeps its source and range unless *Choose the source and range again* is ticked, so a table whose source has gone can still be moved or restyled, or given a new source.
 
+## Move a table on the figure
+
+On a native graph or layout, choose **Arrange → Select / move tables** or press
+**Ctrl+Shift+M**. Click a table and drag it. When tables overlap, selection
+starts with the one in front. Ctrl constrains the drag horizontally and Shift
+constrains it vertically. Arrow keys move the selected table by one logical
+pixel, or ten with Ctrl. Press Enter to open its numeric position and formatting
+controls, or Esc to cancel the current drag. Each confirmed move is an Undo step.
+
+Moving a table on a layout page leaves its panels and the tables inside those
+panels in place. Selection marks and guides are visible while editing the
+figure. Export uses the confirmed position.
+
+In italiano scegli **Disponi → Seleziona / sposta tabelle** oppure premi **Ctrl+Maiusc+M**.
+Trascina la tabella, usa le frecce per piccoli spostamenti, Invio per il dialogo
+numerico ed Esc per annullare il trascinamento in corso.
+
 ## Linked and Copy
 
 | | Linked | Copy |
@@ -122,6 +139,5 @@ Windows was **not** exercised: the screenshots come from Linux (Xvfb 1024 × 768
 
 ## Not done
 
-- A table cannot be dragged on the canvas: position is a field of the window (percentages of the page).
 - A table reads a worksheet or a result table; a range of another project, or of a table that is not shown, is not offered.
 - No automatic refresh of a *Copy*: that is what *Linked* is for. To freeze a linked table, make a new one with *Copy*, or edit it, tick *Choose the source and range again* and pick *Copy*.

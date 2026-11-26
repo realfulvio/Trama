@@ -24,6 +24,7 @@ from analisi.layout_geometry import page_ink
 from analisi.shape_interaction import event_key
 
 from .strings import qt
+from .theme import DARK, LIGHT
 
 _ARROWS = {
     Qt.Key.Key_Left: (-1.0, 0.0),
@@ -130,7 +131,8 @@ class TableMoveController:
             ink = page_ink(self.figure.get_facecolor())
         except (ValueError, TypeError):
             ink = "#000000"
-        return "#35B8AC" if ink == "#ffffff" else "#176676"
+        palette = DARK if ink == "#ffffff" else LIGHT
+        return palette["table_move_ink"]
 
     # -- mode & lookup -----------------------------------------------------------------------------
     def set_mode(self, active):

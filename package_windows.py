@@ -25,6 +25,7 @@ def main():
                  "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "qt-report.md", "worksheet-join.md", "qt-recovery.md", "qt-analysis-templates.md",
                  "qt-excel-workbook.md", "worksheet-number-format.md", "repeat-analysis.md",
                  "worksheet-rows-and-series.md", "summary-twoway-anova.md", "text-format.md", "linked-tables.md",
+                 "release-116.md", "replicate-lack-of-fit.md",
                  "release-115.md", "release-114.md", "release-113.md", "release-112.md", "source-link.md", "passing-bablok.md", "validation-passing-bablok.md",
                  "rank-graphs.md", "release-111.md", "release-110.md", "release-109-1.md", "release-109.md", "release-108.md",
                  "release-107.md", "worksheet-sort-rows.md", "deming-paired.md",
@@ -107,6 +108,9 @@ def main():
             shutil.copy2(example, bundle / "docs" / "examples" / example.name)
     examples = bundle / "docs" / "examples"
     examples.mkdir(parents=True, exist_ok=True)
+    for folder, name in (("replicate-lack-of-fit", "repliche.alab"),
+                         ("qt_linked_table_move", "tabelle-in-figura.alab")):
+        shutil.copy2(root / "tests" / "data" / folder / name, examples / name)
     shutil.copy2(root / "tests" / "data" / "tolerance_093" / "measurements.csv", examples / "tolerance-intervals.csv")
     shutil.copy2(root / "tests" / "data" / "weibull_aft" / "follow-up.csv", examples / "weibull-follow-up.csv")
     shutil.copy2(root / "tests" / "data" / "ordinal_logit" / "stages.csv", examples / "ordinal-stages.csv")

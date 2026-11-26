@@ -511,8 +511,7 @@ GLOBAL_WEIGHTING_KEYS = {UNWEIGHTED: "gfit.weighting.unweighted",
 # Gaussian weighting of Multiple regression: translated labels, choices and the note under the choice.
 MLR_LABEL_KEYS = {mlr_weighting.GAUSSIAN_WEIGHTING: "analysis.mlr.mode", mlr_weighting.EXPONENT: "analysis.mlr.exponent",
                   mlr_weighting.SD_COLUMN: "analysis.mlr.sd", mlr_weighting.WEIGHT_COLUMN: "analysis.mlr.weight",
-                  mlr_weighting.FUTURE_PRECISION: "analysis.mlr.future",
-                  REPLICATE_LACK_OF_FIT: "mlr.lof.field"}
+                  mlr_weighting.FUTURE_PRECISION: "analysis.mlr.future"}
 def translate_mlr_error(text):
     """An engine message of Multiple regression in the active language, with its field names translated too."""
     text = translate_message(str(text), "mlr.error.")
@@ -1667,6 +1666,8 @@ class AnalysisDialog(simpledialog.Dialog):
             category_roles.add(precision_recall.OUTCOME)
         numeric_position, category_position = 0, 0
         for label, kind in METHODS[self.method].items():
+            if label == REPLICATE_LACK_OF_FIT:
+                continue  # The Qt dialog owns this option.
             if self.method == "Multifactor ANOVA" and label in planned_contrasts.KEYS:
                 continue  # The planned-contrast editor owns these four fields.
             if self.method == "Multifactor ANOVA" and label in marginal_means.KEYS:
@@ -2651,12 +2652,8 @@ class AnalysisDialog(simpledialog.Dialog):
             self.mlr_note = ttk.Label(options, wraplength=ui_theme.px(420), foreground="#486075", justify="left")
             self.mlr_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(6, 0))
             positions[options] += 1
-            lack_page = self.field_rows[REPLICATE_LACK_OF_FIT][0].master
-            self.lof_note = ttk.Label(lack_page, wraplength=ui_theme.px(420), justify="left")
-            self.lof_note.grid(row=80, column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.show_regression_fields()
             self._translate_analysis_labels({**MLR_LABEL_KEYS,
-                "Diagnostics and predictions": "mlr.lof.tab",
                 "Diagnostics and profiles": "analysis.logistic.tab",
                 LOGISTIC_DIAGNOSTICS: "analysis.logistic.diagnostics",
                 LOGISTIC_CUTOFF: "analysis.logistic.cutoff",
@@ -3385,9 +3382,11 @@ class AnalysisDialog(simpledialog.Dialog):
         gaussian = (self.controls[mlr_weighting.GAUSSIAN_WEIGHTING][1].get()
                     if mlr_weighting.GAUSSIAN_WEIGHTING in self.controls else mlr_weighting.UNWEIGHTED)
         linear_profiles = LINEAR_PROFILES in self.controls and bool(self.controls[LINEAR_PROFILES][1].profiles)
-        return regression_visibility(family, diagnostics, logistic_diagnostics_on=logistic_on,
-                                     logistic_profiles=profiles, gaussian_mode=gaussian,
-                                     linear_profiles=linear_profiles)
+        fields = regression_visibility(family, diagnostics, logistic_diagnostics_on=logistic_on,
+                                       logistic_profiles=profiles, gaussian_mode=gaussian,
+                                       linear_profiles=linear_profiles)
+        fields.pop(REPLICATE_LACK_OF_FIT, None)
+        return fields
 
     def _picked(self, label):
         box = self.controls[label][1]
@@ -3436,13 +3435,6 @@ class AnalysisDialog(simpledialog.Dialog):
             asked = bool(visible.get(mlr_weighting.FUTURE_PRECISION)) and bool(
                 self.controls[mlr_weighting.FUTURE_PRECISION][1].get())
             self.controls[LINEAR_PROFILES][1].set_weight_visible(asked)
-        if REPLICATE_LACK_OF_FIT in self.field_rows:
-            choice = (self.controls[mlr_weighting.GAUSSIAN_WEIGHTING][1].get()
-                      if mlr_weighting.GAUSSIAN_WEIGHTING in self.controls else mlr_weighting.UNWEIGHTED)
-            weighted = bool(visible.get(REPLICATE_LACK_OF_FIT)) and choice != mlr_weighting.UNWEIGHTED
-            self.field_rows[REPLICATE_LACK_OF_FIT][1].state(["disabled"] if weighted else ["!disabled"])
-            if getattr(self, "lof_note", None) is not None:
-                self.lof_note.configure(text=tr("mlr.lof.weights") if weighted else "")
         if getattr(self, "mlr_note", None) is not None:
             choice = self.controls[mlr_weighting.GAUSSIAN_WEIGHTING][1].get()
             self.mlr_note.configure(text=tr(MLR_NOTE_KEYS.get(choice, MLR_NOTE_KEYS[mlr_weighting.UNWEIGHTED]))
@@ -4653,6 +4645,10 @@ class AnalysisDialog(simpledialog.Dialog):
                 options.get(DUNN) != "None" or options.get(P_VALUE_FIELDS[self.method]) == EXACT_P)
             # Poisson exposure and count errors name their field, so they stay in the dialog.
             poisson_validation = self.method == "Multiple regression" and options.get("Family") == "Poisson"
+            if self.method == "Multiple regression" and self.current and self.current[0] == self.method:
+                saved = self.current[1]
+                if REPLICATE_LACK_OF_FIT in saved:
+                    options[REPLICATE_LACK_OF_FIT] = saved[REPLICATE_LACK_OF_FIT]
             linear_keys = (LINEAR_DIAGNOSTICS, LINEAR_RESIDUAL_PLOT, LINEAR_PROFILES, LINEAR_CI)
             weighted_linear = (self.method == "Multiple regression" and options.get("Family") == "Linear"
                                and mlr_weighting.weighted(options))
