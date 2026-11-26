@@ -44,10 +44,12 @@ class TitleList(QAbstractTableModel):
 
 
 class TableFormatDialog(QDialog):
-    def __init__(self, parent, model, *, tab=0, column=0, resize_replicates=None, replicate_limits=None):
+    def __init__(self, parent, model, *, tab=0, column=0, update_structure=None, replicate_limits=None, x_block=None):
         super().__init__(parent)
         self.source = model
-        self.resize_replicates = resize_replicates
+        self.update_structure = update_structure
+        self.x_block = x_block
+        self.x_error = None
         self.affected_runs = None
         self.replicate_count = None
         self.initial_count = None
@@ -77,6 +79,10 @@ class TableFormatDialog(QDialog):
         form.addRow(self.show_rows)
         self.widths = self.check("qt.heading_widths", self.original.automatic_widths)
         form.addRow(self.widths)
+        if x_block is not None:
+            self.x_error = self.check("qt.x_error_column", bool(x_block[1]))
+            self.x_error.setToolTip(qt("qt.x_error_column_hint"))
+            form.addRow(self.x_error)
         if replicate_limits is not None:
             self.initial_count, maximum = replicate_limits
             self.replicate_count = QSpinBox()
@@ -136,6 +142,9 @@ class TableFormatDialog(QDialog):
         if self.replicate_count is not None:
             self.replicate_count.valueChanged.connect(self.problem.hide)
             self.replicate_count.valueChanged.connect(lambda: self.refresh_preview(0))
+        if self.x_error is not None:
+            self.x_error.toggled.connect(self.problem.hide)
+            self.x_error.toggled.connect(lambda: self.refresh_preview(0))
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
         buttons.button(QDialogButtonBox.StandardButton.Ok).setDefault(True)
@@ -144,14 +153,19 @@ class TableFormatDialog(QDialog):
         layout.addWidget(buttons)
 
     def accept(self):
-        if self.replicate_count is not None and self.replicate_count.value() != self.initial_count:
+        count = self.replicate_count.value() if self.replicate_count is not None else None
+        changed_count = count if count != self.initial_count else None
+        checked = self.x_error.isChecked() if self.x_error is not None else None
+        changed_error = checked if self.x_block and checked != bool(self.x_block[1]) else None
+        if changed_count is not None or changed_error is not None:
             try:
-                self.affected_runs = self.resize_replicates(self.replicate_count.value(), self.settings())
+                self.affected_runs = self.update_structure(changed_count, changed_error, self.settings())
             except ValueError as error:
                 self.problem.setText(ui(str(error)))
                 self.problem.show()
                 self.tabs.setCurrentIndex(0)
-                self.replicate_count.setFocus()
+                control = self.x_error if changed_error is not None else self.replicate_count
+                control.setFocus()
                 return
         super().accept()
 
@@ -217,8 +231,11 @@ class TableFormatDialog(QDialog):
         draft = self.settings()
         model = self.source
         columns = []
+        x, error = self.x_block or (None, None)
+        with_error = self.x_error is not None and self.x_error.isChecked()
         for column, (first, stop, band, _) in enumerate(model.bands):
-            if band == "Row titles" and not draft.show_rows:
+            name = model.frame.columns[column]
+            if (band == "Row titles" and not draft.show_rows) or name == error and not with_error:
                 continue
             if self.replicate_count is None or not model.is_replicate(column):
                 columns.append((column, column, None))
@@ -226,6 +243,8 @@ class TableFormatDialog(QDialog):
                 for index in range(self.replicate_count.value()):
                     source = first + index if first + index < stop else None
                     columns.append((first, source, index + 1))
+            if name == x and with_error and error is None:
+                columns.append((column, None, None))
             if len(columns) >= 12:
                 break
         columns = columns[:12]
@@ -247,6 +266,8 @@ class TableFormatDialog(QDialog):
                 key = (model.default_subcolumn_label(source) if source is not None
                        else f"{band.removeprefix('Group ')}:Y{replica}")
                 title = f"{title}\n{subtitle if draft.show_subtitles and subtitle else key}"
+            if band == "X" and (source is None or model.roles[column] == "Error"):
+                title = f"{title}\n{qt('qt.x_error_heading')}"
             headings.append(title)
             if source is not None:
                 for row in range(rows):

@@ -20,6 +20,12 @@ The bottom bar identifies the current sheet. On a worksheet it also shows the cu
 
 [Worksheet with an active replicate on Windows](media/worksheet-titles/worksheet-it.png) · [Editing the replicate titles](media/worksheet-titles/replicate-titles-en.png)
 
+### Horizontal error bars
+
+Turn on **Horizontal error bars (X)** when creating an XY worksheet or in **Change → Format data table** for an existing worksheet. The new column follows X. Enter a nonnegative distance in X units. For X = 10 and a distance of 2.5, the graph draws a bar from 7.5 to 12.5. Leave the distance blank to draw just the observation. Removing the error column through the format dialog requires it to be empty and unused.
+
+On a worksheet with horizontal errors, **New Graph** proposes **XY series** and selects the worksheet's error column. Choose **None** for an XY series graph without horizontal bars. Existing graphs retain the recipe they were saved with. A negative distance or an endpoint outside the finite numeric range produces a validation message.
+
 ## Moving rows
 
 - Drag a row or a contiguous selected block from the numbered vertical header to the target position; an insertion line shows where the rows will land.

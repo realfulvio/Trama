@@ -16,6 +16,7 @@ from analisi.table_templates import (EXAMPLE_KEYS, GROUPED_FORMATS, TEMPLATES, X
 
 from . import theme
 from .sessions import elide, recent_projects
+from .strings import qt
 
 
 class TableSetup(QWidget):
@@ -125,6 +126,9 @@ class TableSetup(QWidget):
         self.replicates.setRange(2, 256)
         self.replicates.setValue(2)
         form.addRow(tr("setup.replicates"), self.replicates)
+        self.x_error = QCheckBox(qt("qt.x_error_column"))
+        self.x_error.setToolTip(qt("qt.x_error_column_hint"))
+        form.addRow(self.x_error)
         self.row_titles = QCheckBox(tr("setup.row_titles"))
         self.row_titles.setChecked(True)
         form.addRow(self.row_titles)
@@ -167,6 +171,7 @@ class TableSetup(QWidget):
         self.series.valueChanged.connect(self.refresh)
         self.replicates.valueChanged.connect(self.refresh)
         self.row_titles.toggled.connect(self.refresh)
+        self.x_error.toggled.connect(self.refresh)
         theme.SIGNALS.changed.connect(self.refresh)
         self.types.setCurrentRow(0)
 
@@ -349,7 +354,8 @@ class TableSetup(QWidget):
         code = self.examples.currentData() if sample else self.encoding.currentData()
         template = self._formats().get(code, template)
         if template.kind.casefold().startswith("xy") and not sample:
-            template = _blank_xy(template, self.series.value(), self.replicates.value(), self.row_titles.isChecked())
+            template = _blank_xy(template, self.series.value(), self.replicates.value(), self.row_titles.isChecked(),
+                                 x_error=self.x_error.isChecked())
         return template, sample
 
     def refresh(self):
@@ -362,7 +368,9 @@ class TableSetup(QWidget):
         self.form.setRowVisible(self.replicates, numeric_xy and self.encoding.currentData()
                                 == "Replicates in side-by-side subcolumns")
         self.form.setRowVisible(self.row_titles, numeric_xy)
-        maximum = min(256, (MAX_COLUMNS - 1 - int(self.row_titles.isChecked())) // self.series.value())
+        self.form.setRowVisible(self.x_error, numeric_xy)
+        fixed = 1 + int(self.row_titles.isChecked()) + int(self.x_error.isChecked())
+        maximum = min(256, (MAX_COLUMNS - fixed) // self.series.value())
         previous = self.replicates.blockSignals(True)
         self.replicates.setMaximum(maximum)
         self.replicates.blockSignals(previous)

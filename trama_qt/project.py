@@ -34,7 +34,7 @@ from analisi.graph_shapes import SHAPES
 from analisi import linked_tables
 from analisi.linked_tables import TABLES, FrameSource, Problem, TableSpec
 from analisi.worksheet_number_format import Renderer, automatic_text
-from analisi.grid_headings import xy_replicate_groups
+from analisi.grid_headings import xy_replicate_groups, xy_source_roles
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
 from analisi.category_levels import (LevelEditError, apply_level_plan, can_rename_levels, find_blocking_recipes,
                                      format_recipe_blockers)
@@ -1594,25 +1594,56 @@ class Project(WorksheetJoinSources, SheetCommands):
         max_width = min(MAX_COLUMNS, MAX_CELLS // max(1, len(dataset.raw)))
         return current, max(current, min(256, (max_width - fixed) // len(groups)))
 
-    def resize_worksheet_replicates(self, title, count, settings):
-        """Resize each series in a single undoable edit, preserving source and drawing identities."""
+    def worksheet_x_error(self, title):
+        """Return the editable X block, or None if the worksheet has no explicit X column."""
+        dataset = self.tables[title]
+        if dataset.source_link is not None or any(key.startswith("legacy_") for key in dataset.raw.attrs):
+            return None
+        roles = xy_source_roles(dataset.raw, dataset.table_format)
+        if roles and len(roles["x"]) in (1, 2):
+            x = roles["x"][0]
+            error = roles["x"][1] if len(roles["x"]) == 2 else None
+            if x in dataset.raw and (error is None or
+                                    (error in dataset.raw and
+                                     dataset.columns.index(error) == dataset.columns.index(x) + 1)):
+                return x, error
+        return None
+
+    def set_worksheet_xy_structure(self, title, count, settings, *, x_error=None):
+        """Update an XY worksheet's structure as one undoable edit."""
         dataset = self.editable(title)
-        limits = self.worksheet_replicate_limits(title)
-        if limits is None or type(count) is not int or not 2 <= count <= limits[1] or count == limits[0]:
-            raise ValueError(qt("qt.replicate_count_unavailable"))
         raw = dataset.raw
-        groups = xy_replicate_groups(raw, dataset.table_format)
-        removed = [name for _, members in groups for name in members[count:]]
+        removed = []
+        additions = {}
+        x_block = self.worksheet_x_error(title)
+        if count is not None:
+            limits = self.worksheet_replicate_limits(title)
+            if limits is None or type(count) is not int or not 2 <= count <= limits[1] or count == limits[0]:
+                raise ValueError(qt("qt.replicate_count_unavailable"))
+            for group, members in xy_replicate_groups(raw, dataset.table_format):
+                removed.extend(members[count:])
+                if count > len(members):
+                    additions[members[-1]] = [f"{group} [{index}]" for index in range(len(members) + 1, count + 1)]
+        if x_error is not None:
+            if x_block is None or bool(x_block[1]) == x_error:
+                raise ValueError(qt("qt.x_error_unavailable"))
+            x, existing = x_block
+            if x_error:
+                additions[x] = [f"{x} [Error]"]
+            else:
+                removed.append(existing)
         for name in removed:
             if raw[name].notna().any():
-                raise ValueError(qt("qt.replicate_not_empty", column=name))
+                key = "qt.x_error_not_empty" if x_block and name == x_block[1] else "qt.replicate_not_empty"
+                raise ValueError(qt(key, column=name))
         self._check_column_rename(title, removed)
 
-        additions = {members[-1]: [f"{group} [{index}]" for index in range(len(members) + 1, count + 1)]
-                     for group, members in groups}
         added = [name for names in additions.values() for name in names]
+        width = len(dataset.columns) + len(added) - len(removed)
+        if width > MAX_COLUMNS or width * len(raw) > MAX_CELLS:
+            raise ValueError(qt("qt.table_structure_limit"))
         if set(added) & set(dataset.columns):
-            raise ValueError(qt("qt.replicate_count_unavailable"))
+            raise ValueError(qt("qt.table_column_collision"))
         dropped = set(removed)
 
         def ordered(names):
@@ -1627,8 +1658,10 @@ class Project(WorksheetJoinSources, SheetCommands):
             keep_source_columns(frame)
             ids = column_ids_after_insertion(raw, *added)
             store_column_ids(frame, ids)
-            if roles := raw.attrs.get("worksheet_roles"):
-                frame.attrs["worksheet_roles"] = {"x": roles["x"], "y": [ordered(group) for group in roles["y"]]}
+            roles = (xy_source_roles(raw, dataset.table_format) if x_error is not None
+                     else raw.attrs.get("worksheet_roles"))
+            if roles is not None:
+                frame.attrs["worksheet_roles"] = {"x": ordered(roles["x"]), "y": [ordered(group) for group in roles["y"]]}
             indices = {name: column for column, name in enumerate(raw_order)}
             candidate.excluded = {(row, indices[raw.columns[column]]) for row, column in dataset.excluded
                                   if raw.columns[column] not in dropped}
@@ -1649,7 +1682,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             individual = {token: text for token, text in settings.individual.items() if token not in dropped_ids}
             candidate.worksheet_titles = replace(settings, columns=captions, individual=individual)
 
-        return self.edit(title, qt("qt.replicate_count"), change)
+        return self.edit(title, qt("qt.format_data_table"), change)
 
     def set_table_number_format(self, title, names, spec):
         """Display-only: no analysis is recalculated. One undoable step; False when nothing changed."""
@@ -1858,6 +1891,14 @@ class Project(WorksheetJoinSources, SheetCommands):
             frame.attrs = dict(raw.attrs)
             keep_source_columns(frame)
             store_column_ids(frame, column_ids_after_deletion(raw, names))
+            if roles := raw.attrs.get("worksheet_roles"):
+                x_members = [name for name in roles["x"] if name in frame]
+                if xy_source_roles(raw, dataset.table_format) and len(roles["x"]) == 2:
+                    if roles["x"][0] in names and roles["x"][1] in frame:
+                        raise ValueError(qt("qt.x_error_requires_x"))
+                    self._check_column_rename(title, [name for name in roles["x"] if name in names])
+                y_groups = [[name for name in group if name in frame] for group in roles["y"]]
+                frame.attrs["worksheet_roles"] = {"x": x_members, "y": [group for group in y_groups if group]}
             keep = [index for index in range(len(raw.columns)) if index not in sources]
             mapping = {old: new for new, old in enumerate(keep)}
             dataset.excluded = {(row, mapping[column]) for row, column in dataset.excluded if column in mapping}
@@ -1909,6 +1950,13 @@ class Project(WorksheetJoinSources, SheetCommands):
             frame.attrs = dict(raw.attrs)
             keep_source_columns(frame, rename)
             store_column_ids(frame, column_ids_after_rename(raw, rename))
+            if roles := xy_source_roles(raw, dataset.table_format):
+                is_x_pair = len(roles["x"]) == 2 and previous in roles["x"]
+                if is_x_pair:
+                    self._check_column_rename(title, rename)
+                if is_x_pair or "worksheet_roles" in raw.attrs:
+                    frame.attrs["worksheet_roles"] = {"x": [rename.get(key, key) for key in roles["x"]],
+                                                       "y": [[rename.get(key, key) for key in group] for group in roles["y"]]}
             if dataset.column_order is not None:
                 order = dataset.column_order
                 dataset.column_order = (*order[:column], name_, *order[column + 1:])

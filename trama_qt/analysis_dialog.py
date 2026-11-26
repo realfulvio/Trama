@@ -58,9 +58,10 @@ from analisi import rmst_dialog, rmst_workbench as rmst_form
 from analisi import tolerance_intervals as tolerance
 from analisi import weibull_aft as weibull
 from analisi import weibull_aft_workbench as weibull_form
+from analisi.grid_headings import xy_source_roles
 from analisi.i18n import active_language, tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
-from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
+from analisi.xy_series import X_DISTANCE, XY_METHOD, check_xy_options, retain_recipe_options
 from analisi import weighted_logrank
 from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_FIELDS, PAIRWISE_SCOPE, PAIRWISE_PAIR_LIST,
                                      pairwise_corrections, pairwise_scope)
@@ -538,6 +539,15 @@ class AnalysisDialog(QDialog):
                 saved = {**saved, interaction_binding.ERROR_BARS: interaction_binding.DEFAULT_ERROR_BARS}
         if self.method == raincloud_binding.METHOD:
             captions = raincloud_plot_catalog.CHOICE_KEYS
+        if self.method == XY_METHOD and not saved and self.graph_type_source is None:
+            roles = xy_source_roles(self.data, self.data.attrs.get("table_format", ""))
+            if roles and len(roles["x"]) == 2:
+                x, error = roles["x"]
+                numeric_names = set(self.data.select_dtypes(include="number").columns)
+                response_names = [name for group in roles["y"] for name in group if name in numeric_names]
+                if self.data.attrs.get("table_format", "").casefold() == "xy with precomputed error":
+                    response_names = [name for name in response_names if name.endswith(" [Mean]")]
+                saved = {"X": x, X_DISTANCE: error, "Y columns": response_names}
         if self.method == CUSTOM_EQUATION and not saved:
             saved = {"Equation": DEFAULT_EQUATION, "Parameters": [dict(record) for record in EXAMPLE_PARAMETERS]}
         elif self.method == global_fit.GLOBAL_CUSTOM_EQUATION and not saved:

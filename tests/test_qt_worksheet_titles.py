@@ -11,7 +11,8 @@ from matplotlib.figure import Figure
 
 from analisi.data import load_project
 from analisi.i18n import active_language, set_language
-from analisi.xy_series import xy_series
+from analisi.xy_series import X_DISTANCE, XY_METHOD, xy_series
+from trama_qt.analysis_dialog import AnalysisDialog
 from trama_qt.project import Run
 from trama_qt.window import MainWindow, Page
 from trama_qt.worksheet_titles import TableFormatDialog
@@ -210,6 +211,52 @@ class WorksheetTitlesTest(unittest.TestCase):
         self.assertEqual(self.dataset.columns, tuple(original.columns))
         self.assertEqual(self.dataset.excluded, {(1, 4)})
 
+    def test_horizontal_error_and_replicate_change_share_one_history_entry(self):
+        def toggle():
+            dialog = self.app.activeModalWidget()
+            self.assertFalse(dialog.x_error.isChecked())
+            dialog.x_error.setChecked(True)
+            dialog.replicate_count.setValue(3)
+            self.assertEqual(dialog.preview.horizontalHeaderItem(2).text(), "X\nError bar")
+            dialog.accept()
+
+        self.dataset.excluded = {(1, 4)}
+        QTimer.singleShot(0, toggle)
+        self.window.actions["format_data_table"].trigger()
+        self.assertEqual(self.dataset.raw.columns.tolist(), [
+            "Row title", "X", "X [Error]", "Control [1]", "Control [2]", "Control [3]",
+            "Treated [1]", "Treated [2]", "Treated [3]"])
+        self.assertEqual(self.dataset.excluded, {(1, 6)})
+        self.assertEqual(self.model.default_subcolumn_label(2), "Error bar")
+        with TemporaryDirectory() as folder:
+            filename = Path(folder) / "x-error.alab"
+            self.window.project.save(filename)
+            loaded = load_project(filename)[self.title]
+            self.assertEqual(loaded.raw.attrs["worksheet_roles"]["x"], ["X", "X [Error]"])
+            frame = loaded.frame()
+            fresh = AnalysisDialog(self.window, frame, current=(XY_METHOD, {}))
+            self.assertEqual(fresh.options()[X_DISTANCE], "X [Error]")
+            self.assertNotIn("X [Error]", fresh.options()["Y columns"])
+            old = AnalysisDialog(self.window, frame, current=(XY_METHOD, {"X": "X", "Y columns": ["Control [1]"]}))
+            self.assertFalse(old.options().get(X_DISTANCE))
+            fresh.deleteLater()
+            old.deleteLater()
+        project = self.window.project
+        self.window.undo()
+        self.assertEqual(len(self.dataset.columns), 6)
+        self.assertEqual(self.dataset.excluded, {(1, 4)})
+        self.window.undo(redo=True)
+        project.rename_column(self.title, 2, "Uncertainty")
+        self.assertEqual(project.worksheet_x_error(self.title), ("X", "Uncertainty"))
+        project.edit_cell(self.title, 0, 2, "0.5")
+        with self.assertRaisesRegex(ValueError, "contains data"):
+            project.set_worksheet_xy_structure(self.title, None, self.dataset.worksheet_titles, x_error=False)
+        self.assertEqual(self.dataset.raw["Uncertainty"].iat[0], 0.5)
+        project.edit_cell(self.title, 0, 2, "")
+        project.set_worksheet_xy_structure(self.title, None, self.dataset.worksheet_titles, x_error=False)
+        self.assertEqual(project.worksheet_x_error(self.title), ("X", None))
+        self.assertEqual(project.worksheet_replicate_limits(self.title)[0], 3)
+
     def test_reduce_keeps_data_and_references(self):
         self.change_replicates(3)
         project = self.window.project
@@ -221,5 +268,5 @@ class WorksheetTitlesTest(unittest.TestCase):
         project.edit_cell(self.title, 0, self.dataset.columns.index(name), "")
         project.runs.append(Run("Linear regression", self.title, {"X": "X", "Y": name}))
         with self.assertRaisesRegex(ValueError, "Control"):
-            project.resize_worksheet_replicates(self.title, 2, self.dataset.worksheet_titles)
+            project.set_worksheet_xy_structure(self.title, 2, self.dataset.worksheet_titles)
         self.assertIn(name, self.dataset.columns)

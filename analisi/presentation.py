@@ -22,6 +22,7 @@ from matplotlib.ticker import (AutoMinorLocator, FixedFormatter, FuncFormatter, 
                                MaxNLocator, NullLocator, StrMethodFormatter)
 from matplotlib.transforms import IdentityTransform
 
+from .xy_series import X_ERROR_ARTISTS
 from .field_error import FieldError
 from .axis_guides import (AXIS_BANDS, AXIS_GUIDES, apply_axis_guides_and_bands, clear_axis_guides_and_bands,
                           normalise_bands, normalise_guides, validate_axis_guides_domain)
@@ -387,13 +388,14 @@ def _series(axes):
     xy_lines = xy_artists(axes)
     xy_ids = {id(artist) for artist in xy_lines}
     errorbars = [artist for artist in axes.containers if isinstance(artist, ErrorbarContainer)]
+    xy_components = {line for artist in xy_lines for line in getattr(artist, X_ERROR_ARTISTS, ())}
     error_lines = {line for center, caps, _ in (artist.lines for artist in errorbars)
                    for line in (center, *caps) if line is not None}
     artists = [("line", artist) for artist in axes.lines
-               if id(artist) not in xy_ids
+               if id(artist) not in xy_ids and artist not in xy_components
                and not str(artist.get_gid() or "").startswith(("tramastat-shape-", "trama-axis-guide:",
                                                                 BREAK_GID_PREFIX, POINT_GID_PREFIX, INDICATOR_GID))]
-    artists.extend(("errorbar", artist) for artist in errorbars)
+    artists.extend(("errorbar", artist) for artist in errorbars if not getattr(artist, "_tramastat_xy_component", False))
     artists.extend(("scatter", artist) for artist in axes.collections if isinstance(artist, PathCollection))
     artists.extend(("bar", artist) for artist in axes.containers
                    if isinstance(artist, BarContainer) and artist.patches and id(artist) not in xy_ids)
@@ -742,6 +744,14 @@ def _apply_line(artist, defaults, options):
     )
 
 
+def _apply_xy_errors(artist, color, visible):
+    for component in getattr(artist, X_ERROR_ARTISTS, ()):
+        component.set_color(color)
+        if isinstance(component, Line2D):
+            component.set_markeredgecolor(color)
+        component.set_visible(visible)
+
+
 def _apply_series(series, defaults, options):
     artist = series.artist
     if series.kind == "xy" and isinstance(artist, BarContainer):
@@ -751,6 +761,8 @@ def _apply_series(series, defaults, options):
             patch.set_facecolor(options.get("color", color))
             patch.set_visible(shown and options.get("visible", True))
         artist.set_label(options.get("label", label))
+        if colors:
+            _apply_xy_errors(artist, options.get("color", colors[0]), options.get("visible", True))
         return
     if series.kind == "xy":
         has_line = defaults[1] not in ("None", "none", None, "")
@@ -763,6 +775,7 @@ def _apply_series(series, defaults, options):
         }
         _apply_line(artist, defaults[:8], xy_options)
         artist.set_visible(defaults[8] and (not step or options.get("visible", True)))
+        _apply_xy_errors(artist, artist.get_color(), artist.get_visible())
         return
     if series.kind == "line":
         _apply_line(artist, defaults, options)

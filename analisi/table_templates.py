@@ -3,6 +3,7 @@ from dataclasses import dataclass, replace
 
 import pandas as pd
 
+from .grid_headings import xy_source_roles
 from .i18n import tr
 
 
@@ -121,7 +122,7 @@ EXAMPLES = {
 }
 
 
-def _blank_xy(template, datasets, replicates, row_titles):
+def _blank_xy(template, datasets, replicates, row_titles, *, x_error=False):
     if template.kind == "XY with replicates":
         suffixes = tuple(f" [{index}]" for index in range(1, replicates + 1))
     elif template.kind == "XY with precomputed error":
@@ -129,7 +130,8 @@ def _blank_xy(template, datasets, replicates, row_titles):
     else:
         suffixes = ("",)
     groups = ("Control", "Treatment", *(f"Series {index}" for index in range(3, datasets + 1)))
-    values = ("X", *(f"{group}{suffix}" for group in groups[:datasets] for suffix in suffixes))
+    x_columns = ("X", "X [Error]") if x_error else ("X",)
+    values = (*x_columns, *(f"{group}{suffix}" for group in groups[:datasets] for suffix in suffixes))
     return replace(template, columns=(("Row title",) if row_titles else ()) + values,
                    rows=((("",) if row_titles else ()) + (0,) * len(values),))
 
@@ -143,4 +145,7 @@ def table_frame(template, sample):
             for name, value in zip(template.columns, template.rows[0], strict=True)
         })
     frame.attrs["table_format"] = template.kind
+    roles = xy_source_roles(frame, template.kind)
+    if roles and len(roles["x"]) == 2:
+        frame.attrs["worksheet_roles"] = roles
     return frame

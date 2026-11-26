@@ -278,6 +278,8 @@ class WorksheetModel(TextStyleRoles, QAbstractTableModel):
     def default_subcolumn_label(self, column):
         role = self.roles[column] if self.roles else ""
         first, end, band, _ = self.bands[column]
+        if band == "X" and role == "Error":
+            return qt("qt.x_error_heading")
         if end - first > 1 and band.startswith("Group ") and role.startswith("Y") and role[1:].isdigit():
             return f"{band.removeprefix('Group ')}:{role}"
         return role

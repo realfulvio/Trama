@@ -417,7 +417,7 @@ METHODS = {
         "Error cap size": 4.0, "Error width": TEXT, "Error color": TEXT,
         "Error line style": ("solid", "dashed", "dotted", "dash-dot"),
     },
-    XY_METHOD: {"X": None, "Y columns": MULTIPLE},
+    XY_METHOD: {"X": None, "Y columns": MULTIPLE, "X error distance": OPTIONAL},
     "Histogram": {"Response": None, "Bins": 10},
     FREQUENCY: FREQUENCY_OPTIONS,
     BOX_VIOLIN: BOX_VIOLIN_OPTIONS,

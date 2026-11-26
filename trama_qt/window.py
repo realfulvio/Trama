@@ -1862,8 +1862,9 @@ class MainWindow(QMainWindow):
         name = model.frame.columns[selected_column] if 0 <= selected_column < len(model.frame.columns) else None
         dialog = TableFormatDialog(self, model, tab=tab, column=column,
                                    replicate_limits=self.project.worksheet_replicate_limits(title),
-                                   resize_replicates=lambda count, settings:
-                                       self.project.resize_worksheet_replicates(title, count, settings))
+                                   x_block=self.project.worksheet_x_error(title),
+                                   update_structure=lambda count, error, settings:
+                                       self.project.set_worksheet_xy_structure(title, count, settings, x_error=error))
         try:
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
@@ -3130,7 +3131,10 @@ class MainWindow(QMainWindow):
             self._ask(None, pd.DataFrame(), current=("Simulate data", {}), only="Simulate data")
 
     def new_graph(self):
-        self.analyze(only=GRAPHING)
+        from analisi.xy_series import XY_METHOD
+
+        x_block = self.project.worksheet_x_error(self.selected[1]) if self.selected and self.selected[0] == "data" else None
+        self.analyze(method=XY_METHOD if x_block and x_block[1] else None, only=GRAPHING)
 
     def _ask(self, title, frame, *, current=None, only=None, index=None, error=None, error_field=None, source=_KEEP,
              initial_field=None, graph_type=False):

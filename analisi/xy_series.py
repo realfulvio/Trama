@@ -34,6 +34,7 @@ from .worksheet_row_identity import ROW_SPANS
 from .point_style import attach_points
 from .processing import FieldError
 from .reporting import Result, _plot
+from .xy_errors import X_DISTANCE
 
 XY_METHOD = "XY series"
 STEP = "Step"
@@ -56,6 +57,7 @@ RECIPE_KEYS = (
 )
 # Share of the smallest X step filled by one cluster of bars when the width is automatic.
 AUTO_CLUSTER = 0.8
+X_ERROR_ARTISTS = "_tramastat_xy_x_errors"
 BAR_GID = "xybar:"
 _GID = "xy:1:"
 
@@ -265,6 +267,24 @@ def bar_layout(frame, options, left_scale="linear"):
     return layout
 
 
+def _x_distances(frame, name, x_values):
+    column = frame[name]
+    if column.dtype == object or isinstance(column.dtype, pd.StringDtype):
+        column = column.replace(r"^\s*$", np.nan, regex=True)
+    parsed = pd.to_numeric(column, errors="coerce")
+    if np.iscomplexobj(parsed.to_numpy()):
+        raise FieldError(X_DISTANCE, "X error distances must be real numbers.")
+    distances = parsed.to_numpy(dtype=float)
+    invalid = column.notna().to_numpy() & (~np.isfinite(distances) | (distances < 0))
+    with np.errstate(over="ignore", invalid="ignore"):
+        invalid |= (np.isfinite(x_values) & np.isfinite(distances)
+                    & (~np.isfinite(x_values - distances) | ~np.isfinite(x_values + distances)))
+    if invalid.any():
+        row = int(np.flatnonzero(invalid)[0]) + 1
+        raise FieldError(X_DISTANCE, f"Enter a finite, nonnegative X error distance with finite endpoints (row {row}).")
+    return distances
+
+
 def check_xy_options(frame, options, left_scale="linear"):
     """Raise FieldError when a dialog choice blocks the graph. Do not mutate options."""
     x_name = options.get("X")
@@ -283,6 +303,14 @@ def check_xy_options(frame, options, left_scale="linear"):
     info = _sides_and_scales(options, columns, left_scale)
     bar_layout(frame, options, left_scale)
     x_values = _numbers(frame, x_name)
+    error_name = options.get(X_DISTANCE)
+    distances = None
+    if not _blank(error_name):
+        if not isinstance(error_name, str) or error_name not in frame.columns:
+            raise FieldError(X_DISTANCE, "Choose an existing X error column.")
+        if error_name == x_name or error_name in columns:
+            raise FieldError(X_DISTANCE, "Choose an X error column distinct from X and the Y series.")
+        distances = _x_distances(frame, error_name, x_values)
     plotted = False
     for column, (_style, side, log) in info.items():
         y_values = _numbers(frame, column)
@@ -301,6 +329,7 @@ def check_xy_options(frame, options, left_scale="linear"):
             raise FieldError("Y minimum", "The left log axis has no positive Y.")
     if not plotted:
         raise ValueError("XY series needs at least one plotted point.")
+    return distances
 
 
 def _source_label(label):
@@ -314,20 +343,24 @@ def _source_labels(index):
     return [_source_label(label) for label in index] if index.dtype == object else index.tolist()
 
 
-def _sheet(parts):
+def _sheet(parts, *, has_x_errors=False):
     """The XY points sheet from per-series parts, with the dtypes that a list of row dicts gave.
 
     Each part is (source labels, X, series name, Y). The label and series columns are built from
     Python lists so that pandas infers their dtype exactly as it did for one dict per point.
     """
     columns = [SOURCE_ROW, "X", Y_COLUMN, "Y"]
+    if has_x_errors:
+        columns.append(X_DISTANCE)
     if not parts:
         return pd.DataFrame([], columns=columns)
     labels = [label for part in parts for label in part[0]]
     names = [part[2] for part in parts for _ in range(len(part[1]))]
-    return pd.DataFrame({SOURCE_ROW: pd.Series(labels), "X": np.concatenate([part[1] for part in parts]),
-                         Y_COLUMN: pd.Series(names), "Y": np.concatenate([part[3] for part in parts])},
-                        columns=columns)
+    data = {SOURCE_ROW: pd.Series(labels), "X": np.concatenate([part[1] for part in parts]),
+            Y_COLUMN: pd.Series(names), "Y": np.concatenate([part[3] for part in parts])}
+    if has_x_errors:
+        data[X_DISTANCE] = np.concatenate([part[4] for part in parts])
+    return pd.DataFrame(data, columns=columns)
 
 
 def _legend_label(column):
@@ -346,7 +379,7 @@ def _source_ids(frame):
 
 def xy_series(frame, options, left_scale="linear"):
     """Draw one artist per selected Y column and list every plotted coordinate."""
-    check_xy_options(frame, options, left_scale)
+    x_distances = check_xy_options(frame, options, left_scale)
     columns = list(options["Y columns"])
     x_name = options["X"]
     info = _sides_and_scales(options, columns, left_scale)
@@ -408,14 +441,24 @@ def xy_series(frame, options, left_scale="linear"):
             # One vertex per worksheet row, so a single point can be formatted and found again.
             attach_points(artist, np.arange(1, len(frame) + 1), x_values, y_values, (x_name, column), len(frame),
                           drawn=mask, row_spans=frame.attrs.get(ROW_SPANS), data=frame)
+        if x_distances is not None:
+            distances = x_distances[mask]
+            present = distances > 0
+            if present.any():
+                shown_x = centers if style == BARS else x_values[mask]
+                errors = target.errorbar(shown_x[present], y_values[mask][present],
+                                         xerr=distances[present], fmt="none", ecolor=colors[column],
+                                         capsize=3, label="_nolegend_", zorder=1.9)
+                errors._tramastat_xy_component = True
+                setattr(artist, X_ERROR_ARTISTS, (*errors.lines[1], *errors.lines[2]))
         if mask.any() and label:
             handles.append(artist)
         # One sheet row per plotted point, built column-wise (0.111.x: a Python dict per point took
         # about one second per million points).
         positions = np.flatnonzero(mask)
         if len(positions):
-            rows.append((_source_labels(frame.index[positions]), np.asarray(x_values, dtype=float)[positions],
-                         column, np.asarray(y_values, dtype=float)[positions]))
+            part = (_source_labels(frame.index[positions]), x_values[positions], column, y_values[positions])
+            rows.append(part if x_distances is None else (*part, x_distances[positions]))
     axes._tramastat_xy_order = order
     axes._tramastat_numeric_axes = ("x", "y")
     if handles:
@@ -427,5 +470,5 @@ def xy_series(frame, options, left_scale="linear"):
         axes.set_ylim(*left_limits)
     if right is not None and right_limits:
         right.set_ylim(*right_limits)
-    sheet = _sheet(rows)
+    sheet = _sheet(rows, has_x_errors=x_distances is not None)
     return Result({SHEET: sheet}, figure)

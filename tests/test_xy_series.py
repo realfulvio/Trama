@@ -5,11 +5,11 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from analisi.presentation import validated_style
+from analisi.presentation import apply_style, graph_series, validated_style
 from analisi.processing import FieldError
 from analisi.workbench import analyse
 from analisi.xy_series import (
-    SHEET, XY_METHOD, assign_colors, check_xy_options, prune_options, xy_series,
+    SHEET, X_DISTANCE, X_ERROR_ARTISTS, XY_METHOD, assign_colors, check_xy_options, prune_options, xy_series,
 )
 
 
@@ -34,6 +34,40 @@ def x1_options():
 
 
 class XYSeriesTests(unittest.TestCase):
+    def test_horizontal_errors_keep_points_and_series_identity(self):
+        frame = x1_frame()
+        frame["Uncertainty"] = [0.2, pd.NA, 0.5, 0, 0.4]
+        options = {**x1_options(), X_DISTANCE: "Uncertainty"}
+        result = xy_series(frame, options)
+        left, right = result.figure.axes
+        self.assertEqual([series.key for series in graph_series(left)], ["xy:1:Temperatura", "xy:1:Pressione"])
+        self.assertEqual(len(result.tables[SHEET]), 8)
+        self.assertEqual(result.tables[SHEET][X_DISTANCE].isna().sum(), 2)
+        np.testing.assert_allclose(left.containers[0].lines[2][0].get_segments(),
+                                   [[(-0.2, 18), (0.2, 18)], [(3.6, 21), (4.4, 21)]])
+        np.testing.assert_allclose(right.containers[0].lines[2][0].get_segments()[1], [(1.5, 1050), (2.5, 1050)])
+        components = getattr(left.lines[0], X_ERROR_ARTISTS)
+        apply_style(result.figure, {"series": {"xy:1:Temperatura": {"color": "#118833"}}})
+        np.testing.assert_allclose(components[-1].get_colors()[0], [17 / 255, 136 / 255, 51 / 255, 1])
+        apply_style(result.figure, {})
+        np.testing.assert_allclose(components[-1].get_colors()[0], [31 / 255, 119 / 255, 180 / 255, 1])
+
+    def test_rejects_bad_horizontal_error_values_and_columns(self):
+        frame = x1_frame()
+        options = {**x1_options(), X_DISTANCE: "Uncertainty"}
+        for invalid in (-0.1, "bad", np.inf):
+            with self.subTest(invalid=invalid):
+                frame["Uncertainty"] = [0.1, invalid, np.nan, 0, 1.]
+                with self.assertRaisesRegex(FieldError, "row 2"):
+                    xy_series(frame, options)
+        with self.assertRaisesRegex(FieldError, "distinct"):
+            xy_series(frame, {**options, X_DISTANCE: "Temperatura"})
+        frame["Uncertainty"] = [0.1, 0.2, np.nan, 0, 1.]
+        frame["X"] = frame["X"].astype(float)
+        frame.loc[0, ["X", "Uncertainty"]] = 1e308
+        with self.assertRaisesRegex(FieldError, "row 1"):
+            xy_series(frame, options)
+
     def test_x1_dual_axis_breaks_the_temperature_line(self):
         frame = x1_frame()
         result = xy_series(frame, x1_options())

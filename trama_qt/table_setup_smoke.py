@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import numpy as np
+
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QDialogButtonBox, QPushButton
@@ -9,7 +11,10 @@ from PySide6.QtWidgets import QDialogButtonBox, QPushButton
 from analisi.data import load_project
 from analisi.i18n import set_language, tr
 from analisi.table_templates import TEMPLATES, XY_FORMATS
+from analisi.xy_series import SHEET, X_DISTANCE, XY_METHOD
 from . import theme
+from .analysis_dialog import AnalysisDialog
+from .strings import qt
 from .smoke import LANGUAGES, Smoke
 from .table_setup import TableSetup
 from .window import MainWindow
@@ -64,6 +69,9 @@ def exercise(smoke, window):
     assert not setup.replicates.isHidden()
     assert len(setup.selection()[0].columns) == 14
     smoke.shot(window, "startup-replicates")
+    setup.x_error.setChecked(True)
+    assert setup.selection()[0].columns[:3] == ("Row title", "X", "X [Error]")
+    setup.x_error.setChecked(False)
 
     setup.sample.setChecked(True)
     setup.examples.setCurrentIndex(2)
@@ -87,6 +95,7 @@ def exercise(smoke, window):
     card.click()
     assert window.project.path == path and window.selected == ("data", title)
     exercise_existing_replicates(smoke, window)
+    exercise_horizontal_errors(smoke, window)
 
 
 def exercise_existing_replicates(smoke, window):
@@ -142,3 +151,68 @@ def exercise_existing_replicates(smoke, window):
     assert dataset.columns == existing
     window.undo(redo=True)
     assert len(dataset.columns) == len(existing) + 4
+
+
+
+def exercise_horizontal_errors(smoke, window):
+    title = window.selected[1]
+    dataset = window.project.tables[title]
+    failures = []
+
+    def add_error_column():
+        dialog = smoke.app.activeModalWidget()
+        try:
+            assert isinstance(dialog, TableFormatDialog)
+            dialog.x_error.setFocus()
+            QTest.keyClick(dialog.x_error, Qt.Key.Key_Space)
+            assert dialog.x_error.isChecked()
+            assert dialog.preview.horizontalHeaderItem(1).text() == f"X\n{qt('qt.x_error_heading')}"
+            smoke.shot(dialog, "add-x-error")
+            dialog.accept()
+        except Exception as error:
+            failures.append(error)
+            if dialog is not None:
+                dialog.reject()
+
+    QTimer.singleShot(120, add_error_column)
+    window.actions["format_data_table"].trigger()
+    assert not failures, failures
+    assert dataset.columns[:2] == ("X", "X [Error]")
+    assert dataset.raw["X [Error]"].isna().all()
+    window.project.edit_cell(title, 2, 1, "2.5")
+    window.project.edit_cell(title, 3, 1, "13")
+    window.reshow()
+    smoke.shot(window, "x-error-worksheet")
+
+    def confirm_graph():
+        dialog = smoke.app.activeModalWidget()
+        try:
+            assert isinstance(dialog, AnalysisDialog)
+            assert dialog.method == XY_METHOD
+            assert dialog.options()[X_DISTANCE] == "X [Error]"
+            assert "X [Error]" not in dialog.options()["Y columns"]
+            dialog.accept()
+        except Exception as error:
+            failures.append(error)
+            if dialog is not None:
+                dialog.reject()
+
+    QTimer.singleShot(120, confirm_graph)
+    window.new_graph()
+    assert not failures, failures
+    smoke.wait()
+    index = len(window.project.runs) - 1
+    run = window.project.runs[index]
+    axes = run.result.figure.axes[0]
+    assert len(axes.containers) == 4  # One bar collection per populated replicate.
+    first = axes.containers[0].lines[2][0].get_segments()
+    np.testing.assert_allclose(first[0], [[7.5, 8.2], [12.5, 8.2]])
+    np.testing.assert_allclose(first[1], [[87, 9.3], [113, 9.3]])
+    assert run.result.tables[SHEET][X_DISTANCE].isna().sum() == 8
+    window.show_sheet("graph", index)
+    smoke.shot(window, "x-error-graph")
+    path = Path(smoke.folder) / f"{smoke.language}-x-error.alab"
+    window.project.save(path)
+    restored = load_project(path)[title]
+    assert restored.raw.attrs["worksheet_roles"]["x"] == ["X", "X [Error]"]
+    assert restored.analyses[-1][1][X_DISTANCE] == "X [Error]"

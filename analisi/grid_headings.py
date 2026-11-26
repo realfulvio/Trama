@@ -14,6 +14,24 @@ def column_label(index):
     return label
 
 
+NATIVE_XY_FORMATS = frozenset({"xy", "xy with replicates", "xy with precomputed error"})
+
+
+def xy_source_roles(frame, table_format):
+    """The X block and Y groups of a native XY worksheet, including implicit headings."""
+    if table_format.casefold() not in NATIVE_XY_FORMATS:
+        return None
+    if roles := frame.attrs.get("worksheet_roles"):
+        return roles
+    names = list(frame.columns)
+    bands, _ = heading_bands(frame, names, len(names), table_format)
+    return {
+        "x": [name for name, (_, _, band, _) in zip(names, bands, strict=True) if band == "X"],
+        "y": [names[first:stop] for column, (first, stop, band, _) in enumerate(bands)
+              if column == first and band.startswith("Group ")],
+    }
+
+
 def xy_replicate_groups(frame, table_format):
     """Return uniform, sequential replicate groups that can be resized in place."""
     if table_format.casefold() != "xy with replicates" or "legacy_columns" in frame.attrs:
@@ -110,8 +128,10 @@ def heading_bands(frame, names, source_columns, table_format, *, calculated=None
             if stop - start > 1:
                 if match:
                     title = match[1] + (match[3] or "")
-                for subcolumn in subcolumns[start:stop]:
+                for column, subcolumn in enumerate(subcolumns[start:stop], start):
                     label = subcolumn[2] if subcolumn else role
+                    if is_x and stored is not None and kind in NATIVE_XY_FORMATS and len(stored["x"]) == 2:
+                        label = "Error" if names[column] == stored["x"][1] else "X"
                     if xy and not is_x and label.isdigit():
                         label = f"Y{label}"
                     roles.append(label)
