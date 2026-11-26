@@ -1129,6 +1129,7 @@ LAYOUT_PANEL_BACKGROUND_VERSION = 14
 XY_SERIES_ORDER_VERSION = 15
 GROUPED_SERIES_STYLE_VERSION = 16
 GROUPED_SERIES_PLACEMENT_VERSION = 17
+GROUPED_INTERVAL_DIRECTION_VERSION = 18
 XY_SERIES_ORDER = "xy_series_order"
 
 
@@ -1137,7 +1138,7 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
     so a detached copy of a project can be serialised away from the GUI thread (Qt recovery copies)."""
     from dataclasses import asdict
 
-    from .category_graphs import GROUPED_GRAPH, has_series_style_overrides, series_placements
+    from .category_graphs import GROUPED_GRAPH, INTERVAL_DIRECTION, UPPER_INTERVAL, has_series_style_overrides, series_placements
     from .presentation import GROUPED_PREFIX
 
     if len(tables) > 256:
@@ -1197,6 +1198,9 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
     if any(method == GROUPED_GRAPH and series_placements(options)
            for table in tables.values() for method, options in table.analyses):
         version = GROUPED_SERIES_PLACEMENT_VERSION
+    if any(method == GROUPED_GRAPH and options.get(INTERVAL_DIRECTION) == UPPER_INTERVAL
+           for table in tables.values() for method, options in table.analyses):
+        version = GROUPED_INTERVAL_DIRECTION_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
@@ -1337,7 +1341,7 @@ def load_workspace(path, *, include_info=False):
                 LAYOUT_PLACEHOLDER_VERSION, LAYOUT_ARRANGEMENT_VERSION, LAYOUT_SCALE_VERSION,
                 LAYOUT_APPEARANCE_VERSION, LAYOUT_CROP_VERSION, LAYOUT_EMPTY_SIZE_VERSION, LAYOUT_PICTURE_VERSION,
                 LAYOUT_GRAPH_LINK_VERSION, LAYOUT_PANEL_BACKGROUND_VERSION, XY_SERIES_ORDER_VERSION,
-                GROUPED_SERIES_STYLE_VERSION, GROUPED_SERIES_PLACEMENT_VERSION)
+                GROUPED_SERIES_STYLE_VERSION, GROUPED_SERIES_PLACEMENT_VERSION, GROUPED_INTERVAL_DIRECTION_VERSION)
     if version not in versions or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])

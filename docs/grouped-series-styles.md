@@ -18,6 +18,8 @@ Nei grafici raggruppati affiancati e sovrapposti, **Disposizione** imposta la po
 
 Le pile accettano barre, con somme positive e negative separate. Una stima mancante lascia vuoto il segmento senza spostare le altre serie. Gli intervalli delle singole serie si spostano con la base del segmento. I punti delle repliche restano visibili fuori dalle pile. Il foglio numerico conserva i valori e gli intervalli di origine. Anteprima, Applica e Annulla valgono anche per la disposizione. I progetti con disposizione personalizzata richiedono ALAB 17.
 
+Nei parametri del grafico, **Direzione dell’intervallo → Solo superiore** mostra la parte dell’intervallo sopra la stima. Il foglio dei risultati conserva entrambi i limiti. Questa impostazione richiede ALAB 18. Nei progetti ZIP compatibili, Trama recupera dal foglio di origine le pile affiancate con medie e SEM superiore, oltre ai limiti e alle etichette dell’asse supportati. Il grafico usa la formattazione di Trama.
+
 ## Regole di compatibilità e persistenza
 
 - Supporta sia **Affiancati** (*Interleaved*) sia **Sovrapposti** (*Superimposed*), sia con **Repliche grezze** (*Raw replicates*) sia con **Riepiloghi precalcolati** (*Precomputed summaries*).
@@ -39,3 +41,5 @@ In **Grouped graph** plots, you can assign a dedicated drawing mode to individua
 Esempio riapribile: [Grafico-raggruppato-stili-serie.alab](examples/Grafico-raggruppato-stili-serie.alab)
 
 With an interleaved or superimposed grouped graph, **Placement** controls the relation to the previous series. You can inherit the graph setting, use a separate slot, add extra spacing, overlay an independent bar, or stack the series. Stacks use bars and separate positive and negative sums. Individual intervals are translated with their bar segments. A missing value leaves its segment empty. Placement edits preserve the numeric table and are saved as ALAB 17.
+
+In the graph parameters, **Interval direction → Upper only** draws the portion above the estimate and keeps both limits in the results. This setting requires ALAB 18. For supported ZIP projects, Trama restores side-by-side stacks with means and upper SEM from the original worksheet, together with supported axis settings. The graph uses Trama’s formatting.

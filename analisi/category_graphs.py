@@ -25,6 +25,8 @@ SERIES_STYLE = "Series style"
 SERIES_DRAW_STYLES = (AS_GRAPH, BARS, SYMBOLS, LINE_SYMBOLS)
 GROUPED_SERIES_COMPATIBLE_STYLES = frozenset({BARS, SYMBOLS})
 INTERVALS = ("None", "SD", "SEM", "Confidence interval", "Range", "Interquartile range")
+INTERVAL_DIRECTION = "Interval direction"
+BOTH_INTERVALS, UPPER_INTERVAL = INTERVAL_DIRECTIONS = ("Both sides", "Upper only")
 PLACEMENTS = ("Spread exact ties", "Centered", "Jitter")
 GEOMETRIC_CENTER = "Geometric mean"
 _CENTERS = ("Mean", "Median")
@@ -44,6 +46,7 @@ ENTERED_SEM, DERIVED_SEM = SEM_SOURCES = ("Entered SEM, else SD / âˆšN", "SD / â
 SUMMARY_STYLES = (BARS, SYMBOLS)
 GROUPED_OPTIONS = {"Input": INPUTS, "Graph style": GROUPED_STYLES, "Placement of groups": GROUP_PLACEMENTS,
                    "Center": _CENTERS, "Interval": INTERVALS,
+                   INTERVAL_DIRECTION: INTERVAL_DIRECTIONS,
                    "Confidence level (%)": OPTIONS["Confidence level (%)"],
                    "Summary error": SUMMARY_ERRORS, "SEM source": SEM_SOURCES,
                    "Overlay observations": False, "Point placement": PLACEMENTS}
@@ -550,7 +553,7 @@ def grouped_style_after_parameter_change(style, options, frame=None):
 
 
 def _draw_series(axes, series, summaries, style, width, show_points, placement, rng, *,
-                 grouped_track=False, bottom=None):
+                 grouped_track=False, bottom=None, upper_only=False):
     x, color = series.x, series.color
     center, lower, upper = np.asarray(summaries).T
     observed = np.isfinite(center)
@@ -564,6 +567,7 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
             show_points = False
             with np.errstate(over="ignore", invalid="ignore"):
                 lower, upper = lower + bottom, upper + bottom
+                center = center + bottom
             if np.any(interval & ~(np.isfinite(lower) & np.isfinite(upper))):
                 raise FieldError("Variables", "The stacked totals exceed the numeric range for this graph.")
             for patch, value in zip(primary.patches, center[observed], strict=True):
@@ -584,9 +588,13 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
     if style not in {RANGE, PAIRED} and interval.any():
         # Intervals may be asymmetric, and a mean need not lie inside the IQR.
         bottom, top = lower[interval], upper[interval]
+        if upper_only:
+            bottom = np.clip(center[interval], bottom, top)
         middle = bottom + (top - bottom) / 2
         err = axes.errorbar(x[interval], middle, yerr=[middle - bottom, top - middle], fmt="none",
                             ecolor=color, capsize=4, elinewidth=1.3, zorder=3)
+        if upper_only:
+            err.lines[1][0].set_data([], [])
     if show_points:
         points = [(location + _spread(values, placement, width, rng), values)
                   for location, values in zip(x, series.values, strict=True) if len(values)]
@@ -750,6 +758,7 @@ def category_graph(frame, options, *, grouped=False):
             if not 0 < level < 100:
                 raise FieldError("Confidence level (%)", "Choose a confidence level strictly between 0 and 100.")
     show_points = source == RAW and not stacked and (style in {POINTS, PAIRED} or options.get("Overlay observations", False))
+    upper_only = grouped and _choice(options, INTERVAL_DIRECTION, INTERVAL_DIRECTIONS) == UPPER_INTERVAL
     placement = "Centered" if style == PAIRED else _choice(options, "Point placement", PLACEMENTS) if show_points else "Centered"
     graph = GROUPED_GRAPH if grouped else COLUMN_GRAPH
     figure, axes = _plot(graph, "", PERCENT_LABEL if layout == PERCENT_STACKED else "Value")
@@ -824,7 +833,7 @@ def category_graph(frame, options, *, grouped=False):
         for index, (plot, summary, count) in enumerate(zip(plots, summaries, counts, strict=True)):
             primary = _draw_series(
                 axes, plot, summary, effective_styles[plot.name], width, show_points, placement, rng,
-                grouped_track=series_supports_per_series, bottom=bottoms_by_index.get(index),
+                grouped_track=series_supports_per_series, bottom=bottoms_by_index.get(index), upper_only=upper_only,
             )
             if primary is not None:
                 legend_handles.append(primary)

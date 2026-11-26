@@ -87,6 +87,40 @@ class QtShellTests(unittest.TestCase):
         self.app.processEvents()
         self.assertIsNone(self.window.job, "calculation still running")
 
+    def test_grouped_zip_import_keeps_the_graph_link_and_editable_interval(self):
+        from analisi.category_graphs import BOTH_INTERVALS, INTERVAL_DIRECTION, SERIES_PLACEMENT, STACK_PREVIOUS, UPPER_INTERVAL
+        from test_legacy_zip_grouped import write_fixture
+        from trama_qt.analysis_dialog import AnalysisDialog
+
+        source = self.folder / "grouped.pzt"
+        write_fixture(source)
+        self.window.open_path(source)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        run, = self.window.project.runs
+        self.assertEqual(run.options[SERIES_PLACEMENT], {"B": STACK_PREVIOUS, "D": STACK_PREVIOUS})
+        frame = self.window.project.input_frame(run)
+        dialog = AnalysisDialog(self.window, frame, current=(run.method, run.options), only=run.method)
+        self.addCleanup(dialog.deleteLater)
+        self.assertTrue(dialog.focus_field(INTERVAL_DIRECTION))
+        control = dialog.controls[INTERVAL_DIRECTION][1]
+        self.assertEqual(control.currentData(), UPPER_INTERVAL)
+        self.assertNotIn(INTERVAL_DIRECTION, dialog.hidden)
+        control.setCurrentIndex(control.findData(BOTH_INTERVALS))
+        self.assertEqual(dialog.options()[INTERVAL_DIRECTION], BOTH_INTERVALS)
+        interval = dialog.controls["Interval"][1]
+        interval.setCurrentIndex(interval.findData("None"))
+        self.assertIn(INTERVAL_DIRECTION, dialog.hidden)
+        dialog.reject()
+        self.assertEqual(run.options[INTERVAL_DIRECTION], UPPER_INTERVAL)
+        self.window.open_sheet(("data", run.title))
+        self.assertTrue(self.window.edit_cell(run.title, 0, 2, "9"))
+        self.wait()
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        handles = run.result.figure.axes[0]._tramastat_grouped["handles"]
+        self.assertEqual(handles["B"].patches[0].get_y(), 5.)
+
     def test_curve_pipeline_shows_only_applicable_fields_and_saves_canonical_values(self):
         from PySide6.QtWidgets import QLabel
         from analisi import curve_pipeline as cp

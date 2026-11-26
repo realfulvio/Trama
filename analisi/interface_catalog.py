@@ -489,6 +489,9 @@ Colors|Colori
 Categories|Categorie
 Placement of groups|Disposizione dei gruppi
 Summary error|Errore dei valori riassuntivi
+Interval direction|Direzione dell’intervallo
+Both sides|Entrambi i lati
+Upper only|Solo superiore
 SEM source|Origine dell’errore standard
 Bins|Classi
 Distribution|Distribuzione

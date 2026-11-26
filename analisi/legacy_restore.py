@@ -1012,6 +1012,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells, *, focused=No
     """Add non-executable snapshots and supported native analysis recipes."""
     from .legacy_layout_edit import LEGACY_PANEL_DATA
     from .legacy_zip_column import ZIP_COLUMN, saved_aligned_column, saved_geometric_column
+    from .legacy_zip_grouped import saved_grouped_bars
     from .legacy_zip_layout import ZIP_LAYOUT, saved_positioned_layout
     from .legacy_zip_xy import ZIP_SPARSE_XY, saved_zip_xy
 
@@ -1296,6 +1297,14 @@ def restore_sheets(archive, names, sheets, sources, tables, cells, *, focused=No
                             "Interval": "Confidence interval", "Confidence level (%)": 95.,
                             LEGACY_TITLE: label[:160],
                         }))
+                        continue
+                grouped = saved_grouped_bars(archive, graph, uid, sources)
+                if grouped is not None:
+                    source, options, style = grouped
+                    recipes = source.attrs.setdefault("legacy_recipes", [])
+                    if len(recipes) < 256:
+                        source.attrs.setdefault("legacy_graph_styles", {})[len(recipes)] = style
+                        recipes.append((GROUPED_GRAPH, {**options, LEGACY_TITLE: label[:160]}))
                         continue
                 scatter = saved_scatter(graph, view_sources, MAX_CELLS - cells)
                 if scatter is not None:

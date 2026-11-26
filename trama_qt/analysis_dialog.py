@@ -62,7 +62,8 @@ from analisi.grid_headings import xy_source_roles
 from analisi.i18n import active_language, tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
 from analisi.category_graphs import (BARS as GROUPED_BARS, GROUPED_GRAPH, GROUPED_SERIES_COMPATIBLE_STYLES,
-                                     SERIES_PLACEMENT, SERIES_STYLE, STACKED_PLACEMENTS, has_series_style_overrides)
+                                     INTERVAL_DIRECTION, RANGE as GROUPED_RANGE, SERIES_PLACEMENT, SERIES_STYLE,
+                                     STACKED_PLACEMENTS, SUMMARIES, has_series_style_overrides)
 from analisi.grouped_series_catalog import translate_grouped_error
 from analisi.xy_series import X_DISTANCE, XY_METHOD, check_xy_options, retain_recipe_options
 from analisi import weighted_logrank
@@ -821,6 +822,8 @@ class AnalysisDialog(QDialog):
             sync_gap()
         if survival_method:
             survival_pairs.attach(self)
+        if self.method == GROUPED_GRAPH:
+            self._configure_grouped_interval_direction()
         if self.method == SUMMARY_TWOWAY:
             source = self.controls[summary_twoway.INPUT][1]
             saved_input = self.current and self.current[0] == self.method and summary_twoway.INPUT in self.current[1]
@@ -1278,6 +1281,21 @@ class AnalysisDialog(QDialog):
                 self.hidden.discard(name)
             else:
                 self.hidden.add(name)
+
+    def _configure_grouped_interval_direction(self):
+        source, graph_style, placement, interval, summary_error = [
+            self.controls[name][1] for name in ("Input", "Graph style", "Placement of groups", "Interval",
+                                                "Summary error")
+        ]
+
+        def sync():
+            active_interval = summary_error if source.currentData() == SUMMARIES else interval
+            can_draw = placement.currentData() not in STACKED_PLACEMENTS and graph_style.currentData() != GROUPED_RANGE
+            self._set_field_visibility({INTERVAL_DIRECTION: can_draw and active_interval.currentData() != "None"})
+
+        for control in (source, graph_style, placement, interval, summary_error):
+            control.currentIndexChanged.connect(sync)
+        sync()
 
     def focus_field(self, name, error=None):
         if self.reshape is not None:
