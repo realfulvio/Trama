@@ -92,9 +92,11 @@ SERIES_FIELDS = {
     # Native XY series keep draw style and side on the recipe; the style dict formats line, symbol and
     # bars. Visibility is active for Step and Bars; the other fields stay saved for every draw style.
     "xy": LINE_FIELDS | {"visible"},
+    "grouped": LINE_FIELDS | {"visible"},
 }
 XY_PREFIX = "xy:1:"
-SERIES_KEY = re.compile(r"(line|errorbar|scatter|bar|xy):[1-9][0-9]*:.*", re.DOTALL)
+GROUPED_PREFIX = "grouped:1:"
+SERIES_KEY = re.compile(r"(line|errorbar|scatter|bar|xy|grouped):[1-9][0-9]*:.*", re.DOTALL)
 # Box and violin groups are keyed by their source identity, not by their position in the plot.
 GROUP_FIELDS = {"color", "visible"}
 GROUP_KEY = re.compile(r"(box|violin|raincloud|pareto|pair|trajectory|trajectory-mean|tolerance):.+", re.DOTALL)
@@ -297,6 +299,8 @@ class GraphSeries:
 
     @property
     def fields(self):
+        if self.key.startswith(GROUPED_PREFIX):
+            return SERIES_FIELDS["grouped"]
         if self.kind == "errorbar" and self.artist.lines[0] is None:
             return {"color", "label"}
         if self.kind == "scatter" and str(self.artist.get_gid() or "").startswith("bubble:"):
@@ -318,6 +322,19 @@ def active_series_fields(axes, series, draw_style=None):
     """Return the series fields active for the current draw structure of ``series``."""
     if series is None:
         return set()
+    if series.key.startswith(GROUPED_PREFIX):
+        meta = getattr(series.artist, "_tramastat_grouped_series", None) or {}
+        grouped_info = getattr(axes, "_tramastat_grouped", None) or {}
+        kind = draw_style if (draw_style is not None and draw_style != "As graph") else (
+            grouped_info.get("global_style") if draw_style == "As graph" else meta.get("draw_style")
+        )
+        if kind == "Bars":
+            return {"color", "label", "visible"}
+        if kind == "Center and interval":
+            return {"color", "marker", "marker_size", "label", "visible"}
+        if kind == "Line and symbols":
+            return {"color", "line_style", "width", "marker", "marker_size", "marker_color", "label", "visible"}
+        return {"color", "label", "visible"}
     if series.kind != "xy":
         return set(series.fields)
     kind = draw_style if draw_style is not None else xy_draw_kind(series.artist)
@@ -386,17 +403,56 @@ def xy_legend_handles(axes):
 def _series(axes):
     xy_lines = xy_artists(axes)
     xy_ids = {id(artist) for artist in xy_lines}
-    errorbars = [artist for artist in axes.containers if isinstance(artist, ErrorbarContainer)]
+    grouped_meta = getattr(axes, "_tramastat_grouped", None)
+    grouped_primary_ids = set()
+    if grouped_meta:
+        handles = grouped_meta.get("handles", {})
+        for name in grouped_meta.get("series_order", ()):
+            artist = handles.get(name)
+            if artist is None:
+                continue
+            grouped_primary_ids.add(id(artist))
+            kind = "bar" if isinstance(artist, BarContainer) else (
+                "scatter" if isinstance(artist, PathCollection) else "line"
+            )
+            key = f"{GROUPED_PREFIX}{name}"
+            if len(key) <= 1024:
+                yield GraphSeries(key, name, kind, artist)
+
+    errorbars = [
+        artist for artist in axes.containers
+        if isinstance(artist, ErrorbarContainer)
+        and not getattr(artist, "_tramastat_grouped_companion", False)
+        and id(artist) not in grouped_primary_ids
+    ]
     error_lines = {line for center, caps, _ in (artist.lines for artist in errorbars)
                    for line in (center, *caps) if line is not None}
+    for container in axes.containers:
+        if isinstance(container, ErrorbarContainer) and (
+            getattr(container, "_tramastat_grouped_companion", False) or id(container) in grouped_primary_ids
+        ):
+            center, caps, _ = container.lines
+            error_lines.update(line for line in (center, *caps) if line is not None)
     artists = [("line", artist) for artist in axes.lines
                if id(artist) not in xy_ids
+               and id(artist) not in grouped_primary_ids
+               and not getattr(artist, "_tramastat_grouped_companion", False)
                and not str(artist.get_gid() or "").startswith(("tramastat-shape-", "trama-axis-guide:",
                                                                 BREAK_GID_PREFIX, POINT_GID_PREFIX, INDICATOR_GID))]
     artists.extend(("errorbar", artist) for artist in errorbars)
-    artists.extend(("scatter", artist) for artist in axes.collections if isinstance(artist, PathCollection))
-    artists.extend(("bar", artist) for artist in axes.containers
-                   if isinstance(artist, BarContainer) and artist.patches and id(artist) not in xy_ids)
+    artists.extend(
+        ("scatter", artist) for artist in axes.collections
+        if isinstance(artist, PathCollection)
+        and id(artist) not in grouped_primary_ids
+        and not getattr(artist, "_tramastat_grouped_companion", False)
+    )
+    artists.extend(
+        ("bar", artist) for artist in axes.containers
+        if isinstance(artist, BarContainer) and artist.patches
+        and id(artist) not in xy_ids
+        and id(artist) not in grouped_primary_ids
+        and not getattr(artist, "_tramastat_grouped_companion", False)
+    )
     counts = {}
     for kind, artist in artists:
         label = artist.get_label() or ""
@@ -488,6 +544,23 @@ def _line_defaults(artist):
             artist.get_markersize(), artist.get_markerfacecolor(), artist.get_markeredgecolor(), artist.get_label())
 
 
+def _primary_defaults(kind, artist):
+    if kind == "line":
+        return (*_line_defaults(artist), artist.get_visible())
+    if kind == "errorbar":
+        center, caps, whiskers = artist.lines
+        return (_line_defaults(center) if center is not None else None,
+                [(cap.get_color(), cap.get_markeredgecolor()) for cap in caps],
+                [whisker.get_colors().copy() for whisker in whiskers], artist.get_label())
+    if kind == "scatter":
+        return (artist.get_facecolors().copy(), artist.get_edgecolors().copy(), artist.get_paths(),
+                artist.get_sizes().copy(), artist.get_label(), artist.get_visible())
+    return ([patch.get_facecolor() for patch in artist.patches],
+            [patch.get_edgecolor() for patch in artist.patches],
+            [patch.get_visible() for patch in artist.patches],
+            artist.get_label())
+
+
 def _series_defaults(series):
     artist = series.artist
     if series.kind == "xy" and isinstance(artist, BarContainer):
@@ -495,6 +568,15 @@ def _series_defaults(series):
                 [patch.get_visible() for patch in artist.patches])
     if series.kind == "xy":
         return (*_line_defaults(artist), artist.get_visible())
+    if series.key.startswith(GROUPED_PREFIX):
+        meta = getattr(artist, "_tramastat_grouped_series", None) or {}
+        err = meta.get("errorbar")
+        pts = meta.get("points")
+        return (
+            _primary_defaults(series.kind, artist),
+            _primary_defaults("errorbar", err) if err is not None else None,
+            _primary_defaults("scatter", pts) if pts is not None else None,
+        )
     if series.kind == "line":
         return _line_defaults(artist)
     if series.kind == "errorbar":
@@ -742,8 +824,65 @@ def _apply_line(artist, defaults, options):
     )
 
 
+def _apply_grouped_series(series, defaults, options):
+    artist = series.artist
+    meta = getattr(artist, "_tramastat_grouped_series", None) or {}
+    draw_style = meta.get("draw_style")
+    shown = options.get("visible", True)
+    p_def, e_def, pt_def = defaults
+    if series.kind == "bar":
+        faces, edges, visibles, label = p_def
+        for patch, face, edge, orig_vis in zip(artist.patches, faces, edges, visibles, strict=True):
+            if "color" in options:
+                alpha = to_rgba(face)[3]
+                patch.set_facecolor(to_rgba(options["color"], alpha))
+                patch.set_edgecolor(options["color"])
+            else:
+                patch.set_facecolor(face)
+                patch.set_edgecolor(edge)
+            patch.set_visible(orig_vis and shown)
+        artist.set_label(options.get("label", label))
+    elif series.kind == "scatter":
+        face, edge, paths, sizes, label, orig_vis = p_def
+        if "marker" in options:
+            marker = MarkerStyle(options["marker"])
+            paths = [marker.get_path().transformed(marker.get_transform())]
+        artist.set_paths(paths)
+        artist.set_sizes([options["marker_size"] ** 2] if "marker_size" in options else sizes)
+        artist.set(facecolor=options.get("color", face), edgecolor=options.get("color", edge),
+                   label=options.get("label", label))
+        artist.set_visible(orig_vis and shown)
+    else:
+        _apply_line(artist, p_def[:8], options)
+        artist.set_visible(p_def[8] and shown)
+
+    err = meta.get("errorbar")
+    if err is not None and e_def is not None:
+        center_defaults, cap_colors, whisker_colors, _ = e_def
+        center, caps, whiskers = err.lines
+        if center is not None and center_defaults is not None:
+            _apply_line(center, center_defaults, {k: v for k, v in options.items() if k != "label"})
+        for cap, (c, e) in zip(caps, cap_colors, strict=True):
+            cap.set(color=options.get("color", c), markeredgecolor=options.get("color", e))
+            cap.set_visible(shown)
+        for whisker, c in zip(whiskers, whisker_colors, strict=True):
+            whisker.set_color(options.get("color", c))
+            whisker.set_visible(shown)
+
+    pts = meta.get("points")
+    if pts is not None and pt_def is not None:
+        pface, pedge, ppaths, psizes, _, pvis = pt_def
+        pts.set_paths(ppaths)
+        pts.set_sizes(psizes)
+        pts.set(facecolor=options.get("color", pface), edgecolor=pedge)
+        pts.set_visible(pvis and shown)
+
+
 def _apply_series(series, defaults, options):
     artist = series.artist
+    if series.key.startswith(GROUPED_PREFIX):
+        _apply_grouped_series(series, defaults, options)
+        return
     if series.kind == "xy" and isinstance(artist, BarContainer):
         # Bars take color, label and visibility; saved line and symbol settings stay in the style unused.
         colors, label, visible = defaults
@@ -845,6 +984,12 @@ def _draw_overlays(figure, axes, style):
         else:
             tag_new_artists(panel, before, index)
 
+def _grouped_shown(artist):
+    if isinstance(artist, BarContainer):
+        return bool(artist.patches) and any(patch.get_visible() for patch in artist.patches)
+    return bool(artist.get_visible())
+
+
 def _apply_legend(axes, style, defaults, series_changed):
     original = defaults["legend"]
     location = style.get("legend")
@@ -854,7 +999,20 @@ def _apply_legend(axes, style, defaults, series_changed):
     if location == "hidden":
         axes.legend_ = None
         return
-    if location or (series_changed and original):
+    grouped_meta = getattr(axes, "_tramastat_grouped", None)
+    if grouped_meta and original is not None:
+        order = grouped_meta.get("series_order", ())
+        by_name = grouped_meta.get("handles", {})
+        handles = [by_name[name] for name in order if name in by_name and _grouped_shown(by_name[name])]
+        if not handles:
+            axes.legend_ = None
+            return
+        anchor = {}
+        if not location and original._bbox_to_anchor is not None:
+            anchor = {"bbox_to_anchor": original.get_bbox_to_anchor(), "bbox_transform": IdentityTransform()}
+        axes.legend(handles, [h.get_label() for h in handles], loc=location or original._loc,
+                    title=(original.get_title().get_text() or None) if original else None, **anchor)
+    elif location or (series_changed and original):
         handles, labels = axes.get_legend_handles_labels()
         if handles:
             # A legend placed outside the axes keeps its anchor when only the series change.
@@ -862,10 +1020,11 @@ def _apply_legend(axes, style, defaults, series_changed):
             if not location and original and original._bbox_to_anchor is not None:
                 anchor = {"bbox_to_anchor": original.get_bbox_to_anchor(), "bbox_transform": IdentityTransform()}
             axes.legend(handles, labels, loc=location or original._loc,
-                        title=original.get_title().get_text() if original else None, **anchor)
+                        title=(original.get_title().get_text() or None) if original else None, **anchor)
     legend = axes.get_legend()
     if legend:
         for artist in [legend.get_title(), *legend.get_texts()]:
+            artist.set_parse_math(False)
             if "font_family" in style:
                 artist.set_fontfamily(style["font_family"])
             if "legend_size" in style:
@@ -1112,9 +1271,18 @@ def apply_style(figure, style):
         setter(color)
 
     series_options = style.get("series", {})
+    prev_series_options = previous.get("series", {})
     for key, (series, original) in defaults["series"].items():
-        if key in series_options or key in previous.get("series", {}):
-            _apply_series(series, original, series_options.get(key, {}))
+        opt = series_options.get(key)
+        had_opt = key in prev_series_options
+        if opt is None and key.startswith(GROUPED_PREFIX):
+            # Support legacy pre-0.117 grouped style keys (bar:1:<name>, scatter:1:<name>, line:1:<name>).
+            legacy_key = f"{series.kind}:1:{series.name}"
+            if legacy_key in series_options:
+                opt = series_options[legacy_key]
+            had_opt = had_opt or (legacy_key in prev_series_options)
+        if opt is not None or had_opt:
+            _apply_series(series, original, opt or {})
     group_options = style.get("groups", {})
     for key, (group, original) in defaults["groups"].items():
         if key in group_options or key in previous.get("groups", {}):
