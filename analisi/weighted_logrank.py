@@ -131,9 +131,12 @@ def field_visibility(correction, scope, adjusted, choice):
 
 
 def _exponent(value, field):
-    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.floating)):
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, float, np.integer, np.floating)):
         raise FieldError(field, BAD_EXPONENT.format(field=field))
-    number = float(value)
+    try:
+        number = float(value)
+    except OverflowError:
+        raise FieldError(field, BAD_EXPONENT.format(field=field)) from None
     if not np.isfinite(number) or number < 0:
         raise FieldError(field, BAD_EXPONENT.format(field=field))
     return number
@@ -278,19 +281,15 @@ def _global_sheet(choice, found):
 
 def _detail_frame(comparison, first, second, found):
     groups = found["groups"]
-    times = found["times"]
-    rows = []
-    for index, time in enumerate(times):
-        for group_index, group in enumerate(groups):
-            rows.append({
-                "Comparison": comparison, "First group": first, "Second group": second, "Time": float(time),
-                "At risk": float(found["at_risk"][index]), "Events": float(found["events"][index]),
-                "Survival before": float(found["survival"][index]), "Weight": float(found["weight"][index]),
-                "Group": group, "Group at risk": float(found["group_at_risk"][index, group_index]),
-                "Observed": float(found["observed"][index, group_index]),
-                "Expected": float(found["expected"][index, group_index]),
-            })
-    return pd.DataFrame(rows)
+    count = len(groups)
+    return pd.DataFrame({
+        "Comparison": comparison, "First group": first, "Second group": second,
+        "Time": np.repeat(found["times"], count), "At risk": np.repeat(found["at_risk"], count),
+        "Events": np.repeat(found["events"], count), "Survival before": np.repeat(found["survival"], count),
+        "Weight": np.repeat(found["weight"], count), "Group": np.tile(groups, len(found["times"])),
+        "Group at risk": found["group_at_risk"].ravel(), "Observed": found["observed"].ravel(),
+        "Expected": found["expected"].ravel(),
+    })
 
 
 def _pair_list(names, scope, options):
@@ -326,10 +325,11 @@ def _pair_rows(time, event, labels, names, choice, rho, gamma, scope, options, c
             rows.append({"Comparison": f"{first} / {second}", "First group": first, "Second group": second,
                          CHI2: np.nan, "df": np.nan, "p": np.nan, "Status": UNAVAILABLE, "Reason": found["note"]})
             continue
-        left, right = sorted((first, second), key=str)
         rows.append({"Comparison": f"{first} / {second}", "First group": first, "Second group": second,
                      CHI2: found["χ²"], "df": found["df"], "p": found["p"], "Status": ESTIMATED, "Reason": ""})
-        details.append(_detail_frame(f"{left} / {right}", left, right, found))
+        if options.get(DETAIL) is True:
+            left, right = sorted((first, second), key=str)
+            details.append(_detail_frame(f"{left} / {right}", left, right, found))
     return rows, details
 
 

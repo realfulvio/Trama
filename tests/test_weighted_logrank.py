@@ -1,12 +1,13 @@
 """Tarone–Ware and Fleming–Harrington weights on the Kaplan–Meier path."""
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-import resource
+import json
 import tempfile
 import threading
 import time
 import tracemalloc
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -201,13 +202,25 @@ class EngineTests(unittest.TestCase):
     def test_adapter_matches_atteso_and_the_reopened_project(self):
         measure = _load("weighted_measure", HERE / "measure.py")
         compare = _load("weighted_compare", HERE / "confronta.py")
-        self.assertEqual(measure.main(), 0)
-        expected = __import__("json").loads((HERE / "atteso.json").read_text(encoding="utf-8"))
-        actual = __import__("json").loads((HERE / "misurato.json").read_text(encoding="utf-8"))
+        expected = json.loads((HERE / "atteso.json").read_text(encoding="utf-8"))
+        actual = measure.measured_document()
         compare.compare(expected, actual, "risultato", 1e-9)
         reopened = measure.measure_reopened(HERE / "sopravvivenza-pesata.alab")
         self.assertEqual(reopened["global_test"]["chi2"], actual["tarone_ware"]["global_test"]["chi2"])
         self.assertEqual(reopened["global_test"]["p"], actual["tarone_ware"]["global_test"]["p"])
+
+    def test_disabled_detail_does_not_materialize_pairwise_event_rows(self):
+        detailed = analyse(KM, cohort(), recipe(**{DETAIL: True}))
+        with patch("analisi.weighted_logrank._detail_frame", side_effect=AssertionError("unexpected detail")):
+            summary = analyse(KM, cohort(), recipe(**{DETAIL: False}))
+        self.assertNotIn(DETAIL_SHEET, summary.tables)
+        for sheet in (GLOBAL, PAIRS):
+            pd.testing.assert_frame_equal(summary.tables[sheet], detailed.tables[sheet])
+
+    def test_unrepresentable_exponent_identifies_the_field(self):
+        with self.assertRaises(FieldError) as raised:
+            analyse(KM, cohort(), recipe(**{WEIGHTING: CUSTOM, RHO: 10**400, GAMMA: 0}))
+        self.assertEqual(raised.exception.field, RHO)
 
     def test_large_cohort_stays_on_one_pass_over_the_risk_sets(self):
         rng = np.random.default_rng(116)
@@ -230,10 +243,8 @@ class EngineTests(unittest.TestCase):
         pair_seconds = time.perf_counter() - started
         _current, pair_peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
-        rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         print(f"WEIGHTED_BENCH global_s={global_seconds:.3f} pairs_s={pair_seconds:.3f} "
-              f"global_peak_mb={global_peak / 1e6:.1f} pairs_peak_mb={pair_peak / 1e6:.1f} "
-              f"process_rss_kb={rss_kb}", flush=True)
+              f"global_peak_mb={global_peak / 1e6:.1f} pairs_peak_mb={pair_peak / 1e6:.1f}", flush=True)
         self.assertTrue(global_fit["available"])
         self.assertLess(global_seconds, 15)
         self.assertLess(pair_seconds, 30)

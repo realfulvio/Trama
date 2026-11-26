@@ -384,7 +384,7 @@ class WeightedSmoke(Smoke):
                  f"Screen {screen.name() if screen else '?'}: available {geometry.width()}×{geometry.height()}, "
                  f"device pixel ratio {screen.devicePixelRatio() if screen else '?'}, "
                  f"logical DPI {screen.logicalDotsPerInch() if screen else '?'}",
-                 "This is the notebook display scale. It is not a Windows native 100% or 150% check.",
+                 f"QT_SCALE_FACTOR: {os.environ.get('QT_SCALE_FACTOR', 'unset')}",
                  f"Screenshots: {self.shots}", ""]
         lines += self.notes + [""]
         lines += self.problems or ["No problems found."]
