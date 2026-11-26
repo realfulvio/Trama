@@ -1210,9 +1210,18 @@ def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHIT
                            fontsize=LABEL_SIZE, color=ink, parse_math=False)
             continue
         with placement.render() as graph, BytesIO() as buffer:
-            graph.savefig(buffer, format="png", dpi=150)
+            cropped = any(placement.crop)
+            # Padding can enlarge a viewport far past its source pixels in a loaded project.
+            dpi = min(150, 4096 / max(*placement.size, *placement.cropped_size)) if cropped else 150
+            graph.savefig(buffer, format="png", dpi=dpi)
             buffer.seek(0)
-            pixels = imread(buffer)
+            if cropped:
+                from PIL import Image
+
+                with Image.open(buffer) as image:
+                    pixels = np.asarray(image.convert("RGBA").crop(placement.crop_pixels(*image.size)))
+            else:
+                pixels = imread(buffer)
         if placement.angle:
             pixels = np.rot90(pixels, -placement.angle // 90)
         panel = figure.add_axes((x / page_width, 1 - (y + h * scale) / page_height,

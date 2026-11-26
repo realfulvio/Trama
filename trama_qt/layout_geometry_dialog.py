@@ -1,11 +1,13 @@
 """Position, scale and appearance controls for layout panels."""
 
+from dataclasses import replace
+
 from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout,
-                               QGroupBox, QHBoxLayout, QLabel, QLineEdit, QWidget)
+                               QGroupBox, QHBoxLayout, QLabel, QLineEdit, QTabWidget, QWidget)
 
 from analisi.i18n import tr
-from analisi.layout_arrangement import BORDER_DASHES
+from analisi.layout_arrangement import BORDER_DASHES, valid_crop
 from analisi.layout_panels import rotation_target, targets_fit
 
 from .graph_format import _color_button
@@ -20,16 +22,20 @@ class PanelGeometryDialog(QDialog):
         self.form = QFormLayout(self)
         self.form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self.targets = self.appearance = None
-        QShortcut(QKeySequence("F1"), self, parent.show_shortcuts)
+        QShortcut(QKeySequence("F1"), self, self.show_shortcuts)
 
-    def spin(self, label, value, low, high, suffix):
+    def show_shortcuts(self):
+        self.parentWidget().show_shortcuts()
+        self.ok_button.setDefault(True)
+
+    def spin(self, label, value, low, high, suffix, *, form=None):
         spin = QDoubleSpinBox()
         spin.setDecimals(3)
         spin.setRange(low, high)
         spin.setSuffix(suffix)
         spin.setValue(value)
         spin.setAccessibleName(label)
-        self.form.addRow(label, spin)
+        (form if form is not None else self.form).addRow(label, spin)
         return spin
 
     def choice(self, label, values, *, form=None):
@@ -47,8 +53,11 @@ class PanelGeometryDialog(QDialog):
         self.problem.hide()
         self.form.addRow(self.problem)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setDefault(True)
+        cancel = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        cancel.setText(tr("setup.cancel"))
+        cancel.setAutoDefault(False)
+        self.ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self.ok_button.setDefault(True)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         self.form.addRow(buttons)
@@ -59,8 +68,8 @@ class PanelGeometryDialog(QDialog):
         self.problem.show()
         fit_dialog(self, 470, self.sizeHint().height())
 
-    def submit(self, panels, targets, page, *, angles=None):
-        if not targets_fit(panels, targets, page, angles=angles):
+    def submit(self, panels, targets, page, *, sizes=None):
+        if not targets_fit(panels, targets, page, sizes=sizes):
             self.show_problem("qt.layout_geometry_outside")
             return
         self.targets = targets
@@ -71,20 +80,47 @@ class PanelPositionDialog(PanelGeometryDialog):
     def __init__(self, parent, panels, index, page):
         super().__init__(parent, qt("qt.layout_position_title", letter=chr(ord("A") + index)))
         self.panels, self.index, self.page = panels, index, page
-        x, y, scale = panels[index].box
+        panel = panels[index]
+        x, y, scale = panel.box
+        geometry = self.form
+        self.tabs = self.rotation = None
+        if panel.figure is not None:
+            self.tabs = QTabWidget()
+            page_widget = QWidget()
+            geometry = QFormLayout(page_widget)
+            geometry.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+            self.tabs.addTab(page_widget, qt("qt.layout_geometry_tab"))
+            self.form.addRow(self.tabs)
         self.fields = (
-            self.spin(qt("qt.layout_from_left"), x * 2.54, -2.54 * page[0], 2.54 * page[0], " cm"),
-            self.spin(qt("qt.layout_from_top"), y * 2.54, -2.54 * page[1], 2.54 * page[1], " cm"),
-            self.spin(qt("qt.layout_scale_percent"), scale * 100, .001, max(10000., scale * 100), " %"),
+            self.spin(qt("qt.layout_from_left"), x * 2.54, -2.54 * page[0], 2.54 * page[0], " cm", form=geometry),
+            self.spin(qt("qt.layout_from_top"), y * 2.54, -2.54 * page[1], 2.54 * page[1], " cm", form=geometry),
+            self.spin(qt("qt.layout_scale_percent"), scale * 100, .001, max(10000., scale * 100), " %", form=geometry),
         )
         self.displayed = tuple(field.value() for field in self.fields)
-        self.rotation = None
-        if panels[index].figure is not None:
-            self.add_appearance(panels[index])
+        if self.tabs is not None:
+            self.add_appearance(panel, geometry)
+            self.add_crop(panel)
         self.buttons()
+        if self.tabs is not None:
+            self.tabs.currentChanged.connect(lambda _: self.ok_button.setDefault(True))
         self.fields[0].setFocus()
 
-    def add_appearance(self, panel):
+    def add_crop(self, panel):
+        page = QWidget()
+        form = QFormLayout(page)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        hint = QLabel(qt("qt.layout_crop_tip"))
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        names = ("left", "top", "right", "bottom")
+        self.crop_fields = tuple(
+            self.spin(qt(f"qt.layout_crop_{name}"), fraction * length * panel.box[2] * 2.54,
+                      -max(self.page) * 2.54, max(self.page) * 2.54, " cm", form=form)
+            for name, fraction, length in zip(names, panel.crop, panel.size * 2, strict=True))
+        self.crop_shown = tuple(field.value() for field in self.crop_fields)
+        self.tabs.addTab(page, qt("qt.layout_crop_tab"))
+
+    def add_appearance(self, panel, geometry):
         section = QGroupBox(qt("qt.layout_appearance"))
         form = QFormLayout(section)
         self.rotation = self.choice(qt("qt.layout_rotation"), (
@@ -124,14 +160,14 @@ class PanelPositionDialog(PanelGeometryDialog):
         options.setEnabled(border.isChecked())
         border.toggled.connect(options.setEnabled)
         form.addRow(options)
-        self.form.addRow(section)
+        geometry.addRow(section)
 
     def accept(self):
         original = self.panels[self.index].box
         values = tuple(old if field.value() == display else field.value() / factor
                        for field, display, old, factor in zip(self.fields, self.displayed, original,
                                                               (2.54, 2.54, 100.), strict=True))
-        angles = None
+        sizes = None
         if self.rotation is not None:
             angle = self.rotation.currentData()
             border = None
@@ -142,12 +178,21 @@ class PanelPositionDialog(PanelGeometryDialog):
                     self.border_color.setFocus()
                     return
                 border = self.border_width.value(), color.name(), self.border_style.currentData()
-            self.appearance = self.index, angle, border
-            angles = {self.index: angle}
+            panel = self.panels[self.index]
+            crop = tuple(old if field.value() == display else float(field.value() / (2.54 * size * values[2]))
+                         for field, display, old, size in zip(self.crop_fields, self.crop_shown, panel.crop,
+                                                              panel.size * 2, strict=True))
+            if not valid_crop(crop):
+                self.tabs.setCurrentIndex(1)
+                self.show_problem("qt.layout_crop_problem")
+                return
+            candidate = replace(panel, crop=crop)
+            self.appearance = self.index, angle, border, crop
+            sizes = {self.index: replace(candidate, angle=angle).oriented_size}
             fixed = tuple(field.value() != display for field, display in zip(self.fields[:2], self.displayed[:2],
                                                                             strict=True))
-            values = rotation_target(self.panels[self.index], values, angle, self.page, fixed=fixed)
-        self.submit(self.panels, {self.index: values}, self.page, angles=angles)
+            values = rotation_target(candidate, values, angle, self.page, fixed=fixed)
+        self.submit(self.panels, {self.index: values}, self.page, sizes=sizes)
 
 
 class PanelScaleDialog(PanelGeometryDialog):

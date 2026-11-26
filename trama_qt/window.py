@@ -3574,7 +3574,8 @@ class MainWindow(QMainWindow):
             panels[slot] = graph
             candidate = replace(layout, panels=panels)
             manual = any(entry[0] == slot for entries in (layout.arrangement.scales, layout.arrangement.offsets,
-                                                          layout.arrangement.rotations) for entry in entries)
+                                                          layout.arrangement.rotations, layout.arrangement.crops)
+                         for entry in entries)
             controller = self._active_layout_selection()
             if manual and controller is not None:
                 figures = self.project.layout_figures(candidate)
@@ -3655,8 +3656,11 @@ class MainWindow(QMainWindow):
                                             translated(controller.layout.arrangement, shifts, controller.page))
 
     def _apply_layout_geometry(self, controller, targets, *, appearance=None):
-        angles = {appearance[0]: appearance[1]} if appearance is not None else None
-        if not targets_fit(controller.panels, targets, controller.page, angles=angles):
+        sizes = None
+        if appearance is not None:
+            index, angle, _, crop = appearance
+            sizes = {index: replace(controller.panels[index], angle=angle, crop=crop).oriented_size}
+        if not targets_fit(controller.panels, targets, controller.page, sizes=sizes):
             self.status(qt("qt.layout_geometry_outside"))
             controller.indicate()
             return

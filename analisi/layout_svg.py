@@ -171,7 +171,7 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
         document, placement = panels[slot], placements[slot]
         if document is None:
             continue
-        w, h = placement.size
+        w, h = placement.cropped_size
         x, y, scale = placement.box
         panel, children = _children(document)
         _prefix_ids(panel, f"panel{index}-")
@@ -186,6 +186,16 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
             "transform": f"translate({x * PT:.4f} {y * PT:.4f}) scale({scale:.6f}){turn}",
         })
         inner = ET.SubElement(group, SVG + "g", {"clip-path": f"url(#panel{index}-viewport)"})
+        if any(placement.crop):
+            source_w, source_h = placement.size
+            left, top, _, _ = placement.crop_bounds
+            clip = ET.SubElement(defs, SVG + "clipPath", id=f"panel{index}-source")
+            ET.SubElement(clip, SVG + "rect", x="0", y="0",
+                          width=f"{source_w * PT:.4f}", height=f"{source_h * PT:.4f}")
+            inner = ET.SubElement(inner, SVG + "g", {
+                "transform": f"translate({-left * PT:.4f} {-top * PT:.4f})",
+                "clip-path": f"url(#panel{index}-source)",
+            })
         inner.extend(children)
         if placement.border:
             width, color, style = placement.border

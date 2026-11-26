@@ -3168,6 +3168,66 @@ class QtShellTests(unittest.TestCase):
         self.wait()
         self.assertEqual(window.project.layouts[key].arrangement, arrangement)
 
+    def test_layout_crop_tab_trims_or_pads_and_survives_reopen(self):
+        import json
+        from unittest.mock import patch
+
+        from PySide6.QtCore import QPoint
+        from PySide6.QtTest import QTest
+
+        from analisi.layout_panels import panel_rectangle
+        from analisi.presentation import Layout
+        from trama_qt.layout_geometry_dialog import PanelPositionDialog
+
+        self.open_example()
+        window = self.window
+        run = self.run_method("XY series", {"X": "Control", "Y columns": ["Treated"]})
+        key = window.project.put_layout(Layout("Cropped panel", 1, [run.reference]))
+        ref = ("layout", key)
+        window.open_sheet(ref)
+        self.wait()
+        selection = window.page.layout_selection
+        source = selection.panels[0]
+        left, top, right, bottom = panel_rectangle(source)
+        canvas = selection.canvas
+        x = round((left + right) / 2 / selection.page[0] * canvas.width())
+        y = round((top + bottom) / 2 / selection.page[1] * canvas.height())
+
+        def change(dialog):
+            dialog.tabs.setCurrentIndex(1)
+            cm_w = (right - left) * 2.54
+            dialog.crop_fields[0].setValue(cm_w)
+            dialog.accept()
+            self.assertIsNone(dialog.targets)
+            self.assertFalse(dialog.problem.isHidden())
+            for field, value in zip(dialog.crop_fields, (1., .6, -1., 0.), strict=True):
+                field.setValue(value)
+            dialog.accept()
+            self.assertIsNotNone(dialog.targets)
+            return dialog.DialogCode.Accepted
+
+        with patch.object(PanelPositionDialog, "exec", change):
+            QTest.mouseDClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(x, y))
+        self.app.processEvents()
+        current = window.page.layout_selection.panels[0]
+        current_left, current_top, current_right, current_bottom = panel_rectangle(current)
+        self.assertEqual((current_left, current_top), (left, top))
+        self.assertAlmostEqual(current_right, right)
+        self.assertAlmostEqual((bottom - current_bottom) * 2.54, .6)
+        arrangement = window.project.layouts[key].arrangement
+        self.assertTrue(arrangement.crops)
+        window.undo()
+        self.assertFalse(window.project.layouts[key].arrangement.crops)
+        window.undo(redo=True)
+        self.assertEqual(window.project.layouts[key].arrangement, arrangement)
+        path = self.folder / "cropped.alab"
+        window.project.save(path)
+        self.assertEqual(json.loads(path.read_text())["version"], 10)
+        self.reopen(path)
+        window.open_sheet(ref)
+        self.wait()
+        self.assertEqual(window.project.layouts[key].arrangement, arrangement)
+
     def test_layout_panel_arrangement_undo_and_exports(self):
         from unittest.mock import patch
         from analisi.presentation import Layout

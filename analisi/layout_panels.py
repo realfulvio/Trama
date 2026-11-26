@@ -6,7 +6,7 @@ from math import isclose
 
 from matplotlib.figure import Figure
 
-from .layout_arrangement import PanelArrangement
+from .layout_arrangement import EMPTY_CROP, PanelArrangement
 from .layout_geometry import AUTO_PAPER, PT, page_size, panel_boxes, panel_cells
 
 
@@ -64,10 +64,28 @@ class LayoutPanel:
 
     angle: int = 0  # Clockwise, as seen on the page.
     border: tuple[float, str, str] | None = None
+    crop: tuple[float, float, float, float] = EMPTY_CROP
+
+    @property
+    def crop_bounds(self):
+        width, height = self.size
+        left, top, right, bottom = self.crop
+        return left * width, top * height, (1 - right) * width, (1 - bottom) * height
+
+    @property
+    def cropped_size(self):
+        left, top, right, bottom = self.crop_bounds
+        return right - left, bottom - top
 
     @property
     def oriented_size(self):
-        return self.size[::-1] if self.angle else self.size
+        size = self.cropped_size
+        return size[::-1] if self.angle else size
+
+    def crop_pixels(self, width, height):
+        left, top, right, bottom = self.crop
+        x, y = round(left * width), round(top * height)
+        return x, y, max(x + 1, round((1 - right) * width)), max(y + 1, round((1 - bottom) * height))
 
     def render(self):
         return _panel_figure(self.figure, self.size, self.axes, self.bounds)
@@ -98,8 +116,12 @@ def _align_panels(panels, columns, alignment, measurements):
         axes, (left, bottom, width, height) = measured
         x, y, scale = panel.box
         w, h = (length * scale for length in panel.size)
-        edges = (x + left * w, y + (1 - bottom) * h, x + (left + width) * w, y + (1 - bottom - height) * h)
-        bounds[index] = (edges, axes)
+        crop_l, crop_t, crop_r, crop_b = panel.crop_bounds
+        origin_x, origin_y = x - crop_l * scale, y - crop_t * scale
+        edges = (origin_x + left * w, origin_y + (1 - bottom) * h,
+                 origin_x + (left + width) * w, origin_y + (1 - bottom - height) * h)
+        if x <= edges[0] <= origin_x + crop_r * scale and y <= edges[1] <= origin_y + crop_b * scale:
+            bounds[index] = (edges, axes)
         row, col = divmod(index, columns)
         rows[row].append(index)
         cols[col].append(index)
@@ -127,6 +149,8 @@ def _align_panels(panels, columns, alignment, measurements):
         # constrained layout at a different DPI and introduce new offsets.
         x, y, scale = panel.box
         w, h = (length * scale for length in panel.size)
+        crop_l, crop_t, _, _ = panel.crop_bounds
+        x, y = x - crop_l * scale, y - crop_t * scale
         position = (max(0., (target_left - x) / w), min(1., 1 - (target_bottom - y) / h),
                     (right - target_left) / w, (target_bottom - top) / h)
         panels[index] = replace(panel, axes=axes, bounds=position)
@@ -152,6 +176,8 @@ def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original
         panels[index] = replace(panels[index], angle=angle)
     for index, *border in arrangement.borders:
         panels[index] = replace(panels[index], border=tuple(border))
+    for index, *crop in arrangement.crops:
+        panels[index] = replace(panels[index], crop=tuple(crop))
     if axis_alignment != "none" and len(panels) > 1:
         measurements = []
         for panel in panels:
@@ -224,7 +250,13 @@ def _axis_anchor(panel, axis):
         return None
     left, top, right, bottom = panel_rectangle(panel)
     _, (axis_x, axis_y, _, _) = measured
-    return top + (bottom - top) * (1 - axis_y) if axis == "x" else left + (right - left) * axis_x
+    crop_l, crop_t, _, _ = panel.crop_bounds
+    scale = panel.box[2]
+    if axis == "x":
+        anchor = top + scale * (panel.size[1] * (1 - axis_y) - crop_t)
+        return anchor if top <= anchor <= bottom else None
+    anchor = left + scale * (panel.size[0] * axis_x - crop_l)
+    return anchor if left <= anchor <= right else None
 
 
 class PanelAlignmentError(ValueError):
@@ -279,13 +311,12 @@ def rotation_target(panel, box, angle, page, *, fixed):
     return x, y, scale
 
 
-def targets_fit(panels, targets, page, *, angles=None):
+def targets_fit(panels, targets, page, *, sizes=None):
     """Check page limits without imposing the preview's pixel precision on saved values."""
     width, height = page
     for index, (x, y, scale) in targets.items():
         panel = panels[index]
-        angle = angles.get(index, panel.angle) if angles else panel.angle
-        w, h = panel.size[::-1] if angle else panel.size
+        w, h = sizes.get(index, panel.oriented_size) if sizes else panel.oriented_size
         current = panel_rectangle(panel)
         if (scale <= 0 or x < min(0., current[0]) - 1e-8 or y < min(0., current[1]) - 1e-8
                 or x + w * scale > max(width, current[2]) + 1e-8

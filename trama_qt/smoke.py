@@ -662,9 +662,57 @@ def _worksheet_properties_scenario(smoke, window):
     worksheet_properties(smoke, window)
 
 
+def _layout_crop_scenario(smoke, window):
+    from PySide6.QtCore import QTimer
+    from PySide6.QtTest import QTest
+
+    from analisi.layout_panels import panel_rectangle
+    from .layout_geometry_dialog import PanelPositionDialog
+
+    ref = ("layout", smoke.build()["layout"])
+    window.open_sheet(ref)
+    smoke.wait()
+    controller = window.page.layout_selection
+    controller.select((0,))
+    before = panel_rectangle(controller.panels[0])
+
+    def crop():
+        dialog = smoke.app.activeModalWidget()
+        if not isinstance(dialog, PanelPositionDialog):
+            smoke.problem("the layout panel did not open its geometry dialog")
+            if dialog is not None:
+                dialog.reject()
+            return
+        try:
+            dialog.tabs.setCurrentIndex(1)
+            for field, value in zip(dialog.crop_fields, (1., .6, -1., 0.), strict=True):
+                field.setValue(value)
+            smoke.shot(dialog, "layout-crop-dialog")
+            field = dialog.crop_fields[-1]
+            field.setFocus()
+            QTest.keyClick(field, Qt.Key.Key_Return)
+            smoke.expect(dialog.targets is not None, "Enter did not apply the crop")
+        finally:
+            if dialog.isVisible():
+                dialog.reject()
+
+    QTimer.singleShot(100, crop)
+    window.actions["layout_position"].trigger()
+    after = panel_rectangle(window.page.layout_selection.panels[0])
+    smoke.expect(before[:2] == after[:2], "crop moved the panel anchor")
+    smoke.expect(abs(before[2] - after[2]) < 1e-8 and abs((before[3] - after[3]) * 2.54 - .6) < 1e-8,
+                 "crop did not preserve width and remove 0.6 cm of height")
+    smoke.shot(window, "layout-cropped")
+    root = smoke.folder / f"{smoke.language}-layout-cropped"
+    layout = window.project.layouts[ref[1]]
+    for suffix in (".pdf", ".svg"):
+        window.project.export_layout(layout, root.with_suffix(suffix))
+    window.project.save(root.with_suffix(".alab"))
+
+
 SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
              "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
-             "qt-batch-figure-styles": _batch_figure_styles_scenario}
+             "qt-batch-figure-styles": _batch_figure_styles_scenario, "qt-layout-crop": _layout_crop_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

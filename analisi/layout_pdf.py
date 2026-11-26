@@ -1,4 +1,5 @@
 """Place graphs on a PDF layout as forms, preserving their paths, text and embedded images."""
+from contextlib import contextmanager
 from ctypes import c_float
 from dataclasses import dataclass
 from io import BytesIO
@@ -120,6 +121,28 @@ def _add_border(page, panel, height, page_scale):
         raise ValueError("Could not insert the PDF panel border.")
 
 
+@contextmanager
+def _panel_view(source, panel):
+    if not any(panel.crop):
+        yield source
+        return
+
+    from pypdfium2 import PdfDocument, raw
+
+    width, height = panel.cropped_size
+    left, _, _, bottom = panel.crop_bounds
+    with PdfDocument.new() as cropped:
+        page = cropped.new_page(width * PT, height * PT)
+        try:
+            # Limit the locally translated source form to the new page while keeping its native vectors.
+            _place_form(cropped, page, source, raw.FS_MATRIX(1, 0, 0, 1, -left * PT, (bottom - panel.size[1]) * PT))
+            if not raw.FPDFPage_GenerateContent(page):
+                raise ValueError("Could not crop the PDF panel.")
+        finally:
+            page.close()
+        yield cropped
+
+
 def _add_panels(document, page, layout, plan):
     import pypdfium2 as pdfium
     from pypdfium2 import raw
@@ -131,7 +154,7 @@ def _add_panels(document, page, layout, plan):
         panel = placements[index]
         if panel.figure is None:
             continue
-        w, h = panel.size
+        w, h = panel.cropped_size
         x, y, fit = panel.box
         # PDF uses points with the origin at the bottom left. The form's bounding box clips the panel.
         scale = page_scale * fit
@@ -143,10 +166,11 @@ def _add_panels(document, page, layout, plan):
         else:
             matrix = raw.FS_MATRIX(scale, 0, 0, scale, x * unit, (height - y - h * fit) * unit)
         with panel.render() as figure, BytesIO() as buffer:
-            _render(figure, {**plan, "width_mm": w * MM, "height_mm": h * MM}, buffer)
+            source_w, source_h = panel.size
+            _render(figure, {**plan, "width_mm": source_w * MM, "height_mm": source_h * MM}, buffer)
             buffer.seek(0)
-            with pdfium.PdfDocument(buffer) as source:
-                _place_form(document, page, source, matrix)
+            with pdfium.PdfDocument(buffer) as source, _panel_view(source, panel) as viewport:
+                _place_form(document, page, viewport, matrix)
         if panel.border:
             _add_border(page, panel, height, page_scale)
     if not raw.FPDFPage_GenerateContent(page):

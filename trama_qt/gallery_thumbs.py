@@ -8,7 +8,7 @@ from collections import OrderedDict, deque
 from dataclasses import dataclass
 from io import BytesIO
 
-from PySide6.QtCore import QCoreApplication, QObject, QRectF, QThread, QTimer, Qt, Signal
+from PySide6.QtCore import QCoreApplication, QObject, QRect, QRectF, QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap, QTransform
 
 from .gallery_catalog import describe
@@ -133,8 +133,14 @@ def render(entry, project, box):
                 continue
             w, h = placement.size
             x, y, fit = placement.box
+            cropped = any(placement.crop)
+            resolution = min(fit * scale, 4096 / max(*placement.size, *placement.cropped_size)) if cropped else fit * scale
             with placement.render() as figure:
-                tile = figure_image(figure, max(1, round(w * fit * scale)), max(1, round(h * fit * scale)))
+                tile = figure_image(figure, max(1, round(w * resolution)), max(1, round(h * resolution)))
+            if cropped:
+                left, top, right, bottom = placement.crop_pixels(tile.width(), tile.height())
+                tile = tile.convertToFormat(QImage.Format.Format_ARGB32_Premultiplied).copy(
+                    QRect(left, top, right - left, bottom - top))
             if placement.angle:
                 tile = tile.transformed(QTransform().rotate(placement.angle))
             w, h = placement.oriented_size

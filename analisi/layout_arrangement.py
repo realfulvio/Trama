@@ -5,6 +5,8 @@ from math import isfinite
 import re
 
 
+EMPTY_CROP = (0., 0., 0., 0.)  # Left, top, right, bottom as fractions before rotation.
+
 BORDER_DASHES = {"solid": (), "dashed": (3.7, 1.6), "dotted": (1., 1.65),
                  "dash-dot": (6.4, 1.6, 1., 1.6)}
 
@@ -18,6 +20,7 @@ class PanelArrangement:
     layers: tuple[int, ...] = ()  # Panel indices from the back to the front.
     rotations: tuple[tuple[int, int], ...] = ()
     borders: tuple[tuple[int, float, str, str], ...] = ()
+    crops: tuple[tuple[int, float, float, float, float], ...] = ()
 
     def record(self):
         return {key: value for key, value in vars(self).items() if value}
@@ -47,13 +50,16 @@ class PanelArrangement:
         rotations = tuple(sorted((mapping[index], angle) for index, angle in self.rotations if index in mapping))
         borders = tuple(sorted((mapping[index], *border) for index, *border in self.borders if index in mapping))
         return PanelArrangement(tuple(sorted(offsets)), tuple(sorted(group for group in groups if len(group) > 1)),
-                                locked, scales, layers, rotations, borders)
+                                locked, scales, layers, rotations, borders,
+                                tuple(sorted((mapping[index], *crop) for index, *crop in self.crops if index in mapping)))
 
 
 def validated_arrangement(value, count):
     if isinstance(value, PanelArrangement):
         value = value.record()
-    if not isinstance(value, dict) or set(value) - {"offsets", "groups", "locked", "scales", "layers", "rotations", "borders"}:
+    if not isinstance(value, dict) or set(value) - {
+        "offsets", "groups", "locked", "scales", "layers", "rotations", "borders", "crops"
+    }:
         raise ValueError("Invalid layout panel arrangement.")
 
     def sequence(raw, limit):
@@ -106,9 +112,14 @@ def validated_arrangement(value, count):
                 or not isinstance(color, str) or re.fullmatch(r"#[a-fA-F0-9]{6}", color) is None
                 or not isinstance(style, str) or style not in BORDER_DASHES):
             raise ValueError("Invalid layout panel border.")
+    crops = [sequence(entry, 5) for entry in sequence(value.get("crops", ()), count)]
+    if any(len(entry) != 5 or not valid_crop(entry[1:]) for entry in crops):
+        raise ValueError("Invalid layout panel crop.")
+    indices([entry[0] for entry in crops])
     return PanelArrangement(offsets, groups, indices(value.get("locked", ())), scales, layers,
                             tuple(sorted(map(tuple, rotations))),
-                            tuple(sorted((i, float(w), c.lower(), s) for i, w, c, s in borders)))
+                            tuple(sorted((i, float(w), c.lower(), s) for i, w, c, s in borders)),
+                            tuple(sorted((i, *map(float, crop)) for i, *crop in crops if any(crop))))
 
 
 def change_objects(arrangement, objects, command):
@@ -167,9 +178,18 @@ def positioned(arrangement, panels, targets, page):
     return replace(translated(arrangement, shifts, page), scales=tuple(sorted(scales.items())))
 
 
-def with_appearance(arrangement, index, angle, border):
+def valid_crop(crop):
+    if any(type(value) not in (int, float) or not -8 <= value <= .99 for value in crop):
+        return False
+    left, top, right, bottom = crop
+    return (max(0., left) + max(0., right) <= .99 and
+            max(0., top) + max(0., bottom) <= .99)
+
+
+def with_appearance(arrangement, index, angle, border, crop):
     rotations = dict(arrangement.rotations)
     borders = {slot: (width, color, style) for slot, width, color, style in arrangement.borders}
+    crops = {slot: tuple(edges) for slot, *edges in arrangement.crops}
     if angle:
         rotations[index] = angle
     else:
@@ -178,5 +198,10 @@ def with_appearance(arrangement, index, angle, border):
         borders.pop(index, None)
     else:
         borders[index] = border
+    if any(crop):
+        crops[index] = crop
+    else:
+        crops.pop(index, None)
     return replace(arrangement, rotations=tuple(sorted(rotations.items())),
-                   borders=tuple((slot, *borders[slot]) for slot in sorted(borders)))
+                   borders=tuple((slot, *borders[slot]) for slot in sorted(borders)),
+                   crops=tuple((slot, *crops[slot]) for slot in sorted(crops)))

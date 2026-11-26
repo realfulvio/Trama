@@ -155,6 +155,61 @@ class LayoutArrangementTests(unittest.TestCase):
                 self.assertAlmostEqual(float(border.get("height")) / float(border.get("width")), 2, places=5)
         self.assertEqual(figure_state(graph), before)
 
+    def test_signed_crop_clips_content_before_rotation_without_rasterizing_vectors(self):
+        import pypdfium2 as pdfium
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.patches import Rectangle
+        from PIL import Image
+
+        from analisi.figure_export import export_pdf_bundle
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_pdf import PdfLayoutPage
+        from analisi.presentation import compose_layout
+
+        graph = Figure(figsize=(4, 2), facecolor="#e02020")
+        graph.add_artist(Rectangle((.5, 0), .5, 1, transform=graph.transFigure, color="#2040e0"))
+        before = figure_state(graph)
+        for angle in (0, 90, -90):
+            with self.subTest(angle=angle), tempfile.TemporaryDirectory() as folder:
+                arrangement = PanelArrangement(scales=((0, .45),), rotations=((0, angle),) if angle else (),
+                                               crops=((0, .25, .25, -.25, 0.),))
+                page = PdfLayoutPage("Cropped", 1, (graph,), background="#eaeadd", arrangement=arrangement)
+                panel = page.placements[0]
+                self.assertEqual(panel.cropped_size, (4., 1.5))
+                left, top, right, bottom = panel_rectangle(panel)
+                points = []
+                for x in (.12, .48, .90):
+                    u, v = (0.5, x) if angle == 90 else (0.5, 1-x) if angle == -90 else (x, .5)
+                    points.append((left + u * (right-left), top + v * (bottom-top)))
+
+                def drawing(image):
+                    scale_x = image.width / page.size[0]
+                    scale_y = image.height / page.size[1]
+                    self.assertEqual([image.getpixel((round(x * scale_x), round(y * scale_y)))
+                                      for x, y in points], [(224, 32, 32), (32, 64, 224), (234, 234, 221)])
+
+                layout = compose_layout("Cropped", 1, (graph,), background=page.background, arrangement=arrangement)
+                canvas = FigureCanvasAgg(layout)
+                canvas.draw()
+                drawing(Image.frombuffer("RGBA", canvas.get_width_height(), canvas.buffer_rgba()).convert("RGB"))
+
+                pdf = Path(folder) / "crop.pdf"
+                export_pdf_bundle([page], pdf, {"format": "pdf"})
+                with pdfium.PdfDocument(pdf) as document:
+                    pdf_page = document[0]
+                    drawing(pdf_page.render(scale=3).to_pil().convert("RGB"))
+                    pdf_page.close()
+
+                svg = Path(folder) / "crop.svg"
+                export_layout_svg("Cropped", 1, (graph,), svg, {"format": "svg"}, arrangement=arrangement)
+                root = ET.parse(svg).getroot()
+                self.assertFalse(root.findall(f".//{SVG}image"))
+                crop = root.find(f".//{SVG}clipPath[@id='panel1-viewport']/{SVG}rect")
+                self.assertEqual((float(crop.get("width")), float(crop.get("height"))), (288, 108))
+                source = root.find(f".//{SVG}g[@clip-path='url(#panel1-source)']")
+                self.assertEqual(source.get("transform"), "translate(-72.0000 -36.0000)")
+        self.assertEqual(figure_state(graph), before)
+
     def test_coincident_corners_use_only_the_visible_panel_letter(self):
         from analisi.layout_arrangement import PanelArrangement
         from analisi.layout_panels import layout_labels
