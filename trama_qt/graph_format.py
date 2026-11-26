@@ -283,6 +283,7 @@ class GraphFormatDialog(QDialog):
             options = self.style.get("axis", {}).get(dimension, {})
             box = QGroupBox(tr("graph.axis.block", axis=dimension.upper()))
             form = QFormLayout(box)
+            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
             zero = dimension in zero_baseline_axes(self.axes)
             scale = Choice(("linear",) if zero else SCALES, SCALE_LABELS,
                            self.style.get(dimension + "scale", axis.get_scale()))
@@ -313,6 +314,7 @@ class GraphFormatDialog(QDialog):
             twin = self.axes.figure.axes[1] if len(self.axes.figure.axes) > 1 else None
             box = QGroupBox(tr("graph.axis.right"))
             form = QFormLayout(box)
+            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
             self.right = {
                 "title": QLineEdit(options.get("Right title") or (twin.get_ylabel() if twin else "")),
                 "scale": Choice(XY_SCALES, RIGHT_SCALE_LABELS, options.get("Right scale") or "Linear"),
