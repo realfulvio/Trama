@@ -1576,3 +1576,49 @@ from .weighted_logrank_catalog import MESSAGES as _WEIGHTED_LOGRANK_MESSAGES  # 
 
 CAPTIONS.update(_WEIGHTED_LOGRANK_CAPTIONS)
 MESSAGES.update(_WEIGHTED_LOGRANK_MESSAGES)
+
+# Mixed-model AR(1): the covariance choice, the confirmed visit order, and the dialog note.
+CAPTIONS.update({
+    "Covariance structure": "Struttura di covarianza",
+    "Subject random effects": "Effetti casuali del soggetto",
+    "AR(1) for ordered visits": "AR(1) per visite ordinate",
+    "Visit order": "Ordine delle visite",
+})
+MESSAGES.update({
+    "mixed.error.one_within": (
+        "AR(1) needs exactly one within-subject factor.",
+        "AR(1) richiede esattamente un fattore entro i soggetti.",
+    ),
+    "mixed.error.order_required": (
+        "Confirm the full visit order. List each observed visit once.",
+        "Conferma l’ordine completo delle visite. Elenca ogni visita osservata una sola volta.",
+    ),
+    "mixed.error.order_repeated": (
+        "Visit order lists a visit more than once.",
+        "L’ordine delle visite elenca una visita più di una volta.",
+    ),
+    "mixed.error.order_mismatch": (
+        "Visit order must list each observed visit once.",
+        "L’ordine delle visite deve elencare ogni visita osservata una sola volta.",
+    ),
+    "mixed.error.no_correlation": (
+        "These data have no information to estimate the within-subject correlation.",
+        "Questi dati non contengono informazione per stimare la correlazione entro i soggetti.",
+    ),
+    "mixed.error.unknown_structure": (
+        "Choose subject random effects or AR(1) for ordered visits.",
+        "Scegli gli effetti casuali del soggetto oppure AR(1) per visite ordinate.",
+    ),
+    "mixed.ar1.coverage": (
+        "{partial} subjects are missing at least one visit. Responses left out: {excluded}. "
+        "Inferences are Wald tests with approximate residual degrees of freedom.",
+        "{partial} soggetti hanno almeno una visita mancante. Risposte escluse: {excluded}. "
+        "Le inferenze sono test di Wald con gradi di libertà residui approssimati.",
+    ),
+    "mixed.ar1.not_ready": (
+        "Select one within-subject factor, then confirm every observed visit in order.",
+        "Scegli un fattore entro i soggetti, poi conferma ogni visita osservata nell’ordine.",
+    ),
+    "mixed.ar1.move_up": ("Move visit up", "Sposta la visita in alto"),
+    "mixed.ar1.move_down": ("Move visit down", "Sposta la visita in basso"),
+})

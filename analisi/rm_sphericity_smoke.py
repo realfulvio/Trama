@@ -61,7 +61,8 @@ SIBLINGS = {
     "Mixed-effects model (REML)": (
         [
             "Input format", "Y", "Subject", "Within factors", "Between factors", "Measurement columns",
-            "Row labels", "Repeat across", "Subject IDs", "Denominator method", "Post-hoc",
+            "Row labels", "Repeat across", "Subject IDs", "Covariance structure", "Visit order",
+            "Denominator method", "Post-hoc",
             "Comparison factor", "Condition on factors", "Comparison families"
         ],
         ["Variables", "Options"]),

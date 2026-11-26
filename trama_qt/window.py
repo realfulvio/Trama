@@ -18,6 +18,7 @@ from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power,
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, result_display
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
+from analisi.ar1 import MixedModelCancelled
 from analisi.axis_breaks import AXIS_BREAKS
 from analisi.field_error import FieldError
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, translate_message, ui
@@ -3492,7 +3493,7 @@ class MainWindow(QMainWindow):
                 return
             try:
                 result = future.result()
-            except (MonteCarloCancelled, ChainCancelled, WeightedComparisonCancelled):
+            except (MonteCarloCancelled, ChainCancelled, WeightedComparisonCancelled, MixedModelCancelled):
                 self.status(qt("qt.cancelled"))
                 return
             except Exception as error:  # Field and data errors reopen the dialog with the message.
@@ -3555,7 +3556,7 @@ class MainWindow(QMainWindow):
             recovery = None
             try:
                 outcomes = future.result()
-            except (ChainCancelled, WeightedComparisonCancelled):
+            except (ChainCancelled, WeightedComparisonCancelled, MixedModelCancelled):
                 self.project.restore_after_cancel(job, qt("qt.cancelled"))
                 self.status(qt("qt.cancelled"))
             except Exception as error:
@@ -3671,7 +3672,7 @@ class MainWindow(QMainWindow):
             from .family import family_error_text
             try:
                 outcome = future.result()
-            except (ChainCancelled, WeightedComparisonCancelled):
+            except (ChainCancelled, WeightedComparisonCancelled, MixedModelCancelled):
                 self.status(cancelled)
                 return
             except Exception as error:
