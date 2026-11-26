@@ -393,6 +393,7 @@ class LinkedTablesDialog(QDialog):
         caption.setObjectName("muted")
         outer.addWidget(caption)
         self.table = QTableWidget(0, 4)
+        self.table.setTabKeyNavigation(False)  # Arrows select a row; Tab reaches the dialog buttons.
         self.table.setHorizontalHeaderLabels([tr("linked_table.column.source"), tr("linked_table.column.mode"),
                                               tr("linked_table.column.position"), tr("linked_table.column.state")])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)

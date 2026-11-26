@@ -175,7 +175,7 @@ def run(smoke, window):
     alias = folder / "alias-del-progetto.tramatpl"
     try:
         alias.unlink(missing_ok=True)
-        alias.symlink_to(original)
+        alias.symlink_to(original.resolve())
     except OSError:  # Windows without the right to create links: the project name itself is tried instead.
         alias = None
         lines.append("alias: symbolic links not available here, wrong suffix tried instead")

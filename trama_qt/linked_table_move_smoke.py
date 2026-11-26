@@ -222,21 +222,31 @@ def main(argv=None):
 
         # Check LinkedTablesDialog Tab/Enter/autoDefault/fit_dialog.
         dialog = LinkedTablesDialog(window, window.project, moved_layout, owner="Risultati in figura")
-        dialog.show()
-        settle()
-        check(not any(b.autoDefault() for b in (dialog.add_button, dialog.edit_button, dialog.remove_button)),
-              "inner buttons have autoDefault enabled")
-        defaults = [b for b in dialog.findChildren(QPushButton) if b.isDefault()]
-        check(len(defaults) == 1 and defaults[0].text() == tr("graph.format.apply"), "Apply is not default")
-        shot(dialog, "linked-tables-dialog")
-        previous_focus = dialog.focusWidget()
-        QTest.keyClick(previous_focus or dialog, Qt.Key.Key_Tab)
-        settle()
-        check(dialog.focusWidget() is not None and dialog.focusWidget() is not previous_focus,
-              "Tab did not move focus in the linked tables dialog")
-        QTest.keyClick(dialog, Qt.Key.Key_Return)
-        settle()
-        check(dialog.result == moved_layout, "Enter did not confirm the linked tables dialog")
+        def check_keyboard():
+            try:
+                check(not any(b.autoDefault() for b in (dialog.add_button, dialog.edit_button, dialog.remove_button)),
+                      "inner buttons have autoDefault enabled")
+                defaults = [b for b in dialog.findChildren(QPushButton) if b.isDefault()]
+                check(len(defaults) == 1 and defaults[0].text() == tr("graph.format.apply"), "Apply is not default")
+                dialog.table.setCurrentCell(0, 0)
+                dialog.table.setFocus()
+                settle()
+                check(dialog.focusWidget() is dialog.table, "linked tables dialog did not focus the table")
+                shot(dialog, "linked-tables-dialog")
+                QTest.keyClick(dialog.table, Qt.Key.Key_Tab)
+                settle()
+                check(dialog.focusWidget() is dialog.add_button, "Tab did not reach Add from the linked tables list")
+                QTest.keyClick(dialog.add_button, Qt.Key.Key_Return)
+                settle()
+                check(dialog.result == moved_layout, "Enter did not confirm the linked tables dialog")
+            except Exception:
+                problems.append("linked tables dialog:\n" + traceback.format_exc())
+            finally:
+                if dialog.isVisible():
+                    dialog.reject()
+
+        QTimer.singleShot(120, check_keyboard)
+        dialog.exec()
         dialog.deleteLater()
 
         # 3. Change B4 (7 -> 9), save, reopen, verify 2.6 vs 2, export PDF/SVG clean.
