@@ -63,7 +63,7 @@ from analisi.rank_tests import MANN_WHITNEY, WILCOXON
 from . import global_catalog
 from . import gui_gc, office, theme
 from .analysis_dialog import AnalysisDialog
-from .classic_bar import ClassicToolbar, build_menus
+from .classic_bar import ClassicToolbar, SELECTION_COMMANDS, build_menus
 from .flow import FlowLayout
 from .gallery import GalleryPage, g as gallery_text
 from .labels import method_label
@@ -80,7 +80,7 @@ from .templates import sync_actions as sync_template_actions, t as template_text
 from analisi.repeat_analysis_text import t as repeat_text
 from .linked_table_canvas import LinkedTableCanvas
 from .shape_canvas import GraphDrawing
-from .sheet import FrameView, WorksheetView, selection_box, set_table_appearance
+from .sheet import FrameView, WorksheetView, select_grid_cells, selection_box, set_table_appearance
 from .text_format import TextFormat
 from .batch_export import safe_stem
 from .batch_export_dialog import text as batch_text
@@ -553,6 +553,10 @@ class MainWindow(QMainWindow):
         a("paste_transpose", tr("command.paste_transpose"), lambda: self._sheet_call("paste", transpose=True),
           icon="arrow-up-down", shortcut="Ctrl+Shift+T")
         a("paste_table", tr("command.paste_as_new_table"), self.paste_table, icon="table-2")
+        for key, shortcut in SELECTION_COMMANDS.items():
+            action = a(key, qt("qt." + key), lambda key=key: self._select_grid_cells(key),
+                       shortcut=shortcut, tip=qt("qt." + key + "_tip"))
+            action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
         a("clear_cells", tr("command.clear_selected_cells"), lambda: self._sheet_call("clear"), icon="trash-2")
         a("new_table", tr("command.new_table"), self.choose_table, icon="table", shortcut="Ctrl+T")
         a("category_order", tr("command.category_order"), self.edit_category_order, icon="arrow-up-down")
@@ -888,6 +892,11 @@ class MainWindow(QMainWindow):
         if self.sheet is not None:
             getattr(self.sheet, name)(**options)
 
+    def _select_grid_cells(self, command):
+        view = self.result_tabs.currentWidget() if self.result_tabs is not None else self.sheet
+        if isinstance(view, (WorksheetView, FrameView)):
+            select_grid_cells(view, command)
+
     def _workspace_clipboard(self, operation):
         if self.selected and self.selected[0] == "graph":
             self.drawing.clipboard_action(operation)
@@ -973,7 +982,8 @@ class MainWindow(QMainWindow):
         self.actions["variable_properties"].setEnabled(
             editable and idle and self.project.tables[self.selected[1]].table_format == "multivariable")
         has_table = (data and self.sheet is not None) or (kind == "result" and self.result_tabs is not None)
-        for key in ("sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset"):
+        self.cell_selection_menu.menuAction().setEnabled(has_table)
+        for key in ("sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset", *SELECTION_COMMANDS):
             self.actions[key].setEnabled(has_table)
         for key in ("cell_background", "clear_cell_background", "number_format"):
             self.actions[key].setEnabled(has_table and idle and not locked)

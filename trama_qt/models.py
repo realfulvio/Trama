@@ -6,6 +6,7 @@ from PySide6.QtGui import QBrush, QColor, QFont
 
 from analisi.data import EDITABLE_LEGACY_FIXED_VALUES, EDITABLE_LEGACY_XY
 from analisi.grid_headings import column_label, heading_bands
+from analisi.i18n import tr
 from analisi.worksheet_appearance import text_on_background
 from analisi.worksheet_number_format import Renderer, edit_text
 from analisi.worksheet_text import ALIGN, BOLD, COLOR, FONT, ITALIC, SIZE, UNDERLINE, TextStyles
@@ -228,7 +229,22 @@ class WorksheetModel(TextStyleRoles, QAbstractTableModel):
             return self.styled_font(style, excluded)
         return None
 
+    def band_label(self, column):
+        band = self.bands[column][2]
+        if band.startswith("Group "):
+            return tr("shape.objects.group_number", number=band.removeprefix("Group "))
+        return tr("setup.row_titles") if band == "Row titles" else band
+
+    def subcolumn_label(self, column):
+        role = self.roles[column] if self.roles else ""
+        first, end, band, _ = self.bands[column]
+        if end - first > 1 and band.startswith("Group ") and role.startswith("Y") and role[1:].isdigit():
+            return f"{band.removeprefix('Group ')}:{role}"
+        return role
+
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.ToolTipRole:
+            role = Qt.ItemDataRole.DisplayRole
         if role != Qt.ItemDataRole.DisplayRole:
             if role == Qt.ItemDataRole.TextAlignmentRole and orientation == Qt.Orientation.Horizontal:
                 return int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -236,8 +252,9 @@ class WorksheetModel(TextStyleRoles, QAbstractTableModel):
         if orientation == Qt.Orientation.Vertical:
             return str(section + 1)
         if section < len(self.bands):
-            _, _, band, title = self.bands[section]
-            role = self.roles[section] if self.roles else ""
+            title = self.bands[section][3]
+            band = self.band_label(section)
+            role = self.subcolumn_label(section)
             return "\n".join(filter(None, (band, title, role)))
         return column_label(section)
 

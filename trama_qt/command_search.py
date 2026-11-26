@@ -28,8 +28,16 @@ class CommandSearchDialog(QDialog):
         self.locations = {}
         for menu in window.command_menus.values():
             for action in menu.actions():
-                if not action.isSeparator():
-                    self.locations.setdefault(action, []).append(action_caption(menu.title()))
+                if action.isSeparator():
+                    continue
+                parent = action_caption(menu.title())
+                if action.menu() is None:
+                    self.locations.setdefault(action, []).append(parent)
+                else:
+                    location = parent + " → " + action_caption(action.text())
+                    for child in action.menu().actions():
+                        if not child.isSeparator():
+                            self.locations.setdefault(child, []).append(location)
 
         layout = QVBoxLayout(self)
         self.query = QLineEdit()

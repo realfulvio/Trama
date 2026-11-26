@@ -2,6 +2,12 @@
 
 In Classica Qt, you can reorder contiguous data rows and adjust individual row heights directly from the numbered vertical header.
 
+## Entering and selecting replicates
+
+In an XY sheet, **A:Y2** identifies the second replicate of series A. Press **Enter** to move to the next replicate in the series. From its last replicate, Enter moves to the first replicate on the next row. **Shift+Enter** follows the same route backwards. **Ctrl+Enter** moves down in the current subcolumn. **Tab** and **Shift+Tab** move right and left across series.
+
+Click the group heading to select all its subcolumns, or click **A:Y2** to select just that replicate. Under **Edit → Select** (*Modifica → Seleziona*), **Column** selects the entire series (**Ctrl+Space**), **Row** selects the current row (**Shift+Space**) and **All** selects the whole sheet (**Ctrl+A**). Inside a cell editor, Ctrl+A selects its text.
+
 ## Moving rows
 
 - Drag a row or a contiguous selected block from the numbered vertical header to the target position; an insertion line shows where the rows will land.

@@ -6,6 +6,13 @@ entries here cover the few captions the Qt window adds. English is the fallback.
 from analisi.i18n import active_language
 
 _TEXT = {
+    "qt.select_cells": ("Select", "Seleziona"),
+    "qt.select_sheet_cells": ("All", "Tutto"),
+    "qt.select_data_column": ("Column", "Colonna"),
+    "qt.select_data_row": ("Row", "Riga"),
+    "qt.select_sheet_cells_tip": ("Select every cell in the sheet", "Seleziona tutte le celle del foglio"),
+    "qt.select_data_column_tip": ("Select the column, including its subcolumns", "Seleziona la colonna con le sue sottocolonne"),
+    "qt.select_data_row_tip": ("Select the entire row", "Seleziona tutta la riga"),
     "qt.toolbar_data": ("Data", "Dati"),
     "qt.toolbar_draw": ("Draw", "Disegno"),
     "qt.toolbar_write": ("Write", "Scrivi"),

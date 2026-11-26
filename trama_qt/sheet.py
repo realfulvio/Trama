@@ -1,5 +1,5 @@
 """Table views: the editable worksheet and the read-only result tables."""
-from PySide6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, QRect, QThread, Qt
+from PySide6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QRect, QThread, Qt
 from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics, QGuiApplication, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QApplication, QDialog, QDialogButtonBox,
                                QFormLayout, QHeaderView, QLabel, QLineEdit, QMenu, QSpinBox, QStyledItemDelegate,
@@ -10,6 +10,7 @@ from analisi.i18n import tr, ui
 from analisi.worksheet_appearance import MAX_ROW_HEIGHT, MIN_ROW_HEIGHT
 
 from . import theme
+from .classic_bar import SELECTION_COMMANDS
 from .models import FrameModel, display
 from .strings import qt
 from .text_format import GRID_MENU
@@ -100,6 +101,25 @@ def selection_box(view):
             max(item.bottom() for item in ranges), max(item.right() for item in ranges))
 
 
+def select_grid_cells(view, command, section=None):
+    model = view.model()
+    current = view.currentIndex()
+    if command == "select_sheet_cells":
+        view.selectAll()
+    elif current.isValid() and command == "select_data_row":
+        view.selectRow(current.row())
+    elif command == "select_data_column":
+        column = current.column() if section is None else section
+        if not 0 <= column < model.columnCount() or not model.rowCount():
+            return
+        if isinstance(view, WorksheetView) and column < len(model.bands):
+            first, end = model.bands[column][:2]
+            view.select_block(0, first, model.rowCount() - 1, end - 1,
+                              current_row=max(0, current.row()), current_col=column)
+        else:
+            view.selectColumn(column)
+
+
 class WorksheetHeading(QHeaderView):
     """Draw the shared table, series and replicate headings over the worksheet columns."""
 
@@ -107,7 +127,22 @@ class WorksheetHeading(QHeaderView):
         super().__init__(Qt.Orientation.Horizontal, view)
         self.view = view
         self.setSectionsClickable(True)
+        self._group_pressed = False
+        self.sectionClicked.connect(self._select_heading)
         self.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def mousePressEvent(self, event):
+        self._group_pressed = (event.button() == Qt.MouseButton.LeftButton
+                               and event.modifiers() == Qt.KeyboardModifier.NoModifier
+                               and event.position().y() < self._line_height())
+        super().mousePressEvent(event)
+
+    def _select_heading(self, column):
+        model = self.model()
+        if self._group_pressed and 0 <= column < len(model.bands):
+            first, end = model.bands[column][:2]
+            if end - first > 1:
+                select_grid_cells(self.view, "select_data_column", column)
 
     def sizeHint(self):
         hint = super().sizeHint()
@@ -159,7 +194,7 @@ class WorksheetHeading(QHeaderView):
             width = self.sectionViewportPosition(stop - 1) + self.sectionSize(stop - 1) - left
             active = includes(first, stop - 1)
             stripe = series[(ord(band[-1]) - ord("A")) % len(series)] if band.startswith("Group ") else None
-            draw(QRect(left, 0, width, height), band, active, stripe=stripe)
+            draw(QRect(left, 0, width, height), model.band_label(first), active, stripe=stripe)
             draw(QRect(left, height, width, height), title, active, title=True)
             if model.roles:
                 for subcolumn in range(max(first, start), stop):
@@ -168,7 +203,7 @@ class WorksheetHeading(QHeaderView):
                         break
                     active = includes(subcolumn, subcolumn)
                     rect = QRect(left, 2 * height, self.sectionSize(subcolumn), height)
-                    draw(rect, model.roles[subcolumn], active)
+                    draw(rect, model.subcolumn_label(subcolumn), active)
                     if active:
                         painter.fillRect(rect.x() + 1, rect.bottom() - 1, rect.width() - 1, 2, theme.color("accent"))
             column = stop
@@ -460,6 +495,12 @@ class WorksheetEditorDelegate(QStyledItemDelegate):
             editor.setFont(index.data(Qt.ItemDataRole.FontRole) or option.font)
         return editor
 
+    def eventFilter(self, editor, event):
+        if event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            # Qt queues the commit. Shift or Ctrl may already be released when closeEditor runs.
+            editor.setProperty("worksheetEnterModifiers", event.modifiers().value)
+        return super().eventFilter(editor, event)
+
     def updateEditorGeometry(self, editor, option, index):
         super().updateEditorGeometry(editor, option, index)
         if not isinstance(editor, QLineEdit):
@@ -486,6 +527,7 @@ class WorksheetView(QTableView):
         self.setModel(model)
         _setup(self)
         self.setObjectName("classicWorksheet")
+        self.addActions([host.actions[key] for key in SELECTION_COMMANDS])
         self.setItemDelegate(WorksheetEditorDelegate(self))
         fit_rows(self)
         for column, (first, stop, band, title) in enumerate(model.bands):
@@ -627,21 +669,35 @@ class WorksheetView(QTableView):
             self.clear()
             return
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and self.state() != QAbstractItemView.State.EditingState:
-            current = self.currentIndex()
-            if current.isValid():
-                below = self.model().index(min(current.row() + 1, self.model().rowCount() - 1), current.column())
-                self.setCurrentIndex(below)
-                return
+            self._advance_enter(event.modifiers())
+            event.accept()
+            return
         super().keyPressEvent(event)
 
+    def _advance_enter(self, modifiers):
+        current = self.currentIndex()
+        if not current.isValid():
+            return
+        model = self.model()
+        row, column = current.row(), current.column()
+        first, end = (model.bands[column][:2] if column < len(model.bands) else (column, column + 1))
+        step = -1 if modifiers & Qt.KeyboardModifier.ShiftModifier else 1
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            row += step
+        elif first <= column + step < end:
+            column += step
+        else:
+            row += step
+            column = first if step > 0 else end - 1
+        target = model.index(row, column)
+        if target.isValid():
+            self.setCurrentIndex(target)
+
     def closeEditor(self, editor, hint):
-        # Enter moves down, as in the classic grid and in spreadsheets.
-        if hint == QAbstractItemDelegate.EndEditHint.SubmitModelCache:  # PySide6 has the enum on the delegate.
-            hint = QAbstractItemDelegate.EndEditHint.NoHint
-            super().closeEditor(editor, hint)
-            current = self.currentIndex()
-            if current.isValid() and current.row() + 1 < self.model().rowCount():
-                self.setCurrentIndex(self.model().index(current.row() + 1, current.column()))
+        if hint == QAbstractItemDelegate.EndEditHint.SubmitModelCache:
+            modifiers = Qt.KeyboardModifier(editor.property("worksheetEnterModifiers") or 0)
+            super().closeEditor(editor, QAbstractItemDelegate.EndEditHint.NoHint)
+            self._advance_enter(modifiers)
             return
         super().closeEditor(editor, hint)
 
@@ -806,6 +862,7 @@ class FrameView(QTableView):
         action.triggered.connect(self.copy)
         self.addAction(action)
         if host is not None:
+            self.addActions([host.actions[key] for key in SELECTION_COMMANDS])
             self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             self.customContextMenuRequested.connect(self._context_menu)
 
