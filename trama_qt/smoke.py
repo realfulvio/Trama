@@ -904,11 +904,16 @@ def _layout_rulers_scenario(smoke, window):
     window.project.save(root.with_suffix(".alab"))
 
 
+def _graph_axis_click_scenario(smoke, window):
+    from .graph_axis_click_smoke import check_axis_clicks
+    check_axis_clicks(smoke, window)
+
+
 SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
              "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
              "qt-batch-figure-styles": _batch_figure_styles_scenario, "qt-layout-crop": _layout_crop_scenario,
              "qt-layout-background": _layout_background_scenario, "qt-layout-copy-center": _layout_copy_center_scenario,
-             "qt-layout-rulers": _layout_rulers_scenario}
+             "qt-layout-rulers": _layout_rulers_scenario, "qt-graph-axis-click": _graph_axis_click_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

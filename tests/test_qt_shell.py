@@ -2165,6 +2165,61 @@ class QtShellTests(unittest.TestCase):
         self.assertIn('id="xybar:Right:0"', text)
         self.assertNotIn("<image", text)
 
+    def test_double_click_formats_visible_axes_and_keeps_navigation_modes(self):
+        from PySide6.QtCore import QPoint
+        from PySide6.QtTest import QTest
+        from analisi.axis_breaks import AXIS_BREAKS, segment_axes
+
+        window = self.window
+        path = self.folder / "axis.csv"
+        pd.DataFrame({"X": [1, 2, 4, 8], "Left": [2, 3, 5, 6], "Right": [100, 200, 400, 800]}).to_csv(
+            path, index=False)
+        window.open_path(path)
+        graph = self.run_method("XY series", {"X": "X", "Y columns": ["Left", "Right"]})
+        self.format_with(graph, lambda dialog: dialog.xy_side.update(Right="Right"))
+        window.show_sheet(*window.selected)
+        self.app.processEvents()
+        calls = []
+        window.format_graph = lambda *, axis: calls.append(axis)
+        canvas = window.plot_tools.canvas
+        canvas.draw()
+        primary, right = canvas.figure.axes
+
+        def click(box, *, single=False):
+            ratio = canvas.device_pixel_ratio
+            x = (box.x0 + box.x1) / 2 / ratio
+            y = canvas.height() - (box.y0 + box.y1) / 2 / ratio
+            handler = QTest.mouseClick if single else QTest.mouseDClick
+            handler(canvas, Qt.MouseButton.LeftButton, pos=QPoint(round(x), round(y)))
+            self.app.processEvents()
+
+        x_title = primary.xaxis.label.get_window_extent(canvas.renderer)
+        click(x_title, single=True)
+        click(primary.bbox)
+        self.assertEqual(calls, [])
+        click(x_title)
+        click(primary.yaxis.label.get_window_extent(canvas.renderer))
+        click(right.yaxis.label.get_window_extent(canvas.renderer))
+        self.assertEqual(calls, ["x", "y", "right"])
+        window.plot_tools.pan()
+        click(x_title)
+        window.plot_tools.pan()
+        self.assertEqual(len(calls), 3)
+
+        graph = self.run_method("XY series", {"X": "X", "Y columns": ["Left"]})
+        record = {"axis": "x", "gap": .04, "segments": [{"low": 0, "high": 4, "share": 50},
+                                                         {"low": 5, "high": 9, "share": 50}]}
+        self.format_with(graph, lambda dialog: setattr(dialog, "axis_breaks", record))
+        window.show_sheet(*window.selected)
+        self.app.processEvents()
+        canvas = window.plot_tools.canvas
+        canvas.draw()
+        _, second = segment_axes(canvas.figure)
+        self.assertFalse(window.actions["format_axis_right"].isEnabled())
+        click(second.spines["bottom"].get_window_extent(canvas.renderer))
+        self.assertEqual(calls, ["x", "y", "right", "x"])
+        self.assertEqual(graph.style[AXIS_BREAKS]["axis"], "x")
+
     def test_axis_breaks_on_xy_graph(self):
         from analisi.axis_breaks import AXIS_BREAKS, segment_axes
         from trama_qt.axis_breaks import AxisBreaksDialog

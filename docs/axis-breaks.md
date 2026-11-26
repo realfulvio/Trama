@@ -9,6 +9,8 @@ The graph is drawn as real Matplotlib panels. Each panel shows one segment, the 
 - **Format Graph → Axes → Axis breaks…** (`Interruzioni asse…`)
 - **Graph Inspector → Axes → Axis breaks…**, inside the current Inspector draft. Cancel in the editor returns to the draft, Cancel in the Inspector returns to the confirmed graph. **Reset section** of the Axes section removes the breaks.
 
+In Classica Qt, double-click a visible axis label, tick label or spine to open its formatting controls. On a segmented axis this focuses **Axis breaks…**. Switch off pan, zoom and drawing tools to use the shortcut.
+
 In the editor choose the axis, the number of segments, the gap and, for each segment, the low and high limit, the share of the plot in percent and an optional major interval. **Suggest from the data** cuts the axis at the widest empty stretches. Both limits belong to their segment. Typing a decimal comma works in both languages.
 
 In Qt, **Tick origin** positions the major ticks of a segment with an explicit interval. An origin of 0 with limits −15 and 115 and an interval of 25 places major ticks at 0, 25, 50, 75 and 100. Use **Minor ticks** to set how many ticks appear between major ticks in that segment. Enter 0 to hide them or leave the field blank to inherit the axis setting.

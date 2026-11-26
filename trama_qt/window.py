@@ -75,6 +75,7 @@ from .analysis_dialog import AnalysisDialog
 from .classic_bar import ClassicToolbar, SELECTION_COMMANDS, build_menus
 from .flow import FlowLayout
 from .gallery import GalleryPage, g as gallery_text
+from .graph_axis_click import axis_at, right_y_axes
 from .labels import method_label
 from .report_dialog import text as report_text
 from .result_tabs import ResultTabs, result_labels
@@ -1156,7 +1157,7 @@ class MainWindow(QMainWindow):
         self.actions["format_axis_x"].setEnabled(has_axes)
         self.actions["format_axis_y"].setEnabled(has_axes)
         self.actions["format_axis_right"].setEnabled(
-            has_axes and axis_graph.method == XY_METHOD and len(axis_graph.result.figure.axes) > 1)
+            has_axes and axis_graph.method == XY_METHOD and right_y_axes(axis_graph.result.figure.axes[0]) is not None)
         self.actions["graph_style_presets"].setEnabled(graph and idle)
         from .gallery_catalog import graph_runs
         self.actions["batch_figure_styles"].setEnabled(idle and bool(graph_runs(self.project)))
@@ -2244,11 +2245,34 @@ class MainWindow(QMainWindow):
             page.add(tools, 0)
         if run is not None:
             self.drawing.attach(page, canvas, tools if toolbar else None, run)
+            if toolbar:
+                canvas.mpl_connect("button_press_event", lambda event: self._graph_axis_click(event, page, run))
         if reference is not None:
             self.table_move.attach(page, canvas, tools if toolbar else None, reference, figure)
         if run is not None and self.inspector_wanted and self.project.graph_format_problem(run) is None:
             self._open_inspector(run, canvas, line)
         return canvas  # No draw_idle(): showing the page resizes the canvas, which draws it once (SheetCanvas).
+
+    def _graph_axis_click(self, event, page, run):
+        def active():
+            return (self.page is page and self.selected and self.selected[0] == "graph"
+                    and self.project.runs[self.selected[1]] is run and self.gallery is None
+                    and self.job is None and not self.table_move.active
+                    and self.plot_tools is not None and not self.plot_tools.mode
+                    and not (self.drawing.controller and self.drawing.controller.mode))
+
+        if not event.dblclick or event.button != 1 or not active():
+            return
+        axis = axis_at(event, include_right=run.method == XY_METHOD)
+        if axis is None:
+            return
+        action = self.actions[f"format_axis_{axis}"]
+
+        def open_format():
+            if active() and action.isEnabled() and self.settle_graph_draft():
+                action.trigger()
+
+        QTimer.singleShot(0, page, open_format)
 
     def fit_preview(self):
         if self.plot_tools is not None and self.gallery is None and not self.busy():

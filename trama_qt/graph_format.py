@@ -33,6 +33,7 @@ from analisi.qq_panels import PANEL_KEY
 from analisi.xy_series import (BAR_WIDTH, BARS, DRAW_STYLES, RECIPE_KEYS, SCALES as XY_SCALES, SIDES, STEP,
                                assign_colors, parse_bar_width, prune_options, xy_series)
 
+from .graph_axis_click import right_y_axes
 from .theme import fit_dialog
 
 # Captions are catalog keys shared with the classic dialog (analisi/graph_dialog.py, which needs Tk).
@@ -171,6 +172,9 @@ class GraphFormatDialog(QDialog):
             self._focus(1, field)
             # Scroll after the dialog has laid out the axes page at its on-screen size.
             QTimer.singleShot(0, self, lambda: self.tabs.widget(1).ensureWidgetVisible(field))
+        elif initial_axis and self.axis_breaks.get("axis") == initial_axis and self.breaks_button is not None:
+            self._focus(1, self.breaks_button)
+            QTimer.singleShot(0, self, lambda: self.tabs.widget(1).ensureWidgetVisible(self.breaks_button))
         elif initial_axis in self.axis_fields:
             field = self.axis_fields[initial_axis]["min"]
             if field.isEnabled():
@@ -311,7 +315,7 @@ class GraphFormatDialog(QDialog):
         self.right = None
         if self.xy is not None:
             options = self.xy.get("options") or {}
-            twin = self.axes.figure.axes[1] if len(self.axes.figure.axes) > 1 else None
+            twin = right_y_axes(self.axes)
             box = QGroupBox(tr("graph.axis.right"))
             form = QFormLayout(box)
             form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
@@ -327,12 +331,13 @@ class GraphFormatDialog(QDialog):
                 form.addRow(tr(caption), self.right[key])
             layout.addWidget(box)
         self.breaks_summary = None
+        self.breaks_button = None
         if getattr(self.axes, SUPPORT_ATTR, False):
             box = QGroupBox(tr("axis_breaks.title"))
             grid = QGridLayout(box)
-            button = QPushButton(tr("axis_breaks.button"))
-            button.clicked.connect(self.edit_breaks)
-            grid.addWidget(button, 0, 0)
+            self.breaks_button = QPushButton(tr("axis_breaks.button"))
+            self.breaks_button.clicked.connect(self.edit_breaks)
+            grid.addWidget(self.breaks_button, 0, 0)
             self.breaks_summary = QLabel()
             grid.addWidget(self.breaks_summary, 0, 1)
             self.breaks_note = QLabel()
