@@ -2852,7 +2852,8 @@ class QtShellTests(unittest.TestCase):
         ref = ("layout", 0)
         self.assertEqual(window.selected, ref)
         self.assertEqual(window.project.layouts[0].panels, [None, None, None])
-        self.assertFalse(window.actions["place_layout_graph"].isEnabled())
+        self.assertTrue(window.actions["place_layout_graph"].isEnabled())
+        self.assertFalse(window.navigator.dragEnabled())
 
         saved = self.folder / "empty-layout.alab"
         with patch.object(QFileDialog, "getSaveFileName", return_value=(str(saved), "")):
