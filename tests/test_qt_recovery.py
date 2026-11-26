@@ -445,6 +445,29 @@ class RecoveryWindowTests(unittest.TestCase):
         self.crash(window)
         return keys
 
+    def test_recovered_project_can_still_offer_the_moved_source_file(self):
+        from analisi.source_link import locate
+        from tests.test_source_link import DATA as SOURCE_DATA, link_file
+
+        original = self.folder / "Original"
+        original.mkdir()
+        source = original / "data.csv"
+        copy2(SOURCE_DATA / "iniziale.csv", source)
+        project, title = link_file(source)
+        project.save(original / "study.alab")
+        moved = original.rename(self.folder / "Moved")
+        self.open(moved / "study.alab")
+        self.edit_cell(0, 2, "99")
+        self.advance(30)
+        self.crash(self.window)
+        fresh = self.new_window()
+        recovery = fresh.recovery
+        [record] = recovery.store.list_snapshots()
+        restored = recovery.load(record, 1)
+        self.assertEqual(restored.tables[title].raw.iat[0, 2], 99)
+        self.assertEqual(locate(restored.tables[title].source_link, restored.path),
+                         ((moved / "data.csv").resolve(), True))
+
     def test_recover_one_defer_other_then_reopen_from_file(self):
         from trama_qt.recovery import RecoveryDialog
         keys = self.crashed_with_two_copies()

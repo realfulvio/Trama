@@ -476,7 +476,8 @@ class RecoveryController(QObject):
             with os.fdopen(handle, "wb") as stream:
                 stream.write(data)
             project = Project(number)
-            project.load(name)
+            source = record.get("source")
+            project.load(name, link_folder=Path(source).parent if source else None)
         finally:
             try:
                 os.unlink(name)
@@ -488,7 +489,6 @@ class RecoveryController(QObject):
         project.recovered_from = record.get("source")
         project.recovery_base_title = record["title"]
         project.recovered_title = r("recovered_title", title=record["title"])
-        source = record.get("source")
         stem = Path(source).stem if source else Path(record["title"]).stem
         folder = Path(source).parent if source else None
         project.save_suggestion = str(folder / r("recovered_file", stem=stem)) if folder else r(

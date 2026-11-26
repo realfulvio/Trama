@@ -4221,7 +4221,17 @@ class MainWindow(QMainWindow):
     def save(self, *, as_new=False):
         if self.busy() or not self.settle_graph_draft():
             return False
+        project = self.project
+        self._commit_sheet_edit()
         self.flush_info()
+        if self.job is not None:
+            # Committing the editor can start a linked calculation. Save this project when it settles.
+            def save_after_edit():
+                if self.project is project:
+                    self.save(as_new=as_new)
+
+            self._deferred.append(save_after_edit)
+            return False
         if not self.project.tables and not self.project.info_sheets:
             return False
         path = self.project.path if not as_new else None
