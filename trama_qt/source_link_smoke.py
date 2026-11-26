@@ -10,9 +10,11 @@ It uses a temporary preferences folder and the synthetic files of ``tests/data/s
 its real ``exec`` and is driven like a person would: the import with “Link to the source file” and the key ``ID``,
 a linear regression (slope 2), the file replaced by ``aggiornato.csv``, the preview (one row moved, B modified, D
 added) confirmed with Enter, the slope 2.2, Undo (2) and Redo (2.2), a style and an exclusion on B that follow the
-key, ``duplicato.csv`` refused with Apply off, a conflict that needs a choice, the Source link dialog, save, close
-and reopen with the file moved next to the project. ``OUT`` receives PNG screenshots, ``casi-dati-collegati.alab``
-with its ``dati.csv`` (reopenable: the link is relative), ``report.txt`` and ``status.txt`` (PASS/FAIL).
+key, ``duplicato.csv`` refused with Apply off, a conflict that needs a decision, the four conflicts of
+``per_riga`` decided row by row with the keyboard (Alt+N or Alt+S, Alt+P, Alt+F, Enter) to give ``atteso.csv``,
+the Source link dialog, save, close and reopen with the file moved next to the project. ``OUT`` receives PNG
+screenshots, ``casi-dati-collegati.alab`` with its ``dati.csv`` and ``dati-per-riga.csv`` (reopenable: the links
+are relative), ``report.txt`` and ``status.txt`` (PASS/FAIL).
 """
 import argparse
 import os
@@ -231,7 +233,7 @@ def main(argv=None):
 
         def conflict(dialog, seen):
             seen["before"] = dialog.apply_button.isEnabled()
-            next(button for button in dialog.choices.buttons() if button.property("choice") == "project").click()
+            dialog.conflicts.all_project.click()
             seen["after"] = dialog.apply_button.isEnabled()
             shot(dialog, "preview-conflict")
             dialog.accept()
@@ -239,7 +241,66 @@ def main(argv=None):
         seen = preview(conflict)
         check(seen.get("before") is False and seen.get("after") is True, f"conflict decision {seen}")
         values = dict(zip(ids(), window.project.tables[title].raw["Y"].tolist()))
-        check(values.get("B") == 8, f"Keep the project values gave B = {values.get('B')}")
+        check(values.get("B") == 8, f"Keep the project for all gave B = {values.get('B')}")
+
+        # -- conflicts decided row by row, with the keyboard: the package case of per_riga ---------------------------
+        rows_file = work / "dati-per-riga.csv"
+        shutil.copyfile(DATA / "per_riga" / "iniziale.csv", rows_file)
+        def import_rows(dialog):
+            dialog.link.setChecked(True)
+            dialog.key.setCurrentIndex(dialog.key.findData("ID"))
+            dialog.accept()
+
+        timer = when_modal(TextImportDialog, import_rows)
+        window.open_path(rows_file, import_data=True)
+        wait()
+        timer.stop()
+        rows_title = window._active_table()
+        keys = window.project.tables[rows_title].raw["ID"].tolist()
+        for key, value in (("B", "21"), ("C", "31"), ("D", "41")):
+            window.project.edit_cell(rows_title, keys.index(key), 1, value)
+        window.project.delete_rows(rows_title, [keys.index("E")])
+        window.reshow()
+        shutil.copyfile(DATA / "per_riga" / "aggiornato.csv", rows_file)
+        choose = {"B": Qt.Key.Key_P, "D": Qt.Key.Key_P, "C": Qt.Key.Key_F, "E": Qt.Key.Key_F}
+
+        def row_by_row(dialog, seen):
+            panel = dialog.conflicts
+            seen["open"] = panel.state.text()
+            panel.table.setFocus()
+            shot(dialog, "preview-conflicts-open")
+            for _ in range(len(choose)):  # Alt+N (Alt+S) finds the next row to decide, Alt+P / Alt+F decide it.
+                QTest.keyClick(app.focusWidget(), Qt.Key.Key_S if italian else Qt.Key.Key_N,
+                               Qt.KeyboardModifier.AltModifier)
+                QTest.qWait(250)
+                key = panel.table.item(panel.selected_lines()[0], 0).text()
+                if key == "B":
+                    seen["half"] = [panel.state.text(), dialog.apply_button.isEnabled()]
+                QTest.keyClick(app.focusWidget(), choose[key], Qt.KeyboardModifier.AltModifier)
+                QTest.qWait(250)
+            seen["done"] = [panel.state.text(), dialog.apply_button.isEnabled(), dialog.apply_button.isDefault()]
+            shot(dialog, "preview-conflicts-decided")
+            QTest.keyClick(app.focusWidget(), Qt.Key.Key_Return)  # Enter: Apply.
+
+        seen = preview(row_by_row)
+        timings["preview and apply (4 conflicts row by row)"] = seen["seconds"]
+        check(seen.get("open") == ("4 di 4 ancora da decidere" if italian else "4 of 4 still to decide"),
+              f"conflicts open {seen.get('open')!r}")
+        check(seen.get("done") == [("Tutte le 4 decise." if italian else "All 4 decided."), True, True],
+              f"conflicts decided {seen.get('done')}")
+        expected_rows = [line.split(",") for line in
+                         (DATA / "per_riga" / "atteso.csv").read_text(encoding="utf-8").split()[1:]]
+        rows = [[key, str(value)] for key, value in window.project.tables[rows_title].raw[["ID", "Y"]].values]
+        check(rows == expected_rows, f"row by row gave {rows}, expected {expected_rows}")
+        shot(window, "updated-row-by-row")
+        window.actions["undo"].trigger()
+        wait()
+        undone = window.project.tables[rows_title].raw["ID"].tolist()
+        check(undone == ["A", "B", "C", "D", "G"], f"Undo of row by row: {undone}")
+        window.actions["redo"].trigger()
+        wait()
+        window.show_sheet("data", title)
+        settle()
 
         # -- the Source link dialog ------------------------------------------------------------------------------------
         def look_link(dialog):
@@ -260,6 +321,7 @@ def main(argv=None):
         window.project.save(saved)
         shutil.copyfile(saved, out / "casi-dati-collegati.alab")
         shutil.copyfile(data, out / "dati.csv")
+        shutil.copyfile(rows_file, out / "dati-per-riga.csv")
         window.project.dirty = False
         moved = out / f"{tag}-moved"
         shutil.rmtree(moved, ignore_errors=True)

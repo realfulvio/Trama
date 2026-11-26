@@ -42,7 +42,7 @@ import pandas as pd
 from .text_import import (DECIMAL_MARKS, DELIMITERS, ImportCancelled, ImportOptions, TextImport, decode_text)
 from .worksheet_column_identity import COLUMN_IDS, after_insertion as column_ids_after_insertion, current_ids
 from .worksheet_column_identity import valid_token as valid_column_token
-from .worksheet_row_identity import ROW_SPANS, RowSpans, current_spans, saved_spans
+from .worksheet_row_identity import ROW_SPANS, RowSpans, current_spans, row_tokens, saved_spans
 
 SOURCE_LINK = "source_link"
 FORMAT = 1
@@ -58,6 +58,8 @@ OPTION_FIELDS = tuple(item.name for item in fields(ImportOptions))
 # States of a file row (``Plan.states``) and of a worksheet row that the file no longer has (``Plan.removed``).
 ADDED, MODIFIED, UNCHANGED, LOCAL, CONFLICT, DELETED, DELETED_CONFLICT = range(7)
 REMOVED, REMOVED_CONFLICT = 0, 1
+# The two decisions on a conflict: keep the worksheet's version of the row, or take the file's.
+PROJECT, FILE = "project", "file"
 
 
 class UpdateCancelled(Exception):
@@ -504,6 +506,7 @@ class Plan:
     problems: list = field(default_factory=list)
     notices: list = field(default_factory=list)
     identity_problem: Message | None = None  # Without a key: rows cannot be matched one by one.
+    conflict_items: list = field(default_factory=list)  # ``Conflict`` of every row that needs a decision.
 
     @property
     def keyed(self):
@@ -532,9 +535,46 @@ class Plan:
 
     def moved(self):
         """File rows that change place among the rows that stay: the fewest rows whose move explains the new
-        order (those outside a longest run of rows already in order)."""
-        rows = np.flatnonzero(self.match >= 0)
-        return set(rows.tolist()) - set(rows[_longest_increasing(self.match[rows])].tolist())
+        order (those outside a longest run of rows already in order). Computed once per ``match``: the preview
+        asks again after every decision."""
+        cached = self.__dict__.get("_moved")
+        if cached is None or cached[0] is not self.match:
+            rows = np.flatnonzero(self.match >= 0)
+            cached = (self.match, frozenset(rows.tolist()) - frozenset(rows[_longest_increasing(self.match[rows])]
+                                                                         .tolist()))
+            self.__dict__["_moved"] = cached
+        return set(cached[1])
+
+
+@dataclass(frozen=True)
+class Conflict:
+    """A row changed on both sides since the last confirmed version: the person decides PROJECT or FILE for it.
+
+    ``identity`` is the worksheet row identity (``origin:ordinal``) of the row, the one of the confirmed row for a
+    row deleted in the project: decisions name rows, never places in a view, and stay with the preview they were
+    made in (a new plan has new conflicts)."""
+    identity: str
+    kind: int  # CONFLICT (changed in both), DELETED_CONFLICT (deleted here, changed there), REMOVED_CONFLICT.
+    row: int  # File row, -1 when the file no longer has it.
+    position: int  # Worksheet row, -1 when the project deleted it.
+
+
+def _collect_conflicts(plan, raw):
+    """The conflicts of a keyed plan: file rows in file order, then the rows the file removed, in sheet order."""
+    rows = [row for row, state in enumerate(plan.states.tolist()) if state in (CONFLICT, DELETED_CONFLICT)]
+    removed = [position for position, kind in plan.removed if kind == REMOVED_CONFLICT]
+    sheet = [int(plan.match[row]) for row in rows if plan.states[row] == CONFLICT] + removed
+    tokens = dict(zip(sheet, row_tokens(raw, sheet)))
+    items = []
+    for row in rows:
+        if plan.states[row] == CONFLICT:
+            position = int(plan.match[row])
+            items.append(Conflict(tokens[position], CONFLICT, row, position))
+        else:
+            origin, ordinal = plan.base_tokens[row]
+            items.append(Conflict(f"{origin}:{ordinal}", DELETED_CONFLICT, row, -1))
+    items += [Conflict(tokens[position], REMOVED_CONFLICT, -1, position) for position in removed]
+    return items
 
 
 def _longest_increasing(values):
@@ -769,7 +809,8 @@ def plan_update(link, raw, excluded, path, *, project_rows_allowed=True, relink=
     if plan.reordered():
         notices.append(message("The rows take the order of the file."))
     if plan.project_rows:
-        notices.append(message("{count} row(s) added in the project stay at the bottom of the worksheet.",
+        notices.append(message("{count} row(s) of the project that are not in the file stay at the bottom of "
+                               "the worksheet.",
                                count=len(plan.project_rows)))
     deleted = plan.count(DELETED)
     if deleted:
@@ -842,6 +883,8 @@ def _match_by_key(plan, raw, local_keys, local_rows, base_keys, base_rows, base_
         # Change source…: every row of the worksheet stood for the file. Rows without a match are removed.
         plan.removed = sorted(plan.removed + [(position, REMOVED) for position in plan.project_rows])
         plan.project_rows = []
+    if not plan.problems:
+        plan.conflict_items = _collect_conflicts(plan, raw)
 
 
 def _match_by_content(plan, local_rows, base_rows, base_positions, base_tokens, based):
@@ -880,14 +923,36 @@ def _match_by_content(plan, local_rows, base_rows, base_positions, base_tokens, 
     plan.project_rows = [position for position in np.flatnonzero(~based).tolist()]
 
 
-def can_apply(plan, *, choice=None, replace_rows=False):
+def decisions_for(plan, *, choice=None, decisions=None):
+    """``{conflict identity: PROJECT | FILE}``: ``choice`` decides every conflict, ``decisions`` one by one (the
+    rows it leaves out are still open). Raises ValueError when a decision names a row that is not a conflict of
+    this plan or is neither PROJECT nor FILE: a decision never travels to another preview."""
+    if choice is not None:
+        if choice not in (PROJECT, FILE):
+            raise ValueError("The decisions do not match this preview. Update again.")
+        return {item.identity: choice for item in plan.conflict_items}
+    decisions = dict(decisions or {})
+    known = {item.identity for item in plan.conflict_items}
+    if any(identity not in known or value not in (PROJECT, FILE) for identity, value in decisions.items()):
+        raise ValueError("The decisions do not match this preview. Update again.")
+    return decisions
+
+
+def can_apply(plan, *, choice=None, decisions=None, replace_rows=False):
     """None when ``arrange`` may run with these decisions, else the message that says what is missing."""
     if plan.problems:
         return plan.problems[0]
     if plan.identity_problem is not None and not replace_rows:
         return plan.identity_problem
-    if plan.conflicts and choice not in ("project", "file") and not replace_rows:
-        return message("Choose how to treat the rows changed both in the project and in the file.")
+    if plan.conflict_items and not replace_rows:
+        try:
+            decided = decisions_for(plan, choice=choice, decisions=decisions)
+        except ValueError as error:
+            return message(str(error))
+        missing = sum(1 for item in plan.conflict_items if item.identity not in decided)
+        if missing:
+            return message("{count} conflict(s) still need a decision: keep the project or use the file.",
+                           count=missing)
     return None
 
 
@@ -908,10 +973,15 @@ class Arrangement:
                 or not np.array_equal(self.order, np.arange(previous_length)))
 
 
-def arrange(plan, *, choice=None, replace_rows=False):
-    """The new rows, in order: the file rows first, in file order, then the rows kept from the project."""
-    if (problem := can_apply(plan, choice=choice, replace_rows=replace_rows)) is not None:
+def arrange(plan, *, choice=None, decisions=None, replace_rows=False):
+    """The new rows, in order: the file rows first, in file order, then the rows kept from the project (among them
+    the rows the file removed that the project keeps). Every conflict needs a decision; nothing is guessed."""
+    if (problem := can_apply(plan, choice=choice, decisions=decisions, replace_rows=replace_rows)) is not None:
         raise ValueError(str(problem))
+    decided = {} if replace_rows else decisions_for(plan, choice=choice, decisions=decisions)
+    by_row = {item.row: decided[item.identity] == FILE for item in plan.conflict_items if item.row >= 0}
+    by_position = {item.position: decided[item.identity] == FILE for item in plan.conflict_items
+                   if item.kind == REMOVED_CONFLICT}
     order, take, host, tokens = [], [], [], []
     removed = set()
     if replace_rows:
@@ -921,20 +991,19 @@ def arrange(plan, *, choice=None, replace_rows=False):
                                                                if position >= 0}
         kept = [position for position in plan.project_rows]
     else:
-        use_file = choice == "file"
         for row, state in enumerate(plan.states.tolist()):
             position = int(plan.match[row])
             if state == ADDED:
                 order.append(-1), take.append(row), host.append(row), tokens.append(None)
-            elif state == MODIFIED or (state == CONFLICT and use_file):
+            elif state == MODIFIED or (state == CONFLICT and by_row[row]):
                 order.append(position), take.append(row), host.append(row), tokens.append(None)
             elif state in (UNCHANGED, LOCAL, CONFLICT):
                 order.append(position), take.append(-1), host.append(row), tokens.append(None)
-            elif state == DELETED_CONFLICT and use_file:
+            elif state == DELETED_CONFLICT and by_row[row]:  # Restored where the file has it, same identity.
                 order.append(-1), take.append(row), host.append(row), tokens.append(plan.base_tokens[row])
         kept = []
         for position, kind in plan.removed:
-            if kind == REMOVED_CONFLICT and not use_file:
+            if kind == REMOVED_CONFLICT and not by_position[position]:
                 kept.append(position)
             else:
                 removed.add(position)
