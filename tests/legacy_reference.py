@@ -14,9 +14,12 @@ from scipy.stats import pearsonr, spearmanr
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from analisi import Dataset, factorial_anova, hierarchical, load_tables, nonlinear, survival, t_test
+from analisi.analysis_chain import result_frame
 from analisi.exploration import bland_altman, roc
+from analisi.legacy_fit_graph import FIT_GRAPH, FIT_GRAPH_POINTS
 from analisi.legacy_restore import (LEGACY_PREVIEW, LEGACY_TITLE, SAVED_BINARY_GRAPH, SAVED_BINARY_LAYOUT,
-                                   SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH)
+                                   SAVED_BINARY_RESULT, SAVED_EDITABLE_GRAPH, SAVED_XY)
+from analisi.survival_plot import CI_BARS, PERCENT, SURVIVAL_GRAPH, SURVIVAL_SUMMARY, UNCERTAINTY, UNITS
 from analisi.workbench import analyse
 
 
@@ -84,23 +87,30 @@ def verify(directory):
     source = next(frame for frame in tables.values() if "Treatment" in frame)
     method, options = next((method, options) for method, options in Dataset(source).analyses
                            if method == "Kaplan–Meier survival")
-    assert options["Display units"] == "Percent" and options["Uncertainty"] == "Pointwise confidence band"
-    native = analyse(method, source, options).tables
-    archived = next(frame for name, frame in tables.items() if name.startswith("Imported graph · "))
+    assert options[UNITS] == PERCENT and options[UNCERTAINTY] == CI_BARS
+    result = analyse(method, source, options)
+    saved = next(frame for name, frame in tables.items() if name.endswith(" · Survival proportions"))
     verified, intervals = 0, 0
-    for group, rows in archived.groupby("Series"):
-        curve = native[f"Curve: {group}"].set_index("Time")
+    for name in result.tables:
+        if not name.startswith("Curve: "):
+            continue
+        group = name.removeprefix("Curve: ")
+        curve = result.tables[name].set_index("Time")
         curve.loc[0, "Survival (%)"] = 100.0
-        expected = curve.loc[rows["X"], "Survival (%)"].to_numpy(dtype=float)
-        np.testing.assert_allclose(expected, rows["Y"], rtol=1e-9, atol=1e-10)
-        inside = rows.dropna(subset=["Y minus", "Y plus"])
-        bounds = curve.loc[inside["X"], ["CI 95% low", "CI 95% high"]].to_numpy(dtype=float)
-        np.testing.assert_allclose(bounds[:, 0], inside["Y"] - inside["Y minus"], rtol=1e-9, atol=1e-10)
-        np.testing.assert_allclose(bounds[:, 1], inside["Y"] + inside["Y plus"], rtol=1e-9, atol=1e-10)
+        center_key, plus_key, minus_key = (f"{group} [{side}]" for side in ("Center", "Plus", "Minus"))
+        rows = saved.dropna(subset=[center_key])
+        expected = curve.loc[rows["Time (days)"], "Survival (%)"].to_numpy(dtype=float)
+        np.testing.assert_allclose(expected, rows[center_key], rtol=1e-9, atol=1e-10)
+        inside = rows.dropna(subset=[minus_key, plus_key])
+        bounds = curve.loc[inside["Time (days)"], ["CI 95% low", "CI 95% high"]].to_numpy(dtype=float)
+        np.testing.assert_allclose(bounds[:, 0], inside[center_key] - inside[minus_key], rtol=1e-9, atol=1e-10)
+        np.testing.assert_allclose(bounds[:, 1], inside[center_key] + inside[plus_key], rtol=1e-9, atol=1e-10)
         verified += len(rows)
         intervals += len(inside)
     assert verified == 129 and intervals == 99
     print(f"PASS Kaplan–Meier presentation ({verified} stored percentages and {intervals} archived pointwise intervals)")
+
+    verify_linked_survival_graph(Dataset(source), result)
 
     data, ref = read_example(directory, "MVSimpleNonlinearRegression")
     fits = nonlinear(data, "Drug Concentration", "Response", "Normalized inhibition", "Inhibitor")
@@ -321,6 +331,16 @@ def verify_binary_views(directory):
         print("PASS editable binary XY graph (original series, stroke and saved data)")
 
 
+def verify_linked_survival_graph(source, result):
+    graph_method, graph_options = next(
+        (name, values) for name, values in source.analyses if name == SAVED_XY and values.get(SURVIVAL_GRAPH) is True
+    )
+    axes = analyse(graph_method, result_frame(result, SURVIVAL_SUMMARY), graph_options).figure.axes[0]
+    assert len(axes.get_legend_handles_labels()[1]) == 3
+    assert sum(getattr(item, "has_yerr", False) for item in axes.containers) == 3
+    print("PASS linked Kaplan–Meier graph (three editable series and asymmetric confidence bars)")
+
+
 def verify_restored(directory):
     tables = load_tables(directory / "MVPairedttest.prismt", restore_legacy=True)
     data = Dataset(next(iter(tables.values())))
@@ -331,22 +351,27 @@ def verify_restored(directory):
     print("PASS restored paired test recipe and original results snapshot")
 
     tables = load_tables(directory / "MVSimpleNonlinearRegression.prismt", restore_legacy=True)
-    frame = next(value for title, value in tables.items() if title.startswith("Imported graph · "))
-    dataset = Dataset(frame)
-    method, options = dataset.analyses[0]
+    source = Dataset(next(iter(tables.values())))
+    method, options = next((name, values) for name, values in source.analyses if name == "Nonlinear regression")
+    fitted = analyse(method, source.frame(mask_excluded=True), options)
+    frame = result_frame(fitted, FIT_GRAPH_POINTS)
+    method, options = next(
+        (name, values) for name, values in source.analyses if name == SAVED_XY and values.get(FIT_GRAPH) is True
+    )
     assert frame["Geometry"].value_counts().to_dict() == {"line": 3000, "points": 54}
-    axes = analyse(method, dataset.frame(), options).figure.axes[0]
+    saved = next(values for title, values in tables.items() if title.endswith(" · Curve"))
+    for series, rows in frame[frame["Geometry"] == "line"].groupby("Series"):
+        np.testing.assert_array_equal(rows["X"], saved["Drug Concentration"])
+        np.testing.assert_allclose(rows["Y"], saved[series], rtol=2e-6, atol=3e-5)
+    axes = analyse(method, frame, options).figure.axes[0]
     assert len(axes.lines) == len(axes.collections) == 3
     np.testing.assert_allclose([axes.lines[0].get_xdata()[0], axes.lines[0].get_xdata()[-1]], [.1, 1000.])
-    print("PASS restored nonlinear graph (three original fitted arrays and observed series)")
+    print("PASS linked nonlinear graph (three fitted arrays verified against the saved points and 54 observations)")
 
     tables = load_tables(directory / "MVSimplesurvivalKaplanMeieranalysis.prismt", restore_legacy=True)
-    frame = next(value for title, value in tables.items() if title.startswith("Imported graph · "))
-    method, options = Dataset(frame).analyses[0]
-    axes = analyse(method, frame, options).figure.axes[0]
-    assert len(axes.lines) == 3 and any(item.has_yerr for item in axes.containers)
-    assert frame[["Y plus", "Y minus"]].notna().all(axis=1).any()
-    print("PASS restored Kaplan–Meier graph (step series and saved asymmetric error values)")
+    source = Dataset(next(iter(tables.values())))
+    method, options = next((name, values) for name, values in source.analyses if name == "Kaplan–Meier survival")
+    verify_linked_survival_graph(source, analyse(method, source.frame(mask_excluded=True), options))
 
 
 def verify_mv_processing(directory):
