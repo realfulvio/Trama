@@ -1,92 +1,62 @@
 # Trama
 
-![Trama — Dai dati alle figure. Statistica e grafici scientifici. Open source.](docs/media/homepage/hero.webp)
+![Trama in Classica Qt: foglio con repliche, analisi collegate e grafico, con dati sintetici.](docs/media/homepage-112/workspace-it.png)
 
-**Il tuo laboratorio, dai dati alla figura finale.**
+**Dai dati alla figura, in un solo progetto.** Statistica e grafici scientifici gratuiti e open source per Windows.
 
-**BETA — progetto in sviluppo.** Le versioni 0.x pubblicate finora sono build beta: possono contenere errori e alcune funzionalità sono ancora incomplete. La prima versione definitiva non è ancora disponibile.
+> **BETA.** Le versioni 0.x sono build beta: possono contenere errori e alcune funzioni sono incomplete. Non esiste ancora una versione stabile.
 
-Trama è un'applicazione per Windows che riunisce fogli dati, analisi statistiche e grafici scientifici. Incolla da Excel, scegli il metodo, cura la figura e conserva tutto nello stesso progetto. Un progetto indipendente per la statistica e la grafica scientifica, con codice sotto licenza MIT.
+Trama riunisce fogli dati, analisi statistiche e grafici per pubblicazione. Incolli da Excel, scegli il metodo, curi la figura e conservi tutto nello stesso progetto `.alab`. Codice sotto licenza MIT, nessun account, nessuna telemetria.
 
-**[Scarica per Windows x64](https://github.com/realfulvio/Trama/releases)** · [Guida rapida](docs/getting-started.md) · [Funzionalità](docs/features.md) · [Sito web](https://realfulvio.github.io/trama-site/) · [English](README.en.md)
+**[Scarica per Windows x64](https://github.com/realfulvio/Trama/releases/latest)** · [Sito web](https://tramastat.org) · [Funzionalità](https://tramastat.org/funzionalita/) · [Novità](https://tramastat.org/novita/) · [English](README.en.md)
 
-Windows 10/11 a 64 bit · Versione portabile · Interfaccia italiano / inglese
-
-## Un foglio familiare. Un flusso di lavoro completo.
-
-Seleziona intervalli, gestisci repliche e celle escluse, copia e incolla dalla cella attiva. Dati, risultati, grafici e layout restano collegati: quando modifichi i dati, le analisi collegate si aggiornano.
-
-![Foglio XY con repliche, selezione di un intervallo e navigatore di progetto, nella vera applicazione Windows.](docs/media/homepage/worksheet-windows.png)
-
-## Classica Qt
-
-**Trama.exe** apre la Classica in PySide6/Qt. I progetti `.alab` si aprono dall’app oppure trascinandoli sulla finestra. [Guida a Classica Qt](docs/qt-migration.md)
-
-## Gli strumenti per andare oltre il foglio di calcolo
-
-| Per il tuo lavoro | In Trama |
-| --- | --- |
-| **Confrontare esperimenti** | Test t e non parametrici, ANOVA, confronti multipli, misure ripetute e modelli misti. |
-| **Adattare e confrontare curve** | Regressioni, 118 equazioni a catalogo, equazioni personalizzate, fit globali con parametri condivisi, calibrazione, spline e LOWESS. |
-| **Esplorare dati complessi** | PCA, clustering K-means e gerarchico, dendrogrammi, matrici di correlazione e heat map. |
-| **Studiare esiti e associazioni** | Sopravvivenza e Cox, ROC, Bland–Altman, regressioni multiple, logistiche e Poisson. |
-| **Preparare le osservazioni** | Formule nel foglio, trasformazioni, baseline, normalizzazione, gestione delle repliche e simulazioni Monte Carlo. |
-| **Comporre una figura** | Grafici XY e a colonne, box plot e violini, forest e bubble plot, errori asimmetrici, annotazioni, forme e layout multipannello. |
-
-[Esplora le funzionalità e i limiti](docs/features.md)
-
-## Figure curate, risultati riutilizzabili
-
-Personalizza assi, colori, simboli, legende e annotazioni. Affianca i grafici in un layout ed esporta in **SVG, PDF, PNG o TIFF**. Nei layout nativi, SVG e PDF conservano gli elementi vettoriali dei grafici compatibili; gli elementi raster restano immagini.
-
-![Layout a due pannelli nell'applicazione Windows: fit di due serie e osservazioni individuali con media e SEM, su dati sintetici.](docs/media/homepage/layout-windows.png)
-
-<details>
-<summary>Guarda anche l'Inspector del grafico</summary>
-
-L'Inspector offre un'anteprima delle modifiche di formattazione prima di applicarle.
-
-![Grafico di regressione non lineare e Inspector laterale nell'applicazione Windows.](docs/media/homepage/graph-inspector-windows.png)
-
-</details>
-
-<details>
-<summary>Colori, valori e legende nelle heat map</summary>
-
-Gradienti personalizzati, etichette dei valori e legenda orientabile aiutano a leggere matrici e profili sperimentali. Le impostazioni restano nel progetto e si ritrovano nell'esportazione.
-
-![Heat map reale con gradiente verde petrolio e corallo, valori delle celle e legenda orizzontale; dati sintetici.](docs/media/homepage/heatmap-standard-linux.png)
-
-*Cattura reale su Linux con Tema standard. [Provenienza delle schermate](docs/media/homepage/PROVENANCE.md).*
-
-</details>
-
-<details>
-<summary>Nuovo: controllo delle false scoperte e riferimenti sugli assi</summary>
-
-Raggruppa i confronti in famiglie, applica BH, BY o BKY e visualizza le decisioni. Nei grafici nativi aggiungi tacche con etichette, linee di riferimento e fasce senza modificare i dati.
-
-![Grafico diagnostico FDR nel portabile Windows 0.78 beta, con dati sintetici.](docs/media/fdr-axis/fdr-windows.png)
-
-[Controllo FDR](docs/fdr-control.md) · [Assi: editor e limiti](docs/axis-guides.md) · [Provenienza](docs/media/fdr-axis/PROVENANCE.md)
-
-</details>
+Windows 10/11 a 64 bit · Versione portabile, senza installazione · Interfaccia in italiano e inglese
 
 ## Provalo in tre passi
 
-1. **Apri.** Scarica lo ZIP Windows, estrai tutta la cartella e avvia `Trama.exe` (`TramaStat.exe` nelle release precedenti). Non serve installare Python.
-2. **Lavora.** Crea un foglio o importa CSV, TSV e XLSX. Incolla i tuoi dati e scegli un'analisi.
-3. **Conserva e condividi.** Salva il progetto `.alab`, esporta i risultati in CSV e le figure nel formato che ti serve.
+1. **Scarica** lo ZIP `Trama-x.y.z-Windows-x64.zip` dalla pagina delle [versioni](https://github.com/realfulvio/Trama/releases/latest) (non l'archivio del sorgente).
+2. **Estrai tutta la cartella**, lascia `_internal` accanto all'eseguibile e apri `Trama.exe`. Python non serve.
+3. **Lavora.** Incolla i tuoi dati o importa CSV, TSV, TXT e XLSX, scegli un'analisi, salva il progetto `.alab` ed esporta tabelle in CSV e figure in SVG, PDF, PNG o TIFF.
 
-Il pacchetto portabile include l'ambiente necessario. Il codice MIT consente uso, studio e modifica anche in ambito professionale, alle condizioni della licenza.
+Guida rapida: [docs/getting-started.md](docs/getting-started.md).
 
-**Importazione di progetti legacy.** Trama importa dati e contenuti supportati da PZFX, PZF e PZT. Il recupero di analisi, grafici e layout dipende dal formato e dal contenuto: alcuni elementi sono modificabili, altri sono conservati come viste originali. Consulta la [compatibilità](docs/compatibility.md) prima di migrare un archivio.
+## Come si presenta
 
----
+Un foglio familiare, con repliche, celle escluse e incolla dalla cella attiva. Dati, risultati, grafici e layout restano collegati: se cambi un valore, le analisi collegate si ricalcolano. L'interfaccia è **Classica Qt** (PySide6), pensata per un uso scientifico denso: i risultati mostrano tutte le cifre.
 
-[Download](https://github.com/realfulvio/Trama/releases) · [Documentazione](docs/features.md) · [Novità delle versioni](https://github.com/realfulvio/Trama/releases) · [Sviluppo](docs/development.md)
+| | |
+| --- | --- |
+| ![Foglio, analisi e grafico](docs/media/homepage-112/workspace-it.png) | ![Layout a più pannelli](docs/media/homepage-112/layout-it.png) |
+| **Foglio, analisi e grafico** nello stesso progetto. | **Layout** a più pannelli, esportabile in SVG e PDF. |
+| ![Inspector del grafico](docs/media/homepage-112/inspector-it.png) | ![Ricerca dei comandi](docs/media/homepage-112/search-it.png) |
+| **Inspector** con anteprima prima di applicare le modifiche. | **Ricerca** di comandi e analisi. |
+
+Altre schermate: [galleria dei grafici](docs/media/homepage-112/gallery-it.png) · [distribuzioni](docs/media/homepage-112/distribution-it.png) · [schermata iniziale](docs/media/homepage-112/startup-it.png). Provenienza: [PROVENANCE.md](docs/media/homepage-112/PROVENANCE.md).
+
+## Che cosa puoi fare
+
+| Per il tuo lavoro | In Trama |
+| --- | --- |
+| **Confrontare esperimenti** | Test t (anche lognormali e di equivalenza TOST), test di rango esatti, ANOVA, misure ripetute, modelli misti e confronti multipli. |
+| **Adattare e confrontare curve** | 118 equazioni a catalogo, equazioni personalizzate e condizionali, fit globali con parametri condivisi, pesi, confronto AICc, calibrazione, spline e LOWESS. |
+| **Esplorare dati complessi** | PCA con biplot, K-means, clustering gerarchico con dendrogrammi, matrici di correlazione e mappe di calore. |
+| **Studiare esiti e associazioni** | Kaplan–Meier, Cox e rischi competitivi, curve ROC, Bland–Altman, regressioni multiple, logistiche e Poisson. |
+| **Preparare le osservazioni** | Formule nel foglio, trasformazioni, baseline, normalizzazione, repliche, dati collegati a CSV/TSV e simulazioni Monte Carlo con seme riproducibile. |
+| **Comporre la figura** | Grafici XY e a colonne, box e violino, forest e bolle, errori asimmetrici, annotazioni, forme e layout multipannello. |
+
+La mappa completa, con lo stato di ogni funzione, è sul sito: [tramastat.org/funzionalita](https://tramastat.org/funzionalita/) (con ricerca). Ogni versione ha le sue note in [Novità](https://tramastat.org/novita/) e nelle [release](https://github.com/realfulvio/Trama/releases).
+
+## Limiti, scritti chiaramente
+
+- È una beta: la copertura è parziale e non dichiariamo equivalenza con altri programmi. Un pacchetto affermato può offrire opzioni, formati, supporto e maturità che Trama non ha.
+- Il pacchetto portabile è solo per Windows 10/11 a 64 bit.
+- Nessuna validazione clinica né certificazione regolatoria. Verifica sempre i risultati; i test dimostrano i casi provati, non ogni uso possibile.
+- L'importazione di formati di altri programmi (PZFX, PZF, PZT) funziona su sottoinsiemi verificati: l'editabilità dipende dal file. Vedi la [compatibilità](docs/compatibility.md) prima di migrare un archivio.
+
+## Documentazione e sviluppo
+
+[Guida rapida](docs/getting-started.md) · [Funzionalità](docs/features.md) · [Classica Qt](docs/qt-migration.md) · [Compatibilità](docs/compatibility.md) · [Sviluppo](docs/development.md)
 
 [Licenza MIT](LICENSE) · [Crediti e componenti di terze parti](THIRD_PARTY_NOTICES.md) · [Note legali e validazione](docs/legal.md)
 
-*Schermate reali con dati sintetici: foglio, layout e Tema Moderno su Windows; nuova heat map su Linux, come indicato nelle didascalie. L'immagine di apertura è un'illustrazione. Trama è un progetto indipendente in fase beta. Non viene dichiarata una validazione clinica o una certificazione regolatoria.*
-
+*Le schermate usano dati sintetici e sono catture reali di Trama 0.112.0 su Windows 11. Trama è un progetto indipendente in fase beta; Microsoft, Windows ed Excel sono marchi dei rispettivi titolari, citati per identificare piattaforme e flussi di lavoro.*
