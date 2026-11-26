@@ -853,10 +853,62 @@ def _layout_copy_center_scenario(smoke, window):
     smoke.expect(window.project.layouts[ref[1]] == layout, "the arranged groups did not survive reopening")
 
 
+def _layout_rulers_scenario(smoke, window):
+    from dataclasses import replace
+
+    from PySide6.QtTest import QTest
+
+    from .window import ZOOM_LEVELS
+
+    ref = ("layout", smoke.build()["layout"])
+    layout = replace(window.project.layouts[ref[1]], paper="A4 landscape")
+    window.project.put_layout(layout, ref[1])
+    window.open_sheet(ref)
+    smoke.app.processEvents()
+    view = window.page.layout_view
+    root = smoke.folder / f"{smoke.language}-layout-page"
+    baseline = root.with_name(root.name + "-baseline.png")
+    window.project.export_layout(layout, baseline)
+
+    view.canvas.setFocus()
+    QTest.keyClick(view.canvas, Qt.Key.Key_R, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
+    QTest.keyClick(view.canvas, Qt.Key.Key_G, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
+                   | Qt.KeyboardModifier.ShiftModifier)
+    smoke.app.processEvents()
+    smoke.expect(view.top.isVisible() and view.left.isVisible() and view.overlay.lines,
+                 "the ruler and grid shortcuts did not show the layout aids")
+    smoke.shot(window, "layout-rulers-fit")
+    scale = view.pixels_per_mm
+
+    window._set_status_zoom(ZOOM_LEVELS.index(200))
+    smoke.app.processEvents()
+    horizontal, vertical = view.view.horizontalScrollBar(), view.view.verticalScrollBar()
+    horizontal.setValue(horizontal.maximum() // 3)
+    vertical.setValue(vertical.maximum() // 3)
+    smoke.app.processEvents()
+    smoke.expect(view.pixels_per_mm > 1.8 * scale, "the rulers did not scale with the layout")
+    point = view.visible_page(view.overlay).center().toPoint()
+    target = view.corner.mapFromGlobal(view.overlay.mapToGlobal(point))
+    QTest.mousePress(view.corner, Qt.MouseButton.LeftButton, pos=view.corner.rect().center())
+    QTest.mouseMove(view.corner, target)
+    smoke.expect(view.overlay.guide == ("both", view.overlay.mapToGlobal(point)),
+                 "the ruler corner did not place the two guides under the pointer")
+    smoke.shot(window, "layout-rulers-guides")
+    for suffix in (".pdf", ".svg", ".png"):
+        window.project.export_layout(layout, root.with_suffix(suffix))
+    smoke.expect(root.with_suffix(".png").read_bytes() == baseline.read_bytes(),
+                 "the grid or guides appeared in the exported layout")
+    QTest.mouseRelease(view.corner, Qt.MouseButton.LeftButton, pos=target)
+    smoke.expect(view.overlay.guide is None, "the temporary guides stayed visible after release")
+    smoke.expect(window.project.layouts[ref[1]] == layout, "the view tools edited the project")
+    window.project.save(root.with_suffix(".alab"))
+
+
 SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
              "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
              "qt-batch-figure-styles": _batch_figure_styles_scenario, "qt-layout-crop": _layout_crop_scenario,
-             "qt-layout-background": _layout_background_scenario, "qt-layout-copy-center": _layout_copy_center_scenario}
+             "qt-layout-background": _layout_background_scenario, "qt-layout-copy-center": _layout_copy_center_scenario,
+             "qt-layout-rulers": _layout_rulers_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

@@ -3546,6 +3546,81 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.project.layouts[key], layout)
         self.assertEqual(len(window.sessions), 1)
 
+    def test_layout_view_rulers_grid_and_temporary_guides_follow_zoom_without_exporting(self):
+        from PySide6.QtTest import QTest
+        from analisi.figure_export import MM
+        from analisi.presentation import Layout
+        from trama_qt.layout_view import _marks
+
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        layout = Layout("Plate", 1, [graph.reference], "A4 portrait")
+        key = window.project.put_layout(layout)
+        project = window.project
+        project.dirty = False
+        self.assertFalse(window.actions["layout_rulers"].isEnabled())
+        self.assertFalse(window.actions["layout_page_grid"].isEnabled())
+        window.open_sheet(("layout", key))
+        aids = window.page.layout_view
+        self.assertTrue(window.actions["layout_rulers"].isEnabled())
+        self.assertFalse(aids.top.isVisible())
+        self.assertFalse(aids.overlay.isVisible())
+        baseline = self.folder / "before.png"
+        project.export_layout(layout, baseline)
+
+        window.actions["layout_rulers"].trigger()
+        window.actions["layout_page_grid"].trigger()
+        self.app.processEvents()
+        self.assertTrue(all(widget.isVisible() for widget in (aids.top, aids.left, aids.corner, aids.overlay)))
+        self.assertTrue(aids.overlay.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents))
+        self.assertAlmostEqual(aids.page_rect(aids.overlay).width(), aids.pixels_per_mm * 210, delta=3)
+        at_fit = aids.pixels_per_mm
+
+        aids.view.set_percent(200)
+        self.app.processEvents()
+        self.assertGreater(aids.pixels_per_mm, 1.8 * at_fit)
+        self.assertAlmostEqual(aids.page_rect(aids.overlay).height(), aids.pixels_per_mm * 297, delta=3)
+        vertical = aids.view.verticalScrollBar()
+        self.assertGreater(vertical.maximum(), 0)
+        original_page = aids.page_rect(aids.overlay)
+        old_scroll = vertical.value()
+        target_scroll = vertical.maximum() if old_scroll < vertical.maximum() else 0
+        vertical.setValue(target_scroll)
+        self.app.processEvents()
+        scrolled = aids.page_rect(aids.overlay)
+        self.assertAlmostEqual(scrolled.y() - original_page.y(), old_scroll - target_scroll)
+        top, bottom = aids.visible_page(aids.overlay).top(), aids.visible_page(aids.overlay).bottom()
+        for pixel, mm, _ in _marks(scrolled.y(), aids.pixels_per_mm, top, bottom):
+            self.assertAlmostEqual(pixel, scrolled.y() + mm * aids.canvas.figure.dpi / aids.canvas.device_pixel_ratio / MM)
+
+        before_artists = tuple(aids.canvas.figure.artists)
+        window.actions["layout_page_grid"].trigger()
+        self.assertFalse(aids.overlay.isVisible())
+        point = aids.visible_page(aids.overlay).center().toPoint()
+        target = aids.top.mapFromGlobal(aids.overlay.mapToGlobal(point))
+        QTest.mousePress(aids.top, Qt.MouseButton.LeftButton, pos=aids.top.rect().center())
+        QTest.mouseMove(aids.top, target)
+        self.assertTrue(aids.overlay.isVisible())
+        self.assertEqual(aids.overlay.guide, ("horizontal", aids.overlay.mapToGlobal(point)))
+        self.assertEqual(tuple(aids.canvas.figure.artists), before_artists)
+        saved = self.folder / "with-aids.png"
+        project.export_layout(layout, saved)
+        self.assertEqual(saved.read_bytes(), baseline.read_bytes())
+        QTest.mouseRelease(aids.top, Qt.MouseButton.LeftButton, pos=target)
+        self.assertIsNone(aids.overlay.guide)
+        self.assertFalse(aids.overlay.isVisible())
+        window.actions["layout_page_grid"].trigger()
+        self.assertFalse(project.dirty)
+        self.assertEqual(project.layouts[key], layout)
+
+        window.open_sheet(("data", graph.title))
+        self.assertFalse(window.actions["layout_page_grid"].isEnabled())
+        window.open_sheet(("layout", key))
+        self.app.processEvents()
+        self.assertTrue(window.page.layout_view.top.isVisible())
+        self.assertTrue(window.page.layout_view.overlay.lines)
+
     def test_layout_duplicate_and_center_use_the_selection_and_preserve_project_history(self):
         from PySide6.QtTest import QTest
         from analisi.layout_arrangement import PanelArrangement

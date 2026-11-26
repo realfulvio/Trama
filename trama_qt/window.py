@@ -68,6 +68,7 @@ from analisi.rank_tests import MANN_WHITNEY, WILCOXON
 
 from .layout_drop import GraphNavigator, LayoutDrop
 from .layout_selection import LayoutSelection
+from .layout_view import LayoutView
 from . import global_catalog
 from . import gui_gc, office, theme
 from .analysis_dialog import AnalysisDialog
@@ -711,6 +712,10 @@ class MainWindow(QMainWindow):
         a("analysis_tables", tr("command.analysis_results"), lambda: self.switch_run_view("result"), icon="sigma")
         a("fit_graph", qt("qt.fit_graph"), self.fit_preview, icon="house")
         a("fit_layout_page", qt("qt.fit_entire_page"), self.fit_preview, icon="layout-grid")
+        a("layout_rulers", qt("qt.layout_rulers"), self.update_layout_view,
+          shortcut="Ctrl+Alt+R").setCheckable(True)
+        a("layout_page_grid", qt("qt.layout_page_grid"), self.update_layout_view,
+          shortcut="Ctrl+Alt+Shift+G").setCheckable(True)
         a("plot_margins", qt("qt.plot_margins"), self.adjust_plot_margins, icon="sliders-horizontal")
         a("analyze_result", tr("chain.analyze_result"), self.analyze_result_table, icon="git-compare")
         a("source_analysis", tr("chain.source_analysis"), self.source_analysis, icon="chevron-up")
@@ -1192,6 +1197,9 @@ class MainWindow(QMainWindow):
         fit_page.setEnabled(layout_plot)
         fit_page.setCheckable(layout_plot and self.plot_tools.fit_action.isCheckable())
         fit_page.setChecked(layout_plot and self.plot_tools.fit_action.isChecked())
+        has_layout_view = layout_plot and hasattr(self.page, "layout_view")
+        self.actions["layout_rulers"].setEnabled(has_layout_view)
+        self.actions["layout_page_grid"].setEnabled(has_layout_view)
         self.actions["plot_margins"].setEnabled(plot and not locked)
         chained = kind in {"result", "graph"} and self.project.runs[self.selected[1]].source is not None
         self.actions["analyze_result"].setEnabled(kind == "result" and idle)
@@ -2220,7 +2228,12 @@ class MainWindow(QMainWindow):
                 preview = FigureViewport(preview, canvas)
             page.figure_view = preview
             preview.set_percent(self.figure_zoom)
-        line.addWidget(preview, 1)
+        if toolbar and paper is not None and not imported_layout and reference and reference[0] == "layout":
+            page.layout_view = LayoutView(preview)
+            self.update_layout_view(page=page)
+            line.addWidget(page.layout_view, 1)
+        else:
+            line.addWidget(preview, 1)
         page.add(row, 1)
         if toolbar:
             tools.addSeparator()
@@ -2240,6 +2253,11 @@ class MainWindow(QMainWindow):
     def fit_preview(self):
         if self.plot_tools is not None and self.gallery is None and not self.busy():
             self.plot_tools.fit_action.trigger()
+
+    def update_layout_view(self, *, page=None):
+        if (view := getattr(page or self.page, "layout_view", None)) is not None:
+            view.set_options(rulers=self.actions["layout_rulers"].isChecked(),
+                             grid=self.actions["layout_page_grid"].isChecked())
 
     def adjust_plot_margins(self):
         if self.plot_tools is not None and self.gallery is None and not self.busy():
