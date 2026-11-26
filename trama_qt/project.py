@@ -1707,20 +1707,31 @@ class Project(WorksheetJoinSources, SheetCommands):
             )
         if not resolved.changed:
             return None
+        return self._permute_rows(title, resolved.order, resolved.inverse, "Sort rows")
 
+    def reverse_rows(self, title):
+        dataset = self.editable(title)
+        if not reorder_rows_allowed(dataset):
+            raise ValueError(qt("qt.rows_reorder_unavailable"))
+        length = len(dataset.raw)
+        if length < 2:
+            return None
+        order = np.arange(length - 1, -1, -1, dtype=np.intp)
+        return self._permute_rows(title, order, order, "Reverse rows")
+
+    def _permute_rows(self, title, order, inverse, label):
         def change(candidate):
             raw = candidate.raw
-            order = resolved.order
-            inv = resolved.inverse
-            inv_list = inv.tolist()
+            length = len(raw)
+            inv_list = inverse.tolist()
             frame = raw.iloc[order].reset_index(drop=True)
             frame.attrs = dict(raw.attrs)
             frame.attrs[ROW_SPANS] = after_permutation(raw, order)
             _remap_row_metadata(candidate, lambda row: inv_list[row] if 0 <= row < length else None)
-            candidate.text_styles = candidate.text_styles.reorder_rows(length, order, inverse=inv)
+            candidate.text_styles = candidate.text_styles.reorder_rows(length, order, inverse=inverse)
             candidate.raw = frame
 
-        return self.edit(title, "Sort rows", change)
+        return self.edit(title, label, change)
 
     def insert_column(self, title, position, name):
         def change(dataset):

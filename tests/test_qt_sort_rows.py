@@ -12,6 +12,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from analisi.i18n import set_language
+from analisi.worksheet_row_identity import current_spans, row_of
 from analisi.worksheet_sort import DESCENDING
 from tests.test_worksheet_sort import _synthetic_sort_fixture_bytes
 from trama_qt import theme
@@ -88,6 +89,59 @@ class QtSortRowsTests(unittest.TestCase):
         self.assertTrue(self.window.actions["sort_rows"].isEnabled())
         self.assertFalse(self.window.actions["sort_by_x"].isEnabled())
         self.assertFalse(self.window.actions["sort_by_row_title"].isEnabled())
+
+    def test_reverse_rows_preserves_selection_and_is_undoable(self):
+        title = "Ordine delle osservazioni"
+        rows = self.project.tables[title]
+        original = rows.raw["Campione"].tolist()
+        self.window.sheet.select_block(0, 0, 1, 3, current_row=1, current_col=2)
+        action = self.window.actions["reverse_rows"]
+        self.assertEqual(action.text(), "Inverti ordine delle righe")
+        self.assertTrue(action.isEnabled())
+        action.trigger()
+        self._wait()
+        self.assertEqual(rows.raw["Campione"].tolist(), list(reversed(original)))
+        self.assertEqual(row_of(current_spans(rows.raw), "base:1"), 7)
+        self.assertEqual(self.window.sheet.box(), (5, 0, 6, 3))
+        self.assertEqual(self.window.sheet.currentIndex().row(), 5)
+        self.window.undo()
+        self._wait()
+        self.assertEqual(rows.raw["Campione"].tolist(), original)
+        self.window.undo(redo=True)
+        self._wait()
+        self.assertEqual(rows.raw["Campione"].tolist(), list(reversed(original)))
+        self.project.set_sheet_frozen(("data", title), True)
+        self.window.update_actions()
+        self.assertFalse(action.isEnabled())
+
+    def test_move_selected_rows_to_edges_preserves_row_metadata(self):
+        title = "Ordine delle osservazioni"
+        rows = self.project.tables[title]
+        self.window.sheet.select_block(2, 0, 3, 3, current_row=3, current_col=2)
+        first = self.window.actions["move_rows_first"]
+        last = self.window.actions["move_rows_last"]
+        self.assertTrue(first.isEnabled())
+        first.trigger()
+        self._wait()
+        self.assertEqual(rows.raw["Campione"].tolist()[:2], ["B-1", "A-2"])
+        self.assertEqual(self.window.sheet.box(), (0, 0, 1, 3))
+        self.assertFalse(first.isEnabled())
+        self.assertTrue(last.isEnabled())
+        last.trigger()
+        self._wait()
+        self.assertEqual(rows.raw["Campione"].tolist(), ["Z-1", "A-1", "VUOTO", "D", "B-2", "B-1", "A-2"])
+        self.assertEqual(self.window.sheet.currentIndex().row(), 6)
+        self.assertFalse(last.isEnabled())
+        self.assertEqual(row_of(current_spans(rows.raw), "base:4"), 7)
+        self.assertIn((6, 2), rows.excluded)
+        self.assertEqual(rows.row_heights[6], 40)
+        self.project.save(self.path)
+        self.window.close_project()
+        self.window.open_path(self.path)
+        self._wait()
+        reopened = self.window.project.tables[title]
+        self.assertEqual(reopened.raw["Campione"].iloc[-1], "A-2")
+        self.assertIn((6, 2), reopened.excluded)
 
     def test_dialog_cancel_stale_guard_selection_following_and_undo_redo(self):
         title = "Ordine delle osservazioni"

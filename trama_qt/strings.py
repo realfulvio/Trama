@@ -259,6 +259,8 @@ _TEXT = {
     "qt.delete_columns": ("Delete columns", "Elimina colonne"),
     "qt.move_rows_up": ("Move up", "Sposta su"),
     "qt.move_rows_down": ("Move down", "Sposta giù"),
+    "qt.move_rows_first": ("Move rows to top", "Sposta righe in cima"),
+    "qt.move_rows_last": ("Move rows to bottom", "Sposta righe in fondo"),
     "qt.reset_row_height": ("Reset height", "Ripristina altezza"),
     "qt.rows_reorder_unavailable": ("Rows in this view cannot be reordered.",
                                     "Le righe di questa vista non si possono riordinare."),
@@ -336,6 +338,8 @@ _TEXT = {
     "qt.sort_rows": ("Sort rows…", "Ordina righe…"),
     "qt.sort_by_x": ("Sort by X", "Ordina per X"),
     "qt.sort_by_row_title": ("Sort by row title", "Ordina per titolo di riga"),
+    "qt.reverse_rows": ("Reverse row order", "Inverti ordine delle righe"),
+    "qt.rows_reversed": ("Reversed the worksheet row order.", "Ordine delle righe del foglio invertito."),
 }
 
 

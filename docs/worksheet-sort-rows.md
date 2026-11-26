@@ -5,6 +5,7 @@ In Classica Qt, you can sort all rows of a data sheet by any non-calculated sour
 ## Sorting rows
 
 - Choose **Edit → Sort rows…** (Italian: *Modifica → Ordina righe…*) or right-click any source column header and choose **Sort rows…** to open the compact sort dialog pre-selected on that column.
+- Use **Edit → Reverse row order** (*Modifica → Inverti ordine delle righe*) to reverse the whole worksheet. From the row header menu, **Move rows to top** and **Move rows to bottom** (*Sposta righe in cima* and *Sposta righe in fondo*) move the selected block. The selection, row formatting and exclusions follow the observations. Undo restores the previous order.
 - When the worksheet defines a **Row title** or **X** source column, **Edit → Sort by row title** (*Ordina per titolo di riga*) and **Edit → Sort by X** (*Ordina per X*) provide direct ascending quick sorts.
 - The dialog states the worksheet scope (whole worksheet and row count) before choosing the **Sort by** source column and **Direction** (**Ascending** or **Descending**).
 
