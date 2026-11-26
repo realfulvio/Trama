@@ -372,7 +372,7 @@ from analisi.survival_input import CENSOR_CODE, EVENT_CODE, OTHER_STATUS, STATUS
 from analisi.cox_dialog import TABS as COX_TABS, ProfileEditor, cox_message, model_terms
 from analisi import deming_dialog
 from analisi.ols_diagnostics import (LINEAR_CI, LINEAR_DIAGNOSTICS, LINEAR_PROFILES, LINEAR_RESIDUAL_PLOT,
-                                     TABS as OLS_TABS, check_weighted_profiles)
+                                     REPLICATE_LACK_OF_FIT, TABS as OLS_TABS, check_weighted_profiles)
 from analisi import mlr_weighting
 from analisi import logistic_validation
 from analisi.logistic_diagnostics import (LOGISTIC_CI, LOGISTIC_CUTOFF, LOGISTIC_DIAGNOSTICS, LOGISTIC_PROFILES,
@@ -511,7 +511,8 @@ GLOBAL_WEIGHTING_KEYS = {UNWEIGHTED: "gfit.weighting.unweighted",
 # Gaussian weighting of Multiple regression: translated labels, choices and the note under the choice.
 MLR_LABEL_KEYS = {mlr_weighting.GAUSSIAN_WEIGHTING: "analysis.mlr.mode", mlr_weighting.EXPONENT: "analysis.mlr.exponent",
                   mlr_weighting.SD_COLUMN: "analysis.mlr.sd", mlr_weighting.WEIGHT_COLUMN: "analysis.mlr.weight",
-                  mlr_weighting.FUTURE_PRECISION: "analysis.mlr.future"}
+                  mlr_weighting.FUTURE_PRECISION: "analysis.mlr.future",
+                  REPLICATE_LACK_OF_FIT: "mlr.lof.field"}
 def translate_mlr_error(text):
     """An engine message of Multiple regression in the active language, with its field names translated too."""
     text = translate_message(str(text), "mlr.error.")
@@ -2650,8 +2651,12 @@ class AnalysisDialog(simpledialog.Dialog):
             self.mlr_note = ttk.Label(options, wraplength=ui_theme.px(420), foreground="#486075", justify="left")
             self.mlr_note.grid(row=positions[options], column=0, columnspan=2, sticky="w", pady=(6, 0))
             positions[options] += 1
+            lack_page = self.field_rows[REPLICATE_LACK_OF_FIT][0].master
+            self.lof_note = ttk.Label(lack_page, wraplength=ui_theme.px(420), justify="left")
+            self.lof_note.grid(row=80, column=0, columnspan=2, sticky="w", pady=(8, 0))
             self.show_regression_fields()
             self._translate_analysis_labels({**MLR_LABEL_KEYS,
+                "Diagnostics and predictions": "mlr.lof.tab",
                 "Diagnostics and profiles": "analysis.logistic.tab",
                 LOGISTIC_DIAGNOSTICS: "analysis.logistic.diagnostics",
                 LOGISTIC_CUTOFF: "analysis.logistic.cutoff",
@@ -3431,6 +3436,13 @@ class AnalysisDialog(simpledialog.Dialog):
             asked = bool(visible.get(mlr_weighting.FUTURE_PRECISION)) and bool(
                 self.controls[mlr_weighting.FUTURE_PRECISION][1].get())
             self.controls[LINEAR_PROFILES][1].set_weight_visible(asked)
+        if REPLICATE_LACK_OF_FIT in self.field_rows:
+            choice = (self.controls[mlr_weighting.GAUSSIAN_WEIGHTING][1].get()
+                      if mlr_weighting.GAUSSIAN_WEIGHTING in self.controls else mlr_weighting.UNWEIGHTED)
+            weighted = bool(visible.get(REPLICATE_LACK_OF_FIT)) and choice != mlr_weighting.UNWEIGHTED
+            self.field_rows[REPLICATE_LACK_OF_FIT][1].state(["disabled"] if weighted else ["!disabled"])
+            if getattr(self, "lof_note", None) is not None:
+                self.lof_note.configure(text=tr("mlr.lof.weights") if weighted else "")
         if getattr(self, "mlr_note", None) is not None:
             choice = self.controls[mlr_weighting.GAUSSIAN_WEIGHTING][1].get()
             self.mlr_note.configure(text=tr(MLR_NOTE_KEYS.get(choice, MLR_NOTE_KEYS[mlr_weighting.UNWEIGHTED]))

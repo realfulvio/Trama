@@ -172,6 +172,9 @@ def main(argv=None):
         elif only == "qt-pareto-plot":
             from .pareto_plot_smoke import run
             status = run(folder, dark=os.environ.get("TRAMA_THEME") == "dark")
+        elif only == "qt-replicate-lack-of-fit":
+            from .replicate_lack_of_fit_smoke import main as lack_of_fit_smoke
+            status = "PASS" if lack_of_fit_smoke([folder]) == 0 else "FAIL"
         else:
             from .smoke import SCENARIOS, run
             if scenario is not None and scenario not in SCENARIOS:

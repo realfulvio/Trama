@@ -3166,6 +3166,39 @@ _MLR_WEIGHT_EN = {
     "mlr.error.profile_scale": "The raw weight scale of the training data is outside the numeric range, so profile "
                                "weights in raw units cannot be compared with it.",
     "mlr.error.rank": "The model is rank deficient after weighting. Remove redundant predictors or check the weights.",
+    "mlr.lof.field": "Replicate lack-of-fit test",
+    "mlr.lof.tab": "Diagnostics and predictions",
+    "mlr.lof.sheet": "Lack of fit on replicates",
+    "mlr.lof.weights": "The replicate lack-of-fit test needs an unweighted ordinary least squares fit. "
+                       "With weights it is not calculated.",
+    "mlr.lof.column.component": "Component",
+    "mlr.lof.column.ss": "SS",
+    "mlr.lof.column.df": "df",
+    "mlr.lof.column.ms": "MS",
+    "mlr.lof.column.f": "F",
+    "mlr.lof.column.p": "p",
+    "mlr.lof.column.n": "N",
+    "mlr.lof.column.combinations": "Distinct combinations",
+    "mlr.lof.column.rank": "Rank",
+    "mlr.lof.column.groups": "Replicate groups",
+    "mlr.lof.column.note": "Note",
+    "mlr.lof.component.residual": "Residual",
+    "mlr.lof.component.pure": "Pure error",
+    "mlr.lof.component.lack": "Lack of fit",
+    "mlr.lof.note.weights": "The replicate lack-of-fit test needs an unweighted ordinary least squares fit. "
+                            "With weights it is not calculated.",
+    "mlr.lof.note.nonfinite": "The replicate lack-of-fit test needs finite predictors, observations and residuals.",
+    "mlr.lof.note.residuals": "The stored residuals do not agree with the fit, so lack of fit was not calculated.",
+    "mlr.lof.note.predictions": "Predictions for the same predictor combination do not agree, so lack of fit was not calculated.",
+    "mlr.lof.note.negative": "The lack-of-fit sum of squares is negative beyond the numeric tolerance, "
+                             "so F and p were not calculated.",
+    "mlr.lof.note.no_replicates": "The replicate lack-of-fit test needs repeated predictor combinations.",
+    "mlr.lof.note.no_degrees": "The replicate lack-of-fit test needs more distinct predictor combinations than the rank of the fit.",
+    "mlr.lof.note.zero_both": "Pure error is zero and lack of fit is zero, so F and p are not available.",
+    "mlr.lof.note.zero_pure": "Pure error is zero while lack of fit is positive, so F and p are not available.",
+    "mlr.lof.note.clamped": "A tiny negative lack-of-fit sum of squares was set to zero. "
+                            "Comparison of lack of fit with the variation among replicates that share every predictor.",
+    "mlr.lof.note.available": "Comparison of lack of fit with the variation among replicates that share every predictor.",
 }
 _MLR_WEIGHT_IT = {
     "analysis.mlr.mode": "Pesatura gaussiana", "analysis.mlr.exponent": "Esponente del peso K",
@@ -3208,6 +3241,39 @@ _MLR_WEIGHT_IT = {
                                "dei profili in unità grezze non possono essere confrontati con essa.",
     "mlr.error.rank": "Il modello è a rango deficiente dopo la pesatura. Rimuovi i predittori ridondanti o controlla "
                       "i pesi.",
+    "mlr.lof.field": "Test di mancato adattamento sulle repliche",
+    "mlr.lof.tab": "Diagnostica e previsioni",
+    "mlr.lof.sheet": "Mancato adattamento sulle repliche",
+    "mlr.lof.weights": "Il test di mancato adattamento sulle repliche richiede un fit ai minimi quadrati ordinari senza pesi. "
+                       "Con i pesi non viene calcolato.",
+    "mlr.lof.column.component": "Componente",
+    "mlr.lof.column.ss": "SS",
+    "mlr.lof.column.df": "gdl",
+    "mlr.lof.column.ms": "MS",
+    "mlr.lof.column.f": "F",
+    "mlr.lof.column.p": "p",
+    "mlr.lof.column.n": "N",
+    "mlr.lof.column.combinations": "Combinazioni distinte",
+    "mlr.lof.column.rank": "Rango",
+    "mlr.lof.column.groups": "Gruppi con repliche",
+    "mlr.lof.column.note": "Nota",
+    "mlr.lof.component.residual": "Residuo",
+    "mlr.lof.component.pure": "Errore puro",
+    "mlr.lof.component.lack": "Mancato adattamento",
+    "mlr.lof.note.weights": "Il test di mancato adattamento sulle repliche richiede un fit ai minimi quadrati ordinari senza pesi. "
+                            "Con i pesi non viene calcolato.",
+    "mlr.lof.note.nonfinite": "Il test di mancato adattamento sulle repliche richiede predittori, osservazioni e residui finiti.",
+    "mlr.lof.note.residuals": "I residui salvati non coincidono con il fit, quindi il mancato adattamento non è stato calcolato.",
+    "mlr.lof.note.predictions": "Le previsioni della stessa combinazione di predittori non coincidono, quindi il mancato adattamento non è stato calcolato.",
+    "mlr.lof.note.negative": "La somma dei quadrati di mancato adattamento è negativa oltre la tolleranza numerica, "
+                             "quindi F e p non sono stati calcolati.",
+    "mlr.lof.note.no_replicates": "Il test di mancato adattamento sulle repliche richiede combinazioni di predittori ripetute.",
+    "mlr.lof.note.no_degrees": "Il test di mancato adattamento sulle repliche richiede più combinazioni distinte di predittori del rango del fit.",
+    "mlr.lof.note.zero_both": "L'errore puro è zero e il mancato adattamento è zero, quindi F e p non sono disponibili.",
+    "mlr.lof.note.zero_pure": "L'errore puro è zero mentre il mancato adattamento è positivo, quindi F e p non sono disponibili.",
+    "mlr.lof.note.clamped": "Una somma dei quadrati di mancato adattamento negativa e minuscola è stata posta a zero. "
+                            "Confronto del mancato adattamento con la variazione fra le repliche che condividono tutti i predittori.",
+    "mlr.lof.note.available": "Confronto del mancato adattamento con la variazione fra le repliche che condividono tutti i predittori.",
 }
 _EN.update(_MLR_WEIGHT_EN)
 _IT.update(_MLR_WEIGHT_IT)

@@ -1060,6 +1060,7 @@ CAPTIONS.update({
     "Gehan–Breslow–Wilcoxon": "Gehan–Breslow–Wilcoxon", "X error distance": "Distanza dell’errore X",
     "Error cap size": "Dimensione delle estremità delle barre", "Error width": "Spessore delle barre di errore",
     "Q (%)": "Q (%)", "N A": "N A", "N B": "N B", "N": "N",
+    "Diagnostics and predictions": "Diagnostica e previsioni",
     "Linear diagnostics": "Diagnostica lineare", "Linear residual plot": "Grafico dei residui lineari",
     "Linear profiles": "Profili lineari", "Linear CI (%)": "IC lineare (%)", "p value": "Valore p",
     "Exact permutation": "Permutazione esatta", "Chi-square approximation": "Approssimazione chi quadrato",
