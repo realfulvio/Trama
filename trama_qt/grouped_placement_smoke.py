@@ -5,11 +5,14 @@ import pandas as pd
 from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtTest import QTest
 
-from analisi.category_graphs import BARS, GROUPED_GRAPH, INTERLEAVED, SERIES_PLACEMENT, STACK_PREVIOUS
+from analisi.category_graphs import (
+    BARS, GROUPED_GRAPH, GROUPED_SERIES_ORDER, INTERLEAVED, SERIES_PLACEMENT, STACK_PREVIOUS, grouped_graph_metadata,
+)
 from analisi.figure_export import export_figure
 from analisi.presentation import Layout, graph_series
 
 from .graph_format import GraphFormatDialog
+from .series_order import SeriesOrderDialog
 from .shortcuts_dialog import ShortcutsDialog
 
 
@@ -126,3 +129,33 @@ def check_grouped_placement(smoke, window):
     window.project.export_layout(window.project.layouts[0], layout, {"format": "svg", "svg_text": "text"})
     assert all("<image" not in file.read_text(encoding="utf-8") for file in (svg, layout))
     smoke.shot(window, "grouped-placement-reopened")
+
+    def reorder():
+        dialog = smoke.app.activeModalWidget()
+        try:
+            assert isinstance(dialog, SeriesOrderDialog)
+            assert [dialog.list.item(row).text() for row in range(dialog.list.count())] == ["A", "B", "C"]
+            dialog.list.setCurrentRow(2)
+            dialog.move(-1)
+            dialog.move(-1)
+            smoke.shot(dialog, "grouped-series-order")
+            dialog.list.setFocus()
+            QTest.keyClick(dialog.list, Qt.Key.Key_Tab)
+            assert dialog.focusWidget() is not dialog.list
+            QTest.keyClick(dialog, Qt.Key.Key_Return)
+        except Exception as error:
+            smoke.problem(f"series order: {error!r}")
+        finally:
+            if isinstance(dialog, SeriesOrderDialog) and dialog.isVisible():
+                dialog.reject()
+
+    QTimer.singleShot(150, reorder)
+    window.actions["series_drawing_order"].trigger()
+    current = restored.result.figure.axes[0]
+    assert restored.options[GROUPED_SERIES_ORDER] == ["C", "A", "B"]
+    assert [item.get_text() for item in current.get_legend().get_texts()] == ["A", "B", "C"]
+    bars = grouped_graph_metadata(current)["handles"]
+    assert bars["C"].patches[0].get_x() < bars["A"].patches[0].get_x() == bars["B"].patches[0].get_x()
+    window.actions["undo"].trigger()
+    assert GROUPED_SERIES_ORDER not in restored.options
+    check_chart(restored.result.figure)

@@ -162,6 +162,13 @@ _TEXT = {
     "qt.series_order_hint": ("Series are listed from back to front.", "Le serie sono elencate dallo sfondo al primo piano."),
     "qt.series_order_hint_dual": ("Series are listed from back to front within each Y axis.",
                                  "Le serie di ogni asse Y sono elencate dallo sfondo al primo piano."),
+    "qt.grouped_series_order_hint": (
+        "The list sets the order of the series on the graph. The legend has its own order.",
+        "L’elenco imposta l’ordine delle serie nel grafico. La legenda ha un ordine proprio.",
+    ),
+    "qt.grouped_series_order_list": ("Order of the grouped series", "Ordine delle serie raggruppate"),
+    "qt.series_order_up": ("Move up", "Sposta su"),
+    "qt.series_order_down": ("Move down", "Sposta giù"),
     "qt.series_order_axis": ("Y axis", "Asse Y"),
     "qt.series_order_left": ("Left Y axis", "Asse Y sinistro"),
     "qt.series_order_right": ("Right Y axis", "Asse Y destro"),

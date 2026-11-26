@@ -136,6 +136,48 @@ class QtShellTests(unittest.TestCase):
         bars = run.result.figure.axes[0]._tramastat_grouped["handles"]
         self.assertEqual(bars["B"].patches[0].get_y(), 5.)
 
+    def test_grouped_drawing_order_reverses_without_reversing_the_legend_and_reopens(self):
+        from unittest.mock import patch
+        from analisi.category_graphs import GROUPED_SERIES_ORDER, SERIES_PLACEMENT, STACK_PREVIOUS, grouped_graph_metadata
+        from test_legacy_zip_grouped import write_fixture
+        from trama_qt.series_order import SeriesOrderDialog
+
+        source = self.folder / "grouped.pzt"
+        write_fixture(source)
+        self.window.open_path(source)
+        self.wait()
+        run, = self.window.project.runs
+        expected = {"B": STACK_PREVIOUS, "D": STACK_PREVIOUS}
+
+        def move(dialog):
+            self.assertEqual([dialog.list.item(i).text() for i in range(dialog.list.count())], list("ABCD"))
+            dialog.list.setCurrentRow(3)
+            dialog.move(-1)
+            dialog.accept()
+            return dialog.DialogCode.Accepted
+
+        order = self.window.actions["series_drawing_order"]
+        self.assertTrue(order.isEnabled())
+        with patch.object(SeriesOrderDialog, "exec", move):
+            order.trigger()
+        self.assertEqual(run.options[GROUPED_SERIES_ORDER], list("ABDC"))
+        self.window.actions["reverse_series_drawing_order"].trigger()
+        self.assertEqual(run.options[GROUPED_SERIES_ORDER], list("CDBA"))
+        self.window.actions["undo"].trigger()
+        self.assertEqual(run.options[GROUPED_SERIES_ORDER], list("ABDC"))
+        self.window.actions["redo"].trigger()
+        self.assertEqual(run.options[GROUPED_SERIES_ORDER], list("CDBA"))
+        self.assertEqual(run.options[SERIES_PLACEMENT], expected)
+        saved = self.folder / "order.alab"
+        self.window.project.save(saved)
+        self.window.open_path(saved)
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        restored, = self.window.project.runs
+        axes, = restored.result.figure.axes
+        self.assertEqual(grouped_graph_metadata(axes)["series_order"], list("CDBA"))
+        self.assertEqual([label.get_text() for label in axes.get_legend().get_texts()], list("ABCD"))
+
     def test_curve_pipeline_shows_only_applicable_fields_and_saves_canonical_values(self):
         from PySide6.QtWidgets import QLabel
         from analisi import curve_pipeline as cp

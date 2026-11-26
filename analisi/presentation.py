@@ -1011,6 +1011,8 @@ def _grouped_shown(artist):
 
 
 def _apply_legend(axes, style, defaults, series_changed):
+    from .category_graphs import grouped_graph_metadata
+
     original = defaults["legend"]
     location = style.get("legend")
     for artist, font in defaults["legend_fonts"]:
@@ -1019,9 +1021,9 @@ def _apply_legend(axes, style, defaults, series_changed):
     if location == "hidden":
         axes.legend_ = None
         return
-    grouped_meta = getattr(axes, "_tramastat_grouped", None)
-    if grouped_meta and original is not None:
-        order = grouped_meta.get("series_order", ())
+    grouped_meta = grouped_graph_metadata(axes)
+    if grouped_meta and (original is not None or location):
+        order = grouped_meta.get("worksheet_order", grouped_meta.get("series_order", ()))
         by_name = grouped_meta.get("handles", {})
         handles = [by_name[name] for name in order if name in by_name and _grouped_shown(by_name[name])]
         if not handles:

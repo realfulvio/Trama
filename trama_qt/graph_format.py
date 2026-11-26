@@ -954,8 +954,8 @@ class GraphFormatDialog(QDialog):
             options.pop(SERIES_STYLE, None)
         names = grouped_series_names(self.grouped["frame"], options)
         options.pop(SERIES_PLACEMENT, None)
-        placements = series_placements({SERIES_PLACEMENT: self.grouped_placement_map}, names)
-        if placements:
+        placements = series_placements({SERIES_PLACEMENT: self.grouped_placement_map})
+        if placements := {name: placements[name] for name in names if name in placements}:
             options[SERIES_PLACEMENT] = placements
         return prune_series_styles(options, names)
 

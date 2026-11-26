@@ -38,6 +38,7 @@ INTERLEAVED, SUPERIMPOSED, STACKED, PERCENT_STACKED = GROUP_PLACEMENTS = (
     "Interleaved", "Superimposed", "Stacked", "100% stacked")
 STACKED_PLACEMENTS = frozenset({STACKED, PERCENT_STACKED})
 SERIES_PLACEMENT = "Series placement"
+GROUPED_SERIES_ORDER = "Grouped series order"
 SIDE_BY_SIDE, OVERLAY_PREVIOUS, STACK_PREVIOUS, GAP_BEFORE = RELATIVE_PLACEMENTS = (
     "Beside previous", "Overlay previous", "Stack on previous", "Separate from previous")
 DISTANCES, LIMITS = "Distances from estimate (minus/plus)", "Limits on axis (lower/upper)"
@@ -468,6 +469,23 @@ def series_placements(options, names=None):
     return {name: placements[name] for name in names[1:] if name in placements}
 
 
+def grouped_series_order(options, names=None):
+    """Resolve the drawing order while letting new series join in the worksheet order."""
+    order = options.get(GROUPED_SERIES_ORDER, [])
+    if (not isinstance(order, list) or len(order) > MAX_CATEGORIES
+            or any(not isinstance(name, str) or not name or len(name) > 1024 for name in order)
+            or len(set(order)) != len(order)):
+        raise FieldError(GROUPED_SERIES_ORDER, "Choose a valid order for the grouped series.")
+    if names is None:
+        return order
+    available, ordered = set(names), set(order)
+    return [name for name in order if name in available] + [name for name in names if name not in ordered]
+
+
+def grouped_graph_metadata(axes):
+    return getattr(axes, "_tramastat_grouped", None) or getattr(axes, "_tramastat_grouped_context", None)
+
+
 def _series_positions(names, placements, layout):
     default = OVERLAY_PREVIOUS if layout == SUPERIMPOSED else SIDE_BY_SIDE
     slots = [0.]
@@ -793,7 +811,17 @@ def category_graph(frame, options, *, grouped=False):
         summaries = [[_summary(values, center, interval, level, style == RANGE) for values in plot.values]
                      for plot in plots]
         counts = [[len(values) for values in plot.values] for plot in plots]
-    rows, rng = [], np.random.default_rng(0)
+    worksheet_order = [plot.name for plot in plots]
+    drawing_order = grouped_series_order(options, worksheet_order) if grouped else worksheet_order
+    if drawing_order != worksheet_order:
+        indices = {name: index for index, name in enumerate(worksheet_order)}
+        order = [indices[name] for name in drawing_order]
+        plots, summaries, counts = ([sequence[index] for index in order] for sequence in (plots, summaries, counts))
+        positions, ticks, width, legend = _positions(len(row_names), len(plots), layout, row_names, drawing_order)
+        for plot, position in zip(plots, positions, strict=True):
+            plot.x = position
+    rows_by_series = {name: [] for name in worksheet_order}
+    rng = np.random.default_rng(0)
     if stacked:
         centers = np.column_stack([np.asarray(summary, dtype=float).reshape(-1, 3)[:, 0] for summary in summaries])
         bottoms, heights = _draw_stacks(axes, plots, centers, width, layout == PERCENT_STACKED, row_names)
@@ -803,14 +831,14 @@ def category_graph(frame, options, *, grouped=False):
                           "Bottom": bottoms[row, index], "Top": bottoms[row, index] + heights[row, index]}
                 if layout == PERCENT_STACKED:
                     record["Percent"] = heights[row, index]
-                rows.append(record)
+                rows_by_series[plot.name].append(record)
         axes._tramastat_zero_baseline = ("y",)
         if layout == PERCENT_STACKED:
             axes.set_ylim(0, 100)
     else:
         anchors = {}
         series_supports_per_series = grouped and style in GROUPED_SERIES_COMPATIBLE_STYLES
-        legend_handles = []
+        grouped_handles = {}
         effective_styles = {
             plot.name: series_overrides.get(plot.name, style) if series_supports_per_series else style
             for plot in plots
@@ -836,28 +864,32 @@ def category_graph(frame, options, *, grouped=False):
                 grouped_track=series_supports_per_series, bottom=bottoms_by_index.get(index), upper_only=upper_only,
             )
             if primary is not None:
-                legend_handles.append(primary)
+                grouped_handles[plot.name] = primary
             if not grouped and style != PAIRED:
                 anchors.update(_column_anchor(plot, summary[0], style, show_points))
             for category, number, (midpoint, lower, upper) in zip(row_names, count, summary, strict=True):
                 row = {"Group": plot.name, "N": number, center: midpoint, "Lower": lower, "Upper": upper}
-                rows.append({"Row": category, **row} if grouped else row)
+                rows_by_series[plot.name].append({"Row": category, **row} if grouped else row)
         if series_supports_per_series:
             axes._tramastat_grouped = {
-                "series_order": [p.name for p in plots],
+                "series_order": drawing_order,
+                "worksheet_order": worksheet_order,
                 "layout": layout,
                 "global_style": style,
                 "series_styles": effective_styles,
                 "summary": source == SUMMARIES,
-                "handles": {p.name: h for p, h in zip(plots, legend_handles, strict=True)},
+                "handles": grouped_handles,
             }
         if anchors:
             register_anchors(axes, anchors)
     if grouped and (stacked or style not in GROUPED_SERIES_COMPATIBLE_STYLES):
+        handles, labels = axes.get_legend_handles_labels()
         axes._tramastat_grouped_context = {
             "layout": layout,
             "global_style": style,
-            "series_order": [p.name for p in plots],
+            "series_order": drawing_order,
+            "worksheet_order": worksheet_order,
+            "handles": dict(zip(labels, handles, strict=True)),
         }
     axes.set_xticks(*ticks, rotation=30 if len(ticks[1]) > 8 else 0)
     axes._tramastat_numeric_axes = ("y",)
@@ -865,12 +897,16 @@ def category_graph(frame, options, *, grouped=False):
     for label in axes.get_xticklabels():
         label.set_parse_math(False)
     if legend:
-        if not stacked and grouped and style in GROUPED_SERIES_COMPATIBLE_STYLES:
-            leg = axes.legend(legend_handles, [h.get_label() for h in legend_handles])
+        if grouped:
+            metadata = grouped_graph_metadata(axes)
+            handles = metadata["handles"]
+            names = [name for name in worksheet_order if name in handles]
+            leg = axes.legend([handles[name] for name in names], names)
         else:
             leg = axes.legend()
         for label in leg.get_texts():
             label.set_parse_math(False)
+    rows = (record for name in worksheet_order for record in rows_by_series[name])
     return Result({"Graph data": pd.DataFrame(rows)}, figure)
 
 

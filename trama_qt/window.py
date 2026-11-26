@@ -31,7 +31,9 @@ from analisi.graph_legend import LEGEND_OPTIONS_KEY, visible_legends
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, translate_message, ui
 from analisi.kmeans_options import METHODS as KMEANS_METHODS
 from analisi.kmeans_reports import FIT_DIAGNOSTICS_TABLE, FIT_REASON, FIT_SOURCE
-from analisi.category_graphs import GROUPED_GRAPH
+from analisi.category_graphs import (
+    GROUPED_GRAPH, GROUPED_SERIES_ORDER, category_graph, grouped_graph_metadata,
+)
 from analisi.correlation_matrix import CORRELATION_MATRIX
 from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
 from analisi.weighted_logrank import WeightedComparisonCancelled
@@ -1173,11 +1175,15 @@ class MainWindow(QMainWindow):
         self.actions["format_legend"].setEnabled(bool(legends))
         self.actions["reverse_legend"].setEnabled(any(len(legend.get_texts()) > 1 for legend in legends))
         groups = ()
+        grouped = None
         if axis_graph is not None and axis_graph.method == XY_METHOD:
             figure = axis_graph.result.figure
             groups = xy_layer_groups(figure, graph_series(figure.axes[0]))
+        elif axis_graph is not None and axis_graph.method == GROUPED_GRAPH:
+            grouped = grouped_graph_metadata(axis_graph.result.figure.axes[0])
         can_order_series = (any(len(group) > 1 for _, group in groups)
                             and sum(len(group) for _, group in groups) <= MAX_ORDERED_SERIES)
+        can_order_series |= bool(grouped and len(grouped["series_order"]) > 1)
         self.actions["series_drawing_order"].setEnabled(can_order_series)
         self.actions["reverse_series_drawing_order"].setEnabled(can_order_series)
         self.actions["graph_style_presets"].setEnabled(graph and idle)
@@ -3557,32 +3563,66 @@ class MainWindow(QMainWindow):
         if changed:
             self._after_style_batch((run.uid,), qt("qt.style_applied"))
 
+    def _apply_grouped_series_order(self, run, metadata, requested):
+        default = metadata["worksheet_order"]
+        order = requested or default
+        if order == metadata["series_order"]:
+            return
+        options = deepcopy(run.options)
+        options.pop(GROUPED_SERIES_ORDER, None)
+        if order != default:
+            options[GROUPED_SERIES_ORDER] = order
+        style = deepcopy(run.style or {})
+        try:
+            result = category_graph(self.project.input_frame(run), options, grouped=True)
+            apply_style(result.figure, style)
+            self.project.apply_format(run, style, grouped_update=options, grouped_result=result)
+        except ValueError as error:
+            from analisi.grouped_series_catalog import translate_grouped_error
+
+            self.error(translate_grouped_error(error))
+            return
+        self._after_style_batch((run.uid,), qt("qt.style_applied"))
+
     def edit_series_drawing_order(self):
-        from .series_order import SeriesOrderDialog
+        from .series_order import SeriesOrderDialog, SeriesOrderEntry
 
         if not self.actions["series_drawing_order"].isEnabled() or not self.settle_graph_draft():
             return
         project, reference = self.project, self.selected
         run = project.runs[reference[1]]
         figure = run.result.figure
-        series = graph_series(figure.axes[0])
-        previous = list((run.style or {}).get(XY_SERIES_ORDER, ()))
-        dialog = SeriesOrderDialog(self, xy_layer_groups(figure, series, previous),
-                                  xy_layer_groups(figure, series), figure.axes[0])
+        axes = figure.axes[0]
+        grouped = grouped_graph_metadata(axes) if run.method == GROUPED_GRAPH else None
+        if grouped is None:
+            series = graph_series(axes)
+            previous = list((run.style or {}).get(XY_SERIES_ORDER, ()))
+            groups, defaults = xy_layer_groups(figure, series, previous), xy_layer_groups(figure, series)
+        else:
+            previous = deepcopy(run.options)
+            groups = [(axes, [SeriesOrderEntry(name, name) for name in grouped["series_order"]])]
+            defaults = [(axes, [SeriesOrderEntry(name, name) for name in grouped["worksheet_order"]])]
+        dialog = SeriesOrderDialog(self, groups, defaults, axes, grouped=grouped is not None)
         accepted = dialog.exec() == QDialog.DialogCode.Accepted
         order = dialog.order
         dialog.deleteLater()
         if (accepted and order is not None and self.project is project and self.selected == reference
                 and reference[1] < len(project.runs) and project.runs[reference[1]] is run
-                and run.result is not None and run.result.figure is figure
-                and list((run.style or {}).get(XY_SERIES_ORDER, ())) == previous):
-            self._apply_series_drawing_order(run, series, previous, order, qt("qt.series_drawing_order"))
+                and run.result is not None and run.result.figure is figure):
+            if grouped is not None and run.options == previous:
+                self._apply_grouped_series_order(run, grouped, order)
+            elif grouped is None and list((run.style or {}).get(XY_SERIES_ORDER, ())) == previous:
+                self._apply_series_drawing_order(run, series, previous, order, qt("qt.series_drawing_order"))
 
     def reverse_series_drawing_order(self):
         if not self.actions["reverse_series_drawing_order"].isEnabled() or not self.settle_graph_draft():
             return
         run = self.project.runs[self.selected[1]]
         figure = run.result.figure
+        if run.method == GROUPED_GRAPH:
+            grouped = grouped_graph_metadata(figure.axes[0])
+            self._apply_grouped_series_order(run, grouped, grouped["series_order"][::-1])
+            return
         series = graph_series(figure.axes[0])
         previous = list((run.style or {}).get(XY_SERIES_ORDER, ()))
         groups = xy_layer_groups(figure, series, previous)

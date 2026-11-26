@@ -11,6 +11,8 @@ CAPTIONS = {
 }
 
 MESSAGES = {
+    "grouped.order.invalid": ("Choose a valid order for the grouped series.",
+                              "Scegli un ordine valido per le serie raggruppate."),
     "grouped.series.placement": ("Placement", "Disposizione"),
     "grouped.placement.beside": ("Beside previous", "Affianca alla precedente"),
     "grouped.placement.overlay": ("Overlay previous", "Sovrapponi alla precedente"),
@@ -79,6 +81,7 @@ MESSAGES = {
 }
 
 _ENGLISH_TO_KEY = {
+    "Choose a valid order for the grouped series.": "grouped.order.invalid",
     "Choose a valid placement for each series.": "grouped.placement.error_value",
     "Choose a grouped bar or center graph with side-by-side or overlaid placement.": "grouped.placement.error_graph",
     "All series in the same stack must use bars.": "grouped.placement.error_stack",

@@ -1,4 +1,6 @@
-"""Reorder plotted XY series without changing which columns are plotted."""
+"""Reorder series in a graph."""
+
+from typing import NamedTuple
 
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QLabel,
@@ -8,10 +10,15 @@ from .strings import qt
 from .theme import fit_dialog
 
 
-class SeriesOrderDialog(QDialog):
-    """Keep the back-to-front order of each Y axis in a separate list."""
+class SeriesOrderEntry(NamedTuple):
+    key: str
+    name: str
 
-    def __init__(self, parent, groups, defaults, primary):
+
+class SeriesOrderDialog(QDialog):
+    """Keep the drawing order of each axes in a separate list."""
+
+    def __init__(self, parent, groups, defaults, primary, *, grouped=False):
         super().__init__(parent)
         self.setWindowTitle(qt("qt.series_drawing_order"))
         self.groups = [list(items) for _, items in groups]
@@ -19,7 +26,8 @@ class SeriesOrderDialog(QDialog):
         self.order = None
         self.use_default = False
         layout = QVBoxLayout(self)
-        hint = QLabel(qt("qt.series_order_hint_dual" if len(groups) > 1 else "qt.series_order_hint"))
+        hint_key = "qt.series_order_hint_dual" if len(groups) > 1 else "qt.series_order_hint"
+        hint = QLabel(qt("qt.grouped_series_order_hint" if grouped else hint_key))
         hint.setWordWrap(True)
         layout.addWidget(hint)
         self.axis = QComboBox()
@@ -30,11 +38,11 @@ class SeriesOrderDialog(QDialog):
         layout.addWidget(self.axis)
         row = QHBoxLayout()
         self.list = QListWidget()
-        self.list.setAccessibleName(qt("qt.series_order_list"))
+        self.list.setAccessibleName(qt("qt.grouped_series_order_list" if grouped else "qt.series_order_list"))
         row.addWidget(self.list, 1)
         controls = QVBoxLayout()
-        self.back = QPushButton(qt("qt.series_order_back"))
-        self.front = QPushButton(qt("qt.series_order_front"))
+        self.back = QPushButton(qt("qt.series_order_up" if grouped else "qt.series_order_back"))
+        self.front = QPushButton(qt("qt.series_order_down" if grouped else "qt.series_order_front"))
         self.back.clicked.connect(lambda: self.move(-1))
         self.front.clicked.connect(lambda: self.move(1))
         controls.addWidget(self.back)
