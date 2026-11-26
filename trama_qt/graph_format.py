@@ -11,7 +11,7 @@ from matplotlib.colors import to_hex
 from matplotlib.figure import Figure
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QColor, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
+from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame,
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
                                QPushButton, QScrollArea, QTabWidget, QVBoxLayout, QWidget)
 
@@ -501,15 +501,22 @@ class GraphFormatDialog(QDialog):
             field.setEnabled(not disabled)
 
     def _series(self):
-        page = self._tab(tr("graph.format.series"))
+        title = tr("graph.format.series")
+        self.series_scroll = None
         if self.grouped is not None:
+            page = QWidget()
+            self.tabs.addTab(page, title)
             columns = QHBoxLayout(page)
+            self.series_scroll = QScrollArea()
+            self.series_scroll.setFrameShape(QFrame.Shape.NoFrame)
+            self.series_scroll.setWidgetResizable(True)
             left_host = QWidget()
             form = QFormLayout(left_host)
-            columns.addWidget(left_host, 1)
+            self.series_scroll.setWidget(left_host)
+            columns.addWidget(self.series_scroll, 1)
         else:
             columns = None
-            form = QFormLayout(page)
+            form = QFormLayout(self._tab(title))
         self.selector = QComboBox()
         self.selector.addItems([
             series.name if series.key.startswith(GROUPED_PREFIX) else series_name(series) for series in self.series
@@ -572,7 +579,7 @@ class GraphFormatDialog(QDialog):
             self.grouped_note.setObjectName("infoBanner")
             self.grouped_note.setWordWrap(True)
             self.grouped_note.setVisible(False)
-            form.addRow("", self.grouped_note)
+            form.insertRow(3 if self.grouped_place is not None else 2, self.grouped_note)
         self.series_hint = QLabel(tr("graph.series.hint" if self.series else "graph.series.none"))
         self.series_hint.setObjectName("muted")
         self.series_hint.setWordWrap(True)
@@ -808,7 +815,8 @@ class GraphFormatDialog(QDialog):
     def _focus(self, tab, widget=None):
         self.tabs.setCurrentIndex(tab)
         if widget is not None:
-            self.tabs.widget(tab).ensureWidgetVisible(widget)
+            scroll = self.series_scroll if tab == 2 and self.series_scroll is not None else self.tabs.widget(tab)
+            scroll.ensureWidgetVisible(widget)
             widget.setFocus()
             if isinstance(widget, QLineEdit):
                 widget.selectAll()

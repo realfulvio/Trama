@@ -2,7 +2,7 @@
 
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtTest import QTest
 
 from analisi.category_graphs import BARS, GROUPED_GRAPH, INTERLEAVED, SERIES_PLACEMENT, STACK_PREVIOUS
@@ -75,7 +75,12 @@ def check_grouped_placement(smoke, window):
             if not dialog.preview():
                 smoke.problem("the mixed placement preview failed")
                 return
-            check_chart(dialog.preview_canvas.figure)
+            canvas = dialog.preview_canvas
+            check_chart(canvas.figure)
+            smoke.app.processEvents()
+            tab = dialog.tabs.currentWidget()
+            bottom_right = canvas.mapTo(tab, QPoint(canvas.width() - 1, canvas.height() - 1))
+            smoke.expect(tab.rect().contains(bottom_right), "the preview was clipped by the fields")
             smoke.expect(SERIES_PLACEMENT not in run.options, "preview changed the confirmed recipe")
             if cancel:
                 QTest.keyClick(dialog, Qt.Key.Key_Escape)
