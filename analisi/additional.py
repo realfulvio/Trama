@@ -108,6 +108,8 @@ EXTRA_METHODS = {
                             ols_diagnostics.LINEAR_RESIDUAL_PLOT: ols_diagnostics.PLOTS,
                             ols_diagnostics.LINEAR_PROFILES: cox_outputs.PROFILE_LIST,
                             ols_diagnostics.LINEAR_CI: 95.0,
+                            # Off, including when the key is missing, so older projects keep their sheets.
+                            ols_diagnostics.REPLICATE_LACK_OF_FIT: False,
                             mlr_weighting.FUTURE_PRECISION: False,
                             # Logistic only. Missing keys keep the coefficient sheets.
                             logistic_diagnostics.LOGISTIC_DIAGNOSTICS: False,
@@ -245,6 +247,7 @@ def regression_visibility(family, diagnostics, logistic_diagnostics_on=False, lo
             models.RESIDUAL_PLOT: poisson and bool(diagnostics),
             ols_diagnostics.LINEAR_DIAGNOSTICS: linear, ols_diagnostics.LINEAR_RESIDUAL_PLOT: linear,
             ols_diagnostics.LINEAR_PROFILES: linear, ols_diagnostics.LINEAR_CI: linear,
+            ols_diagnostics.REPLICATE_LACK_OF_FIT: linear,
             logistic_diagnostics.LOGISTIC_DIAGNOSTICS: logistic,
             logistic_diagnostics.LOGISTIC_CUTOFF: logistic and bool(logistic_diagnostics_on),
             logistic_diagnostics.LOGISTIC_PROFILES: logistic,

@@ -340,6 +340,9 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
         """The text without a number format: what Copy writes, so the clipboard keeps the stored digits."""
         if column == 0:
             label = self.frame.index[row]
+            formatter = self.formatters.get(self.index_title)
+            if formatter is not None and not isinstance(label, tuple):
+                return formatter(label)
             return " · ".join(display(part) for part in label) if isinstance(label, tuple) else display(label)
         name = self.frame.columns[column - 1]
         formatter = self.formatters.get(name, display)
