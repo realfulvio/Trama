@@ -5346,6 +5346,302 @@ class QtShellTests(unittest.TestCase):
         if hasattr(font, "featureValue"):
             self.assertEqual(font.featureValue(QFont.Tag("tnum")), 1)
 
+    def test_grouped_series_drawing_preview_apply_undo_redo_and_reopen(self):
+        from unittest.mock import patch
+        import numpy as np
+        from PySide6.QtGui import QKeySequence
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox
+        from analisi.category_graphs import (
+            AS_GRAPH, BARS, GROUPED_GRAPH, INTERLEAVED, LINE_SYMBOLS, SERIES_STYLE, SYMBOLS,
+        )
+        from analisi.i18n import active_language, set_language
+        from analisi.presentation import Layout, graph_series
+        from trama_qt import theme
+        from trama_qt.graph_format import GraphFormatDialog
+
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        window = self.window
+        window.resize(1024, 768)
+        self.app.processEvents()
+
+        visite_path = ROOT / "tests" / "data" / "grouped_series_styles" / "visite.csv"
+        atteso_path = ROOT / "tests" / "data" / "grouped_series_styles" / "atteso.csv"
+        atteso = pd.read_csv(atteso_path)
+        window.open_path(visite_path)
+        self.app.processEvents()
+        cols = ["Controllo [1]", "Controllo [2]", "Trattamento [1]", "Trattamento [2]"]
+        run = self.run_method(GROUPED_GRAPH, {
+            "Variables": cols, "Row titles": "Visita",
+            "Graph style": BARS, "Placement of groups": INTERLEAVED, "Interval": "SEM",
+        })
+        idx = window.project.runs.index(run)
+        window.open_sheet(("graph", idx))
+        self.app.processEvents()
+        before_data = run.result.tables["Graph data"].copy()
+
+        # Verify Italian labels, Preview, Cancel rollback
+        style, xy = window.project.format_inputs(run)
+        grouped = window.project.grouped_format_inputs(run)
+        dlg = GraphFormatDialog(window, run.result.figure.axes[0], style, xy=xy, grouped=grouped)
+        self.addCleanup(dlg.deleteLater)
+        dlg.tabs.setCurrentIndex(2)
+        dlg.show()
+        self.app.processEvents()
+        self.assertLessEqual(dlg.width(), 1024)
+        self.assertLessEqual(dlg.height(), 768)
+        self.assertEqual([dlg.grouped_draw.itemText(i) for i in range(dlg.grouped_draw.count())], [
+            "Come il grafico", "Barre", "Centro e intervallo", "Linea e simboli",
+        ])
+        dlg.selector.setCurrentIndex(1)  # Trattamento
+        self.assertEqual(dlg.grouped_draw.value(), AS_GRAPH)
+        dlg.grouped_draw.set(LINE_SYMBOLS)
+        self.assertTrue(dlg.series_fields["line_style"].isEnabled())
+        self.assertTrue(dlg.series_fields["marker"].isEnabled())
+        dlg.series_fields["color"].setText("#cc3311")
+        self.assertTrue(dlg.preview())
+        self.assertIsNotNone(dlg.preview_canvas)
+        self.assertEqual(len(graph_series(dlg.preview_canvas.figure.axes[0])), 2)
+        self.assertEqual(graph_series(dlg.preview_canvas.figure.axes[0])[1].kind, "line")
+        dlg.reject()  # Cancel preserves original Bars figure
+        self.assertEqual([s.kind for s in graph_series(run.result.figure.axes[0])], ["bar", "bar"])
+        self.assertNotIn(SERIES_STYLE, run.options)
+
+        # Reopen Format Graph via real MainWindow.format_graph() & Apply
+        def drive_apply(dialog):
+            dialog.tabs.setCurrentIndex(2)
+            dialog.selector.setCurrentIndex(1)
+            dialog.grouped_draw.set(LINE_SYMBOLS)
+            dialog.series_fields["color"].setText("#cc3311")
+            dialog.accept()
+            return QDialog.DialogCode.Accepted
+
+        with patch.object(GraphFormatDialog, "exec", drive_apply):
+            window.format_graph()
+        self.app.processEvents()
+
+        ax = run.result.figure.axes[0]
+        self.assertEqual(run.options[SERIES_STYLE], {"Trattamento": LINE_SYMBOLS})
+        self.assertEqual(run.style["series"]["grouped:1:Trattamento"]["color"], "#cc3311")
+        self.assertEqual([t.get_text() for t in ax.get_legend().get_texts()], ["Controllo", "Trattamento"])
+        gs = graph_series(ax)
+        self.assertEqual([(s.key, s.kind) for s in gs], [
+            ("grouped:1:Controllo", "bar"),
+            ("grouped:1:Trattamento", "line"),
+        ])
+        self.assertEqual(len(gs[0].artist.patches), 4)
+        np.testing.assert_allclose(gs[1].artist.get_ydata(), [4.0, 8.0, np.nan, 10.0], equal_nan=True)
+        # Graph data table remains identical to atteso.csv
+        for frame in (before_data, run.result.tables["Graph data"]):
+            self.assertEqual(frame["Row"].tolist(), atteso["Row"].tolist())
+            np.testing.assert_allclose(frame["Mean"].to_numpy(), atteso["Mean"].to_numpy(), equal_nan=True)
+            np.testing.assert_allclose(frame["Lower"].to_numpy(), atteso["Lower"].to_numpy(), equal_nan=True)
+            np.testing.assert_allclose(frame["Upper"].to_numpy(), atteso["Upper"].to_numpy(), equal_nan=True)
+
+        # Undo & Redo (Ctrl+Z / Ctrl+Y)
+        window.undo()
+        self.app.processEvents()
+        self.assertNotIn(SERIES_STYLE, run.options)
+        self.assertEqual([s.kind for s in graph_series(run.result.figure.axes[0])], ["bar", "bar"])
+        window.undo(redo=True)
+        self.app.processEvents()
+        self.assertEqual(run.options[SERIES_STYLE], {"Trattamento": LINE_SYMBOLS})
+        self.assertEqual(run.style["series"]["grouped:1:Trattamento"]["color"], "#cc3311")
+        self.assertEqual([s.kind for s in graph_series(run.result.figure.axes[0])], ["bar", "line"])
+
+        # Add Layout, export SVG/PDF vector, save & reopen .alab + shipped example .alab
+        layout = Layout("Layout visite", 1, [(run.title, idx)])
+        window.project.put_layout(layout)
+        saved = self.folder / "visite_mixed.alab"
+        window.project.save(saved)
+        graph_svg = self.folder / "graph.svg"
+        layout_svg = self.folder / "layout.svg"
+        layout_pdf = self.folder / "layout.pdf"
+        from analisi.figure_export import export_figure
+        export_figure(run.result.figure, graph_svg, {"format": "svg", "svg_text": "text"})
+        window.project.export_layout(layout, layout_svg, {"format": "svg", "svg_text": "text"})
+        window.project.export_layout(layout, layout_pdf, {"format": "pdf"})
+        for svg in (graph_svg, layout_svg):
+            txt = svg.read_text(encoding="utf-8")
+            self.assertIn("Controllo", txt)
+            self.assertIn("Trattamento", txt)
+            self.assertNotIn("<image", txt)
+        self.assertGreater(layout_pdf.stat().st_size, 2000)
+
+        self.reopen(saved)
+        r_idx = next(i for i, r in enumerate(window.project.runs) if r.method == GROUPED_GRAPH)
+        window.open_sheet(("graph", r_idx))
+        self.wait()
+        reopened_run = window.project.runs[r_idx]
+        self.assertEqual(reopened_run.options[SERIES_STYLE], {"Trattamento": LINE_SYMBOLS})
+        self.assertEqual(reopened_run.style["series"]["grouped:1:Trattamento"]["color"], "#cc3311")
+        self.assertEqual([s.kind for s in graph_series(reopened_run.result.figure.axes[0])], ["bar", "line"])
+
+        # Shipped docs example .alab reopens cleanly
+        example_alab = ROOT / "docs" / "examples" / "Grafico-raggruppato-stili-serie.alab"
+        self.reopen(example_alab)
+        ex_idx = next(i for i, r in enumerate(window.project.runs) if r.method == GROUPED_GRAPH)
+        window.open_sheet(("graph", ex_idx))
+        self.wait()
+        self.assertEqual(window.project.runs[ex_idx].options[SERIES_STYLE], {"Trattamento": LINE_SYMBOLS})
+
+    def test_grouped_series_stacked_unavailable_and_reset_confirm(self):
+        from unittest.mock import patch
+        from analisi.category_graphs import GROUPED_GRAPH, INTERLEAVED, LINE_SYMBOLS, PERCENT_STACKED, POINTS, RANGE, SERIES_STYLE, STACKED
+        from analisi.i18n import active_language, set_language
+        from trama_qt.analysis_dialog import AnalysisDialog
+        from trama_qt.graph_format import GraphFormatDialog
+
+        self.addCleanup(set_language, active_language())
+        window = self.window
+        window.open_path(ROOT / "tests" / "data" / "grouped_series_styles" / "visite.csv")
+        self.app.processEvents()
+        cols = ["Controllo [1]", "Controllo [2]", "Trattamento [1]", "Trattamento [2]"]
+
+        # Stacked and 100% stacked disable Drawing with inline explanation in both IT and EN
+        for lang, expected_word in (("en", "Stacked"), ("it", "Impilati")):
+            set_language(lang)
+            run_s = self.run_method(GROUPED_GRAPH, {
+                "Variables": cols, "Row titles": "Visita", "Interval": "None", "Placement of groups": STACKED,
+            })
+            st, xy = window.project.format_inputs(run_s)
+            dlg_s = GraphFormatDialog(window, run_s.result.figure.axes[0], st, xy=xy,
+                                      grouped=window.project.grouped_format_inputs(run_s))
+            self.addCleanup(dlg_s.deleteLater)
+            self.assertFalse(dlg_s.grouped_draw.isEnabled())
+            self.assertFalse(dlg_s.grouped_note.isHidden())
+            self.assertEqual(dlg_s.grouped_note.objectName(), "infoBanner")
+            self.assertIn(expected_word, dlg_s.grouped_note.text())
+
+        set_language("en")
+        run_100 = self.run_method(GROUPED_GRAPH, {
+            "Variables": cols, "Row titles": "Visita", "Interval": "None", "Placement of groups": PERCENT_STACKED,
+        })
+        dlg_100 = GraphFormatDialog(window, run_100.result.figure.axes[0], {},
+                                    grouped=window.project.grouped_format_inputs(run_100))
+        self.addCleanup(dlg_100.deleteLater)
+        self.assertFalse(dlg_100.grouped_draw.isEnabled())
+
+        # Individual points & Floating range keep current behavior and show disabled explanation
+        for style in (POINTS, RANGE):
+            run_i = self.run_method(GROUPED_GRAPH, {
+                "Variables": cols, "Row titles": "Visita", "Graph style": style, "Placement of groups": INTERLEAVED,
+            })
+            dlg_i = GraphFormatDialog(window, run_i.result.figure.axes[0], {},
+                                      grouped=window.project.grouped_format_inputs(run_i))
+            self.addCleanup(dlg_i.deleteLater)
+            self.assertFalse(dlg_i.grouped_draw.isEnabled())
+            self.assertFalse(dlg_i.grouped_note.isHidden())
+
+        # AnalysisDialog confirmation when switching from overrides to Stacked
+        run_mix = self.run_method(GROUPED_GRAPH, {
+            "Variables": cols, "Row titles": "Visita", "Interval": "SEM",
+            "Placement of groups": INTERLEAVED,
+        })
+        dlg_mix = GraphFormatDialog(window, run_mix.result.figure.axes[0], window.project.format_inputs(run_mix)[0],
+                                    grouped=window.project.grouped_format_inputs(run_mix))
+        self.addCleanup(dlg_mix.deleteLater)
+        dlg_mix.selector.setCurrentIndex(1)
+        dlg_mix.grouped_draw.set(LINE_SYMBOLS)
+        dlg_mix.accept()
+        window.project.apply_format(run_mix, dlg_mix.result,
+                                    grouped_update=dlg_mix.grouped_update, grouped_result=dlg_mix.grouped_result)
+        adlg = AnalysisDialog(window, window.project.tables[run_mix.title].frame(), current=(GROUPED_GRAPH, run_mix.options))
+        self.addCleanup(adlg.deleteLater)
+        adlg.controls["Placement of groups"][1].setCurrentIndex(adlg.controls["Placement of groups"][1].findData(STACKED))
+        adlg.controls["Interval"][1].setCurrentIndex(adlg.controls["Interval"][1].findData("None"))
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No) as q_no:
+            adlg.accept()
+            self.assertTrue(q_no.called)
+            self.assertIsNone(adlg.result)
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes) as q_yes:
+            adlg.accept()
+            self.assertTrue(q_yes.called)
+            self.assertIsNotNone(adlg.result)
+            self.assertEqual(adlg.result[1][SERIES_STYLE], {})
+
+    def test_grouped_series_dollar_titles_summaries_and_reordered_columns(self):
+        from analisi.category_graphs import GROUPED_GRAPH, INTERLEAVED, LINE_SYMBOLS, SERIES_STYLE
+        from analisi.presentation import graph_series
+        from trama_qt.graph_format import GraphFormatDialog
+
+        window = self.window
+        sum_df = pd.DataFrame({
+            "Visita": ["$V1", "V$2", "$100 V3", "V4$"],
+            "Controllo [Mean]": [2.0, 3.0, 4.0, 5.0],
+            "Controllo [SEM]": [1.0, 1.0, 1.0, 1.0],
+            "Controllo [N]": [2, 2, 2, 2],
+            "Trattamento [Mean]": [4.0, 8.0, float("nan"), 10.0],
+            "Trattamento [SEM]": [1.0, 1.0, float("nan"), 1.0],
+            "Trattamento [N]": [2, 2, 0, 2],
+        })
+        title, = window.project.add_tables({"SumVisite": sum_df})
+        window.open_sheet(("data", title))
+        self.app.processEvents()
+        vars_sum = [c for c in sum_df.columns if c != "Visita"]
+        run = self.run_method(GROUPED_GRAPH, {
+            "Input": "Precomputed summaries",
+            "Variables": vars_sum, "Row titles": "Visita", "Summary error": "SEM",
+            "Placement of groups": INTERLEAVED,
+        })
+        style, xy = window.project.format_inputs(run)
+        dlg = GraphFormatDialog(window, run.result.figure.axes[0], style, xy=xy,
+                                grouped=window.project.grouped_format_inputs(run))
+        self.addCleanup(dlg.deleteLater)
+        dlg.texts["title"].setText("Cost $50")
+        dlg.selector.setCurrentIndex(1)
+        dlg.grouped_draw.set(LINE_SYMBOLS)
+        dlg.series_fields["color"].setText("#cc3311")
+        dlg.series_fields["label"].setText("Tratt $B")
+        dlg.accept()
+        window.project.apply_format(run, dlg.result, grouped_update=dlg.grouped_update, grouped_result=dlg.grouped_result)
+        ax = run.result.figure.axes[0]
+        self.assertEqual([t.get_text() for t in ax.get_xticklabels()], ["$V1", "V$2", "$100 V3", "V4$"])
+        self.assertEqual([t.get_text() for t in ax.get_legend().get_texts()], ["Controllo", "Tratt $B"])
+        self.assertEqual(run.options[SERIES_STYLE], {"Trattamento": LINE_SYMBOLS})
+
+        # Reordering selected variables keeps Trattamento drawing override and formatting
+        reordered = [
+            "Trattamento [Mean]", "Trattamento [SEM]", "Trattamento [N]",
+            "Controllo [Mean]", "Controllo [SEM]", "Controllo [N]",
+        ]
+        cand = window.project.candidate(title, GROUPED_GRAPH, {**run.options, "Variables": reordered},
+                                        index=window.project.runs.index(run))
+        self.assertEqual(cand.options[SERIES_STYLE], {"Trattamento": LINE_SYMBOLS})
+        self.assertEqual(cand.style["series"]["grouped:1:Trattamento"]["color"], "#cc3311")
+
+        # Inspector color edit on Trattamento supports Undo and Redo cleanly too
+        window.open_sheet(("graph", window.project.runs.index(run)))
+        self.app.processEvents()
+        window.toggle_inspector()
+        self.app.processEvents()
+        inspector = window.inspector
+        self.assertIsNotNone(inspector)
+        inspector.selector.setCurrentIndex(1)
+        inspector.fields["color"].setText("#1166aa")
+        inspector._now("element:color")
+        self.assertTrue(inspector.apply())
+        self.assertEqual(run.style["series"]["grouped:1:Trattamento"]["color"], "#1166aa")
+        window.undo()
+        self.app.processEvents()
+        self.assertEqual(run.style["series"]["grouped:1:Trattamento"]["color"], "#cc3311")
+        window.undo(redo=True)
+        self.app.processEvents()
+        self.assertEqual(run.style["series"]["grouped:1:Trattamento"]["color"], "#1166aa")
+
+        # Keyboard & dark theme check: Tab reaches controls, non-primary buttons have no autoDefault, dark stylesheet loads
+        dlg_kb = GraphFormatDialog(window, run.result.figure.axes[0], window.project.format_inputs(run)[0],
+                                   grouped=window.project.grouped_format_inputs(run))
+        self.addCleanup(dlg_kb.deleteLater)
+        dlg_kb.tabs.setCurrentIndex(2)
+        dlg_kb.show()
+        self.app.processEvents()
+        self.assertFalse(dlg_kb.preview_button.autoDefault())
+        self.assertFalse(dlg_kb.preview_button.isDefault())
+        self.assertLessEqual(dlg_kb.width(), 1024)
+        self.assertLessEqual(dlg_kb.height(), 768)
+        self.assertTrue(dlg_kb.grouped_draw.focusPolicy() != Qt.FocusPolicy.NoFocus)
+
 
 if __name__ == "__main__":
     unittest.main()

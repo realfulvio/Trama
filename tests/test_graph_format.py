@@ -7,8 +7,13 @@ from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 import pandas as pd
 
+from analisi.category_graphs import (
+    BARS, GROUPED_GRAPH, INTERLEAVED, LINE_SYMBOLS, SERIES_STYLE, SYMBOLS,
+    category_graph, grouped_style_after_parameter_change,
+)
 from analisi.data import Dataset, load_workspace, save_project
-from analisi.presentation import apply_style, graph_series, validated_style
+from analisi.figure_export import export_figure
+from analisi.presentation import active_series_fields, apply_style, graph_series, validated_style
 
 
 class GraphFormatTests(unittest.TestCase):
@@ -280,3 +285,54 @@ class GraphFormatTests(unittest.TestCase):
             self.assertIn("Arterial kPa", svg_text)
             self.assertIn("Baseline", svg_text)
             self.assertGreater(png_path.stat().st_size, 1000)
+
+    def test_grouped_series_style_persists_in_alab_and_exports_vector_svg_and_pdf(self):
+        df = pd.read_csv(Path(__file__).resolve().parent / "data" / "grouped_series_styles" / "visite.csv")
+        cols = ["Controllo [1]", "Controllo [2]", "Trattamento [1]", "Trattamento [2]"]
+        options = {
+            "Variables": cols, "Row titles": "Visita", "Interval": "SEM",
+            "Graph style": BARS, "Placement of groups": INTERLEAVED,
+            SERIES_STYLE: {"Trattamento": LINE_SYMBOLS},
+        }
+        result = category_graph(df, options, grouped=True)
+        style = validated_style({
+            "title": "Visite $100",
+            "series": {
+                "grouped:1:Controllo": {"color": "#216a94"},
+                "grouped:1:Trattamento": {"color": "#cc3311", "marker": "s", "line_style": "dashed", "label": "Tratt. $1"},
+            },
+        })
+        apply_style(result.figure, style)
+        ax, = result.figure.axes
+        gs = graph_series(ax)
+        self.assertEqual([s.key for s in gs], ["grouped:1:Controllo", "grouped:1:Trattamento"])
+        self.assertEqual(active_series_fields(ax, gs[0]), {"color", "label", "visible"})
+        self.assertIn("line_style", active_series_fields(ax, gs[1]))
+
+        pruned = grouped_style_after_parameter_change(
+            style, {"Variables": ["Trattamento [1]", "Trattamento [2]"], "Row titles": "Visita"}, df
+        )
+        self.assertEqual(set(pruned["series"]), {"grouped:1:Trattamento"})
+
+        dataset = Dataset(df)
+        dataset.analyses.append((GROUPED_GRAPH, options))
+        dataset.graph_styles[0] = style
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "grouped_mixed.alab"
+            save_project(path, {"Visite": dataset})
+            reopened, _ = load_workspace(path)
+            saved_method, saved_options = reopened["Visite"].analyses[0]
+            self.assertEqual(saved_method, GROUPED_GRAPH)
+            self.assertEqual(saved_options[SERIES_STYLE], {"Trattamento": LINE_SYMBOLS})
+            rebuilt = category_graph(reopened["Visite"].frame(), saved_options, grouped=True)
+            apply_style(rebuilt.figure, reopened["Visite"].graph_styles[0])
+            svg_path = Path(tmp) / "grouped.svg"
+            pdf_path = Path(tmp) / "grouped.pdf"
+            export_figure(rebuilt.figure, svg_path, {"format": "svg", "svg_text": "text"})
+            export_figure(rebuilt.figure, pdf_path, {"format": "pdf"})
+            svg_txt = svg_path.read_text(encoding="utf-8")
+            self.assertIn("Controllo", svg_txt)
+            self.assertIn("Tratt. $1", svg_txt)
+            self.assertIn("Visite $100", svg_txt)
+            self.assertNotIn("<image", svg_txt)
+            self.assertGreater(pdf_path.stat().st_size, 2000)
