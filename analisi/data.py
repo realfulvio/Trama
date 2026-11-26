@@ -1292,8 +1292,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         if roles is not None:
             record["worksheet_roles"] = _validated_worksheet_roles(roles, raw.columns)
         if dataset.source_link is not None:
-            from .source_link import SOURCE_LINK, link_record
-            record[SOURCE_LINK] = link_record(dataset.source_link)
+            from .source_link import link_record, record_key
+            record[record_key(dataset.source_link)] = link_record(dataset.source_link)
         data["tables"].append(record)
     return data
 
@@ -1401,9 +1401,16 @@ def load_workspace(path, *, include_info=False):
             data.number_formats = read_column_formats(table["number_formats"], set(data.columns))
         if "text_styles" in table:
             data.text_styles = read_text_styles(table["text_styles"], len(data.raw), set(data.columns))
-        if "source_link" in table:  # Older versions of Trama ignore it: the worksheet keeps its cells.
-            from .source_link import read_link_record
-            data.source_link = read_link_record(table["source_link"])
+        if "source_link" in table or "source_link_workbook" in table:
+            # Older versions of Trama ignore these keys: the worksheet keeps its cells. Versions that know only
+            # "source_link" (CSV/TSV) ignore the workbook key the same way.
+            from .source_link import SOURCE_LINK, SOURCE_LINK_WORKBOOK, TEXT, WORKBOOK, read_link_record
+            if SOURCE_LINK in table and SOURCE_LINK_WORKBOOK in table:
+                raise ValueError("Invalid link to a source file.")
+            if SOURCE_LINK in table:
+                data.source_link = read_link_record(table[SOURCE_LINK], kind=TEXT)
+            else:
+                data.source_link = read_link_record(table[SOURCE_LINK_WORKBOOK], kind=WORKBOOK)
         entries = table.get("analyses", [])
         limit = MAX_ANALYSIS_NODES if version >= 3 else 256
         if len(entries) > limit or any(not isinstance(method, str) or not isinstance(options, dict)
