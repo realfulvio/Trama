@@ -5454,6 +5454,9 @@ class QtShellTests(unittest.TestCase):
         window.project.put_layout(layout)
         saved = self.folder / "visite_mixed.alab"
         window.project.save(saved)
+        from json import loads
+        from analisi.data import GROUPED_SERIES_STYLE_VERSION
+        self.assertEqual(loads(saved.read_text(encoding="utf-8"))["version"], GROUPED_SERIES_STYLE_VERSION)
         graph_svg = self.folder / "graph.svg"
         layout_svg = self.folder / "layout.svg"
         layout_pdf = self.folder / "layout.pdf"

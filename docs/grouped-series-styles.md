@@ -4,7 +4,7 @@ Nei grafici raggruppati (**Grouped graph**) puoi scegliere un tipo di disegno sp
 
 ## Come funziona in Classica Qt
 
-1. Apri il pannello **Formato grafico** (barra degli strumenti o menu *Grafico → Formato grafico…*) e seleziona la scheda **Serie** (*Series*).
+1. Apri il pannello **Formato grafico** (barra degli strumenti o menu *Cambia → Formato grafico…*) e seleziona la scheda **Serie** (*Series*).
 2. Scegli la serie dall’elenco **Elemento** (*Element*) e imposta **Disegno** (*Drawing*):
    - **Come il grafico** (*As graph*): eredita lo stile globale scelto nei parametri del grafico (**Barre** o **Centro e intervallo**).
    - **Barre** (*Bars*): disegna la serie come barre verticali con l’eventuale intervallo di errore.
@@ -17,7 +17,8 @@ Nei grafici raggruppati (**Grouped graph**) puoi scegliere un tipo di disegno sp
 - Supporta sia **Affiancati** (*Interleaved*) sia **Sovrapposti** (*Superimposed*), sia con **Repliche grezze** (*Raw replicates*) sia con **Riepiloghi precalcolati** (*Precomputed summaries*).
 - Con **Impilati** (*Stacked*) e **Impilati al 100%** (*100% stacked*), oppure quando lo stile globale è **Osservazioni individuali** (*Individual points*) o **Intervalli flottanti** (*Floating range*), il selettore **Disegno** viene disabilitato con una nota esplicativa nella stessa scheda. Se nei parametri dell’analisi sposti il grafico verso una modalità incompatibile mentre esistono override per serie, Trama chiede conferma per ripristinare tutte le serie su **Come il grafico**.
 - Ogni serie mantiene una **sola voce di legenda**, i propri colori, visibilità, etichetta (inclusi caratteri letterali come `$`) e formattazione anche riordinando le colonne selezionate, modificando i parametri compatibili e riaprendo il file `.alab`.
-- I grafici impaginati nei **Layout** e le esportazioni **PNG**, **SVG** e **PDF** conservano la resa mista e vettoriale delle serie.
+- I progetti con disegni o formati specifici dei grafici raggruppati usano il formato ALAB 16. Le versioni precedenti dell’app che non lo supportano chiedono di aggiornare. L’esempio preparato prima di questa modifica si apre e viene aggiornato al salvataggio.
+- I grafici e i layout conservano il disegno misto nell’export. SVG e PDF mantengono le serie vettoriali.
 
 ---
 
