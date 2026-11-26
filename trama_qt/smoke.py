@@ -742,6 +742,36 @@ def _layout_crop_scenario(smoke, window):
     smoke.expect(controller.panels[0].figure is None and panel_rectangle(controller.panels[0]) == after,
                  "the empty panel and its geometry did not reopen")
 
+    def embed():
+        dialog = smoke.app.activeModalWidget()
+        if not isinstance(dialog, LayoutGraphDialog) or not dialog.embed.isEnabled():
+            smoke.problem("the graph selector did not offer to embed the drawing")
+            if dialog is not None:
+                dialog.reject()
+            return
+        dialog.embed.setFocus()
+        QTest.keyClick(dialog.embed, Qt.Key.Key_Space)
+        smoke.shot(dialog, "layout-embed-dialog")
+        QTest.keyClick(dialog.embed, Qt.Key.Key_Return)
+        if dialog.isVisible():
+            dialog.reject()
+
+    QTimer.singleShot(100, embed)
+    window.place_layout_graph(0)
+    layout = window.project.layouts[ref[1]]
+    picture = layout.arrangement.picture(0)
+    smoke.expect(picture is not None and not layout.empty_panels, "the panel did not embed a drawing")
+    root = smoke.folder / f"{smoke.language}-layout-picture"
+    window.project.export_layout(layout, root.with_suffix(".pdf"))
+    window.project.save(root.with_suffix(".alab"))
+    window.close_project()
+    window.open_path(root.with_suffix(".alab"))
+    window.open_sheet(ref)
+    smoke.wait()
+    smoke.expect(window.project.layouts[ref[1]].arrangement.picture(0) == picture,
+                 "the embedded drawing did not survive reopening")
+    smoke.shot(window, "layout-picture")
+
 
 SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
              "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,

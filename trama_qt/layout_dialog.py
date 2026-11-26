@@ -1,7 +1,7 @@
 """Compose or edit a layout on Qt: name, paper, columns, background and up to twelve graph panels."""
 from PySide6.QtGui import QColor, QKeySequence, QPixmap, QShortcut
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QSpinBox,
                                QVBoxLayout)
 
@@ -156,7 +156,13 @@ class LayoutDialog(QDialog):
     def fill_panels(self, selection=None):
         self.panels.clear()
         for i, graph in enumerate(self.order):
-            label = self.labels[graph] if graph is not None else qt("qt.layout_empty_slot")
+            original = self.original_panels[i]
+            if graph is not None:
+                label = self.labels[graph]
+            elif original is not None and self.current.arrangement.picture(original) is not None:
+                label = qt("qt.layout_picture")
+            else:
+                label = qt("qt.layout_empty_slot")
             self.panels.addItem(f"{chr(ord('A') + i)} · {label}")
         if selection is not None and self.order:
             self.panels.setCurrentRow(min(selection, len(self.order) - 1))
@@ -219,18 +225,20 @@ class LayoutGraphDialog(QDialog):
     """Choose a graph for an empty or occupied panel on the active layout."""
 
     EDIT_GEOMETRY = 2
+    CURRENT_PICTURE = "current-picture"
 
     def __init__(self, parent, layout, runs, panel=None):
         super().__init__(parent)
         self.runs = {run.reference: run for run in runs}
-        self.current = layout.panels[panel] if panel is not None else None
+        self.picture = layout.arrangement.picture(panel)
+        self.current = self.CURRENT_PICTURE if self.picture else layout.panels[panel] if panel is not None else None
         self.setWindowTitle(qt("qt.layout_replace_graph" if self.current else "qt.layout_place_graph").rstrip("…"))
         QShortcut(QKeySequence("F1"), self, self.show_shortcuts)
         form = QFormLayout(self)
         self.panels = QComboBox()
         self.panels.setAccessibleName(qt("qt.layout_panel"))
-        for index, reference in enumerate(layout.panels):
-            if (panel is None and reference is None and index not in layout.arrangement.locked) or index == panel:
+        for index in (panel,) if panel is not None else layout.empty_panels:
+            if index not in layout.arrangement.locked:
                 self.panels.addItem(chr(ord("A") + index), index)
         form.addRow(qt("qt.layout_panel"), self.panels)
         self.panels.setEnabled(panel is None)
@@ -240,12 +248,17 @@ class LayoutGraphDialog(QDialog):
         self.graphs.setAccessibleName(qt("qt.layout_graph"))
         if self.current is not None:
             self.graphs.addItem(qt("qt.layout_no_assigned_graph"), None)
+        if self.picture is not None:
+            self.graphs.addItem(qt("qt.layout_picture"), self.CURRENT_PICTURE)
         for run in runs:
             self.graphs.addItem(f"{run.name} · {run.title} ({run.slot + 1})", run.reference)
         if self.current is not None:
             index = next((i for i in range(1, self.graphs.count()) if self.graphs.itemData(i) == self.current), 1)
             self.graphs.setCurrentIndex(index)
         form.addRow(qt("qt.layout_graph"), self.graphs)
+        self.embed = QCheckBox(qt("qt.layout_picture_create"))
+        self.embed.setToolTip(qt("qt.layout_picture_tip"))
+        form.addRow(self.embed)
         self.preview = QLabel()
         self.preview.setAccessibleName(qt("qt.layout_graph_preview"))
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -282,14 +295,22 @@ class LayoutGraphDialog(QDialog):
         if self.geometry_button is not None:
             self.geometry_button.setEnabled(graph == self.current)
         run = self.runs.get(graph)
+        self.embed.setEnabled(run is not None and run.result is not None and run.result.figure is not None
+                              and not run.calculation_error)
         self.preview.clear()
         if graph is None and self.current is not None:
             self.preview.setText(qt("qt.layout_clear_preview"))
             return
-        if run is None or run.result is None or run.result.figure is None:
-            return
         try:
-            self.preview.setPixmap(QPixmap.fromImage(figure_image(run.result.figure, 410, 145)))
+            if graph == self.CURRENT_PICTURE:
+                from analisi.layout_picture import picture_figure
+                figure = picture_figure(self.picture)
+            elif run is not None and run.result is not None:
+                figure = run.result.figure
+            else:
+                figure = None
+            if figure is not None:
+                self.preview.setPixmap(QPixmap.fromImage(figure_image(figure, 410, 145)))
         except (ValueError, RuntimeError):
             self.preview.setText(qt("qt.layout_graph_no_preview"))
 

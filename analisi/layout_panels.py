@@ -2,7 +2,7 @@
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
-from math import isclose
+from math import cos, isclose, radians, sin
 
 from matplotlib.figure import Figure
 
@@ -12,6 +12,16 @@ from .layout_geometry import AUTO_PAPER, PT, page_size, panel_boxes, panel_cells
 
 # Explicit empty slot passed to the renderers. A missing figure still signals an error.
 EMPTY_PANEL = object()
+
+
+def rotation_bounds(width, height, angle):
+    """Bounds and rotation coefficients in top-left page coordinates."""
+    square_turns = {0: (1., 0.), 90: (0., 1.), 180: (-1., 0.), 270: (0., -1.)}
+    turn = angle % 360
+    c, s = square_turns[turn] if turn in square_turns else (cos(radians(turn)), sin(radians(turn)))
+    left = min(0., c * width) + min(0., -s * height)
+    top = min(0., s * width) + min(0., c * height)
+    return left, top, abs(c) * width + abs(s) * height, abs(s) * width + abs(c) * height, c, s
 
 
 @contextmanager
@@ -79,8 +89,7 @@ class LayoutPanel:
 
     @property
     def oriented_size(self):
-        size = self.cropped_size
-        return size[::-1] if self.angle else size
+        return rotation_bounds(*self.cropped_size, self.angle)[2:4]
 
     def crop_pixels(self, width, height):
         left, top, right, bottom = self.crop
@@ -165,12 +174,16 @@ def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original
     empty_sizes = {index: (width, height) for index, width, height in arrangement.empty_sizes}
     sizes = [empty_sizes.get(index) if figure is EMPTY_PANEL else tuple(figure.get_size_inches())
              for index, figure in enumerate(figures)]
-    populated = [size for size in sizes if size is not None]
+    fitted_sizes = [getattr(figure, "_trama_layout_picture_size", size)
+                    for figure, size in zip(figures, sizes, strict=True)]
+    populated = [size for size in fitted_sizes if size is not None]
     if populated and panel_size == "both":
         # Reflow the graphs onto a common canvas, including any measured size retained by clearing a graph.
         common_size = tuple(max(values) for values in zip(*populated, strict=True))
-        sizes = [common_size if size is not None else None for size in sizes]
-    boxes = panel_boxes(columns, sizes, paper, panel_size=panel_size)
+        fitted_sizes = [common_size if size is not None else None for size in fitted_sizes]
+        sizes = [fitted if size is not None and not hasattr(figure, "_trama_layout_picture_size") else size
+                 for figure, size, fitted in zip(figures, sizes, fitted_sizes, strict=True)]
+    boxes = panel_boxes(columns, fitted_sizes, paper, panel_size=panel_size)
     _, _, width, height = panel_cells(columns, len(sizes), paper)
     panels = [LayoutPanel(None if figure is EMPTY_PANEL else figure, size or (width, height), box)
               for figure, size, box in zip(figures, sizes, boxes, strict=True)]
@@ -307,9 +320,8 @@ def replacement_geometry(old, replacement, page):
     crop_inches = tuple(value * size * scale for value, size in zip(old.crop, old.size * 2, strict=True))
     left, top, right, bottom = crop_inches
     trim_w, trim_h = left + right, top + bottom
-    if old.angle:
-        trim_w, trim_h = trim_h, trim_w
-    width, height = replacement.size[::-1] if old.angle else replacement.size
+    _, _, width, height, c, s = rotation_bounds(*replacement.size, old.angle)
+    trim_w, trim_h = abs(c) * trim_w + abs(s) * trim_h, abs(s) * trim_w + abs(c) * trim_h
     # Keep graphs on the page without increasing any existing overflow.
     scale = min(scale, (max(page[0], old_right) - x + trim_w) / width,
                 (max(page[1], old_bottom) - y + trim_h) / height)
@@ -324,14 +336,15 @@ def replacement_geometry(old, replacement, page):
 
 def rotation_target(panel, box, angle, page, *, fixed):
     """Keep the center on each untouched axis and stay inside the page when possible."""
-    if bool(angle) == bool(panel.angle):
+    if angle == panel.angle:
         return box
     x, y, scale = box
     width, height = (value * scale for value in panel.oriented_size)
+    new_width, new_height = (value * scale for value in rotation_bounds(*panel.cropped_size, angle)[2:4])
     if not fixed[0]:
-        x = min(max(0., x + (width - height) / 2), max(0., page[0] - height))
+        x = min(max(0., x + (width - new_width) / 2), max(0., page[0] - new_width))
     if not fixed[1]:
-        y = min(max(0., y + (height - width) / 2), max(0., page[1] - width))
+        y = min(max(0., y + (height - new_height) / 2), max(0., page[1] - new_height))
     return x, y, scale
 
 

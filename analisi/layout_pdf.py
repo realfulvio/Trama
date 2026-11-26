@@ -10,7 +10,7 @@ from matplotlib.figure import Figure
 from .figure_export import MM, _render
 from .layout_arrangement import BORDER_DASHES, PanelArrangement
 from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
-from .layout_panels import EMPTY_PANEL, layout_labels, plan_panels
+from .layout_panels import EMPTY_PANEL, layout_labels, plan_panels, rotation_bounds
 from .linked_tables import overlay_figure
 from .presentation import Layout
 
@@ -143,8 +143,37 @@ def _panel_view(source, panel):
         yield cropped
 
 
+@contextmanager
+def _panel_pdf(panel, plan):
+    from pypdfium2 import PdfDocument, raw
+
+    width, height = (value * PT for value in panel.size)
+    if pdf := getattr(panel.figure, "_trama_layout_picture_pdf", None):
+        with PdfDocument(pdf) as original:
+            original_w, original_h = original.get_page_size(0)
+            if abs(width - original_w) < 1e-6 and abs(height - original_h) < 1e-6:
+                yield original
+                return
+            with PdfDocument.new() as scaled:
+                page = scaled.new_page(width, height)
+                try:
+                    matrix = raw.FS_MATRIX(width / original_w, 0, 0, height / original_h, 0, 0)
+                    _place_form(scaled, page, original, matrix)
+                    if not raw.FPDFPage_GenerateContent(page):
+                        raise ValueError("Could not resize the layout picture.")
+                finally:
+                    page.close()
+                yield scaled
+    else:
+        with panel.render() as figure, BytesIO() as buffer:
+            source_w, source_h = panel.size
+            _render(figure, {**plan, "width_mm": source_w * MM, "height_mm": source_h * MM}, buffer)
+            buffer.seek(0)
+            with PdfDocument(buffer) as source:
+                yield source
+
+
 def _add_panels(document, page, layout, plan):
-    import pypdfium2 as pdfium
     from pypdfium2 import raw
 
     width, height = layout.size
@@ -155,22 +184,15 @@ def _add_panels(document, page, layout, plan):
         if panel.figure is None:
             continue
         w, h = panel.cropped_size
+        left, top, _, _, c, s = rotation_bounds(w, h, panel.angle)
         x, y, fit = panel.box
         # PDF uses points with the origin at the bottom left. The form's bounding box clips the panel.
         scale = page_scale * fit
         unit = PT * page_scale
-        if panel.angle == 90:
-            matrix = raw.FS_MATRIX(0, -scale, scale, 0, x * unit, (height - y) * unit)
-        elif panel.angle == -90:
-            matrix = raw.FS_MATRIX(0, scale, -scale, 0, (x + h * fit) * unit, (height - y - w * fit) * unit)
-        else:
-            matrix = raw.FS_MATRIX(scale, 0, 0, scale, x * unit, (height - y - h * fit) * unit)
-        with panel.render() as figure, BytesIO() as buffer:
-            source_w, source_h = panel.size
-            _render(figure, {**plan, "width_mm": source_w * MM, "height_mm": source_h * MM}, buffer)
-            buffer.seek(0)
-            with pdfium.PdfDocument(buffer) as source, _panel_view(source, panel) as viewport:
-                _place_form(document, page, viewport, matrix)
+        matrix = raw.FS_MATRIX(c * scale, -s * scale, s * scale, c * scale,
+                               (x - (s * h + left) * fit) * unit, (height - y + (top - c * h) * fit) * unit)
+        with _panel_pdf(panel, plan) as source, _panel_view(source, panel) as viewport:
+            _place_form(document, page, viewport, matrix)
         if panel.border:
             _add_border(page, panel, height, page_scale)
     if not raw.FPDFPage_GenerateContent(page):

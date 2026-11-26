@@ -79,6 +79,13 @@ class Layout:
         self.arrangement = validated_arrangement(self.arrangement, len(self.panels))
         if any(self.panels[index] is not None for index, *_ in self.arrangement.empty_sizes):
             raise ValueError("A retained empty panel size requires an empty panel.")
+        if any(self.panels[index] is not None for index, *_ in self.arrangement.pictures):
+            raise ValueError("A layout panel cannot contain a graph and a picture.")
+
+    @property
+    def empty_panels(self):
+        return tuple(index for index, graph in enumerate(self.panels)
+                     if graph is None and self.arrangement.picture(index) is None)
 
 
 SCALES = ("linear", "log", *PROBABILITY_SCALES)
@@ -1214,7 +1221,8 @@ def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHIT
         with placement.render() as graph, BytesIO() as buffer:
             cropped = any(placement.crop)
             # Padding can enlarge a viewport far past its source pixels in a loaded project.
-            dpi = min(150, 4096 / max(*placement.size, *placement.cropped_size)) if cropped else 150
+            bounded = cropped or hasattr(graph, "_trama_layout_picture_pdf")
+            dpi = min(150, 4096 / max(*placement.size, *placement.cropped_size)) if bounded else 150
             graph.savefig(buffer, format="png", dpi=dpi)
             buffer.seek(0)
             if cropped:
@@ -1224,11 +1232,18 @@ def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHIT
                     pixels = np.asarray(image.convert("RGBA").crop(placement.crop_pixels(*image.size)))
             else:
                 pixels = imread(buffer)
-        if placement.angle:
+        if placement.angle % 90:
+            from PIL import Image
+
+            source = Image.fromarray((pixels * 255).astype(np.uint8) if pixels.dtype.kind == "f" else pixels)
+            pixels = np.asarray(source.convert("RGBA").rotate(-placement.angle, resample=Image.Resampling.BICUBIC,
+                                                                expand=True))
+        elif placement.angle:
             pixels = np.rot90(pixels, -placement.angle // 90)
         panel = figure.add_axes((x / page_width, 1 - (y + h * scale) / page_height,
                                  w * scale / page_width, h * scale / page_height), zorder=layer)
-        panel.imshow(pixels, aspect=None if (panel_size, axis_alignment) == ("original", "none") else "auto")
+        aspect = None if (panel_size, axis_alignment) == ("original", "none") and not placement.angle % 90 else "auto"
+        panel.imshow(pixels, aspect=aspect)
         panel.set_axis_off()
         if empty_label is not None:
             panel.set_gid(f"layout-panel-{i}")

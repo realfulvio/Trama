@@ -1163,7 +1163,7 @@ class MainWindow(QMainWindow):
         layout = self.project.layouts[self.selected[1]] if layout_editable else None
         placeable = bool(layout and self.project.layout_candidates())
         unlocked = set(range(len(layout.panels))) - set(layout.arrangement.locked) if placeable else set()
-        self.actions["place_layout_graph"].setEnabled(any(layout.panels[slot] is None for slot in unlocked))
+        self.actions["place_layout_graph"].setEnabled(bool(unlocked and unlocked.intersection(layout.empty_panels)))
         self.navigator.setDragEnabled(bool(unlocked))
         self.update_layout_arrangement_actions()
         self.actions["recalculate"].setEnabled((on_run and not locked or kind == "layout") and idle)
@@ -2314,7 +2314,7 @@ class MainWindow(QMainWindow):
         layout = self.project.layouts[index]
         page = Page(layout.name, tr("interface.layout_panels", count=len(layout.panels)))
         page.command(self.actions["edit_layout"])
-        if None in layout.panels:
+        if layout.empty_panels:
             page.command(self.actions["place_layout_graph"])
         page.command(self.actions["linked_table"])
         page.command(self.actions["linked_table_move"])
@@ -2344,7 +2344,10 @@ class MainWindow(QMainWindow):
                     return
                 slot = axes[event.inaxes]
                 page.layout_selection.select((slot,))
-                self.place_layout_graph(slot)
+                if layout.arrangement.picture(slot) and self.actions["layout_position"].isEnabled():
+                    self.edit_layout_geometry()
+                else:
+                    self.place_layout_graph(slot)
 
             canvas.mpl_connect("button_press_event", open_panel)
             slots = {axis: slot for axis, slot in axes.items() if slot not in layout.arrangement.locked}
@@ -3551,9 +3554,7 @@ class MainWindow(QMainWindow):
             return
         key = reference[1]
         layout = project.layouts[key]
-        available = tuple(slot for slot, graph in enumerate(layout.panels)
-                          if graph is None and slot not in layout.arrangement.locked)
-        if panel is None and not available:
+        if panel is None and not any(slot not in layout.arrangement.locked for slot in layout.empty_panels):
             return
         if panel is not None and (not 0 <= panel < len(layout.panels) or panel in layout.arrangement.locked):
             return
@@ -3563,7 +3564,7 @@ class MainWindow(QMainWindow):
             existing = next((run for run in project.runs if run.reference == current), None)
             if existing is not None:
                 candidates.insert(0, existing)
-        if not candidates:
+        if not candidates and (panel is None or panel in layout.empty_panels):
             self.status(qt("qt.layout_no_graph"))
             return
         from .layout_dialog import LayoutGraphDialog
@@ -3580,18 +3581,26 @@ class MainWindow(QMainWindow):
                 self.edit_layout_geometry()
                 return
             slot, graph = dialog.panels.currentData(), dialog.graphs.currentData()
+            if graph == dialog.CURRENT_PICTURE:
+                return
+            picture = dialog.embed.isEnabled() and dialog.embed.isChecked()
         finally:
             dialog.deleteLater()
-        self._assign_layout_graph(key, slot, graph)
+        self._assign_layout_graph(key, slot, graph, picture=picture)
 
-    def _assign_layout_graph(self, key, slot, graph):
+    def _assign_layout_graph(self, key, slot, graph, *, picture=False):
         layout = self.project.layouts[key]
-        if (slot is None or slot in layout.arrangement.locked or layout.panels[slot] == graph
-                or (graph is not None and not any(run.reference == graph for run in self.project.layout_candidates()))):
+        if slot is None or slot in layout.arrangement.locked:
+            return
+        previous = layout.arrangement.picture(slot)
+        if previous is None and not picture and layout.panels[slot] == graph:
+            return
+        if graph is not None and not any(run.reference == graph for run in self.project.layout_candidates()):
             return
         controller = self._active_layout_selection()
         retained = {index: (w, h) for index, w, h in layout.arrangement.empty_sizes}
-        replacing = graph is not None and (layout.panels[slot] is not None or slot in retained)
+        pictures = {index: (w, h, pdf) for index, w, h, pdf in layout.arrangement.pictures if index != slot}
+        replacing = graph is not None and (slot not in layout.empty_panels or slot in retained)
         if graph is None:
             if controller is None:
                 return
@@ -3600,12 +3609,15 @@ class MainWindow(QMainWindow):
             retained.pop(slot, None)
         panels = list(layout.panels)
         panels[slot] = graph
-        arrangement = replace(layout.arrangement, empty_sizes=tuple((index, *size) for index, size in retained.items()))
+        arrangement = replace(layout.arrangement, empty_sizes=tuple((index, *size) for index, size in retained.items()),
+                              pictures=tuple((index, *record) for index, record in pictures.items()))
         candidate = replace(layout, panels=panels, arrangement=arrangement)
         manual = any(entry[0] == slot for entries in (layout.arrangement.scales, layout.arrangement.offsets,
                                                       layout.arrangement.rotations, layout.arrangement.crops)
                      for entry in entries)
-        if graph is not None and controller is not None and (replacing or manual):
+        if picture and (graph is None or controller is None):
+            return
+        if graph is not None and controller is not None and (replacing or manual or picture):
             figures = self.project.layout_figures(candidate)
             if figures is None:
                 return
@@ -3627,15 +3639,25 @@ class MainWindow(QMainWindow):
                 box = (left + (right - left - width * scale) / 2,
                        top + (bottom - top - height * scale) / 2, scale)
             try:
-                candidate = replace(candidate, arrangement=positioned(arrangement, planned, {slot: box},
-                                                                      controller.page))
+                if picture:
+                    from analisi.layout_picture import capture_picture
+                    try:
+                        with planned[slot].render() as source:
+                            pictures[slot] = capture_picture(source)
+                    except (ValueError, RuntimeError, OSError):
+                        self.status(qt("qt.layout_picture_failed"))
+                        return
+                    panels = [None if index == slot else ref for index, ref in enumerate(panels)]
+                    arrangement = replace(arrangement, pictures=tuple((index, *record) for index, record in pictures.items()))
+                candidate = replace(candidate, panels=panels, arrangement=positioned(arrangement, planned, {slot: box},
+                                                                                     controller.page))
             except ValueError:
                 self.status(qt("qt.layout_geometry_limits"))
                 return
         self.project.put_layout(candidate, key)
         self.open_sheet(("layout", key))
         refreshed = self._active_layout_selection()
-        if refreshed is not None and (replacing or graph is None):
+        if refreshed is not None and (replacing or graph is None or picture):
             refreshed.select((slot,))
 
     def _active_layout_selection(self):
@@ -3667,7 +3689,7 @@ class MainWindow(QMainWindow):
         single = movable and len(controller.selected) == 1
         self.actions["layout_position"].setEnabled(single)
         self.actions["replace_layout_graph"].setEnabled(
-            single and controller.layout.panels[next(iter(controller.selected))] is not None)
+            single and next(iter(controller.selected)) not in controller.layout.empty_panels)
         self.actions["layout_equalize"].setEnabled(controller is not None and len(self._layout_scalable(controller)) >= 2)
         self.actions["layout_ungroup"].setEnabled(movable and any(len(obj) > 1 for obj in objects))
         lock = self.actions["layout_lock"]
@@ -3700,17 +3722,23 @@ class MainWindow(QMainWindow):
             self._commit_layout_arrangement(controller,
                                             translated(controller.layout.arrangement, shifts, controller.page))
 
-    def _apply_layout_geometry(self, controller, targets, *, appearance=None):
+    def _apply_layout_geometry(self, controller, targets, *, appearance=None, picture_size=None):
         sizes = None
         if appearance is not None:
             index, angle, _, crop = appearance
-            sizes = {index: replace(controller.panels[index], angle=angle, crop=crop).oriented_size}
+            panel = controller.panels[index]
+            sizes = {index: replace(panel, angle=angle, crop=crop, size=picture_size or panel.size).oriented_size}
         if not targets_fit(controller.panels, targets, controller.page, sizes=sizes):
             self.status(qt("qt.layout_geometry_outside"))
             controller.indicate()
             return
         try:
-            arrangement = positioned(controller.layout.arrangement, controller.panels, targets, controller.page)
+            arrangement = controller.layout.arrangement
+            if picture_size is not None:
+                arrangement = replace(arrangement, pictures=tuple(
+                    (slot, *picture_size, payload) if slot == index else (slot, w, h, payload)
+                    for slot, w, h, payload in arrangement.pictures))
+            arrangement = positioned(arrangement, controller.panels, targets, controller.page)
             if appearance is not None:
                 arrangement = with_appearance(arrangement, *appearance)
             self._commit_layout_arrangement(controller, arrangement)
@@ -3735,10 +3763,12 @@ class MainWindow(QMainWindow):
             dialog = PanelScaleDialog(self, controller.panels, eligible, selected, controller.page)
         else:
             index, = controller.selected
-            dialog = PanelPositionDialog(self, controller.panels, index, controller.page)
+            dialog = PanelPositionDialog(self, controller.panels, index, controller.page,
+                                         picture=controller.layout.arrangement.picture(index))
         try:
             if dialog.exec() == dialog.DialogCode.Accepted and self._active_layout_selection() is controller:
-                self._apply_layout_geometry(controller, dialog.targets, appearance=dialog.appearance)
+                self._apply_layout_geometry(controller, dialog.targets, appearance=dialog.appearance,
+                                            picture_size=getattr(dialog, "picture_size", None))
         finally:
             dialog.deleteLater()
 

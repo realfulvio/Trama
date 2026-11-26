@@ -1,10 +1,12 @@
 """Position, scale and appearance controls for layout panels."""
 
 from dataclasses import replace
+from math import isclose
 
+from PySide6.QtCore import QSignalBlocker
 from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout,
-                               QGroupBox, QHBoxLayout, QLabel, QLineEdit, QTabWidget, QWidget)
+                               QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox, QTabWidget, QWidget)
 
 from analisi.i18n import tr
 from analisi.layout_arrangement import BORDER_DASHES, valid_crop
@@ -77,9 +79,11 @@ class PanelGeometryDialog(QDialog):
 
 
 class PanelPositionDialog(PanelGeometryDialog):
-    def __init__(self, parent, panels, index, page):
-        super().__init__(parent, qt("qt.layout_position_title", letter=chr(ord("A") + index)))
+    def __init__(self, parent, panels, index, page, *, picture=None):
+        title = "qt.layout_picture_title" if picture is not None else "qt.layout_position_title"
+        super().__init__(parent, qt(title, letter=chr(ord("A") + index)))
         self.panels, self.index, self.page = panels, index, page
+        self.picture_size = None
         panel = panels[index]
         x, y, scale = panel.box
         geometry = self.form
@@ -94,8 +98,13 @@ class PanelPositionDialog(PanelGeometryDialog):
         self.fields = (
             self.spin(qt("qt.layout_from_left"), x * 2.54, -2.54 * page[0], 2.54 * page[0], " cm", form=geometry),
             self.spin(qt("qt.layout_from_top"), y * 2.54, -2.54 * page[1], 2.54 * page[1], " cm", form=geometry),
-            self.spin(qt("qt.layout_scale_percent"), scale * 100, .001, max(10000., scale * 100), " %", form=geometry),
         )
+        self.dimensions = ()
+        if picture:
+            self.add_picture_size(panel, picture, geometry)
+        else:
+            self.fields += (self.spin(qt("qt.layout_scale_percent"), scale * 100, .001,
+                                      max(10000., scale * 100), " %", form=geometry),)
         self.displayed = tuple(field.value() for field in self.fields)
         if self.tabs is not None:
             self.add_appearance(panel, geometry)
@@ -104,6 +113,41 @@ class PanelPositionDialog(PanelGeometryDialog):
         if self.tabs is not None:
             self.tabs.currentChanged.connect(lambda _: self.ok_button.setDefault(True))
         self.fields[0].setFocus()
+
+    def add_picture_size(self, panel, picture, form):
+        from analisi.layout_picture import source_size
+
+        native = source_size(picture[2])
+        sizes = tuple(size * panel.box[2] * 2.54 for size in panel.size)
+        self.dimensions = tuple(self.spin(qt(f"qt.layout_picture_{axis}"), size, .001, max(2.54 * 200, size),
+                                          " cm", form=form)
+                                for axis, size in zip(("width", "height"), sizes, strict=True))
+        self.size_shown = tuple(field.value() for field in self.dimensions)
+        self.proportions = QCheckBox(qt("qt.layout_picture_proportions"))
+        self.proportions.setChecked(isclose(sizes[0] / sizes[1], native[0] / native[1], rel_tol=1e-5))
+        form.addRow(self.proportions)
+
+        def proportional(index):
+            if self.proportions.isChecked():
+                other = self.dimensions[1 - index]
+                with QSignalBlocker(other):
+                    other.setValue(self.dimensions[index].value() * native[1 - index] / native[index])
+
+        for index, field in enumerate(self.dimensions):
+            field.setKeyboardTracking(False)
+            field.valueChanged.connect(lambda _, index=index: proportional(index))
+        self.proportions.toggled.connect(lambda _: proportional(0))
+
+        def restore_size():
+            for value, field in zip(native, self.dimensions, strict=True):
+                with QSignalBlocker(field):
+                    field.setValue(value * 2.54)
+            self.proportions.setChecked(True)
+
+        original_size = QPushButton(qt("qt.layout_picture_original"))
+        original_size.setAutoDefault(False)
+        original_size.clicked.connect(restore_size)
+        form.addRow(original_size)
 
     def add_crop(self, panel):
         page = QWidget()
@@ -123,12 +167,20 @@ class PanelPositionDialog(PanelGeometryDialog):
     def add_appearance(self, panel, geometry):
         section = QGroupBox(qt("qt.layout_appearance"))
         form = QFormLayout(section)
-        self.rotation = self.choice(qt("qt.layout_rotation"), (
-            (qt("qt.layout_rotation_none"), 0),
-            (qt("qt.layout_rotation_cw"), 90),
-            (qt("qt.layout_rotation_ccw"), -90),
-        ), form=form)
-        self.rotation.setCurrentIndex(self.rotation.findData(panel.angle))
+        if self.dimensions or panel.angle not in (0, 90, -90):
+            self.rotation = QSpinBox()
+            self.rotation.setRange(-180, 180)
+            self.rotation.setSuffix("°")
+            self.rotation.setValue(panel.angle)
+            self.rotation.setAccessibleName(qt("qt.layout_rotation"))
+            form.addRow(qt("qt.layout_rotation"), self.rotation)
+        else:
+            self.rotation = self.choice(qt("qt.layout_rotation"), (
+                (qt("qt.layout_rotation_none"), 0),
+                (qt("qt.layout_rotation_cw"), 90),
+                (qt("qt.layout_rotation_ccw"), -90),
+            ), form=form)
+            self.rotation.setCurrentIndex(self.rotation.findData(panel.angle))
         self.rotation.setToolTip(qt("qt.layout_rotation_center_tip"))
         border = QCheckBox(qt("qt.layout_show_border"))
         form.addRow(border)
@@ -163,13 +215,19 @@ class PanelPositionDialog(PanelGeometryDialog):
         geometry.addRow(section)
 
     def accept(self):
-        original = self.panels[self.index].box
+        panel = self.panels[self.index]
+        original = panel.box
         values = tuple(old if field.value() == display else field.value() / factor
-                       for field, display, old, factor in zip(self.fields, self.displayed, original,
-                                                              (2.54, 2.54, 100.), strict=True))
+                       for field, display, old, factor in zip(self.fields, self.displayed, original[:len(self.fields)],
+                                                              (2.54, 2.54, 100.)[:len(self.fields)], strict=True))
+        picture_size = None
+        if self.dimensions:
+            values += (original[2],)
+            picture_size = tuple(float(size if field.value() == display else field.value() / (2.54 * values[2]))
+                                 for size, field, display in zip(panel.size, self.dimensions, self.size_shown, strict=True))
         sizes = None
         if self.rotation is not None:
-            angle = self.rotation.currentData()
+            angle = self.rotation.value() if isinstance(self.rotation, QSpinBox) else self.rotation.currentData()
             border = None
             if self.border_on.isChecked():
                 color = QColor(self.border_color.text().strip())
@@ -178,16 +236,19 @@ class PanelPositionDialog(PanelGeometryDialog):
                     self.border_color.setFocus()
                     return
                 border = self.border_width.value(), color.name(), self.border_style.currentData()
-            panel = self.panels[self.index]
-            crop = tuple(old if field.value() == display else float(field.value() / (2.54 * size * values[2]))
-                         for field, display, old, size in zip(self.crop_fields, self.crop_shown, panel.crop,
-                                                              panel.size * 2, strict=True))
+            shape = picture_size if picture_size is not None else panel.size
+            crop = tuple(float((old * old_size * original[2] * 2.54 if field.value() == display else field.value())
+                               / (2.54 * size * values[2]))
+                         if picture_size is not None or field.value() != display else old
+                         for field, display, old, size, old_size in zip(self.crop_fields, self.crop_shown, panel.crop,
+                                                                       shape * 2, panel.size * 2, strict=True))
             if not valid_crop(crop):
                 self.tabs.setCurrentIndex(1)
                 self.show_problem("qt.layout_crop_problem")
                 return
-            candidate = replace(panel, crop=crop)
+            candidate = replace(panel, size=shape, crop=crop)
             self.appearance = self.index, angle, border, crop
+            self.picture_size = picture_size if picture_size != panel.size else None
             sizes = {self.index: replace(candidate, angle=angle).oriented_size}
             fixed = tuple(field.value() != display for field, display in zip(self.fields[:2], self.displayed[:2],
                                                                             strict=True))

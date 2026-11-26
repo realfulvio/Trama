@@ -3396,6 +3396,101 @@ class QtShellTests(unittest.TestCase):
                                                            strict=True):
             self.assertAlmostEqual(old_crop * old_size * before.box[2], new_crop * new_size * filled.box[2])
 
+    def test_layout_picture_has_no_graph_dependency_after_save(self):
+        import json
+        import xml.etree.ElementTree as ET
+        from unittest.mock import patch
+
+        from pypdfium2 import PdfDocument
+
+        from analisi.data import load_workspace
+        from analisi.layout_panels import panel_rectangle
+        from analisi.layout_svg import SVG
+        from analisi.presentation import Layout
+        from trama_qt.layout_dialog import LayoutGraphDialog
+        from trama_qt.layout_geometry_dialog import PanelPositionDialog
+
+        window = self.window
+        self.open_example()
+        graph = self.run_method("XY series", {"X": "Control", "Y columns": ["Treated"]})
+        graph.result.figure.axes[0].set_title("Original picture content")
+        ref = ("layout", window.project.put_layout(Layout("Picture and source", 2, [graph.reference] * 2)))
+        window.open_sheet(ref)
+        self.wait()
+        window.page.layout_selection.select((0,))
+        bounds = panel_rectangle(window.page.layout_selection.panels[0])
+
+        def capture(dialog):
+            self.assertEqual(dialog.graphs.currentData(), graph.reference)
+            self.assertTrue(dialog.embed.isEnabled())
+            dialog.embed.setChecked(True)
+            return dialog.DialogCode.Accepted
+
+        with patch.object(LayoutGraphDialog, "exec", capture):
+            window.actions["replace_layout_graph"].trigger()
+        candidate = window.project.layouts[0]
+        self.assertEqual(candidate.panels, [None, graph.reference])
+        self.assertFalse(candidate.empty_panels)
+        self.assertEqual(window.project.layout_runs(candidate), [graph])
+        for actual, expected in zip(panel_rectangle(window.page.layout_selection.panels[0]), bounds, strict=True):
+            self.assertAlmostEqual(actual, expected, places=6)
+        before = candidate.arrangement.picture(0)
+        window.undo()
+        self.assertEqual(window.project.layouts[0].panels, [graph.reference, graph.reference])
+        window.undo(redo=True)
+        self.assertEqual(window.project.layouts[0], candidate)
+
+        def resize(dialog):
+            self.assertTrue(dialog.proportions.isChecked())
+            dialog.proportions.setChecked(False)
+            dialog.dimensions[1].setValue(dialog.dimensions[1].value() * .75)
+            dialog.rotation.setValue(20)
+            dialog.accept()
+            self.assertIsNotNone(dialog.targets)
+            return dialog.DialogCode.Accepted
+
+        window.page.layout_selection.select((0,))
+        with patch.object(PanelPositionDialog, "exec", resize):
+            window.actions["layout_position"].trigger()
+        resized = window.project.layouts[0]
+        self.assertEqual(resized.arrangement.rotations, ((0, 20),))
+        after = resized.arrangement.picture(0)
+        self.assertEqual(after[2], before[2])
+        self.assertAlmostEqual(after[0], before[0])
+        self.assertAlmostEqual(after[1], .75 * before[1], places=2)
+        graph.result.figure.axes[0].set_title("Only the live graph changes")
+        for suffix in ("pdf", "svg", "png", "tiff"):
+            target = self.folder / f"picture.{suffix}"
+            window.project.export_layout(resized, target)
+            self.assertGreater(target.stat().st_size, 1000)
+        svg = ET.parse(self.folder / "picture.svg")
+        self.assertIsNotNone(svg.find(f".//{SVG}g[@id='panel1']//{SVG}image"))
+        with PdfDocument(self.folder / "picture.pdf") as document:
+            page = document[0]
+            try:
+                text_page = page.get_textpage()
+                try:
+                    self.assertIn("Only the live graph changes", text_page.get_text_range())
+                    self.assertIn("Original picture content", text_page.get_text_range())
+                finally:
+                    text_page.close()
+            finally:
+                page.close()
+        path = self.folder / "picture.alab"
+        window.project.save(path)
+        record = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(record["version"], 12)
+        record["version"] = 11
+        old = self.folder / "invalid-picture.alab"
+        old.write_text(json.dumps(record), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "require project format version 12"):
+            load_workspace(old)
+        self.reopen(path)
+        window.open_sheet(ref)
+        self.wait()
+        self.assertEqual(window.project.layouts[0], resized)
+        self.assertIsNot(window.page.layout_selection.panels[0].figure, window.project.runs[0].result.figure)
+
     def test_layout_panel_arrangement_undo_and_exports(self):
         from unittest.mock import patch
         from analisi.presentation import Layout

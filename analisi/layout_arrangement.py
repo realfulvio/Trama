@@ -22,6 +22,7 @@ class PanelArrangement:
     borders: tuple[tuple[int, float, str, str], ...] = ()
     crops: tuple[tuple[int, float, float, float, float], ...] = ()
     empty_sizes: tuple[tuple[int, float, float], ...] = ()  # Source size retained when clearing a panel.
+    pictures: tuple[tuple[int, float, float, str], ...] = ()
 
     def record(self):
         return {key: value for key, value in vars(self).items() if value}
@@ -35,6 +36,9 @@ class PanelArrangement:
         for group in groups:
             selected.difference_update(group)
         return sorted([*groups, *((index,) for index in selected)])
+
+    def picture(self, index):
+        return next(((width, height, pdf) for slot, width, height, pdf in self.pictures if slot == index), None)
 
     def remap(self, indices):
         """Keep the geometry and grouping of surviving panels when their order changes."""
@@ -53,14 +57,16 @@ class PanelArrangement:
         return PanelArrangement(tuple(sorted(offsets)), tuple(sorted(group for group in groups if len(group) > 1)),
                                 locked, scales, layers, rotations, borders,
                                 tuple(sorted((mapping[index], *crop) for index, *crop in self.crops if index in mapping)),
-                                tuple(sorted((mapping[index], w, h) for index, w, h in self.empty_sizes if index in mapping)))
+                                tuple(sorted((mapping[index], w, h) for index, w, h in self.empty_sizes if index in mapping)),
+                                tuple(sorted((mapping[index], w, h, pdf) for index, w, h, pdf in self.pictures
+                                             if index in mapping)))
 
 
 def validated_arrangement(value, count):
     if isinstance(value, PanelArrangement):
         value = value.record()
     if not isinstance(value, dict) or set(value) - {
-        "offsets", "groups", "locked", "scales", "layers", "rotations", "borders", "crops", "empty_sizes"
+        "offsets", "groups", "locked", "scales", "layers", "rotations", "borders", "crops", "empty_sizes", "pictures"
     }:
         raise ValueError("Invalid layout panel arrangement.")
 
@@ -102,7 +108,8 @@ def validated_arrangement(value, count):
     if layers == tuple(range(count)):
         layers = ()
     rotations = [sequence(entry, 2) for entry in sequence(value.get("rotations", ()), count)]
-    if any(len(entry) != 2 or type(entry[1]) is not int or entry[1] not in {-90, 90} for entry in rotations):
+    if any(len(entry) != 2 or type(entry[1]) is not int or not -180 <= entry[1] <= 180 or entry[1] == 0
+           for entry in rotations):
         raise ValueError("Invalid layout panel rotation.")
     indices([entry[0] for entry in rotations])
     borders = [sequence(entry, 4) for entry in sequence(value.get("borders", ()), count)]
@@ -123,11 +130,21 @@ def validated_arrangement(value, count):
                                   for size in entry[1:]) for entry in sizes):
         raise ValueError("Invalid empty layout panel size.")
     indices([entry[0] for entry in sizes])
+    pictures = [sequence(entry, 4) for entry in sequence(value.get("pictures", ()), count)]
+    if pictures:
+        from .layout_picture import validate_picture
+
+        if any(len(entry) != 4 for entry in pictures):
+            raise ValueError("Invalid layout picture.")
+        indices([entry[0] for entry in pictures] + [entry[0] for entry in sizes])
+        for _, width, height, pdf in pictures:
+            validate_picture(width, height, pdf)
     return PanelArrangement(offsets, groups, indices(value.get("locked", ())), scales, layers,
                             tuple(sorted(map(tuple, rotations))),
                             tuple(sorted((i, float(w), c.lower(), s) for i, w, c, s in borders)),
                             tuple(sorted((i, *map(float, crop)) for i, *crop in crops if any(crop))),
-                            tuple(sorted((index, float(w), float(h)) for index, w, h in sizes)))
+                            tuple(sorted((index, float(w), float(h)) for index, w, h in sizes)),
+                            tuple(sorted((index, float(w), float(h), pdf) for index, w, h, pdf in pictures)))
 
 
 def change_objects(arrangement, objects, command):

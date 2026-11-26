@@ -23,7 +23,7 @@ from matplotlib.figure import Figure
 from .figure_export import DEFAULT_DPI, MM, check_destination, plan_export
 from .layout_arrangement import BORDER_DASHES, PanelArrangement
 from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
-from .layout_panels import EMPTY_PANEL, layout_labels, plan_panels
+from .layout_panels import EMPTY_PANEL, layout_labels, plan_panels, rotation_bounds
 from .linked_tables import overlay_figure
 from .presentation import Layout
 
@@ -40,7 +40,8 @@ def _render_svg(figure, plan, rc):
     original_dpi, original_canvas = figure.dpi, figure.canvas
     try:
         with mpl.rc_context(rc), BytesIO() as buffer:
-            figure.savefig(buffer, format="svg", dpi=DEFAULT_DPI, transparent=plan["transparent"])
+            dpi = min(DEFAULT_DPI, 4096 / max(original)) if hasattr(figure, "_trama_layout_picture_pdf") else DEFAULT_DPI
+            figure.savefig(buffer, format="svg", dpi=dpi, transparent=plan["transparent"])
             return buffer.getvalue()
     finally:
         figure.set_size_inches(original, forward=False)
@@ -179,8 +180,8 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
         # The panel is clipped to its own figure, like the source SVG viewport.
         clip = ET.SubElement(defs, SVG + "clipPath", id=f"panel{index}-viewport")
         ET.SubElement(clip, SVG + "rect", x="0", y="0", width=f"{w * PT:.4f}", height=f"{h * PT:.4f}")
-        dx, dy = (h * PT, 0) if placement.angle == 90 else (0, w * PT)
-        turn = f" translate({dx:.4f} {dy:.4f}) rotate({placement.angle})" if placement.angle else ""
+        left, top, *_ = rotation_bounds(w, h, placement.angle)
+        turn = f" translate({-left * PT:.4f} {-top * PT:.4f}) rotate({placement.angle})" if placement.angle else ""
         group = ET.SubElement(page, SVG + "g", {
             "id": f"panel{index}",
             "transform": f"translate({x * PT:.4f} {y * PT:.4f}) scale({scale:.6f}){turn}",

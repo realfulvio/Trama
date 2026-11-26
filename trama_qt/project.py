@@ -1279,9 +1279,14 @@ class Project(WorksheetJoinSources, SheetCommands):
         """One figure per panel, including empty slots. None for the page means a graph is still missing."""
         by_reference = {run.reference: run for run in self.runs}
         figures = []
-        for reference in layout.panels:
+        for index, reference in enumerate(layout.panels):
             if reference is None:
-                figures.append(EMPTY_PANEL)
+                picture = layout.arrangement.picture(index)
+                if picture is None:
+                    figures.append(EMPTY_PANEL)
+                else:
+                    from analisi.layout_picture import picture_figure
+                    figures.append(picture_figure(picture))
             else:
                 run = by_reference.get(reference)
                 if run is None or run.result is None or run.result.figure is None:
