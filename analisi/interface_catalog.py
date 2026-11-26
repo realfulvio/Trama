@@ -1576,3 +1576,10 @@ from .weighted_logrank_catalog import MESSAGES as _WEIGHTED_LOGRANK_MESSAGES  # 
 
 CAPTIONS.update(_WEIGHTED_LOGRANK_CAPTIONS)
 MESSAGES.update(_WEIGHTED_LOGRANK_MESSAGES)
+
+# Grouped graph per-series drawing styles: captions and engine/UI messages.
+from .grouped_series_catalog import CAPTIONS as _GROUPED_SERIES_CAPTIONS  # noqa: E402
+from .grouped_series_catalog import MESSAGES as _GROUPED_SERIES_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_GROUPED_SERIES_CAPTIONS)
+MESSAGES.update(_GROUPED_SERIES_MESSAGES)

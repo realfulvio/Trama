@@ -17,8 +17,13 @@ from .stats import geometric_interval_fields, geometric_summary
 
 COLUMN_GRAPH, GROUPED_GRAPH = "Column graph", "Grouped graph"
 BARS, POINTS, SYMBOLS, RANGE, PAIRED = "Bars", "Individual points", "Center and interval", "Floating range", "Before and after"
+LINE_SYMBOLS = "Line and symbols"
 GROUPED_STYLES = (BARS, POINTS, SYMBOLS, RANGE)
 COLUMN_STYLES = (POINTS, BARS, SYMBOLS, RANGE, PAIRED)
+AS_GRAPH = "As graph"
+SERIES_STYLE = "Series style"
+SERIES_DRAW_STYLES = (AS_GRAPH, BARS, SYMBOLS, LINE_SYMBOLS)
+GROUPED_SERIES_COMPATIBLE_STYLES = frozenset({BARS, SYMBOLS})
 INTERVALS = ("None", "SD", "SEM", "Confidence interval", "Range", "Interquartile range")
 PLACEMENTS = ("Spread exact ties", "Centered", "Jitter")
 GEOMETRIC_CENTER = "Geometric mean"
@@ -49,7 +54,7 @@ _SUMMARY_FIELD = re.compile(r"(.+) \[(Mean|Center|SD|SEM|N|Minus|Plus|Lower|Uppe
 _FIELD_ROLES = {"Mean": "center", "Center": "center", "SD": "sd", "SEM": "sem", "N": "n",
                 "Minus": "minus", "Plus": "plus", "Lower": "lower", "Upper": "upper"}
 MAX_CATEGORIES = 120
-MAX_PLOT_CELLS = 240
+MAX_PLOT_CELLS = 1200
 MAX_POINTS = 60_000
 
 
@@ -418,34 +423,141 @@ def _spread(values, placement, width, rng):
     return offsets
 
 
-def _draw_series(axes, series, summaries, style, width, show_points, placement, rng):
+def prune_series_styles(options, valid_names=None):
+    """Drop non-explicit ('As graph') or removed series entries from grouped ``options['Series style']``."""
+    raw = options.get(SERIES_STYLE)
+    if not isinstance(raw, dict):
+        cleaned = dict(options)
+        cleaned.pop(SERIES_STYLE, None)
+        return cleaned
+    allowed = set(valid_names) if valid_names is not None else None
+    kept = {
+        name: value for name, value in raw.items()
+        if isinstance(name, str) and value in SERIES_DRAW_STYLES and value != AS_GRAPH
+        and (allowed is None or name in allowed)
+    }
+    cleaned = dict(options)
+    if kept:
+        cleaned[SERIES_STYLE] = kept
+    else:
+        cleaned.pop(SERIES_STYLE, None)
+    return cleaned
+
+
+def has_series_style_overrides(options):
+    raw = options.get(SERIES_STYLE) if isinstance(options, dict) else None
+    return isinstance(raw, dict) and any(val in SERIES_DRAW_STYLES and val != AS_GRAPH for val in raw.values())
+
+
+def grouped_series_names(frame, options):
+    """Return the ordered series titles resolved by ``options`` without plotting."""
+    names = options.get("Variables", [])
+    if not isinstance(names, list) or not names:
+        return []
+    source = options.get("Input", INPUTS[0])
+    row_labels = options.get("Row titles")
+    roles = _worksheet_roles(frame)
+    try:
+        row_labels = _row_title_column(frame, row_labels, roles)
+    except FieldError:
+        row_labels = None
+    names = [name for name in names if name != row_labels and name in frame]
+    if not names:
+        return []
+    if source == SUMMARIES:
+        order = {name: index for index, name in enumerate(frame.columns)}
+        names = sorted(names, key=order.__getitem__)
+        _, groups = _summary_groups(frame, roles)
+        chosen = set(names)
+        series = []
+        for group in groups:
+            if chosen.isdisjoint(group):
+                continue
+            parsed = _SUMMARY_FIELD.fullmatch(group[0])
+            if parsed is not None:
+                series.append((parsed[1] + (parsed[3] or ""), group[0]))
+        return _unique_names([t for t, _ in series], [f for _, f in series])
+    if roles:
+        chosen = set(names)
+        grouped = [[name for name in group if name in chosen] for group in roles["y"]]
+        groups = [group for group in grouped if group]
+        remaining = chosen.difference(name for group in groups for name in group)
+        groups.extend([name] for name in names if name in remaining)
+    else:
+        groups_by_title = {}
+        for name in names:
+            groups_by_title.setdefault(_title(name), []).append(name)
+        groups = list(groups_by_title.values())
+    return _unique_names([_title(group[0]) for group in groups], [group[0] for group in groups])
+
+
+def grouped_style_after_parameter_change(style, options, frame=None):
+    """Retain ``grouped:1:<name>`` style entries for series that stay selected."""
+    if not isinstance(style, dict) or not isinstance(style.get("series"), dict) or frame is None:
+        return style
+    names = set(grouped_series_names(frame, options))
+    if not names:
+        return style
+    kept = {f"grouped:1:{name}" for name in names}
+    series = {
+        key: dict(value) if isinstance(value, dict) else value
+        for key, value in style["series"].items()
+        if not str(key).startswith("grouped:1:") or key in kept
+    }
+    updated = dict(style)
+    if series:
+        updated["series"] = series
+    else:
+        updated.pop("series", None)
+    return updated
+
+
+def _draw_series(axes, series, summaries, style, width, show_points, placement, rng, *, grouped_track=False):
     x, color = series.x, series.color
     center, lower, upper = np.asarray(summaries).T
     observed = np.isfinite(center)
     interval = np.isfinite(lower) & np.isfinite(upper)
+    primary = err = pts = None
     if style == BARS:
-        axes.bar(x[observed], center[observed], width, color=to_rgba(color, .76), edgecolor=color,
-                 linewidth=1.15, label=series.name)
+        primary = axes.bar(x[observed], center[observed], width, color=to_rgba(color, .76), edgecolor=color,
+                           linewidth=1.15, label=series.name, zorder=2.5)
     elif style == RANGE:
-        axes.bar(x[interval], upper[interval] - lower[interval], width, bottom=lower[interval],
-                 color=to_rgba(color, .22), edgecolor=color, linewidth=1.4, label=series.name)
-    elif style in {POINTS, SYMBOLS}:
-        axes.scatter(x[observed], center[observed], marker="_" if style == POINTS else "o",
-                     s=160 if style == POINTS else 42, linewidths=1.8, color=color,
-                     label=series.name if style == SYMBOLS else "_nolegend_", zorder=4)
+        primary = axes.bar(x[interval], upper[interval] - lower[interval], width, bottom=lower[interval],
+                           color=to_rgba(color, .22), edgecolor=color, linewidth=1.4, label=series.name, zorder=2.5)
+    elif style == SYMBOLS:
+        primary = axes.scatter(x[observed], center[observed], marker="o", s=42, linewidths=1.8, color=color,
+                               label=series.name, zorder=4)
+    elif style == POINTS:
+        axes.scatter(x[observed], center[observed], marker="_", s=160, linewidths=1.8, color=color,
+                     label="_nolegend_", zorder=4)
+    elif style == LINE_SYMBOLS:
+        primary, = axes.plot(x, center, linestyle="-", linewidth=1.8, marker="o", markersize=6.5, color=color,
+                             markerfacecolor=color, markeredgecolor=color, label=series.name, zorder=4)
     if style not in {RANGE, PAIRED} and interval.any():
         # Intervals may be asymmetric, and a mean need not lie inside the IQR.
         bottom, top = lower[interval], upper[interval]
         middle = bottom + (top - bottom) / 2
-        axes.errorbar(x[interval], middle, yerr=[middle - bottom, top - middle], fmt="none",
-                      ecolor=color, capsize=4, elinewidth=1.3, zorder=3)
+        err = axes.errorbar(x[interval], middle, yerr=[middle - bottom, top - middle], fmt="none",
+                            ecolor=color, capsize=4, elinewidth=1.3, zorder=3)
     if show_points:
         points = [(location + _spread(values, placement, width, rng), values)
                   for location, values in zip(x, series.values, strict=True) if len(values)]
         if points:
             x_points, y_points = (np.concatenate(parts) for parts in zip(*points, strict=True))
-            axes.scatter(x_points, y_points, s=26, color=color, edgecolors="white", linewidths=.6,
-                         label=series.name if style in {POINTS, PAIRED} else "_nolegend_", zorder=3.5)
+            pts = axes.scatter(x_points, y_points, s=26, color=color, edgecolors="white", linewidths=.6,
+                               label=series.name if style in {POINTS, PAIRED} else "_nolegend_", zorder=3.5)
+    if grouped_track and primary is not None:
+        primary._tramastat_grouped_series = {
+            "name": series.name,
+            "draw_style": style,
+            "errorbar": err,
+            "points": pts,
+            "default_color": color,
+        }
+        for companion in (err, pts):
+            if companion is not None:
+                companion._tramastat_grouped_companion = True
+    return primary
 
 
 def _draw_stacks(axes, plots, centers, width, percent, row_names):
@@ -520,6 +632,27 @@ def category_graph(frame, options, *, grouped=False):
     layout = _choice(options, "Placement of groups", GROUP_PLACEMENTS) if grouped else None
     stacked = layout in STACKED_PLACEMENTS
     style = _choice(options, "Graph style", GROUPED_STYLES if grouped else COLUMN_STYLES)
+    raw_series_styles = options.get(SERIES_STYLE)
+    if raw_series_styles is not None:
+        if not isinstance(raw_series_styles, dict) or len(raw_series_styles) > MAX_CATEGORIES:
+            raise FieldError(SERIES_STYLE, "Choose a valid per-series drawing style.")
+        for s_name, s_style in raw_series_styles.items():
+            if not isinstance(s_name, str) or s_style not in SERIES_DRAW_STYLES:
+                raise FieldError(SERIES_STYLE, "Choose a valid per-series drawing style.")
+    series_overrides = (
+        {name: val for name, val in raw_series_styles.items() if val != AS_GRAPH}
+        if isinstance(raw_series_styles, dict) else {}
+    )
+    if not grouped and series_overrides:
+        raise FieldError(SERIES_STYLE, "Choose a valid per-series drawing style.")
+    if grouped and series_overrides:
+        if stacked:
+            raise FieldError("Placement of groups",
+                             "Stacked bars cannot mix per-series drawing styles. Reset every series to As graph first.")
+        if style not in GROUPED_SERIES_COMPATIBLE_STYLES:
+            raise FieldError("Graph style",
+                             "Per-series drawing styles are available for Bars and Center and interval only. "
+                             "Reset every series to As graph first.")
     if source == SUMMARIES and style not in SUMMARY_STYLES:
         raise FieldError("Graph style", "Precomputed summaries can be drawn as Bars or Center and interval. "
                                         "Individual points and floating ranges need raw replicates.")
@@ -607,22 +740,52 @@ def category_graph(frame, options, *, grouped=False):
             axes.set_ylim(0, 100)
     else:
         anchors = {}
+        series_supports_per_series = grouped and style in GROUPED_SERIES_COMPATIBLE_STYLES
+        legend_handles = []
+        effective_styles = {}
         for plot, summary, count in zip(plots, summaries, counts, strict=True):
-            _draw_series(axes, plot, summary, style, width, show_points, placement, rng)
+            chosen_style = series_overrides.get(plot.name, AS_GRAPH) if series_supports_per_series else style
+            eff_style = style if chosen_style == AS_GRAPH else chosen_style
+            effective_styles[plot.name] = eff_style
+            primary = _draw_series(
+                axes, plot, summary, eff_style, width, show_points, placement, rng,
+                grouped_track=series_supports_per_series,
+            )
+            if primary is not None:
+                legend_handles.append(primary)
             if not grouped and style != PAIRED:
                 anchors.update(_column_anchor(plot, summary[0], style, show_points))
             for category, number, (midpoint, lower, upper) in zip(row_names, count, summary, strict=True):
                 row = {"Group": plot.name, "N": number, center: midpoint, "Lower": lower, "Upper": upper}
                 rows.append({"Row": category, **row} if grouped else row)
+        if series_supports_per_series:
+            axes._tramastat_grouped = {
+                "series_order": [p.name for p in plots],
+                "layout": layout,
+                "global_style": style,
+                "series_styles": effective_styles,
+                "summary": source == SUMMARIES,
+                "handles": {p.name: h for p, h in zip(plots, legend_handles, strict=True)},
+            }
         if anchors:
             register_anchors(axes, anchors)
+    if grouped and (stacked or style not in GROUPED_SERIES_COMPATIBLE_STYLES):
+        axes._tramastat_grouped_context = {
+            "layout": layout,
+            "global_style": style,
+            "series_order": [p.name for p in plots],
+        }
     axes.set_xticks(*ticks, rotation=30 if len(ticks[1]) > 8 else 0)
     axes._tramastat_numeric_axes = ("y",)
     axes._tramastat_categorical_axes = ("x",)
     for label in axes.get_xticklabels():
         label.set_parse_math(False)
     if legend:
-        for label in axes.legend().get_texts():
+        if not stacked and grouped and style in GROUPED_SERIES_COMPATIBLE_STYLES:
+            leg = axes.legend(legend_handles, [h.get_label() for h in legend_handles])
+        else:
+            leg = axes.legend()
+        for label in leg.get_texts():
             label.set_parse_math(False)
     return Result({"Graph data": pd.DataFrame(rows)}, figure)
 
