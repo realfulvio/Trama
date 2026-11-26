@@ -1940,13 +1940,15 @@ class Project(WorksheetJoinSources, SheetCommands):
         dataset = self.editable(title)
         return dataset.raw, frozenset(dataset.excluded)
 
-    def update_from_source(self, title, plan, *, choice=None, replace_rows=False):
+    def update_from_source(self, title, plan, *, choice=None, decisions=None, replace_rows=False):
         """Apply a plan of ``analisi.source_link.plan_update``: one Undo step and one recalculation of the analyses
-        that read the worksheet. Raises ValueError, changing nothing, when the worksheet changed after the plan."""
+        that read the worksheet. Conflicts are decided all at once (``choice``) or row by row (``decisions``, by
+        conflict identity); the engine checks them before anything changes. Raises ValueError, changing nothing,
+        when the worksheet changed after the plan or a decision is missing or foreign to the plan."""
         dataset = self.editable(title)
         if dataset.raw is not plan.raw or (plan.relink is None and dataset.source_link is not plan.link):
             raise ValueError("The worksheet changed after the file was read. Update again.")
-        arrangement = source_link.arrange(plan, choice=choice, replace_rows=replace_rows)
+        arrangement = source_link.arrange(plan, choice=choice, decisions=decisions, replace_rows=replace_rows)
         length = len(dataset.raw)
         if not arrangement.changes_data(length) and not plan.new_columns:
             link = source_link.confirmed_link(plan, arrangement, _with_spans(dataset.raw))

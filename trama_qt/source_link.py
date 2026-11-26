@@ -8,15 +8,15 @@ Nothing is read automatically and nothing but a local file is ever opened.
 from pathlib import Path
 
 import pandas as pd
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QDialog, QDialogButtonBox, QFileDialog,
-                               QFormLayout, QGroupBox, QHeaderView, QLabel, QMessageBox, QPushButton, QRadioButton,
-                               QTableWidget, QTableWidgetItem, QVBoxLayout)
+from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
+                               QGroupBox, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QTableWidget,
+                               QTableWidgetItem, QVBoxLayout, QWidget)
 
 from analisi import source_link as engine
 from analisi.i18n import active_language
-from analisi.source_link import (ADDED, CONFLICT, DELETED, DELETED_CONFLICT, LOCAL, MODIFIED, REMOVED_CONFLICT,
-                                 UNCHANGED, Message, UpdateCancelled, locate)
+from analisi.source_link import (ADDED, CONFLICT, DELETED, DELETED_CONFLICT, FILE, LOCAL, MODIFIED, PROJECT,
+                                 REMOVED_CONFLICT, UNCHANGED, Message, UpdateCancelled, locate)
 from analisi.text_import import DECIMAL_MARKS, DELIMITERS
 
 from . import theme
@@ -61,12 +61,33 @@ _ITALIAN = {
         "Il percorso salvato non esiste più. Questo file sta nella stessa posizione rispetto al progetto; spunta per "
         "usarlo.",
     "File chosen by you: {path}": "File scelto da te: {path}",
-    "Changed in the project and in the file": "Cambiate nel progetto e nel file",
-    "{count} row(s) were edited in the project and changed (or removed) in the file. Choose which version to keep "
-    "for all of them; the table shows both.": "{count} righe sono state modificate nel progetto e cambiate (o "
-                                              "rimosse) nel file. Scegli quale versione tenere per tutte; la tabella "
-                                              "le mostra entrambe.",
-    "Keep the project values": "Tieni i valori del progetto", "Use the file values": "Usa i valori del file",
+    "Changed in the project and in the file ({count})": "Cambiate nel progetto e nel file ({count})",
+    "Decide for each row, or for all at once and then change single rows. Apply waits until every row is decided.":
+        "Decidi riga per riga, oppure per tutte insieme e poi cambia le singole righe. Applica aspetta che ogni riga "
+        "sia decisa.",
+    "Keep the project for all": "Mantieni il progetto per tutte", "Use the file for all": "Usa il file per tutte",
+    "Keep the &project": "Mantieni il &progetto", "Use the &file": "Usa il &file",
+    "&Next to decide": "&Successiva da decidere",
+    "Differences (worksheet → file)": "Differenze (foglio → file)", "Decision": "Decisione",
+    "Changed in both": "Cambiata da entrambe le parti", "To decide": "Da decidere",
+    "Project": "Progetto",
+    "Keeps the worksheet values": "conserva i valori del foglio", "Takes the file values": "prende i valori del file",
+    "The row stays deleted": "la riga resta eliminata", "Restores the row": "ripristina la riga",
+    "Stays at the bottom as a project row": "resta in fondo come riga del progetto",
+    "Removes the row": "rimuove la riga",
+    "same values, other exclusions": "stessi valori, esclusioni diverse",
+    "deleted here · file: {values}": "eliminata qui · file: {values}",
+    "worksheet: {values} · not in the file": "foglio: {values} · non più nel file",
+    "{open} of {count} still to decide": "{open} di {count} ancora da decidere",
+    "All {count} decided.": "Tutte le {count} decise.",
+    "{state}: to decide": "{state}: da decidere", "{state}: keep the project": "{state}: mantieni il progetto",
+    "{state}: use the file": "{state}: usa il file",
+    "{count} conflict(s) still need a decision: keep the project or use the file.":
+        "{count} conflitti attendono una decisione: mantieni il progetto o usa il file.",
+    "The decisions do not match this preview. Update again.":
+        "Le decisioni non corrispondono a questa anteprima. Aggiorna di nuovo.",
+    "{count} row(s) of the project that are not in the file stay at the bottom of the worksheet.":
+        "{count} righe del progetto che non sono nel file restano in fondo al foglio.",
     "Replace all rows of the worksheet": "Sostituisci tutte le righe del foglio",
     "Every row gets a new identity: what refers to the current rows is lost.":
         "Ogni riga prende una nuova identità: quello che si riferisce alle righe attuali va perso.",
@@ -141,8 +162,6 @@ _ITALIAN = {
         "La colonna {name} contiene valori {local} nel foglio e {incoming} nel file.",
     "numeric": "numerici", "text": "di testo", "logical": "logici",
     "The rows take the order of the file.": "Le righe prendono l'ordine del file.",
-    "{count} row(s) added in the project stay at the bottom of the worksheet.":
-        "{count} righe aggiunte nel progetto restano in fondo al foglio.",
     "{count} row(s) deleted in the project stay deleted.": "{count} righe eliminate nel progetto restano eliminate.",
     "New columns from the file: {names}.": "Colonne nuove dal file: {names}.",
     "These columns are no longer read from the file and stay as project columns: {names}.":
@@ -152,8 +171,6 @@ _ITALIAN = {
         "Senza una colonna chiave le righe del file non si possono abbinare una per una con il foglio (nel file "
         "sono state cambiate o rimosse righe). Scegli una chiave con Cambia sorgente…, oppure sostituisci tutte le "
         "righe.",
-    "Choose how to treat the rows changed both in the project and in the file.":
-        "Scegli come trattare le righe cambiate sia nel progetto sia nel file.",
     "The worksheet changed after the file was read. Update again.":
         "Il foglio è cambiato dopo la lettura del file. Aggiorna di nuovo.",
     "The imported columns do not match the file.": "Le colonne importate non corrispondono al file.",
@@ -257,24 +274,11 @@ class UpdatePreviewDialog(QDialog):
             outer.addWidget(self.use_file)
             self.use_file.toggled.connect(self._sync)
 
-        self.choices = None
-        if plan.conflicts and not plan.problems:
-            group = QGroupBox(t("Changed in the project and in the file"))
-            box = QVBoxLayout(group)
-            note = QLabel(t("{count} row(s) were edited in the project and changed (or removed) in the file. Choose "
-                            "which version to keep for all of them; the table shows both.",
-                            count=f"{plan.conflicts:,}"))
-            note.setWordWrap(True)
-            box.addWidget(note)
-            self.choices = QButtonGroup(self)
-            for index, (key, text) in enumerate((("project", "Keep the project values"),
-                                                 ("file", "Use the file values"))):
-                button = QRadioButton(t(text))
-                button.setProperty("choice", key)
-                self.choices.addButton(button, index)
-                box.addWidget(button)
-            self.choices.buttonToggled.connect(self._sync)
-            outer.addWidget(group)
+        self.conflicts = None
+        if plan.conflict_items and not plan.problems:
+            self.conflicts = ConflictPanel(self, plan)
+            self.conflicts.changed.connect(self._decided)
+            outer.addWidget(self.conflicts, 1)
 
         self.replace = None
         if plan.identity_problem is not None and not plan.problems:
@@ -312,14 +316,25 @@ class UpdatePreviewDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         self.layout().addWidget(buttons)
+        for widget in self.findChildren(QWidget):  # Tabbing past Cancel must not leave Enter on Cancel.
+            if widget.parent() is not buttons and widget.focusPolicy() != Qt.FocusPolicy.NoFocus:
+                widget.installEventFilter(self)
         self._sync()
         theme.fit_dialog(self, *((980, 660) if plan.frame is not None else (760, 380)))
 
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.FocusIn:
+            self.apply_button.setDefault(True)  # Enter is Apply again once the focus is back in the preview.
+        return super().eventFilter(watched, event)
+
     # -- decisions -----------------------------------------------------------------------------------------------
-    def choice(self):
-        if self.choices is None or self.choices.checkedButton() is None:
-            return None
-        return self.choices.checkedButton().property("choice")
+    def decisions(self):
+        """``{conflict identity: PROJECT | FILE}`` chosen so far (open conflicts are left out)."""
+        return {} if self.conflicts is None else dict(self.conflicts.decisions)
+
+    def _decided(self, identities):
+        self._label_conflicts(identities)
+        self._sync()
 
     def replace_rows(self):
         return self.replace is not None and self.replace.isChecked()
@@ -330,7 +345,7 @@ class UpdatePreviewDialog(QDialog):
             return t("The file changed while this preview was open. Nothing was changed: close and update again.")
         if self.plan.problems:
             return "\n".join(f"• {translate(problem)}" for problem in self.plan.problems)
-        if (problem := engine.can_apply(self.plan, choice=self.choice(), replace_rows=self.replace_rows())):
+        if (problem := engine.can_apply(self.plan, decisions=self.decisions(), replace_rows=self.replace_rows())):
             return f"• {translate(problem)}"
         if self.use_file is not None and not self.use_file.isChecked():
             return "• " + t("The saved path no longer exists. This file has the same place relative to the "
@@ -389,6 +404,9 @@ class UpdatePreviewDialog(QDialog):
         shown = entries[:MAX_ROWS_SHOWN]
         self.table.setRowCount(len(shown))
         raw = plan.raw
+        by_row = {item.row: item for item in plan.conflict_items if item.row >= 0}
+        by_position = {item.position: item for item in plan.conflict_items if item.kind == REMOVED_CONFLICT}
+        self._conflict_lines = {}
         for line, (state, row, position) in enumerate(shown):
             if state[0] == "removed":
                 label = t("Edited in the project, removed from the file" if state[1] == REMOVED_CONFLICT
@@ -417,6 +435,9 @@ class UpdatePreviewDialog(QDialog):
                     cells.append(old)
                 else:
                     cells.append(f"{old} → {new}")
+            conflict = by_position.get(position) if row is None else by_row.get(row)
+            if conflict is not None:
+                self._conflict_lines[conflict.identity] = (line, label)
             for column, text in enumerate(cells):
                 item = QTableWidgetItem(text)
                 if column == 1 or (column >= 2 and numeric[column - 2]):
@@ -433,6 +454,181 @@ class UpdatePreviewDialog(QDialog):
             self.shown.setText(text)
         self.shown.setWordWrap(True)
         self.shown.setVisible(True)
+        self._label_conflicts()
+        self._fit_state_column()
+
+    def _label_conflicts(self, identities=None):
+        """The State of a conflict in the table of changes says its decision, or that it is still open."""
+        decisions, lines = self.decisions(), getattr(self, "_conflict_lines", {})
+        for identity in lines if identities is None else identities:
+            if identity not in lines:  # Past the rows drawn: the conflict list shows it.
+                continue
+            line, label = lines[identity]
+            self.table.item(line, 0).setText(self._state_text(label, decisions.get(identity)))
+
+    @staticmethod
+    def _state_text(label, decided):
+        return t("{state}: to decide", state=label) if decided is None else t(
+            "{state}: keep the project" if decided == PROJECT else "{state}: use the file", state=label)
+
+    def _fit_state_column(self):
+        """Wide enough for every state and every decision it can take, so a decision never cuts the text."""
+        metrics = self.table.fontMetrics()
+        texts = {self.table.item(line, 0).text() for line in range(self.table.rowCount())}
+        texts |= {self._state_text(label, decided) for _, label in getattr(self, "_conflict_lines", {}).values()
+                  for decided in (PROJECT, FILE)}
+        width = max((metrics.horizontalAdvance(text) for text in texts), default=0) + 24
+        self.table.setColumnWidth(0, max(110, min(width, 380)))
+
+_KINDS = {CONFLICT: "Changed in both", DELETED_CONFLICT: "Deleted in the project, changed in the file",
+          REMOVED_CONFLICT: "Edited in the project, removed from the file"}
+# What each decision does to the row, by kind of conflict: the panel says it before Apply.
+_EFFECTS = {(CONFLICT, PROJECT): "Keeps the worksheet values", (CONFLICT, FILE): "Takes the file values",
+            (DELETED_CONFLICT, PROJECT): "The row stays deleted", (DELETED_CONFLICT, FILE): "Restores the row",
+            (REMOVED_CONFLICT, PROJECT): "Stays at the bottom as a project row",
+            (REMOVED_CONFLICT, FILE): "Removes the row"}
+
+
+class ConflictPanel(QGroupBox):
+    """Every conflict of a preview, one line each, with its key, what happened on each side and its decision.
+
+    Decide for the selected lines (Keep the project / Use the file) or for all at once; a decision for all only
+    fills the lines, which stay editable one by one. Nothing is decided by default and Next open finds the lines
+    still to decide. Decisions belong to the conflict identity of this preview, not to a line of the view."""
+
+    changed = Signal(list)  # The identities just decided.
+
+    def __init__(self, parent, plan):
+        super().__init__(parent)
+        self.plan, self.items, self.decisions = plan, list(plan.conflict_items), {}
+        self.setTitle(t("Changed in the project and in the file ({count})", count=f"{len(self.items):,}"))
+        box = QVBoxLayout(self)
+        note = QLabel(t("Decide for each row, or for all at once and then change single rows. Apply waits until "
+                        "every row is decided."))
+        note.setWordWrap(True)
+        box.addWidget(note)
+        bar = QHBoxLayout()
+        self.all_project = self._button("Keep the project for all", lambda: self.decide_all(PROJECT), bar)
+        self.all_file = self._button("Use the file for all", lambda: self.decide_all(FILE), bar)
+        bar.addStretch(1)
+        self.keep = self._button("Keep the &project", lambda: self.decide_selected(PROJECT), bar)
+        self.take = self._button("Use the &file", lambda: self.decide_selected(FILE), bar)
+        self.next_open = self._button("&Next to decide", self.select_next_open, bar)
+        box.addLayout(bar)
+        self.state = QLabel()
+        box.addWidget(self.state)
+        self.table = QTableWidget(len(self.items), 4)
+        self.table.setObjectName("sourceConflicts")
+        self.table.setHorizontalHeaderLabels([t("Key") if plan.key_name is not None else t("Row"), t("Conflict"),
+                                              t("Differences (worksheet → file)"), t("Decision")])
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.table.setTabKeyNavigation(False)  # Tab leaves the list; the arrows move inside it.
+        self.table.verticalHeader().setVisible(False)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
+        for column, width in enumerate((80, 300, 220)):  # The kinds of conflict read whole at 1024×768.
+            self.table.setColumnWidth(column, width)
+        self.table.setMinimumHeight(120)
+        self.table.itemSelectionChanged.connect(self._selection)
+        box.addWidget(self.table, 1)
+        names = [name for name in plan.names if name is not None]
+        for line, item in enumerate(self.items):
+            cells = [self._key(item, names), t(_KINDS[item.kind]), self._differences(item, names), ""]
+            for column, text in enumerate(cells):
+                cell = QTableWidgetItem(text)
+                cell.setToolTip(text)
+                self.table.setItem(line, column, cell)
+            self._show(line)
+        self._selection()
+        self._count()
+
+    def _button(self, text, handler, bar):
+        button = QPushButton(t(text))
+        button.setAutoDefault(False)  # Enter stays on Apply.
+        button.clicked.connect(handler)
+        bar.addWidget(button)
+        return button
+
+    def _key(self, item, names):
+        plan = self.plan
+        if plan.key_name is None:
+            return str((item.row if item.row >= 0 else item.position) + 1)
+        frame, row = (plan.frame, item.row) if item.row >= 0 else (plan.raw, item.position)
+        return engine.values_text(frame, row, [plan.key_name])[0]
+
+    def _differences(self, item, names):
+        plan = self.plan
+        others = [name for name in names if name != plan.key_name] or names
+        if item.kind == CONFLICT:
+            before = engine.values_text(plan.raw, item.position, others)
+            after = engine.values_text(plan.frame, item.row, others)
+            return " · ".join(f"{name}: {old} → {new}" for name, old, new in zip(others, before, after)
+                              if old != new) or t("same values, other exclusions")
+        if item.kind == DELETED_CONFLICT:
+            values = engine.values_text(plan.frame, item.row, others)
+            return t("deleted here · file: {values}", values=" · ".join(
+                f"{name} {value}" for name, value in zip(others, values)))
+        values = engine.values_text(plan.raw, item.position, others)
+        return t("worksheet: {values} · not in the file", values=" · ".join(
+            f"{name} {value}" for name, value in zip(others, values)))
+
+    def _show(self, line):
+        item = self.items[line]
+        decided = self.decisions.get(item.identity)
+        cell = self.table.item(line, 3)
+        if decided is None:
+            cell.setText(t("To decide"))
+        else:
+            side = t("Project") if decided == PROJECT else t("File")
+            cell.setText(f"{side}: {t(_EFFECTS[item.kind, decided])}")
+        font = cell.font()
+        font.setBold(decided is None)  # The lines still open stand out without a colour of their own.
+        cell.setFont(font)
+        cell.setToolTip(cell.text())
+
+    def _count(self):
+        open_ = sum(1 for item in self.items if item.identity not in self.decisions)
+        self.state.setText(t("{open} of {count} still to decide", open=f"{open_:,}", count=f"{len(self.items):,}")
+                           if open_ else t("All {count} decided.", count=f"{len(self.items):,}"))
+        self.next_open.setEnabled(bool(open_))
+
+    def _selection(self):
+        chosen = bool(self.table.selectionModel().selectedRows())
+        self.keep.setEnabled(chosen)
+        self.take.setEnabled(chosen)
+
+    def selected_lines(self):
+        return sorted(index.row() for index in self.table.selectionModel().selectedRows())
+
+    def decide(self, lines, value):
+        lines = list(lines)
+        for line in lines:
+            self.decisions[self.items[line].identity] = value
+            self._show(line)
+        self._count()
+        self.changed.emit([self.items[line].identity for line in lines])
+
+    def decide_selected(self, value):
+        self.decide(self.selected_lines(), value)
+
+    def decide_all(self, value):
+        self.decide(range(len(self.items)), value)
+
+    def select_next_open(self):
+        """Select the next line still to decide after the current one (wrapping), and show it."""
+        lines = [line for line, item in enumerate(self.items) if item.identity not in self.decisions]
+        if not lines:
+            return
+        current = self.table.currentRow()
+        line = next((line for line in lines if line > current), lines[0])
+        self.table.clearSelection()
+        self.table.selectRow(line)
+        self.table.setCurrentCell(line, 0)
+        self.table.scrollToItem(self.table.item(line, 0))
+        self.table.setFocus()
 
 
 def _options_text(link):
@@ -604,7 +800,7 @@ def start_plan(window, title, link, path, *, relink=None, found_elsewhere=False,
 def preview(window, project, title, plan):
     dialog = UpdatePreviewDialog(window, project, title, plan)
     accepted = dialog.exec() == QDialog.DialogCode.Accepted
-    choice, replace_rows = dialog.choice(), dialog.replace_rows()
+    decisions, replace_rows = dialog.decisions(), dialog.replace_rows()
     dialog.deleteLater()
     if not accepted or window.project is not project:
         window.status(t("Update cancelled: nothing changed."))
@@ -613,7 +809,8 @@ def preview(window, project, title, plan):
 
     def change():
         try:
-            outcome["affected"] = project.update_from_source(title, plan, choice=choice, replace_rows=replace_rows)
+            outcome["affected"] = project.update_from_source(title, plan, decisions=decisions,
+                                                             replace_rows=replace_rows)
         except ValueError as error:
             raise ValueError(translate(error)) from error
         return outcome["affected"]

@@ -76,13 +76,34 @@ Enter applies only when *Apply* is on.
 
 ### Conflicts
 
-![A conflict: Apply stays off until a choice is made](media/source-link/conflitto-en.png)
+![Four conflicts decided row by row: Apply turns on when the last one is decided](media/source-link/conflitto-en.png)
 
-A row is a conflict only when both sides changed it since the last confirmed version. The panel **Changed in the
-project and in the file** asks one decision for all of them, with **no default**: *Keep the project values* or *Use
-the file values*. Rows changed on one side only are never in question. This keeps the decision explicit without
-asking row by row; when a per-row choice is needed, Cancel, fix the few rows in the worksheet (or in the file) and
-update again.
+A row is a conflict only when both sides changed it since the last confirmed version. Rows changed on one side only
+are never in question. There are three kinds, and the panel **Changed in the project and in the file** lists every
+one of them, also past the 1 000 rows the table of changes draws:
+
+| Conflict | Keep the project | Use the file |
+| --- | --- | --- |
+| Changed in both | keeps the worksheet values | takes the file values |
+| Deleted in the project, changed in the file | the row stays deleted | restores the row, at its place in the file, with its old identity |
+| Edited in the project, removed from the file | stays at the bottom as a project row | removes the row |
+
+Each line shows the key (or the row number without a key), the kind of conflict, the differences (worksheet → file)
+and the decision, which says what it does to the row. There is **no default**: a line starts as *To decide* (bold)
+and **Apply stays off until every conflict is decided**; the banner says how many are still open.
+
+- **Keep the project** / **Use the file** (Alt+P / Alt+F) decide the selected lines; several lines can be selected.
+- **Keep the project for all** / **Use the file for all** fill every line at once; the lines stay editable one by
+  one afterwards.
+- **Next to decide** (Alt+N; *Successiva da decidere*, Alt+S, in Italian) selects the next open line, wrapping, so
+  the last conflict of a long list is reached from the keyboard. Tab enters and leaves the list; the arrows move
+  inside it; Enter is always Apply.
+
+The State column of the table of changes repeats the decision (*Conflict: keep the project*, …). Decisions belong to
+the row identities of this preview, not to lines of the view: the engine checks them before the worksheet changes
+(an open conflict, or a decision that is not one of this preview, changes nothing), and a new preview starts again
+from nothing. After Apply the file becomes the confirmed version, so the next update compares with it: a row kept
+from the project is then a project edit, a row kept after the file removed it is a project row.
 
 ### Without a key
 
@@ -128,19 +149,23 @@ confirmed version, so only real differences are shown.
 ## Performance
 
 `python -m tests.bench_source_link` (50 000 rows × 20 columns, 19 MB) in the cloud container: import with link about
-1.5 s, preview of an unchanged file about 2.5 s, preview with 1 % modified, removed and added rows in reverse order
-about 2.2 s, preview table 0.7 s (1 000 rows drawn), Apply 0.3 s, Undo/Redo immediate, Cancel during the read stops
-in a few milliseconds.
+2 s, preview of an unchanged file about 3.3 s, preview with 1 % modified, removed and added rows in reverse order
+about 3.3 s, preview table 1 s (1 000 rows drawn), Apply 0.4 s, Undo/Redo immediate. With 1 000 conflicts (900
+changed in both, 50 deleted in the project, 50 removed from the file): reading 3.5 s, preview window with the 1 000
+conflicts listed 2.4 s, one decision under 1 ms (501 decisions 0.2 s), Apply 0.5 s. Cancel during the read stops in
+a few milliseconds to about 0.1 s.
 
 ## Checks
 
 ```
-python -m unittest tests.test_source_link tests.test_qt_source_link
+python -m unittest tests.test_source_link tests.test_qt_source_link tests.test_source_link_conflicts \
+    tests.test_qt_source_link_conflicts
 python -m trama_qt --smoke OUT --only qt-source-link      # EN/IT, light/dark, 1024×768 and 1600×1000
 QT_SCALE_FACTOR=1.5 python -m trama_qt.source_link_smoke OUT --size 1024x768   # 150 % emulated
 python -m tests.bench_source_link
 ```
 
 The smoke drives the real dialogs (import with the link, preview confirmed with Enter, duplicated keys, a conflict,
-Source link, a project moved with its file) and writes `casi-dati-collegati.alab` with its `dati.csv`, which reopen
+the four conflicts of `tests/data/source_link/per_riga` decided row by row from the keyboard, Source link, a project
+moved with its file) and writes `casi-dati-collegati.alab` with its `dati.csv` and `dati-per-riga.csv`, which reopen
 together. The data are the synthetic files of `tests/data/source_link`.

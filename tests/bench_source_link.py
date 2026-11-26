@@ -4,7 +4,8 @@ Writes a synthetic ``rows × columns`` CSV (default 50 000 × 20: a key ``ID`` a
 linked worksheet with a regression on it, and times: the import with the link (digests of every row), a preview of
 the unchanged file, a preview of a file with 1 % of the rows modified, 1 % removed, 1 % added and the rows in reverse
 order, the preview table (at most 1 000 rows are drawn), Apply (one worksheet edit), Undo and Redo, the save of the
-project (16 bytes per row in the link), and how long Cancel takes to stop a read. Each preview must stay a few seconds
+project (16 bytes per row in the link), a preview with 1 000 conflicts (all listed, decided for all and then 500 one
+by one) and its Apply, and how long Cancel takes to stop a read. Each preview must stay a few seconds
 at most on a normal PC; the numbers are printed, not asserted.
 """
 import hashlib
@@ -96,6 +97,37 @@ def main(rows=50_000, columns=20):
     saved = folder / "grande.alab"
     timed("save the project", lambda: project.save(saved))
 
+    # 1 000 conflicts decided row by row: 900 changed on both sides, 50 deleted in the project and changed in the
+    # file, 50 edited in the project and removed from the file.
+    picked = np.arange(0, rows, rows // 1000)[:1000]
+    both, deleted, removed = picked[:900], picked[900:950], picked[950:]
+    edited = project.tables[title].raw.copy()
+    column = edited.columns.get_loc("V1")
+    edited.iloc[np.concatenate([both, removed]), column] += 3.0
+    project.edit(title, "Edit", lambda dataset: setattr(dataset, "raw", edited))
+    project.delete_rows(title, deleted.tolist())
+    file_values = new_values.copy()
+    file_values[np.concatenate([both, deleted]), 0] += 2.0
+    present = np.ones(len(new_keys), dtype=bool)
+    present[removed] = False
+    write_csv(path, new_keys[present], file_values[present])
+    conflicted = timed("preview: 1 000 conflicts", plan)
+    assert len(conflicted.conflict_items) == 1000, len(conflicted.conflict_items)
+    window = timed("preview window with the 1 000 conflicts listed",
+                   lambda: UpdatePreviewDialog(None, project, title, conflicted))
+    listed, window_rows = window.conflicts.table.rowCount(), window.table.rowCount()
+
+    def decide():
+        window.conflicts.decide_all(engine.PROJECT)
+        for line in range(0, listed, 2):  # Then half of them one by one, as a person would.
+            window.conflicts.decide([line], engine.FILE)
+
+    timed("decide: all keep the project, then 500 single rows use the file", decide)
+    decisions = window.decisions()
+    window.deleteLater()
+    timed("Apply with 1 000 decisions (one worksheet edit)",
+          lambda: project.update_from_source(title, conflicted, decisions=decisions))
+
     stop = threading.Event()
     raw, excluded = project.source_sheet(title)
     link = project.tables[title].source_link
@@ -123,6 +155,7 @@ def main(rows=50_000, columns=20):
         print(f"  {label}: {seconds:.3f} s")
     print(f"  preview rows drawn: {shown:,} (changes {changed.count(engine.MODIFIED) + changed.count(engine.ADDED):,} "
           f"+ {len(changed.removed):,} removed + {len(changed.moved()):,} moved)")
+    print(f"  conflicts listed: {listed:,} (the table of changes draws {window_rows:,})")
     print(f"  Cancel during the read: {finished['outcome']} {1000 * (finished['at'] - pressed):.0f} ms after the "
           f"press")
     return 0

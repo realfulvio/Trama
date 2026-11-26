@@ -26,8 +26,9 @@ def _app():
     return app
 
 
-@unittest.skipIf(QApplication is None, "PySide6 is not available")
-class SourceLinkWindowTests(unittest.TestCase):
+class SourceLinkWindowCase(unittest.TestCase):
+    """A main window with English texts and helpers that act like a person; the tests are in the subclasses."""
+
     @classmethod
     def setUpClass(cls):
         cls.app = _app()
@@ -140,6 +141,10 @@ class SourceLinkWindowTests(unittest.TestCase):
     def copy(self, fixture, target):
         shutil.copyfile(DATA / fixture, target)
 
+
+
+@unittest.skipIf(QApplication is None, "PySide6 is not available")
+class SourceLinkWindowTests(SourceLinkWindowCase):
     # -- the package case ------------------------------------------------------------------------------------------
     def test_update_from_file_applies_one_undoable_step_and_recalculates(self):
         from trama_qt.classic_bar import MENUS
@@ -220,9 +225,8 @@ class SourceLinkWindowTests(unittest.TestCase):
         def decide(dialog):
             states["before"] = dialog.apply_button.isEnabled()
             states["cells"] = [dialog.table.item(row, 0).text() for row in range(dialog.table.rowCount())]
-            buttons = dialog.choices.buttons()
-            self.assertFalse(any(button.isChecked() for button in buttons))
-            next(button for button in buttons if button.property("choice") == "file").setChecked(True)
+            self.assertEqual(dialog.conflicts.table.item(0, 3).text(), "To decide")
+            dialog.conflicts.all_file.click()
             states["after"] = dialog.apply_button.isEnabled()
             return True
 
@@ -230,7 +234,7 @@ class SourceLinkWindowTests(unittest.TestCase):
         self.assertIn("1 conflicts", seen["summary"])
         self.assertFalse(states["before"])
         self.assertTrue(states["after"])
-        self.assertEqual(states["cells"][0], "Conflict")
+        self.assertEqual(states["cells"][0], "Conflict: to decide")
         values = dict(zip(self.ids(title), self.window.project.tables[title].raw["Y"].tolist()))
         self.assertEqual(values["B"], 9)
 

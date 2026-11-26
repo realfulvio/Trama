@@ -154,7 +154,7 @@ class SourceLinkTests(unittest.TestCase):
         self.assertEqual(plan.count(CONFLICT), 1)
         self.assertEqual(plan.count(LOCAL), 1)
         self.assertEqual(engine.can_apply(plan).template,
-                         "Choose how to treat the rows changed both in the project and in the file.")
+                         "{count} conflict(s) still need a decision: keep the project or use the file.")
         self.assertIsNone(engine.can_apply(plan, choice="project"))
         project.update_from_source(title, plan, choice="project")
         values = dict(zip(column(project, title, "ID"), column(project, title, "Y")))
