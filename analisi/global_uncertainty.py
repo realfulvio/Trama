@@ -342,6 +342,9 @@ def response(compiled, solved, series, x):
         def at(offset, name=name, value=value):
             shifted = dict(parameters)
             shifted[name] = value + offset
+            if solved.get("complete") is not None:
+                # 0.117: a linked coefficient moves with its source.
+                shifted = solved["complete"](shifted)
             with np.errstate(all="ignore"):
                 return np.asarray(compiled.evaluate(x, shifted), dtype=float)
 
