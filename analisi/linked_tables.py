@@ -426,6 +426,17 @@ def _font(record, scale, weight="normal"):
     return FontProperties(family=record.get("font", "sans-serif"), size=record["size"] * scale, weight=weight)
 
 
+def clamp_position(figure, extent, left_in, top_in):
+    """Normalized ``[x, y]`` position in ``[0, 1]`` keeping ``extent`` points completely inside ``figure``."""
+    width, height = (float(value) for value in figure.get_size_inches())
+    table_width, table_height = extent[0] / 72, extent[1] / 72
+    left = min(max(float(left_in), 0.), max(width - table_width, 0.))
+    top = min(max(float(top_in), 0.), max(height - table_height, 0.))
+    x = min(max(left / width if width > 0 else 0., 0.), 1.)
+    y = min(max(top / height if height > 0 else 0., 0.), 1.)
+    return [x, y]
+
+
 class LinkedTableArtist(Artist):
     """One table: every text, fill and rule it is made of is drawn in the table's own point coordinates."""
 
@@ -437,24 +448,55 @@ class LinkedTableArtist(Artist):
         self.spec = spec
         self.scale = scale
         self.extent, self._children = (0., 0.), ()
+        self._preview_position = None
+        self._placed = None
         self._build(figure)
 
-    # Table coordinates: points, the origin at the top left corner, y growing downward, then the page.
-    def _local(self, figure):
-        """Where the table sits: its top left corner at the recorded position, moved back onto the page when it
-        would stick out (a table is never cut by the edge of the figure or of the layout page)."""
-        x, y = self.spec.record["position"]
+    def _effective_position(self, position=None):
+        if position is not None:
+            return position
+        return self._preview_position if self._preview_position is not None else self.spec.record["position"]
+
+    def bounds_inches(self, figure=None, position=None):
+        """Drawn top-left corner and size of the table in figure inches ``(left, top, width, height)``."""
+        figure = self.figure if figure is None else figure
+        x, y = self._effective_position(position)
         width, height = (float(value) for value in figure.get_size_inches())
         table_width, table_height = self.extent[0] / 72, self.extent[1] / 72
-        left = min(x * width, max(width - table_width, 0.))
-        top = min(y * height, max(height - table_height, 0.))
+        left = min(max(float(x), 0.) * width, max(width - table_width, 0.))
+        top = min(max(float(y), 0.) * height, max(height - table_height, 0.))
+        return left, top, table_width, table_height
+
+    def bounds_pixels(self, figure=None, position=None):
+        """Drawn bounding box ``(left, bottom, right, top)`` in display pixels."""
+        figure = self.figure if figure is None else figure
+        left, top, table_width, table_height = self.bounds_inches(figure, position)
+        height = float(figure.get_size_inches()[1])
+        dpi = float(figure.dpi)
+        return (left * dpi, (height - top - table_height) * dpi,
+                (left + table_width) * dpi, (height - top) * dpi)
+
+    # Table coordinates: points, the origin at the top left corner, y growing downward, then the page.
+    def _local(self, figure, position=None):
+        """Where the table sits: its top left corner at the recorded position, moved back onto the page when it
+        would stick out (a table is never cut by the edge of the figure or of the layout page)."""
+        left, top, _, _ = self.bounds_inches(figure, position)
+        height = float(figure.get_size_inches()[1])
         return (Affine2D().scale(1 / 72, -1 / 72) + figure.dpi_scale_trans
                 + ScaledTranslation(left, height - top, figure.dpi_scale_trans))
 
-    def _place(self, figure):
-        transform = self._local(figure)
+    def _place(self, figure, position=None):
+        pos = tuple(float(value) for value in self._effective_position(position))
+        transform = self._local(figure, pos)
         for child in self._children:
             child.set_transform(transform)
+        self._placed = (tuple(float(value) for value in figure.get_size_inches()), pos)
+
+    def set_preview_position(self, position):
+        """Move this artist temporarily to ``position`` without changing its confirmed record (``None`` restores)."""
+        self._preview_position = None if position is None else [float(position[0]), float(position[1])]
+        if self.figure is not None:
+            self._place(self.figure)
 
     def _build(self, figure):
         record = self.spec.record
@@ -527,6 +569,14 @@ class LinkedTableArtist(Artist):
     def draw(self, renderer):
         if not self.get_visible():
             return
+        figure = self.figure
+        if figure is not None:
+            canvas = getattr(figure, "canvas", None)
+            saving = bool(canvas is not None and getattr(canvas, "is_saving", lambda: False)())
+            pos = self.spec.record["position"] if saving else self._effective_position()
+            size = tuple(float(value) for value in figure.get_size_inches())
+            if self._placed != (size, tuple(float(value) for value in pos)):
+                self._place(figure, pos)
         renderer.open_group("linked_table", self.get_gid())
         for child in self._children:
             child.draw(renderer)
@@ -583,5 +633,6 @@ def overlay_figure(size, specs, *, scale=1.):
 
 
 __all__ = ["FrameSource", "LinkedTableArtist", "Problem", "Resolved", "TABLES", "TableSpec", "check_size",
-           "draw_tables", "new_id", "overlay_figure", "remap_sources", "remove_tables", "rename_sheet", "resolve", "row_tokens",
-           "source_analyses", "sync_tables", "table_size", "validate_table", "validate_tables"]
+           "clamp_position", "draw_tables", "new_id", "overlay_figure", "remap_sources", "remove_tables",
+           "rename_sheet", "resolve", "row_tokens", "source_analyses", "sync_tables", "table_size",
+           "validate_table", "validate_tables"]

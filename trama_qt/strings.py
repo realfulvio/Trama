@@ -21,6 +21,7 @@ _TEXT = {
     "qt.toolbar_annotate": ("Annotate", "Annota"),
     "qt.toolbar_note": ("Note", "Nota"),
     "qt.toolbar_linked_table": ("Table", "Tabella"),
+    "qt.toolbar_linked_table_move": ("Move table", "Sposta tabella"),
     "qt.toolbar_export_figure": ("Figure", "Figura"),
     "qt.toolbar_export_options": ("Options", "Opzioni"),
     "qt.toolbar_preview": ("Preview", "Anteprima"),
