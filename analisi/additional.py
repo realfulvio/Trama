@@ -425,7 +425,7 @@ def extra_analysis(method, frame, o, cancel=None):
     if method == spline_fit.SPLINE_FIT:
         return _spline_fit(frame, o)
     if method == "Mixed-effects model (REML)":
-        return mixed_analysis(frame, o)
+        return mixed_analysis(frame, o, cancel=cancel)
     if method == "Global nonlinear regression":
         return global_analysis(frame, o)
     if method == function_plot.PLOT_FUNCTION:
