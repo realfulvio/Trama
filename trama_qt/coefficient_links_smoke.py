@@ -215,6 +215,7 @@ def main(argv=None):
         coefficients.set_cell(2, coefficients.OFFSET, "1")
         settle()
         check("C = 2*A + 1" in coefficients.preview.texts()[0], f"global: preview {coefficients.preview.texts()}")
+        check(not dialog.banner.isVisible(), "global: the corrected link still shows its old error")
         for index in range(dialog.tabs.count()):
             dialog.tabs.setCurrentIndex(index)
             shot(dialog, f"global-tab-{index + 1}")

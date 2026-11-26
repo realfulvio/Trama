@@ -1140,11 +1140,13 @@ def attach(dialog):
     equation = _control(dialog, "Equation")
     syntax = _control(dialog, SYNTAX)
     if isinstance(coefficients, GlobalCoefficientEditor):
+        coefficients.changed.connect(lambda: dialog.clear_field_error("Parameters"))
         if equation is not None:
             equation.textChanged.connect(coefficients.mark)
         if syntax is not None:
             syntax.currentIndexChanged.connect(lambda _=None: coefficients.mark())
     if isinstance(series, GlobalSeriesEditor):
+        series.changed.connect(lambda: dialog.clear_field_error("Series constraints"))
         if isinstance(coefficients, GlobalCoefficientEditor):
             coefficients.changed.connect(series.refresh_coefficients)
         for name in SERIES_ROLES:

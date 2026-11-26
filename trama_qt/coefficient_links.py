@@ -9,7 +9,7 @@ renamed or removed.
 import math
 import re
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (QComboBox, QHeaderView, QLabel, QStyledItemDelegate, QTableWidgetItem, QVBoxLayout,
                                QWidget)
@@ -210,6 +210,7 @@ def follow_rename(records_rows, old, new):
 class SingleParameterEditor(QWidget):
     """Name, start, lower, upper, Fixed, and Linked to / Factor / Offset of each coefficient."""
 
+    changed = Signal()
     NAME, START, LOWER, UPPER, FIXED, SOURCE, FACTOR, OFFSET = range(8)
 
     def __init__(self, records, parent=None):
@@ -318,6 +319,7 @@ class SingleParameterEditor(QWidget):
         finally:
             self._busy = False
         self.refresh()
+        self.changed.emit()
 
     def _renamed(self, row, item):
         old, new = item.data(Qt.ItemDataRole.UserRole) or "", item.text().strip()
@@ -359,6 +361,7 @@ class SingleParameterEditor(QWidget):
         self.table.removeRow(row)
         self.table.blockSignals(False)
         self.refresh()
+        self.changed.emit()
 
     def refresh(self):
         """Linked rows show the starting value they take from the link (read-only); the preview follows."""

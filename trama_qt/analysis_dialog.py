@@ -716,6 +716,7 @@ class AnalysisDialog(QDialog):
             elif kind == PARAMETER_LIST:
                 # 0.117: the table of Fit custom equation also edits the links between coefficients.
                 widget = coefficient_links.SingleParameterEditor(saved.get(label, ()))
+                widget.changed.connect(lambda: self.clear_field_error("Parameters"))
             elif kind in (global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
                 # Global coefficient list / Global series constraints (Global fit custom equation).
                 widget = global_fit.build_editor(kind, label, saved, self)

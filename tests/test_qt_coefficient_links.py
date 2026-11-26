@@ -102,6 +102,10 @@ class LinkEditorTests(unittest.TestCase):
         self.assertIsNone(dialog.result)
         self.assertTrue(dialog.banner.isVisible())
         self.assertEqual(editor.table.currentColumn(), editor.SOURCE)
+        editor.table.item(0, editor.SOURCE).setText("")
+        self.assertFalse(dialog.banner.isVisible())
+        dialog.accept()
+        self.assertIsNotNone(dialog.result)
 
     def test_italian_labels_and_messages(self):
         set_language("it")
@@ -167,6 +171,7 @@ class LinkEditorTests(unittest.TestCase):
         self.assertIsNone(dialog.result)
         self.assertIn("estimated separately in series 'Uno'", dialog.banner.text())
         coefficients.set_cell(2, coefficients.SOURCE, "A")
+        self.assertFalse(dialog.banner.isVisible())
         series = dialog.controls["Series constraints"][1]
         series.set_override("Due", "C", "lower", "10")
         series.set_override("Due", "C", "upper", "20")
@@ -177,6 +182,7 @@ class LinkEditorTests(unittest.TestCase):
         self.assertTrue(dialog.banner.text().startswith("Series constraints: Series 'Due', C: its limits")
                         or "Series 'Due', C: its limits" in dialog.banner.text(), dialog.banner.text())
         series.clear_all()
+        self.assertFalse(dialog.banner.isVisible())
         dialog.accept()
         self.assertIsNotNone(dialog.result)
 
