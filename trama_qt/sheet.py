@@ -3,7 +3,7 @@ from PySide6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QModelIn
 from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics, QGuiApplication, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QApplication, QDialog, QDialogButtonBox,
                                QFormLayout, QHeaderView, QLabel, QLineEdit, QMenu, QSpinBox, QStyledItemDelegate,
-                               QTableView, QVBoxLayout)
+                               QTableView, QToolButton, QVBoxLayout)
 
 from analisi.grid_data import clipboard_decimal_mark, clipboard_rows, copy_block, filter_clipboard_rows
 from analisi.i18n import tr, ui
@@ -137,6 +137,19 @@ class WorksheetHeading(QHeaderView):
                                and event.position().y() < self._line_height())
         super().mousePressEvent(event)
 
+    def mouseDoubleClickEvent(self, event):
+        column = self.logicalIndexAt(event.position().toPoint())
+        model = self.model()
+        if (event.button() == Qt.MouseButton.LeftButton and 0 <= column < len(model.bands)
+                and model.bands[column][2].startswith("Group ") and not model.read_only):
+            near_edge = self.sectionViewportPosition(column) + self.sectionSize(column) - event.position().x()
+            if 4 < near_edge < self.sectionSize(column) - 4:
+                tab = 2 if model.is_replicate(column) and event.position().y() >= 2 * self._line_height() else 1
+                self.view.host.format_data_table(tab=tab, column=column)
+                event.accept()
+                return
+        super().mouseDoubleClickEvent(event)
+
     def _select_heading(self, column):
         model = self.model()
         if self._group_pressed and 0 <= column < len(model.bands):
@@ -195,7 +208,7 @@ class WorksheetHeading(QHeaderView):
             active = includes(first, stop - 1)
             stripe = series[(ord(band[-1]) - ord("A")) % len(series)] if band.startswith("Group ") else None
             draw(QRect(left, 0, width, height), model.band_label(first), active, stripe=stripe)
-            draw(QRect(left, height, width, height), title, active, title=True)
+            draw(QRect(left, height, width, height), model.group_title(first), active, title=True)
             if model.roles:
                 for subcolumn in range(max(first, start), stop):
                     left = self.sectionViewportPosition(subcolumn)
@@ -277,6 +290,24 @@ class WorksheetRowHeader(QHeaderView):
         self._move_range = None
         self._move_anchor_row = None
         self._drop_row = None
+
+    def paintSection(self, painter, rect, row):
+        selection = self.view.selectionModel()
+        if selection is None or not selection.rowIntersectsSelection(row, QModelIndex()):
+            super().paintSection(painter, rect, row)
+            return
+        painter.save()
+        painter.fillRect(rect, theme.color("tint"))
+        painter.fillRect(rect.right() - 1, rect.top(), 2, rect.height(), theme.color("accent"))
+        painter.setPen(theme.color("border"))
+        painter.drawLine(rect.bottomLeft(), rect.bottomRight())
+        font = self.font()
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(theme.color("text"))
+        caption = self.model().headerData(row, Qt.Orientation.Vertical, Qt.ItemDataRole.DisplayRole)
+        painter.drawText(rect.adjusted(1, 0, -2, 0), Qt.AlignmentFlag.AlignCenter, str(caption))
+        painter.restore()
 
     def _data_rows(self):
         model = self.view.model()
@@ -488,6 +519,16 @@ class WorksheetRowHeader(QHeaderView):
 class WorksheetEditorDelegate(QStyledItemDelegate):
     """Keep the editor readable even in a manually shortened row."""
 
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+        col = index.column()
+        bands = index.model().bands
+        if col and col < len(bands) and col == bands[col][0] and bands[col][2].startswith("Group "):
+            painter.save()
+            painter.setPen(theme.color("field_hover"))
+            painter.drawLine(option.rect.topLeft(), option.rect.bottomLeft())
+            painter.restore()
+
     def createEditor(self, parent, option, index):
         editor = super().createEditor(parent, option, index)
         if isinstance(editor, QLineEdit):
@@ -530,11 +571,25 @@ class WorksheetView(QTableView):
         self.addActions([host.actions[key] for key in SELECTION_COMMANDS])
         self.setItemDelegate(WorksheetEditorDelegate(self))
         fit_rows(self)
-        for column, (first, stop, band, title) in enumerate(model.bands):
-            span = stop - first
-            minimum = 76 if band == "Row titles" else 73 if span > 1 else 92 if model.roles else 105
-            width = (max(heading.fontMetrics().horizontalAdvance(label) for label in (band, title)) + 16) // span
-            self.setColumnWidth(column, max(minimum, min(248, width)))
+        self.format_corner = QToolButton(self)
+        self.format_corner.setObjectName("worksheetFormatCorner")
+        action = host.actions["format_data_table"]
+        self.format_corner.setToolTip(action.toolTip())
+        self.format_corner.clicked.connect(action.trigger)
+        self.format_corner.setEnabled(action.isEnabled())
+        action.enabledChanged.connect(self.format_corner.setEnabled)
+        kind = model.dataset.table_format
+        if "xy" in kind.casefold():
+            self.format_corner.setText("XY")
+            self.format_corner.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        else:
+            self.format_corner.setIcon(theme.classic_icon("data"))
+        self.format_corner.setAccessibleName(qt("qt.format_data_table"))
+        self._title_settings = None
+        self._title_columns = ()
+        self._hidden_row_titles = set()
+        model.modelReset.connect(self.apply_heading_format)
+        self.apply_heading_format()
         self.selectionModel().selectionChanged.connect(self._selection_changed)
         model.headerDataChanged.connect(lambda *_: heading.updateGeometry())
         self.setSelectionMode(QAbstractItemView.SelectionMode.ContiguousSelection)
@@ -556,7 +611,17 @@ class WorksheetView(QTableView):
             action.triggered.connect(handler)
             self.addAction(action)
 
+    def updateGeometries(self):
+        super().updateGeometries()
+        if hasattr(self, "format_corner"):
+            header, rows = self.horizontalHeader(), self.verticalHeader()
+            height = max(1, header.height() - header._line_height())
+            self.format_corner.setGeometry(rows.x(), header.y(), rows.width(), height)
+            self.format_corner.raise_()
+
     def _selection_changed(self, *_):
+        self.host.cell_changed(self.currentIndex())
+        self.verticalHeader().viewport().update()
         self.horizontalHeader().viewport().update()
         self.host.update_actions()
 
@@ -594,6 +659,40 @@ class WorksheetView(QTableView):
 
     def box(self):
         return selection_box(self)
+
+    def apply_heading_format(self):
+        model = self.model()
+        settings = model.dataset.worksheet_titles
+        structure = tuple(model.column_tokens)
+        changed = settings != self._title_settings or structure != self._title_columns
+        heading = self.horizontalHeader()
+        hidden = {column for column, (_, _, band, _) in enumerate(model.bands)
+                  if band == "Row titles" and not settings.show_rows}
+        for column in self._hidden_row_titles - hidden:
+            if column < model.columnCount():
+                self.setColumnHidden(column, False)
+        for column in hidden:
+            self.setColumnHidden(column, True)
+        self._hidden_row_titles = hidden
+        self._title_columns = structure
+        for column, (first, stop, band, _) in enumerate(model.bands):
+            if changed and settings.automatic_widths and not self.isColumnHidden(column):
+                span = stop - first
+                minimum = 76 if band == "Row titles" else 73 if span > 1 else 92 if model.roles else 105
+                font = heading.font()
+                font.setBold(True)
+                metrics = QFontMetrics(font)
+                title_width = max(metrics.horizontalAdvance(text) for text in
+                                  (model.band_label(first), model.group_title(first))) + 16
+                sub_width = metrics.horizontalAdvance(model.subcolumn_label(column)) + 16
+                self.setColumnWidth(column, max(minimum, min(248, max(title_width // span, sub_width))))
+        current = self.currentIndex()
+        if current.isValid() and self.isColumnHidden(current.column()):
+            visible = next((c for c in range(model.columnCount()) if not self.isColumnHidden(c)), None)
+            if visible is not None:
+                self.setCurrentIndex(model.index(current.row(), visible))
+        self._title_settings = settings
+        heading.viewport().update()
 
     def refresh_text(self, text_styles=None):
         """Draw the text styles again (undo, redo, a new format); selection and scrolling stay."""

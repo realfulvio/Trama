@@ -35,6 +35,7 @@ from .grid_headings import column_label
 from .worksheet_appearance import (assign_row_heights, background_records, paint_cells, read_backgrounds,
                                    read_row_heights, row_height_records)
 from .worksheet_text import TextStyles, read_text_styles
+from .worksheet_titles import WorksheetTitles
 from .worksheet_row_identity import ROW_SPANS, current_spans, saved_spans
 from .worksheet_column_identity import (COLUMN_IDS, after_deletion as column_ids_after_deletion,
                                         after_insertion as column_ids_after_insertion, current_ids, kept_ids,
@@ -759,6 +760,7 @@ class Dataset:
     # The CSV or TSV file the worksheet was imported from and can be updated from (``analisi.source_link``), or
     # None. Immutable, replaced by a change, so Undo restores it with the data.
     source_link: object = None
+    worksheet_titles: WorksheetTitles = field(default_factory=WorksheetTitles)
 
     @property
     def displayed_backgrounds(self):
@@ -920,6 +922,13 @@ class Dataset:
                 computed.isetitem(column, self.raw.iloc[:, column])
         if self.column_order is not None or order != tuple(self.formulas):
             computed = computed.loc[:, list(self.columns)]
+        if self.worksheet_titles.columns:
+            ids = computed.attrs[COLUMN_IDS]
+            labels = self.worksheet_titles.columns
+            computed.attrs["worksheet_series_labels"] = {
+                name: labels[ids[name]] + (suffix.group() if (suffix := re.search(r" \[.*?\](?: \(\d+\))?$", name)) else "")
+                for name in computed if ids[name] in labels
+            }
         return computed
 
     def set_formula(self, name, expression):
@@ -1176,6 +1185,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
             "table_format": dataset.table_format,
             "graph_styles": dataset.graph_styles,
         }
+        if titles := dataset.worksheet_titles.record(raw):
+            record["worksheet_titles"] = titles
         if dataset.cell_backgrounds:
             record["cell_backgrounds"] = background_records(dataset.cell_backgrounds)
         if dataset.row_heights:
@@ -1300,6 +1311,8 @@ def load_workspace(path, *, include_info=False):
             data.raw.attrs[COLUMN_IDS] = saved_ids(table[COLUMN_IDS], data.raw.columns)
         if VARIABLE_TYPES in table:
             data.raw.attrs[VARIABLE_TYPES] = validated_types(table[VARIABLE_TYPES], data.raw.columns)
+        if "worksheet_titles" in table:
+            data.worksheet_titles = WorksheetTitles.from_record(table["worksheet_titles"], data.raw)
         if "worksheet_roles" in table:
             data.raw.attrs["worksheet_roles"] = _validated_worksheet_roles(table["worksheet_roles"], data.raw.columns)
         if WORKSHEET_ORDERS in table:

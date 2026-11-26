@@ -465,7 +465,12 @@ def stylesheet():
     QStatusBar {{ background: {t['panel2']}; color: {t['text2']};
         border-top: 1px solid {t['field_hover']}; padding-left: 4px; }}
     QStatusBar::item {{ border: none; }}
-    QStatusBar QToolButton[statusTool="true"] {{ padding: 2px; }}
+    QStatusBar QToolButton[statusTool="true"] {{ padding: 2px 3px; }}
+    QStatusBar QToolButton[statusTool="true"]:checked {{ background: {t['tint']}; color: {t['accent_dark']};
+        border: 1px solid {t['accent']}; }}
+    QToolButton#worksheetFormatCorner {{ padding: 0; color: {t['accent_dark']}; background: {t['header']};
+        border: 1px solid {t['field']}; font-weight: 600; }}
+    QToolButton#worksheetFormatCorner:hover {{ background: {t['tint']}; border-color: {t['accent']}; }}
     QStatusBar QLabel {{ padding: 0 6px; }}
     QFrame#statusDivider {{ color: {t['field_hover']}; }}
     QLabel#statusMessage[fresh="true"] {{ color: {t['accent_dark']}; font-weight: 600; }}

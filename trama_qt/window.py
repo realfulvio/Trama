@@ -11,7 +11,7 @@ from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboBox, QDialog, QFileDialog, QFrame,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
-                               QProgressBar, QPushButton, QScrollArea, QSplitter, QTabBar, QToolBar,
+                               QProgressBar, QPushButton, QScrollArea, QSlider, QSplitter, QTabBar, QToolBar,
                                QToolButton, QTreeWidget, QTreeWidgetItem, QTreeWidgetItemIterator, QVBoxLayout, QWidget)
 
 from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power, mean_permutation, parallel, power_plan, rmst
@@ -51,7 +51,7 @@ from analisi.weibull_aft import METHOD as WEIBULL_AFT, SHOW_GRAPH as WEIBULL_GRA
 from analisi.workbench import GRAPH_METHODS
 from analisi.sheet_metadata import HIGHLIGHTS, RUN_KINDS, validate_sheet_title
 from analisi.numeric_series import validate_series_target
-from analisi.worksheet_appearance import font_preference, save_font_preference, zoom_step
+from analisi.worksheet_appearance import ZOOM_LEVELS, font_preference, save_font_preference, zoom_step
 from analisi.worksheet_row_identity import moved_row_bounds
 from analisi.worksheet_sort import (ASCENDING, plan_row_sort, remap_selection_after_sort,
                                     row_title_sort_column, sort_text, sortable_columns, x_sort_column)
@@ -178,9 +178,13 @@ class SheetCanvas(FigureCanvasQTAgg):
     """
 
     _laid_out = False
+    display_zoom = 100
 
     def resizeEvent(self, event):
         self._laid_out = True
+        if type(self) is SheetCanvas and self.figure is not None:
+            dpi = self.figure._original_dpi * self.device_pixel_ratio * self.display_zoom / 100
+            self.figure._set_dpi(dpi, forward=False)
         super().resizeEvent(event)
 
     def draw_idle(self, *args, **kwargs):
@@ -224,6 +228,28 @@ class PaperPreview(QWidget):
         self.canvas.setGeometry((self.width() - width) // 2, (self.height() - height) // 2, width, height)
 
 
+class FigureViewport(QScrollArea):
+    """Magnify the displayed page without changing its axes or the size it exports at."""
+
+    def __init__(self, content, canvas):
+        super().__init__()
+        self.canvas = canvas
+        self.percent = 100
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setWidget(content)
+
+    def set_percent(self, value):
+        self.percent = value
+        self.canvas.display_zoom = value
+        size = self.maximumViewportSize() * (value / 100)
+        self.widget().resize(size)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.set_percent(self.percent)
+
+
 class ImportedPaperPreview(QScrollArea):
     """Make long imported pages readable, with a choice to see the entire page."""
 
@@ -232,12 +258,19 @@ class ImportedPaperPreview(QScrollArea):
         self.canvas = canvas
         self.aspect = paper[0] / paper[1]
         self.fit_page = False
+        self.percent = 100
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.canvas.setMinimumSize(0, 0)
         self.setWidget(canvas)
         self.canvas.installEventFilter(self)
+
+    def set_percent(self, value):
+        self.percent = value
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded if value > 100 else
+                                          Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.resize_paper()
 
     def set_fit_page(self, fit):
         self.fit_page = fit
@@ -254,6 +287,7 @@ class ImportedPaperPreview(QScrollArea):
         width = min(area.width(), int(height_limit * self.aspect))
         if int(width / self.aspect) > area.height():
             width = min(width, area.width() - self.verticalScrollBar().sizeHint().width())
+        width = round(width * self.percent / 100)
         self.canvas.resize(max(1, width), max(1, int(width / self.aspect)))
 
     def eventFilter(self, watched, event):
@@ -414,6 +448,7 @@ class MainWindow(QMainWindow):
         self.result_tabs = None
         self.table_font = font_preference(config_path())
         self.table_zoom = 100
+        self.figure_zoom = 100
         self.job = None
         self.repeat_dialog = None
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="Trama-Qt")
@@ -662,6 +697,7 @@ class MainWindow(QMainWindow):
         a("table_font", tr("command.table_font"), self.choose_table_font)
         a("cell_background", tr("command.cell_background"), self.change_cell_background)
         a("clear_cell_background", tr("command.clear_cell_background"), lambda: self.change_cell_background(clear=True))
+        a("format_data_table", qt("qt.format_data_table"), self.format_data_table, icon="table", tip=qt("qt.format_table_tip"))
         a("number_format", tr("command.number_format"), self.change_number_format, icon="hash")
         for key, step, shortcut in (("sheet_zoom_in", 1, "Ctrl+="), ("sheet_zoom_out", -1, "Ctrl+-"),
                                     ("sheet_zoom_reset", 0, "Ctrl+0")):
@@ -740,14 +776,14 @@ class MainWindow(QMainWindow):
         self.sheet_next = QToolButton()
         self.sheet_picker = QComboBox()
         self.sheet_picker.setAccessibleName(qt("qt.sheet_picker"))
-        self.sheet_picker.setMinimumContentsLength(9)
+        self.sheet_picker.setMinimumContentsLength(18)
         self.sheet_picker.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-        self.sheet_picker.setMaximumWidth(210)
+        self.sheet_picker.setMaximumWidth(265)
         self.sheet_picker.activated.connect(self._pick_sheet)
         self.gallery_button = QToolButton()
-        for button, key, icon in ((QToolButton(), "navigator", "navigator"), (self.gallery_button, "gallery", "gallery"),
+        for button, key, icon in ((QToolButton(), "navigator", "navigator"),
                                   (self.sheet_previous, "previous_sheet", "prev"), (self.sheet_next, "next_sheet", "next"),
-                                  (QToolButton(), "family_gallery", "link")):
+                                  (self.gallery_button, "gallery", "gallery")):
             button.setProperty("statusTool", True)
             button.setDefaultAction(self.actions[key])
             button.setIcon(theme.classic_icon(icon))
@@ -762,21 +798,64 @@ class MainWindow(QMainWindow):
             button.setProperty("statusTool", True)
             button.setIcon(theme.classic_icon(icon))
             label = tr("nav.graphs") if kind == "graph" else tr(f"bar.{key}")
+            button.setText(label)
+            button.setCheckable(True)
             button.setToolTip(label)
             button.setAccessibleName(label)
             button.clicked.connect(lambda _checked=False, kind=kind: self.open_section(kind))
             status.addWidget(button)
         status.addWidget(self._status_divider())
         status.addWidget(self.sheet_picker)
+        family = QToolButton()
+        family.setProperty("statusTool", True)
+        family.setDefaultAction(self.actions["family_gallery"])
+        family.setIcon(theme.classic_icon("link"))
+        family.setAccessibleName(family.defaultAction().text())
+        status.addWidget(family)
         status.addWidget(self._status_divider())
-        self.cell_label = QLabel("")
-        status.addWidget(self.cell_label)
+        self.cell_label = StatusLabel("")
+        self.cell_label.setAccessibleName(qt("qt.worksheet_position"))
+        status.addWidget(self.cell_label, 2)
+        self.status_results = QComboBox()
+        self.status_results.setAccessibleName(qt("qt.result_table"))
+        self.status_results.setMaximumWidth(200)
+        self.status_results.setMinimumContentsLength(11)
+        self.status_results.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.status_results.activated.connect(self._pick_result_table)
+        status.addWidget(self.status_results)
         self.message = StatusLabel(qt("qt.ready"))
         self.message.setObjectName("statusMessage")
         self._message_timer = QTimer(self)
         self._message_timer.setSingleShot(True)
         self._message_timer.timeout.connect(self._message_expired)
         status.addWidget(self.message, 1)
+        self.zoom_bar = QWidget()
+        zoom_row = QHBoxLayout(self.zoom_bar)
+        zoom_row.setContentsMargins(0, 0, 0, 0)
+        zoom_row.setSpacing(1)
+        for step, symbol in ((-1, "minus"), (1, "plus"), (0, None)):
+            button = QToolButton()
+            button.setProperty("statusTool", True)
+            label = qt({-1: "qt.status_zoom_out", 1: "qt.status_zoom_in", 0: "qt.status_zoom_reset"}[step])
+            button.setToolTip(label)
+            button.setAccessibleName(label)
+            button.clicked.connect(lambda _checked=False, step=step: self._step_status_zoom(step))
+            if symbol:
+                button.setIcon(theme.icon(symbol))
+            else:
+                self.zoom_percent = button
+                button.setText("100%")
+            zoom_row.addWidget(button)
+        self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self.zoom_slider.setRange(0, len(ZOOM_LEVELS) - 1)
+        self.zoom_slider.setValue(ZOOM_LEVELS.index(100))
+        self.zoom_slider.setTracking(False)
+        self.zoom_slider.setFixedWidth(76)
+        self.zoom_slider.setAccessibleName(qt("qt.view_zoom"))
+        self.zoom_slider.setToolTip(qt("qt.view_zoom"))
+        self.zoom_slider.valueChanged.connect(self._set_status_zoom)
+        zoom_row.insertWidget(1, self.zoom_slider)
+        status.addPermanentWidget(self.zoom_bar)
         self.progress = QProgressBar()
         self.progress.setFixedWidth(100)
         self.progress.setTextVisible(False)
@@ -839,6 +918,7 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "Trama", str(error))
 
     def status(self, text):
+        self.message.setVisible(bool(text))
         self.message.setText(str(text))
         self.message.setProperty("fresh", bool(text))
         self.message.style().unpolish(self.message)
@@ -851,6 +931,7 @@ class MainWindow(QMainWindow):
             return
         self.message.setText(qt("qt.ready"))
         self.message.setProperty("fresh", False)
+        self.message.setVisible(self.selected is None or self.selected[0] not in {"data", "result"})
         self.message.style().unpolish(self.message)
         self.message.style().polish(self.message)
 
@@ -969,8 +1050,18 @@ class MainWindow(QMainWindow):
         sections = {kind for kind, _ in self.sheet_refs.values()}
         if "saved-layout" in sections:
             sections.add("layout")
+        active_section = "layout" if kind == "saved-layout" else kind
         for section_kind, button in self.section_buttons.items():
             button.setEnabled(idle and section_kind in sections)
+            button.setChecked(section_kind == active_section and self.gallery is None)
+        self._status_section_labels()
+        self.status_results.setVisible(kind == "result" and self.result_tabs is not None and self.gallery is None)
+        self.cell_label.setVisible(kind == "data" and self.gallery is None and idle)
+        self.message.setVisible(bool(self.message.property("fresh")) or kind not in {"data", "result"})
+        figure_view = getattr(self.page, "figure_view", None)
+        self.zoom_bar.setVisible(idle and self.gallery is None and (kind in {"data", "result"} or figure_view is not None))
+        self.zoom_bar.setEnabled(idle)
+        self._show_status_zoom(self.figure_zoom if figure_view is not None else self.table_zoom)
         self.actions["previous_sheet"].setEnabled(idle and self._sheet_history_target(-1) is not None)
         self.actions["next_sheet"].setEnabled(idle and self._sheet_history_target(1) is not None)
         self.actions["combined_navigator"].setChecked(self.sessions.active.combined_navigator)
@@ -978,6 +1069,7 @@ class MainWindow(QMainWindow):
                     "insert_column", "create_numeric_series", "delete_rows", "delete_columns",
                     "exclude", "formula", "category_order"):
             self.actions[key].setEnabled(editable and idle)
+        self.actions["format_data_table"].setEnabled(bool(editable and idle and self.sheet is not None))
         self._update_row_actions(data, editable, idle)
         self.actions["variable_properties"].setEnabled(
             editable and idle and self.project.tables[self.selected[1]].table_format == "multivariable")
@@ -1292,6 +1384,20 @@ class MainWindow(QMainWindow):
         if self.gallery is not None:
             self.gallery.sync()
 
+    def _status_section_labels(self):
+        self.sheet_picker.setMinimumContentsLength(18 if self.width() >= 980 else 10)
+        if hasattr(self, "zoom_slider"):
+            self.zoom_slider.setFixedWidth(74 if self.width() >= 980 else 44)
+        for button in self.section_buttons.values():
+            wide = self.width() >= 980 and button.isChecked()
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon if wide else
+                                      Qt.ToolButtonStyle.ToolButtonIconOnly)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "section_buttons"):
+            self._status_section_labels()
+
     def _refresh_sheet_picker(self):
         self.sheet_refs = {}
         selected = -1
@@ -1303,6 +1409,7 @@ class MainWindow(QMainWindow):
                 self.sheet_refs[self._sheet_identity(ref)] = ref
                 self.sheet_picker.addItem(theme.classic_icon(icon), title, ref)
             self.sheet_picker.setCurrentIndex(selected)
+            self.sheet_picker.setToolTip(self.sheet_picker.currentText() or qt("qt.sheet_picker"))
 
     def _pick_sheet(self, index):
         if not 0 <= index < self.sheet_picker.count() or self.busy():
@@ -1669,7 +1776,7 @@ class MainWindow(QMainWindow):
         self.info_editor = None
         self.selected = (kind, key)
         self.sessions.active.visit(self._sheet_identity(self.selected))
-        self.cell_label.clear()
+        self.cell_label.setText("")
         self.sheet = None
         self.result_tabs = None
         if kind == "data":
@@ -1689,6 +1796,7 @@ class MainWindow(QMainWindow):
         self.refresh()
         if self.sheet is not None:
             self.sheet.setFocus()
+            self.cell_changed(self.sheet.currentIndex())
 
     def reshow(self):
         if self.selected is None:
@@ -1732,7 +1840,8 @@ class MainWindow(QMainWindow):
         page.worksheet_preview = WorksheetPreview(self, title, self.sheet)
         page.worksheet_split.addWidget(page.worksheet_preview)
         page.worksheet_split.setStretchFactor(0, 1)
-        self.sheet.setCurrentIndex(model.index(0, 0))
+        first = next((c for c in range(model.columnCount()) if not self.sheet.isColumnHidden(c)), 0)
+        self.sheet.setCurrentIndex(model.index(0, first))
         return page
 
     def _resize_tables(self):
@@ -1741,6 +1850,26 @@ class MainWindow(QMainWindow):
         if self.result_tabs is not None:
             for index in range(self.result_tabs.count()):
                 set_table_appearance(self.result_tabs.widget(index), self.table_font, self.table_zoom)
+
+    def format_data_table(self, *, tab=0, column=0):
+        if self.sheet is None or self.sheet.model().read_only or self.busy():
+            return
+        from .worksheet_titles import TableFormatDialog
+        title = self.selected[1]
+        dialog = TableFormatDialog(self, self.sheet.model(), tab=tab, column=column)
+        try:
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            settings = dialog.settings()
+            if self.project.set_worksheet_titles(title, settings):
+                self.sheet.apply_heading_format()
+                self.cell_changed(self.sheet.currentIndex())
+                self.update_title()
+                self.update_actions()
+                if dialog.original.columns != settings.columns:
+                    self.refresh_runs(self.project.worksheet_title_graphs(title))
+        finally:
+            dialog.deleteLater()
 
     def choose_table_font(self):
         from .worksheet_appearance import TableFontDialog
@@ -1755,8 +1884,34 @@ class MainWindow(QMainWindow):
             self.table_font = preference
             self._resize_tables()
 
+    def _show_status_zoom(self, value):
+        with QSignalBlocker(self.zoom_slider):
+            self.zoom_slider.setValue(ZOOM_LEVELS.index(value))
+        self.zoom_percent.setText(f"{value}%")
+
+    def _step_status_zoom(self, step):
+        current = ZOOM_LEVELS[self.zoom_slider.value()]
+        self._set_status_zoom(ZOOM_LEVELS.index(zoom_step(current, step)))
+
+    def _set_status_zoom(self, index):
+        value = ZOOM_LEVELS[index]
+        if self.busy() or self.gallery is not None:
+            return
+        if (figure := getattr(self.page, "figure_view", None)) is not None:
+            self.figure_zoom = value
+            figure.set_percent(value)
+        elif self.selected and self.selected[0] in {"data", "result"}:
+            self.table_zoom = value
+            self._resize_tables()
+        self._show_status_zoom(value)
+
+    def _pick_result_table(self, index):
+        if self.result_tabs is not None and 0 <= index < self.result_tabs.count():
+            self.result_tabs.setCurrentIndex(index)
+
     def zoom_table(self, step):
         self.table_zoom = zoom_step(self.table_zoom, step)
+        self._show_status_zoom(self.table_zoom)
         self._resize_tables()
         self.status(tr("worksheet.zoom_status", percent=self.table_zoom))
 
@@ -1976,6 +2131,11 @@ class MainWindow(QMainWindow):
         preview = canvas
         if paper is not None:
             preview = ImportedPaperPreview(canvas, paper) if imported_layout else PaperPreview(canvas, paper)
+        if toolbar:
+            if not isinstance(preview, ImportedPaperPreview):
+                preview = FigureViewport(preview, canvas)
+            page.figure_view = preview
+            preview.set_percent(self.figure_zoom)
         line.addWidget(preview, 1)
         page.add(row, 1)
         if toolbar:
@@ -2199,6 +2359,15 @@ class MainWindow(QMainWindow):
                     set_table_appearance(view, self.table_font, self.table_zoom)
                 self.text_format.watch(view)
                 results.add_table(view, caption)
+            with QSignalBlocker(self.status_results):
+                self.status_results.clear()
+                self.status_results.addItems([results.tabs.tabText(i) for i in range(results.tabs.count())])
+            def result_position():
+                if self.result_tabs is results.tabs and results.tabs.currentIndex() >= 0:
+                    self.status_results.setCurrentIndex(results.tabs.currentIndex())
+                    self.status_results.setToolTip(results.tabs.tabText(results.tabs.currentIndex()))
+            results.tabs.currentChanged.connect(result_position)
+            result_position()
             page.add(results, 1)
         elif result.figure is not None:
             try:
@@ -2221,8 +2390,31 @@ class MainWindow(QMainWindow):
 
     # == worksheet editing =======================================================================
     def cell_changed(self, current):
-        if current.isValid():
-            self.cell_label.setText(qt("qt.cell", address=f"{column_label(current.column())}{current.row() + 1}"))
+        if not current.isValid():
+            self.cell_label.setText("")
+            return
+        model = current.model()
+        column, row = current.column(), current.row()
+        if isinstance(model, WorksheetModel) and column < len(model.bands):
+            start, stop, band, _ = model.bands[column]
+            code = model.subcolumn_key(column) if model.is_replicate(column) else model.band_label(column)
+            if band.startswith("Group ") and stop == start + 1:
+                code = band.removeprefix("Group ")
+            names = [model.group_title(column)]
+            if model.is_replicate(column) and model.subcolumn_label(column) != model.default_subcolumn_label(column):
+                names.append(model.subcolumn_label(column))
+        else:
+            code = column_label(column)
+            names = [model.headerData(column, Qt.Orientation.Horizontal)]
+        context = [qt("qt.status_row", row=row + 1), code, *(str(name) for name in names if name and name != code)]
+        text = " · ".join(context)
+        if self.sheet is not None and model is self.sheet.model():
+            box = self.sheet.box()
+            if box:
+                top, left, bottom, right = box
+                if top != bottom or left != right:
+                    text += "   " + qt("qt.selection_size", rows=bottom - top + 1, cols=right - left + 1)
+        self.cell_label.setText(text)
 
     def _active_table(self):
         if not self.selected or self.selected[0] != "data":
@@ -2811,6 +3003,8 @@ class MainWindow(QMainWindow):
             model = self.sheet.model()
             model.refresh_backgrounds()
             model.refresh_formats()
+            self.sheet.apply_heading_format()
+            self.cell_changed(self.sheet.currentIndex())
             self.sheet.refresh_text(self.project.tables[title].text_styles)
             self.update_title()
             self.update_actions()

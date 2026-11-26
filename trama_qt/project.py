@@ -1573,6 +1573,15 @@ class Project(WorksheetJoinSources, SheetCommands):
             return True
         return False
 
+    def worksheet_title_graphs(self, title):
+        return [run for run in self.table_runs(title) if run.method == XY_METHOD and run.source is None]
+
+    def set_worksheet_titles(self, title, settings):
+        dataset = self.editable(title)
+        before = WorksheetState.capture(dataset)
+        dataset.worksheet_titles = settings
+        return self._record_background(title, dataset, before, qt("qt.format_data_table"))
+
     def set_table_number_format(self, title, names, spec):
         """Display-only: no analysis is recalculated. One undoable step; False when nothing changed."""
         if self.sheet_locked(("data", title)):
@@ -2067,7 +2076,11 @@ class Project(WorksheetJoinSources, SheetCommands):
         # False for colours and number formats: the window can refresh the open grid in place.
         self.undo_changed_data = change.before.data_changed(change.after)
         self.update_linked_tables()  # Number formats are undone too, and a linked table shows them.
-        return change.title, self.table_runs(change.title) if self.undo_changed_data else []
+        if self.undo_changed_data:
+            return change.title, self.table_runs(change.title)
+        if change.before.worksheet_titles.columns != change.after.worksheet_titles.columns:
+            return change.title, self.worksheet_title_graphs(change.title)
+        return change.title, []
 
 
 def _with_spans(raw):

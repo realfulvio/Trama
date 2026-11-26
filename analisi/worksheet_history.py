@@ -23,6 +23,7 @@ class WorksheetState:
     text_styles: TextStyles | None = None
     result_text_styles: dict | None = None
     source_link: object = None
+    worksheet_titles: object = None
 
     @classmethod
     def capture(cls, dataset, view=None):
@@ -31,7 +32,8 @@ class WorksheetState:
         return cls(dataset.raw, dataset.formulas, dataset.excluded, view, dataset.column_order,
                    dataset.cell_backgrounds, dataset.result_backgrounds,
                    dataset.number_formats, dataset.result_number_formats, dataset.row_heights,
-                   dataset.text_styles, dataset.result_text_styles, getattr(dataset, "source_link", None))
+                   dataset.text_styles, dataset.result_text_styles, getattr(dataset, "source_link", None),
+                   dataset.worksheet_titles)
 
     def data_changed(self, other):
         return (self.raw is not other.raw or self.formulas is not other.formulas
@@ -45,7 +47,7 @@ class WorksheetState:
                 or self.row_heights is not other.row_heights
                 or self.text_styles is not other.text_styles
                 or self.result_text_styles is not other.result_text_styles
-                or self.source_link is not other.source_link)
+                or self.source_link is not other.source_link or self.worksheet_titles != other.worksheet_titles)
 
     def restore(self, dataset):
         candidate = copy(dataset)
@@ -64,6 +66,8 @@ class WorksheetState:
         dataset.text_styles = self.text_styles if self.text_styles is not None else TextStyles()
         dataset.result_text_styles = self.result_text_styles if self.result_text_styles is not None else {}
         dataset.source_link = self.source_link
+        if self.worksheet_titles is not None:
+            dataset.worksheet_titles = self.worksheet_titles
 
 
 @dataclass(frozen=True, eq=False)

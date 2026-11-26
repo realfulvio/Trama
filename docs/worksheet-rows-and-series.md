@@ -8,6 +8,16 @@ In an XY sheet, **A:Y2** identifies the second replicate of series A. Press **En
 
 Click the group heading to select all its subcolumns, or click **A:Y2** to select just that replicate. Under **Edit → Select** (*Modifica → Seleziona*), **Column** selects the entire series (**Ctrl+Space**), **Row** selects the current row (**Shift+Space**) and **All** selects the whole sheet (**Ctrl+A**). Inside a cell editor, Ctrl+A selects its text.
 
+## Column and replicate titles
+
+Choose **Change → Format data table…** (*Cambia → Formato tabella dati…*) to edit the headings of the current worksheet. The **Table format** tab previews the first rows and controls the display of row titles and automatic column widths. The next two tabs edit series titles and replicate titles. Double-click a series or a replicate heading to open its tab directly.
+
+Give replicates a shared name when they have the same meaning in each series, for example *Morning*. Turn off shared titles to label individual replicates. The first series keeps the shared names as a starting point. **OK** applies the edits together. **Cancel** discards the draft. Undo, Redo and saving the project include these titles. Formulas and analyses continue to use the same source columns.
+
+The bottom bar identifies the current sheet. On a worksheet it also shows the current row, series and replicate. In a results sheet its selector switches between output tables. Use the zoom control at the right to enlarge a worksheet, graph or layout. Click the percentage to return to 100%.
+
+[Worksheet with an active replicate on Windows](media/worksheet-titles/worksheet-it.png) · [Editing the replicate titles](media/worksheet-titles/replicate-titles-en.png)
+
 ## Moving rows
 
 - Drag a row or a contiguous selected block from the numbered vertical header to the target position; an insertion line shows where the rows will land.

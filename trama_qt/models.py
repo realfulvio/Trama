@@ -7,11 +7,13 @@ from PySide6.QtGui import QBrush, QColor, QFont
 from analisi.data import EDITABLE_LEGACY_FIXED_VALUES, EDITABLE_LEGACY_XY
 from analisi.grid_headings import column_label, heading_bands
 from analisi.i18n import tr
+from analisi.worksheet_column_identity import current_ids
 from analisi.worksheet_appearance import text_on_background
 from analisi.worksheet_number_format import Renderer, edit_text
 from analisi.worksheet_text import ALIGN, BOLD, COLOR, FONT, ITALIC, SIZE, UNDERLINE, TextStyles
 
 from . import theme
+from .strings import qt
 
 SPARE_ROWS = 50
 
@@ -136,6 +138,9 @@ class WorksheetModel(TextStyleRoles, QAbstractTableModel):
                  for column, name in enumerate(frame.columns)]
         self.bands, self.roles = heading_bands(frame, names, self.source_columns, self.dataset.table_format,
                                                calculated=self.calculated)
+        identities = current_ids(self.dataset.raw, self.dataset.formulas)
+        self.column_tokens = [identities[name] for name in frame.columns]
+        self._caption_source = None
         self.numeric = [_numeric(frame.iloc[:, index]) for index in range(len(frame.columns))]
         locks = set(self.dataset.locked_columns)
         self.locked = {column for column, source in enumerate(self.dataset.source_indices) if source in locks}
@@ -235,7 +240,42 @@ class WorksheetModel(TextStyleRoles, QAbstractTableModel):
             return tr("shape.objects.group_number", number=band.removeprefix("Group "))
         return tr("setup.row_titles") if band == "Row titles" else band
 
+    def group_title(self, column):
+        columns = self.dataset.worksheet_titles.columns
+        if columns is not self._caption_source:
+            self._caption_source = columns
+            self._captions = {}
+            if columns:
+                for c, token in enumerate(self.column_tokens):
+                    if token in columns:
+                        self._captions.setdefault(self.bands[c][0], columns[token])
+        first, _, band, default = self.bands[column]
+        if band == "Row titles" and default.casefold() in {"row title", "row titles"}:
+            return qt("qt.row_title") if default.casefold() == "row title" else tr("setup.row_titles")
+        return self._captions.get(first, default)
+
+    def is_replicate(self, column):
+        if not self.roles:
+            return False
+        first, stop, band, _ = self.bands[column]
+        return stop - first > 1 and band.startswith("Group ") and self.roles[column].removeprefix("Y").isdigit()
+
+    def subcolumn_key(self, column):
+        first, _, band, _ = self.bands[column]
+        return f"{band.removeprefix('Group ')}:Y{column - first + 1}"
+
     def subcolumn_label(self, column):
+        if self.is_replicate(column):
+            settings = self.dataset.worksheet_titles
+            if settings.show_subtitles:
+                first = self.bands[column][0]
+                title = (settings.common.get(str(column - first + 1)) if settings.shared else
+                         settings.individual.get(self.column_tokens[column]))
+                if title:
+                    return title
+        return self.default_subcolumn_label(column)
+
+    def default_subcolumn_label(self, column):
         role = self.roles[column] if self.roles else ""
         first, end, band, _ = self.bands[column]
         if end - first > 1 and band.startswith("Group ") and role.startswith("Y") and role[1:].isdigit():
@@ -252,7 +292,7 @@ class WorksheetModel(TextStyleRoles, QAbstractTableModel):
         if orientation == Qt.Orientation.Vertical:
             return str(section + 1)
         if section < len(self.bands):
-            title = self.bands[section][3]
+            title = self.group_title(section)
             band = self.band_label(section)
             role = self.subcolumn_label(section)
             return "\n".join(filter(None, (band, title, role)))

@@ -355,7 +355,8 @@ def xy_series(frame, options, left_scale="linear"):
     x_values = _numbers(frame, x_name)
     left_names = [column for column in columns if info[column][1] == "Left"]
     right_names = [column for column in columns if info[column][1] == "Right"]
-    left_title = ", ".join(left_names) if left_names else "Y"
+    titles = frame.attrs.get("worksheet_series_labels", {})
+    left_title = ", ".join(titles.get(name, name) for name in left_names) if left_names else "Y"
     figure, axes = _plot(XY_METHOD, x_name, left_title)
     mark_supported(axes)
     mark_linked_axes(axes, "x", "y")
@@ -365,7 +366,7 @@ def xy_series(frame, options, left_scale="linear"):
     if right_names:
         right = axes.twinx()
         title = options.get("Right title")
-        right.set_ylabel(title if isinstance(title, str) and title.strip() else ", ".join(right_names))
+        right.set_ylabel(title if isinstance(title, str) and title.strip() else ", ".join(titles.get(name, name) for name in right_names))
         right.grid(False)
         right.set_axisbelow(False)
         right.spines[["left", "top", "bottom"]].set_visible(False)
@@ -383,13 +384,14 @@ def xy_series(frame, options, left_scale="linear"):
     rows = []
     for column in columns:
         style, side, log = info[column]
+        label = _legend_label(titles.get(column, column))
         target = right if side == "Right" else axes
         y_values = _numbers(frame, column)
         mask = _drawn(x_values, y_values, log)
         if style == BARS:
             mask, centers, slot = bars[column]
             artist = target.bar(centers, y_values[mask], width=slot, bottom=0, align="center",
-                                color=colors[column], label=_legend_label(column) or "_")
+                                color=colors[column], label=label or "_")
             artist._tramastat_xy_gid = _GID + column
             for patch, position in zip(artist.patches, np.flatnonzero(mask), strict=True):
                 patch.set_gid(f"{BAR_GID}{column}:{source_ids[position]}")
@@ -400,13 +402,13 @@ def xy_series(frame, options, left_scale="linear"):
             linestyle = "None" if style == "Points" else "-"
             artist, = target.plot(x_values, plotted_y, color=colors[column], marker=marker, linestyle=linestyle,
                                    drawstyle="steps-post" if style == STEP else "default",
-                                   label=_legend_label(column) or "_")
+                                   label=label or "_")
             artist.set_gid(_GID + column)
             order.append(artist.get_gid())
             # One vertex per worksheet row, so a single point can be formatted and found again.
             attach_points(artist, np.arange(1, len(frame) + 1), x_values, y_values, (x_name, column), len(frame),
                           drawn=mask, row_spans=frame.attrs.get(ROW_SPANS), data=frame)
-        if mask.any() and _legend_label(column):
+        if mask.any() and label:
             handles.append(artist)
         # One sheet row per plotted point, built column-wise (0.111.x: a Python dict per point took
         # about one second per million points).
