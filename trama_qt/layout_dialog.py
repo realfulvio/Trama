@@ -232,6 +232,7 @@ class LayoutGraphDialog(QDialog):
     """Choose a graph for an empty or occupied panel on the active layout."""
 
     EDIT_GEOMETRY = 2
+    GO_ORIGIN = 3
     CURRENT_PICTURE = "current-picture"
 
     def __init__(self, parent, layout, runs, panel=None):
@@ -277,7 +278,15 @@ class LayoutGraphDialog(QDialog):
         self.graphs.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.graphs.setMinimumContentsLength(24)
         self.graphs.setAccessibleName(qt("qt.layout_graph"))
-        form.addRow(qt("qt.layout_graph"), self.graphs)
+        self.origin_button = QPushButton(qt("qt.layout_go_origin_short"))
+        self.origin_button.setAccessibleName(qt("qt.layout_go_origin"))
+        self.origin_button.setAutoDefault(False)
+        self.origin_button.clicked.connect(self._go_origin)
+        self.origin = None
+        graph_row = QHBoxLayout()
+        graph_row.addWidget(self.graphs, 1)
+        graph_row.addWidget(self.origin_button)
+        form.addRow(qt("qt.layout_graph"), graph_row)
         self.embed = QCheckBox(qt("qt.layout_picture_create"))
         self.embed.setToolTip(qt("qt.layout_picture_tip"))
         form.addRow(self.embed)
@@ -364,6 +373,7 @@ class LayoutGraphDialog(QDialog):
                 match = next((i for i in range(self.graphs.count()) if self.graphs.itemData(i) == self.current), 0)
                 self.graphs.setCurrentIndex(match)
         self.graphs.setEnabled(bool(self.graphs.count()))
+        self.origin_button.setEnabled(False)
 
     def _change_source(self, *_):
         from .layout_transfer import read_source
@@ -400,6 +410,7 @@ class LayoutGraphDialog(QDialog):
         control = CalculationControl()
         self.pending = (self.parentWidget().worker.submit(job, control), control, ready)
         self.ok_button.setEnabled(False)
+        self.origin_button.setEnabled(False)
         self.preview.setToolTip("")
         self.preview.setText(qt("qt.layout_source_loading"))
         self.poll.start()
@@ -445,6 +456,26 @@ class LayoutGraphDialog(QDialog):
         self._show_figure(figure)
         self.source_figure = figure
         self.ok_button.setEnabled(True)
+        self.origin_button.setEnabled(True)
+
+    def _go_origin(self):
+        if not self.origin_button.isEnabled():
+            return
+        graph = self.graphs.currentData()
+        selected = self.sources.currentData()
+        if graph == self.CURRENT_PICTURE:
+            self.origin = (self.current_link, None)
+        elif isinstance(selected, Path):
+            from .layout_transfer import make_graph_link
+
+            try:
+                self.origin = (make_graph_link(self.source_project, selected, graph), None)
+            except ValueError as error:
+                self.preview.setText(qt("qt.layout_go_origin_failed", error=error))
+                return
+        else:
+            self.origin = (graph, selected or self.parentWidget().sessions.active)
+        self.done(self.GO_ORIGIN)
 
     def show_shortcuts(self):
         self.parentWidget().show_shortcuts()
@@ -460,6 +491,8 @@ class LayoutGraphDialog(QDialog):
             self.geometry_button.setEnabled(self.sources.currentIndex() == 0 and graph == self.current)
         run = self.runs.get(graph)
         self.ok_button.setEnabled(not external and bool(self.graphs.count()))
+        self.origin_button.setEnabled(not external and (run is not None
+                                      or (graph == self.CURRENT_PICTURE and self.current_link is not None)))
         if external:
             from .layout_transfer import prepare_preview
 

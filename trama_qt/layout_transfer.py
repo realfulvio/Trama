@@ -87,3 +87,18 @@ def make_graph_link(source, path, selected):
     link = LayoutGraphLink(str(Path(path).absolute()), run.title, run.slot, run.method, run.label, identity)
     linked_run(source, link)
     return link
+
+
+def graph_origin_index(project, reference):
+    if isinstance(reference, LayoutGraphLink):
+        run = linked_run(project, reference)
+        return next(index for index, value in enumerate(project.runs) if value is run)
+    for index, run in enumerate(project.runs):
+        if run.reference == reference:
+            return index
+    raise ValueError(qt("qt.layout_link_graph_unavailable"))
+
+
+def read_graph_origin(link):
+    source, _ = read_source(link.path)
+    return source, graph_origin_index(source, link)

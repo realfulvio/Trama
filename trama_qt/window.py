@@ -696,6 +696,8 @@ class MainWindow(QMainWindow):
         a("edit_layout", tr("command.edit_layout"), lambda: self.new_layout(edit=True), icon="layout-grid")
         a("place_layout_graph", qt("qt.layout_place_graph"), self.place_layout_graph, icon="chart-line")
         a("replace_layout_graph", qt("qt.layout_replace_graph"), self.replace_layout_graph, icon="chart-line")
+        a("layout_go_origin", qt("qt.layout_go_origin"), self.go_to_layout_origin, icon="move-up-right",
+          shortcut="Ctrl+Alt+G")
         a("recalculate", qt("qt.recalculate"), self.recalculate, icon="history", shortcut="F9")
         a("use_result", qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
         a("analysis_graph", qt("qt.show_analysis_graph"), lambda: self.switch_run_view("graph"), icon="chart-line")
@@ -2317,6 +2319,8 @@ class MainWindow(QMainWindow):
         page.command(self.actions["edit_layout"])
         if layout.empty_panels:
             page.command(self.actions["place_layout_graph"])
+        if layout.graph_links or any(ref is not None for ref in layout.panels):
+            page.command(self.actions["layout_go_origin"])
         page.command(self.actions["linked_table"])
         page.command(self.actions["linked_table_move"])
         page.finish_actions()
@@ -3552,6 +3556,66 @@ class MainWindow(QMainWindow):
             slot, = controller.selected
             self.place_layout_graph(slot)
 
+    def _layout_origin(self, controller):
+        if controller is None or len(controller.selected) != 1:
+            return None
+        slot, = controller.selected
+        if (link := controller.layout.graph_link(slot)) is not None:
+            return link, None
+        if (reference := controller.layout.panels[slot]) is not None:
+            return reference, self.sessions.active
+        return None
+
+    def go_to_layout_origin(self):
+        if origin := self._layout_origin(self._active_layout_selection()):
+            self._open_graph_origin(*origin)
+
+    def _open_graph_origin(self, reference, session):
+        from .layout_transfer import graph_origin_index, read_graph_origin
+
+        if not self.prepare_project_change(lambda: self._open_graph_origin(reference, session)):
+            return
+        path = Path(reference.path) if session is None else None
+
+        def failed(error):
+            message = qt("qt.layout_link_missing") if isinstance(error, FileNotFoundError) else str(error)
+            self.error(qt("qt.layout_go_origin_failed", error=message))
+
+        if path is not None:
+            session = self.sessions.find(path)
+        if session is not None:
+            if session not in self.sessions.items:
+                return
+            try:
+                index = graph_origin_index(session.project, reference)
+            except ValueError as error:
+                failed(error)
+                return
+            if session is not self.sessions.active:
+                self._activate(session)
+            self.open_sheet(("graph", index))
+            return
+        if not self.room_for_project():
+            self.error(qt("qt.too_many_projects", count=MAX_PROJECT_TABS))
+            return
+
+        def opened(future, cancelled):
+            if cancelled:
+                return
+            try:
+                source, index = future.result()
+            except Exception as error:
+                failed(error)
+                return
+            if source.origin is not None:
+                source.dirty = False
+            self._put_project(source, reuse=self.project.is_empty())
+            remember_project(path)
+            self.open_sheet(("graph", index))
+
+        self._start(self.worker.submit(read_graph_origin, reference), CalculationControl(), opened,
+                    qt("qt.layout_source_loading"))
+
     def place_layout_graph(self, panel=None):
         project, reference = self.project, self.selected
         if self.busy() or not reference or reference[0] != "layout" or project.sheet_locked(reference):
@@ -3580,6 +3644,9 @@ class MainWindow(QMainWindow):
                 return
             if choice == LayoutGraphDialog.EDIT_GEOMETRY:
                 self.edit_layout_geometry()
+                return
+            if choice == LayoutGraphDialog.GO_ORIGIN:
+                self._open_graph_origin(*dialog.origin)
                 return
             slot, graph = dialog.panels.currentData(), dialog.graphs.currentData()
             if graph == dialog.CURRENT_PICTURE:
@@ -3741,6 +3808,7 @@ class MainWindow(QMainWindow):
         self.actions["layout_position"].setEnabled(single)
         self.actions["replace_layout_graph"].setEnabled(
             single and next(iter(controller.selected)) not in controller.layout.empty_panels)
+        self.actions["layout_go_origin"].setEnabled(self._layout_origin(controller) is not None)
         self.actions["layout_equalize"].setEnabled(controller is not None and len(self._layout_scalable(controller)) >= 2)
         self.actions["layout_ungroup"].setEnabled(movable and any(len(obj) > 1 for obj in objects))
         lock = self.actions["layout_lock"]

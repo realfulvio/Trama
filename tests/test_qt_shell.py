@@ -3473,6 +3473,78 @@ class QtShellTests(unittest.TestCase):
         wait_until(lambda: project.linked_graph_views[rebound].stamp is not None)
         self.assertFalse(project.layout_link_issues(project.layouts[0]))
 
+    def test_go_to_layout_origin_opens_the_exact_graph_and_keeps_layout(self):
+        from unittest.mock import patch
+
+        from matplotlib.figure import Figure
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_picture import capture_picture
+        from analisi.presentation import Layout
+        from trama_qt.layout_dialog import LayoutGraphDialog
+        from trama_qt.layout_transfer import make_graph_link
+        from trama_qt.project import Project
+        from trama_qt.strings import qt
+
+        path = self.folder / "origin.alab"
+        source = Project()
+        source.add_tables({title: pd.DataFrame({"X": [1., 2., 3.], "Y": [3., 5., 7.]})
+                           for title in ("First", "Selected")})
+        for dataset in source.tables.values():
+            dataset.analyses.append(("Linear regression", {"X": "X", "Y": "Y"}))
+        source.save(path)
+        source.load(path)
+        original_bytes = path.read_bytes()
+        link = make_graph_link(source, path, ("Selected", 0))
+        picture = capture_picture(Figure())
+        layout = Layout("Plate", 1, [None], arrangement=PanelArrangement(pictures=((0, *picture),)),
+                        graph_links=((0, link),))
+        window = self.window
+        destination = window.sessions.active
+        key = window.project.put_layout(layout)
+        ref = ("layout", key)
+        window.open_sheet(ref)
+        command = window.actions["layout_go_origin"]
+        self.assertFalse(command.isEnabled())
+        window.page.layout_selection.select((0,))
+        self.assertTrue(command.isEnabled())
+        command.trigger()
+        self.wait()
+        active = window.sessions.active
+        self.assertIsNot(active, destination)
+        self.assertEqual(window.selected, ("graph", 1))
+        self.assertEqual(window.project.runs[1].title, "Selected")
+
+        self.assertTrue(window.switch_project(destination))
+        self.assertEqual(window.selected, ref)
+        self.assertEqual(window.project.layouts[key], layout)
+
+        def follow(dialog):
+            self.assertTrue(dialog.origin_button.isEnabled())
+            self.assertTrue(dialog.ok_button.isDefault())
+            dialog.origin_button.click()
+            return dialog.result()
+
+        with patch.object(LayoutGraphDialog, "exec", follow):
+            window.place_layout_graph(0)
+        self.assertIs(window.sessions.active, active)
+        self.assertEqual(window.selected, ("graph", 1))
+        self.assertEqual(len(window.sessions), 2)
+        self.assertEqual(path.read_bytes(), original_bytes)
+
+        window.switch_project(destination)
+        window.sessions.remove(active)
+        path.rename(self.folder / "moved.alab")
+        window.page.layout_selection.select((0,))
+        errors = []
+        with patch.object(window, "error", side_effect=errors.append):
+            command.trigger()
+            self.wait()
+        self.assertIn(qt("qt.layout_link_missing"), errors[0])
+        self.assertIs(window.sessions.active, destination)
+        self.assertEqual(window.selected, ref)
+        self.assertEqual(window.project.layouts[key], layout)
+        self.assertEqual(len(window.sessions), 1)
+
     def test_layout_clear_graph_retains_placeholder_until_refilled(self):
         from dataclasses import replace
         import json

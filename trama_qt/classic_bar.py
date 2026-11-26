@@ -32,7 +32,7 @@ MENUS = (
               "delete_rows", "delete_columns", "|",
               "sheet_duplicate", "sheet_rename", "sheet_delete", "sheet_move_up", "sheet_move_down", "sheet_freeze")),
     ("View", ("navigator", "find_sheet", "combined_navigator", "gallery", "previous_sheet", "next_sheet", "previous_project", "next_project", "|",
-              "worksheet_preview", "analysis_graph", "analysis_tables", "inspector", "|",
+              "worksheet_preview", "analysis_graph", "analysis_tables", "layout_go_origin", "inspector", "|",
               "fit_graph", "fit_layout_page", "|",
               "sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset", "|",
               "theme_system", "theme_light", "theme_dark")),
