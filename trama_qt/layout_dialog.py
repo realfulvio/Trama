@@ -421,7 +421,10 @@ class LayoutGraphDialog(QDialog):
     def _show_figure(self, figure):
         from .gallery_thumbs import figure_image
 
-        self.preview.setPixmap(QPixmap.fromImage(figure_image(figure, 410, 145)))
+        ratio = self.preview.devicePixelRatioF()
+        pixmap = QPixmap.fromImage(figure_image(figure, round(410 * ratio), round(145 * ratio)))
+        pixmap.setDevicePixelRatio(ratio)
+        self.preview.setPixmap(pixmap)
 
     def _external_preview(self, figure):
         self._show_figure(figure)
