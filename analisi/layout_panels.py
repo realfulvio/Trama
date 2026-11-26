@@ -171,18 +171,19 @@ def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original
     """Match panel sizes and axes, yielding after each measured graph for the gallery."""
 
     figures = tuple(figures)
-    empty_sizes = {index: (width, height) for index, width, height in arrangement.empty_sizes}
-    sizes = [empty_sizes.get(index) if figure is EMPTY_PANEL else tuple(figure.get_size_inches())
+    empty_sizes = {index: tuple(size) for index, *size in arrangement.empty_sizes}
+    sizes = [(empty_sizes.get(index, ())[:2] or None) if figure is EMPTY_PANEL else tuple(figure.get_size_inches())
              for index, figure in enumerate(figures)]
-    fitted_sizes = [getattr(figure, "_trama_layout_picture_size", size)
-                    for figure, size in zip(figures, sizes, strict=True)]
+    fixed_sizes = [getattr(figure, "_trama_layout_picture_size", empty_sizes.get(index, ())[2:] or None)
+                   for index, figure in enumerate(figures)]
+    fitted_sizes = [fixed or size for fixed, size in zip(fixed_sizes, sizes, strict=True)]
     populated = [size for size in fitted_sizes if size is not None]
     if populated and panel_size == "both":
         # Reflow the graphs onto a common canvas, including any measured size retained by clearing a graph.
         common_size = tuple(max(values) for values in zip(*populated, strict=True))
         fitted_sizes = [common_size if size is not None else None for size in fitted_sizes]
-        sizes = [fitted if size is not None and not hasattr(figure, "_trama_layout_picture_size") else size
-                 for figure, size, fitted in zip(figures, sizes, fitted_sizes, strict=True)]
+        sizes = [fitted if fixed is None else size
+                 for fixed, size, fitted in zip(fixed_sizes, sizes, fitted_sizes, strict=True)]
     boxes = panel_boxes(columns, fitted_sizes, paper, panel_size=panel_size)
     _, _, width, height = panel_cells(columns, len(sizes), paper)
     panels = [LayoutPanel(None if figure is EMPTY_PANEL else figure, size or (width, height), box)

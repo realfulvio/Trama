@@ -65,6 +65,21 @@ class LayoutArrangementTests(unittest.TestCase):
                     self.assertEqual([panel.size for panel in panels],
                                      [tuple(graph.get_size_inches()) for graph in graphs])
 
+    def test_clearing_a_resized_picture_keeps_both_rectangles(self):
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_panels import EMPTY_PANEL
+        from analisi.layout_picture import capture_picture, picture_figure, source_size
+
+        graph, neighbor, *_ = figures()
+        _, _, payload = capture_picture(graph)
+        picture = picture_figure((6., 2., payload))
+        arrangement = PanelArrangement(empty_sizes=((0, 6., 2., *source_size(payload)),))
+        for option in ("original", "width", "height", "both"):
+            with self.subTest(option=option):
+                initial = plan_panels(2, (picture, neighbor), panel_size=option)
+                cleared = plan_panels(2, (EMPTY_PANEL, neighbor), panel_size=option, arrangement=arrangement)
+                self.assertEqual(list(map(panel_rectangle, initial)), list(map(panel_rectangle, cleared)))
+
     def test_distributing_three_selected_panels_keeps_the_outside_edges(self):
         graphs = figures()
         panels = plan_panels(4, graphs)

@@ -1168,7 +1168,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         version = LAYOUT_CROP_VERSION
     if any("empty_sizes" in record.get("arrangement", ()) for record in layout_records):
         version = LAYOUT_EMPTY_SIZE_VERSION
-    if any("pictures" in arrangement or any(angle not in (-90, 90) for _, angle in arrangement.get("rotations", ()))
+    if any("pictures" in arrangement or any(len(entry) == 5 for entry in arrangement.get("empty_sizes", ()))
+           or any(angle not in (-90, 90) for _, angle in arrangement.get("rotations", ()))
            for arrangement in (record.get("arrangement", {}) for record in layout_records)):
         version = LAYOUT_PICTURE_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
@@ -1447,6 +1448,8 @@ def load_workspace(path, *, include_info=False):
                         record.get("tables", []), arrangement)
         if version < LAYOUT_PICTURE_VERSION and any(angle not in (-90, 90) for _, angle in layout.arrangement.rotations):
             raise ValueError("This panel rotation requires project format version 12.")
+        if version < LAYOUT_PICTURE_VERSION and any(len(entry) == 5 for entry in layout.arrangement.empty_sizes):
+            raise ValueError("Cleared layout pictures require project format version 12.")
         if any(title not in result or index >= len(result[title].analyses) for title, index in (ref for ref in panels if ref is not None)):
             raise ValueError("Layout references an unknown analysis.")
         layouts.append(layout)

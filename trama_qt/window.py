@@ -3598,13 +3598,16 @@ class MainWindow(QMainWindow):
         if graph is not None and not any(run.reference == graph for run in self.project.layout_candidates()):
             return
         controller = self._active_layout_selection()
-        retained = {index: (w, h) for index, w, h in layout.arrangement.empty_sizes}
+        retained = {index: tuple(size) for index, *size in layout.arrangement.empty_sizes}
         pictures = {index: (w, h, pdf) for index, w, h, pdf in layout.arrangement.pictures if index != slot}
         replacing = graph is not None and (slot not in layout.empty_panels or slot in retained)
         if graph is None:
             if controller is None:
                 return
-            retained[slot] = tuple(map(float, controller.panels[slot].size))
+            old = controller.panels[slot]
+            retained[slot] = tuple(map(float, old.size))
+            if previous is not None:
+                retained[slot] += old.figure._trama_layout_picture_size
         else:
             retained.pop(slot, None)
         panels = list(layout.panels)

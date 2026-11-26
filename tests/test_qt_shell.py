@@ -3490,6 +3490,21 @@ class QtShellTests(unittest.TestCase):
         self.wait()
         self.assertEqual(window.project.layouts[0], resized)
         self.assertIsNot(window.page.layout_selection.panels[0].figure, window.project.runs[0].result.figure)
+        boxes = tuple(map(panel_rectangle, window.page.layout_selection.panels))
+
+        def clear_picture(dialog):
+            self.assertEqual(dialog.graphs.currentData(), LayoutGraphDialog.CURRENT_PICTURE)
+            dialog.graphs.setCurrentIndex(0)
+            return dialog.DialogCode.Accepted
+
+        with patch.object(LayoutGraphDialog, "exec", clear_picture):
+            window.place_layout_graph(0)
+        cleared = window.project.layouts[0]
+        self.assertEqual(cleared.empty_panels, (0,))
+        self.assertIsNone(cleared.arrangement.picture(0))
+        self.assertEqual(tuple(map(panel_rectangle, window.page.layout_selection.panels)), boxes)
+        window.undo()
+        self.assertEqual(window.project.layouts[0], resized)
 
     def test_layout_panel_arrangement_undo_and_exports(self):
         from unittest.mock import patch
