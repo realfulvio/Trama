@@ -1593,6 +1593,8 @@ CAPTIONS.update({
     "Subject random effects": "Effetti casuali del soggetto",
     "AR(1) for ordered visits": "AR(1) per visite ordinate",
     "Visit order": "Ordine delle visite",
+    "The sign of the correlation cannot be estimated from even visit distances alone.":
+        "Le sole distanze pari tra le visite non consentono di stimare il segno della correlazione.",
 })
 MESSAGES.update({
     "mixed.error.one_within": (

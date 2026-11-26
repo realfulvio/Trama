@@ -23,6 +23,7 @@ from analisi.ar1 import (
     ORDER_MISMATCH,
     ORDER_REPEATED,
     REASON_DF,
+    REASON_EVEN_LAGS,
     REASON_LIMIT,
     REASON_VARIANCE,
     SUBJECT_EFFECTS,
@@ -240,6 +241,18 @@ class SyntheticContractTests(unittest.TestCase):
         with self.assertRaises(FieldError) as caught:
             ar1(frame, visits=["V1", "V2"])
         self.assertEqual(str(caught.exception), NO_CORRELATION)
+
+    def test_only_even_visit_distances_leave_the_sign_unidentified(self):
+        frame = self.series(.7, visits=("V1", "V2", "V3"), subjects=24)
+        middle = frame["Visit"] == "V2"
+        singleton = frame["Subject"].isin(["S00", "S12"])
+        observed = (singleton & middle) | (~singleton & ~middle)
+        frame.loc[~observed, "Response"] = np.nan
+        result = ar1(frame, visits=["V1", "V2", "V3"])
+        model = result["Model"].iloc[0]
+        self.assertEqual(model["Status"], REASON_EVEN_LAGS)
+        self.assertTrue(np.isnan(model["Correlation (rho)"]))
+        self.assertTrue(result["Fixed estimates"]["SE"].isna().all())
 
     def test_repeated_or_incomplete_order_is_rejected(self):
         frame = self.series(0.2, subjects=6)

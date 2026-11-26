@@ -31,6 +31,7 @@ REASON_VARIANCE = "No measurable residual variation for the mixed model."
 REASON_DF = "Residual degrees of freedom are zero."
 REASON_RANK = "The fixed effects do not have full rank, so the model is not estimable."
 REASON_CORRELATION = "The correlation is not estimable."
+REASON_EVEN_LAGS = "The sign of the correlation cannot be estimated from even visit distances alone."
 CANCELLED = "The mixed-model fit was cancelled."
 
 _PENALTY = 1e300
@@ -190,6 +191,8 @@ def fit_ar1(y, cells, subjects, times, n_cells, *, cancel=None):
     if not np.isfinite(scale) or scale == 0.0:
         return Ar1Fit(None, None, np.nan, np.nan, df, REASON_VARIANCE)
     patterns = _patterns(centered / scale, cells, subjects, times)
+    if not any((times[1:] % 2 != times[0] % 2).any() for times, _, _ in patterns):
+        return Ar1Fit(None, None, np.nan, np.nan, df, REASON_EVEN_LAGS)
 
     def objective(rho):
         profile = _profile(patterns, float(rho), n_cells, df, cancel)
