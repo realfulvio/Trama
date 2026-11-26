@@ -10,6 +10,20 @@ import pandas as pd
 from scipy import linalg, optimize, stats
 from statsmodels.stats.multitest import multipletests
 
+from .ar1 import (
+    AR1,
+    CANCELLED,
+    COVARIANCE,
+    NO_CORRELATION,
+    ONE_WITHIN,
+    SUBJECT_EFFECTS,
+    WALD_DF,
+    MixedModelCancelled,
+    align_visit_order,
+    fit_ar1,
+    stopped,
+)
+from .field_error import FieldError
 from .kenward_roger import _KenwardRoger
 from .stats import complete
 
@@ -459,8 +473,131 @@ def _comparisons(fit, factors, levels, grid, method, compare, condition, family)
     return pd.concat(tables)
 
 
+def _model_counts(counts, y):
+    used = counts["Observations used"] > 0
+    incomplete = counts["Cells missing"] > 0
+    return {
+        "Observations used": len(y),
+        "Response rows omitted": counts["Response rows omitted"].sum(),
+        "Subject cells missing": counts["Cells missing"].sum(),
+        "Subjects used": used.sum(),
+        "Subjects partial": (used & incomplete).sum(),
+        "Subjects excluded": (~used).sum(),
+    }
+
+
+def _labeled_cells(levels, factors, numbers):
+    labels = pd.DataFrame(product(*levels), columns=factors)
+    reserved = set(labels.columns) | set(numbers.columns)
+    for factor in set(labels.columns) & set(numbers.columns):
+        label = f"{factor} (factor)"
+        while label in reserved:
+            label += " (factor)"
+        labels = labels.rename(columns={factor: label})
+        reserved.add(label)
+    return pd.concat([labels.reset_index(drop=True), numbers.reset_index(drop=True)], axis=1)
+
+
+def _blank_effects(factors, shape):
+    rows = []
+    for order in range(1, len(shape) + 1):
+        for axes in combinations(range(len(shape)), order):
+            df1 = prod(shape[axis] - 1 for axis in axes)
+            rows.append([":".join(factors[i] for i in axes), np.nan, df1, np.nan, np.nan])
+    return pd.DataFrame(rows, columns=["Term", "F", "F df1", "F df2", "p"]).set_index("Term")
+
+
+def _blank_means(factors, levels):
+    frames = []
+    for factor, labels in zip(factors, levels):
+        frames.append(pd.DataFrame({
+            "Factor": factor, "Level": list(labels), "Estimate": np.nan, "SE": np.nan, "df": np.nan,
+            "CI 95% low": np.nan, "CI 95% high": np.nan,
+        }))
+    return pd.concat(frames, ignore_index=True)
+
+
+def _residual_components(sigma2):
+    deviation = np.sqrt(sigma2) if np.isfinite(sigma2) else np.nan
+    return pd.DataFrame({"Variance": [sigma2], "SD": [deviation]},
+                        index=pd.Index(["Residual"], name="Component"))
+
+
+def _ar1_analysis(y, cell, subjects, levels, counts, factors, within, visit_order,
+                  posthoc, compare, condition, family, cancel):
+    """Wald tests from the marginal AR(1) fit. A non-estimable fit keeps the counts and the order."""
+    if stopped(cancel):
+        raise MixedModelCancelled(CANCELLED)
+    within_axis = factors.index(within[0])
+    order = align_visit_order(visit_order, levels[within_axis])
+    if len(subjects) == 0 or int(np.bincount(subjects).max()) < 2:
+        raise FieldError(COVARIANCE, NO_CORRELATION)
+    shape = tuple(map(len, levels))
+    n_cells = prod(shape)
+    codes = np.unravel_index(np.asarray(cell, dtype=int), shape)[within_axis]
+    position = {level: index for index, level in enumerate(order)}
+    times = np.array([position[levels[within_axis][int(code)]] for code in codes], dtype=int)
+    fitted = fit_ar1(y, cell, subjects, times, n_cells, cancel=cancel)
+    available = fitted.reason is None
+    between = ", ".join(factor for factor in factors if factor not in within)
+    summary = pd.DataFrame([{
+        "Method": "Restricted maximum likelihood (REML)",
+        "Covariance": AR1,
+        "Fixed effects": "Full factorial, Type III (equal cell weights)",
+        "Denominator df": WALD_DF if available else "Unavailable",
+        "Inference": "Wald",
+        "Visit order": ", ".join(str(level) for level in order),
+        "Correlation (rho)": fitted.rho,
+        "Residual df": fitted.df,
+        "Within-subject factors": ", ".join(within),
+        "Between-subject factors": between,
+        "Status": "Converged" if available else fitted.reason,
+        **_model_counts(counts, y),
+    }])
+    if not available:
+        numbers = pd.DataFrame({
+            "Estimate": np.nan, "SE": np.nan, "df": np.nan, "CI 95% low": np.nan, "CI 95% high": np.nan,
+        }, index=pd.RangeIndex(n_cells))
+        return {
+            "Model": summary,
+            "Fixed effects": _blank_effects(factors, shape),
+            "Variance components": _residual_components(np.nan),
+            "Fixed estimates": _labeled_cells(levels, factors, numbers),
+            "Estimated marginal means": _blank_means(factors, levels),
+            "Subjects": counts,
+        }
+
+    fit = _Fit(fitted.beta, fitted.covariance, np.zeros((1, n_cells, n_cells)), None,
+               0.0, 1.0, {"Residual": fitted.sigma2}, "Converged", "wald", None, fitted.df)
+    identity = np.eye(n_cells)
+    estimates = _labeled_cells(levels, factors, _estimate_table(fit, identity, pd.RangeIndex(n_cells)))
+    grid = identity.reshape(*shape, n_cells)
+    means = []
+    for axis, (factor, labels) in enumerate(zip(factors, levels)):
+        other_axes = tuple(i for i in range(len(shape)) if i != axis)
+        weights = grid.mean(axis=other_axes)
+        names = pd.Index([f"{factor}={value}" for value in labels], name="Mean")
+        marginal = _estimate_table(fit, weights, names)
+        marginal.insert(0, "Level", labels)
+        marginal.insert(0, "Factor", factor)
+        means.append(marginal)
+    result = {
+        "Model": summary,
+        "Fixed effects": _omnibus(fit, factors, shape),
+        "Variance components": _residual_components(fitted.sigma2),
+        "Fixed estimates": estimates,
+        "Estimated marginal means": pd.concat(means),
+        "Subjects": counts,
+    }
+    if posthoc is not None:
+        result["Multiple comparisons"] = _comparisons(
+            fit, factors, levels, grid, posthoc, compare, condition, family)
+    return result
+
+
 def mixed_effects_anova(frame, response, factors, subject, *, within=None, posthoc=None,
-                        compare=None, condition=(), family="separate", inference="satterthwaite"):
+                        compare=None, condition=(), family="separate", inference="satterthwaite",
+                        covariance=None, visit_order=None, cancel=None):
     """Fit all fixed interactions and random subject effects by REML.
 
     Factors outside within are between subjects. Omitted or absent responses
@@ -478,7 +615,13 @@ def mixed_effects_anova(frame, response, factors, subject, *, within=None, posth
         raise ValueError("Select one to three model factors.")
     if not within or len(set(within)) != len(within) or set(within) - set(factors):
         raise ValueError("Select at least one distinct within-subject factor from the model.")
-    if inference not in _INFERENCE_METHODS:
+    structure = SUBJECT_EFFECTS if covariance in (None, "") else covariance
+    if structure == AR1:
+        if len(within) != 1:
+            raise FieldError(COVARIANCE, ONE_WITHIN)
+    elif structure != SUBJECT_EFFECTS:
+        raise FieldError(COVARIANCE, UNKNOWN_STRUCTURE)
+    if structure != AR1 and inference not in _INFERENCE_METHODS:
         raise ValueError("Unknown inference method for mixed-model analysis.")
     if posthoc not in {None, *_ADJUSTMENTS}:
         raise ValueError("Unknown adjustment for mixed-model comparisons.")
@@ -500,6 +643,9 @@ def mixed_effects_anova(frame, response, factors, subject, *, within=None, posth
                  comb(by_factor[compare], 2) * prod(by_factor[factor] for factor in condition))
         if pairs > 1000:
             raise ValueError("The mixed model supports up to 1000 pairwise comparisons.")
+    if structure == AR1:
+        return _ar1_analysis(y, cell, subjects, levels, counts, factors, within, visit_order,
+                             posthoc, compare, condition, family, cancel)
     n_cells = prod(shape)
     fit = _fit_reml(y, cell, subjects, shape, factors, within, inference=inference)
 
