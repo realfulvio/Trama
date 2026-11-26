@@ -573,6 +573,8 @@ class RecoveryWindowTests(unittest.TestCase):
         dialog = RecoveryDialog(window.recovery, window)
         self.assertEqual(dialog.list.topLevelItemCount(), 1)
         self.assertEqual(dialog.list.topLevelItem(0).text(2), "Changed on disk")
+        self.assertEqual([entry["session_key"] for entry in dialog.selected_records()], [keys[0]])
+        self.assertTrue(dialog.recover_button.isEnabled())
         self.assertTrue(dialog.warning.isVisibleTo(dialog))
         self.assertIn("changed on disk", dialog.warning.text())
         self.assertTrue(dialog.damaged.isVisibleTo(dialog))

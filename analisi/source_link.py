@@ -232,7 +232,7 @@ def locate(link, project_path):
     absolute = Path(link.path)
     if absolute.is_file():
         return absolute, False
-    folder = link.relative_folder or (Path(project_path).parent if project_path is not None else None)
+    folder = Path(project_path).parent if project_path is not None else link.relative_folder
     if link.relative and folder is not None:
         candidate = folder / link.relative
         if candidate.is_file():

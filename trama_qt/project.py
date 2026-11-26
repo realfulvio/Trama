@@ -2060,6 +2060,9 @@ class Project(WorksheetJoinSources, SheetCommands):
         change = self.history.apply(self.tables, redo=redo)
         if change is None:
             return None, None
+        dataset = self.tables[change.title]
+        if dataset.source_link is not None and self.path is not None:
+            dataset.source_link = dataset.source_link.with_relative(self.path.absolute().parent)
         self.dirty = True
         # False for colours and number formats: the window can refresh the open grid in place.
         self.undo_changed_data = change.before.data_changed(change.after)

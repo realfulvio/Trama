@@ -26,7 +26,7 @@ import tempfile
 import threading
 import time
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QItemSelectionModel, QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFrame,
                                QHBoxLayout, QLabel, QMessageBox, QPushButton, QTreeWidget, QTreeWidgetItem,
                                QVBoxLayout)
@@ -598,8 +598,8 @@ class RecoveryDialog(QDialog):
         for column in range(3):
             self.list.resizeColumnToContents(column)
         if self.records:
-            self.list.topLevelItem(0).setSelected(True)
-            self.list.setCurrentItem(self.list.topLevelItem(0))
+            select = QItemSelectionModel.SelectionFlag
+            self.list.setCurrentItem(self.list.topLevelItem(0), 0, select.ClearAndSelect | select.Rows)
         if self.problems:
             rows = [r("damaged_row", title=problem.get("title") or r("damaged_untitled"),
                       reason=r(f"damage.{problem['code']}")) for problem in self.problems]
