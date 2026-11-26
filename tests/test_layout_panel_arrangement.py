@@ -98,6 +98,73 @@ class LayoutArrangementTests(unittest.TestCase):
                                   for point in ((x, y), outside)], expected)
         self.assertEqual([tuple(graph.get_size_inches()) for graph in graphs], original_sizes)
 
+    def test_rotated_graph_and_dashed_border_stay_vector_in_exports(self):
+        import pypdfium2 as pdfium
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.patches import Rectangle
+        from PIL import Image
+
+        from analisi.figure_export import export_pdf_bundle
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_pdf import PdfLayoutPage
+        from analisi.presentation import compose_layout
+
+        graph = Figure(figsize=(4, 2), facecolor="#e02020")
+        graph.add_artist(Rectangle((0, .5), 1, .5, transform=graph.transFigure, color="#2040e0"))
+        before = figure_state(graph)
+        for angle, colors in ((90, [(224, 32, 32), (32, 64, 224)]),
+                              (-90, [(32, 64, 224), (224, 32, 32)])):
+            with self.subTest(angle=angle), tempfile.TemporaryDirectory() as folder:
+                arrangement = PanelArrangement(scales=((0, .45),), rotations=((0, angle),),
+                                               borders=((0, 3., "#008000", "dashed"),))
+                page = PdfLayoutPage("Turned", 1, (graph,), arrangement=arrangement)
+                left, top, right, bottom = panel_rectangle(page.placements[0])
+                self.assertAlmostEqual(bottom - top, 2 * (right - left))
+                points = [(left + fraction * (right - left), (top + bottom) / 2) for fraction in (.25, .75)]
+
+                def drawing(image):
+                    scale_x = image.width / page.size[0]
+                    scale_y = image.height / page.size[1]
+                    self.assertEqual([image.getpixel((round(x * scale_x), round(y * scale_y)))
+                                      for x, y in points], colors)
+                    edge = [image.getpixel((round(left * scale_x), y))
+                            for y in range(round((top + .07) * scale_y), round((bottom - .07) * scale_y))]
+                    self.assertIn((0, 128, 0), edge)
+                    self.assertTrue(any(pixel[0] > 170 or pixel[2] > 170 for pixel in edge))
+
+                layout = compose_layout("Turned", 1, (graph,), arrangement=arrangement)
+                canvas = FigureCanvasAgg(layout)
+                canvas.draw()
+                drawing(Image.frombuffer("RGBA", canvas.get_width_height(), canvas.buffer_rgba()).convert("RGB"))
+
+                pdf = Path(folder) / "rotated.pdf"
+                export_pdf_bundle([page], pdf, {"format": "pdf"})
+                with pdfium.PdfDocument(pdf) as document:
+                    pdf_page = document[0]
+                    drawing(pdf_page.render(scale=3).to_pil().convert("RGB"))
+                    pdf_page.close()
+
+                svg = Path(folder) / "rotated.svg"
+                export_layout_svg("Turned", 1, (graph,), svg, {"format": "svg"}, arrangement=arrangement)
+                root = ET.parse(svg).getroot()
+                self.assertFalse(root.findall(f".//{SVG}image"))
+                panel = root.find(f"{SVG}g[@id='panel1']")
+                self.assertTrue(panel.get("transform").endswith(f"rotate({angle})"))
+                border = root.find(f"{SVG}rect[@id='panel1-border']")
+                self.assertEqual(border.get("stroke-dasharray"), "11.1 4.8")
+                self.assertAlmostEqual(float(border.get("height")) / float(border.get("width")), 2, places=5)
+        self.assertEqual(figure_state(graph), before)
+
+    def test_coincident_corners_use_only_the_visible_panel_letter(self):
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_panels import layout_labels
+
+        graph = Figure(figsize=(4, 2))
+        arrangement = PanelArrangement(offsets=((1, -.5, 0),))
+        panels = plan_panels(2, (graph, graph), arrangement=arrangement)
+        self.assertEqual(layout_labels(panels, (0, 1)), {1})
+        self.assertEqual(layout_labels(panels, (1, 0)), {0})
+
     def test_aligns_actual_axis_edges_in_svg_and_keeps_source_geometry(self):
         graphs = figures()
         original = [figure_state(graph) for graph in graphs]

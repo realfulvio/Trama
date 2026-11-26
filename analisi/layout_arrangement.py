@@ -1,7 +1,12 @@
-"""Saved layout positions, scale, stacking, groups and locks."""
+"""Saved layout geometry, appearance and grouping."""
 
 from dataclasses import dataclass, replace
 from math import isfinite
+import re
+
+
+BORDER_DASHES = {"solid": (), "dashed": (3.7, 1.6), "dotted": (1., 1.65),
+                 "dash-dot": (6.4, 1.6, 1., 1.6)}
 
 
 @dataclass(frozen=True)
@@ -11,6 +16,8 @@ class PanelArrangement:
     locked: tuple[int, ...] = ()
     scales: tuple[tuple[int, float], ...] = ()
     layers: tuple[int, ...] = ()  # Panel indices from the back to the front.
+    rotations: tuple[tuple[int, int], ...] = ()
+    borders: tuple[tuple[int, float, str, str], ...] = ()
 
     def record(self):
         return {key: value for key, value in vars(self).items() if value}
@@ -37,14 +44,16 @@ class PanelArrangement:
             layers += tuple(index for index, old in enumerate(indices) if old is None)
         if layers == tuple(range(len(indices))):
             layers = ()
+        rotations = tuple(sorted((mapping[index], angle) for index, angle in self.rotations if index in mapping))
+        borders = tuple(sorted((mapping[index], *border) for index, *border in self.borders if index in mapping))
         return PanelArrangement(tuple(sorted(offsets)), tuple(sorted(group for group in groups if len(group) > 1)),
-                                locked, scales, layers)
+                                locked, scales, layers, rotations, borders)
 
 
 def validated_arrangement(value, count):
     if isinstance(value, PanelArrangement):
         value = value.record()
-    if not isinstance(value, dict) or set(value) - {"offsets", "groups", "locked", "scales", "layers"}:
+    if not isinstance(value, dict) or set(value) - {"offsets", "groups", "locked", "scales", "layers", "rotations", "borders"}:
         raise ValueError("Invalid layout panel arrangement.")
 
     def sequence(raw, limit):
@@ -84,7 +93,22 @@ def validated_arrangement(value, count):
         raise ValueError("Invalid layout panel stacking order.")
     if layers == tuple(range(count)):
         layers = ()
-    return PanelArrangement(offsets, groups, indices(value.get("locked", ())), scales, layers)
+    rotations = [sequence(entry, 2) for entry in sequence(value.get("rotations", ()), count)]
+    if any(len(entry) != 2 or type(entry[1]) is not int or entry[1] not in {-90, 90} for entry in rotations):
+        raise ValueError("Invalid layout panel rotation.")
+    indices([entry[0] for entry in rotations])
+    borders = [sequence(entry, 4) for entry in sequence(value.get("borders", ()), count)]
+    if any(len(entry) != 4 for entry in borders):
+        raise ValueError("Invalid layout panel border.")
+    indices([entry[0] for entry in borders])
+    for _, width, color, style in borders:
+        if (type(width) not in (int, float) or not .1 <= width <= 12
+                or not isinstance(color, str) or re.fullmatch(r"#[a-fA-F0-9]{6}", color) is None
+                or not isinstance(style, str) or style not in BORDER_DASHES):
+            raise ValueError("Invalid layout panel border.")
+    return PanelArrangement(offsets, groups, indices(value.get("locked", ())), scales, layers,
+                            tuple(sorted(map(tuple, rotations))),
+                            tuple(sorted((i, float(w), c.lower(), s) for i, w, c, s in borders)))
 
 
 def change_objects(arrangement, objects, command):
@@ -141,3 +165,18 @@ def positioned(arrangement, panels, targets, page):
         else:
             scales[index] = factor
     return replace(translated(arrangement, shifts, page), scales=tuple(sorted(scales.items())))
+
+
+def with_appearance(arrangement, index, angle, border):
+    rotations = dict(arrangement.rotations)
+    borders = {slot: (width, color, style) for slot, width, color, style in arrangement.borders}
+    if angle:
+        rotations[index] = angle
+    else:
+        rotations.pop(index, None)
+    if border is None:
+        borders.pop(index, None)
+    else:
+        borders[index] = border
+    return replace(arrangement, rotations=tuple(sorted(rotations.items())),
+                   borders=tuple((slot, *borders[slot]) for slot in sorted(borders)))

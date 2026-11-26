@@ -15,7 +15,7 @@ from matplotlib.container import BarContainer, ErrorbarContainer
 from matplotlib.figure import Figure
 from matplotlib.image import imread
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
+from matplotlib.patches import Patch, Rectangle
 from matplotlib.markers import MarkerStyle
 from matplotlib.mathtext import MathTextParser
 from matplotlib.ticker import (AutoMinorLocator, FixedFormatter, FuncFormatter, Locator,
@@ -42,10 +42,10 @@ from .linked_tables import TABLES, draw_tables, validate_tables
 from .observation_labels import LABELS, apply_observation_labels, restore_observation_labels, validate_labels
 from .point_style import (GID_PREFIX as POINT_GID_PREFIX, INDICATOR_GID, POINTS, apply_point_styles,
                           restore_point_styles, validate_points)
-from .layout_arrangement import PanelArrangement, validated_arrangement
+from .layout_arrangement import BORDER_DASHES, PanelArrangement, validated_arrangement
 from .layout_geometry import (AUTO_PAPER, AXIS_ALIGNMENTS, LABEL_PAD, LABEL_SIZE, PANEL_SIZES, PAPER_SIZES, PT, WHITE,
                               layout_frame, page_ink, page_size)
-from .layout_panels import plan_panels
+from .layout_panels import layout_labels, plan_panels
 
 
 @dataclass
@@ -1190,9 +1190,11 @@ def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHIT
     ink = page_ink(background)
     if empty_label is not None:
         figure.trama_layout_panels = placements
-    for layer, i in enumerate(arrangement.paint_order(len(placements)), start=10):
+    order = arrangement.paint_order(len(placements))
+    labels = layout_labels(placements, order)
+    for layer, i in enumerate(order, start=10):
         placement = placements[i]
-        w, h = placement.size
+        w, h = placement.oriented_size
         x, y, scale = placement.box
         if placement.figure is None:
             if empty_label is not None:
@@ -1211,13 +1213,21 @@ def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHIT
             graph.savefig(buffer, format="png", dpi=150)
             buffer.seek(0)
             pixels = imread(buffer)
+        if placement.angle:
+            pixels = np.rot90(pixels, -placement.angle // 90)
         panel = figure.add_axes((x / page_width, 1 - (y + h * scale) / page_height,
                                  w * scale / page_width, h * scale / page_height), zorder=layer)
         panel.imshow(pixels, aspect=None if (panel_size, axis_alignment) == ("original", "none") else "auto")
         panel.set_axis_off()
         if empty_label is not None:
             panel.set_gid(f"layout-panel-{i}")
-        panel.set_title(chr(ord("A") + i), loc="left", y=1, pad=LABEL_PAD * PT,
-                        fontsize=LABEL_SIZE, fontweight="bold", color=ink)
+        if i in labels:
+            panel.set_title(chr(ord("A") + i), loc="left", y=1, pad=LABEL_PAD * PT,
+                            fontsize=LABEL_SIZE, fontweight="bold", color=ink)
+        if placement.border:
+            width, color, style = placement.border
+            dashes = BORDER_DASHES[style]
+            panel.add_patch(Rectangle((0, 0), 1, 1, transform=panel.transAxes, fill=False, clip_on=False,
+                                      edgecolor=color, linewidth=width, linestyle=(0, dashes) if dashes else "-"))
     draw_tables(figure, tables)
     return figure

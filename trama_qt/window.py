@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboB
 
 from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power, mean_permutation, parallel, power_plan, rmst
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, result_display
-from analisi.layout_arrangement import change_objects, layered, positioned, translated
+from analisi.layout_arrangement import change_objects, layered, positioned, translated, with_appearance
 from analisi.layout_panels import (PanelAlignmentError, bounded_translation, layout_shifts, panel_rectangle,
                                    plan_panels, targets_fit)
 from analisi.xy_series import XY_METHOD
@@ -2335,15 +2335,20 @@ class MainWindow(QMainWindow):
 
             page.layout_selection = LayoutSelection(canvas, layout, axes, active, self.update_layout_arrangement_actions,
                                                    self.move_layout_selection, self.resize_layout_selection)
+            def open_panel(event):
+                if not event.dblclick or event.button != 1 or event.inaxes not in axes or not active():
+                    return
+                slot = axes[event.inaxes]
+                if layout.panels[slot] is None:
+                    self.place_layout_graph(slot)
+                else:
+                    page.layout_selection.select((slot,))
+                    self.edit_layout_geometry()
+
+            canvas.mpl_connect("button_press_event", open_panel)
             if None in layout.panels:
-                slots = {axis: int(axis.get_gid().removeprefix("layout-slot-")) for axis in figure.axes
-                         if (axis.get_gid() or "").startswith("layout-slot-")}
+                slots = {axis: slot for axis, slot in axes.items() if layout.panels[slot] is None}
 
-                def open_slot(event):
-                    if event.dblclick and event.button == 1 and event.inaxes in slots and active():
-                        self.place_layout_graph(slots[event.inaxes])
-
-                canvas.mpl_connect("button_press_event", open_slot)
                 def resolve_graph(identifier):
                     if (self.project is not project or self.selected != ("layout", index) or self.job is not None
                             or self.table_move.active or canvas is not self.page.canvases[0]
@@ -3568,7 +3573,8 @@ class MainWindow(QMainWindow):
             panels = list(layout.panels)
             panels[slot] = graph
             candidate = replace(layout, panels=panels)
-            manual = slot in dict(layout.arrangement.scales) or any(entry[0] == slot for entry in layout.arrangement.offsets)
+            manual = any(entry[0] == slot for entries in (layout.arrangement.scales, layout.arrangement.offsets,
+                                                          layout.arrangement.rotations) for entry in entries)
             controller = self._active_layout_selection()
             if manual and controller is not None:
                 figures = self.project.layout_figures(candidate)
@@ -3576,7 +3582,7 @@ class MainWindow(QMainWindow):
                     left, top, right, bottom = panel_rectangle(controller.panels[slot])
                     planned = plan_panels(candidate.columns, figures, candidate.paper, panel_size=candidate.panel_size,
                                           axis_alignment=candidate.axis_alignment, arrangement=candidate.arrangement)
-                    width, height = planned[slot].size
+                    width, height = planned[slot].oriented_size
                     scale = min((right - left) / width, (bottom - top) / height)
                     targets = {slot: (left + (right - left - width * scale) / 2,
                                       top + (bottom - top - height * scale) / 2, scale)}
@@ -3608,7 +3614,8 @@ class MainWindow(QMainWindow):
             self.actions[key].setEnabled(can_align)
         for key in ("layout_distribute", *(f"layout_{mode}" for mode in LAYOUT_DISTRIBUTIONS)):
             self.actions[key].setEnabled(can_distribute)
-        axes = can_align and all(len(obj) == 1 and controller.panels[obj[0]].figure is not None for obj in objects)
+        axes = can_align and all(len(obj) == 1 and controller.panels[obj[0]].figure is not None
+                                 and not controller.panels[obj[0]].angle for obj in objects)
         for mode in LAYOUT_AXIS_ALIGNMENT:
             self.actions[f"layout_{mode}"].setEnabled(axes)
         self.actions["layout_group"].setEnabled(can_align)
@@ -3647,13 +3654,16 @@ class MainWindow(QMainWindow):
             self._commit_layout_arrangement(controller,
                                             translated(controller.layout.arrangement, shifts, controller.page))
 
-    def _apply_layout_geometry(self, controller, targets):
-        if not targets_fit(controller.panels, targets, controller.page):
+    def _apply_layout_geometry(self, controller, targets, *, appearance=None):
+        angles = {appearance[0]: appearance[1]} if appearance is not None else None
+        if not targets_fit(controller.panels, targets, controller.page, angles=angles):
             self.status(qt("qt.layout_geometry_outside"))
             controller.indicate()
             return
         try:
             arrangement = positioned(controller.layout.arrangement, controller.panels, targets, controller.page)
+            if appearance is not None:
+                arrangement = with_appearance(arrangement, *appearance)
             self._commit_layout_arrangement(controller, arrangement)
         except ValueError:
             self.status(qt("qt.layout_geometry_limits"))
@@ -3679,7 +3689,7 @@ class MainWindow(QMainWindow):
             dialog = PanelPositionDialog(self, controller.panels, index, controller.page)
         try:
             if dialog.exec() == dialog.DialogCode.Accepted and self._active_layout_selection() is controller:
-                self._apply_layout_geometry(controller, dialog.targets)
+                self._apply_layout_geometry(controller, dialog.targets, appearance=dialog.appearance)
         finally:
             dialog.deleteLater()
 

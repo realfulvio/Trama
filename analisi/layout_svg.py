@@ -21,9 +21,9 @@ import matplotlib as mpl
 from matplotlib.figure import Figure
 
 from .figure_export import DEFAULT_DPI, MM, check_destination, plan_export
-from .layout_arrangement import PanelArrangement
+from .layout_arrangement import BORDER_DASHES, PanelArrangement
 from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
-from .layout_panels import EMPTY_PANEL, plan_panels
+from .layout_panels import EMPTY_PANEL, layout_labels, plan_panels
 from .linked_tables import overlay_figure
 from .presentation import Layout
 
@@ -144,7 +144,9 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
 
     # The page itself (background, title and panel letters) comes from Matplotlib too, so the
     # Text/Paths choice and the fonts are the same as in the panels.
-    boxes = [placement.box if placement.figure is not None else None for placement in placements]
+    order = arrangement.paint_order(len(placements))
+    labels = layout_labels(placements, order)
+    boxes = [placement.box if slot in labels else None for slot, placement in enumerate(placements)]
     frame = layout_frame(title, (width_in, height_in), boxes,
                          background=WHITE if plan["transparent"] else background)
     page, page_children = _children(_render_svg(frame, plan, rc))
@@ -164,7 +166,7 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
     page.set("viewBox", f"0 0 {width_in * PT:.4f} {height_in * PT:.4f}")
     images = 0
     defs = ET.SubElement(page, SVG + "defs")
-    for slot in arrangement.paint_order(len(placements)):
+    for slot in order:
         index = slot + 1
         document, placement = panels[slot], placements[slot]
         if document is None:
@@ -177,12 +179,24 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
         # The panel is clipped to its own figure, like the source SVG viewport.
         clip = ET.SubElement(defs, SVG + "clipPath", id=f"panel{index}-viewport")
         ET.SubElement(clip, SVG + "rect", x="0", y="0", width=f"{w * PT:.4f}", height=f"{h * PT:.4f}")
+        dx, dy = (h * PT, 0) if placement.angle == 90 else (0, w * PT)
+        turn = f" translate({dx:.4f} {dy:.4f}) rotate({placement.angle})" if placement.angle else ""
         group = ET.SubElement(page, SVG + "g", {
             "id": f"panel{index}",
-            "transform": f"translate({x * PT:.4f} {y * PT:.4f}) scale({scale:.6f})",
+            "transform": f"translate({x * PT:.4f} {y * PT:.4f}) scale({scale:.6f}){turn}",
         })
         inner = ET.SubElement(group, SVG + "g", {"clip-path": f"url(#panel{index}-viewport)"})
         inner.extend(children)
+        if placement.border:
+            width, color, style = placement.border
+            w, h = placement.oriented_size
+            border = ET.SubElement(page, SVG + "rect", {
+                "id": f"panel{index}-border", "fill": "none", "stroke": color, "stroke-width": str(width),
+                "x": f"{x * PT:.4f}", "y": f"{y * PT:.4f}",
+                "width": f"{w * scale * PT:.4f}", "height": f"{h * scale * PT:.4f}",
+            })
+            if dashes := BORDER_DASHES[style]:
+                border.set("stroke-dasharray", " ".join(f"{length * width:.6g}" for length in dashes))
     if table_children:
         ET.SubElement(page, SVG + "g", {"id": "layout-tables"}).extend(table_children)
     data = ET.tostring(page, encoding="utf-8", xml_declaration=True)

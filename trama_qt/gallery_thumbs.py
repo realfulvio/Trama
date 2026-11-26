@@ -8,8 +8,8 @@ from collections import OrderedDict, deque
 from dataclasses import dataclass
 from io import BytesIO
 
-from PySide6.QtCore import QCoreApplication, QObject, QRectF, QThread, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
+from PySide6.QtCore import QCoreApplication, QObject, QRectF, QThread, QTimer, Qt, Signal
+from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap, QTransform
 
 from .gallery_catalog import describe
 
@@ -107,7 +107,8 @@ def figure_image(figure, width, height):
 def render(entry, project, box):
     """Draw the card of ``entry`` inside ``box`` (device pixels). A generator: it yields after each figure so
     that a layout of many panels never blocks the window, and returns the image."""
-    from analisi.layout_geometry import page_size
+    from analisi.layout_arrangement import BORDER_DASHES
+    from analisi.layout_geometry import PT, page_size
     from analisi.layout_panels import panel_plan_steps
     _require_gui_thread()
     kind, key = entry.ref
@@ -134,7 +135,20 @@ def render(entry, project, box):
             x, y, fit = placement.box
             with placement.render() as figure:
                 tile = figure_image(figure, max(1, round(w * fit * scale)), max(1, round(h * fit * scale)))
-            painter.drawImage(QRectF(x * scale, y * scale, w * fit * scale, h * fit * scale), tile)
+            if placement.angle:
+                tile = tile.transformed(QTransform().rotate(placement.angle))
+            w, h = placement.oriented_size
+            rect = QRectF(x * scale, y * scale, w * fit * scale, h * fit * scale)
+            painter.drawImage(rect, tile)
+            if placement.border:
+                width, color, style = placement.border
+                pen = QPen(QColor(color))
+                pen.setWidthF(width * scale / PT)
+                if dashes := BORDER_DASHES[style]:
+                    pen.setDashPattern(dashes)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(rect)
             yield
     finally:
         painter.end()

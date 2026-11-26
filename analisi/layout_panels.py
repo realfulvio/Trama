@@ -7,7 +7,7 @@ from math import isclose
 from matplotlib.figure import Figure
 
 from .layout_arrangement import PanelArrangement
-from .layout_geometry import AUTO_PAPER, page_size, panel_boxes, panel_cells
+from .layout_geometry import AUTO_PAPER, PT, page_size, panel_boxes, panel_cells
 
 
 # Explicit empty slot passed to the renderers. A missing figure still signals an error.
@@ -62,11 +62,20 @@ class LayoutPanel:
     axes: tuple = ()
     bounds: tuple | None = None  # target axes position relative to the panel
 
+    angle: int = 0  # Clockwise, as seen on the page.
+    border: tuple[float, str, str] | None = None
+
+    @property
+    def oriented_size(self):
+        return self.size[::-1] if self.angle else self.size
+
     def render(self):
         return _panel_figure(self.figure, self.size, self.axes, self.bounds)
 
 
 def _plot_bounds(panel):
+    if panel.angle:
+        return None
     axes = tuple(axis for axis in panel.figure.axes if axis.get_visible())
     if not axes or any(not axis.axison or axis.name != "rectilinear" or axis.get_aspect() != "auto"
                        or axis.get_box_aspect() is not None or axis.get_axes_locator() is not None for axis in axes):
@@ -139,6 +148,10 @@ def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original
     _, _, width, height = panel_cells(columns, len(sizes), paper)
     panels = [LayoutPanel(figure if size is not None else None, size or (width, height), box)
               for figure, size, box in zip(figures, sizes, boxes, strict=True)]
+    for index, angle in arrangement.rotations:
+        panels[index] = replace(panels[index], angle=angle)
+    for index, *border in arrangement.borders:
+        panels[index] = replace(panels[index], border=tuple(border))
     if axis_alignment != "none" and len(panels) > 1:
         measurements = []
         for panel in panels:
@@ -166,11 +179,26 @@ def plan_panels(columns, figures, paper=AUTO_PAPER, *, panel_size="original", ax
     except StopIteration as finished:
         return finished.value
 
+
 def panel_rectangle(panel):
     """The graph's outer rectangle in page inches, with the origin at the top left."""
     x, y, scale = panel.box
-    w, h = panel.size
+    w, h = panel.oriented_size
     return x, y, x + w * scale, y + h * scale
+
+
+def layout_labels(panels, order):
+    """Use the foreground label when two panel corners coincide on the page."""
+    labels = set()
+    occupied = []
+    for index in reversed(order):
+        if panels[index].figure is None:
+            continue
+        x, y, _ = panels[index].box
+        if not any(abs(x - left) * PT < 1 and abs(y - top) * PT < 1 for left, top in occupied):
+            labels.add(index)
+            occupied.append((x, y))
+    return labels
 
 
 def enclosing_rectangle(panels, indices):
@@ -238,12 +266,27 @@ def layout_shifts(panels, objects, command):
             for delta, members in zip(deltas, objects, strict=True) for index in members}
 
 
-def targets_fit(panels, targets, page):
+def rotation_target(panel, box, angle, page, *, fixed):
+    """Keep the center on each untouched axis and stay inside the page when possible."""
+    if bool(angle) == bool(panel.angle):
+        return box
+    x, y, scale = box
+    width, height = (value * scale for value in panel.oriented_size)
+    if not fixed[0]:
+        x = min(max(0., x + (width - height) / 2), max(0., page[0] - height))
+    if not fixed[1]:
+        y = min(max(0., y + (height - width) / 2), max(0., page[1] - width))
+    return x, y, scale
+
+
+def targets_fit(panels, targets, page, *, angles=None):
     """Check page limits without imposing the preview's pixel precision on saved values."""
     width, height = page
     for index, (x, y, scale) in targets.items():
-        w, h = panels[index].size
-        current = panel_rectangle(panels[index])
+        panel = panels[index]
+        angle = angles.get(index, panel.angle) if angles else panel.angle
+        w, h = panel.size[::-1] if angle else panel.size
+        current = panel_rectangle(panel)
         if (scale <= 0 or x < min(0., current[0]) - 1e-8 or y < min(0., current[1]) - 1e-8
                 or x + w * scale > max(width, current[2]) + 1e-8
                 or y + h * scale > max(height, current[3]) + 1e-8):

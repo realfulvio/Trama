@@ -1,4 +1,5 @@
 """Place graphs on a PDF layout as forms, preserving their paths, text and embedded images."""
+from ctypes import c_float
 from dataclasses import dataclass
 from io import BytesIO
 from math import isfinite
@@ -6,9 +7,9 @@ from math import isfinite
 from matplotlib.figure import Figure
 
 from .figure_export import MM, _render
-from .layout_arrangement import PanelArrangement
+from .layout_arrangement import BORDER_DASHES, PanelArrangement
 from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
-from .layout_panels import EMPTY_PANEL, plan_panels
+from .layout_panels import EMPTY_PANEL, layout_labels, plan_panels
 from .linked_tables import overlay_figure
 from .presentation import Layout
 
@@ -49,7 +50,9 @@ class PdfLayoutPage:
 
     def frame(self, plan):
         scale = plan["width_mm"] / MM / self.size[0]
-        boxes = [panel.box if panel.figure is not None else None for panel in self.placements]
+        placements = self.placements
+        labels = layout_labels(placements, self.arrangement.paint_order(len(placements)))
+        boxes = [panel.box if index in labels else None for index, panel in enumerate(placements)]
         return layout_frame(self.title, self.size, boxes, scale, background=WHITE if plan["transparent"] else self.background)
 
 
@@ -90,6 +93,33 @@ def _add_tables(document, page, layout, plan):
         raise ValueError("Could not write the PDF layout tables.")
 
 
+def _add_border(page, panel, height, page_scale):
+    from pypdfium2 import raw
+
+    x, y, fit = panel.box
+    w, h = panel.oriented_size
+    unit = PT * page_scale
+    width, color, style = panel.border
+    stroke = width * page_scale
+    rgb = bytes.fromhex(color[1:])
+    rect = raw.FPDFPageObj_CreateNewRect(x * unit, (height - y - h * fit) * unit, w * fit * unit, h * fit * unit)
+    if not rect:
+        raise ValueError("Could not create the PDF panel border.")
+    try:
+        if not (raw.FPDFPageObj_SetStrokeWidth(rect, stroke) and raw.FPDFPageObj_SetStrokeColor(rect, *rgb, 255)
+                and raw.FPDFPath_SetDrawMode(rect, raw.FPDF_FILLMODE_NONE, 1)):
+            raise ValueError("Could not set the PDF panel border.")
+        if dashes := BORDER_DASHES[style]:
+            lengths = (c_float * len(dashes))(*(length * stroke for length in dashes))
+            if not raw.FPDFPageObj_SetDashArray(rect, lengths, len(dashes), 0):
+                raise ValueError("Could not set the PDF panel border style.")
+    except BaseException:
+        raw.FPDFPageObj_Destroy(rect)
+        raise
+    if not raw.FPDFPage_InsertObject(page, rect):
+        raise ValueError("Could not insert the PDF panel border.")
+
+
 def _add_panels(document, page, layout, plan):
     import pypdfium2 as pdfium
     from pypdfium2 import raw
@@ -105,12 +135,20 @@ def _add_panels(document, page, layout, plan):
         x, y, fit = panel.box
         # PDF uses points with the origin at the bottom left. The form's bounding box clips the panel.
         scale = page_scale * fit
-        matrix = raw.FS_MATRIX(scale, 0, 0, scale, x * PT * page_scale, (height - y - h * fit) * PT * page_scale)
+        unit = PT * page_scale
+        if panel.angle == 90:
+            matrix = raw.FS_MATRIX(0, -scale, scale, 0, x * unit, (height - y) * unit)
+        elif panel.angle == -90:
+            matrix = raw.FS_MATRIX(0, scale, -scale, 0, (x + h * fit) * unit, (height - y - w * fit) * unit)
+        else:
+            matrix = raw.FS_MATRIX(scale, 0, 0, scale, x * unit, (height - y - h * fit) * unit)
         with panel.render() as figure, BytesIO() as buffer:
             _render(figure, {**plan, "width_mm": w * MM, "height_mm": h * MM}, buffer)
             buffer.seek(0)
             with pdfium.PdfDocument(buffer) as source:
                 _place_form(document, page, source, matrix)
+        if panel.border:
+            _add_border(page, panel, height, page_scale)
     if not raw.FPDFPage_GenerateContent(page):
         raise ValueError("Could not write the PDF layout page.")
     if layout.tables:

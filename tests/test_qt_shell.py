@@ -3107,6 +3107,67 @@ class QtShellTests(unittest.TestCase):
         ids = [node.get("id") for node in svg.getroot() if node.tag == SVG + "g"]
         self.assertLess(ids.index("panel2"), ids.index("panel1"))
 
+    def test_layout_double_click_changes_rotation_and_border_as_one_edit(self):
+        import json
+        from unittest.mock import patch
+
+        from PySide6.QtCore import QPoint
+        from PySide6.QtTest import QTest
+
+        from analisi.layout_panels import panel_rectangle
+        from analisi.presentation import Layout
+        from trama_qt.layout_geometry_dialog import PanelPositionDialog
+
+        self.open_example()
+        window = self.window
+        run = self.run_method("XY series", {"X": "Control", "Y columns": ["Treated"]})
+        key = window.project.put_layout(Layout("Turned panel", 1, [run.reference]))
+        ref = ("layout", key)
+        window.open_sheet(ref)
+        self.wait()
+        controller = window.page.layout_selection
+        canvas = controller.canvas
+        left, top, right, bottom = panel_rectangle(controller.panels[0])
+        x = round((left + right) / 2 / controller.page[0] * canvas.width())
+        y = round((top + bottom) / 2 / controller.page[1] * canvas.height())
+
+        def change(dialog):
+            dialog.rotation.setCurrentIndex(dialog.rotation.findData(90))
+            dialog.fields[2].setValue(dialog.fields[2].value() / 2)
+            dialog.border_on.setChecked(True)
+            dialog.border_color.setText("unrecognized")
+            dialog.accept()
+            self.assertIsNone(dialog.targets)
+            self.assertFalse(dialog.problem.isHidden())
+            dialog.border_color.setText("#128020")
+            dialog.border_width.setValue(2.5)
+            dialog.border_style.setCurrentIndex(dialog.border_style.findData("dashed"))
+            dialog.accept()
+            self.assertIsNotNone(dialog.targets)
+            return dialog.DialogCode.Accepted
+
+        with patch.object(PanelPositionDialog, "exec", change):
+            QTest.mouseDClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(x, y))
+        self.app.processEvents()
+        arrangement = window.project.layouts[key].arrangement
+        self.assertEqual(arrangement.rotations, ((0, 90),))
+        self.assertEqual(arrangement.borders, ((0, 2.5, "#128020", "dashed"),))
+        placed = window.page.layout_selection.panels[0]
+        self.assertGreater(placed.box[0], left)
+        self.assertLess(placed.box[1], top)
+        self.assertGreaterEqual(placed.box[1], 0.)
+        window.undo()
+        self.assertFalse(window.project.layouts[key].arrangement.record())
+        window.undo(redo=True)
+        self.assertEqual(window.project.layouts[key].arrangement, arrangement)
+        path = self.folder / "rotated.alab"
+        window.project.save(path)
+        self.assertEqual(json.loads(path.read_text())["version"], 9)
+        self.reopen(path)
+        window.open_sheet(ref)
+        self.wait()
+        self.assertEqual(window.project.layouts[key].arrangement, arrangement)
+
     def test_layout_panel_arrangement_undo_and_exports(self):
         from unittest.mock import patch
         from analisi.presentation import Layout
