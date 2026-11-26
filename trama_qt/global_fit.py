@@ -37,8 +37,13 @@ from analisi.i18n import active_language, tr, translate_message
 from analisi.parameter_intervals import METHOD as INTERVAL_METHOD, WALD
 from analisi.repeated_input import decode_series_constraints
 
-SCOPES = ("Local", "Shared", "Fixed")
-SCOPE_KEYS = {"Local": "gfit.scope.local", "Shared": "gfit.scope.shared", "Fixed": "gfit.scope.fixed"}
+from . import coefficient_links as linking
+
+# 0.117: "Linked" follows its source per series, "Linked shared" has one value for every series.
+LINKED_SCOPES = ("Linked", "Linked shared")
+SCOPES = ("Local", "Shared", "Fixed", *LINKED_SCOPES)
+SCOPE_KEYS = {"Local": "gfit.scope.local", "Shared": "gfit.scope.shared", "Fixed": "gfit.scope.fixed",
+              "Linked": "links.scope.local", "Linked shared": "links.scope.shared"}
 OVERRIDE_KEYS = ("initial", "lower", "upper", "fixed")
 # Pages of the dialog after Variables, in the order of the classic dialog; Output is the Options page.
 PAGES = ("Equation", "Parameters", "Series constraints", "Response")
@@ -143,6 +148,8 @@ def parse_number(raw):
 
 
 def scope_of(record):
+    if isinstance(record.get("link"), dict):
+        return "Linked shared" if record.get("shared") else "Linked"
     if record.get("fixed"):
         return "Fixed"
     if record.get("shared"):
@@ -205,6 +212,9 @@ def translate_error(message):
     translated = translate_message(message, "gfit.response.error.")
     if translated != message:
         return translated
+    linked = linking.translate(message)
+    if linked is not None:
+        return linked
     return _custom_message(message)
 
 
@@ -270,8 +280,9 @@ class GlobalCoefficientEditor(QWidget):
     """Name, start (or fixed value), lower, upper and scope of each coefficient of the global equation."""
 
     changed = Signal()
-    NAME, START, LOWER, UPPER, SCOPE = range(5)
+    NAME, START, LOWER, UPPER, SCOPE, SOURCE, FACTOR, OFFSET = range(8)
     KEYS = ("name", "start", "lower", "upper", "scope")
+    LINK_KEYS = ("source", "factor", "offset")
 
     def __init__(self, records, *, equation, syntax, parent=None):
         super().__init__(parent)
@@ -280,10 +291,12 @@ class GlobalCoefficientEditor(QWidget):
         self.read_note = ""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        self.table = QTableWidget(0, 5)
+        self.table = QTableWidget(0, 8)
         self.table.setObjectName("globalCoefficients")
         self.table.setAccessibleName(tr("gfit.field.Parameters"))
-        self.table.setHorizontalHeaderLabels([text(key) for key in self.KEYS])
+        self.table.setHorizontalHeaderLabels([*(text(key) for key in self.KEYS), tr("links.source"),
+                                              tr("links.factor"), tr("links.offset")])
+        self.notes = []
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.verticalHeader().setVisible(False)
@@ -292,6 +305,7 @@ class GlobalCoefficientEditor(QWidget):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.AllEditTriggers
                                    & ~QAbstractItemView.EditTrigger.CurrentChanged)
         self.table.setItemDelegateForColumn(self.SCOPE, ScopeDelegate(self.table))
+        self.table.setItemDelegateForColumn(self.SOURCE, linking.SourceDelegate(self._candidates, self.table))
         self.table.setMinimumHeight(170)
         layout.addWidget(self.table, 1)
         buttons = QHBoxLayout()
@@ -313,24 +327,32 @@ class GlobalCoefficientEditor(QWidget):
         self.status.setObjectName("notice")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+        self.preview = linking.PreviewLabels()
+        layout.addWidget(self.preview)
         for record in records if isinstance(records, (list, tuple)) else ():
             if isinstance(record, dict):
+                link = record.get("link") if isinstance(record.get("link"), dict) else {}
                 self._append(shown_number(record.get("name")), shown_number(record.get("start")),
                              shown_number(record.get("lower")), shown_number(record.get("upper")),
-                             scope_of(record))
+                             scope_of(record), shown_number(link.get("source")) if link else "",
+                             shown_number(link.get("factor")) if link else "",
+                             shown_number(link.get("offset")) if link else "")
         self.table.itemChanged.connect(self._edited)
         self.mark()
 
     # rows
-    def _append(self, name, start="1", lower="", upper="", scope="Local"):
+    def _append(self, name, start="1", lower="", upper="", scope="Local", source="", factor="", offset=""):
         row = self.table.rowCount()
         self.table.blockSignals(True)
         self.table.insertRow(row)
         for column, value in enumerate((name, start, lower, upper)):
             self.table.setItem(row, column, QTableWidgetItem(value))
+        self.table.item(row, self.NAME).setData(Qt.ItemDataRole.UserRole, name)
         item = QTableWidgetItem(tr(SCOPE_KEYS[scope]))
         item.setData(Qt.ItemDataRole.UserRole, scope)
         self.table.setItem(row, self.SCOPE, item)
+        for column, value in ((self.SOURCE, source), (self.FACTOR, factor), (self.OFFSET, offset)):
+            self.table.setItem(row, column, QTableWidgetItem(value))
         self.table.blockSignals(False)
         return row
 
@@ -345,7 +367,9 @@ class GlobalCoefficientEditor(QWidget):
             scope = self.table.item(row, self.SCOPE).data(Qt.ItemDataRole.UserRole) or "Local"
             found.append({"name": self.cell(row, self.NAME).strip(), "start": self.cell(row, self.START),
                           "lower": self.cell(row, self.LOWER), "upper": self.cell(row, self.UPPER),
-                          "scope": scope if scope in SCOPES else "Local"})
+                          "scope": scope if scope in SCOPES else "Local",
+                          "source": self.cell(row, self.SOURCE).strip(), "factor": self.cell(row, self.FACTOR),
+                          "offset": self.cell(row, self.OFFSET)})
         return found
 
     def names(self):
@@ -359,10 +383,121 @@ class GlobalCoefficientEditor(QWidget):
     def set_cell(self, row, column, value):
         self.table.item(row, column).setText(value)
 
-    def _edited(self, _item=None):
+    def _candidates(self, row):
+        own = self.cell(row, self.NAME).strip()
+        return [name for name in self.names() if name != own]
+
+    def _edited(self, item=None):
         self.problem = None
+        if item is not None:
+            self.table.blockSignals(True)
+            try:
+                self._follow(item)
+            finally:
+                self.table.blockSignals(False)
         self.mark()
         self.changed.emit()
+
+    def _follow(self, item):
+        """Keep scope and link cells consistent, and the sources in step with a renamed coefficient."""
+        row, column = item.row(), item.column()
+        if column == self.NAME:
+            old, new = item.data(Qt.ItemDataRole.UserRole) or "", item.text().strip()
+            item.setData(Qt.ItemDataRole.UserRole, new)
+            dependents = [other for other in range(self.table.rowCount())
+                          if other != row and old and old != new and self.cell(other, self.SOURCE).strip() == old]
+            if dependents and new:
+                for other in dependents:
+                    self.set_cell(other, self.SOURCE, new)
+                self.notes = [tr("links.renamed", new=new, old=old)]
+            elif dependents:
+                self._unlink(dependents)
+        elif column == self.SOURCE:
+            scope = self.table.item(row, self.SCOPE).data(Qt.ItemDataRole.UserRole)
+            if item.text().strip():
+                if scope not in LINKED_SCOPES:
+                    self.set_scope(row, "Linked shared" if scope == "Shared" else "Linked")
+                for key, default in ((self.FACTOR, "1"), (self.OFFSET, "0")):
+                    if not self.cell(row, key).strip():
+                        self.set_cell(row, key, default)
+            elif scope in LINKED_SCOPES:
+                self.set_scope(row, "Shared" if scope == "Linked shared" else "Local")
+                self.set_cell(row, self.FACTOR, "")
+                self.set_cell(row, self.OFFSET, "")
+        elif column == self.SCOPE:
+            scope = item.data(Qt.ItemDataRole.UserRole)
+            if scope not in LINKED_SCOPES and self.cell(row, self.SOURCE).strip():
+                self.set_cell(row, self.SOURCE, "")
+                self.set_cell(row, self.FACTOR, "")
+                self.set_cell(row, self.OFFSET, "")
+            elif scope in LINKED_SCOPES:
+                for key, default in ((self.FACTOR, "1"), (self.OFFSET, "0")):
+                    if not self.cell(row, key).strip():
+                        self.set_cell(row, key, default)
+
+    def _unlink(self, rows):
+        """Their source was removed: each dependent becomes free again (Local or Shared) from its current start."""
+        names = []
+        for other in rows:
+            scope = self.table.item(other, self.SCOPE).data(Qt.ItemDataRole.UserRole)
+            self.set_scope(other, "Shared" if scope == "Linked shared" else "Local")
+            for column in (self.SOURCE, self.FACTOR, self.OFFSET):
+                self.set_cell(other, column, "")
+            names.append(self.cell(other, self.NAME).strip())
+        self.notes = [tr("links.removed_parent", names=", ".join(name for name in names if name))]
+
+    def link_records(self):
+        """Records for the link preview: unreadable numbers stay text and the engine names them."""
+        records = []
+        for values in self.rows():
+            if not values["name"]:
+                continue
+            record = {"name": values["name"], "fixed": values["scope"] == "Fixed",
+                      "shared": values["scope"] in ("Shared", "Linked shared", "Fixed")}
+            for key in ("start", "lower", "upper"):
+                try:
+                    record[key] = parse_number(values[key])
+                except ValueError:
+                    record[key] = values[key]
+            if record["start"] is None:
+                record["start"] = 1.0
+            if values["scope"] in LINKED_SCOPES:
+                try:
+                    record["link"] = linking.link_of(values["name"], values["source"], values["factor"],
+                                                     values["offset"]) or {"source": ""}
+                except FieldError:
+                    record["link"] = {"source": values["source"], "factor": values["factor"],
+                                      "offset": values["offset"]}
+            records.append(record)
+        return records
+
+    def refresh_links(self):
+        """Linked rows show the start they take from the link (read-only); the preview lists formulas and limits."""
+        records = self.link_records()
+        starts = linking.derived_starts(records)
+        self.table.blockSignals(True)
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, self.START)
+            scope = self.table.item(row, self.SCOPE).data(Qt.ItemDataRole.UserRole)
+            linked = scope in LINKED_SCOPES
+            font = item.font()
+            font.setItalic(linked)
+            item.setFont(font)
+            if linked:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                name = self.cell(row, self.NAME).strip()
+                if name in starts:
+                    item.setText(shown_number(starts[name]))
+            else:
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+            for column in (self.SOURCE, self.FACTOR, self.OFFSET):
+                cell = self.table.item(row, column)
+                flags = cell.flags()
+                cell.setFlags(flags | Qt.ItemFlag.ItemIsEditable if linked or column == self.SOURCE
+                              else flags & ~Qt.ItemFlag.ItemIsEditable)
+        self.table.blockSignals(False)
+        self.preview.show_records(records, self.notes)
+        self.notes = []
 
     def free_name(self):
         used = set(self.names())
@@ -384,6 +519,13 @@ class GlobalCoefficientEditor(QWidget):
         row = self.table.currentRow()
         if row < 0:
             return
+        name = self.cell(row, self.NAME).strip()
+        dependents = [other for other in range(self.table.rowCount())
+                      if other != row and name and self.cell(other, self.SOURCE).strip() == name]
+        if dependents:
+            self.table.blockSignals(True)
+            self._unlink(dependents)
+            self.table.blockSignals(False)
         self.table.removeRow(row)
         if self.table.rowCount():
             self.table.setCurrentCell(min(row, self.table.rowCount() - 1), self.NAME)
@@ -405,7 +547,8 @@ class GlobalCoefficientEditor(QWidget):
         self.table.blockSignals(False)
         for name in names[:MAX_PARAMETERS]:
             row = kept.get(name, {"start": "1", "lower": "", "upper": "", "scope": "Local"})
-            self._append(name, row["start"], row["lower"], row["upper"], row["scope"])
+            self._append(name, row["start"], row["lower"], row["upper"], row["scope"], row.get("source", ""),
+                         row.get("factor", ""), row.get("offset", ""))
         lines = [text("read_done", count=min(len(names), MAX_PARAMETERS))]
         if removed:
             lines.append(text("removed", names=", ".join(removed)))
@@ -429,6 +572,7 @@ class GlobalCoefficientEditor(QWidget):
                 lines.append(text("missing", names=", ".join(missing)))
         self.status.setText(" ".join(lines))
         self.status.setVisible(bool(lines))
+        self.refresh_links()
 
     # values
     def values(self):
@@ -454,8 +598,19 @@ class GlobalCoefficientEditor(QWidget):
                 self.problem = (row, self.START)
                 raise FieldError("Parameters", f"{name}: the value must be a finite number." if fixed
                                  else f"{name}: the starting value must be a finite number.")
-            records.append({"name": name, "start": numbers["start"], "lower": numbers["lower"],
-                            "upper": numbers["upper"], "fixed": fixed, "shared": shared})
+            record = {"name": name, "start": numbers["start"], "lower": numbers["lower"],
+                      "upper": numbers["upper"], "fixed": fixed, "shared": shared}
+            if values["scope"] in LINKED_SCOPES:
+                # The link replaces Local/Shared: "shared" says whether it has one value for every series.
+                record["shared"] = values["scope"] == "Linked shared"
+                if not values["source"]:
+                    self.problem = (row, self.SOURCE)
+                    raise FieldError("Parameters", f"{name}: choose the source coefficient of the link.")
+                record["link"] = linking.link_of(
+                    name, values["source"], values["factor"], values["offset"],
+                    lambda key, row=row: setattr(self, "problem",
+                                                 (row, self.FACTOR if key == "factor" else self.OFFSET)))
+            records.append(record)
         self.problem = None
         return records
 
@@ -478,7 +633,8 @@ class GlobalCoefficientEditor(QWidget):
         message = str(error or "")
         names = self.names()
         row = None
-        match = re.match(r"(?:Coefficient name |The coefficient )?(?P<name>[A-Za-z][A-Za-z0-9_]*)", message)
+        match = re.match(r"(?:Coefficient name |The coefficient |The links form a cycle: )?"
+                         r"(?P<name>[A-Za-z][A-Za-z0-9_]*)", message)
         if match and match["name"] in names:
             row = names.index(match["name"])
             if message.startswith("The coefficient") and names.count(match["name"]) > 1:
@@ -497,12 +653,26 @@ class GlobalCoefficientEditor(QWidget):
             column = self.LOWER
         elif "upper" in lowered:
             column = self.UPPER
+        elif "link" in lowered or "cycle" in lowered:
+            column = self.SOURCE
         elif "shared" in lowered or "true or false" in lowered or "condition" in lowered:
             column = self.SCOPE
         else:
             column = self.START
         self.focus_cell(row, column)
         return True
+
+
+def _link_numbers(row):
+    """Factor and offset typed in a coefficient row (1 and 0 when blank or unreadable)."""
+    values = []
+    for key, default in (("factor", 1.0), ("offset", 0.0)):
+        try:
+            value = parse_number(row.get(key, ""))
+        except ValueError:
+            value = None
+        values.append(default if value is None else value)
+    return values
 
 
 # -- series constraints -------------------------------------------------------------------------------------
@@ -652,6 +822,9 @@ class GlobalSeriesEditor(QWidget):
             grid.addWidget(QLabel(name), position, 0)
             tag = {"Local": text("local_tag"), "Shared": text("shared_tag"), "Fixed": text("fixed_tag")}.get(
                 scope, text("unknown_tag"))
+            if scope in LINKED_SCOPES:
+                tag = tr("links.tag", formula=linking.links.affine_text(
+                    name, *_link_numbers(row), row.get("source") or "?"))
             tag_label = QLabel(tag)
             tag_label.setObjectName("muted" if scope else "notice")
             grid.addWidget(tag_label, position, 1)
@@ -664,10 +837,12 @@ class GlobalSeriesEditor(QWidget):
                 field.setAccessibleName(f"{self.series} · {name} · {key}")
                 field.setPlaceholderText(inherited[key])
                 field.setMinimumWidth(64)
-                blocked = (scope in ("Shared", "Fixed") and key in ("initial", "fixed")) or self.series is None
+                blocked = ((scope in ("Shared", "Fixed", *LINKED_SCOPES) and key in ("initial", "fixed"))
+                           or self.series is None)
                 if blocked and not field.text():
                     field.setEnabled(False)
-                    field.setToolTip(text("shared_tip" if scope == "Shared" else "fixed_tip"))
+                    field.setToolTip(tr("links.series_tip") if scope in LINKED_SCOPES
+                                     else text("shared_tip" if scope == "Shared" else "fixed_tip"))
                 field.textEdited.connect(lambda _text, name=name, key=key: self._typed(name, key))
                 grid.addWidget(field, position, column)
                 self.fields[(name, key)] = field
@@ -698,6 +873,8 @@ class GlobalSeriesEditor(QWidget):
             return {"initial": "", "lower": lower, "upper": upper, "fixed": start}
         if scope == "Shared":
             return {"initial": start, "lower": lower, "upper": upper, "fixed": text("estimated")}
+        if scope in LINKED_SCOPES:
+            return {"initial": "", "lower": lower, "upper": upper, "fixed": ""}
         return {"initial": start, "lower": lower, "upper": upper, "fixed": text("estimated")}
 
     def _typed(self, name, key):
@@ -963,11 +1140,13 @@ def attach(dialog):
     equation = _control(dialog, "Equation")
     syntax = _control(dialog, SYNTAX)
     if isinstance(coefficients, GlobalCoefficientEditor):
+        coefficients.changed.connect(lambda: dialog.clear_field_error("Parameters"))
         if equation is not None:
             equation.textChanged.connect(coefficients.mark)
         if syntax is not None:
             syntax.currentIndexChanged.connect(lambda _=None: coefficients.mark())
     if isinstance(series, GlobalSeriesEditor):
+        series.changed.connect(lambda: dialog.clear_field_error("Series constraints"))
         if isinstance(coefficients, GlobalCoefficientEditor):
             coefficients.changed.connect(series.refresh_coefficients)
         for name in SERIES_ROLES:

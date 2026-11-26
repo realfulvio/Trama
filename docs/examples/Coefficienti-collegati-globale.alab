@@ -1,0 +1,179 @@
+{
+ "version": 2,
+ "tables": [
+  {
+   "title": "Curve collegate",
+   "columns": [
+    "serie",
+    "x",
+    "y",
+    "sd"
+   ],
+   "kinds": [
+    "text",
+    "numeric",
+    "numeric",
+    "numeric"
+   ],
+   "rows": [
+    [
+     "Uno",
+     -2.0,
+     16.2,
+     1.0
+    ],
+    [
+     "Uno",
+     -1.0,
+     5.1,
+     1.0
+    ],
+    [
+     "Uno",
+     0.0,
+     3.0,
+     1.0
+    ],
+    [
+     "Uno",
+     1.0,
+     8.9,
+     1.0
+    ],
+    [
+     "Uno",
+     2.0,
+     21.8,
+     1.0
+    ],
+    [
+     "Due",
+     -2.0,
+     10.9,
+     2.0
+    ],
+    [
+     "Due",
+     -1.0,
+     0.7,
+     2.0
+    ],
+    [
+     "Due",
+     0.0,
+     -2.0,
+     2.0
+    ],
+    [
+     "Due",
+     1.0,
+     3.3,
+     2.0
+    ],
+    [
+     "Due",
+     2.0,
+     17.1,
+     2.0
+    ]
+   ],
+   "formulas": [],
+   "analyses": [
+    [
+     "Global fit custom equation",
+     {
+      "X": "x",
+      "Y": "y",
+      "Group": "serie",
+      "Equation": "B + A*X + C*X^2",
+      "Parameters": [
+       {
+        "name": "A",
+        "start": 1.0,
+        "lower": null,
+        "upper": null,
+        "fixed": false,
+        "shared": true
+       },
+       {
+        "name": "B",
+        "start": 1.0,
+        "lower": null,
+        "upper": null,
+        "fixed": false,
+        "shared": false
+       },
+       {
+        "name": "C",
+        "start": 3.0,
+        "lower": null,
+        "upper": null,
+        "fixed": false,
+        "shared": true,
+        "link": {
+         "source": "A",
+         "factor": 2.0,
+         "offset": 1.0
+        }
+       }
+      ],
+      "Series constraints": [],
+      "Confidence level (%)": 95.0,
+      "Curve points": 201,
+      "Weighting": "Unweighted",
+      "SD column": null
+     }
+    ],
+    [
+     "Global fit custom equation",
+     {
+      "X": "x",
+      "Y": "y",
+      "Group": "serie",
+      "Equation": "B + A*X + C*X^2",
+      "Parameters": [
+       {
+        "name": "A",
+        "start": 1.0,
+        "lower": null,
+        "upper": null,
+        "fixed": false,
+        "shared": true
+       },
+       {
+        "name": "B",
+        "start": 1.0,
+        "lower": null,
+        "upper": null,
+        "fixed": false,
+        "shared": false
+       },
+       {
+        "name": "C",
+        "start": 3.0,
+        "lower": null,
+        "upper": null,
+        "fixed": false,
+        "shared": true,
+        "link": {
+         "source": "A",
+         "factor": 2.0,
+         "offset": 1.0
+        }
+       }
+      ],
+      "Series constraints": [],
+      "Confidence level (%)": 95.0,
+      "Curve points": 201,
+      "Weighting": "Inverse variance (column)",
+      "SD column": "sd"
+     }
+    ]
+   ],
+   "excluded": [],
+   "table_format": "multivariable",
+   "graph_styles": {}
+  }
+ ],
+ "layouts": []
+}

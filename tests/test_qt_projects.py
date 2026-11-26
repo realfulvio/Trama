@@ -375,6 +375,34 @@ class ProjectTabsTests(unittest.TestCase):
         self.assertFalse(window.sessions[1].project.dirty)
         self.assertEqual(self.errors, [])
 
+    def test_save_while_a_cell_is_still_being_edited(self):
+        from PySide6.QtWidgets import QLineEdit
+
+        self.open(self.a)
+        sheet = self.window.sheet
+        index = sheet.model().index(1, 1)
+        sheet.setCurrentIndex(index)
+        sheet.edit(index)
+        self.app.processEvents()
+        editor = sheet.indexWidget(index)
+        self.assertIsInstance(editor, QLineEdit)
+        editor.selectAll()
+        QTest.keyClicks(editor, "77")
+        QTest.keyClick(editor, Qt.Key.Key_S, Qt.KeyboardModifier.ControlModifier)
+        self.wait()
+        self.assertEqual(load_project(self.a)["Misure"].raw.iat[1, 1], 77)
+        self.assertFalse(self.window.project.dirty)
+
+    def test_save_as_flushes_a_cell_waiting_for_the_next_event(self):
+        self.open(self.a)
+        self.type_cell(1, 1, "87", apply=False)
+        target = self.a.with_name("saved-copy.alab")
+        with mock.patch("trama_qt.window.QFileDialog.getSaveFileName", return_value=(str(target), "")):
+            self.window.actions["save_as"].trigger()
+            self.wait()
+        self.assertEqual(load_project(target)["Misure"].raw.iat[1, 1], 87)
+        self.assertNotEqual(load_project(self.a)["Misure"].raw.iat[1, 1], 87)
+
     def test_a_late_edit_from_a_closed_tab_is_not_applied_elsewhere(self):
         window = self.window
         self.open(self.a)

@@ -40,6 +40,10 @@ _DISTRIBUTION_HEADERS = {
 
 def result_labels(method, title):
     """Localize the view while keeping the result keys and frame columns for linked recipes."""
+    if method == "Kaplan–Meier survival":
+        from analisi.weighted_logrank import SHEETS, sheet_labels
+        if title in SHEETS:
+            return sheet_labels(title)
     if method == "Multiple regression" and title == LACK_OF_FIT_SHEET:
         return tr("mlr.lof.sheet"), {name: tr(key) for name, key in HEADER_KEYS.items()}
     if method == "t-test" and title == PAIRED_DIFFERENCES:

@@ -25,6 +25,7 @@ from analisi.kmeans_options import METHODS as KMEANS_METHODS
 from analisi.kmeans_reports import FIT_DIAGNOSTICS_TABLE, FIT_REASON, FIT_SOURCE
 from analisi.correlation_matrix import CORRELATION_MATRIX
 from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
+from analisi.weighted_logrank import WeightedComparisonCancelled
 from analisi.plot_function import CURVES as FUNCTION_CURVES, PLOT_FUNCTION
 from analisi.transpose_xy import TRANSPOSE_XY
 from analisi.presentation import apply_style, validate_graph_style
@@ -533,7 +534,8 @@ class MainWindow(QMainWindow):
         from . import source_link as linked_source
         a("refresh_source", linked_source.t("Update from file…"), lambda: linked_source.update_from_file(self),
           icon="git-compare", shortcut="Ctrl+Shift+U",
-          tip=linked_source.t("Read the linked CSV or TSV file again and review the changes before applying them"))
+          tip=linked_source.t("Read the linked file (CSV, TSV or Excel sheet) again and review the changes before "
+                              "applying them"))
         a("source_link", linked_source.t("Source link…"), lambda: linked_source.manage(self), icon="sliders-horizontal",
           tip=linked_source.t("Show, change or remove the file this worksheet is linked to"))
         a("export_excel", excel_text("Export Excel workbook…"), self.export_excel_workbook, icon="sheet")
@@ -2172,6 +2174,9 @@ class MainWindow(QMainWindow):
                 if run.method == "Multiple regression" and title == "Lack of fit on replicates":
                     from analisi.ols_diagnostics import show_component, show_note
                     formatters = {"Component": show_component, "Note": show_note}
+                if run.method == "Kaplan–Meier survival":
+                    from analisi.weighted_logrank import cell_formatters
+                    formatters = cell_formatters(title) or formatters
                 if run.method in KMEANS_METHODS and title == FIT_DIAGNOSTICS_TABLE:
                     formatters = {FIT_REASON: ui, FIT_SOURCE: ui}
                 backgrounds = self.project.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})
@@ -3488,7 +3493,7 @@ class MainWindow(QMainWindow):
                 return
             try:
                 result = future.result()
-            except (MonteCarloCancelled, ChainCancelled):
+            except (MonteCarloCancelled, ChainCancelled, WeightedComparisonCancelled):
                 self.status(qt("qt.cancelled"))
                 return
             except Exception as error:  # Field and data errors reopen the dialog with the message.
@@ -3551,7 +3556,7 @@ class MainWindow(QMainWindow):
             recovery = None
             try:
                 outcomes = future.result()
-            except ChainCancelled:
+            except (ChainCancelled, WeightedComparisonCancelled):
                 self.project.restore_after_cancel(job, qt("qt.cancelled"))
                 self.status(qt("qt.cancelled"))
             except Exception as error:
@@ -3667,7 +3672,7 @@ class MainWindow(QMainWindow):
             from .family import family_error_text
             try:
                 outcome = future.result()
-            except ChainCancelled:
+            except (ChainCancelled, WeightedComparisonCancelled):
                 self.status(cancelled)
                 return
             except Exception as error:
@@ -4149,6 +4154,15 @@ class MainWindow(QMainWindow):
                 if dialog.link_spec is not None:  # Link to the source file: File → Update from file… reads it again.
                     self.project.attach_source(titles[0], dialog.link_spec)
                 self.status(qt("qt.imported", count=len(titles)))
+            elif import_data and suffix == ".xlsx":  # One sheet, its header row, and optionally a link to it.
+                from .workbook_link import WorkbookImportDialog
+                dialog = WorkbookImportDialog(self, path)
+                if dialog.exec() != WorkbookImportDialog.DialogCode.Accepted or dialog.result is None:
+                    return
+                titles = self.project.add_tables({dialog.sheet: dialog.result})
+                if dialog.link_spec is not None:  # File → Update from file… reads this sheet again.
+                    self.project.attach_source(titles[0], dialog.link_spec)
+                self.status(qt("qt.imported", count=len(titles)))
             else:
                 titles = self.project.load(path, import_warnings=import_warnings)
                 self.status(qt("qt.imported", count=len(titles)))
@@ -4221,7 +4235,17 @@ class MainWindow(QMainWindow):
     def save(self, *, as_new=False):
         if self.busy() or not self.settle_graph_draft():
             return False
+        project = self.project
+        self._commit_sheet_edit()
         self.flush_info()
+        if self.job is not None:
+            # Committing the editor can start a linked calculation. Save this project when it settles.
+            def save_after_edit():
+                if self.project is project:
+                    self.save(as_new=as_new)
+
+            self._deferred.append(save_after_edit)
+            return False
         if not self.project.tables and not self.project.info_sheets:
             return False
         path = self.project.path if not as_new else None

@@ -1,4 +1,4 @@
-"""Worksheets linked to the CSV or TSV file they were imported from (File → Update from file…).
+"""Worksheets linked to the CSV or TSV file, or the .xlsx sheet, they were imported from (File → Update from file…).
 
 A linked worksheet keeps the last confirmed copy of the file in its cells: a project opens and calculates offline,
 and nothing changes until the person reads the file again and confirms. The link (``SourceLink``) stores:
@@ -25,6 +25,13 @@ why. ``arrange`` turns a plan and the decisions into the new row order; ``trama_
 worksheet edit, so excluded cells, backgrounds, text styles, row heights and the point styles and labels of graphs
 follow their row, Undo restores data, order and link in one step, and the analyses recalculate once.
 
+A link to a workbook (``kind == "xlsx"``) stores the exact sheet name and the header row (or reading by position)
+in ``options`` (``analisi.xlsx_source.WorkbookOptions``) instead of the delimiter and the text options; the rest is
+the same. ``analisi.xlsx_source`` reads the sheet from the very bytes that were digested. Workbook links are saved
+under their own key (``SOURCE_LINK_WORKBOOK``): versions of Trama before this one do not know it and open the
+worksheet with its last confirmed cells and without the link (saving there drops it). CSV/TSV links keep the record
+they always had.
+
 The file is only ever opened for reading. Paths are local files: a URL is refused.
 """
 import base64
@@ -40,12 +47,16 @@ import numpy as np
 import pandas as pd
 
 from .text_import import (DECIMAL_MARKS, DELIMITERS, ImportCancelled, ImportOptions, TextImport, decode_text)
+from . import xlsx_source
+from .xlsx_source import WORKBOOK, WorkbookOptions
 from .worksheet_column_identity import COLUMN_IDS, after_insertion as column_ids_after_insertion, current_ids
 from .worksheet_column_identity import valid_token as valid_column_token
 from .worksheet_row_identity import ROW_SPANS, RowSpans, current_spans, row_tokens, saved_spans
 
 SOURCE_LINK = "source_link"
+SOURCE_LINK_WORKBOOK = "source_link_workbook"  # A new key: older versions ignore it instead of refusing the project.
 FORMAT = 1
+TEXT = "text"
 ROW_BYTES = 16  # Key digest, then row digest: 8 bytes each, little endian.
 MAX_PATH = 4096
 MAX_SHOWN = 8  # Keys or lines named in one message.
@@ -98,6 +109,8 @@ class SourceLink:
     spans: RowSpans  # Row identities of the confirmed file rows, in file order.
     digests: bytes  # ROW_BYTES per confirmed file row.
     encoding: str = "utf-8"
+    relative_folder: Path | None = None  # Session only. Undo can restore a link from before Save as.
+    kind: str = TEXT  # TEXT (CSV/TSV, ``options`` is ImportOptions) or WORKBOOK (.xlsx, WorkbookOptions).
 
     def __copy__(self):
         return self
@@ -112,6 +125,11 @@ class SourceLink:
     @property
     def name(self):
         return _path_name(self.path)
+
+    @property
+    def sheet(self):
+        """The exact name of the linked sheet of a workbook (None for a text file)."""
+        return self.options.sheet if self.kind == WORKBOOK else None
 
     def key_column(self, raw):
         """The worksheet name of the key column (None without a key or when it was deleted)."""
@@ -128,11 +146,14 @@ class SourceLink:
     def with_relative(self, folder):
         """The link with its path relative to ``folder`` (the project folder), or without one when the file is on
         another drive."""
+        target = self.relative_folder / self.relative if self.relative and self.relative_folder else self.path
         try:
-            relative = Path(os.path.relpath(self.path, folder)).as_posix()
+            relative = Path(os.path.relpath(target, folder)).as_posix()
         except (ValueError, TypeError, OSError):
             relative = None
-        return self if relative == self.relative else replace(self, relative=relative)
+        if relative == self.relative and folder == self.relative_folder:
+            return self
+        return replace(self, relative=relative, relative_folder=folder)
 
 
 def _path_name(path):
@@ -141,6 +162,16 @@ def _path_name(path):
 
 # == the record saved in a .alab project ==========================================================================
 def link_record(link):
+    """The saved record of ``link``, to store under ``record_key(link)``."""
+    if link.kind == WORKBOOK:
+        record = {"format": FORMAT, "path": link.path, "sheet": link.options.sheet, "header": link.options.header,
+                  "columns": [[source, token] for source, token in link.columns], "key": link.key,
+                  "file": {"size": link.size, "sha256": link.sha256},
+                  "rows": {"spans": [list(span) for span in link.spans],
+                           "digests": base64.b64encode(link.digests).decode("ascii")}}
+        if link.relative:
+            record["relative"] = link.relative
+        return record
     record = {"format": FORMAT, "path": link.path, "encoding": link.encoding, "delimiter": link.delimiter,
               "options": asdict(link.options), "columns": [[source, token] for source, token in link.columns],
               "key": link.key, "file": {"size": link.size, "sha256": link.sha256},
@@ -151,17 +182,32 @@ def link_record(link):
     return record
 
 
-def read_link_record(record):
-    """Validate a saved link. A damaged record is refused, never guessed."""
+def record_key(link):
+    return SOURCE_LINK_WORKBOOK if link.kind == WORKBOOK else SOURCE_LINK
+
+
+def read_link_record(record, *, kind=TEXT):
+    """Validate a saved link (``kind``: TEXT for the ``SOURCE_LINK`` key, WORKBOOK for ``SOURCE_LINK_WORKBOOK``).
+    A damaged record is refused, never guessed."""
     problem = "Invalid link to a source file."
     if not isinstance(record, dict) or record.get("format") != FORMAT:
         raise ValueError(problem)
     path, relative = record.get("path"), record.get("relative")
     if not _valid_path(path) or (relative is not None and not _valid_path(relative)):
         raise ValueError(problem)
-    if record.get("encoding") != "utf-8" or record.get("delimiter") not in _DELIMITER_NAMES:
+    if kind == WORKBOOK:
+        if not {"delimiter", "options", "encoding"}.isdisjoint(record):
+            raise ValueError(problem)
+        sheet, header = record.get("sheet"), record.get("header", 0)
+        if not xlsx_source.valid_sheet_name(sheet) or not xlsx_source.valid_header(header):
+            raise ValueError(problem)
+        options, delimiter, encoding = WorkbookOptions(sheet, header), "", ""
+    elif kind == TEXT:
+        if record.get("encoding") != "utf-8" or record.get("delimiter") not in _DELIMITER_NAMES:
+            raise ValueError(problem)
+        options, delimiter, encoding = read_options(record.get("options")), record["delimiter"], "utf-8"
+    else:
         raise ValueError(problem)
-    options = read_options(record.get("options"))
     columns = record.get("columns")
     if not isinstance(columns, list) or not columns or len(columns) > 1100:
         raise ValueError(problem)
@@ -190,8 +236,8 @@ def read_link_record(record):
     if len(digests) % ROW_BYTES:
         raise ValueError(problem)
     spans = saved_spans(rows.get("spans"), len(digests) // ROW_BYTES)
-    return SourceLink(path, relative, record["delimiter"], options, tuple(pairs), key, stamp["size"],
-                      stamp["sha256"], spans, digests)
+    return SourceLink(path, relative, delimiter, options, tuple(pairs), key, stamp["size"], stamp["sha256"], spans,
+                      digests, encoding, kind=kind)
 
 
 def read_options(record):
@@ -228,8 +274,9 @@ def locate(link, project_path):
     absolute = Path(link.path)
     if absolute.is_file():
         return absolute, False
-    if link.relative and project_path is not None:
-        candidate = Path(project_path).parent / link.relative
+    folder = Path(project_path).parent if project_path is not None else link.relative_folder
+    if link.relative and folder is not None:
+        candidate = folder / link.relative
         if candidate.is_file():
             return candidate.resolve(), True
     return None, False
@@ -249,7 +296,7 @@ class SourceFile:
     size: int
     mtime_ns: int
     sha256: str
-    content: str
+    content: str | bytes  # The decoded text of a CSV/TSV file, the bytes of a workbook.
 
     @property
     def stamp(self):
@@ -261,13 +308,13 @@ def stamp_of(path):
     return status.st_size, status.st_mtime_ns
 
 
-def read_file(path, *, cancel=None, progress=None, attempts=3):
+def read_file(path, *, cancel=None, progress=None, attempts=3, text=True):
     """Read the file for reading only and digest it. A file whose size or modification time moves during the read
     is read again (a network folder can settle the time of a file just copied there); one that keeps changing is
-    refused."""
+    refused. ``text=False`` keeps the bytes (a workbook) instead of decoding UTF-8."""
     path = local_path(path)
     for attempt in range(attempts):
-        source = _read_once(path, cancel, progress)
+        source = _read_once(path, cancel, progress, text)
         if source is not None:
             return source
         for _ in range(5):  # A short pause before reading again, still answering Cancel.
@@ -277,7 +324,7 @@ def read_file(path, *, cancel=None, progress=None, attempts=3):
     raise ValueError("The file changed while it was being read. Try again when it is complete.")
 
 
-def _read_once(path, cancel, progress):
+def _read_once(path, cancel, progress, text=True):
     from .data import MAX_ENTRY
 
     try:
@@ -301,7 +348,9 @@ def _read_once(path, cancel, progress):
     after = os.stat(path)
     if (after.st_size, after.st_mtime_ns) != (before.st_size, before.st_mtime_ns) or done != after.st_size:
         return None
-    return SourceFile(path, after.st_size, after.st_mtime_ns, digest.hexdigest(), decode_text(b"".join(pieces)))
+    content = b"".join(pieces)
+    return SourceFile(path, after.st_size, after.st_mtime_ns, digest.hexdigest(),
+                      decode_text(content) if text else content)
 
 
 def same_file(path, stamp, sha256):
@@ -412,12 +461,18 @@ class LinkSpec:
     options: ImportOptions
     sources: tuple  # File column of each imported worksheet column, in worksheet order.
     key: object = None  # The source of the key column, or None.
+    kind: str = TEXT  # WORKBOOK: ``delimiter`` is empty and ``options`` a WorkbookOptions.
 
 
 def column_sources(text_import, options, positions):
     """How each chosen file column is found again: its header text when it has one that is unique in the header,
     otherwise its position."""
     header = [name.strip() for name in text_import.records[0]] if options.header and text_import.records else []
+    return header_sources(header, positions)
+
+
+def header_sources(header, positions):
+    """``column_sources`` from the stripped header texts (empty without a header): a workbook sheet too."""
     counts = {}
     for name in header:
         counts[name] = counts.get(name, 0) + 1
@@ -460,7 +515,8 @@ def new_link(spec, raw, excluded=frozenset()):
              if spec.options.mark_excluded else None)
     keys, rows = digests(values, canonical(raw[key_name]) if key_name is not None else None, flags)
     return SourceLink(str(Path(spec.path).absolute()), None, spec.delimiter, spec.options, columns, spec.key,
-                      spec.size, spec.sha256, current_spans(raw), pack(keys, rows))
+                      spec.size, spec.sha256, current_spans(raw), pack(keys, rows),
+                      "" if spec.kind == WORKBOOK else "utf-8", kind=spec.kind)
 
 
 # == planning an update =============================================================================================
@@ -472,6 +528,7 @@ class Relink:
     sources: tuple
     names: tuple  # The names the import gives these columns (matched to worksheet columns by name).
     key: object = None
+    kind: str = TEXT
 
 
 @dataclass
@@ -507,6 +564,9 @@ class Plan:
     notices: list = field(default_factory=list)
     identity_problem: Message | None = None  # Without a key: rows cannot be matched one by one.
     conflict_items: list = field(default_factory=list)  # ``Conflict`` of every row that needs a decision.
+    kind: str = TEXT
+    sheets: tuple = ()  # A workbook without the linked sheet: the sheets it has now, to choose one explicitly.
+    missing_sheet: str | None = None
 
     @property
     def keyed(self):
@@ -636,15 +696,15 @@ def _positions_of(base_spans, sheet_spans):
                      for number, ordinal in zip(base_index.tolist(), base_ordinal.tolist())], dtype=np.int64)
 
 
-def _source_columns(text_import, options, sources):
-    """File positions of the linked columns, or the problems that prevent finding them."""
+def _source_columns(header, width, sources):
+    """File positions of the linked columns, or the problems that prevent finding them. ``header``: the stripped
+    header texts (empty without a header)."""
     problems, positions = [], []
-    header = [name.strip() for name in text_import.records[0]] if options.header and text_import.records else []
     for source in sources:
         if isinstance(source, int):
-            if source >= text_import.width:
+            if source >= width:
                 problems.append(message("The file has only {count} columns: column {position} is missing.",
-                                        count=text_import.width, position=source + 1))
+                                        count=width, position=source + 1))
             positions.append(source)
             continue
         found = [position for position, name in enumerate(header) if name == source]
@@ -657,9 +717,11 @@ def _source_columns(text_import, options, sources):
 
 
 def plan_update(link, raw, excluded, path, *, project_rows_allowed=True, relink=None, found_elsewhere=False,
-                located=False, cancel=None, progress=None):
+                located=False, cancel=None, progress=None, sheet=None):
     """Read ``path`` and compare it with the worksheet ``raw`` (its exclusions ``excluded``). ``relink`` reads
     with new options (Change source…, or linking a worksheet for the first time when ``link`` is None).
+    ``sheet`` reads another sheet of the linked workbook with the same columns and key, compared with the
+    confirmed version: the explicit choice after the linked sheet was renamed or removed.
 
     Raises ``UpdateCancelled`` when ``cancel()`` turns true and ``ValueError`` when the file cannot be read;
     every other difficulty is a problem of the returned plan."""
@@ -669,16 +731,35 @@ def plan_update(link, raw, excluded, path, *, project_rows_allowed=True, relink=
         if progress is not None:
             progress(step, 100)
 
-    source = read_file(path, cancel=stop,
-                       progress=None if progress is None else lambda done, total: report(int(30 * done / total)))
-    report(30)
+    kind = relink.kind if relink is not None else link.kind
     delimiter = relink.delimiter if relink is not None else link.delimiter
     options = relink.options if relink is not None else link.options
-    try:
-        text = TextImport.parse(source.content, Path(path).suffix.lower(), _DELIMITER_NAMES[delimiter], cancel=stop)
-        text.plan(options)  # Refuses a row or column range the file no longer has.
-    except ImportCancelled as error:
-        raise UpdateCancelled from error
+    if sheet is not None:
+        if kind != WORKBOOK:
+            raise ValueError("Invalid link to a source file.")
+        options = replace(options, sheet=sheet)
+    reading = {"text": False} if kind == WORKBOOK else {}  # A workbook keeps its bytes.
+    source = read_file(path, cancel=stop, **reading,
+                       progress=None if progress is None else lambda done, total: report(int(30 * done / total)))
+    report(30)
+    table = None
+    if kind == WORKBOOK:
+        try:
+            table = xlsx_source.read_sheet(source.content, options, cancel=stop)
+        except xlsx_source.ExchangeCancelled as error:
+            raise UpdateCancelled from error
+        except xlsx_source.MissingSheet as missing:
+            return _missing_sheet_plan(link, raw, relink, path, source, options, missing, found_elsewhere, located)
+        header, width = table.header, table.width
+    else:
+        try:
+            text = TextImport.parse(source.content, Path(path).suffix.lower(), _DELIMITER_NAMES[delimiter],
+                                    cancel=stop)
+            text.plan(options)  # Refuses a row or column range the file no longer has.
+        except ImportCancelled as error:
+            raise UpdateCancelled from error
+        header = [name.strip() for name in text.records[0]] if options.header and text.records else []
+        width = text.width
     report(45)
     problems, notices = [], []
     sheet_ids = current_ids(raw)
@@ -714,12 +795,12 @@ def plan_update(link, raw, excluded, path, *, project_rows_allowed=True, relink=
                 tokens.append(fresh[name])
                 new_columns.append(name)
         tokens = tuple(tokens)
-    positions, column_problems = _source_columns(text, options, sources)
+    positions, column_problems = _source_columns(header, width, sources)
     problems.extend(column_problems)
-    if options.header and text.records:
+    if header:
         linked = {source_name for source_name in sources if isinstance(source_name, str)}
-        extra = [name.strip() for position, name in enumerate(text.records[0])
-                 if name.strip() and name.strip() not in linked and position not in sources]
+        extra = [name for position, name in enumerate(header)
+                 if name and name not in linked and position not in sources]
         if extra and relink is None:
             notices.append(message("The file has columns that are not linked: {names}. Change source… reads them.",
                                    names=_shown(extra)))
@@ -727,13 +808,19 @@ def plan_update(link, raw, excluded, path, *, project_rows_allowed=True, relink=
     plan = Plan(Path(path), found_elsewhere, located, source.stamp, source.size, source.sha256, link, raw, relink,
                 delimiter, options, names, sources, tokens, new_columns, key_name, key_source, None, [],
                 np.zeros(0, np.uint64), np.zeros(0, np.uint64), np.zeros(0, np.int64), np.zeros(0, np.int64), [], [],
-                [], problems, notices)
+                [], problems, notices, kind=kind)
     if problems:
         return plan
-    try:
-        frame = text.table(options, columns=positions, cancel=stop)
-    except ImportCancelled as error:
-        raise UpdateCancelled from error
+    if table is not None:
+        problems.extend(table.cell_problems(positions))
+        if problems:
+            return plan
+        frame = table.table(positions)
+    else:
+        try:
+            frame = text.table(options, columns=positions, cancel=stop)
+        except ImportCancelled as error:
+            raise UpdateCancelled from error
     frame.columns = names
     marks = frame.attrs.pop("excluded", [])
     report(60)
@@ -825,6 +912,20 @@ def plan_update(link, raw, excluded, path, *, project_rows_allowed=True, relink=
                                    "{names}.", names=_shown(dropped)))
     report(100)
     return plan
+
+
+def _missing_sheet_plan(link, raw, relink, path, source, options, missing, found_elsewhere, located):
+    """The plan of a workbook without the linked sheet: nothing to compare, the reason and the sheets it has."""
+    names = list(missing.sheets)
+    text = message("The workbook no longer has the sheet {sheet}. Choose one of its sheets: {names}.",
+                   sheet=missing.sheet, names=_shown(names) or "-")
+    sources = relink.sources if relink is not None else tuple(source_name for source_name, _ in link.columns)
+    tokens = (tuple(token for _, token in link.columns) if relink is None else ())
+    empty = np.zeros(0, np.int64)
+    return Plan(Path(path), found_elsewhere, located, source.stamp, source.size, source.sha256, link, raw, relink,
+                "", options, [], sources, tokens, [], None, link.key if relink is None else relink.key, None, [],
+                np.zeros(0, np.uint64), np.zeros(0, np.uint64), empty, empty, [], [], [], [text], [],
+                kind=WORKBOOK, sheets=tuple(names), missing_sheet=missing.sheet)
 
 
 def _match_by_key(plan, raw, local_keys, local_rows, base_keys, base_rows, base_positions, base_tokens, based,
@@ -1133,7 +1234,9 @@ def confirmed_link(plan, arrangement, new_raw):
     relative = previous.relative if previous is not None and previous.path == path else None
     return SourceLink(path, relative, plan.delimiter, plan.options, tuple(zip(plan.sources, plan.tokens)),
                       plan.key_source, plan.size, plan.sha256, _coalesce(pairs),
-                      pack(keys[keep] if len(keep) else keys[:0], rows[keep] if len(keep) else rows[:0]))
+                      pack(keys[keep] if len(keep) else keys[:0], rows[keep] if len(keep) else rows[:0]),
+                      "" if plan.kind == WORKBOOK else "utf-8",
+                      relative_folder=previous.relative_folder if relative else None, kind=plan.kind)
 
 
 def same_link(first, second):
@@ -1141,7 +1244,7 @@ def same_link(first, second):
     if first is None or second is None:
         return first is second
     return all(getattr(first, name) == getattr(second, name) for name in
-               ("path", "delimiter", "options", "columns", "key", "size", "sha256", "spans", "digests"))
+               ("kind", "path", "delimiter", "options", "columns", "key", "size", "sha256", "spans", "digests"))
 
 
 def reindex_styles(styles, arrangement, length):

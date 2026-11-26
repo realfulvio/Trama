@@ -6,6 +6,9 @@ until you ask, and every change is shown before it is applied. The file is only 
 
 ![Update preview: one row modified, one added, one moved](media/source-link/anteprima-it.png)
 
+A worksheet can also be linked to one sheet of an `.xlsx` workbook, chosen by its name: see
+[source-link-xlsx.md](source-link-xlsx.md).
+
 ## Commands
 
 | Command (IT) | What it does |
