@@ -44,8 +44,8 @@ from .point_style import (GID_PREFIX as POINT_GID_PREFIX, INDICATOR_GID, POINTS,
                           restore_point_styles, validate_points)
 from .layout_arrangement import BORDER_DASHES, PanelArrangement, validated_arrangement
 from .layout_graph_link import graph_links
-from .layout_geometry import (AUTO_PAPER, AXIS_ALIGNMENTS, LABEL_PAD, LABEL_SIZE, PANEL_SIZES, PAPER_SIZES, PT, WHITE,
-                              layout_frame, page_ink, page_size)
+from .layout_geometry import (AUTO_PAPER, AXIS_ALIGNMENTS, LABEL_PAD, LABEL_SIZE, PANEL_LIMIT, PANEL_SIZES,
+                              PAPER_SIZES, PT, WHITE, layout_frame, page_ink, page_size)
 from .layout_panels import layout_labels, plan_panels
 
 
@@ -65,7 +65,7 @@ class Layout:
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name.strip() or len(self.name) > 160:
             raise ValueError("Enter a layout name of up to 160 characters.")
-        if type(self.columns) is not int or not 1 <= self.columns <= 4 or not 1 <= len(self.panels) <= 12:
+        if type(self.columns) is not int or not 1 <= self.columns <= 4 or not 1 <= len(self.panels) <= PANEL_LIMIT:
             raise ValueError("A layout needs 1 to 12 panels in 1 to 4 columns.")
         if any(not isinstance(ref, (tuple, list)) or len(ref) != 2 or not isinstance(ref[0], str)
                or type(ref[1]) is not int or ref[1] < 0 for ref in self.panels if ref is not None):

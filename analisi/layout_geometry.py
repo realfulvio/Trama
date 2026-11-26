@@ -7,6 +7,7 @@ from matplotlib.figure import Figure
 from .figure_export import MM
 
 AUTO_PAPER = "Automatic"
+PANEL_LIMIT = 12
 WHITE = "#ffffff"
 PANEL_SIZES = ("original", "width", "height", "both")
 AXIS_ALIGNMENTS = ("none", "x", "y", "both")

@@ -94,6 +94,60 @@ class LayoutArrangementTests(unittest.TestCase):
         self.assertNotIn(3, offsets)
         self.assertEqual([panel_rectangle(panel) for panel in panels], initial)
 
+    def test_duplicate_group_preserves_rectangles_and_appearance_on_fixed_paper(self):
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_panels import EMPTY_PANEL, copy_layout_panels
+        from analisi.presentation import Layout
+
+        graph, *_ = figures()
+        arrangement = PanelArrangement(groups=((0, 1),), locked=(0,), layers=(1, 0), scales=((0, .85),),
+                                       rotations=((0, 90),), crops=((0, .12, .08, 0., 0.),),
+                                       borders=((0, 1.2, "#c62510", "dashed"),), clear_backgrounds=(0,))
+        layout = Layout("Plate", 2, [("Data", 0), None], "A4 landscape", panel_size="both",
+                        arrangement=arrangement)
+        planned = plan_panels(layout.columns, (graph, EMPTY_PANEL), layout.paper, panel_size=layout.panel_size,
+                              arrangement=arrangement)
+        copied = copy_layout_panels(layout, planned, (0, 1))
+        after = plan_panels(layout.columns, (graph, EMPTY_PANEL, graph, EMPTY_PANEL), layout.paper,
+                            panel_size=layout.panel_size, arrangement=copied.arrangement)
+
+        self.assertEqual(copied.panels, [("Data", 0), None, ("Data", 0), None])
+        self.assertEqual(copied.arrangement.groups, ((0, 1), (2, 3)))
+        self.assertEqual(copied.arrangement.layers, (1, 0, 3, 2))
+        self.assertEqual(copied.arrangement.locked, (0,))
+        self.assertEqual(copied.arrangement.clear_backgrounds, (0, 2))
+        for index, original in enumerate(planned):
+            for actual, expected in zip(panel_rectangle(after[index]), panel_rectangle(original), strict=True):
+                self.assertAlmostEqual(actual, expected)
+            self.assertEqual(after[index + 2].size, original.size)
+            self.assertAlmostEqual(after[index + 2].box[2], original.box[2])
+            self.assertEqual(after[index + 2].crop, original.crop)
+            self.assertEqual(after[index + 2].border, original.border)
+            self.assertEqual(after[index + 2].angle, original.angle)
+        deltas = [tuple(after[i + 2].box[j] - after[i].box[j] for j in (0, 1)) for i in (0, 1)]
+        for a, b in zip(*deltas, strict=True):
+            self.assertAlmostEqual(a, b)
+
+    def test_duplicate_retains_link_and_independent_picture(self):
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_graph_link import LayoutGraphLink
+        from analisi.layout_panels import copy_layout_panels
+        from analisi.layout_picture import capture_picture, picture_figure
+        from analisi.presentation import Layout
+
+        graph, *_ = figures()
+        picture = capture_picture(graph)
+        figure = picture_figure(picture)
+        link = LayoutGraphLink("/tmp/reference.alab", "Data", 0, "Linear regression")
+        arrangement = PanelArrangement(pictures=((0, *picture), (1, *picture)), clear_backgrounds=(0,))
+        layout = Layout("Plate", 2, [None, None], arrangement=arrangement, graph_links=((0, link),))
+        planned = plan_panels(2, (figure, figure), arrangement=layout.arrangement)
+        new = copy_layout_panels(layout, planned, (0, 1))
+        self.assertEqual(new.graph_links, ((0, link), (2, link)))
+        self.assertEqual(new.arrangement.clear_backgrounds, (0, 2))
+        self.assertEqual(new.arrangement.picture(2), picture)
+        self.assertEqual(new.arrangement.picture(3), picture)
+
     def test_scaled_stacking_order_is_drawn_in_raster_and_vector_pdf(self):
         import pypdfium2 as pdfium
         from matplotlib.backends.backend_agg import FigureCanvasAgg

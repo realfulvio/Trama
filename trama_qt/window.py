@@ -18,8 +18,9 @@ from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboB
 from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power, mean_permutation, parallel, power_plan, rmst
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, result_display
 from analisi.layout_arrangement import change_objects, layered, positioned, translated, with_appearance
-from analisi.layout_panels import (PanelAlignmentError, bounded_translation, layout_shifts, panel_rectangle,
-                                   plan_panels, replacement_geometry, targets_fit)
+from analisi.layout_geometry import PANEL_LIMIT
+from analisi.layout_panels import (PanelAlignmentError, bounded_translation, center_on_page, copy_layout_panels,
+                                   layout_shifts, panel_rectangle, plan_panels, replacement_geometry, targets_fit)
 from analisi.xy_series import XY_METHOD
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
@@ -682,6 +683,10 @@ class MainWindow(QMainWindow):
           shortcut="Ctrl+Shift+G")
         a("layout_front", qt("qt.layout_front"), lambda: self.arrange_layout_selection("front"))
         a("layout_back", qt("qt.layout_back"), lambda: self.arrange_layout_selection("back"))
+        a("layout_center_page", qt("qt.layout_center_page"), self.center_layout_panels,
+          tip=qt("qt.layout_center_page_tip"))
+        a("layout_duplicate", qt("qt.layout_duplicate"), self.duplicate_layout_panels, shortcut="Ctrl+D",
+          tip=qt("qt.layout_duplicate_tip"))
         a("layout_position", qt("qt.layout_position"), lambda: self.edit_layout_geometry())
         a("layout_equalize", qt("qt.layout_equalize"), lambda: self.edit_layout_geometry(equalize=True))
         for key, commands in (("layout_align_edges", LAYOUT_EDGES), ("layout_distribute", LAYOUT_DISTRIBUTIONS)):
@@ -3796,6 +3801,17 @@ class MainWindow(QMainWindow):
         return tuple(index for index, panel in enumerate(controller.panels)
                      if panel.figure is not None and index not in controller.layout.arrangement.locked)
 
+    @staticmethod
+    def _layout_centerable(controller):
+        if controller is None:
+            return ()
+        if controller.selected:
+            return () if controller.locked else tuple(controller.selected)
+        arrangement = controller.layout.arrangement
+        locked = set(arrangement.locked)
+        objects = arrangement.objects(range(len(controller.panels)))
+        return tuple(index for members in objects if locked.isdisjoint(members) for index in members)
+
     def update_layout_arrangement_actions(self):
         controller = self._active_layout_selection()
         objects = controller.objects if controller else ()
@@ -3813,6 +3829,9 @@ class MainWindow(QMainWindow):
         self.actions["layout_group"].setEnabled(can_align)
         self.actions["layout_front"].setEnabled(bool(objects))
         self.actions["layout_back"].setEnabled(bool(objects))
+        self.actions["layout_center_page"].setEnabled(bool(self._layout_centerable(controller)))
+        self.actions["layout_duplicate"].setEnabled(
+            bool(objects) and len(controller.selected) + len(controller.panels) <= PANEL_LIMIT)
         single = movable and len(controller.selected) == 1
         self.actions["layout_position"].setEnabled(single)
         self.actions["replace_layout_graph"].setEnabled(
@@ -3839,15 +3858,36 @@ class MainWindow(QMainWindow):
     def _commit_layout_arrangement(self, controller, arrangement):
         if arrangement == controller.layout.arrangement:
             return
-        selected = controller.selected
-        key = self.selected[1]
         candidate = replace(controller.layout, arrangement=arrangement)
+        self._commit_layout_selection(candidate, controller.selected)
+
+    def _commit_layout_selection(self, candidate, selected):
+        key = self.selected[1]
         self.project.put_layout(candidate, key)
         self.open_sheet(("layout", key))
         refreshed = self._active_layout_selection()
         if refreshed is not None:
             refreshed.select(selected)
             refreshed.canvas.setFocus()
+
+    def center_layout_panels(self):
+        controller = self._active_layout_selection()
+        indices = self._layout_centerable(controller)
+        if indices:
+            shifts = center_on_page(controller.panels, indices, controller.page)
+            self._commit_layout_arrangement(controller, translated(controller.layout.arrangement,
+                                                                    shifts, controller.page))
+
+    def duplicate_layout_panels(self):
+        controller = self._active_layout_selection()
+        if controller is None or not self.actions["layout_duplicate"].isEnabled():
+            return
+        try:
+            candidate = copy_layout_panels(controller.layout, controller.panels, controller.selected)
+        except ValueError:
+            self.status(qt("qt.layout_geometry_limits"))
+            return
+        self._commit_layout_selection(candidate, range(len(controller.panels), len(candidate.panels)))
 
     def toggle_layout_panel_background(self):
         controller = self._active_layout_selection()

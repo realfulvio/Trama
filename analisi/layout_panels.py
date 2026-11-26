@@ -6,7 +6,7 @@ from math import cos, isclose, radians, sin
 
 from matplotlib.figure import Figure, SubFigure
 
-from .layout_arrangement import EMPTY_CROP, PanelArrangement, valid_crop
+from .layout_arrangement import EMPTY_CROP, PanelArrangement, positioned, valid_crop
 from .layout_geometry import AUTO_PAPER, PT, page_size, panel_boxes, panel_cells
 
 
@@ -280,6 +280,57 @@ def bounded_translation(rect, shift, page):
     width, height = page
     return (min(max(dx, min(0., -x)), max(0., width - right)),
             min(max(dy, min(0., -y)), max(0., height - bottom)))
+
+
+def center_on_page(panels, indices, page):
+    left, top, right, bottom = enclosing_rectangle(panels, indices)
+    shift = ((page[0] - left - right) / 2, (page[1] - top - bottom) / 2)
+    shift = bounded_translation((left, top, right, bottom), shift, page)
+    return {index: shift for index in indices}
+
+
+def copy_layout_panels(layout, panels, indices):
+    """Append copies in the foreground, keeping the original panel rectangles in page inches."""
+    count = len(panels)
+    indices = sorted(indices)
+    copies = {index: count + offset for offset, index in enumerate(indices)}
+    figures = [panel.figure if panel.figure is not None else EMPTY_PANEL for panel in panels]
+    arrangement = layout.arrangement
+
+    new_count = count + len(indices)
+    page = page_size(layout.columns, new_count, layout.paper)
+    new_empty_size = panel_cells(layout.columns, new_count, layout.paper)[2:]
+    retained = {index for index, *_ in arrangement.empty_sizes}
+    old_empty = [index for index, panel in enumerate(panels)
+                 if panel.figure is None and index not in retained and panel.size != new_empty_size]
+    if old_empty:
+        # A fixed-size page can gain a row. Keep the old empty rectangles without
+        # introducing larger fitting dimensions into the common-width/height calculation.
+        fit_sizes = [getattr(figure, "_trama_layout_picture_size", tuple(figure.get_size_inches()))
+                     for figure in figures if figure is not EMPTY_PANEL]
+        fit_sizes.extend(size[2:] or size[:2] for _, *size in arrangement.empty_sizes)
+        fit_size = tuple(map(float, fit_sizes[0] if fit_sizes else panels[old_empty[0]].size))
+        arrangement = replace(arrangement, empty_sizes=arrangement.empty_sizes + tuple(
+            (index, *map(float, panels[index].size), *fit_size) for index in old_empty))
+
+    arrangement = arrangement.append_copies(copies)
+    planned = plan_panels(layout.columns, figures + [figures[index] for index in indices], layout.paper,
+                          panel_size=layout.panel_size, axis_alignment=layout.axis_alignment,
+                          arrangement=arrangement)
+    rect = enclosing_rectangle(panels, indices)
+    step = .16
+    requested = (step if rect[2] + step <= page[0] else -step,
+                 step if rect[3] + step <= page[1] else -step)
+    dx, dy = bounded_translation(rect, requested, page)
+    targets = {index: panel.box for index, panel in enumerate(panels)}
+    for index, copy in copies.items():
+        x, y, scale = panels[index].box
+        targets[copy] = x + dx, y + dy, scale
+    arrangement = positioned(arrangement, planned, targets, page)
+    links = layout.graph_links + tuple((copies[index], link) for index, link in layout.graph_links
+                                      if index in copies)
+    return replace(layout, panels=[*layout.panels, *(layout.panels[index] for index in indices)],
+                   arrangement=arrangement, graph_links=links)
 
 
 def _axis_anchor(panel, axis):

@@ -3546,6 +3546,58 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.project.layouts[key], layout)
         self.assertEqual(len(window.sessions), 1)
 
+    def test_layout_duplicate_and_center_use_the_selection_and_preserve_project_history(self):
+        from PySide6.QtTest import QTest
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_panels import enclosing_rectangle
+        from analisi.presentation import Layout
+        from trama_qt.project import Project
+
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        layout = Layout("Plate", 2, [graph.reference, None], "A4 landscape",
+                        arrangement=PanelArrangement(locked=(1,), scales=((0, .6),)))
+        key = window.project.put_layout(layout)
+        ref = ("layout", key)
+        window.open_sheet(ref)
+        duplicate = window.actions["layout_duplicate"]
+        center = window.actions["layout_center_page"]
+        self.assertFalse(duplicate.isEnabled())
+        self.assertTrue(center.isEnabled())
+
+        controller = window.page.layout_selection
+        locked = enclosing_rectangle(controller.panels, (1,))
+        center.trigger()
+        controller = window.page.layout_selection
+        left, top, right, bottom = enclosing_rectangle(controller.panels, (0,))
+        self.assertAlmostEqual(left + right, controller.page[0])
+        self.assertAlmostEqual(top + bottom, controller.page[1])
+        self.assertEqual(enclosing_rectangle(controller.panels, (1,)), locked)
+        centered = window.project.layouts[key]
+
+        controller.select((1,))
+        self.assertFalse(center.isEnabled())
+        controller.select((0,))
+        controller.canvas.setFocus()
+        QTest.keyClick(controller.canvas, Qt.Key.Key_D, Qt.KeyboardModifier.ControlModifier)
+        after = window.project.layouts[key]
+        self.assertEqual(after.panels, [graph.reference, None, graph.reference])
+        self.assertEqual(window.page.layout_selection.selected, {2})
+        self.assertEqual(len(window.project.runs), 1)
+        window.undo()
+        self.assertEqual(window.project.layouts[key], centered)
+        window.undo()
+        self.assertEqual(window.project.layouts[key], layout)
+        window.undo(redo=True)
+        window.undo(redo=True)
+        self.assertEqual(window.project.layouts[key], after)
+        path = self.folder / "duplicated-layout.alab"
+        window.project.save(path)
+        restored = Project()
+        restored.load(path)
+        self.assertEqual(restored.layouts[key], after)
+
     def test_layout_panel_background_menu_persists_and_undoes_without_changing_source(self):
         import json
         from unittest.mock import patch

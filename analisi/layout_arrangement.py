@@ -42,6 +42,25 @@ class PanelArrangement:
     def picture(self, index):
         return next(((width, height, pdf) for slot, width, height, pdf in self.pictures if slot == index), None)
 
+    def append_copies(self, copies):
+        """Copy panel appearance and groups. Positions and scales are set against the new page."""
+        count = min(copies.values())
+        original_order = self.paint_order(count)
+
+        def append(entries):
+            return entries + tuple((copies[index], *values) for index, *values in entries if index in copies)
+
+        return replace(
+            self, offsets=(), scales=(),
+            groups=self.groups + tuple(tuple(copies[index] for index in group)
+                                       for group in self.groups if all(index in copies for index in group)),
+            layers=original_order + tuple(copies[index] for index in original_order if index in copies),
+            rotations=append(self.rotations), borders=append(self.borders), crops=append(self.crops),
+            empty_sizes=append(self.empty_sizes), pictures=append(self.pictures),
+            clear_backgrounds=self.clear_backgrounds + tuple(copies[index] for index in self.clear_backgrounds
+                                                             if index in copies),
+        )
+
     def remap(self, indices):
         """Keep the geometry and grouping of surviving panels when their order changes."""
         mapping = {old: new for new, old in enumerate(indices) if old is not None}

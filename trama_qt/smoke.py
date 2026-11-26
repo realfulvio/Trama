@@ -805,10 +805,58 @@ def _layout_background_scenario(smoke, window):
                  "the panel background did not survive reopening")
 
 
+def _layout_copy_center_scenario(smoke, window):
+    from dataclasses import replace
+
+    from PySide6.QtTest import QTest
+
+    from analisi.layout_panels import enclosing_rectangle
+
+    ref = ("layout", smoke.build()["layout"])
+    layout = window.project.layouts[ref[1]]
+    window.project.put_layout(replace(layout, paper="A4 landscape"), ref[1])
+    window.open_sheet(ref)
+    controller = window.page.layout_selection
+    controller.select((0, 1))
+    window.actions["layout_group"].trigger()
+    grouped = window.project.layouts[ref[1]]
+    controller = window.page.layout_selection
+    before = enclosing_rectangle(controller.panels, (0, 1))
+    QTest.keyClick(controller.canvas, Qt.Key.Key_D, Qt.KeyboardModifier.ControlModifier)
+    controller = window.page.layout_selection
+    copies = window.project.layouts[ref[1]]
+    smoke.expect(copies.panels == grouped.panels * 2 and controller.selected == {2, 3}, "Ctrl+D did not copy the group")
+    smoke.expect(copies.arrangement.groups == ((0, 1), (2, 3)), "the copied panels lost their group")
+    after = enclosing_rectangle(controller.panels, (0, 1))
+    smoke.expect(all(abs(a - b) < 1e-8 for a, b in zip(before, after, strict=True)),
+                 "the original panels moved when a row was added")
+    smoke.shot(window, "layout-panels-copied")
+    window.actions["layout_center_page"].trigger()
+    controller = window.page.layout_selection
+    left, top, right, bottom = enclosing_rectangle(controller.panels, (2, 3))
+    smoke.expect(abs(left + right - controller.page[0]) < 1e-8 and abs(top + bottom - controller.page[1]) < 1e-8,
+                 "the duplicated group did not center on the page")
+    layout = window.project.layouts[ref[1]]
+    window.undo()
+    smoke.expect(window.project.layouts[ref[1]] == copies, "centering did not undo")
+    window.undo(redo=True)
+    smoke.expect(window.project.layouts[ref[1]] == layout, "centering did not redo")
+    smoke.shot(window, "layout-panels-centered")
+    root = smoke.folder / f"{smoke.language}-layout-panels-centered"
+    for suffix in (".pdf", ".svg", ".png"):
+        window.project.export_layout(layout, root.with_suffix(suffix))
+    window.project.save(root.with_suffix(".alab"))
+    window.close_project()
+    window.open_path(root.with_suffix(".alab"))
+    window.open_sheet(ref)
+    smoke.wait()
+    smoke.expect(window.project.layouts[ref[1]] == layout, "the arranged groups did not survive reopening")
+
+
 SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
              "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
              "qt-batch-figure-styles": _batch_figure_styles_scenario, "qt-layout-crop": _layout_crop_scenario,
-             "qt-layout-background": _layout_background_scenario}
+             "qt-layout-background": _layout_background_scenario, "qt-layout-copy-center": _layout_copy_center_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

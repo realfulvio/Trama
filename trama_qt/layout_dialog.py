@@ -11,15 +11,12 @@ from analisi.family_workflow import MAX_PREFIX
 from analisi.i18n import tr, ui
 from analisi.layout_arrangement import PanelArrangement
 from analisi.layout_graph_link import LayoutGraphLink
-from analisi.layout_geometry import AUTO_PAPER, AXIS_ALIGNMENTS, PANEL_SIZES, PAPER_SIZES, WHITE
+from analisi.layout_geometry import AUTO_PAPER, AXIS_ALIGNMENTS, PANEL_LIMIT, PANEL_SIZES, PAPER_SIZES, WHITE
 from analisi.presentation import Layout
 from analisi.legacy_layout_edit import edited_layout_preview
 
 from .strings import qt
 from .theme import fit_dialog
-
-PANEL_LIMIT = 12
-
 
 class LayoutDialog(QDialog):
     """``runs`` are the graphs that can be panels; ``result`` is the new ``Layout`` after OK."""
