@@ -60,6 +60,9 @@ from analisi import weibull_aft as weibull
 from analisi import weibull_aft_workbench as weibull_form
 from analisi.i18n import active_language, tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
+from analisi.category_graphs import (BARS as GROUPED_BARS, GROUPED_GRAPH, GROUPED_SERIES_COMPATIBLE_STYLES,
+                                     SERIES_STYLE, STACKED_PLACEMENTS, has_series_style_overrides)
+from analisi.grouped_series_catalog import translate_grouped_error
 from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
 from analisi import weighted_logrank
 from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_FIELDS, PAIRWISE_SCOPE, PAIRWISE_PAIR_LIST,
@@ -1527,10 +1530,38 @@ class AnalysisDialog(QDialog):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
+        if self.method == GROUPED_GRAPH:
+            saved = self._saved()
+            if has_series_style_overrides(saved):
+                saved_series_styles = saved[SERIES_STYLE]
+                placement = options.get("Placement of groups")
+                graph_style = options.get("Graph style", GROUPED_BARS)
+                incompatible = (
+                    placement in STACKED_PLACEMENTS
+                    or graph_style not in GROUPED_SERIES_COMPATIBLE_STYLES
+                )
+                if incompatible:
+                    answer = QMessageBox.question(
+                        self,
+                        tr("grouped.confirm.reset_title"),
+                        tr("grouped.confirm.reset_body"),
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.No,
+                    )
+                    if answer != QMessageBox.StandardButton.Yes:
+                        target_field = "Placement of groups" if placement in STACKED_PLACEMENTS else "Graph style"
+                        self.focus_field(target_field)
+                        return
+                    options[SERIES_STYLE] = {}
+                else:
+                    options[SERIES_STYLE] = deepcopy(saved_series_styles)
         self.result = (self.method, options)
         super().accept()
 
     def _message(self, error, field=None):
+        if self.method == GROUPED_GRAPH:
+            translated = translate_grouped_error(error)
+            return translated if translated != str(error) else ui(str(error))
         if self.method == SUMMARY_TWOWAY:
             return summary_twoway.format_error(error)
         if self.method == "Deming regression":

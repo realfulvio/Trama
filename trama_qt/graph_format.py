@@ -6,7 +6,9 @@ their own dialogs, as do dendrograms and clustered heat maps. Q–Q panel settin
 """
 from copy import deepcopy
 
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.colors import to_hex
+from matplotlib.figure import Figure
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
@@ -14,8 +16,13 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDia
 
 from analisi.axis_breaks import AXIS_BREAKS, SUPPORT_ATTR, axis_breaks_reason
 from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
+from analisi.category_graphs import (AS_GRAPH, GROUPED_SERIES_COMPATIBLE_STYLES, SERIES_DRAW_STYLES, SERIES_STYLE,
+                                     STACKED_PLACEMENTS, BARS as GROUPED_BARS,
+                                     LINE_SYMBOLS as GROUPED_LINE_SYMBOLS, SYMBOLS as GROUPED_SYMBOLS,
+                                     category_graph, grouped_series_names, prune_series_styles)
 from analisi.field_error import FieldError
 from analisi.graph_annotations import ANNOTATIONS
+from analisi.grouped_series_catalog import translate_grouped_error
 from analisi.linked_tables import TABLES
 from analisi.graph_legend import LEGEND_OPTIONS_KEY
 from analisi.graph_shapes import SHAPES
@@ -24,7 +31,7 @@ from analisi.point_style import POINTS
 from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.linked_axes import LINKED_AXES, linked_axes_reasons
 from analisi.i18n import active_language, tr, translate_message
-from analisi.presentation import (FONT_FAMILIES, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
+from analisi.presentation import (FONT_FAMILIES, GROUPED_PREFIX, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
                                   active_series_fields, apply_style, axis_has_numeric_ticks, graph_series,
                                   validate_graph_style, zero_baseline_axes)
 from analisi.probability_scale import FRACTION_SCALE, PERCENT_SCALE, PROBABILITY_SCALES
@@ -54,6 +61,12 @@ MARKER_LABELS = {"Circle": "graph.marker.circle", "Square": "graph.marker.square
                  "Cross": "graph.marker.cross", "Star": "graph.marker.star", "No symbol": "graph.marker.none"}
 DRAW_LABELS = {"Points": "graph.draw.points", "Line": "graph.draw.line", "Line and points": "graph.draw.line_points",
                STEP: "graph.draw.step", BARS: "graph.draw.bars"}
+GROUPED_DRAW_LABELS = {
+    AS_GRAPH: "grouped.draw.as_graph",
+    GROUPED_BARS: "grouped.draw.bars",
+    GROUPED_SYMBOLS: "grouped.draw.symbols",
+    GROUPED_LINE_SYMBOLS: "grouped.draw.line_symbols",
+}
 SIDE_LABELS = {"Left": "graph.side.left", "Right": "graph.side.right"}
 DEFAULT_LABELS = {DEFAULT: "graph.choice.analysis_default"}
 SERIES_KINDS = {"line": ("Line", "graph.kind.line"), "errorbar": ("Error bars", "graph.kind.errorbar"),
@@ -123,18 +136,41 @@ def _color_button(field):
 
 
 class GraphFormatDialog(QDialog):
-    """Returns ``result`` (the new style); for a native XY graph also ``xy_update``/``xy_result``."""
+    """Returns ``result`` (the new style); for XY / Grouped also ``*_update`` and ``*_result``."""
 
-    def __init__(self, parent, axes, style, *, xy=None):
+    def __init__(self, parent, axes, style, *, xy=None, grouped=None):
         super().__init__(parent)
         self.setWindowTitle(tr("graph.format.title"))
-        self.axes, self.style, self.xy = axes, deepcopy(style), xy
+        self.axes, self.style, self.xy, self.grouped = axes, deepcopy(style), xy, grouped
         self.result = self.xy_update = self.xy_result = None
+        self.grouped_update = self.grouped_result = None
         self.series = graph_series(axes)
         self.series_values = deepcopy(style.get("series", {}))
         options = (xy or {}).get("options") or {}
         self.xy_style = dict(options.get("Series style") or {})
         self.xy_side = dict(options.get("Series side") or {})
+        grouped_meta = getattr(axes, "_tramastat_grouped", None) or getattr(axes, "_tramastat_grouped_context", None)
+        grouped_options = (grouped or {}).get("options") or {}
+        self.grouped_meta = grouped_meta
+        self._grouped_present = self.grouped is not None or grouped_meta is not None
+        self._grouped_layout = grouped_options.get("Placement of groups") or (grouped_meta or {}).get("layout")
+        self._grouped_global_style = (
+            grouped_options.get("Graph style")
+            or (grouped_meta or {}).get("global_style")
+            or (GROUPED_BARS if self._grouped_present else None)
+        )
+        self._grouped_stacked = self._grouped_layout in STACKED_PLACEMENTS
+        self._grouped_incompatible_style = (
+            self._grouped_present
+            and not self._grouped_stacked
+            and self._grouped_global_style not in GROUPED_SERIES_COMPATIBLE_STYLES
+        )
+        self._grouped_editable = (
+            self.grouped is not None
+            and not self._grouped_stacked
+            and not self._grouped_incompatible_style
+        )
+        self.grouped_style_map = dict(grouped_options.get(SERIES_STYLE) or {})
         self.series_index = -1
         self.axis_breaks = deepcopy(style.get(AXIS_BREAKS) or {})
         self.linked_axes = deepcopy(style.get(LINKED_AXES) or {})
@@ -151,8 +187,14 @@ class GraphFormatDialog(QDialog):
         self._axes()
         self._series()
         self._references()
+        if self.preview_canvas is not None:
+            self._update_grouped_preview()
         buttons = QDialogButtonBox()
         buttons.addButton(tr("graph.format.reset"), QDialogButtonBox.ButtonRole.ResetRole).clicked.connect(self.reset)
+        self.preview_button = buttons.addButton(tr("graph.format.preview"), QDialogButtonBox.ButtonRole.ActionRole)
+        self.preview_button.setObjectName("formatPreviewButton")
+        self.preview_button.setToolTip(tr("graph.format.preview_hint"))
+        self.preview_button.clicked.connect(self.preview)
         apply_button = buttons.addButton(tr("graph.format.apply"), QDialogButtonBox.ButtonRole.AcceptRole)
         buttons.addButton(tr("graph.format.cancel"), QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(self.accept)
@@ -162,7 +204,7 @@ class GraphFormatDialog(QDialog):
             button.setAutoDefault(False)
         apply_button.setAutoDefault(True)
         apply_button.setDefault(True)
-        fit_dialog(self, 620, 560)
+        fit_dialog(self, 920 if self.grouped is not None else 640, 560)
 
     # -- tabs ----------------------------------------------------------------------------------------
     def _tab(self, title):
@@ -429,7 +471,14 @@ class GraphFormatDialog(QDialog):
 
     def _series(self):
         page = self._tab(tr("graph.format.series"))
-        form = QFormLayout(page)
+        if self.grouped is not None:
+            columns = QHBoxLayout(page)
+            left_host = QWidget()
+            form = QFormLayout(left_host)
+            columns.addWidget(left_host, 1)
+        else:
+            columns = None
+            form = QFormLayout(page)
         self.selector = QComboBox()
         self.selector.addItems([series_name(series) for series in self.series])
         self.selector.setEnabled(bool(self.series))
@@ -453,9 +502,13 @@ class GraphFormatDialog(QDialog):
             else:
                 form.addRow(tr(caption), field)
         self.draw = self.side = self.bar_width = None
+        self.grouped_draw = self.grouped_note = self.preview_canvas = None
+        if self.xy is not None or self._grouped_present:
+            visible_box = QCheckBox(tr("graph.series.visible"))
+            visible_box.setObjectName("seriesVisible")
+            self.series_fields["visible"] = visible_box
+            form.addRow(visible_box)
         if self.xy is not None:
-            self.series_fields["visible"] = QCheckBox(tr("graph.series.visible"))
-            form.addRow(self.series_fields["visible"])
             self.draw = Choice(DRAW_STYLES, DRAW_LABELS)
             self.side = Choice(SIDES, SIDE_LABELS)
             self.draw.currentIndexChanged.connect(self._series_states)
@@ -469,12 +522,60 @@ class GraphFormatDialog(QDialog):
             self.bar_width.setPlaceholderText(tr("graph.series.bar_width_hint"))
             form.addRow(tr("graph.series.bar_width"), self.bar_width)
             self.series_form = form
+        if self._grouped_present:
+            self.grouped_draw = Choice(SERIES_DRAW_STYLES, GROUPED_DRAW_LABELS)
+            self.grouped_draw.setObjectName("groupedSeriesDrawing")
+            self.grouped_draw.currentIndexChanged.connect(self._on_grouped_draw_changed)
+            form.addRow(tr("grouped.series.drawing"), self.grouped_draw)
+            self.grouped_note = QLabel()
+            self.grouped_note.setObjectName("infoBanner")
+            self.grouped_note.setWordWrap(True)
+            self.grouped_note.setVisible(False)
+            form.addRow("", self.grouped_note)
         self.series_hint = QLabel(tr("graph.series.hint" if self.series else "graph.series.none"))
         self.series_hint.setObjectName("muted")
         self.series_hint.setWordWrap(True)
         form.addRow(self.series_hint)
+        if self.grouped is not None:
+            preview_group = QGroupBox(tr("graph.format.preview"))
+            preview_layout = QVBoxLayout(preview_group)
+            self.preview_canvas = FigureCanvasQTAgg(Figure(figsize=(4.4, 3.0), dpi=76))
+            self.preview_canvas.setObjectName("groupedPreviewCanvas")
+            self.preview_canvas.setMinimumSize(320, 240)
+            preview_layout.addWidget(self.preview_canvas, 1)
+            columns.addWidget(preview_group, 1)
         self.selector.currentIndexChanged.connect(self._select_series)
         self._select_series()
+
+    def _effective_grouped_draw(self, series):
+        if series is None or not series.key.startswith(GROUPED_PREFIX):
+            return self._grouped_global_style
+        if self.grouped_draw is not None and 0 <= self.series_index < len(self.series) and self.series[self.series_index] is series:
+            chosen = self.grouped_draw.value() or AS_GRAPH
+        else:
+            chosen = self.grouped_style_map.get(series.name, AS_GRAPH)
+        return self._grouped_global_style if chosen == AS_GRAPH else chosen
+
+    def _on_grouped_draw_changed(self, *_):
+        if not 0 <= self.series_index < len(self.series):
+            return
+        series = self.series[self.series_index]
+        if self._grouped_editable and series.key.startswith(GROUPED_PREFIX):
+            chosen = self.grouped_draw.value() or AS_GRAPH
+            if chosen == AS_GRAPH:
+                self.grouped_style_map.pop(series.name, None)
+            else:
+                self.grouped_style_map[series.name] = chosen
+            marker_field = self.series_fields.get("marker")
+            if marker_field is not None:
+                eff = self._effective_grouped_draw(series)
+                markers = [label for label, code in MARKERS.items()
+                           if code != "none" or eff == GROUPED_LINE_SYMBOLS]
+                current_marker = marker_field.value()
+                marker_field.set_values((DEFAULT, *markers), {**DEFAULT_LABELS, **MARKER_LABELS})
+                marker_field.set(current_marker if current_marker in (DEFAULT, *markers) else DEFAULT)
+        self._series_states()
+        self._update_grouped_preview()
 
     def _has_bars(self):
         styles = dict(self.xy_style)
@@ -512,6 +613,12 @@ class GraphFormatDialog(QDialog):
         if self.draw is not None and series.kind == "xy":
             self.xy_style[series.name] = self.draw.value() or "Points"
             self.xy_side[series.name] = self.side.value() or "Left"
+        if self.grouped_draw is not None and self._grouped_editable and series.key.startswith(GROUPED_PREFIX):
+            chosen = self.grouped_draw.value() or AS_GRAPH
+            if chosen == AS_GRAPH:
+                self.grouped_style_map.pop(series.name, None)
+            else:
+                self.grouped_style_map[series.name] = chosen
 
     def _select_series(self, *_):
         self._store_series()
@@ -523,8 +630,14 @@ class GraphFormatDialog(QDialog):
             if key == "visible":
                 field.setChecked(options.get(key, True))
             elif key == "marker":
-                markers = [label for label, code in MARKERS.items()
-                           if code != "none" or (series and series.kind in {"line", "errorbar", "xy"})]
+                allow_none = bool(
+                    series and (
+                        series.kind in {"line", "errorbar", "xy"}
+                        or (series.key.startswith(GROUPED_PREFIX)
+                            and self._effective_grouped_draw(series) == GROUPED_LINE_SYMBOLS)
+                    )
+                )
+                markers = [label for label, code in MARKERS.items() if code != "none" or allow_none]
                 field.set_values((DEFAULT, *markers), {**DEFAULT_LABELS, **MARKER_LABELS})
                 field.set(next((label for label in markers if MARKERS[label] == value), DEFAULT))
             elif key == "line_style":
@@ -538,11 +651,23 @@ class GraphFormatDialog(QDialog):
             if active:
                 self.draw.set(self.xy_style.get(series.name, "Points"))
                 self.side.set(self.xy_side.get(series.name, "Left"))
+        if self.grouped_draw is not None:
+            is_grouped = series is not None and series.key.startswith(GROUPED_PREFIX)
+            can_edit = self._grouped_editable and is_grouped
+            self.grouped_draw.blockSignals(True)
+            self.grouped_draw.setEnabled(can_edit)
+            self.grouped_draw.set(self.grouped_style_map.get(series.name, AS_GRAPH) if is_grouped else AS_GRAPH)
+            self.grouped_draw.blockSignals(False)
         self._series_states()
 
     def _series_states(self, *_):
         series = self.series[self.series_index] if 0 <= self.series_index < len(self.series) else None
-        draw = self.draw.value() if (self.draw is not None and series and series.kind == "xy") else None
+        if self.draw is not None and series and series.kind == "xy":
+            draw = self.draw.value()
+        elif self.grouped_draw is not None and series and series.key.startswith(GROUPED_PREFIX):
+            draw = self.grouped_draw.value()
+        else:
+            draw = None
         active = active_series_fields(self.axes, series, draw) if series else set()
         if self.bar_width is not None:
             self.series_form.setRowVisible(self.bar_width, self._has_bars())
@@ -550,8 +675,20 @@ class GraphFormatDialog(QDialog):
             field.setEnabled(bool(series and key in active))
             if hasattr(field, "button"):
                 field.button.setEnabled(bool(series and key in active))
+        if self.grouped_note is not None:
+            if self._grouped_stacked:
+                self.grouped_note.setText(tr("grouped.series.unavailable_stacked"))
+                self.grouped_note.setVisible(True)
+            elif self._grouped_incompatible_style:
+                self.grouped_note.setText(tr("grouped.series.unavailable_style"))
+                self.grouped_note.setVisible(True)
+            else:
+                self.grouped_note.clear()
+                self.grouped_note.setVisible(False)
         if not self.series:
             hint = tr("graph.series.none")
+        elif self._grouped_editable and series and series.key.startswith(GROUPED_PREFIX):
+            hint = tr("grouped.series.hint_available")
         elif series and series.kind == "xy" and active != series.fields:
             hint = tr("graph.series.inactive_hint")
         else:
@@ -735,6 +872,74 @@ class GraphFormatDialog(QDialog):
         apply_style(result.figure, style)
         self.xy_update, self.xy_result = options, result
 
+    def _grouped_options(self):
+        options = dict(self.grouped["options"])
+        styles = {name: val for name, val in self.grouped_style_map.items() if val and val != AS_GRAPH}
+        if styles:
+            options[SERIES_STYLE] = styles
+        else:
+            options.pop(SERIES_STYLE, None)
+        return prune_series_styles(options, grouped_series_names(self.grouped["frame"], options))
+
+    def _grouped_changed(self, options):
+        old = {k: v for k, v in (self.grouped["options"].get(SERIES_STYLE) or {}).items() if v and v != AS_GRAPH}
+        new = {k: v for k, v in (options.get(SERIES_STYLE) or {}).items() if v and v != AS_GRAPH}
+        return old != new
+
+    def _prepare_grouped(self, style, options):
+        result = category_graph(self.grouped["frame"], options, grouped=True)
+        apply_style(result.figure, style)
+        self.grouped_update, self.grouped_result = options, result
+
+    def _render_grouped_preview(self, style, options):
+        if self.preview_canvas is None:
+            return
+        result = category_graph(self.grouped["frame"], options, grouped=True)
+        apply_style(result.figure, style)
+        result.figure.set_dpi(76)
+        w_px = max(360, self.preview_canvas.width())
+        h_px = max(270, self.preview_canvas.height())
+        result.figure.set_size_inches(w_px / 76.0, h_px / 76.0, forward=False)
+        result.figure.set_canvas(self.preview_canvas)
+        self.preview_canvas.figure = result.figure
+        self.preview_canvas.draw_idle()
+
+    def _update_grouped_preview(self):
+        if self.preview_canvas is None or self.grouped is None or not hasattr(self, "references"):
+            return
+        try:
+            style = self.read_style()
+            if "ylabel" not in self.style and style.get("ylabel") == self.axes.get_ylabel():
+                style.pop("ylabel")
+            self._render_grouped_preview(style, self._grouped_options())
+        except (ValueError, FieldError):
+            pass
+
+    def preview(self):
+        """Validate current edits and refresh the embedded preview canvas without committing."""
+        try:
+            style = self.read_style()
+            if self.grouped is not None:
+                if "ylabel" not in self.style and style.get("ylabel") == self.axes.get_ylabel():
+                    style.pop("ylabel")
+                options = self._grouped_options()
+                self._render_grouped_preview(style, options)
+            elif self.xy is not None:
+                if "ylabel" not in self.style and style["ylabel"] == self.axes.get_ylabel():
+                    style.pop("ylabel")
+                options = prune_options(self._xy_options(style))
+                options["Series color"] = assign_colors(options["Y columns"], options.get("Series color"))
+                result = xy_series(self.xy["frame"], options, left_scale=style.get("yscale", "linear"))
+                apply_style(result.figure, style)
+            else:
+                validate_graph_style(self.axes, style)
+                self._check_linked(style)
+        except ValueError as error:
+            self.show_error(error)
+            return False
+        self.banner.setVisible(False)
+        return True
+
     def _focus_xy_error(self, error):
         field = getattr(error, "field", None)
         if field == BAR_WIDTH:
@@ -755,6 +960,9 @@ class GraphFormatDialog(QDialog):
     def show_error(self, error):
         if isinstance(error, FieldError) and self.xy is not None:
             self._focus_xy_error(error)
+        elif isinstance(error, FieldError) and self.grouped_draw is not None:
+            if getattr(error, "field", None) in (SERIES_STYLE, "Placement of groups", "Graph style"):
+                self._focus(2, self.grouped_draw)
         if not isinstance(error, str):
             from .axis_breaks import translate_breaks_error
             from .axis_guides import translate_guide_error
@@ -763,8 +971,8 @@ class GraphFormatDialog(QDialog):
             from .legend import translate_legend_error
 
             for translate in (translate_message, lambda value: translate_message(value, "xy.error."),
-                              translate_legend_error, translate_guide_error, translate_breaks_error,
-                              translate_linked_error):
+                              translate_grouped_error, translate_legend_error, translate_guide_error,
+                              translate_breaks_error, translate_linked_error):
                 text = translate(error)
                 if text != str(error):
                     break
@@ -775,7 +983,25 @@ class GraphFormatDialog(QDialog):
     def accept(self):
         try:
             style = self.read_style()
-            if self.xy is None:
+            if self.grouped is not None:
+                if "ylabel" not in self.style and style.get("ylabel") == self.axes.get_ylabel():
+                    style.pop("ylabel")
+                options = self._grouped_options()
+                if self._grouped_changed(options):
+                    self._prepare_grouped(style, options)
+                    if style.get(AXIS_BREAKS) and style[AXIS_BREAKS] != self.style.get(AXIS_BREAKS):
+                        reason = axis_breaks_reason(self.grouped_result.figure)
+                        if reason:
+                            from .axis_breaks import translate_breaks_error
+
+                            self.tabs.setCurrentIndex(1)
+                            raise ValueError(translate_breaks_error(ValueError(reason)))
+                    self._check_linked(style, self.grouped_result.figure)
+                else:
+                    self.grouped_update = self.grouped_result = None
+                    validate_graph_style(self.axes, style)
+                    self._check_linked(style)
+            elif self.xy is None:
                 validate_graph_style(self.axes, style)
                 self._check_linked(style)
             else:
@@ -802,7 +1028,15 @@ class GraphFormatDialog(QDialog):
         style = {key: deepcopy(self.style[key])
                  for key in (ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical", POINTS, LABELS, TABLES)
                  if self.style.get(key)}
-        if self.xy is not None:
+        if self.grouped is not None:
+            options = dict(self.grouped["options"])
+            if options.pop(SERIES_STYLE, None):
+                try:
+                    self._prepare_grouped(style, options)
+                except ValueError as error:
+                    self.show_error(error)
+                    return
+        elif self.xy is not None:
             options = {key: value for key, value in self.xy["options"].items() if key not in RECIPE_KEYS}
             try:
                 self._prepare_xy(style, options)
