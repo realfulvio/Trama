@@ -95,8 +95,8 @@ class QtShellTests(unittest.TestCase):
         source = self.folder / "grouped.pzt"
         write_fixture(source)
         self.window.open_path(source)
-        self.window.open_sheet(("graph", 0))
         self.wait()
+        self.assertEqual(self.window.selected, ("graph", 0))
         run, = self.window.project.runs
         self.assertEqual(run.options[SERIES_PLACEMENT], {"B": STACK_PREVIOUS, "D": STACK_PREVIOUS})
         frame = self.window.project.input_frame(run)

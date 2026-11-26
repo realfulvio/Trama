@@ -16,7 +16,10 @@ from test_legacy_binary_graphs import _record
 def write_fixture(path, *, wrong_sheet=False, wrong_position=False, wrong_relation=False, wrong_detail=False):
     ids = ["a", "b", "c", "d"]
     members = {
-        "document.json": {"sheets": {"data": ["source"], "graphs": ["chart"]}},
+        "document.json": {
+            "sheets": {"data": ["source"], "graphs": ["chart"]},
+            "uiSettings": {"viewMode": "sheet", "currentSheetType": "Graph", "currentSheets": {"graph": "chart"}},
+        },
         "data/sheets/source/sheet.json": {
             "uid": "source", "fenID": 14, "title": "Visits",
             "table": {"uid": "raw", "format": "grouped", "dataFormat": "y_replicates", "replicatesCount": 2,

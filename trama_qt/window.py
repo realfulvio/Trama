@@ -5125,7 +5125,8 @@ class MainWindow(QMainWindow):
             return
         if import_warnings:
             self.status(qt("qt.import_skipped", items=", ".join(dict.fromkeys(import_warnings))))
-        if focus := initial_sheet_reference(initial_sheet, self.project.runs, run_view):
+        if focus := initial_sheet_reference(initial_sheet, self.project.runs,
+                                             lambda method: "graph" if method == GROUPED_GRAPH else run_view(method)):
             self.open_sheet(focus)
             return
         sheets = [title for title in titles if not stored_legacy_view(self.project.tables[title])]
