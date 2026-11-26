@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QColorDialog, QComb
 from analisi.family_workflow import MAX_PREFIX
 from analisi.i18n import tr, ui
 from analisi.layout_arrangement import PanelArrangement
+from analisi.layout_graph_link import LayoutGraphLink
 from analisi.layout_geometry import AUTO_PAPER, AXIS_ALIGNMENTS, PANEL_SIZES, PAPER_SIZES, WHITE
 from analisi.presentation import Layout
 from analisi.legacy_layout_edit import edited_layout_preview
@@ -263,6 +264,10 @@ class LayoutGraphDialog(QDialog):
         self.sources.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.sources.setMinimumContentsLength(18)
         self.sources.addItem(qt("qt.layout_current_source"))
+        if self.current_link is not None:
+            self.sources.addItem(Path(self.current_link.path).name, self.current_link)
+            self.sources.setItemData(1, self.current_link.path, Qt.ItemDataRole.ToolTipRole)
+            self.sources.setCurrentIndex(1)
         for session, (caption, tip) in zip(parent.sessions, parent.sessions.labels(), strict=True):
             if session is not parent.sessions.active:
                 self.sources.addItem(caption, session)
@@ -352,24 +357,28 @@ class LayoutGraphDialog(QDialog):
             self.sources.setCurrentIndex(index)
 
     def _show_transfer_options(self, *_):
-        external = self.sources.currentIndex() > 0
-        self.layout().setRowVisible(self.embed, not external)
+        source = self.sources.currentData()
+        external = source is not None and not isinstance(source, LayoutGraphLink)
+        self.layout().setRowVisible(self.embed, source is None)
         self.layout().setRowVisible(self.method, external)
         self.layout().setRowVisible(self.prefix, external and self.method.currentData() == "family")
 
-    def _fill_graphs(self, runs, *, local=False):
+    def _fill_graphs(self, runs, *, local=False, linked=False):
         self.runs = runs
         with QSignalBlocker(self.graphs):
             self.graphs.clear()
-            if local and self.current is not None:
+            if (local or linked) and self.current is not None:
                 self.graphs.addItem(qt("qt.layout_no_assigned_graph"), None)
-                if self.picture is not None:
-                    label = qt("qt.layout_linked_graph", file=Path(self.current_link.path).name) if self.current_link else (
-                        qt("qt.layout_picture"))
+                if linked:
+                    link = self.current_link
+                    label = link.label or f"{link.title} · {ui(link.method)}"
+                    self.graphs.addItem(label, self.CURRENT_PICTURE)
+                elif self.picture is not None and self.current_link is None:
+                    label = qt("qt.layout_picture")
                     self.graphs.addItem(label, self.CURRENT_PICTURE)
             for run in runs.values():
                 self.graphs.addItem(f"{run.name} · {run.title} ({run.slot + 1})", run.reference)
-            if local and self.current is not None:
+            if (local or linked) and self.current is not None:
                 match = next((i for i in range(self.graphs.count()) if self.graphs.itemData(i) == self.current), 0)
                 self.graphs.setCurrentIndex(match)
         self.graphs.setEnabled(bool(self.graphs.count()))
@@ -381,8 +390,9 @@ class LayoutGraphDialog(QDialog):
         self._discard_source_request()
         self.source_project = self.source_figure = None
         source = self.sources.currentData()
+        linked = isinstance(source, LayoutGraphLink)
         self.source_path = source if isinstance(source, Path) else (
-            source.project.path or source.project.origin if source is not None else None)
+            source.project.path or source.project.origin if source is not None and not linked else None)
         live = self.method.findData("live")
         if self.source_path is not None and live < 0:
             self.method.addItem(qt("qt.layout_transfer_live"), "live")
@@ -393,6 +403,10 @@ class LayoutGraphDialog(QDialog):
             self.geometry_button.setEnabled(False)
         if source is None:
             self._fill_graphs(self.local_runs, local=True)
+            self.update_preview()
+            return
+        if linked:
+            self._fill_graphs({}, linked=True)
             self.update_preview()
             return
         self._fill_graphs({})
@@ -488,7 +502,7 @@ class LayoutGraphDialog(QDialog):
         self.graphs.setToolTip(self.graphs.currentText())
         external = self.source_project is not None
         if self.geometry_button is not None:
-            self.geometry_button.setEnabled(self.sources.currentIndex() == 0 and graph == self.current)
+            self.geometry_button.setEnabled(self.source_project is None and graph == self.current)
         run = self.runs.get(graph)
         self.ok_button.setEnabled(not external and bool(self.graphs.count()))
         self.origin_button.setEnabled(not external and (run is not None

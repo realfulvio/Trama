@@ -3519,6 +3519,7 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.project.layouts[key], layout)
 
         def follow(dialog):
+            self.assertEqual(dialog.sources.currentText(), path.name)
             self.assertTrue(dialog.origin_button.isEnabled())
             self.assertTrue(dialog.ok_button.isDefault())
             dialog.origin_button.click()
