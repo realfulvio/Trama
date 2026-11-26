@@ -7,7 +7,8 @@ their own dialogs, as do dendrograms and clustered heat maps. Q–Q panel settin
 from copy import deepcopy
 
 from matplotlib.colors import to_hex
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
                                QPushButton, QScrollArea, QTabWidget, QVBoxLayout, QWidget)
@@ -125,7 +126,7 @@ def _color_button(field):
 class GraphFormatDialog(QDialog):
     """Returns ``result`` (the new style); for a native XY graph also ``xy_update``/``xy_result``."""
 
-    def __init__(self, parent, axes, style, *, xy=None):
+    def __init__(self, parent, axes, style, *, xy=None, initial_axis=None):
         super().__init__(parent)
         self.setWindowTitle(tr("graph.format.title"))
         self.axes, self.style, self.xy = axes, deepcopy(style), xy
@@ -163,6 +164,19 @@ class GraphFormatDialog(QDialog):
         apply_button.setAutoDefault(True)
         apply_button.setDefault(True)
         fit_dialog(self, 620, 560)
+        if hasattr(parent, "show_shortcuts"):
+            QShortcut(QKeySequence("F1"), self, parent.show_shortcuts)
+        if initial_axis == "right" and self.right is not None:
+            field = self.right["min"]
+            self._focus(1, field)
+            # Scroll after the dialog has laid out the axes page at its on-screen size.
+            QTimer.singleShot(0, self, lambda: self.tabs.widget(1).ensureWidgetVisible(field))
+        elif initial_axis in self.axis_fields:
+            field = self.axis_fields[initial_axis]["min"]
+            if field.isEnabled():
+                self._focus(1, field)
+            else:
+                self._focus(0, self.texts[f"{initial_axis}label"])
 
     # -- tabs ----------------------------------------------------------------------------------------
     def _tab(self, title):
@@ -307,6 +321,7 @@ class GraphFormatDialog(QDialog):
             }
             for key, caption in (("title", "graph.axis.right_title"), ("scale", "graph.axis.scale"),
                                  ("min", "graph.axis.min"), ("max", "graph.axis.max")):
+                self.right[key].setAccessibleName(f"{box.title()}: {tr(caption)}")
                 form.addRow(tr(caption), self.right[key])
             layout.addWidget(box)
         self.breaks_summary = None

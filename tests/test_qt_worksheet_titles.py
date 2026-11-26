@@ -13,6 +13,7 @@ from analisi.data import load_project
 from analisi.i18n import active_language, set_language
 from analisi.xy_series import X_DISTANCE, XY_METHOD, xy_series
 from trama_qt.analysis_dialog import AnalysisDialog
+from trama_qt.graph_format import GraphFormatDialog
 from trama_qt.project import Run
 from trama_qt.window import MainWindow, Page
 from trama_qt.worksheet_titles import TableFormatDialog
@@ -85,6 +86,65 @@ class WorksheetTitlesTest(unittest.TestCase):
         self.window.undo(redo=True)
         self.assertEqual(self.model.group_title(2), "Morning series")
         self.assertTrue(self.view.isColumnHidden(0))
+
+    def test_title_and_axis_menu_commands_follow_the_visible_sheet(self):
+        actions = self.window.actions
+        menu = self.window.command_menus["Change"]
+        title_keys = ("edit_column_titles", "edit_subcolumn_titles")
+        axis_keys = ("format_axis_x", "format_axis_y", "format_axis_right")
+        for key in (*title_keys, *axis_keys):
+            self.assertIn(actions[key], menu.actions())
+        self.assertTrue(all(actions[key].isEnabled() for key in title_keys))
+        self.assertFalse(any(actions[key].isEnabled() for key in axis_keys))
+
+        self.view.setCurrentIndex(self.model.index(0, 5))
+        opened = []
+
+        def inspect_titles(dialog):
+            tab = dialog.tabs.currentIndex()
+            grid = dialog.columns if tab == 1 else dialog.subcolumns
+            opened.append((tab, grid.currentIndex().row()))
+            return QDialog.DialogCode.Rejected
+
+        with patch.object(TableFormatDialog, "exec", inspect_titles):
+            for key in title_keys:
+                actions[key].trigger()
+        self.assertEqual(opened, [(1, 1), (2, 1)])
+
+        options = {"X": "X", "Y columns": ["Control [1]", "Treated [1]"]}
+        frame = self.dataset.frame()
+        run = Run(XY_METHOD, self.title, options, result=xy_series(frame, options))
+        self.window.project.runs.append(run)
+        self.window.show_sheet("result", 0)
+        self.assertFalse(any(actions[key].isEnabled() for key in (*title_keys, *axis_keys)))
+        self.window.show_sheet("graph", 0)
+        self.assertFalse(any(actions[key].isEnabled() for key in title_keys))
+        self.assertTrue(all(actions[key].isEnabled() for key in axis_keys[:2]))
+        self.assertFalse(actions[axis_keys[2]].isEnabled())
+
+        options["Series side"] = {"Treated [1]": "Right"}
+        run.result = xy_series(frame, options)
+        self.window.show_sheet("graph", 0)
+        self.assertTrue(actions[axis_keys[2]].isEnabled())
+        opened.clear()
+
+        def inspect_axis(dialog):
+            dialog.resize(600, 320)
+            dialog.show()
+            self.app.processEvents()
+            field = dialog.focusWidget()
+            targets = (dialog.axis_fields["x"]["min"], dialog.axis_fields["y"]["min"], dialog.right["min"])
+            opened.append((dialog.tabs.currentIndex(), targets.index(field)))
+            viewport = dialog.tabs.currentWidget().viewport()
+            self.assertTrue(viewport.rect().contains(field.mapTo(viewport, field.rect().center())))
+            dialog.reject()
+            return QDialog.DialogCode.Rejected
+
+        with patch.object(GraphFormatDialog, "exec", inspect_axis):
+            for key in axis_keys:
+                actions[key].trigger()
+        self.assertEqual(opened, [(1, 0), (1, 1), (1, 2)])
+        self.assertIsNone(run.style)
 
     def test_draft_cancel_and_independent_subtitles(self):
         self.apply()

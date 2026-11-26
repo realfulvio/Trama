@@ -138,6 +138,12 @@ class WorksheetModel(TextStyleRoles, QAbstractTableModel):
                  for column, name in enumerate(frame.columns)]
         self.bands, self.roles = heading_bands(frame, names, self.source_columns, self.dataset.table_format,
                                                calculated=self.calculated)
+        self.title_columns = [column for column, (start, _, band, _) in enumerate(self.bands)
+                              if column == start and band.startswith("Group ")]
+        if not self.title_columns:
+            self.title_columns = [column for column, (_, _, band, _) in enumerate(self.bands)
+                                  if column not in self.calculated and band not in {"Row titles", "X"}]
+        self.replicate_columns = [column for column in range(len(self.bands)) if self.is_replicate(column)]
         identities = current_ids(self.dataset.raw, self.dataset.formulas)
         self.column_tokens = [identities[name] for name in frame.columns]
         self._caption_source = None

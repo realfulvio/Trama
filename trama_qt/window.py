@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboB
 
 from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power, mean_permutation, parallel, power_plan, rmst
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, result_display
+from analisi.xy_series import XY_METHOD
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
 from analisi.axis_breaks import AXIS_BREAKS
@@ -643,6 +644,8 @@ class MainWindow(QMainWindow):
           shortcut="Ctrl+Shift+P")
         a("change_graph_type", qt("qt.change_graph_type"), self.change_graph_type, icon="chart-column")
         a("format_graph", tr("graph.format.title"), self.format_graph, icon="palette", shortcut="Ctrl+Shift+F")
+        for axis in ("x", "y", "right"):
+            a(f"format_axis_{axis}", qt(f"qt.format_axis_{axis}"), lambda axis=axis: self.format_graph(axis=axis))
         from .graph_style_preset_dialog import t as preset_text
         a("graph_style_presets", preset_text("action"), self.graph_style_presets, icon="sparkles")
         from .batch_figure_styles_dialog import t as batch_style_text
@@ -698,6 +701,8 @@ class MainWindow(QMainWindow):
         a("cell_background", tr("command.cell_background"), self.change_cell_background)
         a("clear_cell_background", tr("command.clear_cell_background"), lambda: self.change_cell_background(clear=True))
         a("format_data_table", qt("qt.format_data_table"), self.format_data_table, icon="table", tip=qt("qt.format_table_tip"))
+        a("edit_column_titles", qt("qt.edit_column_titles"), lambda: self.format_data_table(tab=1))
+        a("edit_subcolumn_titles", qt("qt.edit_subcolumn_titles"), lambda: self.format_data_table(tab=2))
         a("number_format", tr("command.number_format"), self.change_number_format, icon="hash")
         for key, step, shortcut in (("sheet_zoom_in", 1, "Ctrl+="), ("sheet_zoom_out", -1, "Ctrl+-"),
                                     ("sheet_zoom_reset", 0, "Ctrl+0")):
@@ -1069,7 +1074,10 @@ class MainWindow(QMainWindow):
                     "insert_column", "create_numeric_series", "delete_rows", "delete_columns",
                     "exclude", "formula", "category_order"):
             self.actions[key].setEnabled(editable and idle)
-        self.actions["format_data_table"].setEnabled(bool(editable and idle and self.sheet is not None))
+        worksheet = self.sheet.model() if editable and idle and self.sheet is not None else None
+        self.actions["format_data_table"].setEnabled(worksheet is not None)
+        self.actions["edit_column_titles"].setEnabled(worksheet is not None and bool(worksheet.title_columns))
+        self.actions["edit_subcolumn_titles"].setEnabled(worksheet is not None and bool(worksheet.replicate_columns))
         self._update_row_actions(data, editable, idle)
         self.actions["variable_properties"].setEnabled(
             editable and idle and self.project.tables[self.selected[1]].table_format == "multivariable")
@@ -1095,6 +1103,12 @@ class MainWindow(QMainWindow):
         change_type.setToolTip(type_problem or change_type.text())
         graph = kind == "graph" and self.project.graph_format_problem(self.project.runs[self.selected[1]]) is None
         self.actions["format_graph"].setEnabled(graph and idle)
+        axis_graph = self.project.runs[self.selected[1]] if graph and idle else None
+        has_axes = axis_graph is not None and axis_graph.result.figure.axes[0].axison
+        self.actions["format_axis_x"].setEnabled(has_axes)
+        self.actions["format_axis_y"].setEnabled(has_axes)
+        self.actions["format_axis_right"].setEnabled(
+            has_axes and axis_graph.method == XY_METHOD and len(axis_graph.result.figure.axes) > 1)
         self.actions["graph_style_presets"].setEnabled(graph and idle)
         from .gallery_catalog import graph_runs
         self.actions["batch_figure_styles"].setEnabled(idle and bool(graph_runs(self.project)))
@@ -1851,7 +1865,7 @@ class MainWindow(QMainWindow):
             for index in range(self.result_tabs.count()):
                 set_table_appearance(self.result_tabs.widget(index), self.table_font, self.table_zoom)
 
-    def format_data_table(self, *, tab=0, column=0):
+    def format_data_table(self, *, tab=0, column=None):
         if self.sheet is None or self.sheet.model().read_only or self.busy():
             return
         from .worksheet_titles import TableFormatDialog
@@ -1860,7 +1874,8 @@ class MainWindow(QMainWindow):
         current = self.sheet.currentIndex()
         row, selected_column = current.row(), current.column()
         name = model.frame.columns[selected_column] if 0 <= selected_column < len(model.frame.columns) else None
-        dialog = TableFormatDialog(self, model, tab=tab, column=column,
+        target = selected_column if column is None else column
+        dialog = TableFormatDialog(self, model, tab=tab, column=target,
                                    replicate_limits=self.project.worksheet_replicate_limits(title),
                                    x_block=self.project.worksheet_x_error(title),
                                    update_structure=lambda count, error, settings:
@@ -3131,7 +3146,6 @@ class MainWindow(QMainWindow):
             self._ask(None, pd.DataFrame(), current=("Simulate data", {}), only="Simulate data")
 
     def new_graph(self):
-        from analisi.xy_series import XY_METHOD
 
         x_block = self.project.worksheet_x_error(self.selected[1]) if self.selected and self.selected[0] == "data" else None
         self.analyze(method=XY_METHOD if x_block and x_block[1] else None, only=GRAPHING)
@@ -3288,7 +3302,7 @@ class MainWindow(QMainWindow):
             return
         self._ask(run.title, frame, current=(run.method, run.options), only=run.method, index=index, source=source)
 
-    def format_graph(self):
+    def format_graph(self, *, axis=None):
         if self.busy() or not self.selected or self.selected[0] != "graph":
             return
         if self.inspector is not None:
@@ -3300,14 +3314,16 @@ class MainWindow(QMainWindow):
             return
         from .graph_format import GraphFormatDialog
         style, xy = self.project.format_inputs(run)
-        dialog = GraphFormatDialog(self, run.result.figure.axes[0], style, xy=xy)
-        if dialog.exec() != GraphFormatDialog.DialogCode.Accepted or dialog.result is None:
-            return
+        dialog = GraphFormatDialog(self, run.result.figure.axes[0], style, xy=xy, initial_axis=axis)
         try:
+            if dialog.exec() != GraphFormatDialog.DialogCode.Accepted or dialog.result is None:
+                return
             self.project.apply_format(run, dialog.result, xy_update=dialog.xy_update, xy_result=dialog.xy_result)
         except ValueError as error:
             self.error(error)
             return
+        finally:
+            dialog.deleteLater()
         self.show_sheet(*self.selected)
         self.status(qt("qt.style_applied"))
 

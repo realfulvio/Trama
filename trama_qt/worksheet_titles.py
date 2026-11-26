@@ -54,12 +54,8 @@ class TableFormatDialog(QDialog):
         self.replicate_count = None
         self.initial_count = None
         self.original = model.dataset.worksheet_titles
-        self.title_groups = [c for c, (start, _, band, _) in enumerate(model.bands)
-                             if c == start and band.startswith("Group ")]
-        if not self.title_groups:
-            self.title_groups = [c for c, (_, _, band, _) in enumerate(model.bands)
-                                 if c not in model.calculated and band not in {"Row titles", "X"}]
-        self.replicates = [c for c in range(len(model.bands)) if model.is_replicate(c)]
+        self.title_groups = model.title_columns
+        self.replicates = model.replicate_columns
         self.common = dict(self.original.common)
         self.individual = dict(self.original.individual)
         self.setWindowTitle(qt("qt.format_data_table").rstrip("…"))
@@ -134,6 +130,8 @@ class TableFormatDialog(QDialog):
             if column in self.replicates:
                 key = self.rep_key(column, self.shared_mode)
                 self.subcolumns.selectRow(self.subrows.index(key))
+        if self.tabs.currentIndex() in (1, 2):
+            (self.columns if self.tabs.currentIndex() == 1 else self.subcolumns).setFocus()
         self.problem = QLabel()
         self.problem.setObjectName("errorBanner")
         self.problem.setWordWrap(True)
