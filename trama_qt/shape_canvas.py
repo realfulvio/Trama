@@ -279,6 +279,8 @@ class GraphDrawing:
         if w.inspector is not None:
             w.inspector_wanted = False
             w.dispose_inspector()
+        if getattr(w, "table_move", None) is not None and w.table_move.active:
+            w.table_move.start(False)
         tools = self.toolbar
         if tools is not None and tools.mode:
             if tools.mode.name == "PAN":

@@ -411,6 +411,7 @@ class LinkedTablesDialog(QDialog):
         self.remove_button = QPushButton(tr("linked_table.remove"))
         self.remove_button.clicked.connect(self.remove)
         for button in (self.add_button, self.edit_button, self.remove_button):
+            button.setAutoDefault(False)
             row.addWidget(button)
         row.addStretch(1)
         outer.addLayout(row)

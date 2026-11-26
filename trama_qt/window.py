@@ -77,6 +77,7 @@ from .project import (DATA_SUFFIXES, GRAPHING, GRAPH_TYPE_METHODS, LEGACY_GRAPH_
 from .sessions import MAX_PROJECT_TABS, Sessions, remember_project
 from .templates import sync_actions as sync_template_actions, t as template_text
 from analisi.repeat_analysis_text import t as repeat_text
+from .linked_table_canvas import LinkedTableCanvas
 from .shape_canvas import GraphDrawing
 from .sheet import FrameView, WorksheetView, selection_box, set_table_appearance
 from .text_format import TextFormat
@@ -302,6 +303,15 @@ class PlotNavigation(NavigationToolbar2QT):
         self._remember_fit_view()
         super().home(*args)
 
+    def release(self):
+        for cid in ("_id_press", "_id_release", "_id_drag", "_first_draw"):
+            handle = getattr(self, cid, None)
+            if handle is not None:
+                self.canvas.mpl_disconnect(handle)
+                setattr(self, cid, None)
+        if getattr(self.canvas, "toolbar", None) is self:
+            self.canvas.toolbar = None
+
     def configure_fit(self, *, layout, preview):
         if isinstance(preview, ImportedPaperPreview):
             self.fit_action = self.addAction(qt("qt.fit_entire_page"))
@@ -377,6 +387,8 @@ class Page(QWidget):
         """Detach matplotlib figures from the canvases that are about to be deleted."""
         if self.worksheet_preview is not None:
             self.worksheet_preview.release()
+        for toolbar in self.findChildren(PlotNavigation):
+            toolbar.release()
         for canvas in self.canvases:
             figure = canvas.figure
             if figure.canvas is canvas:
@@ -659,6 +671,8 @@ class MainWindow(QMainWindow):
             a(name, method_label(method), lambda method=method: self.analyze(method=method))
         self.drawing = GraphDrawing(self)  # Pointer tools of the graph canvas: actions before the ribbon.
         self.drawing.create_actions()
+        self.table_move = LinkedTableCanvas(self)
+        self.table_move.create_actions()
         self.text_format = TextFormat(self)  # The Text group: font, size, colour, bold, italic, underline, alignment.
         self.text_format.create_actions()
         self.command_menus = build_menus(self)
@@ -1060,6 +1074,7 @@ class MainWindow(QMainWindow):
         self.actions["export_batch"].setEnabled(self.actions["export_pdf"].isEnabled())
         self.actions["export_report"].setEnabled(idle and bool(self.project.runs or self.project.layouts))
         self.drawing.sync()
+        self.table_move.sync()
 
     # == navigator ================================================================================
     def _navigator_folders(self):
@@ -1599,6 +1614,7 @@ class MainWindow(QMainWindow):
 
         self.plot_tools = None
         self.drawing.detach()
+        self.table_move.detach()
         self.dispose_inspector()
         self.flush_info()
         self.info_editor = None
@@ -1636,6 +1652,7 @@ class MainWindow(QMainWindow):
             self.close_worksheet_notes()
         self.plot_tools = None
         self.drawing.detach()  # Closes a pointer preview; the new graph page attaches its own canvas.
+        self.table_move.detach()
         self.dispose_inspector()  # Before the new page builds its own panel.
         self.flush_info()
         self.info_editor = None
@@ -1934,7 +1951,7 @@ class MainWindow(QMainWindow):
         if self.selected and self.selected[0] == "info":
             self._worksheet_command(self.selected, "delete")
 
-    def _canvas(self, page, figure, *, toolbar=True, run=None, paper=None, imported_layout=False):
+    def _canvas(self, page, figure, *, toolbar=True, run=None, paper=None, imported_layout=False, reference=None):
         canvas = SheetCanvas(figure) if paper is None else PaperCanvas(figure, paper)
         canvas.setMinimumSize(200, 160)
         page.canvases.append(canvas)
@@ -1959,6 +1976,8 @@ class MainWindow(QMainWindow):
             page.add(tools, 0)
         if run is not None:
             self.drawing.attach(page, canvas, tools if toolbar else None, run)
+        if reference is not None:
+            self.table_move.attach(page, canvas, tools if toolbar else None, reference, figure)
         if run is not None and self.inspector_wanted and self.project.graph_format_problem(run) is None:
             self._open_inspector(run, canvas, line)
         return canvas  # No draw_idle(): showing the page resizes the canvas, which draws it once (SheetCanvas).
@@ -2032,6 +2051,7 @@ class MainWindow(QMainWindow):
     def settle_graph_draft(self):
         """Before leaving the drawn style behind: apply or discard an Inspector draft, or stay."""
         self.drawing.cancel()  # A pointer preview is never saved, exported or recalculated.
+        self.table_move.cancel()
         inspector = self.inspector
         if inspector is None or not inspector.has_draft:
             return True
@@ -2050,6 +2070,7 @@ class MainWindow(QMainWindow):
         page = Page(layout.name, tr("interface.layout_panels", count=len(layout.panels)))
         page.command(self.actions["edit_layout"])
         page.command(self.actions["linked_table"])
+        page.command(self.actions["linked_table_move"])
         page.finish_actions()
         self._stale(page, self.project.layout_runs(layout))
         figure = self.project.layout_figure(layout)
@@ -2058,7 +2079,7 @@ class MainWindow(QMainWindow):
             page.layout_.addStretch(1)
         else:
             self.layout_figure = figure
-            self._canvas(page, figure, paper=figure.get_size_inches())
+            self._canvas(page, figure, paper=figure.get_size_inches(), reference=("layout", index))
         return page
 
     def _stale(self, page, runs):
@@ -2116,6 +2137,7 @@ class MainWindow(QMainWindow):
             page.command(self.actions["annotations"]).setText(tr("annotation.button"))
             page.command(self.actions["draw"]).setText(tr("shape.button"))
             page.command(self.actions["linked_table"])
+            page.command(self.actions["linked_table_move"])
         if kind == "graph":
             page.command(self.actions["inspector"])
         elif kind == "result":
@@ -2174,9 +2196,10 @@ class MainWindow(QMainWindow):
                 page.notice(warning)
             paper = imported_paper(run)
             saved_layout = kind == "saved-layout"
+            reference = (kind, index) if kind == "graph" and run.method not in LEGACY_GRAPH_METHODS else None
             self._canvas(page, result.figure, run=run if kind == "graph" else None,
                          paper=paper if paper is not None or not saved_layout else result.figure.get_size_inches(),
-                         imported_layout=saved_layout and paper is not None)
+                         imported_layout=saved_layout and paper is not None, reference=reference)
         else:
             page.notice(qt("qt.not_calculated"))
             page.layout_.addStretch(1)
@@ -2735,6 +2758,9 @@ class MainWindow(QMainWindow):
         if isinstance(self.project.history.next_change(redo=redo), (LayoutChange, StyleBatchChange)):
             if not self.settle_graph_draft():
                 return
+        was_moving = self.table_move.active
+        selected_table = self.table_move.selected_id
+        prev_selected = self.selected
         try:
             title, affected = self.project.undo(redo=redo)
         except (ValueError, TypeError, OverflowError) as error:
@@ -2742,6 +2768,9 @@ class MainWindow(QMainWindow):
             return
         if self.project.undo_layout_index is not None:
             self.open_sheet(("layout", self.project.undo_layout_index))
+            if (was_moving and prev_selected == ("layout", self.project.undo_layout_index)
+                    and self.table_move.problem() is None):
+                self.table_move.start(True, selected=selected_table)
             return
         if self.project.undo_style_uids:
             from .batch_figure_styles_dialog import t as batch_style_text
@@ -2749,6 +2778,9 @@ class MainWindow(QMainWindow):
                 self.project.undo_style_uids,
                 batch_style_text("redone" if redo else "undone", count=len(self.project.undo_style_uids)),
             )
+            if (was_moving and prev_selected is not None and prev_selected[0] == "graph"
+                    and self.selected == prev_selected and self.table_move.problem() is None):
+                self.table_move.start(True, selected=selected_table)
             return
         if title is None:
             return
@@ -3254,7 +3286,7 @@ class MainWindow(QMainWindow):
     def commit_linked_tables(self, reference, records):
         """Store ``records`` as the tables of a graph or layout: one undoable step, then redraw."""
         from dataclasses import replace as replaced
-        from analisi.linked_tables import TABLES
+        from analisi.linked_tables import TABLES, sync_tables
         kind, key = reference
         try:
             if kind == "graph":
@@ -3268,12 +3300,24 @@ class MainWindow(QMainWindow):
                 self.project.apply_format(run, style)
                 self.project.history.record_style_batch("Linked tables", {run.uid: before},
                                                         {run.uid: deepcopy(style)})
+                live = (self._figure_canvas(run.result.figure)
+                        if self.gallery is None and self.selected == reference and run.result is not None else None)
             else:
                 self.project.put_layout(replaced(self.project.layouts[key], tables=list(records)), key)
+                live = (next(iter(getattr(self.page, "canvases", ()) or ()), None)
+                        if self.gallery is None and self.selected == reference else None)
         except ValueError as error:
             self.error(translate_message(error, "linked_table.error."))
             return False
-        self.show_sheet(kind, key)
+        if live is not None:
+            if kind == "layout":
+                sync_tables(live.figure, self.project.layout_table_specs(self.project.layouts[key]))
+            live.draw_idle()
+            self.update_title()
+            self.update_actions()
+            self.table_move.sync()
+        else:
+            self.show_sheet(kind, key)
         self.status(tr("linked_table.applied"))
         return True
 
@@ -4452,6 +4496,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.drawing.cancel()
+        self.table_move.cancel()
         if self.job is not None:  # Stop the calculation first; the window closes (asking as usual) when it ends.
             self._close_pending = True
             self.cancel_calculation()
