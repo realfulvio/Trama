@@ -135,6 +135,7 @@ class TableFormatDialog(QDialog):
         layout.addWidget(self.problem)
         if self.replicate_count is not None:
             self.replicate_count.valueChanged.connect(self.problem.hide)
+            self.replicate_count.valueChanged.connect(lambda: self.refresh_preview(0))
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
         buttons.button(QDialogButtonBox.StandardButton.Ok).setDefault(True)
@@ -215,24 +216,42 @@ class TableFormatDialog(QDialog):
             return
         draft = self.settings()
         model = self.source
-        columns = [c for c, (_, _, band, _) in enumerate(model.bands)
-                   if band != "Row titles" or draft.show_rows][:12]
+        columns = []
+        for column, (first, stop, band, _) in enumerate(model.bands):
+            if band == "Row titles" and not draft.show_rows:
+                continue
+            if self.replicate_count is None or not model.is_replicate(column):
+                columns.append((column, column, None))
+            elif column == first:
+                for index in range(self.replicate_count.value()):
+                    source = first + index if first + index < stop else None
+                    columns.append((first, source, index + 1))
+            if len(columns) >= 12:
+                break
+        columns = columns[:12]
         rows = min(4, len(model.frame))
+        self.preview.clearContents()
         self.preview.setColumnCount(len(columns))
         self.preview.setRowCount(rows)
         headings = []
-        for i, col in enumerate(columns):
-            first, _, band, default = model.bands[col]
+        for i, (column, source, replica) in enumerate(columns):
+            first, _, band, default = model.bands[column]
             title = (tr("setup.row_titles") if band == "Row titles" else
-                     draft.columns.get(model.column_tokens[col], default))
-            if model.is_replicate(col):
-                subtitle = draft.common.get(str(col - first + 1), "") if draft.shared else draft.individual.get(model.column_tokens[col], "")
-                key = subtitle if draft.show_subtitles and subtitle else model.default_subcolumn_label(col)
-                title = f"{title}\n{key}"
+                     draft.columns.get(model.column_tokens[column], default))
+            if model.is_replicate(column):
+                replica = replica or column - first + 1
+                if draft.shared:
+                    subtitle = draft.common.get(str(replica), "")
+                else:
+                    subtitle = draft.individual.get(model.column_tokens[source], "") if source is not None else ""
+                key = (model.default_subcolumn_label(source) if source is not None
+                       else f"{band.removeprefix('Group ')}:Y{replica}")
+                title = f"{title}\n{subtitle if draft.show_subtitles and subtitle else key}"
             headings.append(title)
-            for row in range(rows):
-                value = model.data(model.index(row, col), Qt.ItemDataRole.DisplayRole)
-                self.preview.setItem(row, i, QTableWidgetItem(str(value or "")))
+            if source is not None:
+                for row in range(rows):
+                    value = model.data(model.index(row, source), Qt.ItemDataRole.DisplayRole)
+                    self.preview.setItem(row, i, QTableWidgetItem(str(value or "")))
         self.preview.setHorizontalHeaderLabels(headings)
         self.preview.resizeColumnsToContents()
 

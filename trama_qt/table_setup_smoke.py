@@ -116,6 +116,9 @@ def exercise_existing_replicates(smoke, window):
             QTest.keyClick(dialog.focusWidget(), Qt.Key.Key_F1)
             assert help_opened, "F1 did not open the shortcuts."
             dialog.replicate_count.setValue(4)
+            assert dialog.preview.columnCount() == 9
+            assert dialog.preview.horizontalHeaderItem(4).text().endswith("A:Y4")
+            assert dialog.preview.item(0, 4) is None
             smoke.shot(dialog, "resize-replicates")
             ok = dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Ok)
             ok.setFocus()
