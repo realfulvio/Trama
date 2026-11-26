@@ -1140,6 +1140,7 @@ GROUPED_RIGHT_AXIS_VERSION = 25
 GROUPED_RIGHT_LOG_AXIS_VERSION = 26
 GROUPED_SINGLE_BAR_VERSION = 27
 BAR_APPEARANCE_VERSION = 28
+BUBBLE_ENCODING_VERSION = 29
 XY_SERIES_ORDER = "xy_series_order"
 
 
@@ -1153,6 +1154,7 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
                                   has_series_style_overrides, series_interval_directions, series_placements)
     from .presentation import GROUPED_PREFIX, INTERVAL_STYLE_FIELDS
     from .grouped_bar_style import BAR_APPEARANCE, BAR_STYLES
+    from .bubble import BUBBLE, MULTIVARIATE_OPTIONS
 
     if len(tables) > 256:
         raise ValueError("A project supports up to 256 data tables.")
@@ -1249,6 +1251,10 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         for table in tables.values() for style in table.graph_styles.values()
     ):
         version = BAR_APPEARANCE_VERSION
+    if (any(method == BUBBLE and not MULTIVARIATE_OPTIONS.isdisjoint(options)
+            for table in tables.values() for method, options in table.analyses)
+            or any("bubble" in (style or {}) for table in tables.values() for style in table.graph_styles.values())):
+        version = BUBBLE_ENCODING_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
@@ -1393,7 +1399,7 @@ def load_workspace(path, *, include_info=False):
                 GROUPED_SERIES_ORDER_VERSION, GROUPED_BAR_SPACING_VERSION, GROUPED_SERIES_INTERVAL_VERSION,
                 GROUPED_BAR_DIRECTION_VERSION, GROUPED_INTERVAL_APPEARANCE_VERSION, GROUPED_BAR_BASELINE_VERSION,
                 GROUPED_RIGHT_AXIS_VERSION, GROUPED_RIGHT_LOG_AXIS_VERSION, GROUPED_SINGLE_BAR_VERSION,
-                BAR_APPEARANCE_VERSION)
+                BAR_APPEARANCE_VERSION, BUBBLE_ENCODING_VERSION)
     if version not in versions or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])

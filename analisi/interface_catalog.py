@@ -1636,3 +1636,10 @@ MESSAGES.update({
     "mixed.ar1.move_up": ("Move visit up", "Sposta la visita in alto"),
     "mixed.ar1.move_down": ("Move visit down", "Sposta la visita in basso"),
 })
+
+# Multivariate bubble plot: captions and engine/style messages.
+from .bubble_catalog import CAPTIONS as _BUBBLE_CAPTIONS  # noqa: E402
+from .bubble_catalog import MESSAGES as _BUBBLE_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_BUBBLE_CAPTIONS)
+MESSAGES.update(_BUBBLE_MESSAGES)

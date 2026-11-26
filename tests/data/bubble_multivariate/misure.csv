@@ -1,0 +1,9 @@
+id,x,y,area,segnale,classe,etichetta
+p01,1,6,1,0,A,Primo
+p02,1,6,4,25,B,Sovrapposto
+p03,2,1,9,50,A,Centrale
+p04,3,7,16,100,B,Massimo
+p05,4,3,0,1000,C,Area zero
+p06,5,4,4,,A,Segnale assente
+p07,,4,9,200,C,X mancante
+p08,2,5,1,25,,Classe assente

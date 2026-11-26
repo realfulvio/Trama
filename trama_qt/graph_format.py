@@ -36,6 +36,7 @@ from analisi.graph_legend import LEGEND_OPTIONS_KEY
 from analisi.graph_shapes import SHAPES
 from analisi.observation_labels import LABELS
 from analisi.point_style import POINTS
+from analisi.bubble_style import describe_bubble_artists
 from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.linked_axes import LINKED_AXES, P_RIGHT, linked_axes_reasons
 from analisi.i18n import active_language, tr, translate_message
@@ -115,7 +116,7 @@ def choice_text(labels, value):
 
 
 # Kept as they are: edited by their own dialogs (annotations, shapes) or not editable on Qt yet.
-KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical", POINTS, LABELS, TABLES, XY_SERIES_ORDER)
+KEPT = ("groups", ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical", "bubble", POINTS, LABELS, TABLES, XY_SERIES_ORDER)
 
 
 class Choice(QComboBox):
@@ -331,6 +332,10 @@ class GraphFormatDialog(QDialog):
             button = QPushButton(tr("hierarchy.style.button"))
             button.clicked.connect(self.edit_hierarchical)
             form.addRow("", button)
+        if describe_bubble_artists(self.axes.figure):
+            button = QPushButton(tr("bubble.style.button"))
+            button.clicked.connect(self.edit_bubble)
+            form.addRow("", button)
 
     def _legend_summary(self):
         from .legend import legend_summary
@@ -354,6 +359,23 @@ class GraphFormatDialog(QDialog):
                 self.style["hierarchical"] = dialog.result
             else:
                 self.style.pop("hierarchical", None)
+
+    def edit_bubble(self):
+        from .bubble_style import BubbleStyleDialog
+
+        figure = self.axes.figure
+        confirmed = deepcopy(getattr(self.axes, "_tramastat_style", {}))
+        dialog = BubbleStyleDialog(self, figure, self.style.get("bubble"), full_style=self.style)
+        try:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                if dialog.result:
+                    self.style["bubble"] = dialog.result
+                else:
+                    self.style.pop("bubble", None)
+        finally:
+            dialog.deleteLater()
+            apply_style(figure, confirmed)
+            figure.canvas.draw_idle()
 
     def _axes(self):
         page = self._tab(tr("graph.format.axes"))
@@ -1350,7 +1372,7 @@ class GraphFormatDialog(QDialog):
     def reset(self):
         """Back to the analysis defaults; drawings, annotations and panel settings stay."""
         style = {key: deepcopy(self.style[key])
-                 for key in (ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical", POINTS, LABELS, TABLES)
+                 for key in (ANNOTATIONS, SHAPES, PANEL_KEY, "hierarchical", "bubble", POINTS, LABELS, TABLES)
                  if self.style.get(key)}
         if self.grouped is not None:
             options = dict(self.grouped["options"])

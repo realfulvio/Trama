@@ -956,6 +956,11 @@ def _result_table_keys_scenario(smoke, window):
     check_result_table_keys(smoke, window)
 
 
+def _bubble_multivariate_scenario(smoke, window):
+    from .bubble_multivariate_smoke import check_bubble_multivariate
+    check_bubble_multivariate(smoke, window)
+
+
 SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,
              "qt-number-format": _number_format_scenario, "qt-repeat-analysis": _repeat_scenario,
              "qt-batch-figure-styles": _batch_figure_styles_scenario, "qt-layout-crop": _layout_crop_scenario,
@@ -966,7 +971,7 @@ SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-exce
              "qt-grouped-bar-spacing": _grouped_spacing_scenario, "qt-grouped-bar-style": _grouped_bar_style_scenario,
              "qt-bar-series-appearance": _bar_series_appearance_scenario, "qt-filled-selection": _filled_selection_scenario,
              "qt-workspace-panes": _workspace_pane_scenario, "qt-linked-sheets": _linked_sheets_scenario,
-             "qt-result-table-keys": _result_table_keys_scenario}
+             "qt-result-table-keys": _result_table_keys_scenario, "qt-bubble-multivariate": _bubble_multivariate_scenario}
 
 
 def run(folder, languages=LANGUAGES, scenario=None):

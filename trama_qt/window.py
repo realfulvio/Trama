@@ -9,7 +9,7 @@ from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPen
+from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence, QShortcut, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QApplication, QComboBox, QDialog, QFileDialog, QFrame,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QScrollArea, QSlider, QSplitter, QTabBar, QToolBar,
@@ -42,6 +42,7 @@ from analisi.plot_function import CURVES as FUNCTION_CURVES, PLOT_FUNCTION
 from analisi.transpose_xy import TRANSPOSE_XY
 from analisi.presentation import apply_style, graph_series, validate_graph_style
 from analisi.series_layers import MAX_ORDERED_SERIES, XY_SERIES_ORDER, xy_layer_groups, xy_order_record
+from analisi.bubble_style import describe_bubble_artists
 from analisi.legacy_binary_range import BINARY_XY_RANGE
 from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_EDITS
 from analisi.legacy_fit_graph import FIT_GRAPH
@@ -698,6 +699,7 @@ class MainWindow(QMainWindow):
           icon="rows-3", shortcut="Ctrl+Alt+Y")
         a("reverse_series_drawing_order", qt("qt.reverse_series_drawing_order"), self.reverse_series_drawing_order,
           icon="arrow-up-down")
+        a("bubble_style", tr("bubble.style.button"), self.edit_bubble_style, icon="shapes", shortcut="Ctrl+Shift+B")
         from .graph_style_preset_dialog import t as preset_text
         a("graph_style_presets", preset_text("action"), self.graph_style_presets, icon="sparkles")
         from .batch_figure_styles_dialog import t as batch_style_text
@@ -1217,6 +1219,8 @@ class MainWindow(QMainWindow):
         can_order_series |= bool(grouped and len(grouped["series_order"]) > 1)
         self.actions["series_drawing_order"].setEnabled(can_order_series)
         self.actions["reverse_series_drawing_order"].setEnabled(can_order_series)
+        bubble_figure = axis_graph.result.figure if axis_graph is not None else None
+        self.actions["bubble_style"].setEnabled(bool(describe_bubble_artists(bubble_figure)))
         self.actions["graph_style_presets"].setEnabled(graph and idle)
         from .gallery_catalog import graph_runs
         self.actions["batch_figure_styles"].setEnabled(idle and bool(graph_runs(self.project)))
@@ -2604,6 +2608,8 @@ class MainWindow(QMainWindow):
             page.command(self.actions["linked_table"])
             page.command(self.actions["linked_table_move"])
         if kind == "graph":
+            if result is not None and result.figure is not None and describe_bubble_artists(result.figure):
+                page.command(self.actions["bubble_style"])
             page.command(self.actions["inspector"])
         elif kind == "result":
             page.command(self.actions["analyze_result"])
@@ -3758,6 +3764,36 @@ class MainWindow(QMainWindow):
         groups = xy_layer_groups(figure, series, previous)
         order = [item.key for _, group in groups for item in reversed(group)]
         self._apply_series_drawing_order(run, series, previous, order, qt("qt.reverse_series_drawing_order"))
+
+    def edit_bubble_style(self):
+        """Preview the encoding and store one undoable change."""
+        if not self.actions["bubble_style"].isEnabled() or not self.settle_graph_draft():
+            return
+        from .bubble_style import BubbleStyleDialog
+
+        project, reference = self.project, self.selected
+        run = project.runs[reference[1]]
+        figure = run.result.figure
+        confirmed = deepcopy(run.style or {})
+        dialog = BubbleStyleDialog(self, figure, confirmed.get("bubble"), full_style=confirmed)
+        QShortcut(QKeySequence("F1"), dialog, self.show_shortcuts)
+        try:
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            section = dialog.result
+        finally:
+            dialog.deleteLater()
+        if (self.project is not project or self.selected != reference or reference[1] >= len(project.runs)
+                or project.runs[reference[1]] is not run or run.result is None or run.result.figure is not figure):
+            return
+        try:
+            changed = project.change_graph_style_option(run, "bubble", section, tr("bubble.style.title"))
+        except ValueError as error:
+            self.error(error)
+            return
+        if changed:
+            self.show_sheet(*reference)
+            self.status(qt("qt.style_applied"))
 
     def graph_style_presets(self):
         """Graph → Figure styles…: preview a saved style on the graph on screen and commit it once."""

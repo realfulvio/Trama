@@ -235,6 +235,8 @@ def compute(run, frame, control=None, layout_data=None, pairwise=None, *, result
             _attach_pairwise(result, frame, pairwise, run.method)
         finally:
             sync_letters_table(result)
+    from analisi.bubble_style import sync_bubble_tables
+    sync_bubble_tables(result)
     return result
 
 
@@ -1563,14 +1565,21 @@ class Project(WorksheetJoinSources, SheetCommands):
     def commit_style(self, run, style, *, record_shapes=True, record_history=False):
         """Store a style already drawn on the figure (the Inspector and the canvas tools preview it first)."""
         before_style = run.style
-        if record_shapes and not record_history:
+        bubble_changed = (before_style or {}).get("bubble") != (style or {}).get("bubble")
+        if record_shapes and not (record_history or bubble_changed):
             self.record_shapes(run, style)
         run.style = style
         run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
+        from analisi.bubble_style import sync_bubble_tables
+        sync_bubble_tables(run.result)
         if record_history:
             self.history.record_format(run.uid, "Format graph", None, None, before_style, style)
+        elif bubble_changed:
+            self.history.record_style_batch(tr("bubble.style.title"), {run.uid: before_style}, {run.uid: style})
+            self.update_linked_tables()
+            self.sync_links(persist=True)
         self.dirty = True
 
     def _apply_style_updates(self, targets, styles_by_uid):
@@ -1604,6 +1613,8 @@ class Project(WorksheetJoinSources, SheetCommands):
             else:
                 self.tables[run.title].graph_styles[run.slot] = target
             sync_letters_table(run.result)
+            from analisi.bubble_style import sync_bubble_tables
+            sync_bubble_tables(run.result)
         self.update_linked_tables()
         self.sync_links(persist=True)
 
@@ -1658,6 +1669,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         before_options, before_style = run.options, run.style
         grouped = run.method == GROUPED_GRAPH
         grouped_changed = grouped and grouped_update is not None
+        bubble_changed = (before_style or {}).get("bubble") != (style or {}).get("bubble")
         if run.method == XY_METHOD and xy_update is not None:
             run.options = xy_update
             run.result = xy_result
@@ -1671,12 +1683,14 @@ class Project(WorksheetJoinSources, SheetCommands):
             self.tables[run.title].analyses[run.slot] = (run.method, run.options)
         else:
             apply_style(run.result.figure, style)
-        if not grouped:
+        if not (grouped or bubble_changed):
             self.record_shapes(run, style)
         run.style = style
         run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
+        from analisi.bubble_style import sync_bubble_tables
+        sync_bubble_tables(run.result)
         self.sync_run_tables(run)
         self.update_linked_tables()
         self.sync_links(persist=True)
@@ -1687,6 +1701,8 @@ class Project(WorksheetJoinSources, SheetCommands):
                 run.options if grouped_changed else None,
                 before_style, style,
             )
+        elif bubble_changed:
+            self.history.record_style_batch(tr("bubble.style.title"), {run.uid: before_style}, {run.uid: style})
         self.dirty = True
 
     def change_graph_style_option(self, run, key, value, label):
