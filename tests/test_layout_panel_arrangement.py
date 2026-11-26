@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 from matplotlib.figure import Figure
 
-from analisi.layout_panels import plan_panels
+from analisi.layout_panels import layout_shifts, panel_rectangle, plan_panels
 from analisi.layout_svg import SVG, export_layout_svg
 
 
@@ -44,6 +44,20 @@ class LayoutArrangementTests(unittest.TestCase):
                 if option != "both":
                     self.assertEqual([panel.size for panel in panels],
                                      [tuple(graph.get_size_inches()) for graph in graphs])
+
+    def test_distributing_three_selected_panels_keeps_the_outside_edges(self):
+        graphs = figures()
+        panels = plan_panels(4, graphs)
+        initial = [panel_rectangle(panel) for panel in panels]
+        objects = [(0,), (1,), (2,)]
+        offsets = layout_shifts(panels, objects, "distribute_x")
+        final = [(x + offsets[index][0], right + offsets[index][0])
+                 for index, (x, _, right, _) in enumerate(initial[:3])]
+        self.assertAlmostEqual(final[0][0], initial[0][0])
+        self.assertAlmostEqual(final[2][1], initial[2][2])
+        self.assertAlmostEqual(final[1][0] - final[0][1], final[2][0] - final[1][1])
+        self.assertNotIn(3, offsets)
+        self.assertEqual([panel_rectangle(panel) for panel in panels], initial)
 
     def test_aligns_actual_axis_edges_in_svg_and_keeps_source_geometry(self):
         graphs = figures()

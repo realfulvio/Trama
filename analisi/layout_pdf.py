@@ -24,6 +24,7 @@ class PdfLayoutPage:
     panel_size: str = "original"
     axis_alignment: str = "none"
     tables: tuple = ()      # ``linked_tables.TableSpec`` objects drawn on the page itself, above the panels
+    offsets: tuple = ()
 
     def __post_init__(self):
         Layout(self.title, self.columns, [("panel", index) for index in range(len(self.panels))],
@@ -43,7 +44,7 @@ class PdfLayoutPage:
     @property
     def placements(self):
         return plan_panels(self.columns, self.panels, self.paper, panel_size=self.panel_size,
-                           axis_alignment=self.axis_alignment)
+                           axis_alignment=self.axis_alignment, offsets=self.offsets)
 
     def frame(self, plan):
         scale = plan["width_mm"] / MM / self.size[0]

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QColorDialog, QComboBox, QDial
                                QVBoxLayout)
 
 from analisi.i18n import tr, ui
+from analisi.layout_arrangement import PanelArrangement
 from analisi.layout_geometry import AUTO_PAPER, AXIS_ALIGNMENTS, PANEL_SIZES, PAPER_SIZES, WHITE
 from analisi.presentation import Layout
 from analisi.legacy_layout_edit import edited_layout_preview
@@ -24,6 +25,7 @@ class LayoutDialog(QDialog):
         self.runs, self.current, self.result = runs, current, None
         by_reference = {run.reference: index for index, run in enumerate(runs)}
         self.order = [by_reference.get(ref) for ref in current.panels] if current else ([] if runs else [None])
+        self.original_panels = list(range(len(self.order))) if current else [None] * len(self.order)
         QShortcut(QKeySequence("F1"), self, parent.show_shortcuts)
         counts, self.labels = {}, []
         for run in runs:
@@ -166,6 +168,7 @@ class LayoutDialog(QDialog):
             return
         if chosen:
             self.order.extend(chosen)
+            self.original_panels.extend([None] * len(chosen))
             self.fill_panels(len(self.order) - 1)
 
     def add_empty(self):
@@ -174,12 +177,14 @@ class LayoutDialog(QDialog):
             self.show_problem(tr("layout.panel_limit"))
             return
         self.order.extend([None] * count)
+        self.original_panels.extend([None] * count)
         self.fill_panels(len(self.order) - 1)
 
     def remove_selected(self):
         index = self.panels.currentRow()
         if 0 <= index < len(self.order):
             del self.order[index]
+            del self.original_panels[index]
             self.fill_panels(index)
 
     def move_selected(self, step):
@@ -187,6 +192,8 @@ class LayoutDialog(QDialog):
         target = index + step
         if 0 <= index < len(self.order) and 0 <= target < len(self.order):
             self.order[index], self.order[target] = self.order[target], self.order[index]
+            origins = self.original_panels
+            origins[index], origins[target] = origins[target], origins[index]
             self.fill_panels(target)
 
     def accept(self):
@@ -194,11 +201,13 @@ class LayoutDialog(QDialog):
             self.show_problem(qt("qt.layout_needs_slot"))
             self.empty_count.setFocus()
             return
+        arrangement = self.current.arrangement.remap(self.original_panels) if self.current else PanelArrangement()
         try:
             self.result = Layout(self.name.text().strip(), int(self.columns.currentText()),
                                  [self.runs[i].reference if i is not None else None for i in self.order],
                                  self.paper.currentData(), self.background.text().strip(), self.panel_size.currentData(),
-                                 self.axis_alignment.currentData(), self.current.tables if self.current else [])
+                                 self.axis_alignment.currentData(), self.current.tables if self.current else [],
+                                 arrangement)
         except ValueError as error:
             self.show_problem(str(error))
             return

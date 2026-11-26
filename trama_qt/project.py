@@ -852,7 +852,8 @@ class Project(WorksheetJoinSources, SheetCommands):
 
         return compose_layout(layout.name, layout.columns, figures, paper=layout.paper, background=layout.background,
                               panel_size=layout.panel_size, axis_alignment=layout.axis_alignment,
-                              tables=self.layout_table_specs(layout), empty_label=label if show_empty else None)
+                              tables=self.layout_table_specs(layout), empty_label=label if show_empty else None,
+                              offsets=layout.arrangement.offsets)
 
     # -- linked tables ----------------------------------------------------------------------------
     def table_analyses(self):
@@ -1300,7 +1301,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         from analisi.layout_pdf import PdfLayoutPage
         return PdfLayoutPage(layout.name, layout.columns, self.layout_panel_figures(layout), layout.paper,
                              layout.background, layout.panel_size, layout.axis_alignment,
-                             self.layout_table_specs(layout))
+                             self.layout_table_specs(layout), layout.arrangement.offsets)
 
     def export_layout(self, layout, path, settings=None):
         """PDF and SVG keep the panels vector; PNG and TIFF render the page (300 dpi unless ``settings`` say).
@@ -1320,12 +1321,14 @@ class Project(WorksheetJoinSources, SheetCommands):
             from analisi.layout_svg import export_layout_svg
             export_layout_svg(layout.name, layout.columns, self.layout_panel_figures(layout), path, settings,
                               paper=layout.paper, background=layout.background, panel_size=layout.panel_size,
-                              axis_alignment=layout.axis_alignment, tables=self.layout_table_specs(layout))
+                              axis_alignment=layout.axis_alignment, tables=self.layout_table_specs(layout),
+                              offsets=layout.arrangement.offsets)
         else:
             background = WHITE if settings.get("transparent") else layout.background
             figure = compose_layout(layout.name, layout.columns, self.layout_panel_figures(layout),
                                     paper=layout.paper, background=background, panel_size=layout.panel_size,
-                                    axis_alignment=layout.axis_alignment, tables=self.layout_table_specs(layout))
+                                    axis_alignment=layout.axis_alignment, tables=self.layout_table_specs(layout),
+                                    offsets=layout.arrangement.offsets)
             export_figure(figure, path, settings)
 
     def export_pdf_pages(self, refs, path, settings, names):

@@ -104,7 +104,7 @@ def _verify(path, plan, images):
 
 
 def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAPER, background=WHITE,
-                      panel_size="original", axis_alignment="none", tables=()):
+                      panel_size="original", axis_alignment="none", tables=(), offsets=()):
     """Write the layout ``title`` with ``figures`` (panel order) to ``path`` as a vector SVG.
 
     ``settings`` are those of File → Export with options… with format ``svg``: ``width_mm``
@@ -131,7 +131,7 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
     rc = {"svg.fonttype": "none" if plan["svg_text"] == "text" else "path", "svg.image_inline": True}
 
     # Every panel is rendered first: a failure leaves the destination untouched.
-    placements = plan_panels(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment)
+    placements = plan_panels(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment, offsets=offsets)
     panels = []
     for placement in placements:
         if placement.figure is None:

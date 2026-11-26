@@ -6,7 +6,7 @@ from math import isclose
 
 from matplotlib.figure import Figure
 
-from .layout_geometry import AUTO_PAPER, panel_boxes, panel_cells
+from .layout_geometry import AUTO_PAPER, page_size, panel_boxes, panel_cells
 
 
 # Explicit empty slot passed to the renderers. A missing figure still signals an error.
@@ -123,7 +123,8 @@ def _align_panels(panels, columns, alignment, measurements):
     return panels
 
 
-def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original", axis_alignment="none"):
+def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original", axis_alignment="none",
+                     offsets=()):
     """Match panel sizes and axes, yielding after each measured graph for the gallery."""
 
     figures = tuple(figures)
@@ -142,14 +143,92 @@ def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original
         for panel in panels:
             measurements.append(_plot_bounds(panel) if panel.figure is not None else None)
             yield
-        return _align_panels(panels, columns, axis_alignment, measurements)
+        panels = _align_panels(panels, columns, axis_alignment, measurements)
+    if offsets:
+        width, height = page_size(columns, len(panels), paper)
+        for index, dx, dy in offsets:
+            panel = panels[index]
+            x, y, scale = panel.box
+            panels[index] = replace(panel, box=(x + dx * width, y + dy * height, scale))
     return panels
 
 
-def plan_panels(columns, figures, paper=AUTO_PAPER, *, panel_size="original", axis_alignment="none"):
-    steps = panel_plan_steps(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment)
+def plan_panels(columns, figures, paper=AUTO_PAPER, *, panel_size="original", axis_alignment="none", offsets=()):
+    steps = panel_plan_steps(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment,
+                             offsets=offsets)
     try:
         while True:
             next(steps)
     except StopIteration as finished:
         return finished.value
+
+def panel_rectangle(panel):
+    """The graph's outer rectangle in page inches, with the origin at the top left."""
+    x, y, scale = panel.box
+    w, h = panel.size
+    return x, y, x + w * scale, y + h * scale
+
+
+def enclosing_rectangle(panels, indices):
+    corners = [panel_rectangle(panels[index]) for index in indices]
+    return (min(r[0] for r in corners), min(r[1] for r in corners),
+            max(r[2] for r in corners), max(r[3] for r in corners))
+
+
+def bounded_translation(rect, shift, page):
+    """Constrain movement so the selection fits without increasing any existing overflow."""
+    x, y, right, bottom = rect
+    dx, dy = shift
+    width, height = page
+    return (min(max(dx, min(0., -x)), max(0., width - right)),
+            min(max(dy, min(0., -y)), max(0., height - bottom)))
+
+
+def _axis_anchor(panel, axis):
+    if panel.figure is None:
+        return None
+    measured = (panel.axes, panel.bounds) if panel.bounds is not None else _plot_bounds(panel)
+    if measured is None:
+        return None
+    left, top, right, bottom = panel_rectangle(panel)
+    _, (axis_x, axis_y, _, _) = measured
+    return top + (bottom - top) * (1 - axis_y) if axis == "x" else left + (right - left) * axis_x
+
+
+class PanelAlignmentError(ValueError):
+    """The selected objects cannot be arranged with the requested operation."""
+
+
+def layout_shifts(panels, objects, command):
+    """Compute one page translation per selected panel, with axis positions measured from its graph."""
+    boxes = [enclosing_rectangle(panels, obj) for obj in objects]
+    direction = {
+        "left": 0, "center": 0, "right": 0, "top": 1, "middle": 1, "bottom": 1,
+        "align_x": 1, "align_y": 0, "distribute_x": 0, "distribute_y": 1,
+    }[command]
+    lows, highs = [box[direction] for box in boxes], [box[direction + 2] for box in boxes]
+    if command.startswith("align_"):
+        anchors = [_axis_anchor(panels[obj[0]], command[-1]) if len(obj) == 1 else None for obj in objects]
+        if None in anchors:
+            raise PanelAlignmentError("axes")
+        target = max(anchors) if command == "align_x" else min(anchors)
+        deltas = [target - anchor for anchor in anchors]
+    elif command.startswith("distribute_"):
+        gap = (max(highs) - min(lows) - sum(high - low for low, high in zip(lows, highs, strict=True)))
+        if gap < -1e-8:
+            raise PanelAlignmentError("space")
+        gap = max(0., gap) / (len(objects) - 1)
+        cursor = min(lows)
+        deltas = [0.] * len(objects)
+        for index in sorted(range(len(lows)), key=lows.__getitem__):
+            deltas[index] = cursor - lows[index]
+            cursor += highs[index] - lows[index] + gap
+    elif command in {"left", "top"}:
+        deltas = [min(lows) - low for low in lows]
+    elif command in {"right", "bottom"}:
+        deltas = [max(highs) - high for high in highs]
+    else:
+        center = (min(lows) + max(highs)) / 2
+        deltas = [center - (low + high) / 2 for low, high in zip(lows, highs, strict=True)]
+    return {index: (0., delta) if direction else (delta, 0.)
+            for delta, members in zip(deltas, objects, strict=True) for index in members}

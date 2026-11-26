@@ -1118,6 +1118,7 @@ def _analysis_slots(value, count):
 
 
 LAYOUT_PLACEHOLDER_VERSION = 6
+LAYOUT_ARRANGEMENT_VERSION = 7
 
 
 def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=None):
@@ -1144,9 +1145,14 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
             del record["axis_alignment"]
         if not record.get("tables"):
             record.pop("tables", None)
+        if layout.arrangement.empty:
+            del record["arrangement"]
         layout_records.append(record)
-    version = LAYOUT_PLACEHOLDER_VERSION if any(None in record["panels"] for record in layout_records) else (
-        3 if linked else 2)
+    version = 3 if linked else 2
+    if any(None in record["panels"] for record in layout_records):
+        version = LAYOUT_PLACEHOLDER_VERSION
+    if any("arrangement" in record for record in layout_records):
+        version = LAYOUT_ARRANGEMENT_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
@@ -1283,7 +1289,9 @@ def load_workspace(path, *, include_info=False):
         raise ValueError("Project file exceeds 32 MiB.")
     obj = json.loads(path.read_text(encoding="utf-8-sig"))
     version = obj["version"]
-    if version not in (1, 2, 3, LEGACY_METADATA_VERSION, CATEGORY_ORDER_VERSION, LAYOUT_PLACEHOLDER_VERSION) or len(obj["tables"]) > 256:
+    versions = (1, 2, 3, LEGACY_METADATA_VERSION, CATEGORY_ORDER_VERSION,
+                LAYOUT_PLACEHOLDER_VERSION, LAYOUT_ARRANGEMENT_VERSION)
+    if version not in versions or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
     if (not isinstance(stored_info, list) or len(stored_info) > MAX_INFO_SHEETS
@@ -1399,10 +1407,12 @@ def load_workspace(path, *, include_info=False):
         panels = [tuple(ref) if ref is not None else None for ref in record["panels"]]
         if None in panels and version < LAYOUT_PLACEHOLDER_VERSION:
             raise ValueError("Empty layout panels require project format version 6.")
+        if "arrangement" in record and version < LAYOUT_ARRANGEMENT_VERSION:
+            raise ValueError("Panel arrangements require project format version 7.")
         layout = Layout(record["name"], record["columns"], panels,
                         record.get("paper", AUTO_PAPER), record.get("background", WHITE),
                         record.get("panel_size", "original"), record.get("axis_alignment", "none"),
-                        record.get("tables", []))
+                        record.get("tables", []), record.get("arrangement", {}))
         if any(title not in result or index >= len(result[title].analyses) for title, index in (ref for ref in panels if ref is not None)):
             raise ValueError("Layout references an unknown analysis.")
         layouts.append(layout)

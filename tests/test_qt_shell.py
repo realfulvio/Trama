@@ -2909,6 +2909,94 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual((slots[0], slots[2]), (None, None))
         self.assertTrue(slots[1])
 
+    def test_selected_layout_panels_move_group_align_and_survive_round_trip(self):
+        import re
+        import xml.etree.ElementTree as ET
+        from PySide6.QtCore import QPoint
+        from PySide6.QtTest import QTest
+
+        from analisi.layout_panels import _axis_anchor, panel_rectangle
+        from analisi.layout_svg import SVG
+        from analisi.presentation import Layout
+
+        self.open_example()
+        window = self.window
+        first = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        window.show_sheet("data", "groups")
+        second = self.run_method("Box / violin plot", {"Variables": ["Control", "Treated"]})
+        second.result.figure.set_size_inches(4, 6, forward=False)
+        original = Layout("Arranged", 2, [first.reference, second.reference, first.reference])
+        ref = ("layout", window.project.put_layout(original))
+        window.open_sheet(ref)
+        self.wait()
+
+        def select(index, modifiers=Qt.KeyboardModifier.NoModifier):
+            controller = window.page.layout_selection
+            canvas = controller.canvas
+            axis = next(axis for axis, key in controller.axes.items() if key == index)
+            x, y = axis.transAxes.transform((.5, .5))
+            point = QPoint(round(x / canvas.device_pixel_ratio), round(canvas.height() - y / canvas.device_pixel_ratio))
+            QTest.mouseClick(canvas, Qt.MouseButton.LeftButton, modifiers, point)
+            self.app.processEvents()
+
+        select(0)
+        self.assertFalse(window.actions["layout_align_x"].isEnabled())
+        select(1, Qt.KeyboardModifier.ControlModifier)
+        controller = window.page.layout_selection
+        self.assertEqual(controller.selected, {0, 1})
+        original_boxes = [panel_rectangle(panel) for panel in controller.panels]
+        baseline = max(_axis_anchor(panel, "x") for panel in controller.panels[:2])
+        self.assertTrue(window.actions["layout_align_x"].isEnabled())
+        self.assertFalse(window.actions["layout_distribute_x"].isEnabled())
+        self.assertTrue(window.actions["new_graph"].shortcut().isEmpty())
+        window.actions["layout_align_x"].trigger()
+        self.app.processEvents()
+        controller = window.page.layout_selection
+        for panel in controller.panels[:2]:
+            self.assertAlmostEqual(_axis_anchor(panel, "x"), baseline, places=8)
+        self.assertEqual(panel_rectangle(controller.panels[2]), original_boxes[2])
+
+        QTest.keyClick(controller.canvas, Qt.Key.Key_G, Qt.KeyboardModifier.ControlModifier)
+        aligned = window.project.layouts[0].arrangement
+        self.assertEqual(aligned.groups, ((0, 1),))
+        select(1)
+        controller = window.page.layout_selection
+        self.assertEqual(controller.selected, {0, 1})
+        QTest.keyClick(controller.canvas, Qt.Key.Key_Down)
+        moved = window.project.layouts[0].arrangement
+        self.assertNotEqual(aligned.offsets, moved.offsets)
+        window.actions["layout_lock"].trigger()
+        locked = window.project.layouts[0].arrangement
+        self.assertEqual(locked.locked, (0, 1))
+        QTest.keyClick(window.page.layout_selection.canvas, Qt.Key.Key_Down)
+        self.assertEqual(window.project.layouts[0].arrangement, locked)
+        window.undo()
+        self.assertEqual(window.project.layouts[0].arrangement, moved)
+
+        layout = window.project.layouts[0]
+        self.assertEqual(layout.panels, original.panels)
+        positions = [panel.box for panel in window.project.layout_pdf_page(layout).placements]
+        target = self.folder / "arranged.svg"
+        window.project.export_layout(layout, target)
+        svg = ET.parse(target)
+        for index, (x, y, _scale) in enumerate(positions, 1):
+            panel = svg.find(f".//{SVG}g[@id='panel{index}']")
+            x_pt, y_pt = map(float, re.match(r"translate\(([^ ]+) ([^)]+)", panel.get("transform")).groups())
+            self.assertAlmostEqual(x_pt, x * 72, places=3)
+            self.assertAlmostEqual(y_pt, y * 72, places=3)
+        path = self.folder / "arranged.alab"
+        window.project.save(path)
+        self.reopen(path)
+        window.open_sheet(ref)
+        self.wait()
+        self.assertEqual(window.project.layouts[0].arrangement, moved)
+        select(0)
+        QTest.keyClick(window.page.layout_selection.canvas, Qt.Key.Key_G,
+                       Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+        self.assertEqual(window.project.layouts[0].arrangement.groups, ())
+        window.show_sheet("data", "groups")
+        self.assertEqual(window.actions["new_graph"].shortcut().toString(), "Ctrl+G")
+
     def test_layout_panel_arrangement_undo_and_exports(self):
         from unittest.mock import patch
         from analisi.presentation import Layout

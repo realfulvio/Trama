@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboB
 
 from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power, mean_permutation, parallel, power_plan, rmst
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, result_display
+from analisi.layout_arrangement import change_objects, translated
+from analisi.layout_panels import PanelAlignmentError, bounded_translation, layout_shifts, panel_rectangle
 from analisi.xy_series import XY_METHOD
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
@@ -63,6 +65,7 @@ from analisi.rank_graphs import RANK_PLOT, rank_plot_options
 from analisi.rank_tests import MANN_WHITNEY, WILCOXON
 
 from .layout_drop import GraphNavigator, LayoutDrop
+from .layout_selection import LayoutSelection
 from . import global_catalog
 from . import gui_gc, office, theme
 from .analysis_dialog import AnalysisDialog
@@ -166,6 +169,11 @@ def export_graph(figure, path, settings=None, *, size_inches=None):
                 size_inches = (width * scale, height * scale)
     export_figure(figure, path, settings, size_inches=size_inches)
 
+
+
+LAYOUT_EDGES = ("left", "center", "right", "top", "middle", "bottom")
+LAYOUT_DISTRIBUTIONS = ("distribute_x", "distribute_y")
+LAYOUT_AXIS_ALIGNMENT = ("align_x", "align_y")
 
 _KEEP = object()  # ``_ask``: keep the input of the analysis.
 
@@ -659,6 +667,21 @@ class MainWindow(QMainWindow):
         a("linked_table_selection", tr("command.linked_table_selection"), self.insert_linked_table_from_selection,
           icon="table-2")
         a("arrange_shapes", tr("command.arrange_shapes"), self.arrange_shapes, icon="shapes")
+        for command in LAYOUT_EDGES:
+            a(f"layout_{command}", tr(f"arrange.option.{command}"),
+              lambda name=command: self.arrange_layout_selection(name))
+        for command in (*LAYOUT_DISTRIBUTIONS, *LAYOUT_AXIS_ALIGNMENT, "lock"):
+            a(f"layout_{command}", qt(f"qt.layout_{command}"),
+              lambda name=command: self.arrange_layout_selection(name))
+        a("layout_group", tr("shape.objects.group"), lambda: self.arrange_layout_selection("group"),
+          shortcut="Ctrl+G")
+        a("layout_ungroup", tr("shape.objects.ungroup"), lambda: self.arrange_layout_selection("ungroup"),
+          shortcut="Ctrl+Shift+G")
+        for key, commands in (("layout_align_edges", LAYOUT_EDGES), ("layout_distribute", LAYOUT_DISTRIBUTIONS)):
+            menu = QMenu(qt(f"qt.{key}"), self)
+            for name in commands:
+                menu.addAction(self.actions[f"layout_{name}"])
+            self.actions[key] = menu.menuAction()
         a("pairwise", tr("command.pairwise"), self.pairwise_comparisons, icon="git-compare")
         a("compact_letters", tr("command.compact_letters"), lambda: self.pairwise_comparisons(letters=True),
           icon="type")
@@ -1135,6 +1158,7 @@ class MainWindow(QMainWindow):
             layout_editable and None in self.project.layouts[self.selected[1]].panels
             and bool(self.project.layout_candidates()))
         self.navigator.setDragEnabled(self.actions["place_layout_graph"].isEnabled())
+        self.update_layout_arrangement_actions()
         self.actions["recalculate"].setEnabled((on_run and not locked or kind == "layout") and idle)
         self.actions["use_result"].setEnabled(kind == "result" and idle)
         run = self.project.runs[self.selected[1]] if kind in {"result", "graph"} else None
@@ -2294,18 +2318,27 @@ class MainWindow(QMainWindow):
         else:
             self.layout_figure = figure
             canvas = self._canvas(page, figure, paper=figure.get_size_inches(), reference=("layout", index))
+            axes = {axis: int(axis.get_gid().rsplit("-", 1)[1]) for axis in figure.axes
+                    if (axis.get_gid() or "").startswith(("layout-slot-", "layout-panel-"))}
+            project = self.project
+
+            def active():
+                return (self.project is project and self.selected == ("layout", index) and self.job is None
+                        and self.gallery is None and self.page is page and not self.table_move.active
+                        and self.plot_tools is not None and not self.plot_tools.mode
+                        and not project.sheet_locked(("layout", index)))
+
+            page.layout_selection = LayoutSelection(canvas, layout, axes, active, self.update_layout_arrangement_actions,
+                                                   lambda shift: self.move_layout_selection(shift))
             if None in layout.panels:
                 slots = {axis: int(axis.get_gid().removeprefix("layout-slot-")) for axis in figure.axes
                          if (axis.get_gid() or "").startswith("layout-slot-")}
 
                 def open_slot(event):
-                    if (event.dblclick and event.button == 1 and event.inaxes in slots
-                            and not self.table_move.active and not self.plot_tools.mode):
+                    if event.dblclick and event.button == 1 and event.inaxes in slots and active():
                         self.place_layout_graph(slots[event.inaxes])
 
                 canvas.mpl_connect("button_press_event", open_slot)
-                project = self.project
-
                 def resolve_graph(identifier):
                     if (self.project is not project or self.selected != ("layout", index) or self.job is not None
                             or self.table_move.active or canvas is not self.page.canvases[0]
@@ -3531,6 +3564,78 @@ class MainWindow(QMainWindow):
             panels[slot] = graph
             self.project.put_layout(replace(layout, panels=panels), key)
             self.open_sheet(("layout", key))
+
+    def _active_layout_selection(self):
+        controller = getattr(self.page, "layout_selection", None)
+        return controller if controller is not None and controller.enabled() else None
+
+    def update_layout_arrangement_actions(self):
+        controller = self._active_layout_selection()
+        objects = controller.objects if controller else ()
+        movable = bool(controller and not controller.locked)
+        can_align = len(objects) >= 2 and movable
+        can_distribute = len(objects) >= 3 and movable
+        for key in ("layout_align_edges", *(f"layout_{mode}" for mode in LAYOUT_EDGES)):
+            self.actions[key].setEnabled(can_align)
+        for key in ("layout_distribute", *(f"layout_{mode}" for mode in LAYOUT_DISTRIBUTIONS)):
+            self.actions[key].setEnabled(can_distribute)
+        axes = can_align and all(len(obj) == 1 and controller.panels[obj[0]].figure is not None for obj in objects)
+        for mode in LAYOUT_AXIS_ALIGNMENT:
+            self.actions[f"layout_{mode}"].setEnabled(axes)
+        self.actions["layout_group"].setEnabled(can_align)
+        self.actions["layout_ungroup"].setEnabled(movable and any(len(obj) > 1 for obj in objects))
+        lock = self.actions["layout_lock"]
+        lock.setEnabled(bool(objects))
+        locked = bool(objects) and controller.selected.issubset(controller.layout.arrangement.locked)
+        lock.setText(qt("qt.layout_unlock" if locked else "qt.layout_lock"))
+        # Group shortcuts belong to the selected layout objects while its canvas is active.
+        for key, shortcut in (("new_graph", "Ctrl+G"), ("gallery", "Ctrl+Shift+G")):
+            shortcuts = [] if objects else [QKeySequence(shortcut)]
+            if self.actions[key].shortcuts() != shortcuts:
+                self.actions[key].setShortcuts(shortcuts)
+
+    def _commit_layout_arrangement(self, controller, arrangement):
+        if arrangement == controller.layout.arrangement:
+            return
+        selected = controller.selected
+        key = self.selected[1]
+        candidate = replace(controller.layout, arrangement=arrangement)
+        self.project.put_layout(candidate, key)
+        self.open_sheet(("layout", key))
+        refreshed = self._active_layout_selection()
+        if refreshed is not None:
+            refreshed.select(selected)
+            refreshed.canvas.setFocus()
+
+    def move_layout_selection(self, shift):
+        controller = self._active_layout_selection()
+        if controller is not None and controller.selected and not controller.locked:
+            shifts = {index: shift for index in controller.selected}
+            self._commit_layout_arrangement(controller,
+                                            translated(controller.layout.arrangement, shifts, controller.page))
+
+    def arrange_layout_selection(self, command):
+        controller = self._active_layout_selection()
+        if controller is None or not self.actions[f"layout_{command}"].isEnabled():
+            return
+        objects = controller.objects
+        arrangement = controller.layout.arrangement
+        if command in {"group", "ungroup", "lock"}:
+            if command == "lock" and controller.selected.issubset(arrangement.locked):
+                command = "unlock"
+            arrangement = change_objects(arrangement, objects, command)
+        else:
+            try:
+                shifts = layout_shifts(controller.panels, objects, command)
+                for index, shift in shifts.items():
+                    allowed = bounded_translation(panel_rectangle(controller.panels[index]), shift, controller.page)
+                    if any(abs(a - b) > 1e-8 for a, b in zip(allowed, shift, strict=True)):
+                        raise PanelAlignmentError("outside")
+            except PanelAlignmentError as error:
+                self.status(qt(f"qt.layout_arrange_{error}"))
+                return
+            arrangement = translated(arrangement, shifts, controller.page)
+        self._commit_layout_arrangement(controller, arrangement)
 
     def edit_imported_panel(self, index):
         if self.busy():

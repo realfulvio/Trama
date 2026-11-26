@@ -42,6 +42,7 @@ from .linked_tables import TABLES, draw_tables, validate_tables
 from .observation_labels import LABELS, apply_observation_labels, restore_observation_labels, validate_labels
 from .point_style import (GID_PREFIX as POINT_GID_PREFIX, INDICATOR_GID, POINTS, apply_point_styles,
                           restore_point_styles, validate_points)
+from .layout_arrangement import PanelArrangement, validated_arrangement
 from .layout_geometry import (AUTO_PAPER, AXIS_ALIGNMENTS, LABEL_PAD, LABEL_SIZE, PANEL_SIZES, PAPER_SIZES, PT, WHITE,
                               layout_frame, page_ink, page_size)
 from .layout_panels import plan_panels
@@ -56,7 +57,8 @@ class Layout:
     background: str = WHITE
     panel_size: str = "original"
     axis_alignment: str = "none"
-    tables: list = field(default_factory=list)  # linked tables on the page itself (``analisi.linked_tables``)
+    tables: list = field(default_factory=list)  # Linked tables on the page
+    arrangement: PanelArrangement = field(default_factory=PanelArrangement)
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name.strip() or len(self.name) > 160:
@@ -74,6 +76,7 @@ class Layout:
             raise ValueError("Invalid layout panel arrangement.")
         if self.tables:
             self.tables = validate_tables(self.tables)
+        self.arrangement = validated_arrangement(self.arrangement, len(self.panels))
 
 
 SCALES = ("linear", "log", *PROBABILITY_SCALES)
@@ -1175,15 +1178,18 @@ def apply_style(figure, style):
 
 
 def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHITE, panel_size="original",
-                   axis_alignment="none", tables=(), empty_label=None):
+                   axis_alignment="none", tables=(), empty_label=None, offsets=()):
     """The layout page as one figure; ``tables`` (``linked_tables.TableSpec``) are drawn above the panels."""
     Layout(title, columns, [("panel", i) for i in range(len(figures))], paper, background,
            panel_size, axis_alignment)
     page_width, page_height = size = page_size(columns, len(figures), paper)
-    placements = plan_panels(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment)
+    placements = plan_panels(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment,
+                             offsets=offsets)
     boxes = [placement.box for placement in placements]
     figure = layout_frame(title, size, boxes, background=background, panel_letters=False)
     ink = page_ink(background)
+    if empty_label is not None:
+        figure.trama_layout_panels = placements
     for i, placement in enumerate(placements):
         w, h = placement.size
         x, y, scale = placement.box
@@ -1208,6 +1214,8 @@ def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHIT
                                  w * scale / page_width, h * scale / page_height))
         panel.imshow(pixels, aspect=None if (panel_size, axis_alignment) == ("original", "none") else "auto")
         panel.set_axis_off()
+        if empty_label is not None:
+            panel.set_gid(f"layout-panel-{i}")
         panel.set_title(chr(ord("A") + i), loc="left", y=1, pad=LABEL_PAD * PT,
                         fontsize=LABEL_SIZE, fontweight="bold", color=ink)
     draw_tables(figure, tables)

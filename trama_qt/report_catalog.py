@@ -153,7 +153,7 @@ def candidates(project):
     for index, layout in enumerate(project.layouts):
         panels = [by_reference.get(reference) for reference in layout.panels]
         signature = (layout.name, layout.columns, tuple(layout.panels), layout.paper, layout.background,
-                     layout.panel_size, layout.axis_alignment,
+                     layout.panel_size, layout.axis_alignment, layout.arrangement,
                      *(_signature(entry[1]) if entry else None for entry in panels))
         options = {"columns": layout.columns, "paper": plain(layout.paper), "background": plain(layout.background),
                    "panels": [{"label": entry[1].name, "method": entry[1].method} if entry else None

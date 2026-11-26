@@ -17,7 +17,7 @@ data under the canonical column names and returns ``(tables, layouts)`` ready to
 """
 from collections import Counter
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 import json
 from math import isfinite
 import os
@@ -41,6 +41,7 @@ from .observation_labels import LABELS
 from .point_style import POINTS
 from .graph_shapes import SHAPES
 from .linked_tables import TABLES
+from .layout_arrangement import PanelArrangement
 from .layout_geometry import AUTO_PAPER, WHITE
 from .legacy_project_metadata import IMPORTED_METHODS, is_import_option, saved_name
 from .presentation import Layout, validated_style
@@ -62,7 +63,7 @@ _TABLE_KEYS = {"name", "format", "columns", "roles", "formulas", "analyses", "co
 _COLUMN_KEYS = {"name", "kind"}
 _ANALYSIS_KEYS = {"id", "method", "options", "source", "label", "style"}
 _SOURCE_KEYS = {"id", "table"}
-_LAYOUT_KEYS = {"name", "columns", "panels", "paper", "background", "panel_size", "axis_alignment"}
+_LAYOUT_KEYS = {"name", "columns", "panels", "paper", "background", "panel_size", "axis_alignment", "arrangement"}
 
 
 class TemplateError(ValueError):
@@ -132,6 +133,7 @@ class LayoutSpec:
     background: str = WHITE
     panel_size: str = "original"
     axis_alignment: str = "none"
+    arrangement: PanelArrangement = field(default_factory=PanelArrangement)
 
 
 @dataclass(frozen=True)
@@ -406,7 +408,7 @@ def plan_template(tables, layouts=(), info_sheets=None, *, cancel=None):
             if layout.tables:
                 omissions.append(Omission("linked_tables", ("layout", index), len(layout.tables)))
             layout_specs.append(LayoutSpec(layout.name, layout.columns, tuple(panels), layout.paper,
-                                           layout.background, layout.panel_size, layout.axis_alignment))
+                                           layout.background, layout.panel_size, layout.axis_alignment, layout.arrangement))
     template = None if problems else AnalysisTemplate(tuple(specs), tuple(layout_specs))
     return TemplatePlan(template, tuple(problems), tuple(omissions), rows)
 
@@ -442,6 +444,8 @@ def template_payload(template):
             record["panel_size"] = layout.panel_size
         if layout.axis_alignment != "none":
             record["axis_alignment"] = layout.axis_alignment
+        if not layout.arrangement.empty:
+            record["arrangement"] = asdict(layout.arrangement)
         layouts.append(record)
     return {"schema": SCHEMA, "kind": KIND, "tables": tables, "layouts": layouts}
 
@@ -617,11 +621,12 @@ def _parse_layouts(records, ids):
         try:
             layout = Layout(record["name"], record["columns"], [ids[panel] if panel is not None else None for panel in panels],
                             record.get("paper", AUTO_PAPER), record.get("background", WHITE),
-                            record.get("panel_size", "original"), record.get("axis_alignment", "none"))
+                            record.get("panel_size", "original"), record.get("axis_alignment", "none"),
+                            arrangement=record.get("arrangement", {}))
         except (ValueError, TypeError) as error:
             _fail("type", f"Layout {position}: {error}", field="file")
         layouts.append(LayoutSpec(layout.name, layout.columns, tuple(panels), layout.paper, layout.background,
-                                  layout.panel_size, layout.axis_alignment))
+                                  layout.panel_size, layout.axis_alignment, layout.arrangement))
     return layouts
 
 
@@ -840,7 +845,8 @@ def instantiate_template(template, sources, mapping, *, avoid=(), cancel=None):
     _cancelled(cancel)
     validate_analysis_links(tables)
     layouts = [Layout(layout.name, layout.columns, [where[panel] if panel is not None else None for panel in layout.panels], layout.paper,
-                      layout.background, layout.panel_size, layout.axis_alignment) for layout in template.layouts]
+                      layout.background, layout.panel_size, layout.axis_alignment, arrangement=layout.arrangement)
+               for layout in template.layouts]
     return tables, layouts
 
 
