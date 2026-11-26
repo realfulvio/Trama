@@ -1569,3 +1569,10 @@ from .summary_twoway_catalog import MESSAGES as _SUMMARY_TWOWAY_MESSAGES  # noqa
 
 CAPTIONS.update(_SUMMARY_TWOWAY_CAPTIONS)
 MESSAGES.update(_SUMMARY_TWOWAY_MESSAGES)
+
+# Weighted log-rank (Tarone–Ware and Fleming–Harrington): captions and messages live in their own section.
+from .weighted_logrank_catalog import CAPTIONS as _WEIGHTED_LOGRANK_CAPTIONS  # noqa: E402
+from .weighted_logrank_catalog import MESSAGES as _WEIGHTED_LOGRANK_MESSAGES  # noqa: E402
+
+CAPTIONS.update(_WEIGHTED_LOGRANK_CAPTIONS)
+MESSAGES.update(_WEIGHTED_LOGRANK_MESSAGES)

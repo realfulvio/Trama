@@ -3,10 +3,11 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QListWidget, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
-from analisi.i18n import ui
+from analisi import weighted_logrank
+from analisi.i18n import tr, ui
 from analisi.survival_input import (CENSOR_CODE, EVENT_CODE, OTHER_STATUS, PAIRWISE_ADJUSTED,
                                    PAIRWISE_CONTROL, PAIRWISE_CORRECTION, PAIRWISE_PAIRS,
-                                   PAIRWISE_FDR, PAIRWISE_SCOPE, pairwise_fields)
+                                   PAIRWISE_FDR, PAIRWISE_SCOPE)
 from analisi.workbench import survival_levels
 
 
@@ -27,8 +28,10 @@ class PairEditor(QWidget):
         self.note.setTextFormat(Qt.TextFormat.PlainText)
         self.setFocusProxy(self.first)
         add = QPushButton(ui("Add"))
+        add.setAutoDefault(False)
         add.clicked.connect(self.add_pair)
         remove = QPushButton(ui("Remove"))
+        remove.setAutoDefault(False)
         remove.clicked.connect(self.remove_pair)
         choices = QHBoxLayout()
         choices.addWidget(self.first, 1)
@@ -91,7 +94,12 @@ class PairEditor(QWidget):
 def attach(dialog):
     control = lambda name: dialog.controls[name][1]
     correction, scope, adjusted = (control(name) for name in (PAIRWISE_CORRECTION, PAIRWISE_SCOPE, PAIRWISE_ADJUSTED))
+    weighting = control(weighted_logrank.WEIGHTING)
     control_group, picker = (control(name) for name in (PAIRWISE_CONTROL, PAIRWISE_PAIRS))
+    note = QLabel(tr("weight.help"))
+    note.setObjectName("infoBanner")
+    note.setWordWrap(True)
+    dialog.rows[weighted_logrank.WEIGHTING][2].insertRow(0, note)
 
     def picked(name):
         box = control(name)
@@ -99,7 +107,8 @@ def attach(dialog):
                 if box.item(row).checkState() == Qt.CheckState.Checked]
 
     def sync_fields():
-        dialog._set_field_visibility(pairwise_fields(correction.currentData(), scope.currentData(), adjusted.isChecked()))
+        dialog._set_field_visibility(weighted_logrank.field_visibility(
+            correction.currentData(), scope.currentData(), adjusted.isChecked(), weighting.currentData()))
         if dialog.error_field in dialog.hidden:
             dialog.clear_field_error(dialog.error_field)
 
@@ -128,6 +137,9 @@ def attach(dialog):
     correction.currentIndexChanged.connect(sync_fields)
     scope.currentIndexChanged.connect(sync_fields)
     adjusted.toggled.connect(sync_fields)
+    weighting.currentIndexChanged.connect(sync_fields)
+    for name in (weighted_logrank.RHO, weighted_logrank.GAMMA):
+        control(name).textChanged.connect(lambda _text, field=name: dialog.clear_field_error(field))
     picker.changed.connect(lambda: dialog.clear_field_error(PAIRWISE_PAIRS))
     control(PAIRWISE_FDR).textChanged.connect(lambda: dialog.clear_field_error(PAIRWISE_FDR))
     sync_fields()
