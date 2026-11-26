@@ -55,6 +55,7 @@ def main(argv=None):
     theme.load_fonts()
     theme.set_mode(args.theme, app, remember=False)
     theme.install_qt_translations(app, args.lang)
+    from trama_qt.shortcuts_dialog import ShortcutsDialog
     from trama_qt.source_link import SourceLinkDialog, UpdatePreviewDialog
     from trama_qt.source_link import t as link_text
     from trama_qt.text_import import TextImportDialog
@@ -358,6 +359,20 @@ def main(argv=None):
         window.actions["undo"].trigger()
         wait()
         check(window.project.tables[title].source_link is not None, "Undo did not link again")
+        shortcuts_opened = []
+
+        def close_shortcuts(dialog):
+            shortcuts_opened.append(dialog.windowTitle())
+            dialog.reject()
+
+        window.activateWindow()
+        window.sheet.setFocus()
+        settle()
+        timer = when_modal(ShortcutsDialog, close_shortcuts)
+        QTest.keyClick(window.sheet, Qt.Key.Key_F1)
+        settle()
+        timer.stop()
+        check(bool(shortcuts_opened), "F1 did not open the shortcuts dialog after the update")
         check(link_text("Update from file…") == ("Aggiorna da file…" if italian else "Update from file…"),
               "menu text")
     except Exception:  # noqa: BLE001 - the report says what broke.
