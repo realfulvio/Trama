@@ -30,6 +30,7 @@ from analisi.ar1 import (
     VISIT_ORDER,
     WALD_DF,
     MixedModelCancelled,
+    fit_ar1,
     within_subject_correlation,
 )
 from analisi.field_error import FieldError
@@ -50,7 +51,7 @@ def expected():
     return json.loads((HERE / "atteso.json").read_text(encoding="utf-8"))
 
 
-def dense_reml(frame, response, visit, group, subject, visits, groups):
+def dense_reml(frame, response, visit, group, subject, visits, groups, brackets=((-0.999, 0.999),)):
     """Independent dense REML for a saturated group-by-visit mean and AR(1)."""
     rows = frame.loc[frame[response].notna(), [response, visit, group, subject]]
     visit_index = {name: index for index, name in enumerate(visits)}
@@ -83,8 +84,9 @@ def dense_reml(frame, response, visit, group, subject, visits, groups):
         inverse = solve_triangular(r, np.eye(r.shape[0]))
         return objective, variance, coefficients, variance * inverse @ inverse.T
 
-    optimum = minimize_scalar(lambda rho: fit(rho)[0], bounds=(-0.999, 0.999),
-                              method="bounded", options={"xatol": 1e-12})
+    fits = [minimize_scalar(lambda rho: fit(rho)[0], bounds=bounds,
+                            method="bounded", options={"xatol": 1e-12}) for bounds in brackets]
+    optimum = min(fits, key=lambda solution: solution.fun)
     _, variance, estimates, covariance = fit(float(optimum.x))
     return {"rho": float(optimum.x), "sigma2": variance, "beta": estimates, "covariance": covariance,
             "df": df}
@@ -253,6 +255,25 @@ class SyntheticContractTests(unittest.TestCase):
         self.assertEqual(model["Status"], REASON_EVEN_LAGS)
         self.assertTrue(np.isnan(model["Correlation (rho)"]))
         self.assertTrue(result["Fixed estimates"]["SE"].isna().all())
+
+    def test_multiple_profile_minima_are_refined_before_selecting_the_fit(self):
+        rng = np.random.default_rng(7)
+        even_visits = [(0, 2)] * 13 + [(2, 4)] * 5 + [(0, 4)] * 3 + [(1, 3)] * 4
+        observed = even_visits + [(0, 1), (3, 4), (1, 3, 4), (0, 2, 3), (3,)]
+        rows = []
+        for subject, visits in enumerate(observed):
+            correlation = .72 if subject < len(even_visits) else rng.uniform(-.9, .9)
+            distance = np.abs(np.subtract.outer(visits, visits))
+            samples = rng.multivariate_normal(np.zeros(len(visits)), correlation ** distance)
+            rows.extend((subject, "A", visit, value) for visit, value in zip(visits, samples, strict=True))
+        frame = pd.DataFrame(rows, columns=["Subject", "Group", "Visit", "Response"])
+        oracle = dense_reml(frame, "Response", "Visit", "Group", "Subject", range(5), ["A"],
+                            brackets=((-0.999, 0.), (0., 0.999)))
+        fitted = fit_ar1(frame["Response"], frame["Visit"], frame["Subject"], frame["Visit"], 5)
+        self.assertIsNone(fitted.reason)
+        self.assertAlmostEqual(fitted.rho, oracle["rho"], delta=2e-6)
+        self.assertAlmostEqual(fitted.rho, -0.66179365, delta=2e-6)
+        np.testing.assert_allclose(fitted.covariance, oracle["covariance"], rtol=2e-6, atol=1e-8)
 
     def test_repeated_or_incomplete_order_is_rejected(self):
         frame = self.series(0.2, subjects=6)

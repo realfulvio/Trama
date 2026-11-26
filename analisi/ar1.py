@@ -198,29 +198,34 @@ def fit_ar1(y, cells, subjects, times, n_cells, *, cancel=None):
         profile = _profile(patterns, float(rho), n_cells, df, cancel)
         return _PENALTY if profile is None else profile[0]
 
-    grid = np.linspace(-0.98, 0.98, 50)
+    grid = np.r_[-.999, np.linspace(-.98, .98, 51), .999]
     scores = np.array([objective(rho) for rho in grid])
-    if not np.isfinite(scores).any() or float(scores.min()) >= _PENALTY / 10:
+    lowest = int(np.argmin(scores))
+    if scores[lowest] >= _PENALTY / 10:
         return Ar1Fit(None, None, np.nan, np.nan, df, REASON_RANK)
-    optimum = optimize.minimize_scalar(
-        objective, bounds=(-0.999, 0.999), method="bounded", options={"xatol": 1e-12})
-    candidates = [float(grid[int(np.argmin(scores))])]
-    if optimum.success and np.isfinite(optimum.x):
-        candidates.append(float(optimum.x))
-    best = None
-    rho = candidates[0]
-    for candidate in candidates:
-        profile = _profile(patterns, candidate, n_cells, df, cancel)
-        if profile is not None and (best is None or profile[0] < best[0]):
-            best = profile
-            rho = float(candidate)
+
+    # Missing visits can leave several local minima. Refine each sampled
+    # minimum independently instead of treating the whole profile as unimodal.
+    left, middle, right = scores[:-2], scores[1:-1], scores[2:]
+    minima = np.flatnonzero((middle <= left) & (middle <= right) & ((middle < left) | (middle < right)))
+    brackets = [(grid[index], grid[index + 2]) for index in minima]
+    if scores[0] <= scores[1]:
+        brackets.append((grid[0], grid[1]))
+    if scores[-1] <= scores[-2]:
+        brackets.append((grid[-2], grid[-1]))
+    candidates = [(scores[lowest], float(grid[lowest]))]
+    for bounds in brackets:
+        optimum = optimize.minimize_scalar(
+            objective, bounds=bounds, method="bounded", options={"xatol": 1e-12})
+        if optimum.success and np.isfinite(optimum.x) and np.isfinite(optimum.fun):
+            candidates.append((optimum.fun, float(optimum.x)))
+    _, rho = min(candidates, key=lambda pair: pair[0])
+    best = _profile(patterns, rho, n_cells, df, cancel)
     if best is None:
         return Ar1Fit(None, None, np.nan, np.nan, df, REASON_CORRELATION)
     value, beta, sigma2, covariance = best
-    left = objective(-0.999)
-    right = objective(0.999)
     margin = 1e-3
-    if abs(rho) >= 0.998 or left <= value + margin or right <= value + margin:
+    if abs(rho) >= 0.998 or min(scores[0], scores[-1]) <= value + margin:
         return Ar1Fit(None, None, np.nan, np.nan, df, REASON_LIMIT)
     beta = origin + scale * beta
     covariance = covariance * scale ** 2
