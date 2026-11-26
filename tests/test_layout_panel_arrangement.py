@@ -32,6 +32,26 @@ def figure_state(figure):
 
 
 class LayoutArrangementTests(unittest.TestCase):
+    def test_retained_empty_size_preserves_geometry_and_survives_reorder(self):
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_panels import EMPTY_PANEL
+        from analisi.presentation import Layout
+
+        graphs = figures()
+        for option in ("original", "width", "height", "both"):
+            with self.subTest(option=option):
+                initial = plan_panels(2, graphs, panel_size=option)
+                arrangement = PanelArrangement(empty_sizes=((1, *map(float, initial[1].size)),))
+                cleared = plan_panels(2, (graphs[0], EMPTY_PANEL, *graphs[2:]), panel_size=option,
+                                      arrangement=arrangement)
+                self.assertIsNone(cleared[1].figure)
+                self.assertEqual(list(map(panel_rectangle, initial)), list(map(panel_rectangle, cleared)))
+                reordered = arrangement.remap([1, 0, 3])
+                self.assertEqual(reordered.empty_sizes, ((0, *initial[1].size),))
+                self.assertFalse(arrangement.remap([0, 2, 3]).empty_sizes)
+                with self.assertRaisesRegex(ValueError, "requires an empty panel"):
+                    Layout("Invalid", 2, [("Data", 0)] * 4, arrangement=arrangement)
+
     def test_equalizes_width_height_or_both(self):
         graphs = figures()
         for option in ("original", "width", "height", "both"):

@@ -3587,17 +3587,25 @@ class MainWindow(QMainWindow):
     def _assign_layout_graph(self, key, slot, graph):
         layout = self.project.layouts[key]
         if (slot is None or slot in layout.arrangement.locked or layout.panels[slot] == graph
-                or graph is None or not any(run.reference == graph for run in self.project.layout_candidates())):
+                or (graph is not None and not any(run.reference == graph for run in self.project.layout_candidates()))):
             return
+        controller = self._active_layout_selection()
+        retained = {index: (w, h) for index, w, h in layout.arrangement.empty_sizes}
+        replacing = graph is not None and (layout.panels[slot] is not None or slot in retained)
+        if graph is None:
+            if controller is None:
+                return
+            retained[slot] = tuple(map(float, controller.panels[slot].size))
+        else:
+            retained.pop(slot, None)
         panels = list(layout.panels)
         panels[slot] = graph
-        candidate = replace(layout, panels=panels)
-        replacing = layout.panels[slot] is not None
+        arrangement = replace(layout.arrangement, empty_sizes=tuple((index, *size) for index, size in retained.items()))
+        candidate = replace(layout, panels=panels, arrangement=arrangement)
         manual = any(entry[0] == slot for entries in (layout.arrangement.scales, layout.arrangement.offsets,
                                                       layout.arrangement.rotations, layout.arrangement.crops)
                      for entry in entries)
-        controller = self._active_layout_selection()
-        if controller is not None and (replacing or manual):
+        if graph is not None and controller is not None and (replacing or manual):
             figures = self.project.layout_figures(candidate)
             if figures is None:
                 return
@@ -3627,8 +3635,9 @@ class MainWindow(QMainWindow):
         self.project.put_layout(candidate, key)
         self.open_sheet(("layout", key))
         refreshed = self._active_layout_selection()
-        if refreshed is not None and replacing:
+        if refreshed is not None and (replacing or graph is None):
             refreshed.select((slot,))
+
     def _active_layout_selection(self):
         controller = getattr(self.page, "layout_selection", None)
         return controller if controller is not None and controller.enabled() else None

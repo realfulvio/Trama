@@ -1122,6 +1122,7 @@ LAYOUT_ARRANGEMENT_VERSION = 7
 LAYOUT_SCALE_VERSION = 8
 LAYOUT_APPEARANCE_VERSION = 9
 LAYOUT_CROP_VERSION = 10
+LAYOUT_EMPTY_SIZE_VERSION = 11
 
 
 def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=None):
@@ -1164,6 +1165,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         version = LAYOUT_APPEARANCE_VERSION
     if any("crops" in record.get("arrangement", ()) for record in layout_records):
         version = LAYOUT_CROP_VERSION
+    if any("empty_sizes" in record.get("arrangement", ()) for record in layout_records):
+        version = LAYOUT_EMPTY_SIZE_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
@@ -1302,7 +1305,7 @@ def load_workspace(path, *, include_info=False):
     version = obj["version"]
     versions = (1, 2, 3, LEGACY_METADATA_VERSION, CATEGORY_ORDER_VERSION,
                 LAYOUT_PLACEHOLDER_VERSION, LAYOUT_ARRANGEMENT_VERSION, LAYOUT_SCALE_VERSION,
-                LAYOUT_APPEARANCE_VERSION, LAYOUT_CROP_VERSION)
+                LAYOUT_APPEARANCE_VERSION, LAYOUT_CROP_VERSION, LAYOUT_EMPTY_SIZE_VERSION)
     if version not in versions or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
@@ -1430,6 +1433,8 @@ def load_workspace(path, *, include_info=False):
             raise ValueError("Panel appearance requires project format version 9.")
         if version < LAYOUT_CROP_VERSION and isinstance(arrangement, dict) and "crops" in arrangement:
             raise ValueError("Panel crop requires project format version 10.")
+        if version < LAYOUT_EMPTY_SIZE_VERSION and isinstance(arrangement, dict) and "empty_sizes" in arrangement:
+            raise ValueError("Retained empty panel sizes require project format version 11.")
         layout = Layout(record["name"], record["columns"], panels,
                         record.get("paper", AUTO_PAPER), record.get("background", WHITE),
                         record.get("panel_size", "original"), record.get("axis_alignment", "none"),

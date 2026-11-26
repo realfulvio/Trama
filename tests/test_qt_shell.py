@@ -3316,6 +3316,86 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.project.layouts[0].panels, current.panels)
         self.assertFalse(window.actions["replace_layout_graph"].isEnabled())
 
+    def test_layout_clear_graph_retains_placeholder_until_refilled(self):
+        from dataclasses import replace
+        import json
+        import xml.etree.ElementTree as ET
+        from unittest.mock import patch
+
+        from analisi.data import load_workspace
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_panels import panel_rectangle
+        from analisi.layout_svg import SVG
+        from analisi.presentation import Layout
+        from trama_qt.layout_dialog import LayoutGraphDialog
+        from trama_qt.strings import qt
+
+        window = self.window
+        self.open_example()
+        graph = self.run_method("Column graph", {"Variables": ["Control", "Treated"]})
+        arrangement = PanelArrangement(offsets=((0, .04, .02),), scales=((0, .7),), rotations=((0, 90),),
+                                       crops=((0, .08, 0., -.03, 0.),), borders=((0, 2, "#126736", "dashed"),),
+                                       groups=((0, 1),), layers=(1, 0))
+        initial = Layout("Clear a graph", 2, [graph.reference, graph.reference], arrangement=arrangement)
+        key = window.project.put_layout(initial)
+        ref = ("layout", key)
+        window.open_sheet(ref)
+        self.wait()
+        before = window.page.layout_selection.panels[0]
+
+        def choose(dialog):
+            self.assertEqual(dialog.graphs.currentData(), graph.reference)
+            self.assertEqual(dialog.graphs.itemText(0), qt("qt.layout_no_assigned_graph"))
+            dialog.graphs.setCurrentIndex(0)
+            self.assertEqual(dialog.preview.text(), qt("qt.layout_clear_preview"))
+            return dialog.DialogCode.Accepted
+
+        with patch.object(LayoutGraphDialog, "exec", choose):
+            window.place_layout_graph(0)
+        cleared = window.project.layouts[key]
+        self.assertEqual(cleared.panels, [None, graph.reference])
+        self.assertEqual(replace(cleared.arrangement, empty_sizes=()), arrangement)
+        self.assertIsNotNone(graph.result.figure)
+        selection = window.page.layout_selection
+        self.assertIsNone(selection.panels[0].figure)
+        self.assertEqual(panel_rectangle(selection.panels[0]), panel_rectangle(before))
+        self.assertEqual(selection.selected, {0, 1})
+        self.assertTrue(window.actions["place_layout_graph"].isEnabled())
+
+        window.undo()
+        self.assertEqual(window.project.layouts[key], initial)
+        window.undo(redo=True)
+        self.assertEqual(window.project.layouts[key], cleared)
+        path = self.folder / "empty-size.alab"
+        window.project.save(path)
+        native = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(native["version"], 11)
+        native["version"] = 10
+        old = self.folder / "invalid-empty-size.alab"
+        old.write_text(json.dumps(native), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "require project format version 11"):
+            load_workspace(old)
+        self.reopen(path)
+        window.open_sheet(ref)
+        self.wait()
+        self.assertEqual(window.project.layouts[key], cleared)
+        self.assertEqual(panel_rectangle(window.page.layout_selection.panels[0]), panel_rectangle(before))
+        svg = self.folder / "empty-size.svg"
+        window.project.export_layout(cleared, svg)
+        drawing = ET.parse(svg)
+        self.assertIsNone(drawing.find(f".//{SVG}g[@id='panel1']"))
+        self.assertIsNotNone(drawing.find(f".//{SVG}g[@id='panel2']"))
+
+        window._assign_layout_graph(key, 0, graph.reference)
+        self.assertEqual(window.project.layouts[key].panels, initial.panels)
+        self.assertFalse(window.project.layouts[key].arrangement.empty_sizes)
+        filled = window.page.layout_selection.panels[0]
+        self.assertAlmostEqual(filled.box[0], before.box[0])
+        self.assertAlmostEqual(filled.box[1], before.box[1])
+        for old_crop, old_size, new_crop, new_size in zip(before.crop, before.size * 2, filled.crop, filled.size * 2,
+                                                           strict=True):
+            self.assertAlmostEqual(old_crop * old_size * before.box[2], new_crop * new_size * filled.box[2])
+
     def test_layout_panel_arrangement_undo_and_exports(self):
         from unittest.mock import patch
         from analisi.presentation import Layout

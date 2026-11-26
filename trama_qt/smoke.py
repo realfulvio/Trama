@@ -667,6 +667,7 @@ def _layout_crop_scenario(smoke, window):
     from PySide6.QtTest import QTest
 
     from analisi.layout_panels import panel_rectangle
+    from .layout_dialog import LayoutGraphDialog
     from .layout_geometry_dialog import PanelPositionDialog
 
     ref = ("layout", smoke.build()["layout"])
@@ -708,6 +709,38 @@ def _layout_crop_scenario(smoke, window):
     for suffix in (".pdf", ".svg"):
         window.project.export_layout(layout, root.with_suffix(suffix))
     window.project.save(root.with_suffix(".alab"))
+
+    def clear():
+        dialog = smoke.app.activeModalWidget()
+        if not isinstance(dialog, LayoutGraphDialog):
+            smoke.problem("the layout panel did not open its graph selector")
+            if dialog is not None:
+                dialog.reject()
+            return
+        dialog.graphs.setFocus()
+        QTest.keyClick(dialog.graphs, Qt.Key.Key_Home)
+        smoke.shot(dialog, "layout-clear-dialog")
+        QTest.keyClick(dialog.graphs, Qt.Key.Key_Return)
+        if dialog.isVisible():
+            dialog.reject()
+
+    window.page.layout_selection.select((0,))
+    QTimer.singleShot(100, clear)
+    window.actions["replace_layout_graph"].trigger()
+    cleared = window.project.layouts[ref[1]]
+    controller = window.page.layout_selection
+    smoke.expect(cleared.panels == [None, layout.panels[1]], "clearing changed more than one panel")
+    smoke.expect(panel_rectangle(controller.panels[0]) == after, "clearing changed the panel rectangle")
+    smoke.shot(window, "layout-cleared")
+    path = smoke.folder / f"{smoke.language}-layout-cleared.alab"
+    window.project.save(path)
+    window.close_project()
+    window.open_path(path)
+    window.open_sheet(ref)
+    smoke.wait()
+    controller = window.page.layout_selection
+    smoke.expect(controller.panels[0].figure is None and panel_rectangle(controller.panels[0]) == after,
+                 "the empty panel and its geometry did not reopen")
 
 
 SCENARIOS = {"qt-worksheet-properties": _worksheet_properties_scenario, "qt-excel-workbook": _excel_scenario, "qt-worksheet-preview": _worksheet_preview_scenario,

@@ -21,6 +21,7 @@ class PanelArrangement:
     rotations: tuple[tuple[int, int], ...] = ()
     borders: tuple[tuple[int, float, str, str], ...] = ()
     crops: tuple[tuple[int, float, float, float, float], ...] = ()
+    empty_sizes: tuple[tuple[int, float, float], ...] = ()  # Source size retained when clearing a panel.
 
     def record(self):
         return {key: value for key, value in vars(self).items() if value}
@@ -51,14 +52,15 @@ class PanelArrangement:
         borders = tuple(sorted((mapping[index], *border) for index, *border in self.borders if index in mapping))
         return PanelArrangement(tuple(sorted(offsets)), tuple(sorted(group for group in groups if len(group) > 1)),
                                 locked, scales, layers, rotations, borders,
-                                tuple(sorted((mapping[index], *crop) for index, *crop in self.crops if index in mapping)))
+                                tuple(sorted((mapping[index], *crop) for index, *crop in self.crops if index in mapping)),
+                                tuple(sorted((mapping[index], w, h) for index, w, h in self.empty_sizes if index in mapping)))
 
 
 def validated_arrangement(value, count):
     if isinstance(value, PanelArrangement):
         value = value.record()
     if not isinstance(value, dict) or set(value) - {
-        "offsets", "groups", "locked", "scales", "layers", "rotations", "borders", "crops"
+        "offsets", "groups", "locked", "scales", "layers", "rotations", "borders", "crops", "empty_sizes"
     }:
         raise ValueError("Invalid layout panel arrangement.")
 
@@ -116,10 +118,16 @@ def validated_arrangement(value, count):
     if any(len(entry) != 5 or not valid_crop(entry[1:]) for entry in crops):
         raise ValueError("Invalid layout panel crop.")
     indices([entry[0] for entry in crops])
+    sizes = [sequence(entry, 3) for entry in sequence(value.get("empty_sizes", ()), count)]
+    if any(len(entry) != 3 or any(type(size) not in (int, float) or not 1e-6 <= size <= 1e6
+                                  for size in entry[1:]) for entry in sizes):
+        raise ValueError("Invalid empty layout panel size.")
+    indices([entry[0] for entry in sizes])
     return PanelArrangement(offsets, groups, indices(value.get("locked", ())), scales, layers,
                             tuple(sorted(map(tuple, rotations))),
                             tuple(sorted((i, float(w), c.lower(), s) for i, w, c, s in borders)),
-                            tuple(sorted((i, *map(float, crop)) for i, *crop in crops if any(crop))))
+                            tuple(sorted((i, *map(float, crop)) for i, *crop in crops if any(crop))),
+                            tuple(sorted((index, float(w), float(h)) for index, w, h in sizes)))
 
 
 def change_objects(arrangement, objects, command):

@@ -162,15 +162,17 @@ def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original
     """Match panel sizes and axes, yielding after each measured graph for the gallery."""
 
     figures = tuple(figures)
-    sizes = [None if figure is EMPTY_PANEL else tuple(figure.get_size_inches()) for figure in figures]
+    empty_sizes = {index: (width, height) for index, width, height in arrangement.empty_sizes}
+    sizes = [empty_sizes.get(index) if figure is EMPTY_PANEL else tuple(figure.get_size_inches())
+             for index, figure in enumerate(figures)]
     populated = [size for size in sizes if size is not None]
     if populated and panel_size == "both":
-        # Reflow the graphs onto a common canvas. Empty slots are not part of the measurement.
+        # Reflow the graphs onto a common canvas, including any measured size retained by clearing a graph.
         common_size = tuple(max(values) for values in zip(*populated, strict=True))
         sizes = [common_size if size is not None else None for size in sizes]
     boxes = panel_boxes(columns, sizes, paper, panel_size=panel_size)
     _, _, width, height = panel_cells(columns, len(sizes), paper)
-    panels = [LayoutPanel(figure if size is not None else None, size or (width, height), box)
+    panels = [LayoutPanel(None if figure is EMPTY_PANEL else figure, size or (width, height), box)
               for figure, size, box in zip(figures, sizes, boxes, strict=True)]
     for index, angle in arrangement.rotations:
         panels[index] = replace(panels[index], angle=angle)

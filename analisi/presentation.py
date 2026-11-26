@@ -77,6 +77,8 @@ class Layout:
         if self.tables:
             self.tables = validate_tables(self.tables)
         self.arrangement = validated_arrangement(self.arrangement, len(self.panels))
+        if any(self.panels[index] is not None for index, *_ in self.arrangement.empty_sizes):
+            raise ValueError("A retained empty panel size requires an empty panel.")
 
 
 SCALES = ("linear", "log", *PROBABILITY_SCALES)

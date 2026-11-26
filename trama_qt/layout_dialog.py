@@ -238,10 +238,12 @@ class LayoutGraphDialog(QDialog):
         self.graphs.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.graphs.setMinimumContentsLength(24)
         self.graphs.setAccessibleName(qt("qt.layout_graph"))
+        if self.current is not None:
+            self.graphs.addItem(qt("qt.layout_no_assigned_graph"), None)
         for run in runs:
             self.graphs.addItem(f"{run.name} · {run.title} ({run.slot + 1})", run.reference)
         if self.current is not None:
-            index = next((i for i in range(self.graphs.count()) if self.graphs.itemData(i) == self.current), 0)
+            index = next((i for i in range(1, self.graphs.count()) if self.graphs.itemData(i) == self.current), 1)
             self.graphs.setCurrentIndex(index)
         form.addRow(qt("qt.layout_graph"), self.graphs)
         self.preview = QLabel()
@@ -281,6 +283,9 @@ class LayoutGraphDialog(QDialog):
             self.geometry_button.setEnabled(graph == self.current)
         run = self.runs.get(graph)
         self.preview.clear()
+        if graph is None and self.current is not None:
+            self.preview.setText(qt("qt.layout_clear_preview"))
+            return
         if run is None or run.result is None or run.result.figure is None:
             return
         try:
