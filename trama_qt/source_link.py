@@ -1,15 +1,19 @@
-"""File → Update from file… and File → Source link… on Qt: worksheets linked to the CSV or TSV file they came from.
+"""File → Update from file… and File → Source link… on Qt: worksheets linked to the CSV or TSV file, or the sheet of
+an .xlsx workbook, they came from.
 
 The engine (``analisi.source_link``) reads and compares on the window's worker, with its progress and Cancel; this
 module asks where the file is when it moved, shows the preview (rows added, modified, removed, reordered, project
 edits kept, conflicts and their decision, what a removal takes away) and applies the plan as one worksheet edit.
-Nothing is read automatically and nothing but a local file is ever opened.
+Nothing is read automatically and nothing but a local file is ever opened. A workbook whose linked sheet was renamed
+or removed gets a preview that names the sheets it has now: reading another one is an explicit choice.
 """
+from dataclasses import replace
 from pathlib import Path
 
 import pandas as pd
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
+                               QFormLayout,
                                QGroupBox, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
@@ -18,11 +22,13 @@ from analisi.i18n import active_language
 from analisi.source_link import (ADDED, CONFLICT, DELETED, DELETED_CONFLICT, FILE, LOCAL, MODIFIED, PROJECT,
                                  REMOVED_CONFLICT, UNCHANGED, Message, UpdateCancelled, locate)
 from analisi.text_import import DECIMAL_MARKS, DELIMITERS
+from analisi.xlsx_source import WORKBOOK, is_workbook
 
 from . import theme
 
 MAX_ROWS_SHOWN = 1000
 FILE_FILTER = "*.csv *.tsv *.txt"
+WORKBOOK_FILTER = "*.xlsx"
 
 _ITALIAN = {
     "Update from file…": "Aggiorna da file…",
@@ -31,6 +37,33 @@ _ITALIAN = {
     "Source link": "Collegamento sorgente",
     "Read the linked CSV or TSV file again and review the changes before applying them":
         "Rileggi il file CSV o TSV collegato e controlla le modifiche prima di applicarle",
+    "Read the linked file (CSV, TSV or Excel sheet) again and review the changes before applying them":
+        "Rileggi il file collegato (CSV, TSV o foglio Excel) e controlla le modifiche prima di applicarle",
+    "Linkable files": "File collegabili", "Excel workbook": "Cartella di lavoro Excel",
+    "Excel sheet": "Foglio Excel",
+    "Excel workbook · sheet {sheet} · header row {row}": "Cartella Excel · foglio {sheet} · riga d'intestazione {row}",
+    "Excel workbook · sheet {sheet} · no header: columns by position":
+        "Cartella Excel · foglio {sheet} · senza intestazione: colonne per posizione",
+    "This worksheet is not linked to a file. Link to a file… reads a CSV or TSV file, or one sheet of an .xlsx "
+    "workbook, into it: rows are matched by a key column, otherwise by content, and every change is shown before it "
+    "is applied.":
+        "Questo foglio non è collegato a un file. Collega a un file… legge nel foglio un file CSV o TSV, oppure un "
+        "foglio di una cartella .xlsx: le righe sono abbinate con una colonna chiave, altrimenti per contenuto, e "
+        "ogni modifica è mostrata prima di applicarla.",
+    "Sheet to read": "Foglio da leggere", "&Read this sheet": "&Leggi questo foglio",
+    "Reading another sheet is your choice: its rows are compared with the last confirmed version, and the link "
+    "keeps the new name after Apply.":
+        "Leggere un altro foglio è una tua scelta: le sue righe sono confrontate con l'ultima versione confermata e "
+        "il collegamento conserva il nuovo nome dopo Applica.",
+    "The workbook no longer has the sheet {sheet}. Choose one of its sheets: {names}.":
+        "La cartella non ha più il foglio {sheet}. Scegli uno dei suoi fogli: {names}.",
+    "Sheet {sheet}, cell(s) {cells}: formulas without a stored result. Open the workbook in Excel, let it calculate, "
+    "save it and update again.":
+        "Foglio {sheet}, celle {cells}: formule senza risultato memorizzato. Apri la cartella in Excel, lascia che "
+        "calcoli, salvala e aggiorna di nuovo.",
+    "Sheet {sheet}, cell(s) {cells}: Excel error values. Correct them in the workbook and update again.":
+        "Foglio {sheet}, celle {cells}: valori di errore di Excel. Correggili nella cartella e aggiorna di nuovo.",
+    "Invalid link to a source file.": "Collegamento a un file sorgente non valido.",
     "Show, change or remove the file this worksheet is linked to":
         "Mostra, cambia o rimuovi il file a cui è collegato questo foglio",
     "This worksheet is not linked to a file.": "Questo foglio non è collegato a un file.",
@@ -243,10 +276,15 @@ class UpdatePreviewDialog(QDialog):
         self.stale = False
         self.setWindowTitle(t("Update from file"))
         outer = theme.scroll_body(self)
-        heading = QLabel(f"{t('Update from file')} · {plan.path.name}")
+        self.retry_sheet = None
+        sheet = f" · {plan.options.sheet}" if plan.kind == WORKBOOK else ""
+        heading = QLabel(f"{t('Update from file')} · {plan.path.name}{sheet}")
         heading.setObjectName("dialogTitle")
         outer.addWidget(heading)
-        path = QLabel(f"{t('File')}: {plan.path}  →  {t('Worksheet')}: {title}")
+        where = f"{t('File')}: {plan.path}"
+        if plan.kind == WORKBOOK:
+            where += f"  ·  {t('Excel sheet')}: {plan.options.sheet}"
+        path = QLabel(f"{where}  →  {t('Worksheet')}: {title}")
         path.setWordWrap(True)
         path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         outer.addWidget(path)
@@ -273,6 +311,28 @@ class UpdatePreviewDialog(QDialog):
                                        "the project; tick to use it."))
             outer.addWidget(self.use_file)
             self.use_file.toggled.connect(self._sync)
+
+        self.sheet_choice = None
+        if plan.missing_sheet is not None and plan.sheets:
+            row = QHBoxLayout()
+            label = QLabel(t("Sheet to read"))
+            row.addWidget(label)
+            self.sheet_choice = QComboBox()
+            self.sheet_choice.setObjectName("sourceSheetChoice")
+            for name in plan.sheets:
+                self.sheet_choice.addItem(name, name)
+            label.setBuddy(self.sheet_choice)
+            row.addWidget(self.sheet_choice, 1)
+            self.read_sheet = QPushButton(t("&Read this sheet"))
+            self.read_sheet.setObjectName("sourceReadSheet")
+            self.read_sheet.setAutoDefault(False)
+            self.read_sheet.clicked.connect(self._read_other_sheet)
+            row.addWidget(self.read_sheet)
+            outer.addLayout(row)
+            note = QLabel(t("Reading another sheet is your choice: its rows are compared with the last confirmed "
+                            "version, and the link keeps the new name after Apply."))
+            note.setWordWrap(True)
+            outer.addWidget(note)
 
         self.conflicts = None
         if plan.conflict_items and not plan.problems:
@@ -321,6 +381,11 @@ class UpdatePreviewDialog(QDialog):
                 widget.installEventFilter(self)
         self._sync()
         theme.fit_dialog(self, *((980, 660) if plan.frame is not None else (760, 380)))
+
+    def _read_other_sheet(self):
+        """Close the preview and read the sheet chosen here (``preview`` starts the new reading)."""
+        self.retry_sheet = self.sheet_choice.currentData()
+        self.reject()
 
     def eventFilter(self, watched, event):
         if event.type() == QEvent.Type.FocusIn:
@@ -632,6 +697,11 @@ class ConflictPanel(QGroupBox):
 
 
 def _options_text(link):
+    if link.kind == WORKBOOK:
+        if link.options.header is None:
+            return t("Excel workbook · sheet {sheet} · no header: columns by position", sheet=link.options.sheet)
+        return t("Excel workbook · sheet {sheet} · header row {row}", sheet=link.options.sheet,
+                 row=link.options.header)
     options = link.options
     delimiter = next((name for name, char in DELIMITERS.items() if char == link.delimiter), link.delimiter)
     rows = (t("{first}–all", first=options.first_row) if options.last_row is None
@@ -664,8 +734,9 @@ class SourceLinkDialog(QDialog):
         buttons = QDialogButtonBox()
         if link is None:
             outer.addWidget(_banner(t("This worksheet is not linked to a file. Link to a file… reads a CSV or TSV "
-                                      "file into it: rows are matched by a key column, otherwise by content, and "
-                                      "every change is shown before it is applied.")))
+                                      "file, or one sheet of an .xlsx workbook, into it: rows are matched by a key "
+                                      "column, otherwise by content, and every change is shown before it is "
+                                      "applied.")))
             self._button(buttons, "Link to a file…", "change")
         else:
             outer.addWidget(_banner(t("The worksheet keeps its last confirmed copy, so the project works offline. "
@@ -679,7 +750,10 @@ class SourceLinkDialog(QDialog):
                      t("Not found"))
             imported = link.imported_names(dataset.raw)
             key = link.key_column(dataset.raw)
-            rows = [(t("File"), link.path), (t("State of the file"), state)]
+            rows = [(t("File"), link.path)]
+            if link.kind == WORKBOOK:
+                rows.append((t("Excel sheet"), link.sheet))
+            rows.append((t("State of the file"), state))
             if link.relative:
                 rows.append((t("Relative to the project"), link.relative))
             rows += [(t("Read as"), _options_text(link)),
@@ -692,6 +766,7 @@ class SourceLinkDialog(QDialog):
                                                      sha=f"{link.sha256[:16]}…"))]
             for label, value in rows:
                 text = QLabel(str(value))
+                text.setObjectName(f"sourceLinkValue_{form.rowCount()}")
                 text.setWordWrap(True)
                 text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
                 form.addRow(label, text)
@@ -748,7 +823,7 @@ def update_from_file(window):
         if box.clickedButton() is not find:
             window.status(t("Update cancelled: nothing changed."))
             return
-        chosen = choose_file(window, t("Locate the linked file"), Path(link.path).parent)
+        chosen = choose_file(window, t("Locate the linked file"), Path(link.path).parent, kind=link.kind)
         if chosen is None:
             window.status(t("Update cancelled: nothing changed."))
             return
@@ -756,13 +831,17 @@ def update_from_file(window):
     start_plan(window, title, link, path, found_elsewhere=elsewhere, located=located)
 
 
-def choose_file(window, caption, folder=None):
+def choose_file(window, caption, folder=None, *, kind=None):
+    """A local file to read: delimited text, an .xlsx workbook, or either (``kind`` None)."""
     start = str(folder) if folder is not None and Path(folder).is_dir() else ""
-    chosen, _ = QFileDialog.getOpenFileName(window, caption, start, f"{t('Delimited text')} ({FILE_FILTER})")
+    text, book = f"{t('Delimited text')} ({FILE_FILTER})", f"{t('Excel workbook')} ({WORKBOOK_FILTER})"
+    filters = {WORKBOOK: book, "text": text}.get(kind) or (
+        f"{t('Linkable files')} ({FILE_FILTER} {WORKBOOK_FILTER});;{text};;{book}")
+    chosen, _ = QFileDialog.getOpenFileName(window, caption, start, filters)
     return Path(chosen) if chosen else None
 
 
-def start_plan(window, title, link, path, *, relink=None, found_elsewhere=False, located=False):
+def start_plan(window, title, link, path, *, relink=None, found_elsewhere=False, located=False, sheet=None):
     """Read and compare on the worker; then the preview. Nothing changes until Apply."""
     from .project import CalculationControl
     project = window.project
@@ -776,7 +855,8 @@ def start_plan(window, title, link, path, *, relink=None, found_elsewhere=False,
 
     def job():
         return engine.plan_update(link, raw, excluded, path, relink=relink, found_elsewhere=found_elsewhere,
-                                  located=located, cancel=control.cancel.is_set, progress=control.report)
+                                  located=located, cancel=control.cancel.is_set, progress=control.report,
+                                  **({"sheet": sheet} if sheet is not None else {}))
 
     def done(future, cancelled):
         if cancelled or window.project is not project:
@@ -792,16 +872,25 @@ def start_plan(window, title, link, path, *, relink=None, found_elsewhere=False,
             window.status(text)
             window.error(text)
             return
-        preview(window, project, title, plan)
+        preview(window, project, title, plan, link=link)
 
     window._start(window.worker.submit(job), control, done, t("Reading {name}…", name=path.name))
 
 
-def preview(window, project, title, plan):
+def preview(window, project, title, plan, *, link=None):
     dialog = UpdatePreviewDialog(window, project, title, plan)
     accepted = dialog.exec() == QDialog.DialogCode.Accepted
-    decisions, replace_rows = dialog.decisions(), dialog.replace_rows()
+    decisions, replace_rows, retry = dialog.decisions(), dialog.replace_rows(), dialog.retry_sheet
     dialog.deleteLater()
+    if retry is not None and window.project is project:  # Another sheet of the workbook, chosen explicitly.
+        if plan.relink is not None:
+            relink = engine.Relink("", replace(plan.options, sheet=retry), plan.relink.sources, plan.relink.names,
+                                   plan.relink.key, kind=WORKBOOK)
+            start_plan(window, title, plan.link, plan.path, relink=relink, located=True)
+        else:
+            start_plan(window, title, plan.link, plan.path, found_elsewhere=plan.found_elsewhere,
+                       located=plan.located, sheet=retry)
+        return
     if not accepted or window.project is not project:
         window.status(t("Update cancelled: nothing changed."))
         return
@@ -850,10 +939,15 @@ def change_source(window, title=None):
     path = choose_file(window, t("Choose the source file"), Path(link.path).parent if link is not None else None)
     if path is None:
         return
-    from .text_import import TextImportDialog
     try:
-        dialog = TextImportDialog(window, path, preset=link, relink=True)
-    except ValueError as error:
+        if is_workbook(path):
+            from .workbook_link import WorkbookImportDialog
+            dialog = WorkbookImportDialog(window, path, preset=link, relink=True)
+        else:
+            from .text_import import TextImportDialog
+            dialog = TextImportDialog(window, path, preset=link if link is None or link.kind != WORKBOOK else None,
+                                      relink=True)
+    except (ValueError, OSError) as error:
         window.error(t("{name} could not be read. Nothing changed. {error}", name=path.name, error=translate(error)))
         return
     accepted = dialog.exec() == QDialog.DialogCode.Accepted and dialog.link_spec is not None
@@ -862,7 +956,7 @@ def change_source(window, title=None):
     if not accepted:
         window.status(t("Update cancelled: nothing changed."))
         return
-    relink = engine.Relink(spec.delimiter, spec.options, spec.sources, tuple(names), spec.key)
+    relink = engine.Relink(spec.delimiter, spec.options, spec.sources, tuple(names), spec.key, kind=spec.kind)
     start_plan(window, title, link, path, relink=relink, located=True)
 
 

@@ -534,7 +534,8 @@ class MainWindow(QMainWindow):
         from . import source_link as linked_source
         a("refresh_source", linked_source.t("Update from file…"), lambda: linked_source.update_from_file(self),
           icon="git-compare", shortcut="Ctrl+Shift+U",
-          tip=linked_source.t("Read the linked CSV or TSV file again and review the changes before applying them"))
+          tip=linked_source.t("Read the linked file (CSV, TSV or Excel sheet) again and review the changes before "
+                              "applying them"))
         a("source_link", linked_source.t("Source link…"), lambda: linked_source.manage(self), icon="sliders-horizontal",
           tip=linked_source.t("Show, change or remove the file this worksheet is linked to"))
         a("export_excel", excel_text("Export Excel workbook…"), self.export_excel_workbook, icon="sheet")
@@ -4151,6 +4152,15 @@ class MainWindow(QMainWindow):
                     return
                 titles = self.project.add_tables({path.stem: dialog.result})
                 if dialog.link_spec is not None:  # Link to the source file: File → Update from file… reads it again.
+                    self.project.attach_source(titles[0], dialog.link_spec)
+                self.status(qt("qt.imported", count=len(titles)))
+            elif import_data and suffix == ".xlsx":  # One sheet, its header row, and optionally a link to it.
+                from .workbook_link import WorkbookImportDialog
+                dialog = WorkbookImportDialog(self, path)
+                if dialog.exec() != WorkbookImportDialog.DialogCode.Accepted or dialog.result is None:
+                    return
+                titles = self.project.add_tables({dialog.sheet: dialog.result})
+                if dialog.link_spec is not None:  # File → Update from file… reads this sheet again.
                     self.project.attach_source(titles[0], dialog.link_spec)
                 self.status(qt("qt.imported", count=len(titles)))
             else:
