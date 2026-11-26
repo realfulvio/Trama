@@ -2147,6 +2147,9 @@ class MainWindow(QMainWindow):
             for title, frame in result.tables.items():
                 formatters = ({"Threshold": threshold_text} if threshold_text and run.method == "ROC curve"
                               and title == "Diagnostic thresholds" else None)
+                if run.method == "Multiple regression" and title == "Lack of fit on replicates":
+                    from analisi.ols_diagnostics import show_component, show_note
+                    formatters = {"Component": show_component, "Note": show_note}
                 if run.method in KMEANS_METHODS and title == FIT_DIAGNOSTICS_TABLE:
                     formatters = {FIT_REASON: ui, FIT_SOURCE: ui}
                 backgrounds = self.project.tables[run.title].result_backgrounds.get(run.slot, {}).get(title, {})

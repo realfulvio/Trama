@@ -471,6 +471,8 @@ class AnalysisDialog(QDialog):
         if mood_method:
             page_specs = (("variables", tr(mood_median.TAB_KEYS["Data"])),
                           ("options", tr(mood_median.TAB_KEYS["Test"])))
+        if self.method == "Multiple regression":
+            page_specs = (*page_specs, ("lack-of-fit", tr("mlr.lof.tab")))
         for key, name in page_specs:
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
@@ -605,6 +607,8 @@ class AnalysisDialog(QDialog):
                 variable = True
             form = (power_forms.get(label) or pages.get(global_fit.page_of(self.method, label))
                     or (variables if variable else options))
+            if self.method == "Multiple regression" and label == "Replicate lack-of-fit test":
+                form = pages["lack-of-fit"]
             if label in hierarchy_forms:
                 form = hierarchy_forms[label]
             if lognormal_method:
@@ -1004,6 +1008,8 @@ class AnalysisDialog(QDialog):
             note.setWordWrap(True)
             note.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
             options.addRow(note)
+        if self.method == "Multiple regression":
+            self._configure_lack_of_fit(pages["lack-of-fit"], scrolls["lack-of-fit"])
         if options.rowCount() == 0:
             self.tabs.removeTab(self.tabs.indexOf(scrolls["options"]))
 
@@ -1213,6 +1219,38 @@ class AnalysisDialog(QDialog):
             control.addItems(labels)
             if selected:
                 control.setCurrentText(selected)
+
+    def _configure_lack_of_fit(self, form, scroll):
+        """The replicate lack-of-fit test sits on Diagnostics and predictions and needs an unweighted linear fit."""
+        from analisi import mlr_weighting
+        from analisi.ols_diagnostics import REPLICATE_LACK_OF_FIT
+
+        note = QLabel(tr("mlr.lof.weights"))
+        note.setObjectName("infoBanner")
+        note.setWordWrap(True)
+        form.addRow(note)
+        self._lof_note = note
+        self._lof_scroll = scroll
+        family = self.controls["Family"][1]
+        weighting = self.controls[mlr_weighting.GAUSSIAN_WEIGHTING][1]
+
+        def sync(*_args):
+            linear = family.currentData() == "Linear"
+            weighted = linear and weighting.currentData() not in (None, "", mlr_weighting.UNWEIGHTED)
+            self._set_field_visibility({REPLICATE_LACK_OF_FIT: linear})
+            index = self.tabs.indexOf(scroll)
+            if index >= 0:
+                if not linear and self.tabs.currentWidget() is scroll:
+                    self.tabs.setCurrentIndex(0)
+                self.tabs.setTabVisible(index, linear)
+            self.controls[REPLICATE_LACK_OF_FIT][1].setEnabled(linear and not weighted)
+            form.setRowVisible(note, weighted)
+            if self.error_field in self.hidden:
+                self.clear_field_error(self.error_field)
+
+        family.currentIndexChanged.connect(sync)
+        weighting.currentIndexChanged.connect(sync)
+        sync()
 
     def _set_field_visibility(self, fields):
         for name, visible in fields.items():
@@ -1572,6 +1610,8 @@ class AnalysisDialog(QDialog):
             return mood_median.describe_error(error, field)
         if self.method == XY_METHOD:
             return translate_message(error, "xy.error.")
+        if self.method == "Multiple regression":
+            return translate_message(str(error), "mlr.error.", convert={"name": field_label, "field": field_label})
         return str(error)
 
     def show_error(self, error, field=None):

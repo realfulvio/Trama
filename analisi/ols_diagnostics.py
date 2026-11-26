@@ -18,6 +18,7 @@ LINEAR_DIAGNOSTICS = "Linear diagnostics"
 LINEAR_RESIDUAL_PLOT = "Linear residual plot"
 LINEAR_PROFILES = "Linear profiles"
 LINEAR_CI = "Linear CI (%)"
+REPLICATE_LACK_OF_FIT = "Replicate lack-of-fit test"
 PLOT_NONE = "None"
 PLOT_RESIDUALS = "Residuals vs fitted"
 PLOT_ABSOLUTE = "Absolute residuals vs fitted"
@@ -26,13 +27,65 @@ PLOTS = (PLOT_NONE, PLOT_RESIDUALS, PLOT_ABSOLUTE, PLOT_OBSERVED)
 DIAGNOSTICS_SHEET = "Linear diagnostics"
 MODEL_SHEET = "Linear model diagnostics"
 PREDICTIONS_SHEET = "Linear predictions"
+LACK_OF_FIT_SHEET = "Lack of fit on replicates"
+COMPONENT_RESIDUAL = "Residual"
+COMPONENT_PURE = "Pure error"
+COMPONENT_LACK = "Lack of fit"
+LACK_OF_FIT_COMPONENTS = (COMPONENT_RESIDUAL, COMPONENT_PURE, COMPONENT_LACK)
+NOTE_WEIGHTS = ("The replicate lack-of-fit test needs an unweighted ordinary least squares fit. "
+                "With weights it is not calculated.")
+NOTE_NONFINITE = "The replicate lack-of-fit test needs finite predictors, observations and residuals."
+NOTE_RESIDUALS = "The stored residuals do not agree with the fit, so lack of fit was not calculated."
+NOTE_PREDICTIONS = ("Predictions for the same predictor combination do not agree, so lack of fit was not calculated.")
+NOTE_NEGATIVE = ("The lack-of-fit sum of squares is negative beyond the numeric tolerance, "
+                 "so F and p were not calculated.")
+NOTE_NO_REPLICATES = "The replicate lack-of-fit test needs repeated predictor combinations."
+NOTE_NO_DEGREES = ("The replicate lack-of-fit test needs more distinct predictor combinations than the rank of the fit.")
+NOTE_ZERO_BOTH = "Pure error is zero and lack of fit is zero, so F and p are not available."
+NOTE_ZERO_PURE = "Pure error is zero while lack of fit is positive, so F and p are not available."
+NOTE_CLAMPED = ("A tiny negative lack-of-fit sum of squares was set to zero. "
+                "Comparison of lack of fit with the variation among replicates that share every predictor.")
+NOTE_AVAILABLE = "Comparison of lack of fit with the variation among replicates that share every predictor."
+_NOTE_KEYS = {
+    NOTE_WEIGHTS: "mlr.lof.note.weights",
+    NOTE_NONFINITE: "mlr.lof.note.nonfinite",
+    NOTE_RESIDUALS: "mlr.lof.note.residuals",
+    NOTE_PREDICTIONS: "mlr.lof.note.predictions",
+    NOTE_NEGATIVE: "mlr.lof.note.negative",
+    NOTE_NO_REPLICATES: "mlr.lof.note.no_replicates",
+    NOTE_NO_DEGREES: "mlr.lof.note.no_degrees",
+    NOTE_ZERO_BOTH: "mlr.lof.note.zero_both",
+    NOTE_ZERO_PURE: "mlr.lof.note.zero_pure",
+    NOTE_CLAMPED: "mlr.lof.note.clamped",
+    NOTE_AVAILABLE: "mlr.lof.note.available",
+}
+_COMPONENT_KEYS = {
+    COMPONENT_RESIDUAL: "mlr.lof.component.residual",
+    COMPONENT_PURE: "mlr.lof.component.pure",
+    COMPONENT_LACK: "mlr.lof.component.lack",
+}
+HEADER_KEYS = {
+    "Component": "mlr.lof.column.component",
+    "SS": "mlr.lof.column.ss",
+    "df": "mlr.lof.column.df",
+    "MS": "mlr.lof.column.ms",
+    "F": "mlr.lof.column.f",
+    "p": "mlr.lof.column.p",
+    "N": "mlr.lof.column.n",
+    "Distinct combinations": "mlr.lof.column.combinations",
+    "Rank": "mlr.lof.column.rank",
+    "Replicate groups": "mlr.lof.column.groups",
+    "Note": "mlr.lof.column.note",
+}
+LABEL_KEYS = {REPLICATE_LACK_OF_FIT: "mlr.lof.field"}
 MAX_PROFILES = 12
-TABS = {"Diagnostics and predictions": (LINEAR_DIAGNOSTICS, LINEAR_RESIDUAL_PLOT, LINEAR_PROFILES, LINEAR_CI)}
+TABS = {"Diagnostics and predictions": (LINEAR_DIAGNOSTICS, LINEAR_RESIDUAL_PLOT, LINEAR_PROFILES, LINEAR_CI,
+                                        REPLICATE_LACK_OF_FIT)}
 # 1 − h at or below this is treated as a perfect leverage point.
 _LEVERAGE_TOLERANCE = 1e-12
 # A residual within this relative roundoff tolerance is consistent with an exact fit.
 _RESIDUAL_ROUNDOFF = 32 * np.finfo(float).eps
-_KEYS = (LINEAR_DIAGNOSTICS, LINEAR_RESIDUAL_PLOT, LINEAR_PROFILES, LINEAR_CI)
+_KEYS = (LINEAR_DIAGNOSTICS, LINEAR_RESIDUAL_PLOT, LINEAR_PROFILES, LINEAR_CI, REPLICATE_LACK_OF_FIT)
 
 
 def present(options):
@@ -87,6 +140,7 @@ def _profiles(options):
 def validate(options):
     """Check the linear-only keys without fitting. Other keys are left to the regression."""
     _flag(options, LINEAR_DIAGNOSTICS)
+    _flag(options, REPLICATE_LACK_OF_FIT)
     _plot_choice(options)
     confidence_level(options)
     profiles = _profiles(options)
@@ -96,12 +150,211 @@ def validate(options):
 
 
 def requested(options):
-    """Diagnostics, a residual plot, or at least one profile add to the linear result."""
-    if _flag(options, LINEAR_DIAGNOSTICS):
+    """Diagnostics, a residual plot, a profile, or the replicate lack-of-fit test add to the linear result."""
+    if _flag(options, LINEAR_DIAGNOSTICS) or _flag(options, REPLICATE_LACK_OF_FIT):
         return True
     if _plot_choice(options) != PLOT_NONE:
         return True
     return bool(_profiles(options))
+
+
+def _blank(value):
+    try:
+        return value is None or bool(pd.isna(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def show_component(value):
+    """Component name in the active language. The stored label stays English."""
+    from .i18n import tr
+    if _blank(value):
+        return ""
+    key = _COMPONENT_KEYS.get(value)
+    return tr(key) if key else str(value)
+
+
+def show_note(value):
+    """Lack-of-fit note in the active language. The stored sentence stays English."""
+    from .i18n import tr
+    if _blank(value) or value == "":
+        return ""
+    key = _NOTE_KEYS.get(value)
+    return tr(key) if key else str(value)
+
+
+def _sum_squares_tolerance(*terms):
+    """Absolute tolerance for a sum of squares. Tiny negatives inside it are numeric noise."""
+    finite = [abs(float(term)) for term in terms if np.isfinite(term)]
+    scale = max(finite, default=0.0)
+    return float(128 * np.finfo(float).eps * scale)
+
+
+def _whole_rank(rank):
+    if isinstance(rank, bool) or isinstance(rank, (float, np.floating)) and not float(rank).is_integer():
+        return None
+    try:
+        value = int(rank)
+    except (TypeError, ValueError):
+        return None
+    if value < 0 or int(rank) != rank:
+        return None
+    return value
+
+
+def _optional_int(value):
+    if value is None:
+        return pd.NA
+    return int(value)
+
+
+def _mean_square(ss, df):
+    if ss is None or df is None or df <= 0 or not np.isfinite(ss):
+        return np.nan
+    return float(ss) / int(df)
+
+
+def _lack_frame(*, n, distinct, rank, groups, residual_ss, pure_ss, lack_ss, df_resid, df_pure, df_lack,
+                note, f_value, p_value):
+    """One sheet: residual, pure error and lack of fit, with N, U and the replicate groups on the first row."""
+    residual_missing = residual_ss is None or not np.isfinite(residual_ss)
+    notes = [note, note, note] if residual_missing else ["", "", note or ""]
+    frame = pd.DataFrame({
+        "SS": [np.nan if residual_ss is None else residual_ss,
+               np.nan if pure_ss is None else pure_ss,
+               np.nan if lack_ss is None else lack_ss],
+        "df": pd.array([_optional_int(df_resid), _optional_int(df_pure), _optional_int(df_lack)], dtype="Int64"),
+        "MS": [_mean_square(residual_ss, df_resid), _mean_square(pure_ss, df_pure), _mean_square(lack_ss, df_lack)],
+        "F": [np.nan, np.nan, np.nan if f_value is None else f_value],
+        "p": [np.nan, np.nan, np.nan if p_value is None else p_value],
+        "N": pd.array([_optional_int(n), pd.NA, pd.NA], dtype="Int64"),
+        "Distinct combinations": pd.array([_optional_int(distinct), pd.NA, pd.NA], dtype="Int64"),
+        "Rank": pd.array([_optional_int(rank), pd.NA, pd.NA], dtype="Int64"),
+        "Replicate groups": pd.array([_optional_int(groups), pd.NA, pd.NA], dtype="Int64"),
+        "Note": notes,
+    }, index=pd.Index(LACK_OF_FIT_COMPONENTS, name="Component"))
+    return frame
+
+
+def _unavailable_frame(n, note):
+    return _lack_frame(n=n, distinct=None, rank=None, groups=None, residual_ss=None, pure_ss=None, lack_ss=None,
+                       df_resid=None, df_pure=None, df_lack=None, note=note, f_value=None, p_value=None)
+
+
+def _group_codes(predictors, categories):
+    """Codes for exact equality of the whole predictor combination. No pairwise comparison."""
+    columns = {}
+    for index, name in enumerate(predictors.columns):
+        if name in categories:
+            columns[index] = predictors[name].astype(str).to_numpy()
+        else:
+            columns[index] = pd.to_numeric(predictors[name], errors="coerce").to_numpy(dtype=float)
+    keys = pd.DataFrame(columns)
+    if not keys.shape[1]:
+        return np.zeros(len(keys), dtype=np.int64), True
+    numeric = [column for index, column in columns.items()
+               if predictors.columns[index] not in categories]
+    finite = not numeric or all(np.isfinite(column).all() for column in numeric)
+    codes, _ = pd.factorize(pd.MultiIndex.from_frame(keys), sort=False)
+    return np.asarray(codes, dtype=np.int64), finite
+
+
+def _assess_sums(sse, pure, df_pure, df_lack):
+    """Split the residual sum of squares. A tiny negative lack of fit is numeric noise; a larger one is not."""
+    tau = _sum_squares_tolerance(sse, pure)
+    lack = float(sse - pure)
+    clamped = False
+    if -tau <= lack < 0:
+        lack = 0.0
+        clamped = True
+    if lack < -tau:
+        return None, NOTE_NEGATIVE, None, None
+    if df_pure <= 0:
+        return lack, NOTE_NO_REPLICATES, None, None
+    if df_lack <= 0:
+        return lack, NOTE_NO_DEGREES, None, None
+    if pure <= 0:
+        reason = NOTE_ZERO_BOTH if lack <= 0 else NOTE_ZERO_PURE
+        return lack, reason, None, None
+    ratio = (lack / df_lack) / (pure / df_pure)
+    if not np.isfinite(ratio):
+        return lack, NOTE_NONFINITE, None, None
+    probability = float(stats.f.sf(ratio, df_lack, df_pure))
+    if not np.isfinite(probability):
+        return lack, NOTE_NONFINITE, None, None
+    return lack, NOTE_CLAMPED if clamped else NOTE_AVAILABLE, float(ratio), probability
+
+
+def build_lack_of_fit_table(observed, predicted, residual, predictors, categories, rank):
+    """Lack of fit against pure error for one unweighted fit.
+
+    Rows that share every predictor, numeric or categorical, form one group. The pure-error
+    sum of squares is the variation around the group means. Lack of fit is the residual sum
+    of squares minus that pure error. Groups are formed by sorting, not by comparing every pair.
+    """
+    observed = np.asarray(observed, dtype=float)
+    predicted = np.asarray(predicted, dtype=float)
+    residual = np.asarray(residual, dtype=float)
+    count = int(observed.shape[0])
+    rank_value = _whole_rank(rank)
+    predictors = predictors.reset_index(drop=True)
+    if (rank_value is None or len(predicted) != count or len(residual) != count or len(predictors) != count
+            or count == 0 or not np.isfinite(np.concatenate([observed, predicted, residual])).all()):
+        return _unavailable_frame(count, NOTE_NONFINITE)
+    codes, finite = _group_codes(predictors, set(categories))
+    if not finite or not np.isfinite(codes).all():
+        return _unavailable_frame(count, NOTE_NONFINITE)
+    order = np.argsort(codes, kind="mergesort")
+    ordered_codes = codes[order]
+    breaks = np.flatnonzero(ordered_codes[1:] != ordered_codes[:-1]) + 1 if count > 1 else np.array([], dtype=int)
+    starts = np.r_[0, breaks]
+    counts = np.diff(np.r_[starts, count])
+    distinct = int(len(counts))
+    replicate_groups = int(np.count_nonzero(counts > 1))
+    ordered_y = observed[order]
+    ordered_fit = predicted[order]
+    means = np.add.reduceat(ordered_y, starts) / counts
+    centered = ordered_y - np.repeat(means, counts)
+    pure = float(centered @ centered)
+    fit_max = np.maximum.reduceat(ordered_fit, starts)
+    fit_min = np.minimum.reduceat(ordered_fit, starts)
+    tolerance = 128 * np.finfo(float).eps * np.maximum(np.abs(fit_max), np.abs(fit_min))
+    df_pure = count - distinct
+    df_lack = distinct - rank_value
+    df_resid = count - rank_value
+    if np.any((fit_max - fit_min) > tolerance):
+        sse = float(residual @ residual)
+        return _lack_frame(n=count, distinct=distinct, rank=rank_value, groups=replicate_groups,
+                           residual_ss=sse, pure_ss=pure, lack_ss=None, df_resid=df_resid, df_pure=df_pure,
+                           df_lack=df_lack, note=NOTE_PREDICTIONS, f_value=None, p_value=None)
+    gap = np.max(np.abs(residual - (observed - predicted)))
+    if gap > _sum_squares_tolerance(np.max(np.abs(observed)), np.max(np.abs(predicted)), np.max(np.abs(residual))):
+        return _lack_frame(n=count, distinct=distinct, rank=rank_value, groups=replicate_groups,
+                           residual_ss=None, pure_ss=None, lack_ss=None, df_resid=df_resid, df_pure=df_pure,
+                           df_lack=df_lack, note=NOTE_RESIDUALS, f_value=None, p_value=None)
+    sse = float(residual @ residual)
+    if not np.isfinite(sse) or not np.isfinite(pure):
+        return _unavailable_frame(count, NOTE_NONFINITE)
+    lack, note, ratio, probability = _assess_sums(sse, pure, df_pure, df_lack)
+    return _lack_frame(n=count, distinct=distinct, rank=rank_value, groups=replicate_groups, residual_ss=sse,
+                       pure_ss=pure, lack_ss=lack, df_resid=df_resid, df_pure=df_pure, df_lack=df_lack, note=note,
+                       f_value=ratio, p_value=probability)
+
+
+def lack_of_fit_sheet(options, fitted, data, rank, weights=None):
+    """The replicate lack-of-fit sheet for one multiple linear fit, or the reason it is not available."""
+    count = int(len(fitted))
+    if weights is not None:
+        return _unavailable_frame(count, NOTE_WEIGHTS)
+    try:
+        predictors = data.loc[fitted.index, list(options["Predictors"])]
+    except (KeyError, ValueError):
+        return _unavailable_frame(count, NOTE_RESIDUALS)
+    if len(predictors) != count:
+        return _unavailable_frame(count, NOTE_RESIDUALS)
+    return build_lack_of_fit_table(
+        fitted["Observed"].to_numpy(dtype=float), fitted["Fitted"].to_numpy(dtype=float),
+        fitted["Residual"].to_numpy(dtype=float), predictors, options["Categorical predictors"], rank)
 
 
 def _leverage(design, root=None):
@@ -328,4 +581,7 @@ def linear_result(options, fit, weights=None):
             weights, future)
     choice = _plot_choice(options)
     figure = _figure(tables["Fitted values"], choice, weights) if choice != PLOT_NONE else None
+    if _flag(options, REPLICATE_LACK_OF_FIT):
+        rank = int(round(float(model.nobs - model.df_resid)))
+        tables[LACK_OF_FIT_SHEET] = lack_of_fit_sheet(options, tables["Fitted values"], data, rank, weights)
     return Result(tables, figure)

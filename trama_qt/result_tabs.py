@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QComboBox, QTabWidget, QVBoxLayout, QWidget
 from analisi.distribution_graphs import BOX_VIOLIN
 from analisi.i18n import tr, ui
 from analisi import kmeans_options, kmeans_reports
+from analisi.ols_diagnostics import HEADER_KEYS, LACK_OF_FIT_SHEET
 from analisi.paired_graphs import PAIRED_DIFFERENCES
 
 from .strings import qt
@@ -39,6 +40,8 @@ _DISTRIBUTION_HEADERS = {
 
 def result_labels(method, title):
     """Localize the view while keeping the result keys and frame columns for linked recipes."""
+    if method == "Multiple regression" and title == LACK_OF_FIT_SHEET:
+        return tr("mlr.lof.sheet"), {name: tr(key) for name, key in HEADER_KEYS.items()}
     if method == "t-test" and title == PAIRED_DIFFERENCES:
         return tr("ttest.pairs.table"), {
             "Subject": tr("ttest.pairs.subject"), "Difference": tr("ttest.pairs.difference"),

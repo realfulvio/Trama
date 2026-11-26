@@ -203,9 +203,9 @@ class RecipeTests(unittest.TestCase):
 
     def test_visibility(self):
         linear = {"Linear diagnostics": True, "Linear residual plot": True, "Linear profiles": True,
-                  "Linear CI (%)": True}
+                  "Linear CI (%)": True, "Replicate lack-of-fit test": True}
         hidden = {"Linear diagnostics": False, "Linear residual plot": False, "Linear profiles": False,
-                  "Linear CI (%)": False}
+                  "Linear CI (%)": False, "Replicate lack-of-fit test": False}
         logistic_hidden = {"Logistic diagnostics": False, "Logistic cutoff": False, "Logistic profiles": False,
                            "Logistic confidence (%)": False}
         # The Gaussian weighting is a linear-only choice: unweighted shows only the choice itself.
