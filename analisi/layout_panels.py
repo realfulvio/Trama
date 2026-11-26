@@ -6,6 +6,7 @@ from math import isclose
 
 from matplotlib.figure import Figure
 
+from .layout_arrangement import PanelArrangement
 from .layout_geometry import AUTO_PAPER, page_size, panel_boxes, panel_cells
 
 
@@ -124,7 +125,7 @@ def _align_panels(panels, columns, alignment, measurements):
 
 
 def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original", axis_alignment="none",
-                     offsets=()):
+                     arrangement=PanelArrangement()):
     """Match panel sizes and axes, yielding after each measured graph for the gallery."""
 
     figures = tuple(figures)
@@ -144,18 +145,21 @@ def panel_plan_steps(columns, figures, paper=AUTO_PAPER, *, panel_size="original
             measurements.append(_plot_bounds(panel) if panel.figure is not None else None)
             yield
         panels = _align_panels(panels, columns, axis_alignment, measurements)
-    if offsets:
-        width, height = page_size(columns, len(panels), paper)
-        for index, dx, dy in offsets:
-            panel = panels[index]
-            x, y, scale = panel.box
-            panels[index] = replace(panel, box=(x + dx * width, y + dy * height, scale))
+    width, height = page_size(columns, len(panels), paper)
+    for index, dx, dy in arrangement.offsets:
+        panel = panels[index]
+        x, y, scale = panel.box
+        panels[index] = replace(panel, box=(x + dx * width, y + dy * height, scale))
+    for index, factor in arrangement.scales:
+        panel = panels[index]
+        x, y, scale = panel.box
+        panels[index] = replace(panel, box=(x, y, scale * factor))
     return panels
 
 
-def plan_panels(columns, figures, paper=AUTO_PAPER, *, panel_size="original", axis_alignment="none", offsets=()):
+def plan_panels(columns, figures, paper=AUTO_PAPER, *, panel_size="original", axis_alignment="none", arrangement=PanelArrangement()):
     steps = panel_plan_steps(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment,
-                             offsets=offsets)
+                             arrangement=arrangement)
     try:
         while True:
             next(steps)
@@ -232,3 +236,38 @@ def layout_shifts(panels, objects, command):
         deltas = [center - (low + high) / 2 for low, high in zip(lows, highs, strict=True)]
     return {index: (0., delta) if direction else (delta, 0.)
             for delta, members in zip(deltas, objects, strict=True) for index in members}
+
+
+def targets_fit(panels, targets, page):
+    """Check page limits without imposing the preview's pixel precision on saved values."""
+    width, height = page
+    for index, (x, y, scale) in targets.items():
+        w, h = panels[index].size
+        current = panel_rectangle(panels[index])
+        if (scale <= 0 or x < min(0., current[0]) - 1e-8 or y < min(0., current[1]) - 1e-8
+                or x + w * scale > max(width, current[2]) + 1e-8
+                or y + h * scale > max(height, current[3]) + 1e-8):
+            return False
+    return True
+
+
+def resized_panels(panels, indices, anchor, factor):
+    """Scale a group about its opposite corner, preserving relative panel positions."""
+    left, top = anchor
+    targets = {}
+    for index in indices:
+        x, y, scale = panels[index].box
+        targets[index] = left + (x - left) * factor, top + (y - top) * factor, scale * factor
+    return targets
+
+
+def resize_factor(anchor, corner, cursor, page):
+    """Project the pointer onto the diagonal, stopping before either edge of the page."""
+    x, y = anchor
+    dx, dy = corner[0] - x, corner[1] - y
+    u, v = cursor[0] - x, cursor[1] - y
+    result = (dx * u + dy * v) / (dx * dx + dy * dy)
+    right, bottom = page
+    limit = max(1e-8, min((right - x) / dx if dx > 0 else -x / dx,
+                           (bottom - y) / dy if dy > 0 else -y / dy))
+    return max(min(.05, limit), min(result, max(1., limit)))

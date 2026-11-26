@@ -17,8 +17,9 @@ from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboB
 
 from analisi import cohen_kappa as kappa, cox_exact, cox_outputs, mcnemar_power, mean_permutation, parallel, power_plan, rmst
 from analisi import anova_comparison_plot, anova_diagnostics, anova_grouped_plot, result_display
-from analisi.layout_arrangement import change_objects, translated
-from analisi.layout_panels import PanelAlignmentError, bounded_translation, layout_shifts, panel_rectangle
+from analisi.layout_arrangement import change_objects, layered, positioned, translated
+from analisi.layout_panels import (PanelAlignmentError, bounded_translation, layout_shifts, panel_rectangle,
+                                   plan_panels, targets_fit)
 from analisi.xy_series import XY_METHOD
 from analisi._version import VERSION
 from analisi.analysis_chain import ChainCancelled
@@ -677,6 +678,10 @@ class MainWindow(QMainWindow):
           shortcut="Ctrl+G")
         a("layout_ungroup", tr("shape.objects.ungroup"), lambda: self.arrange_layout_selection("ungroup"),
           shortcut="Ctrl+Shift+G")
+        a("layout_front", qt("qt.layout_front"), lambda: self.arrange_layout_selection("front"))
+        a("layout_back", qt("qt.layout_back"), lambda: self.arrange_layout_selection("back"))
+        a("layout_position", qt("qt.layout_position"), lambda: self.edit_layout_geometry())
+        a("layout_equalize", qt("qt.layout_equalize"), lambda: self.edit_layout_geometry(equalize=True))
         for key, commands in (("layout_align_edges", LAYOUT_EDGES), ("layout_distribute", LAYOUT_DISTRIBUTIONS)):
             menu = QMenu(qt(f"qt.{key}"), self)
             for name in commands:
@@ -2329,7 +2334,7 @@ class MainWindow(QMainWindow):
                         and not project.sheet_locked(("layout", index)))
 
             page.layout_selection = LayoutSelection(canvas, layout, axes, active, self.update_layout_arrangement_actions,
-                                                   lambda shift: self.move_layout_selection(shift))
+                                                   self.move_layout_selection, self.resize_layout_selection)
             if None in layout.panels:
                 slots = {axis: int(axis.get_gid().removeprefix("layout-slot-")) for axis in figure.axes
                          if (axis.get_gid() or "").startswith("layout-slot-")}
@@ -3562,12 +3567,36 @@ class MainWindow(QMainWindow):
         if layout.panels[slot] is None:
             panels = list(layout.panels)
             panels[slot] = graph
-            self.project.put_layout(replace(layout, panels=panels), key)
+            candidate = replace(layout, panels=panels)
+            manual = slot in dict(layout.arrangement.scales) or any(entry[0] == slot for entry in layout.arrangement.offsets)
+            controller = self._active_layout_selection()
+            if manual and controller is not None:
+                figures = self.project.layout_figures(candidate)
+                if figures is not None:
+                    left, top, right, bottom = panel_rectangle(controller.panels[slot])
+                    planned = plan_panels(candidate.columns, figures, candidate.paper, panel_size=candidate.panel_size,
+                                          axis_alignment=candidate.axis_alignment, arrangement=candidate.arrangement)
+                    width, height = planned[slot].size
+                    scale = min((right - left) / width, (bottom - top) / height)
+                    targets = {slot: (left + (right - left - width * scale) / 2,
+                                      top + (bottom - top - height * scale) / 2, scale)}
+                    try:
+                        candidate = replace(candidate, arrangement=positioned(candidate.arrangement, planned,
+                                                                            targets, controller.page))
+                    except ValueError:
+                        self.status(qt("qt.layout_geometry_limits"))
+                        return
+            self.project.put_layout(candidate, key)
             self.open_sheet(("layout", key))
 
     def _active_layout_selection(self):
         controller = getattr(self.page, "layout_selection", None)
         return controller if controller is not None and controller.enabled() else None
+
+    @staticmethod
+    def _layout_scalable(controller):
+        return tuple(index for index, panel in enumerate(controller.panels)
+                     if panel.figure is not None and index not in controller.layout.arrangement.locked)
 
     def update_layout_arrangement_actions(self):
         controller = self._active_layout_selection()
@@ -3583,6 +3612,10 @@ class MainWindow(QMainWindow):
         for mode in LAYOUT_AXIS_ALIGNMENT:
             self.actions[f"layout_{mode}"].setEnabled(axes)
         self.actions["layout_group"].setEnabled(can_align)
+        self.actions["layout_front"].setEnabled(bool(objects))
+        self.actions["layout_back"].setEnabled(bool(objects))
+        self.actions["layout_position"].setEnabled(movable and len(controller.selected) == 1)
+        self.actions["layout_equalize"].setEnabled(controller is not None and len(self._layout_scalable(controller)) >= 2)
         self.actions["layout_ungroup"].setEnabled(movable and any(len(obj) > 1 for obj in objects))
         lock = self.actions["layout_lock"]
         lock.setEnabled(bool(objects))
@@ -3614,13 +3647,51 @@ class MainWindow(QMainWindow):
             self._commit_layout_arrangement(controller,
                                             translated(controller.layout.arrangement, shifts, controller.page))
 
+    def _apply_layout_geometry(self, controller, targets):
+        if not targets_fit(controller.panels, targets, controller.page):
+            self.status(qt("qt.layout_geometry_outside"))
+            controller.indicate()
+            return
+        try:
+            arrangement = positioned(controller.layout.arrangement, controller.panels, targets, controller.page)
+            self._commit_layout_arrangement(controller, arrangement)
+        except ValueError:
+            self.status(qt("qt.layout_geometry_limits"))
+            controller.indicate()
+
+    def resize_layout_selection(self, targets):
+        controller = self._active_layout_selection()
+        if controller is not None and targets.keys() <= controller.selected and not controller.locked:
+            self._apply_layout_geometry(controller, targets)
+
+    def edit_layout_geometry(self, *, equalize=False):
+        controller = self._active_layout_selection()
+        name = "layout_equalize" if equalize else "layout_position"
+        if controller is None or not self.actions[name].isEnabled():
+            return
+        from .layout_geometry_dialog import PanelPositionDialog, PanelScaleDialog
+        if equalize:
+            eligible = self._layout_scalable(controller)
+            selected = tuple(index for index in eligible if index in controller.selected)
+            dialog = PanelScaleDialog(self, controller.panels, eligible, selected, controller.page)
+        else:
+            index, = controller.selected
+            dialog = PanelPositionDialog(self, controller.panels, index, controller.page)
+        try:
+            if dialog.exec() == dialog.DialogCode.Accepted and self._active_layout_selection() is controller:
+                self._apply_layout_geometry(controller, dialog.targets)
+        finally:
+            dialog.deleteLater()
+
     def arrange_layout_selection(self, command):
         controller = self._active_layout_selection()
         if controller is None or not self.actions[f"layout_{command}"].isEnabled():
             return
         objects = controller.objects
         arrangement = controller.layout.arrangement
-        if command in {"group", "ungroup", "lock"}:
+        if command in {"front", "back"}:
+            arrangement = layered(arrangement, controller.selected, len(controller.panels), front=command == "front")
+        elif command in {"group", "ungroup", "lock"}:
             if command == "lock" and controller.selected.issubset(arrangement.locked):
                 command = "unlock"
             arrangement = change_objects(arrangement, objects, command)

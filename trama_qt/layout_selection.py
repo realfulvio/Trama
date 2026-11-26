@@ -1,11 +1,12 @@
 """Pointer and keyboard selection for the editable layout page."""
 
 from matplotlib.backend_bases import MouseButton
+from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from analisi.layout_panels import bounded_translation, enclosing_rectangle
+from analisi.layout_panels import bounded_translation, enclosing_rectangle, resize_factor, resized_panels
 
 from . import theme
 
@@ -13,14 +14,15 @@ from . import theme
 class LayoutSelection:
     """A temporary selection. Translations are committed once, after releasing the pointer."""
 
-    def __init__(self, canvas, layout, axes, enabled, changed, moved):
+    def __init__(self, canvas, layout, axes, enabled, changed, moved, resized):
         self.canvas, self.layout, self.axes = canvas, layout, axes
-        self.enabled, self.changed, self.moved = enabled, changed, moved
+        self.enabled, self.changed, self.moved, self.resized = enabled, changed, moved, resized
         self.panels = canvas.figure.trama_layout_panels
         self.page = tuple(canvas.figure.get_size_inches())
         self.selected = set()
         self.indicators = []
         self.pending = None
+        self.resize_corners = None
         self.dragged = False
         canvas.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         for signal, handler in (("button_press_event", self.press), ("motion_notify_event", self.motion),
@@ -41,14 +43,38 @@ class LayoutSelection:
         self.indicate()
         self.changed()
 
-    def indicate(self, shift=(0., 0.)):
-        for patch in self.indicators:
-            patch.remove()
+    def _boundary(self, members):
+        return enclosing_rectangle(self.panels, members)
+
+    @staticmethod
+    def _corners(rect):
+        left, top, right, bottom = rect
+        return ((left, top), (right, top), (right, bottom), (left, bottom))
+
+    def _resize_hit(self, x, y):
+        width, height = self.page
+        bbox = self.canvas.figure.bbox
+        radius = 6 * self.canvas.device_pixel_ratio
+        for members in self.objects:
+            corners = self._corners(self._boundary(members))
+            for index, (left, top) in enumerate(corners):
+                px, py = left * bbox.width / width, (1 - top / height) * bbox.height
+                if abs(x - px) <= radius and abs(y - py) <= radius:
+                    return members, corners[(index + 2) % 4], (left, top)
+        return None
+
+    def indicate(self, shift=(0., 0.), *, scaled=None):
+        for artist in self.indicators:
+            artist.remove()
         self.indicators.clear()
         width, height = self.page
         dx, dy = shift
         for members in self.objects:
-            left, top, right, bottom = enclosing_rectangle(self.panels, members)
+            left, top, right, bottom = self._boundary(members)
+            if scaled is not None and members == scaled[0]:
+                (anchor_x, anchor_y), factor = scaled[1:]
+                left, right = (anchor_x + (value - anchor_x) * factor for value in (left, right))
+                top, bottom = (anchor_y + (value - anchor_y) * factor for value in (top, bottom))
             locked = bool(set(members).intersection(self.layout.arrangement.locked))
             outline = Rectangle(((left + dx) / width, 1 - (bottom + dy) / height),
                                 (right - left) / width, (bottom - top) / height,
@@ -57,6 +83,14 @@ class LayoutSelection:
                                 zorder=10000)
             self.canvas.figure.add_artist(outline)
             self.indicators.append(outline)
+            if not self.locked:
+                corners = self._corners((left + dx, top + dy, right + dx, bottom + dy))
+                xs, ys = zip(*((x / width, 1 - y / height) for x, y in corners), strict=True)
+                handles = Line2D(xs, ys, transform=self.canvas.figure.transFigure, linestyle="none", marker="s",
+                                 markersize=4, markerfacecolor=theme.T["panel"], markeredgecolor=theme.T["accent"],
+                                 clip_on=False, zorder=10001)
+                self.canvas.figure.add_artist(handles)
+                self.indicators.append(handles)
         self.canvas.draw_idle()
 
     def press(self, event):
@@ -64,8 +98,15 @@ class LayoutSelection:
             return
         index = self.axes.get(event.inaxes)
         self.pending = None
+        self.resize_corners = None
         self.dragged = False
         self.canvas.setFocus()
+        hit = self._resize_hit(event.x, event.y) if not self.locked else None
+        if hit is not None:
+            members, anchor, corner = hit
+            self.resize_corners = anchor, corner
+            self.pending = event.x, event.y, members
+            return
         if index is None:
             self.select(())
             return
@@ -83,6 +124,12 @@ class LayoutSelection:
         bbox = self.canvas.figure.bbox
         return dx * self.page[0] / bbox.width, -dy * self.page[1] / bbox.height
 
+    def _scaled(self, x, y):
+        anchor, corner = self.resize_corners
+        dx, dy = self._delta(x, y)
+        factor = resize_factor(anchor, corner, (corner[0] + dx, corner[1] + dy), self.page)
+        return self.pending[2], anchor, factor
+
     def shift(self, dx, dy):
         return bounded_translation(enclosing_rectangle(self.panels, self.selected), (dx, dy), self.page)
 
@@ -94,15 +141,27 @@ class LayoutSelection:
         if not self.dragged and abs(event.x - x) + abs(event.y - y) < threshold:
             return
         self.dragged = True
-        self.indicate(self.shift(*self._delta(event.x, event.y)))
+        if self.resize_corners is not None:
+            self.indicate(scaled=self._scaled(event.x, event.y))
+        else:
+            self.indicate(self.shift(*self._delta(event.x, event.y)))
 
     def release(self, event):
         if self.pending is None or event.button != MouseButton.LEFT:
             return
-        shift = self.shift(*self._delta(event.x, event.y)) if self.dragged and self.enabled() and not self.locked else None
+        shift, targets = None, None
+        if self.dragged and self.enabled() and not self.locked:
+            if self.resize_corners is not None:
+                members, anchor, factor = self._scaled(event.x, event.y)
+                targets = resized_panels(self.panels, members, anchor, factor)
+            else:
+                shift = self.shift(*self._delta(event.x, event.y))
         _, _, members = self.pending
         self.pending = None
-        if shift is not None and any(shift):
+        self.resize_corners = None
+        if targets is not None:
+            self.resized(targets)
+        elif shift is not None and any(shift):
             self.moved(shift)
         elif not self.dragged and self.enabled():
             self.select(members)
@@ -114,6 +173,7 @@ class LayoutSelection:
             return
         if event.key == "escape":
             self.pending = None
+            self.resize_corners = None
             self.select(())
             return
         values = {"left": (-1, 0), "right": (1, 0), "up": (0, -1), "down": (0, 1)}

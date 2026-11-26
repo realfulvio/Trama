@@ -2832,6 +2832,7 @@ class QtShellTests(unittest.TestCase):
         from analisi.analysis_templates import read_template, write_template
         from analisi.data import load_workspace
         from analisi.family_workflow import save_family
+        from analisi.layout_panels import panel_rectangle
         from analisi.layout_svg import SVG
         from trama_qt.gallery_catalog import READY, describe
         from trama_qt.layout_dialog import LayoutDialog, LayoutGraphDialog
@@ -2866,6 +2867,11 @@ class QtShellTests(unittest.TestCase):
         window.open_sheet(ref)
         self.wait()
         self.assertTrue(window.actions["place_layout_graph"].isEnabled())
+        selection = window.page.layout_selection
+        selection.select({1})
+        x, y, scale = selection.panels[1].box
+        window.resize_layout_selection({1: (x, y, .65 * scale)})
+        expected = panel_rectangle(window.page.layout_selection.panels[1])
 
         def choose(dialog):
             self.assertEqual(dialog.panels.count(), 1)
@@ -2880,6 +2886,11 @@ class QtShellTests(unittest.TestCase):
             MouseEvent("button_press_event", canvas, x, y, button=1, dblclick=True)._process()
         layout = window.project.layouts[0]
         self.assertEqual(layout.panels, [None, graph.reference, None])
+        actual = panel_rectangle(window.page.layout_selection.panels[1])
+        self.assertGreaterEqual(actual[0] + 1e-8, expected[0])
+        self.assertGreaterEqual(actual[1] + 1e-8, expected[1])
+        self.assertLessEqual(actual[2], expected[2] + 1e-8)
+        self.assertLessEqual(actual[3], expected[3] + 1e-8)
         self.assertEqual(describe(window.project, ref).state, READY)
         self.assertEqual([axis.get_gid() for axis in window.project.layout_figure(layout).axes], [None])
         window.undo()
@@ -2996,6 +3007,105 @@ class QtShellTests(unittest.TestCase):
         self.assertEqual(window.project.layouts[0].arrangement.groups, ())
         window.show_sheet("data", "groups")
         self.assertEqual(window.actions["new_graph"].shortcut().toString(), "Ctrl+G")
+
+    def test_layout_corner_resize_and_stacking_keep_positions_through_exports(self):
+        import json
+        import xml.etree.ElementTree as ET
+        from unittest.mock import patch
+
+        from PySide6.QtCore import QPoint
+        from PySide6.QtTest import QTest
+
+        from analisi.layout_panels import panel_rectangle
+        from analisi.layout_svg import SVG
+        from analisi.presentation import Layout
+        from trama_qt.layout_geometry_dialog import PanelPositionDialog, PanelScaleDialog
+
+        self.open_example()
+        window = self.window
+        first = self.run_method("XY series", {"X": "Control", "Y columns": ["Treated"]})
+        window.show_sheet("data", "groups")
+        other = self.run_method("XY series", {"X": "Treated", "Y columns": ["Control"]})
+        layout = Layout("Stacked", 2, [first.reference, other.reference])
+        ref = ("layout", window.project.put_layout(layout))
+        window.open_sheet(ref)
+        self.wait()
+
+        def screen(left, top):
+            controller = window.page.layout_selection
+            canvas = controller.canvas
+            return QPoint(round(left / controller.page[0] * canvas.width()),
+                          round(top / controller.page[1] * canvas.height()))
+
+        def point_for(index):
+            left, top, right, bottom = panel_rectangle(window.page.layout_selection.panels[index])
+            return screen((left + right) / 2, (top + bottom) / 2)
+
+        def click(point):
+            QTest.mouseClick(window.page.layout_selection.canvas, Qt.MouseButton.LeftButton, pos=point)
+            self.app.processEvents()
+
+        click(point_for(0))
+        boxes = tuple(panel.box for panel in window.page.layout_selection.panels)
+
+        def position(dialog):
+            dialog.fields[0].setValue(boxes[1][0] * 2.54)
+            dialog.fields[1].setValue(boxes[1][1] * 2.54)
+            dialog.accept()
+            return dialog.DialogCode.Accepted if dialog.targets else dialog.DialogCode.Rejected
+
+        with patch.object(PanelPositionDialog, "exec", position):
+            window.actions["layout_position"].trigger()
+        self.app.processEvents()
+        current = window.page.layout_selection
+        click(point_for(1))
+        self.assertEqual(current.selected, {1})
+        window.actions["layout_back"].trigger()
+        self.app.processEvents()
+        click(point_for(1))
+        current = window.page.layout_selection
+        self.assertEqual(current.selected, {0})
+        self.assertEqual(current.layout.arrangement.layers, (1, 0))
+
+        initial = panel_rectangle(current.panels[0])
+        left, top, right, bottom = initial
+        handle = screen(right, bottom)
+        end = screen(left + .7 * (right - left), top + .7 * (bottom - top))
+        QTest.mousePress(current.canvas, Qt.MouseButton.LeftButton, pos=handle)
+        QTest.mouseMove(current.canvas, end, delay=35)
+        QTest.mouseRelease(current.canvas, Qt.MouseButton.LeftButton, pos=end)
+        self.app.processEvents()
+        smaller = window.page.layout_selection
+        resized = panel_rectangle(smaller.panels[0])
+        self.assertEqual(resized[:2], initial[:2])
+        self.assertLess(resized[2] - left, .8 * (right - left))
+        self.assertAlmostEqual((resized[2] - left) / (right - left),
+                               (resized[3] - top) / (bottom - top), places=8)
+
+        def equalize(dialog):
+            dialog.accept()
+            return dialog.DialogCode.Accepted if dialog.targets else dialog.DialogCode.Rejected
+
+        with patch.object(PanelScaleDialog, "exec", equalize):
+            window.actions["layout_equalize"].trigger()
+        self.app.processEvents()
+        current = window.page.layout_selection
+        self.assertAlmostEqual(current.panels[0].box[2], current.panels[1].box[2], places=9)
+        self.assertEqual(current.layout.panels, layout.panels)
+        saved = self.folder / "stacked.alab"
+        window.project.save(saved)
+        self.assertEqual(json.loads(saved.read_text())["version"], 8)
+        self.reopen(saved)
+        window.open_sheet(ref)
+        self.wait()
+        self.assertEqual(window.project.layouts[0].arrangement, current.layout.arrangement)
+        for extension in ("svg", "pdf", "png"):
+            target = self.folder / f"stacked.{extension}"
+            window.project.export_layout(window.project.layouts[0], target)
+            self.assertGreater(target.stat().st_size, 1000)
+        svg = ET.parse(self.folder / "stacked.svg")
+        ids = [node.get("id") for node in svg.getroot() if node.tag == SVG + "g"]
+        self.assertLess(ids.index("panel2"), ids.index("panel1"))
 
     def test_layout_panel_arrangement_undo_and_exports(self):
         from unittest.mock import patch

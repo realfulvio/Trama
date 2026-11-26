@@ -17,7 +17,7 @@ data under the canonical column names and returns ``(tables, layouts)`` ready to
 """
 from collections import Counter
 from copy import deepcopy
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 import json
 from math import isfinite
 import os
@@ -444,8 +444,8 @@ def template_payload(template):
             record["panel_size"] = layout.panel_size
         if layout.axis_alignment != "none":
             record["axis_alignment"] = layout.axis_alignment
-        if not layout.arrangement.empty:
-            record["arrangement"] = asdict(layout.arrangement)
+        if arrangement := layout.arrangement.record():
+            record["arrangement"] = arrangement
         layouts.append(record)
     return {"schema": SCHEMA, "kind": KIND, "tables": tables, "layouts": layouts}
 

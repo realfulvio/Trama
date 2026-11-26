@@ -120,13 +120,14 @@ def render(entry, project, box):
     page_w, page_h = page_size(layout.columns, len(figures), layout.paper)
     scale = min(box_w / page_w, box_h / page_h)  # Pixels per inch of the page: the page keeps its shape.
     placements = yield from panel_plan_steps(layout.columns, figures, layout.paper, panel_size=layout.panel_size,
-                                             axis_alignment=layout.axis_alignment, offsets=layout.arrangement.offsets)
+                                             axis_alignment=layout.axis_alignment, arrangement=layout.arrangement)
     page = QImage(max(1, round(page_w * scale)), max(1, round(page_h * scale)),
                   QImage.Format.Format_ARGB32_Premultiplied)
     page.fill(QColor(layout.background))
     painter = QPainter(page)
     try:
-        for placement in placements:
+        for index in layout.arrangement.paint_order(len(placements)):
+            placement = placements[index]
             if placement.figure is None:
                 continue
             w, h = placement.size

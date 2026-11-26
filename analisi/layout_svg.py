@@ -21,6 +21,7 @@ import matplotlib as mpl
 from matplotlib.figure import Figure
 
 from .figure_export import DEFAULT_DPI, MM, check_destination, plan_export
+from .layout_arrangement import PanelArrangement
 from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
 from .layout_panels import EMPTY_PANEL, plan_panels
 from .linked_tables import overlay_figure
@@ -104,7 +105,7 @@ def _verify(path, plan, images):
 
 
 def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAPER, background=WHITE,
-                      panel_size="original", axis_alignment="none", tables=(), offsets=()):
+                      panel_size="original", axis_alignment="none", tables=(), arrangement=PanelArrangement()):
     """Write the layout ``title`` with ``figures`` (panel order) to ``path`` as a vector SVG.
 
     ``settings`` are those of File → Export with options… with format ``svg``: ``width_mm``
@@ -131,7 +132,8 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
     rc = {"svg.fonttype": "none" if plan["svg_text"] == "text" else "path", "svg.image_inline": True}
 
     # Every panel is rendered first: a failure leaves the destination untouched.
-    placements = plan_panels(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment, offsets=offsets)
+    placements = plan_panels(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment,
+                             arrangement=arrangement)
     panels = []
     for placement in placements:
         if placement.figure is None:
@@ -162,7 +164,9 @@ def export_layout_svg(title, columns, figures, path, settings, *, paper=AUTO_PAP
     page.set("viewBox", f"0 0 {width_in * PT:.4f} {height_in * PT:.4f}")
     images = 0
     defs = ET.SubElement(page, SVG + "defs")
-    for index, (document, placement) in enumerate(zip(panels, placements, strict=True), start=1):
+    for slot in arrangement.paint_order(len(placements)):
+        index = slot + 1
+        document, placement = panels[slot], placements[slot]
         if document is None:
             continue
         w, h = placement.size

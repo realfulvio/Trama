@@ -6,6 +6,7 @@ from math import isfinite
 from matplotlib.figure import Figure
 
 from .figure_export import MM, _render
+from .layout_arrangement import PanelArrangement
 from .layout_geometry import AUTO_PAPER, PT, WHITE, layout_frame, page_size
 from .layout_panels import EMPTY_PANEL, plan_panels
 from .linked_tables import overlay_figure
@@ -24,7 +25,7 @@ class PdfLayoutPage:
     panel_size: str = "original"
     axis_alignment: str = "none"
     tables: tuple = ()      # ``linked_tables.TableSpec`` objects drawn on the page itself, above the panels
-    offsets: tuple = ()
+    arrangement: PanelArrangement = PanelArrangement()
 
     def __post_init__(self):
         Layout(self.title, self.columns, [("panel", index) for index in range(len(self.panels))],
@@ -44,7 +45,7 @@ class PdfLayoutPage:
     @property
     def placements(self):
         return plan_panels(self.columns, self.panels, self.paper, panel_size=self.panel_size,
-                           axis_alignment=self.axis_alignment, offsets=self.offsets)
+                           axis_alignment=self.axis_alignment, arrangement=self.arrangement)
 
     def frame(self, plan):
         scale = plan["width_mm"] / MM / self.size[0]
@@ -95,7 +96,9 @@ def _add_panels(document, page, layout, plan):
 
     width, height = layout.size
     page_scale = plan["width_mm"] / MM / width
-    for panel in layout.placements:
+    placements = layout.placements
+    for index in layout.arrangement.paint_order(len(placements)):
+        panel = placements[index]
         if panel.figure is None:
             continue
         w, h = panel.size

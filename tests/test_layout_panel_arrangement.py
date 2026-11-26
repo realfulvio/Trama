@@ -59,6 +59,45 @@ class LayoutArrangementTests(unittest.TestCase):
         self.assertNotIn(3, offsets)
         self.assertEqual([panel_rectangle(panel) for panel in panels], initial)
 
+    def test_scaled_stacking_order_is_drawn_in_raster_and_vector_pdf(self):
+        import pypdfium2 as pdfium
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+        from analisi.figure_export import export_pdf_bundle
+        from analisi.layout_arrangement import PanelArrangement
+        from analisi.layout_pdf import PdfLayoutPage
+        from analisi.presentation import compose_layout
+
+        graphs = (Figure(figsize=(4, 3), facecolor="#e02020"), Figure(figsize=(4, 3), facecolor="#2040e0"))
+        original_sizes = [tuple(graph.get_size_inches()) for graph in graphs]
+        arrangement = PanelArrangement(offsets=((1, -.5, 0),), scales=((0, .5),), layers=(1, 0))
+        page = PdfLayoutPage("Layers", 2, graphs, arrangement=arrangement)
+        left, top, right, bottom = panel_rectangle(page.placements[0])
+        x, y = left + .2 * (right - left), top + .2 * (bottom - top)
+        outside = right + .2 * (right - left), y
+        layout = compose_layout("Layers", 2, graphs, arrangement=arrangement)
+        canvas = FigureCanvasAgg(layout)
+        canvas.draw()
+        raster = canvas.buffer_rgba()
+        width, height = page.size
+
+        def coordinates(px, py, point):
+            return round(px * point[0] / width), round(py * point[1] / height)
+
+        from PIL import Image
+        preview = Image.frombuffer("RGBA", canvas.get_width_height(), raster).convert("RGB")
+        expected = [(224, 32, 32), (32, 64, 224)]
+        self.assertEqual([preview.getpixel(coordinates(*preview.size, point))
+                          for point in ((x, y), outside)], expected)
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "layers.pdf"
+            export_pdf_bundle([page], target, {"format": "pdf"})
+            with pdfium.PdfDocument(str(target)) as document:
+                bitmap = document[0].render(scale=2).to_pil().convert("RGB")
+                self.assertEqual([bitmap.getpixel(coordinates(*bitmap.size, point))
+                                  for point in ((x, y), outside)], expected)
+        self.assertEqual([tuple(graph.get_size_inches()) for graph in graphs], original_sizes)
+
     def test_aligns_actual_axis_edges_in_svg_and_keeps_source_geometry(self):
         graphs = figures()
         original = [figure_state(graph) for graph in graphs]

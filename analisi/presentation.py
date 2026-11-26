@@ -1178,25 +1178,26 @@ def apply_style(figure, style):
 
 
 def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHITE, panel_size="original",
-                   axis_alignment="none", tables=(), empty_label=None, offsets=()):
+                   axis_alignment="none", tables=(), empty_label=None, arrangement=PanelArrangement()):
     """The layout page as one figure; ``tables`` (``linked_tables.TableSpec``) are drawn above the panels."""
     Layout(title, columns, [("panel", i) for i in range(len(figures))], paper, background,
            panel_size, axis_alignment)
     page_width, page_height = size = page_size(columns, len(figures), paper)
     placements = plan_panels(columns, figures, paper, panel_size=panel_size, axis_alignment=axis_alignment,
-                             offsets=offsets)
+                             arrangement=arrangement)
     boxes = [placement.box for placement in placements]
     figure = layout_frame(title, size, boxes, background=background, panel_letters=False)
     ink = page_ink(background)
     if empty_label is not None:
         figure.trama_layout_panels = placements
-    for i, placement in enumerate(placements):
+    for layer, i in enumerate(arrangement.paint_order(len(placements)), start=10):
+        placement = placements[i]
         w, h = placement.size
         x, y, scale = placement.box
         if placement.figure is None:
             if empty_label is not None:
-                panel = figure.add_axes((x / page_width, 1 - (y + h) / page_height,
-                                         w / page_width, h / page_height))
+                panel = figure.add_axes((x / page_width, 1 - (y + h * scale) / page_height,
+                                         w * scale / page_width, h * scale / page_height), zorder=layer)
                 panel.set_gid(f"layout-slot-{i}")
                 panel.set(xticks=[], yticks=[], facecolor="none")
                 for spine in panel.spines.values():
@@ -1211,7 +1212,7 @@ def compose_layout(title, columns, figures, *, paper=AUTO_PAPER, background=WHIT
             buffer.seek(0)
             pixels = imread(buffer)
         panel = figure.add_axes((x / page_width, 1 - (y + h * scale) / page_height,
-                                 w * scale / page_width, h * scale / page_height))
+                                 w * scale / page_width, h * scale / page_height), zorder=layer)
         panel.imshow(pixels, aspect=None if (panel_size, axis_alignment) == ("original", "none") else "auto")
         panel.set_axis_off()
         if empty_label is not None:

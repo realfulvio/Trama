@@ -1119,6 +1119,7 @@ def _analysis_slots(value, count):
 
 LAYOUT_PLACEHOLDER_VERSION = 6
 LAYOUT_ARRANGEMENT_VERSION = 7
+LAYOUT_SCALE_VERSION = 8
 
 
 def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=None):
@@ -1145,7 +1146,9 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
             del record["axis_alignment"]
         if not record.get("tables"):
             record.pop("tables", None)
-        if layout.arrangement.empty:
+        if arrangement := layout.arrangement.record():
+            record["arrangement"] = arrangement
+        else:
             del record["arrangement"]
         layout_records.append(record)
     version = 3 if linked else 2
@@ -1153,6 +1156,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         version = LAYOUT_PLACEHOLDER_VERSION
     if any("arrangement" in record for record in layout_records):
         version = LAYOUT_ARRANGEMENT_VERSION
+    if any({"scales", "layers"}.intersection(record.get("arrangement", ())) for record in layout_records):
+        version = LAYOUT_SCALE_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
@@ -1290,7 +1295,7 @@ def load_workspace(path, *, include_info=False):
     obj = json.loads(path.read_text(encoding="utf-8-sig"))
     version = obj["version"]
     versions = (1, 2, 3, LEGACY_METADATA_VERSION, CATEGORY_ORDER_VERSION,
-                LAYOUT_PLACEHOLDER_VERSION, LAYOUT_ARRANGEMENT_VERSION)
+                LAYOUT_PLACEHOLDER_VERSION, LAYOUT_ARRANGEMENT_VERSION, LAYOUT_SCALE_VERSION)
     if version not in versions or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
@@ -1409,10 +1414,14 @@ def load_workspace(path, *, include_info=False):
             raise ValueError("Empty layout panels require project format version 6.")
         if "arrangement" in record and version < LAYOUT_ARRANGEMENT_VERSION:
             raise ValueError("Panel arrangements require project format version 7.")
+        arrangement = record.get("arrangement", {})
+        if (version < LAYOUT_SCALE_VERSION and isinstance(arrangement, dict)
+                and {"scales", "layers"}.intersection(arrangement)):
+            raise ValueError("Panel scale and stacking require project format version 8.")
         layout = Layout(record["name"], record["columns"], panels,
                         record.get("paper", AUTO_PAPER), record.get("background", WHITE),
                         record.get("panel_size", "original"), record.get("axis_alignment", "none"),
-                        record.get("tables", []), record.get("arrangement", {}))
+                        record.get("tables", []), arrangement)
         if any(title not in result or index >= len(result[title].analyses) for title, index in (ref for ref in panels if ref is not None)):
             raise ValueError("Layout references an unknown analysis.")
         layouts.append(layout)

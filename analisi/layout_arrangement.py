@@ -1,4 +1,4 @@
-"""Saved layout groups, locks and translations in fractions of the page."""
+"""Saved layout positions, scale, stacking, groups and locks."""
 
 from dataclasses import dataclass, replace
 from math import isfinite
@@ -9,10 +9,14 @@ class PanelArrangement:
     offsets: tuple[tuple[int, float, float], ...] = ()
     groups: tuple[tuple[int, ...], ...] = ()
     locked: tuple[int, ...] = ()
+    scales: tuple[tuple[int, float], ...] = ()
+    layers: tuple[int, ...] = ()  # Panel indices from the back to the front.
 
-    @property
-    def empty(self):
-        return not (self.offsets or self.groups or self.locked)
+    def record(self):
+        return {key: value for key, value in vars(self).items() if value}
+
+    def paint_order(self, count):
+        return self.layers or tuple(range(count))
 
     def objects(self, selected):
         selected = set(selected)
@@ -27,14 +31,20 @@ class PanelArrangement:
         offsets = [(mapping[index], x, y) for index, x, y in self.offsets if index in mapping]
         groups = [tuple(sorted(mapping[index] for index in group if index in mapping)) for group in self.groups]
         locked = tuple(sorted(mapping[index] for index in self.locked if index in mapping))
+        scales = tuple(sorted((mapping[index], scale) for index, scale in self.scales if index in mapping))
+        layers = tuple(mapping[index] for index in self.layers if index in mapping)
+        if self.layers:
+            layers += tuple(index for index, old in enumerate(indices) if old is None)
+        if layers == tuple(range(len(indices))):
+            layers = ()
         return PanelArrangement(tuple(sorted(offsets)), tuple(sorted(group for group in groups if len(group) > 1)),
-                                locked)
+                                locked, scales, layers)
 
 
 def validated_arrangement(value, count):
     if isinstance(value, PanelArrangement):
-        value = {"offsets": value.offsets, "groups": value.groups, "locked": value.locked}
-    if not isinstance(value, dict) or set(value) - {"offsets", "groups", "locked"}:
+        value = value.record()
+    if not isinstance(value, dict) or set(value) - {"offsets", "groups", "locked", "scales", "layers"}:
         raise ValueError("Invalid layout panel arrangement.")
 
     def sequence(raw, limit):
@@ -62,7 +72,19 @@ def validated_arrangement(value, count):
     indices([index for group in groups for index in group])
     if any(len(group) < 2 for group in groups):
         raise ValueError("A layout group needs at least two panels.")
-    return PanelArrangement(offsets, groups, indices(value.get("locked", ())))
+    entries = [sequence(entry, 2) for entry in sequence(value.get("scales", ()), count)]
+    if any(len(entry) != 2 for entry in entries):
+        raise ValueError("Invalid layout panel scale.")
+    indices([entry[0] for entry in entries])
+    if any(type(scale) not in (int, float) or not .01 <= scale <= 100 for _, scale in entries):
+        raise ValueError("Invalid layout panel scale.")
+    scales = tuple(sorted((index, float(scale)) for index, scale in entries if scale != 1))
+    layers = tuple(sequence(value.get("layers", ()), count))
+    if layers and indices(layers) != tuple(range(count)):
+        raise ValueError("Invalid layout panel stacking order.")
+    if layers == tuple(range(count)):
+        layers = ()
+    return PanelArrangement(offsets, groups, indices(value.get("locked", ())), scales, layers)
 
 
 def change_objects(arrangement, objects, command):
@@ -92,3 +114,30 @@ def translated(arrangement, shifts, page):
         else:
             offsets.pop(index, None)
     return replace(arrangement, offsets=tuple((index, *offsets[index]) for index in sorted(offsets)))
+
+
+def layered(arrangement, selected, count, *, front):
+    """Move the selection together while retaining relative order within both sets."""
+    selected = set(selected)
+    order = arrangement.paint_order(count)
+    picked = tuple(index for index in order if index in selected)
+    other = tuple(index for index in order if index not in selected)
+    layers = other + picked if front else picked + other
+    return replace(arrangement, layers=() if layers == tuple(range(count)) else layers)
+
+
+def positioned(arrangement, panels, targets, page):
+    """Set page coordinates and the actual drawing scale for the specified panels."""
+    scales = dict(arrangement.scales)
+    shifts = {}
+    for index, (x, y, scale) in targets.items():
+        old_x, old_y, old_scale = panels[index].box
+        if not isfinite(scale) or scale <= 0:
+            raise ValueError("Invalid layout panel scale.")
+        shifts[index] = (x - old_x, y - old_y)
+        factor = round(float(scales.get(index, 1.) * scale / old_scale), 12)
+        if factor == 1:
+            scales.pop(index, None)
+        else:
+            scales[index] = factor
+    return replace(translated(arrangement, shifts, page), scales=tuple(sorted(scales.items())))
