@@ -3387,6 +3387,92 @@ class QtShellTests(unittest.TestCase):
                 else:
                     window.undo()
 
+    def test_layout_link_follows_edits_and_keeps_saved_art_when_source_moves(self):
+        import json
+        from unittest.mock import patch
+
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QFileDialog
+
+        from analisi.presentation import Layout
+        from trama_qt.layout_dialog import LayoutGraphDialog
+        from trama_qt.project import Project
+
+        path, target = self.folder / "source.alab", self.folder / "plate.alab"
+        source = Project()
+        source.add_tables({"Measurements": pd.DataFrame({"X": [1., 2., 3.], "Y": [3., 5., 7.]})})
+        source.tables["Measurements"].analyses.append(("Linear regression", {"X": "X", "Y": "Y"}))
+        source.save(path)
+        source.load(path)
+        window, project = self.window, self.window.project
+        base = Layout("Linked plate", 1, [None])
+        ref = ("layout", project.put_layout(base))
+        window.open_sheet(ref)
+
+        def wait_until(predicate):
+            end = time.monotonic() + 8
+            while not predicate() and time.monotonic() < end:
+                QTest.qWait(20)
+            self.assertTrue(predicate())
+
+        def choose(dialog):
+            dialog.show()
+            dialog._browse()
+            wait_until(dialog.ok_button.isEnabled)
+            dialog.method.setCurrentIndex(dialog.method.findData("live"))
+            self.assertEqual(dialog.method.currentData(), "live")
+            dialog.accept()
+            return dialog.DialogCode.Accepted
+
+        with patch.object(QFileDialog, "getOpenFileName", return_value=(str(path), "")), \
+                patch.object(LayoutGraphDialog, "exec", choose):
+            window.place_layout_graph()
+        linked = project.layouts[0]
+        link = linked.graph_link(0)
+        self.assertEqual(link.path, str(path))
+        self.assertFalse(project.tables)
+        self.assertFalse(project.runs)
+        window.undo()
+        self.assertEqual(project.layouts[0], base)
+        window.undo(redo=True)
+        self.assertEqual(project.layouts[0], linked)
+        wait_until(lambda: project.linked_graph_views[link].stamp is not None)
+        initial = project.layout_figures(linked)[0].axes[0].get_ylim()
+
+        # A saved change on disk, then a different unsaved change in another tab.
+        source.edit_cell("Measurements", 2, 1, "25")
+        source.save(path)
+        wait_until(lambda: project.layout_figures(linked)[0].axes[0].get_ylim()[1] > initial[1] + 10)
+        disk_range = project.layout_figures(linked)[0].axes[0].get_ylim()[1]
+        session = window.sessions.add(source)
+        source.edit_cell("Measurements", 2, 1, "60")
+        wait_until(lambda: project.layout_figures(linked)[0].axes[0].get_ylim()[1] > disk_range + 20)
+        window.sessions.remove(session)
+        wait_until(lambda: project.layout_figures(linked)[0].axes[0].get_ylim()[1] == disk_range)
+        project.save(target)
+        self.assertEqual(json.loads(target.read_text(encoding="utf-8"))["version"], 13)
+        saved_picture = project._layouts_for_save()[0].arrangement.picture(0)
+
+        moved = self.folder / "moved.alab"
+        path.rename(moved)
+        wait_until(lambda: project.linked_graph_views[link].error != "")
+        self.assertIsNotNone(project.layout_figures(linked)[0])
+        with self.assertRaises(ValueError):
+            project.layout_panel_figures(linked)
+        reopened = Project()
+        reopened.load(target)
+        self.assertEqual(reopened.layouts[0].graph_link(0), link)
+        self.assertEqual(reopened.layouts[0].arrangement.picture(0), saved_picture)
+        self.assertIsNotNone(reopened.layout_figures(reopened.layouts[0])[0])
+
+        with patch.object(QFileDialog, "getOpenFileName", return_value=(str(moved), "")), \
+                patch.object(LayoutGraphDialog, "exec", choose):
+            window.place_layout_graph(0)
+        rebound = project.layouts[0].graph_link(0)
+        self.assertEqual(rebound.path, str(moved))
+        wait_until(lambda: project.linked_graph_views[rebound].stamp is not None)
+        self.assertFalse(project.layout_link_issues(project.layouts[0]))
+
     def test_layout_clear_graph_retains_placeholder_until_refilled(self):
         from dataclasses import replace
         import json

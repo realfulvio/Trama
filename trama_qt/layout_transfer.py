@@ -4,6 +4,7 @@ from pathlib import Path
 
 from analisi.analysis_chain import ChainCancelled
 from analisi.family_workflow import copy_graph_family
+from analisi.layout_graph_link import LayoutGraphLink
 from analisi.linked_tables import TABLES, source_analyses
 
 from .gallery_catalog import graph_runs
@@ -65,3 +66,23 @@ def prepare_family(source, graph, destination, prefix, control):
     if run.result is None or run.result.figure is None:
         raise ValueError("The copied analysis has no graph.")
     return bundle, tuple(staged.runs), run
+
+
+def linked_run(source, link):
+    """Resolve saved identities first. An older project can identify a graph by its unique sheet and recipe name."""
+    if link.identity is not None:
+        candidates = [run for run in source.runs if run.uid == link.identity]
+    else:
+        candidates = [run for run in source.runs if (run.title, run.method, run.label)
+                      == (link.title, link.method, link.label)]
+    if len(candidates) != 1:
+        raise ValueError("The linked graph was removed, renamed, or is no longer unique.")
+    return candidates[0]
+
+
+def make_graph_link(source, path, selected):
+    run = next(run for run in source.runs if run.reference == selected)
+    identity = source.tables[run.title].analysis_ids.get(run.slot)
+    link = LayoutGraphLink(str(Path(path).absolute()), run.title, run.slot, run.method, run.label, identity)
+    linked_run(source, link)
+    return link

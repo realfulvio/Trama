@@ -162,6 +162,8 @@ class LayoutDialog(QDialog):
             original = self.original_panels[i]
             if graph is not None:
                 label = self.labels[graph]
+            elif original is not None and (link := self.current.graph_link(original)) is not None:
+                label = qt("qt.layout_linked_graph", file=Path(link.path).name)
             elif original is not None and self.current.arrangement.picture(original) is not None:
                 label = qt("qt.layout_picture")
             else:
@@ -212,12 +214,14 @@ class LayoutDialog(QDialog):
             self.empty_count.setFocus()
             return
         arrangement = self.current.arrangement.remap(self.original_panels) if self.current else PanelArrangement()
+        links = dict(self.current.graph_links) if self.current else {}
         try:
             self.result = Layout(self.name.text().strip(), int(self.columns.currentText()),
                                  [self.runs[i].reference if i is not None else None for i in self.order],
                                  self.paper.currentData(), self.background.text().strip(), self.panel_size.currentData(),
                                  self.axis_alignment.currentData(), self.current.tables if self.current else [],
-                                 arrangement)
+                                 arrangement, tuple((index, links[origin]) for index, origin in enumerate(
+                                     self.original_panels) if origin in links))
         except ValueError as error:
             self.show_problem(str(error))
             return
@@ -240,6 +244,8 @@ class LayoutGraphDialog(QDialog):
         self.poll.timeout.connect(self._receive_source)
         self.finished.connect(self._discard_source_request)
         self.picture = layout.arrangement.picture(panel)
+        self.current_link = layout.graph_link(panel)
+        self.source_path = None
         self.current = self.CURRENT_PICTURE if self.picture else layout.panels[panel] if panel is not None else None
         self.setWindowTitle(qt("qt.layout_replace_graph" if self.current else "qt.layout_place_graph").rstrip("…"))
         QShortcut(QKeySequence("F1"), self, self.show_shortcuts)
@@ -349,7 +355,9 @@ class LayoutGraphDialog(QDialog):
             if local and self.current is not None:
                 self.graphs.addItem(qt("qt.layout_no_assigned_graph"), None)
                 if self.picture is not None:
-                    self.graphs.addItem(qt("qt.layout_picture"), self.CURRENT_PICTURE)
+                    label = qt("qt.layout_linked_graph", file=Path(self.current_link.path).name) if self.current_link else (
+                        qt("qt.layout_picture"))
+                    self.graphs.addItem(label, self.CURRENT_PICTURE)
             for run in runs.values():
                 self.graphs.addItem(f"{run.name} · {run.title} ({run.slot + 1})", run.reference)
             if local and self.current is not None:
@@ -362,10 +370,17 @@ class LayoutGraphDialog(QDialog):
 
         self._discard_source_request()
         self.source_project = self.source_figure = None
+        source = self.sources.currentData()
+        self.source_path = source if isinstance(source, Path) else (
+            source.project.path or source.project.origin if source is not None else None)
+        live = self.method.findData("live")
+        if self.source_path is not None and live < 0:
+            self.method.addItem(qt("qt.layout_transfer_live"), "live")
+        elif self.source_path is None and live >= 0:
+            self.method.removeItem(live)
         self._show_transfer_options()
         if self.geometry_button is not None:
             self.geometry_button.setEnabled(False)
-        source = self.sources.currentData()
         if source is None:
             self._fill_graphs(self.local_runs, local=True)
             self.update_preview()
@@ -466,7 +481,8 @@ class LayoutGraphDialog(QDialog):
         try:
             if graph == self.CURRENT_PICTURE:
                 from analisi.layout_picture import picture_figure
-                figure = picture_figure(self.picture)
+                view = self.parentWidget().project.linked_graph_views.get(self.current_link)
+                figure = view.figure if view and view.figure is not None else picture_figure(self.picture)
             elif run is not None and run.result is not None:
                 figure = run.result.figure
             else:

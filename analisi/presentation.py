@@ -43,6 +43,7 @@ from .observation_labels import LABELS, apply_observation_labels, restore_observ
 from .point_style import (GID_PREFIX as POINT_GID_PREFIX, INDICATOR_GID, POINTS, apply_point_styles,
                           restore_point_styles, validate_points)
 from .layout_arrangement import BORDER_DASHES, PanelArrangement, validated_arrangement
+from .layout_graph_link import graph_links
 from .layout_geometry import (AUTO_PAPER, AXIS_ALIGNMENTS, LABEL_PAD, LABEL_SIZE, PANEL_SIZES, PAPER_SIZES, PT, WHITE,
                               layout_frame, page_ink, page_size)
 from .layout_panels import layout_labels, plan_panels
@@ -59,6 +60,7 @@ class Layout:
     axis_alignment: str = "none"
     tables: list = field(default_factory=list)  # Linked tables on the page
     arrangement: PanelArrangement = field(default_factory=PanelArrangement)
+    graph_links: tuple = ()
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name.strip() or len(self.name) > 160:
@@ -81,6 +83,10 @@ class Layout:
             raise ValueError("A retained empty panel size requires an empty panel.")
         if any(self.panels[index] is not None for index, *_ in self.arrangement.pictures):
             raise ValueError("A layout panel cannot contain a graph and a picture.")
+        self.graph_links = graph_links(self.graph_links, len(self.panels), self.panels, self.arrangement)
+
+    def graph_link(self, index):
+        return next((link for slot, link in self.graph_links if slot == index), None)
 
     @property
     def empty_panels(self):

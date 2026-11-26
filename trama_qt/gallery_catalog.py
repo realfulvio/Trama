@@ -83,7 +83,7 @@ def describe(project, ref):
             layout = project.layouts[key]
             runs, name, expected = project.layout_runs(layout), layout.name, len(layout.panels)
             extra = (layout.columns, tuple(layout.panels), layout.paper, layout.background,
-                     layout.panel_size, layout.axis_alignment, layout.arrangement)
+                     layout.panel_size, layout.axis_alignment, layout.arrangement, layout.graph_links)
         else:
             return None
     except (IndexError, TypeError):
@@ -91,6 +91,12 @@ def describe(project, ref):
     required = sum(panel is not None for panel in layout.panels) if kind == "layout" else expected
     state, detail = _state(runs, required)
     figures = tuple(run.result.figure if run.result is not None else None for run in runs)
+    if kind == "layout" and layout.graph_links:
+        views = tuple(project.linked_graph_views.get(link) for _, link in layout.graph_links)
+        figures += tuple(view.figure if view is not None else None for view in views)
+        if problems := project.layout_link_issues(layout):
+            if state == READY:
+                state, detail = STALE, problems[0]
     return Entry(tuple(ref), name, GRAPH if kind == "graph" else LAYOUT, state, detail,
                  panels=expected if kind == "layout" else 0, folded=fold(name),
                  refs=tuple(run.result for run in runs) + figures,

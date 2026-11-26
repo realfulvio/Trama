@@ -487,6 +487,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         self.tables = {}
         self.runs = []
         self.layouts = []
+        self.linked_graph_views = {}
         self.info_sheets = {}
         self.sheet_metadata = {}
         self.path = None
@@ -568,6 +569,7 @@ class Project(WorksheetJoinSources, SheetCommands):
                 if run.uid in frozen:
                     run.result = restore(frozen[run.uid])
             self.tables, self.layouts, self.runs = loaded, layouts, runs
+            self.linked_graph_views.clear()
             self.sheet_metadata = loaded.sheet_metadata
             self.info_sheets = {sheet.uid: sheet for sheet in info_sheets}
             self.path = path
@@ -742,7 +744,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             if dataset.source_link is not None:
                 tables[title] = copy(dataset)
                 tables[title].source_link = dataset.source_link.with_relative(path.absolute().parent)
-        save_project(path, tables, layouts=self.layouts, info_sheets=tuple(self.info_sheets.values()),
+        save_project(path, tables, layouts=self._layouts_for_save(), info_sheets=tuple(self.info_sheets.values()),
                      sheet_metadata=self.sheet_metadata)
         for title, dataset in tables.items():
             if dataset.source_link is not None:
@@ -1297,14 +1299,61 @@ class Project(WorksheetJoinSources, SheetCommands):
             preview = edit_panel_artwork(frame, options[LEGACY_GRAPH_STYLE], preview)
         export_binary_graph(path, preview, layout=run.method == SAVED_BINARY_LAYOUT)
 
+    def set_linked_graph_views(self, views):
+        used = {link for layout in self.layouts for _, link in layout.graph_links}
+        changed = False
+        for link, view in views.items():
+            if link in used and view != self.linked_graph_views.get(link):
+                self.linked_graph_views.pop(link, None)
+                self.linked_graph_views[link] = view
+                changed = True
+        while len(self.linked_graph_views) > 24:
+            self.linked_graph_views.pop(next(iter(self.linked_graph_views)))
+        return changed
+
+    def _layouts_for_save(self):
+        from analisi.layout_picture import capture_picture
+
+        pictures = {}
+        layouts = []
+        for layout in self.layouts:
+            if not layout.graph_links:
+                layouts.append(layout)
+                continue
+            links = dict(layout.graph_links)
+            records = []
+            for slot, *picture in layout.arrangement.pictures:
+                link = links.get(slot)
+                view = self.linked_graph_views.get(link)
+                if view is not None and view.figure is not None:
+                    if link not in pictures:
+                        pictures[link] = capture_picture(view.figure)
+                    picture = pictures[link]
+                records.append((slot, *picture))
+            layouts.append(replace(layout, arrangement=replace(layout.arrangement, pictures=tuple(records))))
+        return layouts
+
+    def layout_link_issues(self, layout):
+        problems = []
+        for slot, link in layout.graph_links:
+            view = self.linked_graph_views.get(link)
+            message = view.error if view is not None else qt("qt.layout_link_checking")
+            if message:
+                problems.append(qt("qt.layout_link_status", panel=chr(ord("A") + slot),
+                                   file=Path(link.path).name, error=message))
+        return problems
+
     def layout_figures(self, layout):
         """One figure per panel, including empty slots. None for the page means a graph is still missing."""
         by_reference = {run.reference: run for run in self.runs}
+        links = dict(layout.graph_links)
         figures = []
         for index, reference in enumerate(layout.panels):
             if reference is None:
-                picture = layout.arrangement.picture(index)
-                if picture is None:
+                view = self.linked_graph_views.get(links.get(index))
+                if view is not None and view.figure is not None:
+                    figures.append(view.figure)
+                elif (picture := layout.arrangement.picture(index)) is None:
                     figures.append(EMPTY_PANEL)
                 else:
                     from analisi.layout_picture import picture_figure
@@ -1322,6 +1371,8 @@ class Project(WorksheetJoinSources, SheetCommands):
             raise ValueError(ui("Recalculate the layout panels before exporting the layout."))
         if any(run.calculation_error for run in self.layout_runs(layout)):
             raise ValueError(tr("reference.stale_export"))
+        if problems := self.layout_link_issues(layout):
+            raise ValueError(problems[0])
         return figures
 
     def layout_pdf_page(self, layout):

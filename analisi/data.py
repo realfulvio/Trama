@@ -1124,6 +1124,7 @@ LAYOUT_APPEARANCE_VERSION = 9
 LAYOUT_CROP_VERSION = 10
 LAYOUT_EMPTY_SIZE_VERSION = 11
 LAYOUT_PICTURE_VERSION = 12
+LAYOUT_GRAPH_LINK_VERSION = 13
 
 
 def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=None):
@@ -1150,6 +1151,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
             del record["axis_alignment"]
         if not record.get("tables"):
             record.pop("tables", None)
+        if not record["graph_links"]:
+            del record["graph_links"]
         if arrangement := layout.arrangement.record():
             record["arrangement"] = arrangement
         else:
@@ -1172,6 +1175,8 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
            or any(angle not in (-90, 90) for _, angle in arrangement.get("rotations", ()))
            for arrangement in (record.get("arrangement", {}) for record in layout_records)):
         version = LAYOUT_PICTURE_VERSION
+    if any("graph_links" in record for record in layout_records):
+        version = LAYOUT_GRAPH_LINK_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
@@ -1310,7 +1315,8 @@ def load_workspace(path, *, include_info=False):
     version = obj["version"]
     versions = (1, 2, 3, LEGACY_METADATA_VERSION, CATEGORY_ORDER_VERSION,
                 LAYOUT_PLACEHOLDER_VERSION, LAYOUT_ARRANGEMENT_VERSION, LAYOUT_SCALE_VERSION,
-                LAYOUT_APPEARANCE_VERSION, LAYOUT_CROP_VERSION, LAYOUT_EMPTY_SIZE_VERSION, LAYOUT_PICTURE_VERSION)
+                LAYOUT_APPEARANCE_VERSION, LAYOUT_CROP_VERSION, LAYOUT_EMPTY_SIZE_VERSION, LAYOUT_PICTURE_VERSION,
+                LAYOUT_GRAPH_LINK_VERSION)
     if version not in versions or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
@@ -1442,10 +1448,12 @@ def load_workspace(path, *, include_info=False):
             raise ValueError("Retained empty panel sizes require project format version 11.")
         if version < LAYOUT_PICTURE_VERSION and isinstance(arrangement, dict) and "pictures" in arrangement:
             raise ValueError("Layout pictures require project format version 12.")
+        if version < LAYOUT_GRAPH_LINK_VERSION and "graph_links" in record:
+            raise ValueError("Linked layout graphs require project format version 13.")
         layout = Layout(record["name"], record["columns"], panels,
                         record.get("paper", AUTO_PAPER), record.get("background", WHITE),
                         record.get("panel_size", "original"), record.get("axis_alignment", "none"),
-                        record.get("tables", []), arrangement)
+                        record.get("tables", []), arrangement, record.get("graph_links", ()))
         if version < LAYOUT_PICTURE_VERSION and any(angle not in (-90, 90) for _, angle in layout.arrangement.rotations):
             raise ValueError("This panel rotation requires project format version 12.")
         if version < LAYOUT_PICTURE_VERSION and any(len(entry) == 5 for entry in layout.arrangement.empty_sizes):

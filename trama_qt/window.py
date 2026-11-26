@@ -464,6 +464,8 @@ class MainWindow(QMainWindow):
         self.job = None
         self.repeat_dialog = None
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="Trama-Qt")
+        from .live_layout import LiveLayoutGraphs
+        self.live_layout = LiveLayoutGraphs(self)
         self.timer = QTimer(self)
         self.timer.setInterval(60)
         self.timer.timeout.connect(self._poll)
@@ -2319,6 +2321,8 @@ class MainWindow(QMainWindow):
         page.command(self.actions["linked_table_move"])
         page.finish_actions()
         self._stale(page, self.project.layout_runs(layout))
+        for problem in self.project.layout_link_issues(layout):
+            page.notice(problem)
         figure = self.project.layout_figure(layout, show_empty=True)
         if figure is None:
             page.notice(qt("qt.layout_missing"))
@@ -2343,7 +2347,8 @@ class MainWindow(QMainWindow):
                     return
                 slot = axes[event.inaxes]
                 page.layout_selection.select((slot,))
-                if layout.arrangement.picture(slot) and self.actions["layout_position"].isEnabled():
+                if (layout.arrangement.picture(slot) and layout.graph_link(slot) is None
+                        and self.actions["layout_position"].isEnabled()):
                     self.edit_layout_geometry()
                 else:
                     self.place_layout_graph(slot)
@@ -3582,13 +3587,23 @@ class MainWindow(QMainWindow):
             picture = dialog.embed.isEnabled() and dialog.embed.isChecked()
             source, figure = dialog.source_project, dialog.source_figure
             method, prefix = dialog.method.currentData(), dialog.prefix.text()
+            source_path = dialog.source_path
         finally:
             dialog.deleteLater()
         if source is not None:
             if figure is None:
                 return
-            if method == "picture":
-                self._assign_layout_graph(key, slot, graph, picture=True, external_figure=figure)
+            if method in {"picture", "live"}:
+                link = None
+                if method == "live":
+                    from .layout_transfer import make_graph_link
+
+                    try:
+                        link = make_graph_link(source, source_path, graph)
+                    except ValueError as error:
+                        self.error(qt("qt.layout_source_error", error=error))
+                        return
+                self._assign_layout_graph(key, slot, graph, picture=True, external_figure=figure, link=link)
                 return
             from .layout_transfer import prepare_family
 
@@ -3607,7 +3622,7 @@ class MainWindow(QMainWindow):
             return
         self._assign_layout_graph(key, slot, graph, picture=picture)
 
-    def _assign_layout_graph(self, key, slot, graph, *, picture=False, external_figure=None, imported=None):
+    def _assign_layout_graph(self, key, slot, graph, *, picture=False, external_figure=None, imported=None, link=None):
         layout = self.project.layouts[key]
         if slot is None or slot in layout.arrangement.locked:
             return
@@ -3620,13 +3635,14 @@ class MainWindow(QMainWindow):
         controller = self._active_layout_selection()
         retained = {index: tuple(size) for index, *size in layout.arrangement.empty_sizes}
         pictures = {index: (w, h, pdf) for index, w, h, pdf in layout.arrangement.pictures if index != slot}
+        links = tuple((index, value) for index, value in layout.graph_links if index != slot)
         replacing = graph is not None and (slot not in layout.empty_panels or slot in retained)
         if graph is None:
             if controller is None:
                 return
             old = controller.panels[slot]
             retained[slot] = tuple(map(float, old.size))
-            if previous is not None:
+            if previous is not None and hasattr(old.figure, "_trama_layout_picture_size"):
                 retained[slot] += old.figure._trama_layout_picture_size
         else:
             retained.pop(slot, None)
@@ -3634,7 +3650,7 @@ class MainWindow(QMainWindow):
         panels[slot] = graph
         arrangement = replace(layout.arrangement, empty_sizes=tuple((index, *size) for index, size in retained.items()),
                               pictures=tuple((index, *record) for index, record in pictures.items()))
-        candidate = replace(layout, panels=panels, arrangement=arrangement)
+        candidate = replace(layout, panels=panels, arrangement=arrangement, graph_links=links)
         manual = any(entry[0] == slot for entries in (layout.arrangement.scales, layout.arrangement.offsets,
                                                       layout.arrangement.rotations, layout.arrangement.crops)
                      for entry in entries)
@@ -3677,12 +3693,19 @@ class MainWindow(QMainWindow):
                         return
                     panels = [None if index == slot else ref for index, ref in enumerate(panels)]
                     arrangement = replace(arrangement, pictures=tuple((index, *record) for index, record in pictures.items()))
-                candidate = replace(candidate, panels=panels, arrangement=positioned(arrangement, planned, {slot: box},
-                                                                                     controller.page))
+                    if link is not None:
+                        links += ((slot, link),)
+                candidate = replace(candidate, panels=panels, graph_links=links,
+                                    arrangement=positioned(arrangement, planned, {slot: box}, controller.page))
             except ValueError:
                 self.status(qt("qt.layout_geometry_limits"))
                 return
         self.project.put_layout(candidate, key, family=imported)
+        if link is not None:
+            from .live_layout import LinkedGraphView
+
+            self.live_layout.allow(link)
+            self.project.set_linked_graph_views({link: LinkedGraphView(figure=external_figure)})
         self.open_sheet(("layout", key))
         refreshed = self._active_layout_selection()
         if refreshed is not None and (replacing or graph is None or picture or imported is not None):
@@ -3792,7 +3815,8 @@ class MainWindow(QMainWindow):
         else:
             index, = controller.selected
             dialog = PanelPositionDialog(self, controller.panels, index, controller.page,
-                                         picture=controller.layout.arrangement.picture(index))
+                                         picture=(controller.layout.arrangement.picture(index)
+                                                  if controller.layout.graph_link(index) is None else None))
         try:
             if dialog.exec() == dialog.DialogCode.Accepted and self._active_layout_selection() is controller:
                 self._apply_layout_geometry(controller, dialog.targets, appearance=dialog.appearance,
@@ -4404,6 +4428,8 @@ class MainWindow(QMainWindow):
         if kind in {"result", "graph", "saved-layout"}:
             self.refresh_runs([self.project.runs[key]])
         elif kind == "layout":
+            if self.project.layouts[key].graph_links:
+                self.live_layout.request()
             self.refresh_runs(self.project.layout_runs(self.project.layouts[key]))
 
     def use_result_as_data(self):
@@ -5132,6 +5158,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         self.timer.stop()
+        self.live_layout.timer.stop()
         self.close_worksheet_notes()
         self._drop_gallery()
         self.worker.shutdown(wait=False, cancel_futures=True)
