@@ -3383,6 +3383,22 @@ class QtShellTests(unittest.TestCase):
         setup.sample.setChecked(True)
         self.assertEqual(setup.examples.count(), len(GROUPED_FORMATS))
 
+    def test_home_preserves_wide_preview_headings_without_losing_sample_rows(self):
+        from trama_qt.table_setup import TableSetup
+
+        self.window.resize(1024, 720)
+        setup = self.window.page.findChild(TableSetup)
+        setup.sample.setChecked(True)
+        setup.examples.setCurrentIndex(2)
+        self.app.processEvents()
+        preview = setup.preview
+        header = preview.horizontalHeader()
+        self.assertEqual(preview.columnCount(), 7)
+        self.assertGreater(preview.horizontalScrollBar().maximum(), 0)
+        for column in range(preview.columnCount()):
+            self.assertGreaterEqual(header.sectionSize(column), header.sectionSizeHint(column))
+        self.assertEqual(preview.verticalScrollBar().maximum(), 0)
+
     def test_home_recent_projects_open_from_the_cards_and_the_more_menu(self):
         from unittest.mock import patch
         from PySide6.QtWidgets import QPushButton

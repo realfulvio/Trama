@@ -67,12 +67,14 @@ class TableSetup(QWidget):
         self.preview.setAccessibleName(tr("setup.worksheet_preview"))
         self.preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.preview.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.preview.setFixedHeight(126 if self.welcome else 138)
         if self.welcome:
             self.preview.verticalHeader().setDefaultSectionSize(24)
-            self.preview.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            self.preview.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+            self.preview.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
             self.preview.setAlternatingRowColors(True)
             self.preview.setTabKeyNavigation(False)
+        else:
+            self.preview.setFixedHeight(138)
         table_box.addWidget(self.preview)
         previews.addLayout(table_box, 1)
         self.preview_note = QLabel()
@@ -381,6 +383,13 @@ class TableSetup(QWidget):
         for i, values in enumerate(template.rows[:4] if sample else ()):
             for j, value in enumerate(values[:len(columns)]):
                 self.preview.setItem(i, j, QTableWidgetItem("" if value is None else str(value)))
+        if self.welcome:
+            # Keep all four rows visible when wide headings need a horizontal scrollbar.
+            header_height = self.preview.horizontalHeader().sizeHint().height()
+            rows_height = self.preview.verticalHeader().defaultSectionSize() * self.preview.rowCount()
+            scrollbar_height = self.preview.horizontalScrollBar().sizeHint().height()
+            self.preview.setFixedHeight(header_height + rows_height + scrollbar_height
+                                        + 2 * self.preview.frameWidth())
         more = len(template.columns) > len(columns)
         self.preview_note.setVisible(more)
         if more:
