@@ -37,7 +37,7 @@ MAX_LEGEND_BORDER_WIDTH = 10.0
 #   - Scoped fallbacks:  entry:<legend_scope>#<creation_index>
 #   - Panel entries:     scope:<URL-encoded legend_scope>:<original entry key>
 _ENTRY_KEY_PATTERNS = (
-    re.compile(r"(line|errorbar|scatter|bar|xy):[1-9][0-9]*:.*", re.DOTALL),
+    re.compile(r"(line|errorbar|scatter|bar|xy|grouped):[1-9][0-9]*:.*", re.DOTALL),
     re.compile(r"(box|violin|pair|trajectory|trajectory-mean):.+", re.DOTALL),
     re.compile(r"group:(bool|int|float|str|datetime|repr):.+", re.DOTALL),
     re.compile(r"fdr:(threshold|discovery|other)"),
