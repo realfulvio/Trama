@@ -194,10 +194,11 @@ class GraphFormatDialog(QDialog):
             self._update_grouped_preview()
         buttons = QDialogButtonBox()
         buttons.addButton(tr("graph.format.reset"), QDialogButtonBox.ButtonRole.ResetRole).clicked.connect(self.reset)
-        self.preview_button = buttons.addButton(tr("graph.format.preview"), QDialogButtonBox.ButtonRole.ActionRole)
-        self.preview_button.setObjectName("formatPreviewButton")
-        self.preview_button.setToolTip(tr("graph.format.preview_hint"))
-        self.preview_button.clicked.connect(self.preview)
+        if self.grouped is not None:
+            self.preview_button = buttons.addButton(tr("graph.format.preview"), QDialogButtonBox.ButtonRole.ActionRole)
+            self.preview_button.setObjectName("formatPreviewButton")
+            self.preview_button.setToolTip(tr("graph.format.preview_hint"))
+            self.preview_button.clicked.connect(self.preview)
         apply_button = buttons.addButton(tr("graph.format.apply"), QDialogButtonBox.ButtonRole.AcceptRole)
         buttons.addButton(tr("graph.format.cancel"), QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(self.accept)
@@ -503,7 +504,9 @@ class GraphFormatDialog(QDialog):
             columns = None
             form = QFormLayout(page)
         self.selector = QComboBox()
-        self.selector.addItems([series_name(series) for series in self.series])
+        self.selector.addItems([
+            series.name if series.key.startswith(GROUPED_PREFIX) else series_name(series) for series in self.series
+        ])
         self.selector.setEnabled(bool(self.series))
         form.addRow(tr("graph.series.element"), self.selector)
         self.series_fields = {}
@@ -549,7 +552,7 @@ class GraphFormatDialog(QDialog):
             self.grouped_draw = Choice(SERIES_DRAW_STYLES, GROUPED_DRAW_LABELS)
             self.grouped_draw.setObjectName("groupedSeriesDrawing")
             self.grouped_draw.currentIndexChanged.connect(self._on_grouped_draw_changed)
-            form.addRow(tr("grouped.series.drawing"), self.grouped_draw)
+            form.insertRow(1, tr("grouped.series.drawing"), self.grouped_draw)
             self.grouped_note = QLabel()
             self.grouped_note.setObjectName("infoBanner")
             self.grouped_note.setWordWrap(True)
@@ -919,13 +922,14 @@ class GraphFormatDialog(QDialog):
             return
         result = category_graph(self.grouped["frame"], options, grouped=True)
         apply_style(result.figure, style)
-        result.figure.set_dpi(76)
-        w_px = max(360, self.preview_canvas.width())
-        h_px = max(270, self.preview_canvas.height())
-        result.figure.set_size_inches(w_px / 76.0, h_px / 76.0, forward=False)
-        result.figure.set_canvas(self.preview_canvas)
-        self.preview_canvas.figure = result.figure
-        self.preview_canvas.draw_idle()
+        canvas = self.preview_canvas
+        dpi = canvas.figure._original_dpi
+        result.figure._original_dpi = dpi
+        result.figure.set_dpi(dpi * canvas.device_pixel_ratio)
+        result.figure.set_size_inches(canvas.width() / dpi, canvas.height() / dpi, forward=False)
+        result.figure.set_canvas(canvas)
+        canvas.figure = result.figure
+        canvas.draw_idle()
 
     def _update_grouped_preview(self):
         if self.preview_canvas is None or self.grouped is None or not hasattr(self, "references"):
@@ -942,21 +946,9 @@ class GraphFormatDialog(QDialog):
         """Validate current edits and refresh the embedded preview canvas without committing."""
         try:
             style = self.read_style()
-            if self.grouped is not None:
-                if "ylabel" not in self.style and style.get("ylabel") == self.axes.get_ylabel():
-                    style.pop("ylabel")
-                options = self._grouped_options()
-                self._render_grouped_preview(style, options)
-            elif self.xy is not None:
-                if "ylabel" not in self.style and style["ylabel"] == self.axes.get_ylabel():
-                    style.pop("ylabel")
-                options = prune_options(self._xy_options(style))
-                options["Series color"] = assign_colors(options["Y columns"], options.get("Series color"))
-                result = xy_series(self.xy["frame"], options, left_scale=style.get("yscale", "linear"))
-                apply_style(result.figure, style)
-            else:
-                validate_graph_style(self.axes, style)
-                self._check_linked(style)
+            if "ylabel" not in self.style and style.get("ylabel") == self.axes.get_ylabel():
+                style.pop("ylabel")
+            self._render_grouped_preview(style, self._grouped_options())
         except ValueError as error:
             self.show_error(error)
             return False

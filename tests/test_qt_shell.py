@@ -5560,6 +5560,17 @@ class QtShellTests(unittest.TestCase):
             self.assertIsNotNone(adlg.result)
             self.assertEqual(adlg.result[1][SERIES_STYLE], {})
 
+        # A committed recipe change must not let old Drawing history restore Interleaved.
+        index = window.project.runs.index(run_mix)
+        frame = window.project.input_frame(run_mix)
+        candidate = window.project.candidate(run_mix.title, GROUPED_GRAPH, adlg.result[1], index=index)
+        window.calculate_candidate(candidate, frame, index)
+        self.wait()
+        window.open_sheet(("graph", index))
+        window.undo()
+        self.assertEqual(candidate.options["Placement of groups"], STACKED)
+        self.assertNotIn(SERIES_STYLE, candidate.options)
+
     def test_grouped_series_dollar_titles_summaries_and_reordered_columns(self):
         from analisi.category_graphs import GROUPED_GRAPH, INTERLEAVED, LINE_SYMBOLS, SERIES_STYLE
         from analisi.presentation import graph_series

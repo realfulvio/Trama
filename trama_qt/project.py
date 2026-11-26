@@ -392,6 +392,18 @@ class ProjectHistory(WorksheetHistory):
         self.position = len(self.changes)
         return True
 
+    def forget_formats(self, uid):
+        """Format snapshots contain options for one graph recipe."""
+        kept = []
+        position = self.position
+        for index, change in enumerate(self.changes):
+            if isinstance(change, FormatChange) and change.uid == uid:
+                position -= index < self.position
+            else:
+                kept.append(change)
+        self.changes[:] = kept
+        self.position = position
+
     def record_layout(self, index, before, after, *, family=None):
         del self.changes[self.position:]
         args = index, deepcopy(before), deepcopy(after), self.next_seq()
@@ -1214,7 +1226,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         elif method == run.method == "Kaplan–Meier survival":
             style = survival_style(style, run.options, options)
         elif method == run.method == GROUPED_GRAPH:
-            raw = self.tables[run.title].raw
+            raw = self.input_frame(run)
             placement = options.get("Placement of groups")
             graph_style = options.get("Graph style", GROUPED_BARS)
             if (SERIES_STYLE not in options and SERIES_STYLE in run.options
@@ -1251,6 +1263,8 @@ class Project(WorksheetJoinSources, SheetCommands):
         else:
             if previous.uid == run.uid and not converted:
                 run.shape_history = previous.shape_history  # Same graph, same drawings: keep its Undo steps.
+            if previous.method == GROUPED_GRAPH and (converted or run.options != previous.options):
+                self.history.forget_formats(previous.uid)
             self.runs[index] = run
             recipes[run.slot] = run.method, run.options
             if converted:
@@ -1490,7 +1504,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         """Grouped worksheet data and recipe when formatting a grouped graph, else None."""
         if run.method != GROUPED_GRAPH:
             return None
-        return {"frame": self.tables[run.title].frame(mask_excluded=True), "options": deepcopy(run.options)}
+        return {"frame": self.input_frame(run), "options": deepcopy(run.options)}
 
     def record_shapes(self, run, style):
         """One step of the graph's drawing history when ``style`` changes its shapes."""
@@ -1508,15 +1522,15 @@ class Project(WorksheetJoinSources, SheetCommands):
 
     def commit_style(self, run, style, *, record_shapes=True, record_history=False):
         """Store a style already drawn on the figure (the Inspector and the canvas tools preview it first)."""
-        before_style = deepcopy(run.style) if record_history else None
-        if record_shapes:
+        before_style = run.style
+        if record_shapes and not record_history:
             self.record_shapes(run, style)
         run.style = style
         run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
         sync_letters_table(run.result)
         if record_history:
-            self.history.record_format(run.uid, "Format graph", None, None, before_style, deepcopy(style))
+            self.history.record_format(run.uid, "Format graph", None, None, before_style, style)
         self.dirty = True
 
     def _apply_style_updates(self, targets, styles_by_uid):
@@ -1600,26 +1614,25 @@ class Project(WorksheetJoinSources, SheetCommands):
         return BatchStyleOutcome(preset["name"], tuple(ids), changed_uids, unchanged_uids)
 
     def apply_format(self, run, style, *, xy_update=None, xy_result=None,
-                     grouped_update=None, grouped_result=None, record_history=True):
-        before_options = deepcopy(run.options)
-        before_style = deepcopy(run.style)
-        recalculated = False
+                     grouped_update=None, grouped_result=None):
+        before_options, before_style = run.options, run.style
+        grouped = run.method == GROUPED_GRAPH
+        grouped_changed = grouped and grouped_update is not None
         if run.method == XY_METHOD and xy_update is not None:
             run.options = xy_update
             run.result = xy_result
             self.tables[run.title].analyses[run.slot] = (run.method, run.options)
-            recalculated = True
-        elif run.method == GROUPED_GRAPH and grouped_update is not None:
+        elif grouped_changed:
+            pairwise = self.pairwise_snapshot(run)
+            if pairwise is not None:
+                _attach_pairwise(grouped_result, self.input_frame(run), pairwise, run.method)
             run.options = grouped_update
             run.result = grouped_result
             self.tables[run.title].analyses[run.slot] = (run.method, run.options)
-            recalculated = True
         else:
             apply_style(run.result.figure, style)
-        pairwise = self.pairwise_snapshot(run) if recalculated else None
-        if pairwise is not None and run.result.figure is not None and run.result.figure.axes:
-            _attach_pairwise(run.result, self.tables[run.title].frame(mask_excluded=True), pairwise, run.method)
-        self.record_shapes(run, style)
+        if not grouped:
+            self.record_shapes(run, style)
         run.style = style
         run.result.style_warning = graph_warning(run.result.figure, style)
         self.tables[run.title].graph_styles[run.slot] = style
@@ -1627,14 +1640,12 @@ class Project(WorksheetJoinSources, SheetCommands):
         self.sync_run_tables(run)
         self.update_linked_tables()
         self.sync_links(persist=True)
-        if record_history:
+        if grouped:
             self.history.record_format(
-                run.uid,
-                "Format graph",
-                before_options if recalculated else None,
-                deepcopy(run.options) if recalculated else None,
-                before_style,
-                deepcopy(style),
+                run.uid, "Format graph",
+                before_options if grouped_changed else None,
+                run.options if grouped_changed else None,
+                before_style, style,
             )
         self.dirty = True
 
@@ -2383,7 +2394,7 @@ class Project(WorksheetJoinSources, SheetCommands):
         if isinstance(change, FormatChange):
             if change.uid in self.sheet_metadata.get("frozen_runs", {}):
                 return False
-            return any(run.uid == change.uid for run in self.runs)
+            return any(run.uid == change.uid and run.method == GROUPED_GRAPH for run in self.runs)
         return isinstance(change, LayoutChange)
 
     def undo(self, *, redo=False):
@@ -2415,8 +2426,7 @@ class Project(WorksheetJoinSources, SheetCommands):
             if target_options is not None and target_options != run.options:
                 temp = Run(run.method, run.title, target_options, slot=run.slot, style=target_style,
                            uid=run.uid, source=run.source, label=run.label)
-                frame = self.tables[run.title].frame(mask_excluded=True)
-                fresh = compute(temp, frame, pairwise=self.pairwise_snapshot(temp))
+                fresh = compute(temp, self.input_frame(temp), pairwise=self.pairwise_snapshot(temp))
                 run.options = target_options
                 run.result = fresh
                 self.tables[run.title].analyses[run.slot] = (run.method, run.options)

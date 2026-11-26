@@ -47,8 +47,8 @@ MESSAGES = {
     ),
     "graph.format.preview": ("Preview", "Anteprima"),
     "graph.format.preview_hint": (
-        "Preview updates the live figure; Cancel restores the original graph.",
-        "L’anteprima aggiorna la figura dal vivo; Annulla ripristina il grafico originale.",
+        "Update the preview with the current settings.",
+        "Aggiorna l’anteprima con le impostazioni correnti.",
     ),
 }
 

@@ -30,6 +30,7 @@ from analisi.graph_legend import LEGEND_OPTIONS_KEY, visible_legends
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, translate_message, ui
 from analisi.kmeans_options import METHODS as KMEANS_METHODS
 from analisi.kmeans_reports import FIT_DIAGNOSTICS_TABLE, FIT_REASON, FIT_SOURCE
+from analisi.category_graphs import GROUPED_GRAPH
 from analisi.correlation_matrix import CORRELATION_MATRIX
 from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
 from analisi.weighted_logrank import WeightedComparisonCancelled
@@ -2326,7 +2327,8 @@ class MainWindow(QMainWindow):
 
         project = self.project
         self.inspector = GraphInspector(run, canvas, confirmed=lambda: run.style,
-                                        commit=lambda style: self.commit_style(run, style, project=project, record_history=True),
+                                        commit=lambda style: self.commit_style(run, style, project=project,
+                                                                               record_history=run.method == GROUPED_GRAPH),
                                         closed=closed, element=self.inspector_element)
         line.addWidget(self.inspector)
 
@@ -3173,11 +3175,10 @@ class MainWindow(QMainWindow):
             return
         if self.project.undo_style_uids:
             from .batch_figure_styles_dialog import t as batch_style_text
-            status_text = (
-                tr("command.redo") if redo else tr("command.undo")
-                if isinstance(next_change, FormatChange)
-                else batch_style_text("redone" if redo else "undone", count=len(self.project.undo_style_uids))
-            )
+            if isinstance(next_change, FormatChange):
+                status_text = tr("command.redo" if redo else "command.undo")
+            else:
+                status_text = batch_style_text("redone" if redo else "undone", count=len(self.project.undo_style_uids))
             self._after_style_batch(
                 self.project.undo_style_uids,
                 status_text,
@@ -3479,7 +3480,11 @@ class MainWindow(QMainWindow):
             return
         from .graph_format import GraphFormatDialog
         style, xy = self.project.format_inputs(run)
-        grouped = self.project.grouped_format_inputs(run)
+        try:
+            grouped = self.project.grouped_format_inputs(run)
+        except ValueError as error:
+            self.error(error)
+            return
         dialog = GraphFormatDialog(self, run.result.figure.axes[0], style, xy=xy, grouped=grouped,
                                    initial_axis=axis)
         try:
