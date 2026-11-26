@@ -7,9 +7,14 @@ from matplotlib.container import ErrorbarContainer
 import numpy as np
 import pandas as pd
 
-from analisi.category_graphs import GROUPED_OPTIONS, category_graph, default_grouped_input
+from analisi.category_graphs import (
+    AS_GRAPH, BARS, GROUPED_OPTIONS, INTERLEAVED, LINE_SYMBOLS, PERCENT_STACKED, POINTS, RANGE,
+    SERIES_STYLE, STACKED, SUMMARIES, SUPERIMPOSED, SYMBOLS, category_graph, default_grouped_input,
+    grouped_series_names,
+)
 from analisi.data import Dataset
-from analisi.presentation import apply_style, graph_series
+from analisi.field_error import FieldError
+from analisi.presentation import active_series_fields, apply_style, graph_series
 
 
 class CategoryGraphTests(unittest.TestCase):
@@ -408,3 +413,175 @@ class GroupedStackTests(unittest.TestCase):
         out = BytesIO()
         figure.savefig(out, format="svg")
         self.assertGreaterEqual(out.getvalue().count(b'id="patch_'), 7)
+
+
+class GroupedSeriesStyleTests(unittest.TestCase):
+    VISITE_CSV = "tests/data/grouped_series_styles/visite.csv"
+    ATTESO_CSV = "tests/data/grouped_series_styles/atteso.csv"
+
+    @classmethod
+    def _visite_raw(cls):
+        return pd.read_csv(cls.VISITE_CSV)
+
+    @classmethod
+    def _atteso(cls):
+        return pd.read_csv(cls.ATTESO_CSV)
+
+    def test_visite_bars_plus_line_with_gap_isolated_marker_and_intervals(self):
+        df = self._visite_raw()
+        atteso = self._atteso()
+        cols = ["Controllo [1]", "Controllo [2]", "Trattamento [1]", "Trattamento [2]"]
+        base_opts = {
+            "Variables": cols, "Row titles": "Visita",
+            "Graph style": BARS, "Placement of groups": INTERLEAVED, "Interval": "SEM",
+        }
+        baseline = category_graph(df, base_opts, grouped=True)
+        mixed = category_graph(df, {**base_opts, SERIES_STYLE: {"Trattamento": LINE_SYMBOLS}}, grouped=True)
+
+        # Estimates and Graph data match atteso.csv identically before and after series drawing override
+        for frame in (baseline.tables["Graph data"], mixed.tables["Graph data"]):
+            self.assertEqual(frame["Row"].tolist(), atteso["Row"].tolist())
+            self.assertEqual(frame["Group"].tolist(), atteso["Group"].tolist())
+            self.assertEqual(frame["N"].tolist(), atteso["N"].tolist())
+            np.testing.assert_allclose(frame["Mean"].to_numpy(), atteso["Mean"].to_numpy(), equal_nan=True)
+            np.testing.assert_allclose(frame["Lower"].to_numpy(), atteso["Lower"].to_numpy(), equal_nan=True)
+            np.testing.assert_allclose(frame["Upper"].to_numpy(), atteso["Upper"].to_numpy(), equal_nan=True)
+
+        ax, = mixed.figure.axes
+        self.assertEqual([t.get_text() for t in ax.get_legend().get_texts()], ["Controllo", "Trattamento"])
+        gs = graph_series(ax)
+        self.assertEqual([(s.key, s.kind) for s in gs], [
+            ("grouped:1:Controllo", "bar"),
+            ("grouped:1:Trattamento", "line"),
+        ])
+        # Controllo has 4 bars matching interleaved X positions; Trattamento is a Line2D with NaN gap at V3
+        self.assertEqual(len(gs[0].artist.patches), 4)
+        np.testing.assert_allclose([p.get_height() for p in gs[0].artist.patches], [2.0, 3.0, 4.0, 5.0])
+        line = gs[1].artist
+        xdata, ydata = np.asarray(line.get_xdata(), dtype=float), np.asarray(line.get_ydata(), dtype=float)
+        # Interleaved offset for group index 1 of 2 is +0.76 / 4 = +0.19 from [0, 1, 2, 3]
+        np.testing.assert_allclose(xdata, [0.19, 1.19, 2.19, 3.19], atol=1e-9)
+        np.testing.assert_allclose(ydata, [4.0, 8.0, np.nan, 10.0], equal_nan=True)
+        self.assertNotEqual(line.get_marker(), "None")
+        # Both Controllo (4 intervals) and Trattamento (3 observed intervals: V1, V2, V4) render whiskers
+        whiskers = _whiskers(ax)
+        self.assertEqual([len(w) for w in whiskers], [4, 3])
+        np.testing.assert_allclose(whiskers[1], [(0.19, 3.0, 5.0), (1.19, 7.0, 9.0), (3.19, 9.0, 11.0)], atol=1e-9)
+
+    def test_precomputed_summaries_and_literal_dollar_row_titles(self):
+        sum_df = pd.DataFrame({
+            "Visita": ["$V1", "V$2", "$100 V3", "V4$"],
+            "Controllo [Mean]": [2.0, 3.0, 4.0, 5.0],
+            "Controllo [SEM]": [1.0, 1.0, 1.0, 1.0],
+            "Controllo [N]": [2, 2, 2, 2],
+            "Trattamento [Mean]": [4.0, 8.0, np.nan, 10.0],
+            "Trattamento [SEM]": [1.0, 1.0, np.nan, 1.0],
+            "Trattamento [N]": [2, 2, 0, 2],
+        })
+        res = category_graph(sum_df, {
+            "Input": "Precomputed summaries",
+            "Variables": [c for c in sum_df.columns if c != "Visita"],
+            "Row titles": "Visita",
+            "Graph style": BARS,
+            "Placement of groups": SUPERIMPOSED,
+            "Summary error": "SEM",
+            SERIES_STYLE: {"Trattamento": LINE_SYMBOLS, "Controllo": AS_GRAPH},
+        }, grouped=True)
+        ax, = res.figure.axes
+        self.assertEqual([lbl.get_text() for lbl in ax.get_xticklabels()], ["$V1", "V$2", "$100 V3", "V4$"])
+        self.assertEqual([lbl.get_parse_math() for lbl in ax.get_xticklabels()], [False, False, False, False])
+        line = graph_series(ax)[1].artist
+        np.testing.assert_allclose(line.get_xdata(), [0.0, 1.0, 2.0, 3.0])  # Superimposed uses center x
+        np.testing.assert_allclose(line.get_ydata(), [4.0, 8.0, np.nan, 10.0], equal_nan=True)
+        apply_style(res.figure, {"series": {"grouped:1:Trattamento": {"color": "#cc3311", "label": "Tratt. $A"}}})
+        svg = BytesIO()
+        res.figure.savefig(svg, format="svg")
+        self.assertEqual([t.get_text() for t in ax.get_legend().get_texts()], ["Controllo", "Tratt. $A"])
+        self.assertEqual([t.get_parse_math() for t in ax.get_legend().get_texts()], [False, False])
+
+    def test_reordered_columns_keep_series_style_and_overlay_visibility(self):
+        df = self._visite_raw()
+        reordered = ["Trattamento [2]", "Controllo [2]", "Trattamento [1]", "Controllo [1]"]
+        res = category_graph(df, {
+            "Variables": reordered, "Row titles": "Visita", "Interval": "SEM",
+            "Graph style": SYMBOLS, "Placement of groups": INTERLEAVED,
+            "Overlay observations": True,
+            SERIES_STYLE: {"Controllo": BARS, "Trattamento": LINE_SYMBOLS},
+        }, grouped=True)
+        ax, = res.figure.axes
+        self.assertEqual(grouped_series_names(df, {"Variables": reordered, "Row titles": "Visita"}),
+                         ["Trattamento", "Controllo"])
+        gs = graph_series(ax)
+        self.assertEqual([(s.key, s.kind) for s in gs], [
+            ("grouped:1:Trattamento", "line"),
+            ("grouped:1:Controllo", "bar"),
+        ])
+        self.assertEqual(active_series_fields(ax, gs[0]),
+                         {"color", "line_style", "width", "marker", "marker_size", "marker_color", "label", "visible"})
+        self.assertEqual(active_series_fields(ax, gs[1]), {"color", "label", "visible"})
+        apply_style(res.figure, {"series": {
+            "grouped:1:Controllo": {"visible": False},
+            "grouped:1:Trattamento": {"color": "#228833", "line_style": "dashed"},
+        }})
+        self.assertEqual([t.get_text() for t in ax.get_legend().get_texts()], ["Trattamento"])
+        apply_style(res.figure, {"series": {
+            "grouped:1:Controllo": {"visible": True},
+            "grouped:1:Trattamento": {"color": "#228833", "line_style": "dashed"},
+        }})
+        self.assertEqual([t.get_text() for t in ax.get_legend().get_texts()], ["Trattamento", "Controllo"])
+
+    def test_incompatible_series_style_combinations_rejected_by_engine(self):
+        df = self._visite_raw()
+        cols = ["Controllo [1]", "Controllo [2]", "Trattamento [1]", "Trattamento [2]"]
+        # Stacked / 100% stacked with overrides rejected
+        for layout in (STACKED, PERCENT_STACKED):
+            with self.subTest(layout=layout), self.assertRaises(FieldError) as raised:
+                category_graph(df, {
+                    "Variables": cols, "Row titles": "Visita", "Placement of groups": layout,
+                    "Interval": "None", SERIES_STYLE: {"Trattamento": LINE_SYMBOLS},
+                }, grouped=True)
+            self.assertEqual(raised.exception.field, "Placement of groups")
+        # Individual points / Floating range with overrides rejected
+        for style in (POINTS, RANGE):
+            with self.subTest(style=style), self.assertRaises(FieldError) as raised:
+                category_graph(df, {
+                    "Variables": cols, "Row titles": "Visita", "Graph style": style,
+                    SERIES_STYLE: {"Trattamento": LINE_SYMBOLS},
+                }, grouped=True)
+            self.assertEqual(raised.exception.field, "Graph style")
+        # Invalid override value or column graph override rejected
+        with self.assertRaises(FieldError):
+            category_graph(df, {
+                "Variables": cols, "Row titles": "Visita",
+                SERIES_STYLE: {"Trattamento": "Invalid style"},
+            }, grouped=True)
+        with self.assertRaises(FieldError):
+            category_graph(df, {"Variables": cols, SERIES_STYLE: {"Controllo": LINE_SYMBOLS}}, grouped=False)
+
+    def test_legacy_style_keys_and_large_50x12x8_grid(self):
+        df = self._visite_raw()
+        cols = ["Controllo [1]", "Controllo [2]", "Trattamento [1]", "Trattamento [2]"]
+        legacy_res = category_graph(df, {"Variables": cols, "Row titles": "Visita", "Interval": "SEM"}, grouped=True)
+        apply_style(legacy_res.figure, {
+            "series": {
+                "bar:1:Controllo": {"color": "#114477"},
+                "bar:1:Trattamento": {"color": "#aa2233"},
+            }
+        })
+        self.assertEqual(
+            legacy_res.figure.axes[0].containers[0].patches[0].get_edgecolor()[:3],
+            legacy_res.figure.axes[0].containers[0].patches[0].get_edgecolor()[:3],
+        )
+        # Verify 50 categories x 12 series x 8 replicates runs without exceeding cell cap
+        rng = np.random.default_rng(7)
+        big = {"Row": [f"R{i}" for i in range(50)]}
+        for s in range(12):
+            for r in range(8):
+                big[f"S{s} [{r + 1}]"] = rng.normal(loc=s + 1, scale=0.3, size=50)
+        big_df = pd.DataFrame(big)
+        big_res = category_graph(big_df, {
+            "Variables": [c for c in big_df if c != "Row"],
+            "Row titles": "Row",
+            SERIES_STYLE: {"S0": LINE_SYMBOLS, "S5": SYMBOLS},
+        }, grouped=True)
+        self.assertEqual(len(graph_series(big_res.figure.axes[0])), 12)
