@@ -4,8 +4,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from analisi.custom_equations import FUNCTIONS, RESERVED, compile_equation
-from analisi.field_error import FieldError
+from analisi.custom_equations import FUNCTIONS, compile_equation
 from analisi.workbench import analyse
 
 # NIST StRD Roszman1 (average difficulty): y = b1 - b2*x - arctan(b3/(x-b4))/pi
@@ -24,13 +23,14 @@ class InverseFunctionsTest(unittest.TestCase):
         for name, reference in (("asin", np.arcsin), ("acos", np.arccos), ("atan", np.arctan),
                                 ("sinh", np.sinh), ("cosh", np.cosh), ("tanh", np.tanh)):
             self.assertIn(name, FUNCTIONS)
-            self.assertIn(name, RESERVED)
             compiled = compile_equation(f"A*{name}(X)", ["A"])
             np.testing.assert_allclose(compiled.evaluate(x, {"A": 2.0}), 2 * reference(x), rtol=0, atol=0)
 
-    def test_function_names_cannot_be_coefficients(self):
-        with self.assertRaises(FieldError):
-            compile_equation("atan*X", ["atan"])
+    def test_existing_coefficient_can_coexist_with_function(self):
+        x = np.array([-.5, 0., .25, .75])
+        for name in ("asin", "acos", "atan", "sinh", "cosh", "tanh"):
+            compiled = compile_equation(f"{name}*X + {name}(X)", [name])
+            np.testing.assert_array_equal(compiled.evaluate(x, {name: 2.}), 2. * x + FUNCTIONS[name](x))
 
     def test_roszman1_matches_the_certified_values(self):
         frame = pd.DataFrame({"X": ROSZMAN1_X, "Y": ROSZMAN1_Y})

@@ -41,6 +41,14 @@ class CoxNewtonTest(unittest.TestCase):
         cox_newton.fit(t, x, e)
         self.assertLess(time.perf_counter() - started, 2)
 
+    def test_large_common_covariate_offset_does_not_change_fit(self):
+        t, x, e = simulated(200, 2, 42, decimals=2)
+        shifted = x + 1e8
+        reference = cox_newton.fit(t, shifted - 1e8, e)
+        fit = cox_newton.fit(t, shifted, e)
+        np.testing.assert_allclose(fit.params, reference.params, rtol=1e-11)
+        np.testing.assert_allclose(fit.cov_params(), reference.cov_params(), rtol=1e-11)
+
     def test_collinear_design_is_reported(self):
         t, x, e = simulated(200, 1, 7)
         with self.assertRaises((np.linalg.LinAlgError, cox_newton.CoxConvergenceError)):

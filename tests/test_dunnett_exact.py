@@ -56,6 +56,18 @@ class DunnettExactTest(unittest.TestCase):
         critical = optimize.brentq(lambda x: dunnett_exact.tail(x, loadings, 20) - .05, 1.5, 4, xtol=1e-12)
         self.assertAlmostEqual(critical, 2.54, delta=0.005)
 
+    def test_large_finite_df_approaches_the_normal_limit(self):
+        loadings = np.full(3, .7)
+        normal_limit = dunnett_exact.tail(2.5, loadings, np.inf)
+        probability = dunnett_exact.tail(2.5, loadings, 1_000_000)
+        self.assertAlmostEqual(probability, normal_limit, delta=1e-6)
+
+    def test_small_normal_tail_stays_positive(self):
+        marginal = 2 * stats.norm.sf(10)
+        expected = -np.expm1(3 * np.log1p(-marginal))
+        probability = dunnett_exact.tail(10, np.zeros(3), np.inf)
+        self.assertAlmostEqual(probability / expected, 1., places=12)
+
 
 if __name__ == "__main__":
     unittest.main()

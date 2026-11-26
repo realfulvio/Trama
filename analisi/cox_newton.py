@@ -63,6 +63,8 @@ class _Problem:
         event = np.asarray(status, dtype=float) == 1
         order = np.argsort(-time, kind="stable")          # longest first: a running sum is a risk set
         self.time, self.x, self.event = time[order], x[order], event[order]
+        # A common offset cancels from the likelihood. Remove it before forming second moments.
+        self.x -= self.x[0].copy()
         self.efron = ties == "efron"
         times = np.unique(self.time[self.event])            # ascending distinct event times
         self.n_times = len(times)

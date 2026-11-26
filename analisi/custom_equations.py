@@ -25,11 +25,11 @@ MAX_LENGTH, MAX_NODES, MAX_DEPTH, MAX_PARAMETERS, MAX_NAME = 1024, 128, 32, 12, 
 VARIABLE = "X"
 CONSTANTS = {"pi": math.pi, "e": math.e}
 FUNCTIONS = {"exp": np.exp, "log": np.log, "log10": np.log10, "sqrt": np.sqrt, "abs": np.abs,
-             "sin": np.sin, "cos": np.cos, "tan": np.tan,
-             # 0.109.x: inverse and hyperbolic functions (NIST Roszman1 needs atan).
-             "asin": np.arcsin, "acos": np.arccos, "atan": np.arctan,
-             "sinh": np.sinh, "cosh": np.cosh, "tanh": np.tanh}
+             "sin": np.sin, "cos": np.cos, "tan": np.tan}
 RESERVED = frozenset({VARIABLE, "Y", *CONSTANTS, *FUNCTIONS})
+# Preserve existing coefficients with these names. Parentheses distinguish calls.
+FUNCTIONS.update({"asin": np.arcsin, "acos": np.arccos, "atan": np.arctan,
+                  "sinh": np.sinh, "cosh": np.cosh, "tanh": np.tanh})
 ARITHMETIC, CONDITIONAL = SYNTAXES = ("Arithmetic", "Conditional")
 CONDITIONAL_WORDS = ("if", "and", "or", "not")
 # Words of the Conditional syntax: in that syntax they cannot be coefficient names. Arithmetic keeps them free.
@@ -242,7 +242,8 @@ class _Parser:
                 if value in ("and", "or", "not"):
                     raise FieldError("Equation", f"{value} combines conditions: use it only inside the condition "
                                                  "of if(condition, value if true, value if false).")
-            if value in FUNCTIONS:
+            is_call = self.peek()[:2] == ("op", "(")
+            if value in FUNCTIONS and (is_call or value in RESERVED or value not in self.names):
                 if not self.accept("("):
                     raise FieldError("Equation", f"{value} is a function: write it with an argument in parentheses, "
                                                  f"for example {value}(X).")
@@ -254,7 +255,7 @@ class _Parser:
                         self.not_a_number()
                     raise FieldError("Equation", f"Missing ) after the argument of {value}.")
                 return self.node(depth, "call", value, argument)
-            if self.peek()[:2] == ("op", "("):
+            if is_call:
                 raise FieldError("Equation", f"{value} is not an available function. "
                                              f"Functions: {', '.join(FUNCTIONS)}.")
             if value == VARIABLE:
