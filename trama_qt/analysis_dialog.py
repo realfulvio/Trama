@@ -71,6 +71,7 @@ from analisi.stats import GEOMETRIC_REPORT, SUMMARY_FORMAT, summary_confidence, 
 
 from . import (anova_model, ellipse_groups, global_catalog, global_fit, logistic_validation, marginal_means,
                 planned_contrasts)
+from . import coefficient_links
 from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
 from . import rm_sphericity_dialog as sphericity_options
@@ -712,7 +713,8 @@ class AnalysisDialog(QDialog):
             elif kind == PAIRWISE_PAIR_LIST:
                 widget = survival_pairs.PairEditor(saved.get(label, ()))
             elif kind == PARAMETER_LIST:
-                widget = ParameterTable(saved.get(label, ()))
+                # 0.117: the table of Fit custom equation also edits the links between coefficients.
+                widget = coefficient_links.SingleParameterEditor(saved.get(label, ()))
             elif kind in (global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
                 # Global coefficient list / Global series constraints (Global fit custom equation).
                 widget = global_fit.build_editor(kind, label, saved, self)
@@ -771,7 +773,8 @@ class AnalysisDialog(QDialog):
                 continue
             full_width = (kind in (TERM_LIST, CONTRAST_LIST, global_fit.PARAMETER_LIST, global_fit.SERIES_LIST)
                           or isinstance(widget, (Profiles, ordinal_options.OrderEditor, kappa_options.CategoryOrder,
-                                                 FunctionCurves, TransposeSets)))
+                                                 FunctionCurves, TransposeSets,
+                                                 coefficient_links.SingleParameterEditor)))
             if bare:
                 form.addRow(widget)  # the panel carries its own caption, so the form label is not repeated
             elif full_width:
@@ -1399,6 +1402,8 @@ class AnalysisDialog(QDialog):
             options = global_fit.confirm(self, self.options())
             if self.method == global_catalog.METHOD:
                 global_catalog.check_global_weighting(self.data, options)
+            if self.method == CUSTOM_EQUATION:
+                coefficient_links.check_single(options)
             if self.method == "Kaplan–Meier survival":
                 check_survival_options(self.data, options)
             if self.method == "t-test":
@@ -1540,6 +1545,8 @@ class AnalysisDialog(QDialog):
             return ui(str(error))
         if self.method in (global_fit.GLOBAL_CUSTOM_EQUATION, global_catalog.METHOD):
             return global_fit.describe_error(error, field)
+        if self.method == CUSTOM_EQUATION:
+            return coefficient_links.describe_error(error, global_fit.translate_error)
         if self.method in (*kmeans_options.METHODS, kmeans_reports.MODEL_GRAPH):
             return ui(str(error))
         if self.stability is not None:  # K-means stability: engine messages in the active language

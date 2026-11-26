@@ -43,6 +43,7 @@ from .custom_fit import (
     BRANCH, DEFAULT_EQUATION, EQUATION_TEXT, LEVEL, MAX_GROUPS, MAX_PAIRS, MIN_POINTS, MAX_POINTS,
     POINTS, SD_COLUMN, SYNTAX, _bound, _number, _values,
 )
+from . import coefficient_links as links
 from . import global_uncertainty as uncertainty
 from .field_error import FieldError
 from .fit_weights import INVERSE_VARIANCE, UNWEIGHTED
@@ -101,6 +102,9 @@ class Coefficient:
     upper: float | None
     fixed: bool
     shared: bool
+    # 0.117: ``factor * source + offset`` (coefficient_links.Link) or None. ``shared`` then says whether the
+    # linked coefficient has one value for every series (its source must too) or one per series.
+    link: object = None
 
 
 @dataclass(frozen=True)
@@ -122,6 +126,12 @@ class Settings:
     queries: object = None
     intervals: str = WALD
     syntax: str = ARITHMETIC
+    plan: object = None
+
+
+def _estimated(coeff):
+    """Neither Fixed nor Linked: a coordinate of the solver (once per series when local)."""
+    return not coeff.fixed and coeff.link is None
 
 
 def _flag(record, name, key):
@@ -157,10 +167,12 @@ def coefficients_from(records, syntax=ARITHMETIC):
         lower, upper = _bound(record.get("lower"), name, "lower"), _bound(record.get("upper"), name, "upper")
         if lower is not None and upper is not None and not lower < upper:
             raise FieldError("Parameters", f"{name}: the lower limit must be smaller than the upper limit.")
-        if (lower is not None and start < lower) or (upper is not None and start > upper):
+        # A linked coefficient takes its value from the link; its stored start is only shown, never used.
+        if record.get("link") is None and ((lower is not None and start < lower)
+                                           or (upper is not None and start > upper)):
             raise FieldError("Parameters", f"{name}: the value {start:g} lies outside its limits." if fixed
                              else f"{name}: the starting value {start:g} lies outside its limits.")
-        found.append(Coefficient(name, start, lower, upper, fixed, shared))
+        found.append(Coefficient(name, start, lower, upper, fixed, shared, links.read_link(record, name)))
     return tuple(found)
 
 
@@ -209,7 +221,13 @@ def resolve(frame, options):
     compiled = compile_equation(options.get("Equation"), [c.name for c in coefficients], syntax=syntax)
     # A shared coefficient cannot be fixed per series, so in a condition it must be Fixed now. A local one may
     # instead be fixed for every series in Series constraints; _bind checks that once the series are known.
-    _free_conditions(compiled, [c.name for c in coefficients if c.shared and not c.fixed])
+    _free_conditions(compiled, [c.name for c in coefficients if c.shared and _estimated(c)])
+    plan = links.Plan(coefficients)
+    by_name = {c.name: c for c in coefficients}
+    found = plan.condition_free(compiled.condition_parameters,
+                                lambda name: by_name[name].shared and _estimated(by_name[name]))
+    if found:
+        raise links.condition_error(found)
     constraints = _constraints_from(options.get("Series constraints", []))
     band, response_level, drawing = uncertainty.band_options(options, weighting)
     queries = uncertainty.query_options(options, columns, weighting)
@@ -217,7 +235,8 @@ def resolve(frame, options):
     if intervals not in INTERVAL_METHODS:
         raise FieldError(INTERVAL_METHOD, 'Choose Symmetric (Wald) or Profile likelihood.')
     return Settings(x, y, group, sd, str(options.get("Equation")).strip(), coefficients, weighting,
-                    float(level), int(points), constraints, band, response_level, drawing, queries, intervals, syntax)
+                    float(level), int(points), constraints, band, response_level, drawing, queries, intervals, syntax,
+                    plan)
 
 
 def _free_conditions(compiled, free_names, series=None):
@@ -321,6 +340,11 @@ def _bind(s, labels):
                 raise FieldError("Series constraints",
                                  f"Series {text!r}, {name}: use only fixed, lower, upper and initial.")
             coeff = by_name[name]
+            if coeff.link is not None and ({"fixed", "initial"} & set(options)):
+                raise FieldError("Series constraints",
+                                 f"Series {text!r}, {name}: a linked coefficient takes its value from its link "
+                                 f"({s.plan.formula(name)}). Remove the fixed or starting value of this series, "
+                                 "or remove the link.")
             if coeff.shared and ({"fixed", "initial"} & set(options)):
                 raise FieldError("Series constraints",
                                  f"Series {text!r}, {name}: a shared coefficient cannot have its own fixed value "
@@ -357,7 +381,11 @@ def _bind(s, labels):
                     raise FieldError("Series constraints",
                                      f"Series {text!r}, {name}: the starting value {guess:g} lies outside its limits.")
                 starts[text][name] = guess
+    if s.plan:
+        _carry_links(s, labels, lower, upper, fixed, starts)
     for c in s.coefficients:
+        if c.link is not None:
+            continue
         if c.shared:
             lo = max(lower[label][c.name] for label in labels)
             hi = min(upper[label][c.name] for label in labels)
@@ -375,11 +403,60 @@ def _bind(s, labels):
                 lo, hi = lower[label][c.name], upper[label][c.name]
                 if c.name in conditioned and fixed[label][c.name] is None:
                     _free_conditions(SimpleNamespace(condition_parameters=(c.name,)), [c.name], label)
+                if s.plan:
+                    found = s.plan.condition_free(
+                        [name for name in conditioned if s.plan.root(name)[0] == c.name],
+                        lambda root, label=label: fixed[label][root] is None)
+                    if found:
+                        raise links.condition_error(found, label)
                 if fixed[label][c.name] is None and not lo <= starts[label][c.name] <= hi:
                     raise FieldError("Series constraints",
                                      f"Series {label!r}, {c.name}: the starting value {starts[label][c.name]:g} "
                                      "lies outside the limits of this series.")
     return lower, upper, fixed, starts, names
+
+
+def _carry_links(s, labels, lower, upper, fixed, starts):
+    """Scope of each linked coefficient, then its limits carried onto its root, series by series.
+
+    A shared linked coefficient needs a root with one value in every series (shared, or fixed to the same
+    number). A local one may follow a shared root or the local root of the same series. A message about
+    limits names the series and the field when a series constraint takes part in it.
+    """
+    by_name = {c.name: c for c in s.coefficients}
+    for target in s.plan.order:
+        root, factor, _ = s.plan.root(target)
+        source = by_name[root]
+        if not by_name[target].shared or factor == 0 or source.shared or source.fixed:
+            continue
+        values = {fixed[label][root] for label in labels}
+        if None in values:
+            free_in = next(label for label in labels if fixed[label][root] is None)
+            raise FieldError("Parameters", f"{target}: a shared linked coefficient needs a source with the same "
+                                           f"value in every series, but {root} is local (estimated separately in "
+                                           f"series {free_in!r}). Share {root}, or make the link of {target} local "
+                                           "(per series).")
+        if len(values) > 1:
+            raise FieldError("Parameters", f"{target}: a shared linked coefficient needs a source with the same "
+                                           f"value in every series, but {root} is local (fixed to different values "
+                                           f"in the series). Share {root}, or make the link of {target} local "
+                                           "(per series).")
+    # First the common settings of Parameters: a problem there is not about one series.
+    common = {c.name: [-np.inf if c.lower is None else c.lower, np.inf if c.upper is None else c.upper]
+              for c in s.coefficients}
+    s.plan.carry_limits(common, {c.name: c.start for c in s.coefficients if c.fixed},
+                        {c.name: c.start for c in s.coefficients if _estimated(c)})
+    # Then every series with its own constraints: what fails now comes from Series constraints.
+    per_series = links.Plan(s.coefficients, "Series constraints")
+    for label in labels:
+        limits = {name: [lower[label][name], upper[label][name]] for name in lower[label]}
+        constant = {name: value for name, value in fixed[label].items()
+                    if value is not None and by_name[name].link is None}
+        start = {c.name: (c.start if c.shared else starts[label][c.name])
+                 for c in s.coefficients if _estimated(c) and fixed[label][c.name] is None}
+        per_series.carry_limits(limits, constant, start, where=f"Series {label!r}, ")
+        for name, (lo, hi) in limits.items():
+            lower[label][name], upper[label][name] = lo, hi
 
 
 def _layout(s, labels, lower, upper, fixed, starts):
@@ -399,11 +476,11 @@ def _layout(s, labels, lower, upper, fixed, starts):
         seeds.append(seed)
 
     for coeff in s.coefficients:
-        if coeff.shared and not coeff.fixed:
+        if coeff.shared and _estimated(coeff):
             add("Shared", None, coeff, lower[labels[0]][coeff.name], upper[labels[0]][coeff.name], coeff.start)
     for label in labels:
         for coeff in s.coefficients:
-            if not coeff.shared and not coeff.fixed and fixed[label][coeff.name] is None:
+            if not coeff.shared and _estimated(coeff) and fixed[label][coeff.name] is None:
                 add("Local", label, coeff, lower[label][coeff.name], upper[label][coeff.name], starts[label][coeff.name])
     n_free = len(coordinates)
     return coordinates, mapping, np.asarray(scale, dtype=float), np.asarray(bounds_lo), np.asarray(bounds_hi), np.asarray(seeds)
@@ -474,7 +551,7 @@ def _parameter_maps(s, labels, fixed, theta, mapping, scale):
                 values[coeff.name] = float(fixed[label][coeff.name])
             else:
                 values[coeff.name] = coeff.start
-        maps.append(values)
+        maps.append(s.plan.apply(values) if s.plan else values)
     return maps
 
 
@@ -643,13 +720,40 @@ def _solve(compiled, packed, s, labels, lower, upper, fixed, starts, *, cancel=N
         reason = "Asymptotic t intervals from the joint weighted Jacobian at the chosen confidence level."
     half = float(stats.t.ppf((1 + s.level / 100) / 2, df)) if infer and df > 0 else np.nan
     return {
-        "maps": maps, "pieces": pieces, "coordinates": coordinates, "active": active, "covariance": covariance,
+        "maps": maps, "pieces": pieces, "coordinates": coordinates, "labels": list(labels), "active": active,
+        "covariance": covariance,
         "se": se, "half": half, "rss": rss, "wsse": wsse, "n": n_obs, "p": n_free, "df": df, "infer": infer,
         "reason": reason, "scale": scale, "values": values,
         # Context for response bands: coordinate of each (series, coefficient), physical limits per coordinate.
         "mapping": mapping, "names": [c.name for c in s.coefficients], "bounds": (bound_lo, bound_hi),
         "profile_units": profile_units,
+        # 0.117: recomputes the linked coefficients after a coordinate moves (bands, predictions, profiles).
+        "complete": s.plan.apply if s.plan else None,
     }
+
+
+def linked_entries(s, solved):
+    """One entry per reported linked coefficient: a single row when it is shared, else one per series.
+
+    ``slot`` is the coordinate of its root (``-1`` when the root is not estimated in that series) and
+    ``factor``/``offset`` the composed affine map, so ``value = factor * root + offset``.
+    """
+    if not s.plan:
+        return []
+    labels = [part for part in solved["labels"]]
+    index = {name: j for j, name in enumerate(solved["names"])}
+    shared = {c.name for c in s.coefficients if c.shared}
+    entries = []
+    for target in s.plan.order:
+        root, factor, offset = s.plan.root(target)
+        series = [0] if target in shared else range(len(labels))
+        for i in series:
+            slot = int(solved["mapping"][i, index[root]]) if factor != 0 else -1
+            entries.append({"scope": "Shared" if target in shared else "Local",
+                            "group": None if target in shared else labels[i], "name": target,
+                            "value": float(solved["maps"][i][target]), "slot": slot,
+                            "factor": factor, "offset": offset, "relation": s.plan.formula(target)})
+    return entries
 
 
 def _source(value):
@@ -707,13 +811,46 @@ def _tables(compiled, packed, solved, s, queries=None):
         if coeff.fixed:
             rows.append({"Scope": "Fixed", "Group": None, "Parameter": coeff.name, "Estimate": coeff.start,
                          "SE": np.nan, "CI low": np.nan, "CI high": np.nan, "Status": "Fixed"})
-    parameters = pd.DataFrame(rows, columns=["Scope", "Group", "Parameter", "Estimate", "SE", "CI low", "CI high", "Status"])
-    summary = _report({
+    columns = ["Scope", "Group", "Parameter", "Estimate", "SE", "CI low", "CI high", "Status"]
+    entries = linked_entries(s, solved)
+    if s.plan:
+        # Linked rows after the coordinates and the fixed values; SE(target) = |factor| * SE(root).
+        columns.append("Relation")
+        for row in rows:
+            row["Relation"] = ""
+        for entry in entries:
+            slot = entry["slot"]
+            se = abs(entry["factor"]) * float(solved["se"][slot]) if slot >= 0 else np.nan
+            half = solved["half"]
+            rows.append({"Scope": entry["scope"], "Group": entry["group"], "Parameter": entry["name"],
+                         "Estimate": entry["value"], "SE": se, "CI low": entry["value"] - half * se,
+                         "CI high": entry["value"] + half * se, "Status": links.LINKED,
+                         "Relation": entry["relation"]})
+    parameters = pd.DataFrame(rows, columns=columns)
+    report = {
         "Observations": solved["n"], "Series": len(packed), "Free parameters": solved["p"],
         "DF residual": solved["df"], "Residual SS": solved["rss"], "Weighted residual SS": solved["wsse"],
         LEVEL: s.level, "Weighting": s.weighting, "Inference": solved["reason"], "Equation": s.equation,
-    })
-    if solved["coordinates"]:
+    }
+    if s.plan:
+        report.update(s.plan.summary())
+    summary = _report(report)
+    if solved["coordinates"] and entries:
+        # The joint covariance of coordinates and linked coefficients: L Cov Lᵀ with L the affine map.
+        keys = list(solved["coordinates"]) + [(e["scope"], e["group"], e["name"]) for e in entries]
+        p = len(solved["coordinates"])
+        transform = np.zeros((len(keys), p))
+        transform[:p] = np.eye(p)
+        for row, entry in enumerate(entries, start=p):
+            if entry["slot"] >= 0:
+                transform[row, entry["slot"]] = entry["factor"]
+            else:
+                transform[row] = np.nan
+        with np.errstate(invalid="ignore"):
+            joint = transform @ solved["covariance"] @ transform.T
+        index = pd.MultiIndex.from_tuples(keys, names=_INDEX)
+        covariance = pd.DataFrame(joint, index=index, columns=index)
+    elif solved["coordinates"]:
         index = pd.MultiIndex.from_tuples(solved["coordinates"], names=_INDEX)
         covariance = pd.DataFrame(solved["covariance"], index=index, columns=index)
     else:

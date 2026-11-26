@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from .field_error import FieldError
+from . import coefficient_links as links
 from .fit_weights import UNWEIGHTED
 from .parameter_intervals import METHOD, PROFILE, STATUS, MAX_POINTS, profile_limits
 
@@ -48,6 +49,8 @@ def apply_profiles(result, solved, settings, compiled, packed, budget):
                     slot = solved['mapping'][series, coefficient]
                     if slot >= 0:
                         values[name] = parameters[slot]
+                if solved.get('complete') is not None:
+                    values = solved['complete'](values)
                 pieces.append(compiled.evaluate(part['X'], values))
             return np.concatenate(pieces)
 
@@ -65,6 +68,7 @@ def apply_profiles(result, solved, settings, compiled, packed, budget):
         table.loc[:p-1, ['CI low', 'CI high']] = limits
         status.loc[:p-1, ['Lower status', 'Upper status']] = kinds
         status.loc[:p-1, ['Lower reason', 'Upper reason']] = reasons
+    _map_linked(table, status, solved, settings)
     status['Weighting'] = settings.weighting
     status['Inference'] = inference
     result.tables[STATUS] = status
@@ -75,3 +79,28 @@ def apply_profiles(result, solved, settings, compiled, packed, budget):
         f'{inference}. See Parameter CI status for bounds and unavailable limits. '
         'SEs, covariance and response intervals retain the original joint-Wald rules.'
         if p else solved['reason'])
+
+
+def _map_linked(table, status, solved, settings):
+    """Linked rows: the root coordinate's profile through the link, ends swapped for a negative factor."""
+    from .global_custom_fit import linked_entries
+    for entry in linked_entries(settings, solved):
+        row = table.index[(table['Status'] == links.LINKED) & (table['Parameter'] == entry['name'])
+                          & ((table['Group'] == entry['group']) if entry['group'] is not None
+                             else table['Group'].isna())][0]
+        slot = entry['slot']
+        if slot < 0:
+            reason = 'The link makes this coefficient constant in this series; no confidence interval is estimated.'
+            status.loc[row, ['Lower status', 'Upper status']] = ['Fixed', 'Fixed']
+            status.loc[row, ['Lower reason', 'Upper reason']] = [reason, reason]
+            table.loc[row, ['CI low', 'CI high']] = [np.nan, np.nan]
+            continue
+        limits, kinds, reasons = links.map_interval(
+            table.loc[slot, ['CI low', 'CI high']].to_numpy(dtype=float),
+            status.loc[slot, ['Lower status', 'Upper status']].tolist(),
+            status.loc[slot, ['Lower reason', 'Upper reason']].tolist(), entry['factor'], entry['offset'])
+        table.loc[row, ['CI low', 'CI high']] = limits
+        status.loc[row, ['Lower status', 'Upper status']] = kinds
+        status.loc[row, ['Lower reason', 'Upper reason']] = [
+            reason or f'Mapped from the profile of {table.loc[slot, "Parameter"]} through {entry["relation"]}.'
+            for reason in reasons]
