@@ -16,7 +16,7 @@ def group(tag, payload, *children):
     return record(tag | 0x8000, payload) + b"".join(children) + struct.pack("<H", tag | 0x4000)
 
 
-def dataset(uid, sheet_id, role, title, values, *, mode=10, repeats=1, precision=0, text=None):
+def dataset(uid, sheet_id, role, title, values, *, mode=10, repeats=1, precision=0, text=None, title_runs=None):
     rows = len(values) // repeats
     dimensions = struct.pack("<15i", uid, 0, 0, -1, sheet_id, 101, -1,
                              2 if role == 256 else 1, role, mode, repeats, -1, 0, rows, len(values))
@@ -24,6 +24,9 @@ def dataset(uid, sheet_id, role, title, values, *, mode=10, repeats=1, precision
     layout = "<IIf" if precision == 0 else "<IId"
     content += b"".join(struct.pack(layout, state, 0, value) for state, value in values)
     children = [record(9, title + b"\0"), record(16, content)]
+    if title_runs is not None:
+        rich = title + b"\0" + b"".join(bytes(run) for run in title_runs)
+        children.append(record(0xD5, struct.pack("<I", len(rich)) + rich))
     if precision == 0:
         flags = struct.pack("<4i", 1, 16, 4, len(values)) + bytes(4 * len(values))
     else:
@@ -49,11 +52,12 @@ def sheet(uid, title, *, mode=10, links=(), datasets=(), layout=(0, 1), title_id
     return group(8, struct.pack("<H", uid), *records, *datasets)
 
 
-def document(source, *sheets):
+def document(source, *sheets, fonts=()):
     header = bytearray(10064)
     struct.pack_into("<i", header, 40, len(source))
     struct.pack_into("<" + "i" * len(source), header, 60, *source)
-    project = group(2, header)
+    font_records = [record(7, struct.pack("<I2x32s28x", index, name)) for index, name in enumerate(fonts)]
+    project = group(2, header, group(6, b"", *font_records)) if fonts else group(2, header)
     footer = record(0x8003, bytes(64))
     return b"PCFFGRA4" + group(1, struct.pack("<6H", 400, 400, 2, 400, 100, 600), project, *sheets, footer)
 
@@ -195,6 +199,64 @@ class LegacyBinaryTests(unittest.TestCase):
         tables = self.load(document([1, 2], supported, unknown))
         self.assertEqual(list(tables), ["Known"])
         self.assertEqual(tables["Known"].attrs["skipped"], ["Unknown"])
+
+    def test_styled_greek_header_keeps_replicates_without_guessing_unrecognized_runs(self):
+        def sample(uid, name, title, runs):
+            return sheet(uid, name, mode=61, links=[(0, uid, 2)], datasets=[
+                dataset(uid, uid, 8, title, [(1, 2), (0, 12), (1, 7), (1, 9)],
+                        mode=61, repeats=2, title_runs=runs)])
+
+        source = document([1, 2, 3, 4],
+                          sample(1, b"Signal", b"Ag series", [(1, 1, 1), (1, 0x41, 2), (7, 0x41, 1)]),
+                          sample(2, b"Bad style", b"g", [(1, 0x42, 2)]),
+                          sample(3, b"Bad glyph", b"?", [(1, 0x41, 2)]),
+                          sample(4, b"Bad length", b"g", [(2, 0x41, 2)]),
+                          fonts=[b"Arial", b"Symbol"])
+        tables = self.load(source)
+        self.assertEqual(list(tables), ["Signal"])
+        frame = tables["Signal"]
+        self.assertEqual(frame.attrs["skipped"], ["Bad style", "Bad glyph", "Bad length"])
+        self.assertEqual(list(frame), ["Aγ series [1]", "Aγ series [2]"])
+        self.assertEqual(frame.iloc[:, 0].tolist(), [2, 7])
+        self.assertTrue(pd.isna(frame.iat[0, 1]))
+        self.assertEqual(frame.iat[1, 1], 9)
+
+    def test_excluded_values_keep_their_raw_value_and_replicate_position_after_save(self):
+        from analisi.data import Dataset, load_workspace, save_project
+
+        raw = document([1], sheet(1, b"Replicates", mode=61, links=[(0, 4, 2), (1, 3, 2)], datasets=[
+            dataset(1, 1, 256, b"", [(1, 0), (1, 0)], mode=12, text=[b"First", b"Second"]),
+            dataset(2, 1, 4, b"Time", [(1, 0), (1, 1)]),
+            dataset(3, 1, 8, b"Y", [(1, 4), (3, 10), (0, 8), (1, 0)], mode=61, repeats=2),
+            dataset(4, 1, 8, b"Z", [(1, 6), (1, 5), (3, 12), (1, 9)], mode=61, repeats=2)]))
+        data = Dataset(self.load(raw)["Replicates"])
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / "reopened.alab"
+            save_project(target, {"Replicates": data})
+            reopened, _ = load_workspace(target)
+        for grid in (data, reopened["Replicates"]):
+            self.assertEqual(list(grid.raw), ["Row title", "Time", "Z [1]", "Z [2]", "Y [1]", "Y [2]"])
+            self.assertEqual(grid.excluded, {(0, 5), (1, 2)})
+            self.assertEqual(grid.raw.iat[0, 5], 10)
+            self.assertEqual(grid.raw.iat[1, 2], 12)
+            masked = grid.frame(mask_excluded=True)
+            self.assertTrue(pd.isna(masked.iat[0, 5]) and pd.isna(masked.iat[1, 2]))
+            self.assertTrue(pd.isna(masked.iat[1, 4]))
+            self.assertEqual(masked.iat[1, 5], 0)
+
+    def test_excluded_flag_requires_supported_source_measurements(self):
+        supported = sheet(1, b"Known", links=[(0, 1, 1)], datasets=[dataset(1, 1, 8, b"A", [(1, 2)])])
+        cases = {
+            "infinite": [dataset(2, 2, 8, b"A", [(3, float("inf"))])],
+            "double": [dataset(2, 2, 8, b"A", [(3, 1.1)], precision=1)],
+            "coordinate": [dataset(3, 2, 4, b"X", [(3, 5)]), dataset(2, 2, 8, b"A", [(1, 4)])],
+        }
+        for name, fields in cases.items():
+            with self.subTest(name=name):
+                source = sheet(2, b"Other", links=[(0, 2, 1)], datasets=fields)
+                tables = self.load(document([1, 2], supported, source))
+                self.assertEqual(list(tables), ["Known"])
+                self.assertEqual(tables["Known"].attrs["skipped"], ["Other"])
 
     def test_older_numeric_xy_recovers_replicates_and_cleared_cells(self):
         raw = legacy_xy(61, [[(0, 0, 42), (0, 4, 7), (0, 0, 9)],
