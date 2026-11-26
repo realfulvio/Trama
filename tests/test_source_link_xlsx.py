@@ -369,6 +369,23 @@ class WorkbookLinkTests(unittest.TestCase):
         project.undo()
         self.assertEqual(project.tables[title].source_link.kind, "text")
 
+    def test_the_example_project_reopens_next_to_its_workbook(self):
+        example = Path(__file__).resolve().parent.parent / "docs" / "examples" / "source-link-xlsx"
+        copy = shutil.copytree(example, self.folder / "esempio")
+        project = _project()
+        project.load(copy / "Excel-collegato.alab")
+        link = project.tables["Misure"].source_link
+        self.assertEqual((link.kind, link.sheet, link.key), ("xlsx", "Misure", "ID"))
+        found, elsewhere = engine.locate(link, project.path)
+        if Path(link.path).is_file():  # The checkout where the example was saved: the absolute path comes first.
+            self.assertEqual((found, elsewhere), (Path(link.path), False))
+        else:
+            self.assertEqual((found, elsewhere), ((copy / "misure.xlsx").resolve(), True))
+        self.assertEqual(link.relative, "misure.xlsx")
+        raw, excluded = project.source_sheet("Misure")
+        plan = engine.plan_update(link, raw, excluded, found, found_elsewhere=True)
+        self.assertEqual(plan.count(UNCHANGED), 4)
+
     # -- reading ------------------------------------------------------------------------------------------------
     def test_workbook_is_only_read(self):
         project, title = link_workbook(self.book)
