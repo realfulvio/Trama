@@ -3763,6 +3763,109 @@ _AXIS_BREAKS_IT = {
 _EN.update(_AXIS_BREAKS_EN)
 _IT.update(_AXIS_BREAKS_IT)
 
+# Linked coefficients of Fit custom equation and Global fit custom equation (0.117). The links.error.* texts are
+# the exact English messages of analisi.coefficient_links, global_custom_fit and custom_fit, with placeholders.
+_LINKS_EN = {
+    "links.source": "Linked to",
+    "links.factor": "Factor",
+    "links.offset": "Offset",
+    "links.none": "(not linked)",
+    "links.scope.local": "Linked (per series)",
+    "links.scope.shared": "Linked (shared)",
+    "links.title": "Linked coefficients",
+    "links.help": ("Choose a source in Linked to: the coefficient becomes Factor × source + Offset at every step "
+                   "of the fit and is not estimated on its own. Its limits are carried onto the source."),
+    "links.order": "Order: {order}.",
+    "links.limits": "Limits used for {name}: {low} to {high}.",
+    "links.start": "Starting value {name} = {value} (from the link).",
+    "links.constant": "{name} is constant: {value}.",
+    "links.removed_parent": "{names}: the source no longer exists, so the link was removed and the coefficient is free again.",
+    "links.renamed": "Links now follow {new} (was {old}).",
+    "links.problem": "Links: {message}",
+    "links.tag": "Linked · {formula}",
+    "links.series_tip": "Linked: the value follows its link; only limits can be set per series.",
+    "links.error.both": "{name}: a coefficient cannot be both Fixed and Linked. Choose one of the two.",
+    "links.error.source_missing": ("{name}: the link source {source} is not a coefficient of this equation. "
+                                   "Choose another source or remove the link."),
+    "links.error.cycle": "The links form a cycle: {path}. Remove one of the links.",
+    "links.error.keys": "{name}: a link needs only a source coefficient, a factor and an offset.",
+    "links.error.source": "{name}: choose the source coefficient of the link.",
+    "links.error.factor": "{name}: the factor of the link must be a finite number.",
+    "links.error.offset": "{name}: the offset of the link must be a finite number.",
+    "links.error.constant": ("{name}: the link {formula} gives {target} = {value}, outside its limits "
+                             "({range}). Change the link, the limits or the fixed value of {root}."),
+    "links.error.empty": ("{name}: its limits ({range}) and the link {formula} leave no admissible value "
+                          "for {root} within its limits ({root_range}). Widen a limit or change the link."),
+    "links.error.start": ("{root}: the starting value {value} lies outside the range allowed by the links "
+                          "of {names} ({range}). Change the starting value of {root2}."),
+    "links.error.condition": ("{names} appears in a condition of if(...) and follows a free coefficient through its "
+                              "link: this fit uses known thresholds and does not estimate change points. Fix "
+                              "the source of the link or remove the link."),
+    "links.error.condition_series": ("{names} appears in a condition of if(...) and follows a free coefficient "
+                                     "through its link in series {series}: this fit uses known thresholds and does "
+                                     "not estimate change points. Fix the source of the link or remove the link."),
+    "links.error.shared_source": ("{name}: a shared linked coefficient needs a source with the same value in every "
+                                  "series, but {root} is local (estimated separately in series {series}). Share "
+                                  "{root2}, or make the link of {name2} local (per series)."),
+    "links.error.shared_values": ("{name}: a shared linked coefficient needs a source with the same value in every "
+                                  "series, but {root} is local (fixed to different values in the series). Share "
+                                  "{root2}, or make the link of {name2} local (per series)."),
+    "links.error.series_override": ("{name}: a linked coefficient takes its value from its link "
+                                    "({formula}). Remove the fixed or starting value of this series, or remove the "
+                                    "link."),
+}
+_LINKS_IT = {
+    "links.source": "Collegato a",
+    "links.factor": "Fattore",
+    "links.offset": "Scostamento",
+    "links.none": "(non collegato)",
+    "links.scope.local": "Collegato (per serie)",
+    "links.scope.shared": "Collegato (condiviso)",
+    "links.title": "Coefficienti collegati",
+    "links.help": ("Scegli una sorgente in Collegato a: il coefficiente diventa Fattore × sorgente + Scostamento a "
+                   "ogni passo del fit e non viene stimato da solo. I suoi limiti passano alla sorgente."),
+    "links.order": "Ordine: {order}.",
+    "links.limits": "Limiti usati per {name}: da {low} a {high}.",
+    "links.start": "Valore iniziale {name} = {value} (dal legame).",
+    "links.constant": "{name} è costante: {value}.",
+    "links.removed_parent": "{names}: la sorgente non esiste più, quindi il legame è stato tolto e il coefficiente torna libero.",
+    "links.renamed": "I legami ora seguono {new} (prima {old}).",
+    "links.problem": "Legami: {message}",
+    "links.tag": "Collegato · {formula}",
+    "links.series_tip": "Collegato: il valore segue il legame; per serie si possono impostare solo i limiti.",
+    "links.error.both": "{name}: un coefficiente non può essere sia Fisso sia Collegato. Scegline uno.",
+    "links.error.source_missing": ("{name}: la sorgente del legame {source} non è un coefficiente di questa "
+                                   "equazione. Scegli un'altra sorgente o togli il legame."),
+    "links.error.cycle": "I legami formano un ciclo: {path}. Togli uno dei legami.",
+    "links.error.keys": "{name}: un legame richiede solo un coefficiente sorgente, un fattore e uno scostamento.",
+    "links.error.source": "{name}: scegli il coefficiente sorgente del legame.",
+    "links.error.factor": "{name}: il fattore del legame deve essere un numero finito.",
+    "links.error.offset": "{name}: lo scostamento del legame deve essere un numero finito.",
+    "links.error.constant": ("{name}: il legame {formula} dà {target} = {value}, fuori dai suoi limiti "
+                             "({range}). Cambia il legame, i limiti o il valore fisso di {root}."),
+    "links.error.empty": ("{name}: i suoi limiti ({range}) e il legame {formula} non lasciano valori ammessi "
+                          "per {root} entro i suoi limiti ({root_range}). Allarga un limite o cambia il legame."),
+    "links.error.start": ("{root}: il valore iniziale {value} è fuori dall'intervallo ammesso dai legami di "
+                          "{names} ({range}). Cambia il valore iniziale di {root2}."),
+    "links.error.condition": ("{names} compare in una condizione di if(...) e segue un coefficiente libero tramite il "
+                              "legame: questo fit usa soglie note e non stima punti di cambio. Fissa la "
+                              "sorgente del legame o togli il legame."),
+    "links.error.condition_series": ("{names} compare in una condizione di if(...) e segue un coefficiente libero "
+                                     "tramite il legame nella serie {series}: questo fit usa soglie note e non stima "
+                                     "punti di cambio. Fissa la sorgente del legame o togli il legame."),
+    "links.error.shared_source": ("{name}: un coefficiente collegato condiviso richiede una sorgente con lo stesso "
+                                  "valore in tutte le serie, ma {root} è locale (stimato a parte nella serie {series}). "
+                                  "Condividi {root2}, oppure rendi locale (per serie) il legame di {name2}."),
+    "links.error.shared_values": ("{name}: un coefficiente collegato condiviso richiede una sorgente con lo stesso "
+                                  "valore in tutte le serie, ma {root} è locale (fissato a valori diversi nelle "
+                                  "serie). Condividi {root2}, oppure rendi locale (per serie) il legame di {name2}."),
+    "links.error.series_override": ("{name}: un coefficiente collegato prende il valore dal legame "
+                                    "({formula}). Togli il valore fisso o iniziale di questa serie, oppure togli il "
+                                    "legame."),
+}
+_EN.update(_LINKS_EN)
+_IT.update(_LINKS_IT)
+
 CATALOGS = {"en": _EN, "it": _IT}
 _PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _active = DEFAULT_LANGUAGE
