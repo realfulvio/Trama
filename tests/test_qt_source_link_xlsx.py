@@ -8,7 +8,7 @@ import csv
 from pathlib import Path
 import shutil
 from threading import Event
-from time import monotonic
+from time import monotonic, sleep
 import unittest
 from unittest import mock
 
@@ -34,11 +34,10 @@ class WorkbookLinkWindowTests(SourceLinkWindowCase):
         shutil.copyfile(DATA / fixture, self.book)
 
     def wait_preview(self, dialog):
-        from PySide6.QtTest import QTest
-
         until = monotonic() + 10
         while dialog.loading and monotonic() < until:
-            QTest.qWait(20)
+            self.app.processEvents()
+            sleep(.01)
         self.assertFalse(dialog.loading, "the Excel preview is still being prepared")
 
     def import_book(self, sheet="Misure", key="ID", header=1, link=True, look=None):
@@ -338,6 +337,23 @@ class WorkbookLinkWindowTests(SourceLinkWindowCase):
                     self.assertTrue(dialog.import_button.isEnabled())
                 self.assertTrue(cancelled.wait(2))
         self.assertEqual(list(self.window.project.tables), [])
+
+    def test_enter_on_the_unchanged_header_confirms_the_current_preview(self):
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        from trama_qt.workbook_link import WorkbookImportDialog
+
+        dialog = WorkbookImportDialog(self.window, self.book)
+        self.addCleanup(dialog.deleteLater)
+        self.addCleanup(dialog.reject)
+        dialog.show()
+        self.wait_preview(dialog)
+        dialog.sheet_box.setFocus()
+        QTest.keyClick(dialog.sheet_box, Qt.Key.Key_Tab)
+        self.assertIs(dialog.focusWidget(), dialog.header)
+        QTest.keyClick(dialog.header, Qt.Key.Key_Return)
+        self.assertFalse(dialog.isVisible())
+        self.assertEqual(dialog.sheet, "Riepilogo")
 
 
 if __name__ == "__main__":

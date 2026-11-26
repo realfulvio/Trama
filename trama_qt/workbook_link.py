@@ -303,6 +303,10 @@ class WorkbookImportDialog(QDialog):
         self._sync()
 
     def _schedule_preview(self):
+        options = self.options()
+        # Enter in the spin box also emits valueChanged for the unchanged value.
+        if self.table is not None and (self.table.sheet, self.table.header_row) == (options.sheet, options.header):
+            return
         self._cancel_read()
         self._clear_preview(t("Reading the selected worksheet…"))
         self.timer.start()

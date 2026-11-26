@@ -178,7 +178,8 @@ def main(argv=None):
             def wait_for_preview():
                 until = time.monotonic() + 20
                 while dialog.loading and time.monotonic() < until:
-                    QTest.qWait(25)
+                    app.processEvents()
+                    time.sleep(.01)
                 if dialog.loading:
                     raise TimeoutError("The selected Excel sheet is still being read.")
 
