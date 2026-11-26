@@ -232,18 +232,12 @@ def _legacy_limit_values(records, count, x_id, role):
     return values
 
 
-def _row_titles(records, count, fonts):
-    cells, attributes, stride = _cell_storage(records, count, text=True)
-    text = _record_once(records, 0x11, required=False)
-    offsets = _record_once(records, 0xB6, required=False)
-    if count == 0 and text is None and (offsets is None or
-            (len(offsets) in (4, 8) and unpack_from("<I", offsets)[0] == 0)):
-        return []
+def _indexed_row_titles(text, offsets, count, fonts, padding, *, packed_index=None):
     if (text is None or offsets is None or len(text) < 4 or len(offsets) < 4
             or unpack_from("<I", text)[0] != len(text) - 4):
         raise _UnsupportedSheet("Unrecognized row title storage")
     entries, = unpack_from("<I", offsets)
-    if len(offsets) != 4 + 12 * entries + (4 if stride == 28 else 0):
+    if len(offsets) != 4 + 12 * entries + padding:
         raise _UnsupportedSheet("Inconsistent row title index")
     result = [None] * count
     referenced_bytes = 0
@@ -252,13 +246,60 @@ def _row_titles(records, count, fonts):
         if (row >= count or not 0 < size <= 4096 or start + size > len(text) - 4
                 or referenced_bytes > len(text) - 4 or result[row] is not None):
             raise _UnsupportedSheet("Invalid row title reference")
+        if packed_index is not None and (start >= 1 << 16
+                or unpack_from("<I", packed_index, 4 * row)[0] != ((size << 16) | start)):
+            raise _UnsupportedSheet("Invalid legacy grouped row title reference")
         value = bytes(text[4 + start:4 + start + size])
         result[row] = _formatted_label(value, fonts)
+    return result
+
+
+def _row_titles(records, count, fonts):
+    cells, attributes, stride = _cell_storage(records, count, text=True)
+    text = _record_once(records, 0x11, required=False)
+    offsets = _record_once(records, 0xB6, required=False)
+    if count == 0 and text is None and (offsets is None or
+            (len(offsets) in (4, 8) and unpack_from("<I", offsets)[0] == 0)):
+        return []
+    result = _indexed_row_titles(text, offsets, count, fonts, padding=4 if stride == 28 else 0)
     for row, ((status, _, _), label) in enumerate(zip(cells, result, strict=True)):
         if (status not in (0, 1) or bool(status) != (label is not None)
                 or stride >= 16 and unpack_from("<2I", attributes, row * stride) != (0, status)):
             raise _UnsupportedSheet("Unrecognized row title status")
     return result
+
+
+def _legacy_grouped_cells(records, count, role, name_payload, fonts):
+    attributes = _record_once(records, 0x8F)
+    if (len(attributes) != 24 or unpack_from("<4i", attributes) != (3, 0, -1, 1)
+            or _record_once(records, 0x90) != b"\x01\x00"
+            or _record_once(records, 0xF3, required=False) is not None):
+        raise _UnsupportedSheet("Unrecognized legacy grouped attributes")
+    text_size, title_size = unpack_from("<2i", attributes, 16)
+    cells = _stored_cells(records, count, single_precision=True)
+    if role == _ROW_TITLES:
+        text = _record_once(records, 0x11)
+        offsets = _record_once(records, 0xB6)
+        index = _record_once(records, 0x92)
+        if (text_size != len(text) - 4 or title_size != len(name_payload) - 1
+                or len(index) != 4 + 4 * count or unpack_from("<I", index)[0] != count):
+            raise _UnsupportedSheet("Unrecognized legacy grouped row titles")
+        labels = _indexed_row_titles(text, offsets, count, fonts, padding=0, packed_index=index[4:])
+        for (status, width, value), (packed,), label in zip(
+                cells, Struct("<I").iter_unpack(index[4:]), labels, strict=True):
+            if (width or status != int(label is not None) or (label is None and packed)
+                    or value != _FLOAT32.unpack(_FLOAT32.pack(packed))[0]):
+                raise _UnsupportedSheet("Invalid legacy grouped row title reference")
+        return labels
+    if text_size or title_size != len(name_payload) - 1:
+        raise _UnsupportedSheet("Unexpected text in legacy grouped numeric cells")
+    values = []
+    for status, width, value in cells:
+        stored_integer = status == 105 and value.is_integer()
+        if width or (status not in (0, 1) and not stored_integer) or (status and not isfinite(value)):
+            raise _UnsupportedSheet("Unrecognized legacy grouped numeric cell status")
+        values.append(value if status else None)
+    return values
 
 
 def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analysis_id=-1):
@@ -269,10 +310,14 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
     legacy_column = legacy_source and legacy_layout[4:] == (_PLAIN, 0, 2)
     legacy_limits = (bool(legacy_layout) and legacy_layout[0] >= 0
                      and legacy_layout[1:3] == (44, 3) and legacy_layout[4:] == (_LEGACY_LIMITS_LAYOUT, 0, 1))
+    legacy_grouped = (analysis_id == -1 and len(layout) == 32
+                      and unpack_from("<7i", layout, 4) == (107, 3, 3, _REPLICATES, 0, 3, 3))
     legacy = legacy_xy or legacy_column or legacy_limits
     modes = (_MEAN_SD, _REPLICATES) if legacy_xy else (_PLAIN, _MEAN_SD, _REPLICATES)
     if legacy_limits:
         mode = _XY_LIMITS
+    elif legacy_grouped:
+        mode = _REPLICATES
     elif len(layout) < (28 if legacy else 36) or (mode := unpack_from("<i", layout, 16)[0]) not in modes:
         raise _UnsupportedSheet("Unrecognized table layout")
 
@@ -288,7 +333,7 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
         if not 0 < repeats <= MAX_COLUMNS or rows < 0 or count != rows * repeats:
             raise _UnsupportedSheet("Invalid data set dimensions")
         fields[uid] = role, kind, form, repeats, rows, count, records
-        if legacy:
+        if legacy or legacy_grouped:
             linked_x_ids.add(linked_x)
 
     links = {}
@@ -325,14 +370,16 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
     if legacy_limits and (len(xs) != 1 or linked_x_ids != set(xs) or titles != [legacy_layout[0]]
                           or len(ys) != legacy_layout[3]):
         raise _UnsupportedSheet("Unrecognized legacy XY limit linkage")
+    if legacy_grouped and (xs or titles != [unpack_from("<i", layout)[0]] or linked_x_ids != set(titles)):
+        raise _UnsupportedSheet("Unrecognized legacy grouped column linkage")
     if not ys:
         return None
 
     # The last layout words also occur on Column worksheets. Grouped worksheets
     # in this profile own a row-title dataset even when it has no populated labels.
-    grouped = (not xs and bool(titles) and analysis_id == -1 and len(layout) == 36
-               and unpack_from("<i", layout)[0] == titles[0]
-               and unpack_from("<2i", layout, 20) == (39, 2))
+    grouped = legacy_grouped or (not xs and bool(titles) and analysis_id == -1 and len(layout) == 36
+                                 and unpack_from("<i", layout)[0] == titles[0]
+                                 and unpack_from("<2i", layout, 20) == (39, 2))
     order = titles + xs + list(ys)
     width = sum(fields[uid][3] for uid in order)
     height = max(fields[uid][4] for uid in order)
@@ -348,8 +395,12 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
         name_payload = _record_once(records, 9)
         name = _title(name_payload)
         if role == _ROW_TITLES:
-            labels = (_legacy_limit_values(records, count, xs[0], role) if legacy_limits
-                      else _row_titles(records, count, fonts))
+            if legacy_limits:
+                labels = _legacy_limit_values(records, count, xs[0], role)
+            elif legacy_grouped:
+                labels = _legacy_grouped_cells(records, count, role, name_payload, fonts)
+            else:
+                labels = _row_titles(records, count, fonts)
             if labels:
                 headers.append(name or "Row title")
                 kinds.append("text")
@@ -364,6 +415,8 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
             name = _formatted_label(rich_text, fonts)
         if legacy_limits:
             values = _legacy_limit_values(records, count, xs[0], role)
+        elif legacy_grouped:
+            values = _legacy_grouped_cells(records, count, role, name_payload, fonts)
         elif legacy:
             values = _legacy_values(records, count, xs[0] if legacy_xy else -1)
         else:
@@ -400,6 +453,8 @@ def _sheet_frame(sheet_id, metadata, datasets, remaining_cells, fonts, *, analys
             groups.append(frame.columns[column:column + width].tolist())
             column += width
         frame.attrs["worksheet_roles"] = {"x": x_names, "y": groups}
+    if legacy_grouped:
+        frame.attrs["legacy_binary_grouped_series"] = tuple(ys)
     return frame
 
 

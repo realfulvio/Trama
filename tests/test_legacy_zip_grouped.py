@@ -13,7 +13,7 @@ from test_legacy_binary_editable import _group
 from test_legacy_binary_graphs import _record
 
 
-def write_fixture(path, *, wrong_sheet=False, wrong_position=False, wrong_relation=False, wrong_detail=False):
+def write_fixture(path, **variations):
     ids = ["a", "b", "c", "d"]
     members = {
         "document.json": {
@@ -28,14 +28,26 @@ def write_fixture(path, *, wrong_sheet=False, wrong_position=False, wrong_relati
         "data/sets/labels.json": {"dataType": "text"},
         "graphs/chart/sheet.json": {"uid": "chart", "fenID": 7, "title": "Four series", "inputDataSets": ids},
     }
+    for dataset, name in enumerate(ids, 200):
+        members[f"data/sets/{name}.json"] = {"title": name.upper(), "dataType": "real", "fenID": dataset}
+    with ZipFile(path, "w") as archive:
+        for member, value in members.items():
+            archive.writestr(member, json.dumps(value))
+        archive.writestr("data/tables/raw/data.csv", "Before,1,3,4,6,2,4,7,9\nAfter,2,4,3,5,6,8,1,3\n")
+        archive.writestr("graphs/chart/data.bin",
+                         b"PCFFGRA4" + _group(0x8001, bytes(12), graph_group(**variations)))
+
+
+def graph_group(*, legacy=False, wrong_sheet=False, wrong_position=False, wrong_relation=False, wrong_detail=False):
     chart = bytearray(48)
     pack_into("<4h", chart, 0, 100, 200, 1500, 1400)
-    body = _record(0x13, chart) + _record(0x14, pack("<2i", 1, 15 if wrong_sheet else 14))
+    body = _record(9, b"Four series\0") + _record(0x13, chart) + _record(0x14, pack("<2i", 1, 15 if wrong_sheet else 14))
     body += _record(0x15, pack("<5i", 4, 20, 21, 22, 23))
-    body += _record(0x16, pack("<H", 4) + b"".join(pack("<3i", dataset, 0, -2) for dataset in range(200, 204)))
+    link_fields = (1, 1) if legacy else (0, -2)
+    body += _record(0x16, pack("<H", 4) + b"".join(pack("<3i", dataset, *link_fields) for dataset in range(200, 204)))
     objects = []
     for axis_id, length, low, high in ((1, 1400, 1., 2.), (2, 1200, 0., 40.), (3, 1200, 0., 100.)):
-        axis, scale = bytearray(60), bytearray(134)
+        axis, scale = bytearray(60), bytearray(122 if legacy else 134)
         pack_into("<2d", axis, 16, low, high)
         pack_into("<4H", axis, 42, length, 0, 0, 30 + axis_id)
         pack_into("<H", axis, 54, axis_id)
@@ -44,27 +56,29 @@ def write_fixture(path, *, wrong_sheet=False, wrong_position=False, wrong_relati
         body += _record(0x17, axis) + _group(0x8025, scale, b"")
         if axis_id < 3:
             objects.append(_group(0x8020, pack("<H", 8) + bytes(28), _record(0x2A, pack("<H", axis_id))))
-    for index, name in enumerate(ids):
+    for index in range(4):
         key, dataset = 20 + index, 200 + index
-        members[f"data/sets/{name}.json"] = {"title": name.upper(), "dataType": "real", "fenID": dataset}
-        saved, detail, rect = bytearray(144), bytearray(321), bytearray(30)
+        saved, rect = bytearray(144), bytearray(30)
         pack_into("<8H", saved, 0, key, 1, dataset, 1, 0, 1, 2, 2)
         pack_into("<H", saved, 58, 14)
         relation = (0, 2, 1, 3 if wrong_relation else 2)[index]
         pack_into("<H", saved, 104, relation)
-        pack_into("<2I", detail, 0, 27, 0xFFFFFFFF)
-        pack_into("<3I", detail, 293, 1, 1, 0x20000)
-        pack_into("<I", detail, 313, dataset + int(wrong_detail))
+        if legacy:
+            detail = bytearray(173)
+            pack_into("<2I", detail, 0, 15, 0xFFFFFFFF)
+            pack_into("<H", saved, 60, index)
+            pack_into("<I", detail, 109, index + int(wrong_detail))
+            pack_into("<3I", detail, 129, 1, 1, 0xFFFFFFFF)
+        else:
+            detail = bytearray(321)
+            pack_into("<2I", detail, 0, 27, 0xFFFFFFFF)
+            pack_into("<3I", detail, 293, 1, 1, 0x20000)
+            pack_into("<I", detail, 313, dataset + int(wrong_detail))
         left = (200, 201 if wrong_position else 200, 340, 340)[index]
         pack_into("<H4h", rect, 0, 9, left, 300, left + 600, 1250)
         objects.append(_group(0x8020, rect, _group(0x8028, saved, _record(0x9C, detail))))
     body += _group(0x8018, bytes(12), b"".join(reversed(objects)))
-    with ZipFile(path, "w") as archive:
-        for member, value in members.items():
-            archive.writestr(member, json.dumps(value))
-        archive.writestr("data/tables/raw/data.csv", "Before,1,3,4,6,2,4,7,9\nAfter,2,4,3,5,6,8,1,3\n")
-        archive.writestr("graphs/chart/data.bin",
-                         b"PCFFGRA4" + _group(0x8001, bytes(12), _group(0x8012, pack("<H", 7), body)))
+    return _group(0x8012, pack("<H", 7), body)
 
 
 class LegacyZipGroupedTests(unittest.TestCase):

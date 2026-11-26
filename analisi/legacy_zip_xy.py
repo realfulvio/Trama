@@ -60,23 +60,28 @@ def _linear_axes(records):
                "ticks": [origin + i * step for i in range(ceil(first - 1e-10), floor(last + 1e-10) + 1)]}
 
 
-def _plain_zip_text(detail):
-    header = _one(detail, 0x902B)
+def _plain_zip_text(detail, *, legacy_encoding=None):
+    header = _one(detail, 0x902B if legacy_encoding is None else 0x802B)
     _require(len(header) == 18)
-    text, = [bytes(p) for tag, path, p in detail if tag == 0x102C and path == (0x102B,)]
-    style, = [p for tag, path, p in detail if tag == 0x102D and path == (0x102B,)]
+    base = 0x1000 if legacy_encoding is None else 0
+    text, = [bytes(p) for tag, path, p in detail if tag == base + 0x2C and path == (base + 0x2B,)]
+    style, = [p for tag, path, p in detail if tag == base + 0x2D and path == (base + 0x2B,)]
     runs, count, start = unpack_from("<HHI", style)
     _require(runs == 1 and start == 0 and len(style) == 8 + count * _TEXT_PROPERTY.size)
     properties = dict(_TEXT_PROPERTY.iter_unpack(style[8:]))
-    _require(properties.get(10) == 65001 and 1 <= properties.get(1, 0) <= 48)
-    label = text.decode("utf-8")
+    if legacy_encoding is None:
+        _require(properties.get(10) == 65001)
+    else:
+        _require(properties.get(2) == 1 and 10 not in properties)
+    _require(1 <= properties.get(1, 0) <= 48)
+    label = text.decode(legacy_encoding or "utf-8")
     _require(len(label) <= 240 and all(char.isprintable() for char in label))
     rgba = properties.get(8, 0xFF000000).to_bytes(4, "little")
     _require(rgba[3] == 255)
     return unpack_from("<H", header)[0], label, properties[1], "#" + rgba[:3].hex()
 
 
-def _saved_captions(records, objects, *, axis_titles=None):
+def _saved_captions(records, objects, *, axis_titles=None, legacy_encoding=None):
     try:
         chart = _one(records, 0x13)
         _require(len(chart) == 48)
@@ -90,13 +95,13 @@ def _saved_captions(records, objects, *, axis_titles=None):
         for header, details in objects:
             if unpack_from("<H", header)[0] != 2:
                 continue
-            text_header = _one(details, 0x902B)
+            text_header = _one(details, 0x902B if legacy_encoding is None else 0x802B)
             _require(len(text_header) == 18)
             name = names.get(unpack_from("<H", text_header)[0])
             if name is not None:
                 _require(name not in captions)
                 hidden = bool(unpack_from("<H", header, 28)[0] & 0x200)
-                captions[name] = "" if hidden else _plain_zip_text(details)[1]
+                captions[name] = "" if hidden else _plain_zip_text(details, legacy_encoding=legacy_encoding)[1]
         return captions
     except (KeyError, ValueError, StructError):
         return {}

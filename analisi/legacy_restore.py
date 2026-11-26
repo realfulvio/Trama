@@ -1012,7 +1012,7 @@ def restore_sheets(archive, names, sheets, sources, tables, cells, *, focused=No
     """Add non-executable snapshots and supported native analysis recipes."""
     from .legacy_layout_edit import LEGACY_PANEL_DATA
     from .legacy_zip_column import ZIP_COLUMN, saved_aligned_column, saved_geometric_column
-    from .legacy_zip_grouped import saved_grouped_bars
+    from .legacy_grouped_bars import saved_grouped_bars
     from .legacy_zip_layout import ZIP_LAYOUT, saved_positioned_layout
     from .legacy_zip_xy import ZIP_SPARSE_XY, saved_zip_xy
 
@@ -1381,6 +1381,7 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
     from .legacy_binary_results import report_saved_result_warnings, restore_binary_results
     from .legacy_binary_simulation import read_simulation_graphs
     from .legacy_emf_edit import CURVE, LIMIT_SOURCE, POINTS
+    from .legacy_grouped_bars import saved_binary_grouped_bars
     from .legacy_layout_edit import LEGACY_EDITABLE_PANELS
     from .legacy_pdf_stacks import STACK_KIND
 
@@ -1427,6 +1428,15 @@ def restore_binary_views(data, sources, tables, cells, fonts, document_title):
                                              tables, cells, read_binary_layouts)
     restored_graphs = set()
     if graphs or without_preview:
+        indexed = {record["id"]: record["title"] for record in records}
+        for uid, frame, options, style in saved_binary_grouped_bars(data, sources):
+            recipes = frame.attrs.setdefault("legacy_recipes", [])
+            if uid not in indexed or len(recipes) >= 256:
+                continue
+            frame.attrs.setdefault("legacy_graph_styles", {})[len(recipes)] = style
+            recipes.append((GROUPED_GRAPH, {**options, LEGACY_TITLE: indexed[uid][:160]}))
+            restored_graphs.add(uid)
+            without_preview.pop(uid, None)
         result_frames = {frame.attrs["legacy_binary_result"]["sheet_id"]: frame for frame in tables.values()
                          if "legacy_binary_result" in frame.attrs}
         if classic_curves:

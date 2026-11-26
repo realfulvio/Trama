@@ -9,7 +9,7 @@ from .category_graphs import (
     BARS, INTERLEAVED, INTERVAL_DIRECTION, MAX_CATEGORIES, MAX_PLOT_CELLS, MAX_POINTS,
     RAW, SERIES_PLACEMENT, STACK_PREVIOUS, UPPER_INTERVAL, grouped_series_names,
 )
-from .legacy_binary_editable import _id_array, _one, _require, _subgroups
+from .legacy_binary_editable import _id_array, _one, _project_records, _require, _subgroups
 from .legacy_import import _identifier, _json_object
 from .legacy_zip_xy import _MAX_GRAPH_BYTES, _MAX_TICKS, _graph_records, _saved_captions
 from .presentation import validated_style
@@ -18,12 +18,13 @@ from .presentation import validated_style
 _LINK = Struct("<3i")
 
 
-def _placement(records, datasets, rows):
+def _placement(records, datasets, rows, *, legacy_encoding=None):
     keys = _id_array(_one(records, 0x15))
     links = _one(records, 0x16)
+    link_fields = (0, -2) if legacy_encoding is None else (1, 1)
     _require(len(keys) == len(datasets) == len(set(keys)) and len(links) == 2 + len(keys) * _LINK.size
              and unpack_from("<H", links)[0] == len(keys)
-             and list(_LINK.iter_unpack(links[2:])) == [(dataset, 0, -2) for dataset in datasets])
+             and list(_LINK.iter_unpack(links[2:])) == [(dataset, *link_fields) for dataset in datasets])
 
     scene, = _subgroups(records, 0x8018)
     objects = list(_subgroups(scene[1], 0x8020))
@@ -43,9 +44,14 @@ def _placement(records, datasets, rows):
                  and (family, enabled, center, mode, interval, sides) == (1, 1, 0, 1, 2, 2)
                  and unpack_from("<H", style, 58)[0] == 14)
         detail, = [payload for tag, parent, payload in body if tag == 0x9C and parent == (40,)]
-        _require(len(detail) == 321 and unpack_from("<2I", detail) == (27, 0xFFFFFFFF)
-                 and unpack_from("<3I", detail, 293) == (1, 1, 0x20000)
-                 and unpack_from("<I", detail, 313)[0] == dataset)
+        if legacy_encoding is None:
+            _require(len(detail) == 321 and unpack_from("<2I", detail) == (27, 0xFFFFFFFF)
+                     and unpack_from("<3I", detail, 293) == (1, 1, 0x20000)
+                     and unpack_from("<I", detail, 313)[0] == dataset)
+        else:
+            _require(len(detail) == 173 and unpack_from("<2I", detail) == (15, 0xFFFFFFFF)
+                     and unpack_from("<I", detail, 109)[0] == unpack_from("<H", style, 60)[0]
+                     and unpack_from("<3I", detail, 129) == (1, 1, 0xFFFFFFFF))
         left, _, right, _ = unpack_from("<4h", header, 2)
         relation, = unpack_from("<H", style, 104)
         _require(left < right)
@@ -76,10 +82,31 @@ def _placement(records, datasets, rows):
     step, origin = unpack_from("<2d", scale, 54)
     _require(unpack_from("<2d", scale, 2) == (low, high) and unpack_from("<H", scale, 28)[0] == kind
              and isfinite(step) and step > 0 and isfinite(origin) and (high - low) / step <= _MAX_TICKS)
-    captions = _saved_captions(records, objects, axis_titles=(unpack_from("<H", x, 48)[0], title))
+    captions = _saved_captions(records, objects, axis_titles=(unpack_from("<H", x, 48)[0], title),
+                               legacy_encoding=legacy_encoding)
     style = {"yscale": "linear", "axis": {"y": {"min": low, "max": high, "step": step, "start": origin}},
              **{name: value for name, value in captions.items() if len(value) <= 160}}
     return relations, validated_style(style)
+
+
+def _recipe(frame, columns, row_title, relations):
+    options = {"Variables": columns, "Input": RAW, "Graph style": BARS, "Placement of groups": INTERLEAVED,
+               "Center": "Mean", "Interval": "SEM", INTERVAL_DIRECTION: UPPER_INTERVAL}
+    if row_title is not None:
+        options["Row titles"] = row_title
+    names = grouped_series_names(frame, options)
+    _require(len(names) == len(relations))
+    options[SERIES_PLACEMENT] = {name: STACK_PREVIOUS for name, relation in zip(names, relations, strict=True)
+                                 if relation == 2}
+    return options
+
+
+def _valid_data(frame, columns, series_count):
+    return (0 < len(frame) <= MAX_CATEGORIES and 2 <= series_count <= MAX_CATEGORIES
+            and len(frame) * series_count <= MAX_PLOT_CELLS and len(frame) * len(columns) <= MAX_POINTS
+            and len(set(columns)) == len(columns)
+            and all(pd.api.types.is_numeric_dtype(frame[column]) for column in columns)
+            and frame[columns].notna().any(axis=1).all())
 
 
 def saved_grouped_bars(archive, graph, uid, sources):
@@ -93,13 +120,10 @@ def saved_grouped_bars(archive, graph, uid, sources):
         (sheet_uid, frame), = [(name, frame) for name, frame in sources.items()
                                if frame.attrs.get("table_format") == "grouped"
                                and frame.attrs.get("legacy_y") == ids]
-        _require(frame.attrs["legacy_y_format"] == "y_replicates" and frame.attrs["legacy_x"] is None
-                 and 0 < len(frame) <= MAX_CATEGORIES and len(frame) * len(ids) <= MAX_PLOT_CELLS)
+        _require(frame.attrs["legacy_y_format"] == "y_replicates" and frame.attrs["legacy_x"] is None)
         columns_by_id = frame.attrs["legacy_columns"]
         columns = [column for dataset in ids for column in columns_by_id[dataset]]
-        _require(len(frame) * len(columns) <= MAX_POINTS and len(set(columns)) == len(columns)
-                 and all(pd.api.types.is_numeric_dtype(frame[column]) for column in columns)
-                 and frame[columns].notna().any(axis=1).all())
+        _require(_valid_data(frame, columns, len(ids)))
         sheet = _json_object(archive, f"data/sheets/{sheet_uid}/sheet.json")
         _require(sheet.get("uid") == sheet_uid and type(sheet.get("fenID")) is int)
         datasets = [_json_object(archive, f"data/sets/{dataset}.json")["fenID"] for dataset in ids]
@@ -111,15 +135,34 @@ def saved_grouped_bars(archive, graph, uid, sources):
         records = _graph_records(archive.read(member), graph["fenID"])
         _require(_id_array(_one(records, 0x14)) == [sheet["fenID"]])
         relations, style = _placement(records, datasets, len(frame))
-        options = {"Variables": columns, "Input": RAW, "Graph style": BARS, "Placement of groups": INTERLEAVED,
-                   "Center": "Mean", "Interval": "SEM", INTERVAL_DIRECTION: UPPER_INTERVAL}
-        row_titles = sheet["table"].get("rowTitlesDataSet")
-        if row_titles is not None:
-            options["Row titles"], = columns_by_id[_identifier(row_titles)]
-        names = grouped_series_names(frame, options)
-        _require(len(names) == len(ids))
-        options[SERIES_PLACEMENT] = {name: STACK_PREVIOUS for name, relation in zip(names, relations, strict=True)
-                                     if relation == 2}
-        return frame, options, style
+        title_id = sheet["table"].get("rowTitlesDataSet")
+        row_title = None
+        if title_id is not None:
+            row_title, = columns_by_id[_identifier(title_id)]
+        return frame, _recipe(frame, columns, row_title, relations), style
     except (AttributeError, KeyError, TypeError, ValueError, StructError, OverflowError):
         return None
+
+
+def saved_binary_grouped_bars(data, sources):
+    """Read linked grouped bar charts from the older binary worksheet profile."""
+    eligible = {uid: frame for uid, frame in sources.items() if "legacy_binary_grouped_series" in frame.attrs}
+    if not eligible:
+        return
+    _, encoding, graphs, _ = _project_records(data, eligible.keys())
+    for uid, records in graphs.items():
+        if records is None:
+            continue
+        try:
+            sheet_id, = _id_array(_one(records, 0x14))
+            frame = eligible[sheet_id]
+            datasets = list(frame.attrs["legacy_binary_grouped_series"])
+            columns = [name for series in frame.attrs["worksheet_roles"]["y"] for name in series]
+            _require(_valid_data(frame, columns, len(datasets)))
+            relations, style = _placement(records, datasets, len(frame), legacy_encoding=encoding)
+            other_columns = [name for name in frame if name not in columns]
+            _require(len(other_columns) <= 1)
+            options = _recipe(frame, columns, next(iter(other_columns), None), relations)
+        except (KeyError, TypeError, ValueError, StructError, OverflowError):
+            continue
+        yield uid, frame, options, style

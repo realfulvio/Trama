@@ -121,6 +121,21 @@ class QtShellTests(unittest.TestCase):
         handles = run.result.figure.axes[0]._tramastat_grouped["handles"]
         self.assertEqual(handles["B"].patches[0].get_y(), 5.)
 
+    def test_grouped_binary_import_connects_the_original_worksheet_to_its_graph(self):
+        from test_legacy_binary_grouped import write_binary_fixture
+
+        source = self.folder / "older.pzf"
+        write_binary_fixture(source)
+        self.window.open_path(source)
+        self.assertEqual(self.window.selected, ("data", "Visits"))
+        self.assertTrue(self.window.edit_cell("Visits", 0, 2, "9"))
+        self.wait()
+        self.window.open_sheet(("graph", 0))
+        self.wait()
+        run, = self.window.project.runs
+        bars = run.result.figure.axes[0]._tramastat_grouped["handles"]
+        self.assertEqual(bars["B"].patches[0].get_y(), 5.)
+
     def test_curve_pipeline_shows_only_applicable_fields_and_saves_canonical_values(self):
         from PySide6.QtWidgets import QLabel
         from analisi import curve_pipeline as cp
