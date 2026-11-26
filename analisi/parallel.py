@@ -31,11 +31,23 @@ Windows portable build
 
 Settings
     ``preferences.json`` key ``processes``: ``"auto"`` (default) or a whole number from 1 to 64. The environment
-    variable ``TRAMA_PROCESSES`` overrides it (tests, benchmarks). N above 1 starts N worker processes; the
-    window's process waits for them and computes queued items itself only while they start. 1 keeps every
-    calculation in the window's process, as before. Auto uses the logical processors minus one (one stays
-    free for the window), at most 8, because each worker holds its own copy of numpy, pandas, scipy and
+    variable ``TRAMA_PROCESSES`` overrides it (tests, benchmarks). N above 1 allows N worker processes. 1 keeps
+    every calculation in the window's process, as before. Auto uses the logical processors minus one (one
+    stays free for the window), at most 8, because each worker holds its own copy of numpy, pandas, scipy and
     matplotlib and of the ``analisi`` modules.
+
+Starting the workers
+    A worker takes one to three seconds to start (longer in the portable build, where it is a new Trama.exe),
+    far more than most requests last. So a request never waits for workers that are not ready:
+
+    * it begins in the calling thread, item after item, exactly as the serial loop;
+    * if it is still running after ``COLD_START_SECONDS`` the workers are started in the background;
+    * when the first worker is ready, the items not yet calculated move to the workers and the calling thread
+      only waits for them. Later requests go to the workers from their first item.
+
+    A request that ends sooner (twelve correlations recalculated after an edit) starts no process at all, and a
+    session made of such requests never pays the memory of the workers. If the workers cannot start, every
+    request simply stays in the calling thread.
 """
 from __future__ import annotations
 
@@ -59,6 +71,7 @@ MAX_AUTO = 8
 MAX_PROCESSES = 61 if sys.platform == "win32" else 64
 SLOTS = 64
 POLL_SECONDS = 0.05
+COLD_START_SECONDS = 0.25  # a request still running after this long starts the workers
 WORKER_ENVIRONMENT = {
     # One BLAS/OpenMP thread per worker: N workers × N BLAS threads would oversubscribe the processor.
     "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1",
@@ -300,12 +313,32 @@ class _Pool:
         self.size = size
         self.flags = context.RawArray("b", SLOTS)
         self.free = list(range(SLOTS - 1, -1, -1))
-        self.warm = False
+        self.started = False  # the worker processes were asked to start
+        self.warm = False     # at least one of them is ready
         # Workers inherit the environment when they start; spawn can start one at any later submit, so the
         # settings stay in this process's environment. The running process keeps the BLAS it already loaded.
         os.environ.update(WORKER_ENVIRONMENT)
         self.executor = cf.ProcessPoolExecutor(max_workers=size, mp_context=context, initializer=_initialize,
                                                initargs=(self.flags,))
+
+    def start(self):
+        """Start the worker processes, once and without waiting; ``warm`` turns True when the first is ready."""
+        with _lock:
+            if self.started:
+                return True
+            self.started = True
+
+        def ready(future):
+            if not future.cancelled() and future.exception() is None:
+                self.warm = True
+
+        try:
+            # One idle probe per worker: the executor starts a process for each task that finds none free.
+            for _ in range(self.size):
+                self.executor.submit(_ready).add_done_callback(ready)
+        except Exception:  # closed or broken meanwhile: requests stay in the calling thread
+            return False
+        return True
 
     def acquire(self):
         with _lock:
@@ -368,23 +401,12 @@ def shutdown():
 
 
 def warm_up():
-    """Start the workers in the background so the first parallel request does not pay their start-up."""
+    """Start the workers now, without a request, so the next one finds them ready."""
     count = process_count()
     if count <= 1:
         return False
     pool = _get_pool(count)
-    if pool is None:
-        return False
-    def warmed(future):
-        if not future.cancelled() and future.exception() is None:
-            pool.warm = True
-
-    try:
-        for _ in range(pool.size):
-            pool.executor.submit(_ready).add_done_callback(warmed)
-    except Exception:
-        return False
-    return True
+    return pool is not None and pool.start()
 
 
 def _discard_broken(pool):
@@ -456,16 +478,6 @@ def run_tasks(function, items, *, cancel=None, with_cancel=False, progress=None,
 def _run_parallel(pool, slot, function, items, cancel, with_cancel, progress, outcomes, stop_queued):
     total = len(items)
     found = [None] * total
-    futures = {}
-    context = _context()
-    try:
-        for index, item in enumerate(items):
-            futures[pool.executor.submit(_execute, function, item, slot, with_cancel, context)] = index
-    except (BrokenProcessPool, RuntimeError):
-        _discard_broken(pool)
-    pending = set(futures)
-    submitted = set(futures.values())
-    local = [index for index in range(total) if index not in submitted]
     done_count = 0
     cancelled = False
     first_error = None
@@ -482,6 +494,39 @@ def _run_parallel(pool, slot, function, items, cancel, with_cancel, progress, ou
             first_error = index
         report()
 
+    def answer():
+        if not outcomes and first_error is not None:
+            return [outcome if outcome is not None else Outcome() for outcome in found]
+        return found
+
+    # Until a worker is ready this is the serial loop, in the calling thread (see "Starting the workers").
+    first = 0
+    if not pool.warm:
+        starter = threading.Timer(COLD_START_SECONDS, pool.start)
+        starter.daemon = True
+        starter.start()
+        try:
+            while first < total and not pool.warm:
+                settle(first, _local(function, items[first], cancel, with_cancel))
+                first += 1
+                if not outcomes and first_error is not None:
+                    return answer()  # the loop would have stopped at its first error
+        finally:
+            starter.cancel()
+        if first == total:
+            return answer()
+
+    futures = {}
+    context = _context()
+    try:
+        for index in range(first, total):
+            futures[pool.executor.submit(_execute, function, items[index], slot, with_cancel, context)] = index
+    except (BrokenProcessPool, RuntimeError):
+        _discard_broken(pool)
+    pending = set(futures)
+    submitted = set(futures.values())
+    local = [index for index in range(first, total) if index not in submitted]
+
     while pending:
         if cancel is not None and cancel.is_set() and not cancelled:
             cancelled = True
@@ -496,17 +541,6 @@ def _run_parallel(pool, slot, function, items, cancel, with_cancel, progress, ou
             for future in list(pending):
                 if futures[future] > first_error and future.cancel():
                     pending.discard(future)
-        if not pool.warm and not cancelled:
-            # While the workers start, the calling thread takes queued items from the end of the list,
-            # so a first request is never slower than the loop.
-            for future in sorted(pending, key=futures.get, reverse=True):
-                if future.cancel():
-                    pending.discard(future)
-                    index = futures[future]
-                    settle(index, _local(function, items[index], cancel, with_cancel))
-                    break
-        if not pending:
-            break
         done, _ = cf.wait(pending, timeout=POLL_SECONDS, return_when=cf.FIRST_COMPLETED)
         for future in done:
             pending.discard(future)
@@ -542,6 +576,4 @@ def _run_parallel(pool, slot, function, items, cancel, with_cancel, progress, ou
         if not outcomes and first_error is not None and index > first_error:
             continue
         settle(index, _local(function, items[index], cancel, with_cancel))
-    if not outcomes and first_error is not None:
-        return [outcome if outcome is not None else Outcome() for outcome in found]
-    return found
+    return answer()
