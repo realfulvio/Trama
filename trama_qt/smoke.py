@@ -587,12 +587,15 @@ class Smoke:
                     "the previews of the old project survived a new project")
 
     def report(self):
+        from analisi import blas_threads
+
         screen = self.app.primaryScreen()
         geometry = screen.availableGeometry() if screen else QRect()
         lines = [f"Trama Qt smoke · PySide6 {PYSIDE_VERSION} · platform {self.app.platformName()}",
                  f"Screen {screen.name() if screen else '?'}: available {geometry.width()}×{geometry.height()}, "
                  f"device pixel ratio {screen.devicePixelRatio() if screen else '?'}, "
                  f"logical DPI {screen.logicalDotsPerInch() if screen else '?'}",
+                 f"BLAS configured before NumPy: {blas_threads.BEFORE_NUMPY}",
                  f"Screenshots: {self.shots}", ""]
         lines += self.problems or ["No problems found."]
         if self.notes:
