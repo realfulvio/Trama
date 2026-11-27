@@ -13,10 +13,17 @@ from .strings import qt
 from .text_format import ICONS as TEXT_ICONS, MENU as TEXT_MENU, ToolbarTextControls
 
 
+FILLED_SELECTION_COMMANDS = {
+    "select_filled_down": ("Ctrl+Shift+Down", 1, 0),
+    "select_filled_up": ("Ctrl+Shift+Up", -1, 0),
+    "select_filled_right": ("Ctrl+Shift+Right", 0, 1),
+    "select_filled_left": ("Ctrl+Shift+Left", 0, -1),
+}
 SELECTION_COMMANDS = {
     "select_sheet_cells": "Ctrl+A",
     "select_data_column": "Ctrl+Space",
     "select_data_row": "Shift+Space",
+    **{key: shortcut for key, (shortcut, _, _) in FILLED_SELECTION_COMMANDS.items()},
 }
 
 
@@ -130,6 +137,8 @@ def build_menus(window):
                 if selection_menu is None:
                     selection_menu = menu.addMenu(qt("qt.select_cells"))
                     window.cell_selection_menu = selection_menu
+                if key == "select_filled_down":
+                    selection_menu.addSeparator()
                 selection_menu.addAction(window.actions[key])
             elif key == "|":
                 menu.addSeparator()

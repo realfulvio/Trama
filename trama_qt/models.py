@@ -30,6 +30,19 @@ def display(value):
     return str(value)
 
 
+def last_filled(values, origin, step):
+    """Find the last occupied cell before a gap, using ordinary values rather than formatted text."""
+    if not 0 <= origin < len(values):
+        return origin
+    walk = values[origin::step]
+    missing = pd.isna(walk)
+    if walk.dtype.kind in "OSU":
+        missing |= np.fromiter((isinstance(value, str) and value == "" for value in walk),
+                               dtype=bool, count=len(walk))
+    count = int(missing.argmax()) if missing.any() else len(walk)
+    return origin + max(0, count - 1) * step
+
+
 def _numeric(series):
     return pd.api.types.is_numeric_dtype(series.dtype) and not pd.api.types.is_bool_dtype(series.dtype)
 

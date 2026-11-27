@@ -92,11 +92,12 @@ class WorksheetKeyboard(unittest.TestCase):
                 self.assertEqual(self.position(), destination)
 
     def test_select_menu_order_and_full_series_by_keyboard(self):
+        from trama_qt.classic_bar import SELECTION_COMMANDS
         from trama_qt.strings import qt
         edit = self.window.command_menus["Edit"]
         menu, = [action.menu() for action in edit.actions() if action.text() == qt("qt.select_cells")]
-        self.assertEqual(menu.actions(), [self.window.actions[key] for key in
-                                         ("select_sheet_cells", "select_data_column", "select_data_row")])
+        self.assertEqual([action for action in menu.actions() if not action.isSeparator()],
+                         [self.window.actions[key] for key in SELECTION_COMMANDS])
         self.locate(1, 2)
         last_row, last_col = self.view.model().rowCount() - 1, self.view.model().columnCount() - 1
         self.click_key(Qt.Key.Key_Space, Qt.KeyboardModifier.ControlModifier)
@@ -131,6 +132,68 @@ class WorksheetKeyboard(unittest.TestCase):
         self.assertEqual(editor.selectedText(), editor.text())
         self.assertEqual(self.view.box(), (1, 1, 1, 1))
         self.click_key(Qt.Key.Key_Escape, target=editor)
+
+    def test_extend_to_the_first_gap_in_each_direction(self):
+        title, = self.window.project.add_tables({"Gaps": pd.DataFrame({
+            "A": pd.Series([2, 0, 3, pd.NA, 10], dtype="Int64"),
+            "B": [False, True, None, False, "text"],
+            "C": ["", "middle", "value", "", "after gap"],
+            "D": [6., 7., 8., 9., 10.],
+        })})
+        self.window.show_sheet("data", title)
+        self.view = self.window.sheet
+        self.app.processEvents()
+        ctrl_shift = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+        self.locate(0, 0)
+        self.click_key(Qt.Key.Key_Right, ctrl_shift)
+        self.assertEqual(self.view.box(), (0, 0, 0, 1))  # False is a value.
+        self.click_key(Qt.Key.Key_Down, ctrl_shift)
+        self.assertEqual(self.view.box(), (0, 0, 2, 1))  # Zero is a value.
+        self.click_key(Qt.Key.Key_Down, ctrl_shift)
+        self.assertEqual(self.view.box(), (0, 0, 2, 1))  # The second block is beyond a gap.
+        self.assertEqual(self.position(), (0, 0))
+        self.locate(2, 3)
+        self.click_key(Qt.Key.Key_Left, ctrl_shift)
+        self.assertEqual(self.view.box(), (2, 2, 2, 3))
+        self.locate(4, 3)
+        self.click_key(Qt.Key.Key_Up, ctrl_shift)
+        self.assertEqual(self.view.box(), (0, 3, 4, 3))
+        self.locate(0, 2)
+        self.click_key(Qt.Key.Key_Right, ctrl_shift)
+        self.assertEqual(self.view.box(), (0, 2, 0, 2))
+        self.locate(5, 3)
+        self.click_key(Qt.Key.Key_Up, ctrl_shift)
+        self.assertEqual(self.view.box(), (5, 3, 5, 3))  # The virtual grid has no stored value.
+
+    def test_extend_shortcut_selects_text_when_editing_a_cell(self):
+        self.locate(0, 1)
+        self.click_key(Qt.Key.Key_F2)
+        editor = self.view.findChild(QLineEdit, "worksheetEditor")
+        editor.setText("two words")
+        editor.setCursorPosition(0)
+        ctrl_shift = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+        self.click_key(Qt.Key.Key_Right, ctrl_shift, editor)
+        self.assertTrue(editor.selectedText())
+        self.assertEqual(self.view.box(), (0, 1, 0, 1))
+        self.click_key(Qt.Key.Key_Escape, target=editor)
+
+    def test_fill_selection_in_results_can_include_the_row_label(self):
+        from analisi.reporting import Result
+        from trama_qt.project import Run
+        from trama_qt.sheet import selection_box
+
+        values = pd.DataFrame({"n": [2, 0, pd.NA, 10], "Note": ["first", "second", "", "after"]},
+                              index=["A", "B", "C", "D"])
+        self.window.project.runs.append(Run("Descriptive statistics", "Measurements", {}, Result({"Result": values})))
+        self.window.show_sheet("result", 0)
+        self.app.processEvents()
+        self.view = self.window.result_tabs.currentWidget()
+        ctrl_shift = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+        self.locate(0, 1)
+        self.click_key(Qt.Key.Key_Down, ctrl_shift)
+        self.assertEqual(selection_box(self.view), (0, 1, 1, 1))
+        self.click_key(Qt.Key.Key_Left, ctrl_shift)
+        self.assertEqual(selection_box(self.view), (0, 0, 1, 1))
 
     def test_italian_heading_and_tooltip_identify_the_same_replicate(self):
         from analisi.i18n import set_language

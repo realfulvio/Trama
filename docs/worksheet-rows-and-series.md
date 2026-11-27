@@ -8,6 +8,10 @@ In an XY sheet, **A:Y2** identifies the second replicate of series A. Press **En
 
 Click the group heading to select all its subcolumns, or click **A:Y2** to select just that replicate. Under **Edit → Select** (*Modifica → Seleziona*), **Column** selects the entire series (**Ctrl+Space**), **Row** selects the current row (**Shift+Space**) and **All** selects the whole sheet (**Ctrl+A**). Inside a cell editor, Ctrl+A selects its text.
 
+On a worksheet or result table, **Ctrl+Shift+arrow** extends the selection along the active row or column up to the last filled cell before a gap. You can extend a rectangle in another direction and keep the original active cell. Zero and False count as data. The same commands are available under **Edit → Select**.
+
+Nei fogli dati e dei risultati, **Ctrl+Maiusc+freccia** estende la selezione lungo la riga o la colonna attiva fino all’ultima cella piena prima di un vuoto. Puoi poi estendere il rettangolo in un’altra direzione. La cella attiva resta la stessa. Zero e Falso contano come dati. I comandi sono anche in **Modifica → Seleziona**.
+
 ## Column and replicate titles
 
 Choose **Change → Format data table…** (*Cambia → Formato tabella dati…*) to edit the headings of the current worksheet. The **Table format** tab previews the first rows and controls the display of row titles and automatic column widths. The next two tabs edit series titles and replicate titles. Double-click a series or a replicate heading to open its tab directly.

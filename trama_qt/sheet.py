@@ -1,4 +1,5 @@
 """Table views: the editable worksheet and the read-only result tables."""
+import numpy as np
 from PySide6.QtCore import QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QRect, QThread, Qt
 from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics, QGuiApplication, QKeySequence, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QApplication, QDialog, QDialogButtonBox,
@@ -10,8 +11,8 @@ from analisi.i18n import tr, ui
 from analisi.worksheet_appearance import MAX_ROW_HEIGHT, MIN_ROW_HEIGHT
 
 from . import theme
-from .classic_bar import SELECTION_COMMANDS
-from .models import FrameModel, display
+from .classic_bar import FILLED_SELECTION_COMMANDS, SELECTION_COMMANDS
+from .models import FrameModel, display, last_filled
 from .strings import qt
 from .text_format import GRID_MENU
 
@@ -118,6 +119,55 @@ def select_grid_cells(view, command, section=None):
                               current_row=max(0, current.row()), current_col=column)
         else:
             view.selectColumn(column)
+    elif current.isValid() and command in FILLED_SELECTION_COMMANDS:
+        _, row_step, column_step = FILLED_SELECTION_COMMANDS[command]
+        extend_filled_selection(view, current, row_step, column_step)
+
+
+def extend_filled_selection(view, current, row_step, column_step):
+    """Extend from the selected edge along the active row or column, up to the first gap."""
+    if view.state() == QAbstractItemView.State.EditingState:
+        return
+    model = view.model()
+    frame = model.frame
+    row, column = current.row(), current.column()
+    top, left, bottom, right = selection_box(view)
+    row_labels = isinstance(model, FrameModel)
+    first_data_column = int(row_labels)
+    if not (row < len(frame) and column < len(frame.columns) + first_data_column):
+        return
+    if row_step:
+        start = bottom if row_step > 0 else top
+        values = (frame.index.to_numpy(copy=False) if column < first_data_column
+                  else frame.iloc[:, column - first_data_column].to_numpy(copy=False))
+        end = last_filled(values, start, row_step)
+        if end == start:
+            return
+        top, bottom = min(top, end), max(bottom, end)
+        target = model.index(end, column)
+    else:
+        start = right if column_step > 0 else left
+        values = frame.iloc[row].to_numpy(dtype=object, copy=False)
+        if row_labels:
+            indexed = np.empty(len(values) + 1, dtype=object)
+            indexed[0], indexed[1:] = frame.index[row], values
+            values = indexed
+        if not 0 <= start < len(values):
+            return
+        if view.horizontalHeader().hiddenSectionCount():
+            visible = [index for index in range(len(values)) if not view.isColumnHidden(index)]
+            if start not in visible:
+                return
+            end = visible[last_filled(values[visible], visible.index(start), column_step)]
+        else:
+            end = last_filled(values, start, column_step)
+        if end == start:
+            return
+        left, right = min(left, end), max(right, end)
+        target = model.index(row, end)
+    selection = QItemSelection(model.index(top, left), model.index(bottom, right))
+    view.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+    view.scrollTo(target)
 
 
 class WorksheetHeading(QHeaderView):
