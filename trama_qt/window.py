@@ -649,9 +649,10 @@ class MainWindow(QMainWindow):
         for key, label, kind, icon in (("family_data", "source_table", "data", "table"),
                                         ("family_info", "linked_info", "info", "info"),
                                         ("family_results", "family_results", "result", "sigma"),
-                                        ("family_graphs", "graphs", "graph", "chart-line"),
-                                        ("family_gallery", "family_gallery", None, "gallery-thumbnails")):
+                                        ("family_graphs", "graphs", "graph", "chart-line")):
             a(key, tr(f"command.{label}"), lambda kind=kind: self.browse_family(kind), icon=icon)
+        a("family_gallery", qt("qt.family_linked_sheets"), self.browse_family, icon="gallery-thumbnails",
+          shortcut="Ctrl+Alt+J", tip=qt("qt.family_linked_sheets_tip"))
         a("duplicate_family", ui("Duplicate family…"), self.duplicate_family, icon="copy")
         a("save_family", ui("Save family as…"), self.save_family_as, icon="save")
         a("insert_row", qt("qt.insert_row"), self.insert_row, icon="rows-3")
@@ -894,8 +895,9 @@ class MainWindow(QMainWindow):
             status.addWidget(button)
         status.addWidget(self._status_divider())
         status.addWidget(self.sheet_picker)
-        family = QToolButton()
+        family = self.family_button = QToolButton()
         family.setProperty("statusTool", True)
+        family.setObjectName("statusLinkedSheets")
         family.setDefaultAction(self.actions["family_gallery"])
         family.setIcon(theme.classic_icon("link"))
         family.setAccessibleName(family.defaultAction().text())
@@ -1522,6 +1524,9 @@ class MainWindow(QMainWindow):
             wide = self.width() >= 980 and button.isChecked()
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon if wide else
                                       Qt.ToolButtonStyle.ToolButtonIconOnly)
+        if hasattr(self, "family_button"):
+            self.family_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon if self.width() >= 1180
+                                                  else Qt.ToolButtonStyle.ToolButtonIconOnly)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -4720,7 +4725,8 @@ class MainWindow(QMainWindow):
 
         dialog = FamilySheetsDialog(self, captions, refs, current=self.selected)
         try:
-            if dialog.exec() and dialog.selected is not None:
+            if (dialog.exec() and dialog.selected is not None
+                    and self.project is project and self._has_sheet(dialog.selected)):
                 self.open_sheet(dialog.selected)
         finally:
             dialog.deleteLater()

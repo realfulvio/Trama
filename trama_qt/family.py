@@ -5,12 +5,16 @@ for the name and shows the preview, as the classic dialog does (``analisi.family
 """
 from html import escape
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QLabel, QLineEdit, QListWidget,
                                QListWidgetItem, QTextBrowser, QVBoxLayout)
 
 from analisi.family_workflow import FamilyBlanks, FamilyError, display_name, export_plan, family_graph, plan_family, preview_family
 from analisi.i18n import tr
+
+from .strings import qt
+from .theme import fit_dialog
 
 LISTED = 12  # Names shown per section of the preview; the rest is counted.
 
@@ -255,10 +259,16 @@ class FamilySheetsDialog(QDialog):
 
     def __init__(self, parent, captions, refs, *, current):
         super().__init__(parent)
-        self.setWindowTitle(tr("command.family_gallery"))
-        self.resize(470, 330)
+        self.setWindowTitle(qt("qt.family_linked_sheets"))
         self.selected = None
         layout = QVBoxLayout(self)
+        self.search = QLineEdit()
+        self.search.setAccessibleName(qt("qt.family_sheet_search"))
+        self.search.setPlaceholderText(qt("qt.family_sheet_search"))
+        self.search.setClearButtonEnabled(True)
+        self.search.installEventFilter(self)
+        self.search.textChanged.connect(self._filter)
+        layout.addWidget(self.search)
         self.entries = QListWidget(self)
         self.entries.setAccessibleName(tr("bar.linked_sheets"))
         for caption, ref in zip(captions, refs, strict=True):
@@ -271,16 +281,56 @@ class FamilySheetsDialog(QDialog):
             self.entries.setCurrentRow(0)
         self.entries.itemActivated.connect(lambda item: self.accept())
         layout.addWidget(self.entries)
+        self.empty = QLabel(qt("qt.family_sheet_no_match"))
+        self.empty.setObjectName("muted")
+        self.empty.setWordWrap(True)
+        self.empty.hide()
+        layout.addWidget(self.empty)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Open | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("setup.cancel"))
-        buttons.button(QDialogButtonBox.StandardButton.Open).setText(tr("ribbon.open"))
+        self.open_button = buttons.button(QDialogButtonBox.StandardButton.Open)
+        self.open_button.setText(tr("ribbon.open"))
+        self.open_button.setDefault(True)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
-        self.entries.setFocus()
+        self.search.setFocus()
+        fit_dialog(self, 470, 360)
+        if hasattr(parent, "show_shortcuts"):
+            QShortcut(QKeySequence("F1"), self, parent.show_shortcuts)
+
+    def _shown(self):
+        return [self.entries.item(index) for index in range(self.entries.count())
+                if not self.entries.item(index).isHidden()]
+
+    def _filter(self, text):
+        needle = text.strip().casefold()
+        for index in range(self.entries.count()):
+            item = self.entries.item(index)
+            item.setHidden(needle not in item.text().casefold())
+        visible = self._shown()
+        if self.entries.currentItem() not in visible:
+            self.entries.setCurrentRow(self.entries.row(visible[0]) if visible else -1)
+        self.open_button.setEnabled(bool(visible))
+        self.empty.setVisible(not visible)
+
+    def eventFilter(self, watched, event):
+        if (watched is self.search and event.type() == QEvent.Type.KeyPress
+                and event.modifiers() == Qt.KeyboardModifier.NoModifier
+                and event.key() in (Qt.Key.Key_Down, Qt.Key.Key_Up)):
+            visible = self._shown()
+            if visible:
+                previous = self.entries.currentItem()
+                position = visible.index(previous) if previous in visible else 0
+                step = 1 if event.key() == Qt.Key.Key_Down else -1
+                item = visible[max(0, min(len(visible) - 1, position + step))]
+                self.entries.setCurrentItem(item)
+                self.entries.scrollToItem(item)
+            return True
+        return super().eventFilter(watched, event)
 
     def accept(self):
         item = self.entries.currentItem()
-        if item is not None:
+        if item is not None and not item.isHidden():
             self.selected = tuple(item.data(Qt.ItemDataRole.UserRole))
             super().accept()

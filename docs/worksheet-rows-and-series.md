@@ -26,6 +26,10 @@ In an existing native XY table with an equal number of replicates in each series
 
 The bottom bar identifies the current sheet. On a worksheet it also shows the current row, series and replicate. In a results sheet its selector switches between output tables. Use the zoom control at the right to enlarge a worksheet, graph or layout. Click the percentage to return to 100%.
 
+**Linked sheets…** in the bottom bar or **Ctrl+Alt+J** opens the current family. Type part of a sheet name to filter the list, use the arrows to choose and press **Enter** to open it. The same command is under **Family**.
+
+**Fogli collegati…** nella barra in basso o **Ctrl+Alt+J** apre la famiglia del foglio corrente. Digita parte di un nome per filtrare, scegli con le frecce e premi **Invio**. Il comando è anche nel menu **Famiglia**.
+
 [Worksheet with an active replicate on Windows](media/worksheet-titles/worksheet-it.png) · [Editing the replicate titles](media/worksheet-titles/replicate-titles-en.png)
 
 ### Horizontal error bars
