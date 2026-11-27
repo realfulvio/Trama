@@ -7,8 +7,8 @@ import pandas as pd
 from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtTest import QTest
 
-from analisi.category_graphs import (BAR_BASELINE, BAR_DIRECTION, BARS, GROUPED_BAR_SPACING, GROUPED_GRAPH,
-                                     HORIZONTAL_BARS, grouped_graph_metadata)
+from analisi.category_graphs import (BAR_BASELINE, BAR_DIRECTION, BARS, DISTANCES, GROUPED_BAR_SPACING, GROUPED_GRAPH,
+                                     HORIZONTAL_BARS, SUMMARIES, grouped_graph_metadata)
 from analisi.data import GROUPED_BAR_BASELINE_VERSION, GROUPED_BAR_SPACING_VERSION
 from analisi.figure_export import export_figure
 from analisi.presentation import Layout
@@ -202,3 +202,27 @@ def check_grouped_bar_spacing(smoke, window):
     window.project.export_layout(window.project.layouts[0], layout, {"format": "svg", "svg_text": "text"})
     contents = layout.read_text(encoding="utf-8")
     assert "Response" in contents and "<image" not in contents
+
+    window.close_project()
+    partial = smoke.folder / "asymmetric"
+    partial.mkdir(exist_ok=True)
+    source = partial / "groups.csv"
+    pd.DataFrame({
+        "Visit": ["Lower", "Upper", "Both", "Neither"], "A [Mean]": [5., 8., 10., 11.],
+        "A [Minus]": [3., np.nan, 2., np.nan], "A [Plus]": [np.nan, 3., 1., np.nan],
+    }).to_csv(source, index=False)
+    window.open_path(source)
+    index = smoke.calculate(GROUPED_GRAPH, {
+        "Variables": ["A [Mean]", "A [Minus]", "A [Plus]"], "Row titles": "Visit",
+        "Input": SUMMARIES, "Graph style": BARS, "Summary error": DISTANCES,
+    })
+    window.open_sheet(("graph", index))
+    run = window.project.runs[index]
+    meta = grouped_graph_metadata(run.result.figure.axes[0])
+    error = meta["handles"]["A"]._tramastat_grouped_series["errorbar"]
+    np.testing.assert_array_equal([segment[:, 1] for segment in error.lines[2][0].get_segments()],
+                                  [[2., 5.], [8., 11.], [8., 11.]])
+    table = run.result.tables["Graph data"]
+    np.testing.assert_array_equal(table["Lower"], [2., np.nan, 8., np.nan])
+    np.testing.assert_array_equal(table["Upper"], [np.nan, 11., 11., np.nan])
+    smoke.shot(window, "grouped-partial-intervals")

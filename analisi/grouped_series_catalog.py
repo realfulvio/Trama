@@ -104,6 +104,10 @@ MESSAGES = {
     "grouped.interval.caps_error": (
         "Enter a cap length between 0 and 72 points.", "Inserisci una lunghezza dei cappucci da 0 a 72 punti.",
     ),
+    "grouped.interval.crossed_limit": (
+        "The supplied limit is on the wrong side of the estimate.",
+        "Il limite indicato è dalla parte opposta alla stima.",
+    ),
     "grouped.series.interval_hint": (
         "Show both ends of the interval, just the upper end or just the lower end for this series.",
         "Mostra entrambe le estremità dell’intervallo, solo quella superiore o solo quella inferiore per questa serie.",
@@ -160,6 +164,7 @@ MESSAGES = {
 }
 
 _ENGLISH_TO_KEY = {
+    "The supplied limit is on the wrong side of the estimate.": "grouped.interval.crossed_limit",
     "A custom baseline requires a grouped bar graph without stacks.": "grouped.bars.baseline_graph",
     "Enter a finite starting value for the bars.": "grouped.bars.baseline_value",
     "The distance from the bar baseline exceeds the numeric range.": "grouped.bars.baseline_range",

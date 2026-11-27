@@ -319,6 +319,7 @@ def _summary_values(frame, series, labels, error):
     counts = column("n") if "n" in series.fields else np.full(len(frame), np.nan)
     lower = upper = np.full(len(frame), np.nan)
     inputs = [center]
+    bound_inputs = None
     with np.errstate(over="ignore", invalid="ignore"):
         if error == "SD" or (error == "SEM" and "sem" in series.fields):
             margin = nonnegative("sd" if error == "SD" else "sem")
@@ -336,11 +337,11 @@ def _summary_values(frame, series, labels, error):
             lower, upper = center - margin, center + margin
         elif error == DISTANCES:
             minus, plus = nonnegative("minus"), nonnegative("plus")
-            inputs.extend((minus, plus))
+            bound_inputs = minus, plus
             lower, upper = center - minus, center + plus
         elif error == LIMITS:
             lower, upper = column("lower"), column("upper")
-            inputs.extend((lower, upper))
+            bound_inputs = lower, upper
             contains = (lower <= center) & (center <= upper)
             ordered = lower <= upper
             invalid = np.flatnonzero(np.isfinite(lower) & np.isfinite(upper)
@@ -351,15 +352,25 @@ def _summary_values(frame, series, labels, error):
                                               f'{upper[row]:g} must contain the estimate {center[row]:g}.'
                                  if np.isfinite(center[row]) else
                                  f'{_row_title(labels, row)}, {series.title}: the lower limit must not exceed the upper limit.')
-    complete = np.logical_and.reduce([np.isfinite(values) for values in inputs])
+            for role, crossed, other in (("lower", lower > center, upper), ("upper", upper < center, lower)):
+                if np.any(crossed & ~np.isfinite(other)):
+                    error = FieldError("Variables", "The supplied limit is on the wrong side of the estimate.")
+                    error.column = series.fields[role]
+                    raise error
+    if bound_inputs is None:
+        lower_available = upper_available = np.logical_and.reduce([np.isfinite(values) for values in inputs])
+    else:
+        estimates = np.isfinite(center)
+        lower_available, upper_available = (estimates & np.isfinite(values) for values in bound_inputs)
     with np.errstate(over="ignore", invalid="ignore"):
-        invalid = np.flatnonzero(complete & ~np.isfinite(upper - lower))
+        low = np.where(lower_available, lower, center)
+        high = np.where(upper_available, upper, center)
+        invalid = np.flatnonzero((lower_available | upper_available) & ~np.isfinite(high - low))
     if error != "None" and len(invalid):
         row = invalid[0]
         raise FieldError("Variables", f"{_row_title(labels, row)}, {series.title}: the interval exceeds the numeric range for this graph.")
-    # A missing error value, or one half of an asymmetric pair, leaves the estimate without whiskers.
-    lower = np.where(complete, lower, np.nan)
-    upper = np.where(complete, upper, np.nan)
+    lower = np.where(lower_available, lower, np.nan)
+    upper = np.where(upper_available, upper, np.nan)
     return center, lower, upper, counts
 
 
@@ -689,6 +700,30 @@ def _draw_bars(axes, categories, heights, width, baseline, horizontal, **style):
     return axes.bar(categories, heights, width, bottom=baseline, **style)
 
 
+def _draw_intervals(axes, categories, center, lower, upper, color, direction, horizontal):
+    has_lower, has_upper = np.isfinite(lower), np.isfinite(upper)
+    show_lower = has_lower & (direction != UPPER_INTERVAL)
+    show_upper = has_upper & (direction != LOWER_INTERVAL)
+    plotted = show_lower | show_upper
+    if not plotted.any():
+        return None
+
+    both = has_lower & has_upper
+    # A mean can fall outside an interquartile interval. Keep the shown portion within the original endpoints.
+    anchor = np.where(both, np.clip(center, lower, upper), center)
+    start = np.where(show_lower, lower, anchor)[plotted]
+    end = np.where(show_upper, upper, anchor)[plotted]
+    midpoint = start + (end - start) / 2
+    locations = categories[plotted]
+    x, y = (midpoint, locations) if horizontal else (locations, midpoint)
+    errors = {"xerr" if horizontal else "yerr": [midpoint - start, end - midpoint]}
+    artist = axes.errorbar(x, y, **errors, fmt="none", ecolor=color, capsize=4, elinewidth=1.3, zorder=3)
+    for cap, shown in zip(artist.lines[1], (show_lower[plotted], show_upper[plotted]), strict=True):
+        if not shown.all():
+            cap.set_data(np.asarray(cap.get_xdata())[shown], np.asarray(cap.get_ydata())[shown])
+    return artist
+
+
 def _draw_series(axes, series, summaries, style, width, show_points, placement, rng, *,
                  grouped_track=False, bottom=None, interval_direction=BOTH_INTERVALS, horizontal=False,
                  bar_baseline=0.):
@@ -710,10 +745,11 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
                              color=to_rgba(color, .76), edgecolor=color, linewidth=1.15, label=series.name, zorder=2.5)
         if bottom is not None:
             show_points = False
+            finite_lower, finite_upper = np.isfinite(lower), np.isfinite(upper)
             with np.errstate(over="ignore", invalid="ignore"):
                 lower, upper = lower + bottom, upper + bottom
                 center = center + bottom
-            if np.any(interval & ~(np.isfinite(lower) & np.isfinite(upper))):
+            if np.any(finite_lower & ~np.isfinite(lower)) or np.any(finite_upper & ~np.isfinite(upper)):
                 raise FieldError("Variables", "The stacked totals exceed the numeric range for this graph.")
             for patch, value in zip(primary.patches, center[observed], strict=True):
                 if value == 0:
@@ -730,20 +766,8 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
     elif style == LINE_SYMBOLS:
         primary, = axes.plot(*coordinates(x, center), linestyle="-", linewidth=1.8, marker="o", markersize=6.5, color=color,
                              markerfacecolor=color, markeredgecolor=color, label=series.name, zorder=4)
-    if style not in {RANGE, PAIRED} and interval.any():
-        # Intervals may be asymmetric, and a mean need not lie inside the IQR.
-        bottom, top = lower[interval], upper[interval]
-        if interval_direction == UPPER_INTERVAL:
-            bottom = np.clip(center[interval], bottom, top)
-        elif interval_direction == LOWER_INTERVAL:
-            top = np.clip(center[interval], bottom, top)
-        middle = bottom + (top - bottom) / 2
-        error = {"xerr" if horizontal else "yerr": [middle - bottom, top - middle]}
-        err = axes.errorbar(*coordinates(x[interval], middle), **error, fmt="none",
-                            ecolor=color, capsize=4, elinewidth=1.3, zorder=3)
-        if interval_direction != BOTH_INTERVALS:
-            invisible_cap = 0 if interval_direction == UPPER_INTERVAL else 1
-            err.lines[1][invisible_cap].set_data([], [])
+    if style not in {RANGE, PAIRED}:
+        err = _draw_intervals(axes, x, center, lower, upper, color, interval_direction, horizontal)
     if show_points:
         points = [(location + _spread(values, placement, width, rng), values)
                   for location, values in zip(x, series.values, strict=True) if len(values)]
