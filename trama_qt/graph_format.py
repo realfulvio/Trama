@@ -20,12 +20,13 @@ from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
 from analisi.category_graphs import (AS_GRAPH, BAR_BASELINE, BAR_DIRECTION, BAR_DIRECTIONS,
                                      BAR_SPACING_DEFAULTS, BAR_SPACING_MAXIMUMS, BOTH_INTERVALS,
                                      GROUPED_BAR_SPACING, GROUPED_SERIES_COMPATIBLE_STYLES, HORIZONTAL_BARS,
-                                     INTERVAL_DIRECTIONS, VERTICAL_BARS,
+                                     INTERVAL_DIRECTIONS, LEFT_SIDE, RIGHT_AXIS_FIELDS, RIGHT_SIDE,
+                                     SERIES_SIDE, SERIES_SIDES, VERTICAL_BARS,
                                      LOWER_INTERVAL, RELATIVE_PLACEMENTS, SERIES_DRAW_STYLES, SERIES_INTERVAL_DIRECTION,
                                      SERIES_PLACEMENT, SERIES_STYLE, STACK_PREVIOUS, UPPER_INTERVAL,
                                      STACKED_PLACEMENTS, BARS as GROUPED_BARS,
                                      LINE_SYMBOLS as GROUPED_LINE_SYMBOLS, SYMBOLS as GROUPED_SYMBOLS,
-                                     category_graph, grouped_series_names, prune_series_styles, series_interval_directions,
+                                     category_graph, grouped_right_series, grouped_series_names, prune_series_styles, series_interval_directions,
                                      series_placements, transpose_grouped_bar_style)
 from analisi.field_error import FieldError
 from analisi.graph_annotations import ANNOTATIONS
@@ -36,7 +37,7 @@ from analisi.graph_shapes import SHAPES
 from analisi.observation_labels import LABELS
 from analisi.point_style import POINTS
 from analisi.hierarchical_style import describe_hierarchical_artists
-from analisi.linked_axes import LINKED_AXES, linked_axes_reasons
+from analisi.linked_axes import LINKED_AXES, P_RIGHT, linked_axes_reasons
 from analisi.i18n import active_language, tr, translate_message
 from analisi.presentation import (FONT_FAMILIES, GROUPED_PREFIX, INTERVAL_STYLE_FIELDS, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
                                   active_series_fields, apply_style, axis_has_numeric_ticks, graph_series,
@@ -196,6 +197,8 @@ class GraphFormatDialog(QDialog):
         self.grouped_style_map = dict(grouped_options.get(SERIES_STYLE) or {})
         self.grouped_placement_map = dict(grouped_options.get(SERIES_PLACEMENT) or {})
         self.grouped_interval_map = dict(grouped_options.get(SERIES_INTERVAL_DIRECTION) or {})
+        self.grouped_right_names = grouped_right_series(grouped_options)
+        self._grouped_right_supported = self._grouped_editable and grouped_options.get(BAR_DIRECTION) != HORIZONTAL_BARS
         self._grouped_has_intervals = any(
             grouped_options.get(key) not in (None, "None") for key in ("Interval", "Summary error")
         )
@@ -387,23 +390,31 @@ class GraphFormatDialog(QDialog):
         hint.setObjectName("muted")
         hint.setWordWrap(True)
         layout.addWidget(hint)
-        self.right = None
-        if self.xy is not None:
-            options = self.xy.get("options") or {}
+        self.right = self.right_box = None
+        if self.xy is not None or self._grouped_right_supported:
+            options = (self.xy or self.grouped).get("options") or {}
             twin = right_y_axes(self.axes)
-            box = QGroupBox(tr("graph.axis.right"))
+            box = self.right_box = QGroupBox(tr("graph.axis.right"))
             form = QFormLayout(box)
             form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
             self.right = {
-                "title": QLineEdit(options.get("Right title") or (twin.get_ylabel() if twin else "")),
-                "scale": Choice(XY_SCALES, RIGHT_SCALE_LABELS, options.get("Right scale") or "Linear"),
+                "title": QLineEdit(options.get("Right title") or (twin.get_ylabel() if self.xy is not None and twin else "")),
                 "min": QLineEdit("" if options.get("Right minimum") in (None, "") else str(options["Right minimum"])),
                 "max": QLineEdit("" if options.get("Right maximum") in (None, "") else str(options["Right maximum"])),
             }
+            if self.xy is not None:
+                self.right["scale"] = Choice(XY_SCALES, RIGHT_SCALE_LABELS, options.get("Right scale") or "Linear")
+            elif twin is not None:
+                self.right["title"].setPlaceholderText(twin.get_ylabel())
             for key, caption in (("title", "graph.axis.right_title"), ("scale", "graph.axis.scale"),
                                  ("min", "graph.axis.min"), ("max", "graph.axis.max")):
+                if key not in self.right:
+                    continue
                 self.right[key].setAccessibleName(f"{box.title()}: {tr(caption)}")
                 form.addRow(tr(caption), self.right[key])
+                if self.xy is None:
+                    self.right[key].editingFinished.connect(self._update_grouped_preview)
+            box.setEnabled(self.xy is not None or bool(self.grouped_right_names))
             layout.addWidget(box)
         self.breaks_summary = None
         self.breaks_button = None
@@ -455,6 +466,8 @@ class GraphFormatDialog(QDialog):
             self._store_series()
             columns = self.xy["options"].get("Y columns") or ()
             right = any(self.xy_side.get(column) == "Right" for column in columns)
+        elif self._grouped_right_supported:
+            right = bool(self.grouped_right_names)
         return available_conflicts(self.axes, scales=self._scale_values(), breaks=bool(self.axis_breaks),
                                    right=right)
 
@@ -574,6 +587,7 @@ class GraphFormatDialog(QDialog):
         self.draw = self.side = self.bar_width = None
         self.grouped_draw = self.grouped_place = self.grouped_note = self.preview_canvas = None
         self.grouped_interval = None
+        self.grouped_side = None
         if self.xy is not None or self._grouped_present:
             visible_box = QCheckBox(tr("graph.series.visible"))
             visible_box.setObjectName("seriesVisible")
@@ -613,11 +627,22 @@ class GraphFormatDialog(QDialog):
                 QWidget.setTabOrder(self.grouped_draw, self.grouped_place)
                 QWidget.setTabOrder(self.grouped_place, self.grouped_interval)
                 QWidget.setTabOrder(self.grouped_interval, self.series_fields["label"])
+            if self._grouped_right_supported:
+                self.grouped_side = Choice(SERIES_SIDES, SIDE_LABELS)
+                self.grouped_side.setObjectName("groupedSeriesValueAxis")
+                caption = tr("grouped.series.axis")
+                self.grouped_side.setAccessibleName(caption)
+                self.grouped_side.setToolTip(tr("grouped.series.axis_hint"))
+                self.grouped_side.currentIndexChanged.connect(self._change_grouped_side)
+                form.insertRow(4, caption, self.grouped_side)
+                QWidget.setTabOrder(self.grouped_interval, self.grouped_side)
+                QWidget.setTabOrder(self.grouped_side, self.series_fields["label"])
             self.grouped_note = QLabel()
             self.grouped_note.setObjectName("infoBanner")
             self.grouped_note.setWordWrap(True)
             self.grouped_note.setVisible(False)
-            form.insertRow(4 if self.grouped_interval is not None else 2, self.grouped_note)
+            note_row = 5 if self.grouped_side is not None else 4 if self.grouped_interval is not None else 2
+            form.insertRow(note_row, self.grouped_note)
         self.series_hint = QLabel(tr("graph.series.hint" if self.series else "graph.series.none"))
         self.series_hint.setObjectName("muted")
         self.series_hint.setWordWrap(True)
@@ -756,6 +781,19 @@ class GraphFormatDialog(QDialog):
             self.grouped_interval_map[name] = direction
         self._update_grouped_preview()
 
+    def _change_grouped_side(self):
+        if not self.grouped_side.isEnabled() or self.series_index < 0:
+            return
+        name = self.series[self.series_index].name
+        if self.grouped_side.value() == RIGHT_SIDE:
+            self.grouped_right_names.add(name)
+        else:
+            self.grouped_right_names.discard(name)
+        self.right_box.setEnabled(bool(self.grouped_right_names))
+        if hasattr(self, "linked_summary"):
+            self._linked_states()
+        self._update_grouped_preview()
+
     def _has_bars(self):
         styles = dict(self.xy_style)
         if self.draw is not None and 0 <= self.series_index < len(self.series):
@@ -855,6 +893,12 @@ class GraphFormatDialog(QDialog):
                     "grouped.series.interval_hint" if self._grouped_has_intervals else "grouped.series.interval_inactive"
                 ))
                 self.grouped_interval.blockSignals(False)
+            if self.grouped_side is not None:
+                self.grouped_side.blockSignals(True)
+                self.grouped_side.setEnabled(can_edit)
+                choice = RIGHT_SIDE if is_grouped and series.name in self.grouped_right_names else LEFT_SIDE
+                self.grouped_side.set(choice)
+                self.grouped_side.blockSignals(False)
         self._series_states()
 
     def _series_states(self, *_):
@@ -1040,12 +1084,23 @@ class GraphFormatDialog(QDialog):
                 options.pop(BAR_WIDTH, None)
             else:
                 options[BAR_WIDTH] = width
+        self._right_options(options)
+        y_axis = style.get("axis", {}).get("y", {})
+        if "min" in y_axis and "max" in y_axis:
+            options["Y minimum"], options["Y maximum"] = y_axis["min"], y_axis["max"]
+        else:
+            options.pop("Y minimum", None)
+            options.pop("Y maximum", None)
+        return options
+
+    def _right_options(self, options):
         title = self.right["title"].text().strip()
         if title:
             options["Right title"] = title
         else:
             options.pop("Right title", None)
-        options["Right scale"] = self.right["scale"].value() or "Linear"
+        if "scale" in self.right:
+            options["Right scale"] = self.right["scale"].value() or "Linear"
         low, high = self.right["min"].text().strip(), self.right["max"].text().strip()
         if low or high:
             for key, text in (("min", low), ("max", high)):
@@ -1058,13 +1113,6 @@ class GraphFormatDialog(QDialog):
         else:
             options.pop("Right minimum", None)
             options.pop("Right maximum", None)
-        y_axis = style.get("axis", {}).get("y", {})
-        if "min" in y_axis and "max" in y_axis:
-            options["Y minimum"], options["Y maximum"] = y_axis["min"], y_axis["max"]
-        else:
-            options.pop("Y minimum", None)
-            options.pop("Y maximum", None)
-        return options
 
     def _prepare_xy(self, style, options):
         options = prune_options(options)
@@ -1103,9 +1151,17 @@ class GraphFormatDialog(QDialog):
                 raise FieldError(BAR_BASELINE, "Enter a finite starting value for the bars.") from None
             if baseline:
                 options[BAR_BASELINE] = baseline
+        options.pop(SERIES_SIDE, None)
+        for key in RIGHT_AXIS_FIELDS:
+            options.pop(key, None)
+        if self.grouped_side is not None and (sides := {name: RIGHT_SIDE for name in names if name in self.grouped_right_names}):
+            options[SERIES_SIDE] = sides
+            self._right_options(options)
         return prune_series_styles(options, names)
 
     def _grouped_style(self, style, options):
+        if "y" in (style.get(LINKED_AXES) or {}) and grouped_right_series(options):
+            raise FieldError(SERIES_SIDE, P_RIGHT)
         for key, default in (("xlabel", self.axes.get_xlabel()), ("ylabel", self.axes.get_ylabel())):
             if key not in self.style and style.get(key) == default:
                 style.pop(key)
@@ -1120,7 +1176,7 @@ class GraphFormatDialog(QDialog):
         previous = self.grouped["options"]
         return old != new or any(previous.get(key, {}) != options.get(key, {})
                                  for key in (SERIES_PLACEMENT, GROUPED_BAR_SPACING, SERIES_INTERVAL_DIRECTION,
-                                             BAR_DIRECTION, BAR_BASELINE))
+                                             BAR_DIRECTION, BAR_BASELINE, SERIES_SIDE, *RIGHT_AXIS_FIELDS))
 
     def _prepare_grouped(self, style, options):
         result = category_graph(self.grouped["frame"], options, grouped=True)
@@ -1192,6 +1248,11 @@ class GraphFormatDialog(QDialog):
                 self._focus(2, self.grouped_place if self.grouped_place.isEnabled() else self.selector)
             elif error.field == SERIES_INTERVAL_DIRECTION and self.grouped_interval is not None:
                 self._focus(2, self.grouped_interval if self.grouped_interval.isEnabled() else self.selector)
+            elif error.field == SERIES_SIDE and self.grouped_side is not None:
+                self._focus(2, self.grouped_side)
+            elif error.field in RIGHT_AXIS_FIELDS and self.right is not None:
+                name = {"Right minimum": "min", "Right maximum": "max"}.get(error.field, "title")
+                self._focus(1, self.right[name])
             elif error.field in (SERIES_STYLE, "Placement of groups", "Graph style"):
                 self._focus(2, self.grouped_draw)
         if not isinstance(error, str):
@@ -1266,9 +1327,12 @@ class GraphFormatDialog(QDialog):
             reset_intervals = options.pop(SERIES_INTERVAL_DIRECTION, None)
             reset_direction = options.pop(BAR_DIRECTION, None) == HORIZONTAL_BARS
             reset_baseline = options.pop(BAR_BASELINE, None)
+            reset_right = options.pop(SERIES_SIDE, None)
+            for key in RIGHT_AXIS_FIELDS:
+                options.pop(key, None)
             if reset_direction:
                 style = transpose_grouped_bar_style(style)
-            if reset_drawing or reset_placement or reset_spacing or reset_intervals or reset_direction or reset_baseline:
+            if any((reset_drawing, reset_placement, reset_spacing, reset_intervals, reset_direction, reset_baseline, reset_right)):
                 try:
                     self._prepare_grouped(style, options)
                 except ValueError as error:

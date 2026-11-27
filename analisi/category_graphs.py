@@ -16,6 +16,7 @@ from .pairwise_graph import register_anchors
 from .processing import FieldError
 from .reporting import Result, _plot
 from .stats import geometric_interval_fields, geometric_summary
+from .xy_series import SIDES as SERIES_SIDES, _limit_pair
 
 
 COLUMN_GRAPH, GROUPED_GRAPH = "Column graph", "Grouped graph"
@@ -31,6 +32,9 @@ INTERVALS = ("None", "SD", "SEM", "Confidence interval", "Range", "Interquartile
 INTERVAL_DIRECTION = "Interval direction"
 BOTH_INTERVALS, UPPER_INTERVAL, LOWER_INTERVAL = INTERVAL_DIRECTIONS = ("Both sides", "Upper only", "Lower only")
 SERIES_INTERVAL_DIRECTION = "Series interval direction"
+SERIES_SIDE = "Series side"
+LEFT_SIDE, RIGHT_SIDE = SERIES_SIDES
+RIGHT_AXIS_FIELDS = ("Right title", "Right minimum", "Right maximum", "Right scale")
 PLACEMENTS = ("Spread exact ties", "Centered", "Jitter")
 GEOMETRIC_CENTER = "Geometric mean"
 _CENTERS = ("Mean", "Median")
@@ -514,6 +518,41 @@ def series_interval_directions(options):
     return directions
 
 
+def grouped_right_series(options):
+    """Validate per-series axis choices and return the names using the independent axis."""
+    sides = options.get(SERIES_SIDE, {})
+    if not isinstance(sides, dict) or len(sides) > MAX_CATEGORIES or any(
+        not isinstance(name, str) or not name or side not in SERIES_SIDES
+        for name, side in sides.items()
+    ):
+        raise FieldError(SERIES_SIDE, "Choose the left or right axis for each grouped series.")
+    return {name for name, side in sides.items() if side == RIGHT_SIDE}
+
+
+def _grouped_right_axis(axes, options, names, right_names):
+    if options.get("Right scale", "Linear") != "Linear":
+        raise FieldError("Right scale", "The independent axis for grouped graphs uses a linear scale.")
+    title = options.get("Right title", "")
+    if not isinstance(title, str) or len(title) > 160:
+        raise FieldError("Right title", "Enter an axis title of up to 160 characters.")
+    limits = _limit_pair(options, "Right minimum", "Right maximum", "Right minimum", False)
+    right = axes.twinx()
+    right.set_ylabel(title.strip() or ", ".join(name for name in names if name in right_names))
+    right.grid(False)
+    right.spines[["left", "top", "bottom"]].set_visible(False)
+    # Keep the primary legend and annotations visible above artists on the right axis.
+    right.set_zorder(axes.get_zorder() - 1)
+    right.patch.set_visible(True)
+    right.patch.set_facecolor(axes.patch.get_facecolor())
+    axes.patch.set_visible(False)
+    if right_names == set(names):
+        axes.yaxis.set_visible(False)
+        axes.spines["left"].set_visible(False)
+    if limits is not None:
+        right.set_ylim(*limits)
+    return right
+
+
 def grouped_graph_metadata(axes):
     return getattr(axes, "_tramastat_grouped", None) or getattr(axes, "_tramastat_grouped_context", None)
 
@@ -907,6 +946,9 @@ def category_graph(frame, options, *, grouped=False):
     if directions and (not grouped or stacked or style not in GROUPED_SERIES_COMPATIBLE_STYLES):
         raise FieldError(SERIES_INTERVAL_DIRECTION,
                          "Per-series interval direction requires a grouped bar or center graph that shows intervals.")
+    right_names = grouped_right_series(options)
+    if right_names and (not grouped or horizontal or stacked or style not in GROUPED_SERIES_COMPATIBLE_STYLES):
+        raise FieldError(SERIES_SIDE, "An independent right axis requires a vertical grouped bar or center graph without global stacking.")
     if source == SUMMARIES and style not in SUMMARY_STYLES:
         raise FieldError("Graph style", "Precomputed summaries can be drawn as Bars or Center and interval. "
                                         "Individual points and floating ranges need raw replicates.")
@@ -983,6 +1025,7 @@ def category_graph(frame, options, *, grouped=False):
         counts = [[len(values) for values in plot.values] for plot in plots]
     worksheet_order = [plot.name for plot in plots]
     drawing_order = grouped_series_order(options, worksheet_order) if grouped else worksheet_order
+    right_names.intersection_update(worksheet_order)
     if drawing_order != worksheet_order:
         indices = {name: index for index, name in enumerate(worksheet_order)}
         order = [indices[name] for name in drawing_order]
@@ -1004,6 +1047,7 @@ def category_graph(frame, options, *, grouped=False):
         ticks, limits = _space_grouped_bars(plots, summaries, row_names, legend, custom, spacing)
         (axes.set_ylim if horizontal else axes.set_xlim)(*limits)
         width = 1.
+    right = _grouped_right_axis(axes, options, drawing_order, right_names) if right_names else None
     rows_by_series = {name: [] for name in worksheet_order}
     rng = np.random.default_rng(0)
     if stacked:
@@ -1031,13 +1075,17 @@ def category_graph(frame, options, *, grouped=False):
         for members in piles:
             if any(effective_styles[plots[index].name] != BARS for index in members):
                 raise FieldError(SERIES_PLACEMENT, "All series in the same stack must use bars.")
+            axis_sides = {plots[index].name in right_names for index in members}
+            if len(axis_sides) > 1:
+                raise FieldError(SERIES_SIDE, "All series in a stack must use the same value axis.")
+            target = right if True in axis_sides else axes
+            target._tramastat_zero_baseline = (numeric_axis,)
             heights = np.column_stack([np.asarray(summaries[index])[:, 0] for index in members])
             bottoms_by_index.update(zip(members, _stack_bottoms(heights).T, strict=True))
-        if piles:
-            axes._tramastat_zero_baseline = (numeric_axis,)
         for index, (plot, summary, count) in enumerate(zip(plots, summaries, counts, strict=True)):
+            target = right if plot.name in right_names else axes
             primary = _draw_series(
-                axes, plot, summary, effective_styles[plot.name], width, show_points, placement, rng,
+                target, plot, summary, effective_styles[plot.name], width, show_points, placement, rng,
                 grouped_track=series_supports_per_series, bottom=bottoms_by_index.get(index),
                 interval_direction=directions.get(plot.name, direction), horizontal=horizontal,
                 bar_baseline=baseline,

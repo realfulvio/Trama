@@ -91,6 +91,23 @@ MESSAGES = {
         "La direzione orizzontale è disponibile nei grafici a barre raggruppate.",
     ),
     "grouped.series.drawing": ("Drawing", "Disegno"),
+    "grouped.series.axis": ("Value axis", "Asse dei valori"),
+    "grouped.series.axis_hint": (
+        "Use the left scale or an independent scale on the right.",
+        "Usa la scala a sinistra o una scala indipendente a destra.",
+    ),
+    "grouped.axis.invalid": (
+        "Choose the left or right axis for each grouped series.", "Scegli l’asse sinistro o destro per ogni serie.",
+    ),
+    "grouped.axis.unavailable": (
+        "An independent right axis requires a vertical grouped bar or center graph without global stacking.",
+        "L’asse destro indipendente è disponibile nei grafici verticali a barre o con centri senza impilamento globale.",
+    ),
+    "grouped.axis.stack": ("All series in a stack must use the same value axis.",
+                           "Tutte le serie di una pila devono usare lo stesso asse dei valori."),
+    "grouped.axis.title": ("Enter an axis title of up to 160 characters.", "Inserisci un titolo dell’asse di massimo 160 caratteri."),
+    "grouped.axis.scale": ("The independent axis for grouped graphs uses a linear scale.",
+                           "L’asse indipendente dei grafici raggruppati usa una scala lineare."),
     "grouped.series.interval_direction": ("Interval direction", "Direzione dell’intervallo"),
     "grouped.interval.both": ("Both sides", "Entrambi i lati"),
     "grouped.interval.upper": ("Upper only", "Solo superiore"),
@@ -164,6 +181,12 @@ MESSAGES = {
 }
 
 _ENGLISH_TO_KEY = {
+    "Choose the left or right axis for each grouped series.": "grouped.axis.invalid",
+    "An independent right axis requires a vertical grouped bar or center graph without global stacking.":
+        "grouped.axis.unavailable",
+    "All series in a stack must use the same value axis.": "grouped.axis.stack",
+    "Enter an axis title of up to 160 characters.": "grouped.axis.title",
+    "The independent axis for grouped graphs uses a linear scale.": "grouped.axis.scale",
     "The supplied limit is on the wrong side of the estimate.": "grouped.interval.crossed_limit",
     "A custom baseline requires a grouped bar graph without stacks.": "grouped.bars.baseline_graph",
     "Enter a finite starting value for the bars.": "grouped.bars.baseline_value",

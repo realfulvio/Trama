@@ -72,6 +72,8 @@ def check_grouped_placement(smoke, window):
             QTest.keyClick(placement, Qt.Key.Key_Tab)
             smoke.expect(dialog.focusWidget() is dialog.grouped_interval, "Tab did not reach the interval direction")
             QTest.keyClick(dialog.grouped_interval, Qt.Key.Key_Tab)
+            smoke.expect(dialog.focusWidget() is dialog.grouped_side, "Tab did not reach the value axis")
+            QTest.keyClick(dialog.grouped_side, Qt.Key.Key_Tab)
             smoke.expect(dialog.focusWidget() is dialog.series_fields["label"], "Tab did not reach the legend label")
             if not cancel:
                 def close_shortcuts():
@@ -199,6 +201,8 @@ def check_grouped_placement(smoke, window):
             assert SERIES_INTERVAL_DIRECTION not in restored.options
             choice.setFocus()
             QTest.keyClick(choice, Qt.Key.Key_Tab)
+            assert dialog.focusWidget() is dialog.grouped_side
+            QTest.keyClick(dialog.grouped_side, Qt.Key.Key_Tab)
             assert dialog.focusWidget() is dialog.series_fields["label"]
             caps = dialog.series_fields["interval_caps"]
             dialog.series_scroll.ensureWidgetVisible(caps)

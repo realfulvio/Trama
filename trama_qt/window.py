@@ -1170,7 +1170,8 @@ class MainWindow(QMainWindow):
         self.actions["format_axis_x"].setEnabled(has_axes)
         self.actions["format_axis_y"].setEnabled(has_axes)
         self.actions["format_axis_right"].setEnabled(
-            has_axes and axis_graph.method == XY_METHOD and right_y_axes(axis_graph.result.figure.axes[0]) is not None)
+            has_axes and axis_graph.method in {XY_METHOD, GROUPED_GRAPH}
+            and right_y_axes(axis_graph.result.figure.axes[0]) is not None)
         legends = visible_legends(axis_graph.result.figure) if axis_graph is not None else ()
         self.actions["format_legend"].setEnabled(bool(legends))
         self.actions["reverse_legend"].setEnabled(any(len(legend.get_texts()) > 1 for legend in legends))
@@ -2297,7 +2298,7 @@ class MainWindow(QMainWindow):
         if legend is not None:
             QTimer.singleShot(0, page, lambda: self.format_legend(entry=legend[1]) if active() else None)
             return
-        axis = axis_at(event, include_right=run.method == XY_METHOD)
+        axis = axis_at(event, include_right=run.method in {XY_METHOD, GROUPED_GRAPH})
         if axis is None:
             return
         action = self.actions[f"format_axis_{axis}"]

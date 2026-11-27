@@ -91,10 +91,10 @@ from analisi import source_link
 from analisi.worksheet_sort import ASCENDING, plan_row_sort, sort_text, validate_sort_key
 from .sheet_commands import SheetCommands
 from analisi.category_graphs import (AS_GRAPH, BAR_BASELINE, BAR_DIRECTION, BARS as GROUPED_BARS, GROUPED_GRAPH,
-                                     GROUPED_SERIES_COMPATIBLE_STYLES, HORIZONTAL_BARS,
+                                     GROUPED_SERIES_COMPATIBLE_STYLES, HORIZONTAL_BARS, RIGHT_AXIS_FIELDS, RIGHT_SIDE,
                                      GROUPED_BAR_SPACING, GROUPED_SERIES_ORDER, SERIES_INTERVAL_DIRECTION,
-                                     SERIES_PLACEMENT, SERIES_STYLE, STACKED_PLACEMENTS, series_interval_directions,
-                                     grouped_series_names, grouped_series_order, grouped_style_after_parameter_change,
+                                     SERIES_PLACEMENT, SERIES_SIDE, SERIES_STYLE, STACKED_PLACEMENTS, series_interval_directions,
+                                     grouped_right_series, grouped_series_names, grouped_series_order, grouped_style_after_parameter_change,
                                      prune_series_styles, series_placements, transpose_grouped_bar_style)
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
                                style_after_parameter_change as xy_style, xy_series)
@@ -1253,6 +1253,8 @@ class Project(WorksheetJoinSources, SheetCommands):
             if ((run.options.get(BAR_DIRECTION) == HORIZONTAL_BARS)
                     != (options.get(BAR_DIRECTION) == HORIZONTAL_BARS)):
                 style = transpose_grouped_bar_style(style)
+            sides = options.pop(SERIES_SIDE, run.options.get(SERIES_SIDE, {}))
+            right = {key: options.pop(key, run.options.get(key)) for key in RIGHT_AXIS_FIELDS}
             options = prune_series_styles(options, names)
             if placement in STACKED_PLACEMENTS or graph_style not in GROUPED_SERIES_COMPATIBLE_STYLES:
                 options.pop(SERIES_STYLE, None)
@@ -1267,6 +1269,10 @@ class Project(WorksheetJoinSources, SheetCommands):
                 directions = series_interval_directions({SERIES_INTERVAL_DIRECTION: record})
                 if directions := {name: directions[name] for name in names if name in directions}:
                     options[SERIES_INTERVAL_DIRECTION] = directions
+                right_names = grouped_right_series({SERIES_SIDE: sides})
+                if direction != HORIZONTAL_BARS and (assigned := {name: RIGHT_SIDE for name in names if name in right_names}):
+                    options[SERIES_SIDE] = assigned
+                    options.update({key: value for key, value in right.items() if value is not None})
             style = grouped_style_after_parameter_change(style, options, raw)
         elif method == XY_METHOD:
             style = xy_style(style, options)

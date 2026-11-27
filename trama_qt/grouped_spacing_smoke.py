@@ -8,8 +8,8 @@ from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtTest import QTest
 
 from analisi.category_graphs import (BAR_BASELINE, BAR_DIRECTION, BARS, DISTANCES, GROUPED_BAR_SPACING, GROUPED_GRAPH,
-                                     HORIZONTAL_BARS, SUMMARIES, grouped_graph_metadata)
-from analisi.data import GROUPED_BAR_BASELINE_VERSION, GROUPED_BAR_SPACING_VERSION
+                                     HORIZONTAL_BARS, RIGHT_SIDE, SERIES_SIDE, SUMMARIES, grouped_graph_metadata)
+from analisi.data import GROUPED_BAR_BASELINE_VERSION, GROUPED_BAR_SPACING_VERSION, GROUPED_RIGHT_AXIS_VERSION
 from analisi.figure_export import export_figure
 from analisi.presentation import Layout
 
@@ -62,6 +62,7 @@ def check_grouped_bar_spacing(smoke, window):
             if cancel:
                 QTest.keyClick(dialog, Qt.Key.Key_Escape)
             else:
+                QTest.qWait(80)
                 def close_shortcuts():
                     help_dialog = smoke.app.activeModalWidget()
                     smoke.expect(isinstance(help_dialog, ShortcutsDialog), "F1 did not open the shortcuts")
@@ -210,10 +211,11 @@ def check_grouped_bar_spacing(smoke, window):
     pd.DataFrame({
         "Visit": ["Lower", "Upper", "Both", "Neither"], "A [Mean]": [5., 8., 10., 11.],
         "A [Minus]": [3., np.nan, 2., np.nan], "A [Plus]": [np.nan, 3., 1., np.nan],
+        "B [Mean]": [900., 1300., 1800., 2100.], "B [Minus]": [30., 50., 70., 80.], "B [Plus]": [60., 55., 75., 120.],
     }).to_csv(source, index=False)
     window.open_path(source)
     index = smoke.calculate(GROUPED_GRAPH, {
-        "Variables": ["A [Mean]", "A [Minus]", "A [Plus]"], "Row titles": "Visit",
+        "Variables": ["A [Mean]", "A [Minus]", "A [Plus]", "B [Mean]", "B [Minus]", "B [Plus]"], "Row titles": "Visit",
         "Input": SUMMARIES, "Graph style": BARS, "Summary error": DISTANCES,
     })
     window.open_sheet(("graph", index))
@@ -223,6 +225,96 @@ def check_grouped_bar_spacing(smoke, window):
     np.testing.assert_array_equal([segment[:, 1] for segment in error.lines[2][0].get_segments()],
                                   [[2., 5.], [8., 11.], [8., 11.]])
     table = run.result.tables["Graph data"]
-    np.testing.assert_array_equal(table["Lower"], [2., np.nan, 8., np.nan])
-    np.testing.assert_array_equal(table["Upper"], [np.nan, 11., 11., np.nan])
+    a = table[table["Group"] == "A"]
+    np.testing.assert_array_equal(a["Lower"], [2., np.nan, 8., np.nan])
+    np.testing.assert_array_equal(a["Upper"], [np.nan, 11., 11., np.nan])
     smoke.shot(window, "grouped-partial-intervals")
+
+    def assign_right():
+        dialog = smoke.app.activeModalWidget()
+        try:
+            assert isinstance(dialog, GraphFormatDialog)
+            dialog.activateWindow()
+            dialog.tabs.setCurrentIndex(2)
+            dialog.selector.setCurrentIndex(1)
+            side = dialog.grouped_side
+            side.set(RIGHT_SIDE)
+            assert dialog.preview()
+            assert len(dialog.preview_canvas.figure.axes) == 2
+            assert SERIES_SIDE not in run.options
+            side.setFocus()
+            QTest.keyClick(side, Qt.Key.Key_Tab)
+            assert dialog.focusWidget() is dialog.series_fields["label"]
+            dialog.tabs.setCurrentIndex(1)
+            dialog.right["title"].setText("Mass")
+            dialog.right["min"].setText("0")
+            field = dialog.right["max"]
+            field.setText("2500")
+            field.setFocus()
+            QTest.keyClick(field, Qt.Key.Key_Return)
+        except Exception as error:
+            smoke.problem(f"right axis: {error!r}")
+        finally:
+            if isinstance(dialog, GraphFormatDialog) and dialog.isVisible():
+                dialog.reject()
+
+    def check_right(run, limits):
+        axes, right = run.result.figure.axes
+        assert run.options[SERIES_SIDE] == {"B": RIGHT_SIDE}
+        assert right.get_ylim() == limits and axes.get_ylim()[1] < 20
+        assert right.get_ylabel() == "Mass"
+        assert [label.get_text() for label in axes.get_legend().get_texts()] == ["A", "B"]
+        pd.testing.assert_frame_equal(run.result.tables["Graph data"], table)
+        return right
+
+    QTimer.singleShot(150, assign_right)
+    window.actions["format_graph"].trigger()
+    right = check_right(run, (0., 2500.))
+    assert window.actions["format_axis_right"].isEnabled()
+    canvas = window.plot_tools.canvas
+    canvas.draw()
+    box = right.yaxis.label.get_window_extent(canvas.renderer)
+    ratio = canvas.device_pixel_ratio
+    click = QPoint(round((box.x0 + box.x1) / (2 * ratio)),
+                   round(canvas.height() - (box.y0 + box.y1) / (2 * ratio)))
+
+    def edit_right():
+        dialog = smoke.app.activeModalWidget()
+        try:
+            assert isinstance(dialog, GraphFormatDialog)
+            field = dialog.right["min"]
+            assert dialog.tabs.currentIndex() == 1 and dialog.focusWidget() is field
+            QTest.keyClick(field, Qt.Key.Key_Tab)
+            assert dialog.focusWidget() is dialog.right["max"]
+            smoke.shot(dialog, "grouped-right-axis-options")
+            dialog.right["max"].setText("2600")
+            QTest.keyClick(dialog.right["max"], Qt.Key.Key_Return)
+        except Exception as error:
+            smoke.problem(f"right-axis double click: {error!r}")
+        finally:
+            if isinstance(dialog, GraphFormatDialog) and dialog.isVisible():
+                dialog.reject()
+
+    QTimer.singleShot(150, edit_right)
+    QTest.mouseDClick(canvas, Qt.MouseButton.LeftButton, pos=click)
+    QTest.qWait(240)
+    check_right(run, (0., 2600.))
+    window.actions["undo"].trigger()
+    check_right(run, (0., 2500.))
+    window.actions["redo"].trigger()
+    check_right(run, (0., 2600.))
+
+    window.project.put_layout(Layout("Visits", 1, [run.reference]))
+    saved = smoke.folder / f"{smoke.language}-grouped-right-axis.alab"
+    window.project.save(saved)
+    assert json.loads(saved.read_text(encoding="utf-8"))["version"] == GROUPED_RIGHT_AXIS_VERSION
+    window.close_project()
+    window.open_path(saved)
+    window.open_sheet(("graph", index))
+    smoke.wait()
+    check_right(window.project.runs[index], (0., 2600.))
+    smoke.shot(window, "grouped-right-axis")
+    svg = saved.with_suffix(".svg")
+    window.project.export_layout(window.project.layouts[0], svg, {"format": "svg", "svg_text": "text"})
+    contents = svg.read_text(encoding="utf-8")
+    assert "Mass" in contents and "<image" not in contents

@@ -26,6 +26,8 @@ Con le distanze asimmetriche o i limiti inseriti a mano, puoi lasciare vuota una
 
 Nella stessa scheda, **Colore dell’intervallo**, **Spessore dell’intervallo** e **Lunghezza dei cappucci** formattano solo l’intervallo della serie. Lascia un campo vuoto per mantenere l’aspetto predefinito. Imposta i cappucci a zero per mostrare solo il segmento. La formattazione indipendente richiede ALAB 23.
 
+Nei grafici raggruppati verticali, **Formato grafico → Serie → Asse dei valori** può assegnare una serie all’asse destro indipendente. L’asse destro è lineare e condivide le categorie con quello sinistro. Imposta titolo e limiti nella scheda **Assi**, raggiungibile anche con un doppio clic sull’asse destro. Ogni pila usa un solo asse dei valori. Per usare un asse destro collegato con conversione, mantieni tutte le serie a sinistra. Un asse destro indipendente richiede ALAB 25.
+
 **Cambia → Ordine di disegno delle serie…** sposta le serie nel grafico. Le barre affiancate vanno da sinistra a destra, quelle impilate dal basso verso l’alto. La disposizione relativa segue la serie e si applica alla nuova precedente. La prima serie apre sempre il gruppo. La legenda ha un ordine proprio. Puoi invertire l’elenco, ripristinare l’ordine del foglio e usare Annulla o Ripeti. Un ordine personalizzato richiede ALAB 19.
 
 ## Spaziatura delle barre
@@ -67,6 +69,8 @@ In the graph parameters, **Interval direction → Upper only** draws the portion
 With asymmetric distances or entered limits, leave one endpoint cell empty to draw from the estimate toward the available endpoint. The missing endpoint stays empty in the result table.
 
 Use **Interval color**, **Interval thickness** and **Cap length** to format the selected interval. Leave a field empty to keep its default. Set the cap length to zero to show just the segment. Independent interval formatting requires ALAB 23.
+
+On a vertical grouped graph, use **Format Graph → Series → Value axis** to assign a series to an independent right axis. The right axis is linear and shares categories with the left. Set its title and limits in **Axes** or double-click the right axis to reach them. Each stack uses a single value axis. Keep the series on the left when using a linked right axis with unit conversion. Independent right axes require ALAB 25.
 
 Use **Change → Series drawing order…** to arrange the plotted series. Side-by-side bars run left to right and stacks run bottom to top. Each relative placement follows its series and refers to the series that now comes before it. The first series always starts a group. The legend has its own order. You can reverse the list, restore worksheet order, and undo or redo edits. A custom order requires ALAB 19.
 
