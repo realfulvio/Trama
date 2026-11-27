@@ -21,7 +21,7 @@ def main():
         shutil.copy2(root / name, bundle / name)
     for name in ("features.md", "getting-started.md", "compatibility.md", "development.md", "legal.md",
                  "competing-risks.md", "kmeans-algorithms.md", "independent-roc-curves.md", "ancova-090.md",
-                 "grouped-distributions.md", "qt-migration.md", "qt-canvas-095.md", "qt-gallery.md",
+                 "grouped-distributions.md", "grouped-series-styles.md", "qt-migration.md", "qt-canvas-095.md", "qt-gallery.md",
                  "project-tabs-qt.md", "qt-batch-export.md", "qt-graph-style-presets.md", "qt-report.md", "worksheet-join.md", "qt-recovery.md", "qt-analysis-templates.md",
                  "qt-excel-workbook.md", "worksheet-number-format.md", "repeat-analysis.md",
                  "worksheet-rows-and-series.md", "summary-twoway-anova.md", "text-format.md", "linked-tables.md",

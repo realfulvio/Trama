@@ -43,6 +43,7 @@ from .linked_tables import TABLES, draw_tables, validate_tables
 from .observation_labels import LABELS, apply_observation_labels, restore_observation_labels, validate_labels
 from .point_style import (GID_PREFIX as POINT_GID_PREFIX, INDICATOR_GID, POINTS, apply_point_styles,
                           restore_point_styles, validate_points)
+from .grouped_bar_style import BAR_STYLES, apply_bar_styles, restore_bar_styles, validate_bar_styles
 from .layout_arrangement import BORDER_DASHES, PanelArrangement, validated_arrangement
 from .layout_graph_link import graph_links
 from .layout_geometry import (AUTO_PAPER, AXIS_ALIGNMENTS, LABEL_PAD, LABEL_SIZE, PANEL_LIMIT, PANEL_SIZES,
@@ -242,7 +243,7 @@ def validated_style(style):
     _record(style, {"title", "xlabel", "ylabel", "xscale", "yscale", "grid", "grid_minor",
                     "accent", "axis", "frame", "font_family", *FONT_SIZES, "legend", LEGEND_OPTIONS_KEY, "series",
                     XY_SERIES_ORDER, "groups", "reference_lines", AXIS_GUIDES, AXIS_BANDS, ANNOTATIONS, SHAPES, PANEL_KEY,
-                    "hierarchical", AXIS_BREAKS, LINKED_AXES, POINTS, LABELS, TABLES},
+                    "hierarchical", AXIS_BREAKS, LINKED_AXES, POINTS, BAR_STYLES, LABELS, TABLES},
             "Invalid graph style.")
     for key in ("title", "xlabel", "ylabel"):
         if key in style and not _text(style[key]):
@@ -284,6 +285,8 @@ def validated_style(style):
     _check_groups(style.get("groups", {}))
     if POINTS in style:
         validate_points(style[POINTS])
+    if BAR_STYLES in style:
+        validate_bar_styles(style[BAR_STYLES])
     if LABELS in style:
         validate_labels(style[LABELS])
     validate_annotations(style.get(ANNOTATIONS, []))
@@ -1267,6 +1270,7 @@ def apply_style(figure, style):
     defaults = axes._tramastat_defaults
     previous = getattr(axes, "_tramastat_style", {})
     restore_point_styles(figure)  # Before the series are formatted: every artist starts from its series look.
+    restore_bar_styles(figure)
     restore_observation_labels(figure)
     if LEGEND_OPTIONS_KEY in style or LEGEND_OPTIONS_KEY in previous:
         restore_legend_snapshots(figure)
@@ -1351,6 +1355,7 @@ def apply_style(figure, style):
     if style.get(LEGEND_OPTIONS_KEY):
         apply_legend_options(figure, style[LEGEND_OPTIONS_KEY])
     refresh_legend(figure)
+    apply_bar_styles(figure, style.get(BAR_STYLES))
     apply_linked_axes(figure, normalise_linked_axes(style.get(LINKED_AXES)), style)
     axes._tramastat_style = deepcopy(style)
     # Annotations that depend on the formatted axis (pairwise brackets) are removed and drawn again.

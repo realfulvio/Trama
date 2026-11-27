@@ -28,6 +28,7 @@ from analisi.ar1 import MixedModelCancelled
 from analisi.axis_breaks import AXIS_BREAKS
 from analisi.field_error import FieldError
 from analisi.graph_legend import LEGEND_OPTIONS_KEY, visible_legends
+from analisi.grouped_bar_style import BAR_STYLES, apply_bar_styles, bars_at, grouped_bars
 from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, translate_message, ui
 from analisi.kmeans_options import METHODS as KMEANS_METHODS
 from analisi.kmeans_reports import FIT_DIAGNOSTICS_TABLE, FIT_REASON, FIT_SOURCE
@@ -670,6 +671,7 @@ class MainWindow(QMainWindow):
         for axis in ("x", "y", "right"):
             a(f"format_axis_{axis}", qt(f"qt.format_axis_{axis}"), lambda axis=axis: self.format_graph(axis=axis))
         a("format_legend", tr("legend_editor.button"), self.format_legend, icon="rows-3", shortcut="Ctrl+Alt+L")
+        a("format_grouped_bar", tr("grouped_bar.command"), self.format_grouped_bar, icon="palette")
         a("reverse_legend", qt("qt.reverse_legend"), self.reverse_legend, icon="arrow-up-down")
         a("series_drawing_order", qt("qt.series_drawing_order"), self.edit_series_drawing_order,
           icon="rows-3", shortcut="Ctrl+Alt+Y")
@@ -1174,6 +1176,10 @@ class MainWindow(QMainWindow):
             and right_y_axes(axis_graph.result.figure.axes[0]) is not None)
         legends = visible_legends(axis_graph.result.figure) if axis_graph is not None else ()
         self.actions["format_legend"].setEnabled(bool(legends))
+        self.actions["format_grouped_bar"].setEnabled(
+            axis_graph is not None and axis_graph.method == GROUPED_GRAPH
+            and bool(grouped_bars(axis_graph.result.figure))
+        )
         self.actions["reverse_legend"].setEnabled(any(len(legend.get_texts()) > 1 for legend in legends))
         groups = ()
         grouped = None
@@ -2290,9 +2296,30 @@ class MainWindow(QMainWindow):
                     and self.plot_tools is not None and not self.plot_tools.mode
                     and not (self.drawing.controller and self.drawing.controller.mode))
 
-        if not event.dblclick or event.button != 1 or not active():
+        if not active():
             return
         from .legend import legend_at
+
+        if event.button == 3 and self.actions["format_grouped_bar"].isEnabled():
+            mouse = event.guiEvent
+            if mouse is not None and hasattr(mouse, "globalPosition") and legend_at(event) is None:
+                matches = bars_at(event)
+                if matches:
+                    position, target = mouse.globalPosition().toPoint(), matches[0].key
+
+                    def open_bar_menu():
+                        if active():
+                            menu = QMenu(page)
+                            command = menu.addAction(self.actions["format_grouped_bar"].text())
+                            clicked = menu.exec(position)
+                            menu.deleteLater()
+                            if clicked is command and active():
+                                self.format_grouped_bar(target=target)
+
+                    QTimer.singleShot(0, page, open_bar_menu)
+            return
+        if not event.dblclick or event.button != 1:
+            return
 
         legend = legend_at(event) if self.actions["format_legend"].isEnabled() else None
         if legend is not None:
@@ -3544,6 +3571,43 @@ class MainWindow(QMainWindow):
                 and reference[1] < len(project.runs) and project.runs[reference[1]] is run
                 and run.result is not None and run.result.figure is figure and (run.style or {}) == previous):
             self._change_legend(run, options, tr("legend_editor.dialog_title"))
+
+    def format_grouped_bar(self, *, target=None):
+        from .grouped_bar_editor import GroupedBarEditor
+
+        if not self.actions["format_grouped_bar"].isEnabled() or not self.settle_graph_draft():
+            return
+        project, reference = self.project, self.selected
+        run = project.runs[reference[1]]
+        figure = run.result.figure
+        previous = deepcopy(run.style or {})
+        records = previous.get(BAR_STYLES, [])
+
+        def active():
+            return (self.project is project and self.selected == reference and reference[1] < len(project.runs)
+                    and project.runs[reference[1]] is run and run.result is not None
+                    and run.result.figure is figure and (run.style or {}) == previous)
+
+        def preview(values):
+            if active():
+                apply_bar_styles(figure, values)
+                figure.canvas.draw_idle()
+
+        dialog = GroupedBarEditor(self, grouped_bars(figure), records, preview, target=target)
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        options = dialog.result
+        dialog.deleteLater()
+        if not active():
+            return
+        preview(records)
+        if accepted:
+            try:
+                changed = project.change_graph_style_option(run, BAR_STYLES, options, tr("grouped_bar.title"))
+            except ValueError as error:
+                self.error(error)
+                return
+            if changed:
+                self._after_style_batch((run.uid,), qt("qt.style_applied"))
 
     def reverse_legend(self):
         if not self.actions["reverse_legend"].isEnabled() or not self.settle_graph_draft():

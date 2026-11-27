@@ -44,7 +44,7 @@ MENUS = (
                  "repeat_analysis", "use_result", "|", "descriptive", "ttest", "anova", "correlation", "correlation_matrix",
                  "linear", "nonlinear", "survival", "contingency", "load_example")),
     ("Change", ("format_data_table", "number_format", "|", "change", "change_graph_type", "format_graph",
-                "format_axis_x", "format_axis_y", "format_axis_right",
+                "format_axis_x", "format_axis_y", "format_axis_right", "format_grouped_bar",
                 "series_drawing_order", "reverse_series_drawing_order", "format_legend", "reverse_legend",
                 "graph_style_presets", "batch_figure_styles",
                 "plot_margins", "edit_layout", "replace_layout_graph", "layout_clear_background",

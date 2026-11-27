@@ -23,6 +23,7 @@ from analisi.axis_breaks import AXIS_BREAKS, axis_breaks_reason
 from analisi.linked_axes import linked_axes_status
 from analisi.observation_labels import LABELS, label_status_line
 from analisi.point_style import POINTS, point_styles_status
+from analisi.grouped_bar_style import BAR_STYLES, unavailable_bar_styles
 from analisi.data import (EDITABLE_LEGACY_COLUMNS, EDITABLE_LEGACY_EMF, EDITABLE_LEGACY_FIXED_VALUES,
                           EDITABLE_LEGACY_XY, MAX_CELLS, MAX_COLUMNS, MAX_ENTRY, Dataset, info_references,
                           load_tables, load_workspace, project_document, rename_formula_columns, save_project)
@@ -180,6 +181,8 @@ def graph_warning(figure, style):
     notes = [note for note in (breaks_warning(figure, style), linked_axes_status(figure, style),
                                point_styles_status(figure, (style or {}).get(POINTS)),
                                label_status_line(figure, (style or {}).get(LABELS))) if note]
+    if count := unavailable_bar_styles(figure, (style or {}).get(BAR_STYLES)):
+        notes.append(tr("grouped_bar.suspended", count=count))
     return " ".join(notes) or None
 
 

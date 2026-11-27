@@ -688,11 +688,14 @@ def fit_style(figure, style):
     if not style or figure is None or not figure.axes:
         return None, False
     from .point_style import POINTS
+    from .grouped_bar_style import BAR_STYLES
 
     style = deepcopy(style)
     axes = figure.axes[0]
     # The formatting of a single point belongs to one row of one worksheet: another sheet has other rows.
     reduced = style.pop(POINTS, None) is not None
+    if style.pop(BAR_STYLES, None) is not None:
+        reduced = True
     if isinstance(style.get(LABELS), list):
         # The labels keep their source and their series; the settings of single rows stay behind.
         keys = {item.key for item in graph_series(axes)}

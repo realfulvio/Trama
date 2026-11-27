@@ -73,6 +73,7 @@ _TEXT = {
     "omit.shapes": ("{place}: {count} drawn shape(s)", "{place}: {count} forme disegnate"),
     "omit.annotations": ("{place}: {count} free annotation(s)", "{place}: {count} annotazioni libere"),
     "omit.points": ("{place}: {count} formatted point(s)", "{place}: {count} punti formattati"),
+    "omit.bars": ("{place}: {count} individually formatted bars", "{place}: {count} barre formattate singolarmente"),
     "omit.labels": ("{place}: {count} data label setting(s)", "{place}: {count} impostazioni di etichette dati"),
     "omit.linked_tables": ("{place}: {count} linked table(s)", "{place}: {count} tabelle collegate"),
     "omit.always": ("Results, history, file references and import attributes are never saved.",

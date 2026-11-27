@@ -12,10 +12,13 @@ import pandas as pd
 from scipy.stats import t
 
 from .data import _worksheet_roles
+from .grouped_bar_style import register_bars
 from .pairwise_graph import register_anchors
 from .processing import FieldError
 from .reporting import Result, _plot
 from .stats import geometric_interval_fields, geometric_summary
+from .worksheet_column_identity import frame_ids
+from .worksheet_row_identity import ROW_SPANS, current_spans, row_tokens
 from .xy_series import SCALES as SERIES_SCALES, SIDES as SERIES_SIDES, _limit_pair
 
 
@@ -85,6 +88,7 @@ class _Series:
     values: list
     x: np.ndarray
     color: str
+    columns: tuple = ()
 
 
 def _choice(options, name, choices):
@@ -199,10 +203,13 @@ def _grouped_data(frame, names, row_labels, layout):
     series_names = _unique_names([_title(group[0]) for group in groups], [group[0] for group in groups])
     positions, ticks, width, legend = _positions(len(rows), len(groups), layout, titles, series_names)
     plots = []
+    identities = frame_ids(frame)
     for index, (group, name, x) in enumerate(zip(groups, series_names, positions, strict=True)):
         values = matrix[np.ix_(rows, [columns[column] for column in group])]
-        plots.append(_Series(name, [row[np.isfinite(row)] for row in values], x, COLORS[index % len(COLORS)]))
-    return plots, titles, ticks, width, legend
+        columns_used = tuple(sorted(identities[column] for column in group))
+        plots.append(_Series(name, [row[np.isfinite(row)] for row in values], x,
+                             COLORS[index % len(COLORS)], columns_used))
+    return plots, titles, ticks, width, legend, rows
 
 
 _ROLE_LABELS = {"center": "[Mean] or [Center]", "sd": "[SD]", "sem": "[SEM]", "n": "[N]",
@@ -394,11 +401,13 @@ def _summary_data(frame, names, row_labels, layout, error, sem_source):
     titles = [_row_title(labels, row) for row in rows]
     series_names = _unique_names([item.title for item in series], [item.first for item in series])
     positions, ticks, width, legend = _positions(len(rows), len(series), layout, titles, series_names)
-    plots = [_Series(name, [np.empty(0)] * len(rows), x, COLORS[index % len(COLORS)])
-             for index, (name, x) in enumerate(zip(series_names, positions, strict=True))]
+    identities = frame_ids(frame)
+    plots = [_Series(name, [np.empty(0)] * len(rows), x, COLORS[index % len(COLORS)],
+                     (identities[item.fields["center"]],))
+             for index, (name, x, item) in enumerate(zip(series_names, positions, series, strict=True))]
     summaries = [np.column_stack((center[rows], lower[rows], upper[rows])) for center, lower, upper, _ in values]
     counts = [count[rows] for *_, count in values]
-    return plots, titles, ticks, width, legend, summaries, counts
+    return plots, titles, ticks, width, legend, summaries, counts, rows
 
 
 def _summary(values, center, interval, level, floating):
@@ -877,7 +886,14 @@ def _stack_bottoms(heights):
     return bottoms
 
 
-def _draw_stacks(axes, plots, centers, width, percent, row_names, horizontal=False):
+def _register_series_bars(bars, plot, row_refs, row_names, drawn):
+    if row_refs:
+        indices = np.flatnonzero(drawn)
+        register_bars(bars.patches[0].get_figure(), bars.patches, (row_refs[i] for i in indices),
+                      plot.columns, (row_names[i] for i in indices), plot.name)
+
+
+def _draw_stacks(axes, plots, centers, width, percent, row_names, row_refs, horizontal=False):
     """Stack the center of each row and series, keeping positive and negative totals apart."""
     heights = centers
     if percent:
@@ -910,6 +926,7 @@ def _draw_stacks(axes, plots, centers, width, percent, row_names, horizontal=Fal
         if drawn.any():
             bars = _draw_bars(axes, plot.x[drawn], height[drawn], width, bottom[drawn], horizontal,
                               color=to_rgba(plot.color, .76), edgecolor=plot.color, linewidth=1.15, label=plot.name)
+            _register_series_bars(bars, plot, row_refs, row_names, drawn)
             for patch, value in zip(bars.patches, height[drawn], strict=True):
                 if value == 0:
                     patch.set_linewidth(0)  # An observed zero adds no visible segment.
@@ -1026,10 +1043,10 @@ def category_graph(frame, options, *, grouped=False):
     numeric_axis, category_axis = ("x", "y") if horizontal else ("y", "x")
     counts = None
     if grouped and source == SUMMARIES:
-        plots, row_names, ticks, width, legend, summaries, counts = _summary_data(
+        plots, row_names, ticks, width, legend, summaries, counts, rows = _summary_data(
             frame, names, options.get("Row titles"), layout, error, sem_source)
     elif grouped:
-        plots, row_names, ticks, width, legend = _grouped_data(frame, names, options.get("Row titles"), layout)
+        plots, row_names, ticks, width, legend, rows = _grouped_data(frame, names, options.get("Row titles"), layout)
     else:
         if len(names) > MAX_CATEGORIES:
             raise FieldError("Variables", "Select fewer columns to graph.")
@@ -1048,6 +1065,9 @@ def category_graph(frame, options, *, grouped=False):
             segments = np.stack((np.column_stack((left, matrix[rows, left])),
                                  np.column_stack((left + 1, matrix[rows, left + 1]))), axis=1)
             axes.add_collection(LineCollection(segments, colors="#8494a5", linewidths=.8, alpha=.65))
+    row_refs = ()
+    if grouped and ROW_SPANS in frame.attrs and current_spans(frame) is not None:
+        row_refs = tuple(zip(rows, row_tokens(frame, rows), strict=True))
     if show_points and sum(len(values) for plot in plots for values in plot.values) > MAX_POINTS:
         raise FieldError("Variables", "Select fewer observations or turn off the point overlay.")
 
@@ -1085,7 +1105,8 @@ def category_graph(frame, options, *, grouped=False):
     rng = np.random.default_rng(0)
     if stacked:
         centers = np.column_stack([np.asarray(summary, dtype=float).reshape(-1, 3)[:, 0] for summary in summaries])
-        bottoms, heights = _draw_stacks(axes, plots, centers, width, layout == PERCENT_STACKED, row_names, horizontal)
+        bottoms, heights = _draw_stacks(axes, plots, centers, width, layout == PERCENT_STACKED, row_names,
+                                        row_refs, horizontal)
         for index, plot in enumerate(plots):
             for row, category in enumerate(row_names):
                 record = {"Row": category, "Group": plot.name, "N": counts[index][row], center: centers[row, index],
@@ -1135,6 +1156,8 @@ def category_graph(frame, options, *, grouped=False):
             )
             if primary is not None:
                 grouped_handles[plot.name] = primary
+                if grouped and series_style == BARS and primary.patches:
+                    _register_series_bars(primary, plot, row_refs, row_names, np.isfinite(np.asarray(summary)[:, 0]))
             if not grouped and style != PAIRED:
                 anchors.update(_column_anchor(plot, summary[0], style, show_points))
             for category, number, (midpoint, lower, upper) in zip(row_names, count, summary, strict=True):

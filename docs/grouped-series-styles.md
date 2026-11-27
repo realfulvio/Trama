@@ -40,6 +40,12 @@ Nella stessa scheda, scegli **Direzione delle barre → Orizzontale** per metter
 
 Nelle disposizioni senza pile, **Base delle barre** imposta il valore da cui partono le barre. Le stime e gli intervalli si leggono ancora nelle unità del foglio. Il campo vuoto usa zero. Una base personalizzata richiede ALAB 24.
 
+## Formato di una singola barra
+
+Fai clic destro su una barra oppure apri **Cambia → Formato singola barra…**. L’elenco indica la riga del foglio, la categoria e la serie. Puoi cambiare riempimento, bordo, spessore e motivo anche per un segmento impilato. I campi vuoti seguono la serie. **Ripristina barra** rimuove le modifiche della barra selezionata.
+
+**Anteprima** mostra le modifiche prima di salvarle. **Applica** le registra in un solo passaggio che puoi annullare o ripetere. Il formato segue la riga quando la sposti, rimane in attesa se la barra scompare e si vede anche nei layout e nelle esportazioni. Le stime, gli intervalli e la legenda della serie restano uguali. Il salvataggio con formati individuali richiede ALAB 27.
+
 ## Regole di compatibilità e persistenza
 
 - Supporta sia **Affiancati** (*Interleaved*) sia **Sovrapposti** (*Superimposed*), sia con **Repliche grezze** (*Raw replicates*) sia con **Riepiloghi precalcolati** (*Precomputed summaries*).
@@ -79,3 +85,9 @@ Use **Format Graph → Bar arrangement → Custom spacing** to set distances bet
 On the same tab, choose **Bar direction → Horizontal** to put the values on X and the categories on Y. Limits, labels, reference lines and data-anchored objects follow the axes. Stacks, spacing and interval options remain available. Horizontal bars require ALAB 22.
 
 For charts without stacks, **Bar baseline** sets where the bars start. The estimates and intervals stay in the worksheet’s units. Leave the field empty to start at zero. A custom baseline requires ALAB 24.
+
+### Format an individual bar
+
+Right-click a bar or choose **Change → Format individual bar…**. Choose a bar by its worksheet row, category and series. Customize the fill, border, border width and fill pattern, including for a single segment in a stack. Empty fields inherit the series appearance. **Reset bar** removes the selected bar’s changes.
+
+**Preview** shows what will change. **Apply** saves the edits as one step you can undo or redo. Formatting follows the worksheet row when you move it, is suspended if the bar disappears, and appears in layouts and exports. The estimates, intervals and series legend keep their original values and appearance. Individual bar formats require ALAB 27.
