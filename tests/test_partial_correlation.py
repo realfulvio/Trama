@@ -170,6 +170,28 @@ class PartialCorrelationTests(unittest.TestCase):
             analyse(self.frame, recipe(["Z1", "Z2"]), cancel=lambda: True)
         self.assertEqual(str(caught.exception), CANCELLED)
 
+    def test_the_example_project_reopens_and_an_edit_moves_the_coefficient(self):
+        from analisi.data import load_project
+        data = load_project(ROOT.parents[2] / "docs" / "examples" / "partial-correlation-campione.alab")["Campione"]
+        self.assertEqual(data.analyses[0][1][VARIABLES], TARGETS)
+        self.assertEqual(data.analyses[0][1][COVARIATES], ["Z1", "Z2"])
+        frame = data.frame(mask_excluded=True)
+        result = analyse(frame, data.analyses[0][1])
+        self.assertAlmostEqual(float(result.tables[PAIRS].iloc[0]["r"]), -1 / sqrt(5), delta=1e-10)
+        self.assertEqual(int(result.tables[SAMPLE]["Value"]["Excluded rows"]), 1)
+        edited = frame.copy()
+        edited.attrs["excluded_cells"] = set(frame.attrs["excluded_cells"])
+        edited.loc[0, "Y"] = float(edited.loc[0, "Y"]) + 5
+        moved = float(analyse(edited, data.analyses[0][1]).tables[PAIRS].iloc[0]["r"])
+        self.assertGreater(abs(moved - float(result.tables[PAIRS].iloc[0]["r"])), 1e-6)
+        again = Dataset(frame.copy())
+        again.excluded = set(data.excluded)
+        again.excluded.add((0, 1))
+        again_frame = again.frame(mask_excluded=True)
+        dropped = analyse(again_frame, data.analyses[0][1])
+        self.assertEqual(int(dropped.tables[SAMPLE]["Value"]["N"]), 7)
+        self.assertEqual(int(dropped.tables[SAMPLE]["Value"]["Excluded rows"]), 2)
+
     def test_dispatch_and_a_large_table(self):
         result = dispatch(METHOD, self.frame, recipe(["Z1", "Z2"], holm=False))
         self.assertAlmostEqual(float(result.tables[PAIRS].iloc[0]["r"]), -1 / sqrt(5), delta=1e-10)
