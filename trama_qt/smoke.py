@@ -23,6 +23,8 @@ from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QEvent, QRect, Qt
 from PySide6.QtWidgets import QAbstractButton, QApplication, QDialog, QLabel, QMessageBox, QToolButton, QWidget
 
+from .status_label import StatusLabel
+
 LANGUAGES = ("en", "it")
 
 
@@ -56,6 +58,8 @@ class Smoke:
                 continue
             if isinstance(child, QToolButton) and child.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly:
                 continue  # Its label is in the tooltip by design, as on the Tk Classica toolbar.
+            if isinstance(child, StatusLabel) and child.toolTip() == child.text():
+                continue  # Status labels paint an ellipsis and keep the full message in the tooltip.
             if isinstance(child, QAbstractButton) and child.text():
                 needed = child.minimumSizeHint().width()
             elif isinstance(child, QLabel) and child.text() and not child.wordWrap() and child.pixmap().isNull():

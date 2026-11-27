@@ -123,11 +123,16 @@ def check_bubble_multivariate(smoke, window):
         export_figure(figure, stem.with_suffix("." + extension), {"format": extension})
     layout = compose_layout("Bubble charts", 2, [figure, figure])
     export_figure(layout, stem.with_name(stem.name + "-layout").with_suffix(".svg"), {"format": "svg"})
+    saved = window.project
+    assert window.close_project()
     window.open_path(stem.with_suffix(".alab"))
     smoke.wait()
+    assert window.project is not saved and window.project.path == stem.with_suffix(".alab")
     window.open_sheet(reference)
     smoke.wait()
     assert window.project.runs[index].result.tables[SHEET].loc[1, "Color position (u)"] == 0.5
+    reopened = getattr(window.project.runs[index].result.figure, ATTR)
+    assert reopened["effective_encoding"]["palette"] == "Blue–red"
     smoke.shot(window, "bubble-multivariate-reopened")
     _check_compact_tools(smoke, window)
 
