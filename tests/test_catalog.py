@@ -67,6 +67,7 @@ class CatalogTests(unittest.TestCase):
             "Compare independent correlations": {"X": "x", "Y": "y", "Group": "Group"},
             "Repeated-measures correlation": {"Subject": "Subject", "X": "x", "Y": "y", "Show graph": False},
             "Correlation matrix": {"Variables": ["x", "y", "z"]},
+            "Partial correlation": {"Variables": ["x", "y"], "Covariates": ["z"]},
             "Contingency table": {"Rows": "Group", "Columns": "Factor"},
             "Paired proportions": {"Input format": "Observations", "Before": "Before", "After": "After",
                                    "Negative value": "off", "Positive value": "on", "Graph": False},
