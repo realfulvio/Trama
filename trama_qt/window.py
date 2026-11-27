@@ -9,8 +9,8 @@ from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from PySide6 import __version__ as PYSIDE_VERSION
 from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence
-from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QComboBox, QDialog, QFileDialog, QFrame,
+from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPen
+from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QApplication, QComboBox, QDialog, QFileDialog, QFrame,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QScrollArea, QSlider, QSplitter, QTabBar, QToolBar,
                                QToolButton, QTreeWidgetItem, QTreeWidgetItemIterator, QVBoxLayout, QWidget)
@@ -212,6 +212,22 @@ class SheetCanvas(FigureCanvasQTAgg):
     def draw_idle(self, *args, **kwargs):
         if self._laid_out:
             super().draw_idle(*args, **kwargs)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.hasFocus():
+            painter = QPainter(self)
+            painter.setPen(QPen(theme.color("accent_dark"), 2))
+            painter.drawRect(self.rect().adjusted(1, 1, -2, -2))
+            painter.end()
+
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        self.update()
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        self.update()
 
 
 class PaperCanvas(SheetCanvas):
@@ -602,6 +618,9 @@ class MainWindow(QMainWindow):
         a("processes", tr("processes.command"), self.choose_processes, icon="sliders-horizontal")
         a("about", qt("qt.about"), self.about, icon="info")
         a("help_shortcuts", qt("qt.shortcuts"), self.show_shortcuts, shortcut="F1")
+        a("focus_next_pane", qt("qt.focus_next_pane"), lambda: self.focus_workspace_pane(1), shortcut="F6")
+        a("focus_previous_pane", qt("qt.focus_previous_pane"), lambda: self.focus_workspace_pane(-1),
+          shortcut="Shift+F6")
         a("exit", tr("command.exit"), self.close, icon="x", shortcut="Ctrl+Q")
         a("undo", tr("command.undo"), self.undo, icon="undo-2", shortcut="Ctrl+Z")
         a("redo", tr("command.redo"), lambda: self.undo(redo=True), icon="redo-2", shortcut="Ctrl+Y")
@@ -1133,6 +1152,8 @@ class MainWindow(QMainWindow):
         self._show_status_zoom(self.figure_zoom if figure_view is not None else self.table_zoom)
         self.actions["previous_sheet"].setEnabled(idle and self._sheet_history_target(-1) is not None)
         self.actions["next_sheet"].setEnabled(idle and self._sheet_history_target(1) is not None)
+        for key in ("focus_next_pane", "focus_previous_pane"):
+            self.actions[key].setEnabled(self.selected is not None or self.gallery is not None)
         self.actions["combined_navigator"].setChecked(self.sessions.active.combined_navigator)
         for key in ("cut", "paste_special", "paste_transpose", "clear_cells", "insert_row",
                     "insert_column", "create_numeric_series", "delete_rows", "delete_columns",
@@ -2160,6 +2181,7 @@ class MainWindow(QMainWindow):
 
         if self.worksheet_notes is None:
             dialog = self.worksheet_notes = WorksheetNotes(self, self.selected)
+            dialog.addActions([self.actions["focus_next_pane"], self.actions["focus_previous_pane"]])
             dialog.finished.connect(lambda _code: self._notes_closed(dialog))
         self.worksheet_notes.show()
         self.worksheet_notes.raise_()
@@ -2250,6 +2272,8 @@ class MainWindow(QMainWindow):
         canvas.setMinimumSize(200, 160)
         page.canvases.append(canvas)
         if toolbar:
+            canvas.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            canvas.setAccessibleName(qt("qt.canvas_layout" if paper is not None else "qt.canvas_graph"))
             tools = self.plot_tools = PlotNavigation(canvas, page)
             tools.setIconSize(theme.icon_size(18))
             theme.plot_toolbar(tools)
@@ -5566,6 +5590,55 @@ class MainWindow(QMainWindow):
     def show_shortcuts(self):
         from .shortcuts_dialog import ShortcutsDialog
         ShortcutsDialog(self).exec()
+
+    def focus_workspace_pane(self, step):
+        """Cycle among the visible working panes without changing the active sheet."""
+        body = self.gallery if self.gallery is not None else self.page
+        preferred = None
+        if self.gallery is not None:
+            preferred = self.gallery.search
+        elif self.sheet is not None:
+            preferred = self.sheet
+        elif self.result_tabs is not None:
+            preferred = self.result_tabs.currentWidget()
+        elif self.info_editor is not None:
+            preferred = self.info_editor.notes
+        elif self.plot_tools is not None:
+            preferred = self.plot_tools.canvas
+        notes = self.worksheet_notes
+        notes_target = None
+        if notes is not None:
+            notes_target = notes.editor.notes if notes.editor is not None else notes.select
+        inspector = self.inspector
+
+        def focusable(widget):
+            return (widget is not None and widget.isVisible() and widget.isEnabled()
+                    and bool(widget.focusPolicy() & Qt.FocusPolicy.TabFocus))
+
+        def target(scope, widget):
+            if scope is None or not scope.isVisible():
+                return None
+            if focusable(widget):
+                return widget
+            return next((child for child in scope.findChildren(QWidget) if focusable(child)), None)
+
+        panes = [(scope, destination) for scope, widget in (
+            (self.nav_card, self.navigator), (body, preferred), (notes, notes_target),
+            (inspector, inspector.selector if inspector is not None else None))
+                 if (destination := target(scope, widget)) is not None]
+        if not panes:
+            return
+        focused = QApplication.focusWidget()
+        origin = next((index for index in reversed(range(len(panes))) if focused is not None
+                       and (panes[index][0] is focused or panes[index][0].isAncestorOf(focused))), None)
+        index = (origin + step) % len(panes) if origin is not None else (0 if step > 0 else len(panes) - 1)
+        destination = panes[index][1]
+        window = destination.window()
+        if window is not QApplication.activeWindow():
+            window.raise_()
+            window.activateWindow()
+        reason = Qt.FocusReason.TabFocusReason if step > 0 else Qt.FocusReason.BacktabFocusReason
+        destination.setFocus(reason)
 
     def about(self):
         QMessageBox.about(self, qt("qt.about"), qt("qt.about_text", version=VERSION, qt=PYSIDE_VERSION))

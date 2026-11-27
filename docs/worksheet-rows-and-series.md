@@ -12,6 +12,10 @@ On a worksheet or result table, **Ctrl+Shift+arrow** extends the selection along
 
 Nei fogli dati e dei risultati, **Ctrl+Maiusc+freccia** estende la selezione lungo la riga o la colonna attiva fino all’ultima cella piena prima di un vuoto. Puoi poi estendere il rettangolo in un’altra direzione. La cella attiva resta la stessa. Zero e Falso contano come dati. I comandi sono anche in **Modifica → Seleziona**.
 
+Use **F6** and **Shift+F6** to move keyboard focus between the navigator, the open sheet, its floating notes and the graph inspector. The shortcuts skip closed or hidden panes. The active sheet and cell stay selected. The commands are available under **View**.
+
+Con **F6** e **Maiusc+F6** passi da un riquadro all’altro, tra navigatore, foglio aperto, note flottanti e Inspector. I riquadri chiusi o nascosti vengono saltati. Il foglio e la cella attiva restano selezionati. I comandi sono anche in **Visualizza**.
+
 ## Column and replicate titles
 
 Choose **Change → Format data table…** (*Cambia → Formato tabella dati…*) to edit the headings of the current worksheet. The **Table format** tab previews the first rows and controls the display of row titles and automatic column widths. The next two tabs edit series titles and replicate titles. Double-click a series or a replicate heading to open its tab directly.
