@@ -300,6 +300,7 @@ _TEXT = {
     "qt.profile_name": ("Profile name", "Nome del profilo"),
     "qt.sheet_picker": ("Project sheet", "Foglio del progetto"),
     "qt.result_table": ("Result table", "Tabella dei risultati"),
+    "qt.open_named_section": ("Open {section} section", "Apri la sezione {section}"),
     "qt.go_to_section": ("Go to section", "Vai alla sezione"),
     "qt.result_table_menu": ("Result tables", "Tabelle dei risultati"),
     "qt.result_table_number": ("Result table {number}", "Tabella dei risultati {number}"),

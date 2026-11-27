@@ -836,10 +836,11 @@ class MainWindow(QMainWindow):
           shortcut="Alt+Right").setShortcuts([QKeySequence("Alt+Right"), QKeySequence("Ctrl+PgDown")])
         for number, (kind, (label, icon)) in enumerate(SECTION_COMMANDS.items(), 1):
             caption = tr(label)
-            action = a(f"section_{kind}", caption, lambda kind=kind: self.open_section(kind),
-                       shortcut=f"Alt+{number}")
+            name = qt("qt.open_named_section", section=caption)
+            action = a(f"section_{kind}", name, lambda kind=kind: self.open_section(kind), shortcut=f"Alt+{number}")
             shortcut = action.shortcut().toString(QKeySequence.SequenceFormat.NativeText)
-            action.setToolTip(f"{caption} ({shortcut})")
+            action.setIconText(caption)
+            action.setToolTip(f"{name} ({shortcut})")
             action.setCheckable(True)
             action.setIcon(theme.classic_icon(icon))
         themes = QActionGroup(self)
