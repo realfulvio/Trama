@@ -412,6 +412,7 @@ class MainWindow(QMainWindow):
         self.sheet = None
         self.formula_editor = None
         self.result_tabs = None
+        self.cell_search = None  # Edit → Find/Replace in Cells, created on first use.
         self.table_font = font_preference(config_path())
         self.table_zoom = 100
         self.job = None
@@ -640,6 +641,10 @@ class MainWindow(QMainWindow):
               lambda command=command: self._worksheet_command(self.selected, command), icon=icon)
         a("sheet_notes", qt("qt.sheet_notes"), self.open_worksheet_notes, icon="book-open")
         a("find_sheet", tr("nav.search"), self.focus_sheet_search, icon="search", shortcut="Ctrl+F")
+        a("find_cells", qt("qt.find_cells"), lambda: self.open_cell_search(replace=False), icon="search",
+          tip=qt("qt.find_cells_tip"))
+        a("replace_cells", qt("qt.replace_cells"), lambda: self.open_cell_search(replace=True), icon="type",
+          shortcut="Ctrl+H", tip=qt("qt.replace_cells_tip"))
         a("combined_navigator", tr("command.toggle_data_results"), self.toggle_combined_navigator,
           icon="panel-bottom").setCheckable(True)
         a("previous_sheet", tr("command.previous_sheet"), lambda: self.step_sheet(-1), icon="arrow-left",
@@ -864,6 +869,30 @@ class MainWindow(QMainWindow):
         self.sheet_search.setFocus()
         self.sheet_search.selectAll()
 
+    def open_cell_search(self, *, replace=False):
+        """Edit → Find in Cells… / Replace in Cells…: one panel, reused, on the active sheet."""
+        from .cell_search import CellSearchPanel
+
+        if self.cell_search is None:
+            self.cell_search = CellSearchPanel(self)
+        self.cell_search.present(replace=replace)
+
+    def replace_in_cells(self, target, plan):
+        """Apply a Replace All preview: one Undo step and one recalculation. True when the cells changed."""
+        from .cell_search import search_target
+
+        current = search_target(self)
+        if current is None or current.identity != target.identity or current.project is not target.project:
+            self.error(qt("qt.find_stale"))
+            return False
+        title = target.selected[1]
+        before = self.project.revision
+        self._apply_edit(title, lambda: self.project.replace_cells(title, plan))
+        if self.project.revision == before:
+            return False
+        self.status(qt("qt.replaced", count=len(plan.changes)))
+        return True
+
     def filter_sheets(self, text):
         self.sessions.active.sheet_filter = text
         needle = text.strip().casefold()
@@ -979,6 +1008,13 @@ class MainWindow(QMainWindow):
             self.actions[key].setEnabled(has_table and idle and not locked)
         self.text_format.update()
         graph_clipboard = kind == "graph" and self.drawing.problem() is None
+        from .cell_search import search_target
+
+        searchable = search_target(self) if has_table else None
+        self.actions["find_cells"].setEnabled(searchable is not None)
+        self.actions["replace_cells"].setEnabled(searchable is not None)  # Results open the panel in search mode.
+        if self.cell_search is not None and self.cell_search.isVisible():
+            self.cell_search.refresh_target()
         self.actions["copy"].setEnabled(has_table or graph_clipboard)
         self.actions["paste"].setEnabled((editable and idle) or graph_clipboard)
         for key in ("duplicate_family", "save_family", "family_data", "family_info", "family_results",
@@ -1658,6 +1694,8 @@ class MainWindow(QMainWindow):
         self.flush_info()
         self.info_editor = None
         self.selected = (kind, key)
+        if self.cell_search is not None:
+            self.cell_search.sheet_changed()
         self.sessions.active.visit(self._sheet_identity(self.selected))
         self.cell_label.clear()
         self.sheet = None

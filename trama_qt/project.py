@@ -34,6 +34,7 @@ from analisi.graph_shapes import SHAPES
 from analisi import linked_tables
 from analisi.linked_tables import TABLES, FrameSource, Problem, TableSpec
 from analisi.worksheet_number_format import Renderer, automatic_text
+from analisi.cell_search import apply_replace, stale_cells
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
 from analisi.category_levels import (LevelEditError, apply_level_plan, can_rename_levels, find_blocking_recipes,
                                      format_recipe_blockers)
@@ -1606,6 +1607,19 @@ class Project(WorksheetJoinSources, SheetCommands):
 
     def clear(self, title, selection):
         return self.edit(title, "Clear cells", lambda dataset: clear_block(dataset, selection))
+
+    def replace_cells(self, title, plan):
+        """Apply a «Replace all» preview as one undoable step, only if the sheet is still as it was shown."""
+        if plan.title != title or title not in self.tables or plan.revision != self.revision:
+            raise ValueError(qt("qt.find_stale"))
+        if plan.too_long:
+            raise ValueError(qt("qt.replace_too_long", cell=plan.too_long))
+        if plan.problem:
+            raise ValueError(plan.problem)
+        dataset = self.editable(title)
+        if stale_cells(dataset, plan.changes):
+            raise ValueError(qt("qt.find_stale"))
+        return self.edit(title, "Replace", lambda candidate: apply_replace(candidate, plan.changes))
 
     def create_numeric_series(self, title, plan_or_start_row, column=None, *, mode=None,
                               start_text=None, count=None, step_text=None, confirm_replace=False):

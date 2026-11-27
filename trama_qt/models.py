@@ -306,17 +306,7 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
             return None
         row, column = index.row(), index.column()
         if role == Qt.ItemDataRole.DisplayRole:
-            if (column and self.formats and self.frame.columns[column - 1] not in self.formatters
-                    and (text := self.formats.text(column, self.frame.iat[row, column - 1])) is not None):
-                return text  # A column formatted by its analysis (ROC thresholds) keeps that renderer.
-            if column and self.result_display is not None:
-                name = self.frame.columns[column - 1]
-                if name not in self.formatters:
-                    metric = self.metric_labels[row] if self.metric_labels is not None and name == "Value" else None
-                    formatted = self.result_display(name, self.frame.iat[row, column - 1], metric)
-                    if formatted is not None:
-                        return formatted
-            return self.plain_text(row, column)
+            return self.display_text(row, column)
         style = self._style(column, row)
         if role == Qt.ItemDataRole.TextAlignmentRole:
             numeric = column > 0 and self.numeric[column - 1]
@@ -335,6 +325,20 @@ class FrameModel(TextStyleRoles, QAbstractTableModel):
         if role == Qt.ItemDataRole.ForegroundRole and column == 0:
             return QBrush(theme.color("text2"))
         return None
+
+    def display_text(self, row, column):
+        """The text on screen (Find in Cells reads it without creating a Qt index per cell)."""
+        if (column and self.formats and self.frame.columns[column - 1] not in self.formatters
+                and (text := self.formats.text(column, self.frame.iat[row, column - 1])) is not None):
+            return text  # A column formatted by its analysis (ROC thresholds) keeps that renderer.
+        if column and self.result_display is not None:
+            name = self.frame.columns[column - 1]
+            if name not in self.formatters:
+                metric = self.metric_labels[row] if self.metric_labels is not None and name == "Value" else None
+                formatted = self.result_display(name, self.frame.iat[row, column - 1], metric)
+                if formatted is not None:
+                    return formatted
+        return self.plain_text(row, column)
 
     def plain_text(self, row, column):
         """The text without a number format: what Copy writes, so the clipboard keeps the stored digits."""
