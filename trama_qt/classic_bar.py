@@ -25,6 +25,7 @@ SELECTION_COMMANDS = {
     "select_data_row": "Shift+Space",
     **{key: shortcut for key, (shortcut, _, _) in FILLED_SELECTION_COMMANDS.items()},
 }
+RESULT_TABLE_COMMANDS = tuple(f"result_table_{number}" for number in range(1, 10))
 
 
 MENUS = (
@@ -40,7 +41,7 @@ MENUS = (
               "sheet_duplicate", "sheet_rename", "sheet_delete", "sheet_move_up", "sheet_move_down", "sheet_freeze")),
     ("View", ("navigator", "find_sheet", "combined_navigator", "gallery", "previous_sheet", "next_sheet", "previous_project", "next_project",
               "focus_next_pane", "focus_previous_pane", "|",
-              "worksheet_preview", "analysis_graph", "analysis_tables", "layout_go_origin", "inspector", "|",
+              "worksheet_preview", "analysis_graph", "analysis_tables", *RESULT_TABLE_COMMANDS, "layout_go_origin", "inspector", "|",
               "fit_graph", "fit_layout_page", "layout_rulers", "layout_page_grid", "|",
               "sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset", "|",
               "theme_system", "theme_light", "theme_dark")),
@@ -133,6 +134,7 @@ def build_menus(window):
         title = tr("theme.settings") if name == "Settings" else qt("qt.toolbar_help") if name == "Help" else ui(name)
         menu = menus[name] = bar.addMenu(title)
         selection_menu = None
+        tables_menu = None
         for key in keys:
             if key in SELECTION_COMMANDS:
                 if selection_menu is None:
@@ -141,6 +143,10 @@ def build_menus(window):
                 if key == "select_filled_down":
                     selection_menu.addSeparator()
                 selection_menu.addAction(window.actions[key])
+            elif key in RESULT_TABLE_COMMANDS:
+                if tables_menu is None:
+                    tables_menu = window.result_table_menu = menu.addMenu(qt("qt.result_table_menu"))
+                tables_menu.addAction(window.actions[key])
             elif key == "|":
                 menu.addSeparator()
             else:

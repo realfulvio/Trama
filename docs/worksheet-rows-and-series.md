@@ -30,6 +30,10 @@ The bottom bar identifies the current sheet. On a worksheet it also shows the cu
 
 **Fogli collegati…** nella barra in basso o **Ctrl+Alt+J** apre la famiglia del foglio corrente. Digita parte di un nome per filtrare, scegli con le frecce e premi **Invio**. Il comando è anche nel menu **Famiglia**.
 
+On a results sheet, press **Ctrl+1** to **Ctrl+9** to open the corresponding output table. The available shortcuts appear in **View → Result tables**. The tab strip and the selectors follow the same active table.
+
+In un foglio dei risultati, **Ctrl+1** fino a **Ctrl+9** apre la tabella corrispondente. **Visualizza → Tabelle dei risultati** mostra le scorciatoie disponibili. I selettori e le schede seguono la tabella attiva.
+
 [Worksheet with an active replicate on Windows](media/worksheet-titles/worksheet-it.png) · [Editing the replicate titles](media/worksheet-titles/replicate-titles-en.png)
 
 ### Horizontal error bars

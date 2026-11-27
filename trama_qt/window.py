@@ -79,7 +79,7 @@ from .layout_view import LayoutView
 from . import global_catalog
 from . import gui_gc, office, theme
 from .analysis_dialog import AnalysisDialog
-from .classic_bar import ClassicToolbar, SELECTION_COMMANDS, build_menus
+from .classic_bar import ClassicToolbar, RESULT_TABLE_COMMANDS, SELECTION_COMMANDS, build_menus
 from .flow import FlowLayout
 from .gallery import GalleryPage, g as gallery_text
 from .graph_axis_click import axis_at, right_y_axes
@@ -746,6 +746,10 @@ class MainWindow(QMainWindow):
         a("use_result", qt("qt.use_as_data"), self.use_result_as_data, icon="table-2")
         a("analysis_graph", qt("qt.show_analysis_graph"), lambda: self.switch_run_view("graph"), icon="chart-line")
         a("analysis_tables", tr("command.analysis_results"), lambda: self.switch_run_view("result"), icon="sigma")
+        for index, key in enumerate(RESULT_TABLE_COMMANDS):
+            action = a(key, qt("qt.result_table_number", number=index + 1),
+                       lambda index=index: self._pick_result_table(index, focus=True), shortcut=f"Ctrl+{index + 1}")
+            action.setCheckable(True)
         a("fit_graph", qt("qt.fit_graph"), self.fit_preview, icon="house")
         a("fit_layout_page", qt("qt.fit_entire_page"), self.fit_preview, icon="layout-grid")
         a("layout_rulers", qt("qt.layout_rulers"), self.update_layout_view,
@@ -1146,6 +1150,7 @@ class MainWindow(QMainWindow):
             button.setChecked(section_kind == active_section and self.gallery is None)
         self._status_section_labels()
         self.status_results.setVisible(kind == "result" and self.result_tabs is not None and self.gallery is None)
+        self._sync_result_table_commands()
         self.cell_label.setVisible(kind == "data" and self.gallery is None and idle)
         self.message.setVisible(bool(self.message.property("fresh")) or kind not in {"data", "result"})
         figure_view = getattr(self.page, "figure_view", None)
@@ -2059,9 +2064,29 @@ class MainWindow(QMainWindow):
             self._resize_tables()
         self._show_status_zoom(value)
 
-    def _pick_result_table(self, index):
+    def _pick_result_table(self, index, *, focus=False):
         if self.result_tabs is not None and 0 <= index < self.result_tabs.count():
             self.result_tabs.setCurrentIndex(index)
+            self._sync_result_table_commands()
+            if focus:
+                self.result_tabs.currentWidget().setFocus()
+
+    def _sync_result_table_commands(self):
+        tabs = self.result_tabs if self.gallery is None else None
+        count = tabs.count() if tabs is not None else 0
+        current = tabs.currentIndex() if tabs is not None else -1
+        self.result_table_menu.menuAction().setEnabled(count > 1)
+        for index, key in enumerate(RESULT_TABLE_COMMANDS):
+            action = self.actions[key]
+            available = index < count
+            action.setEnabled(available and count > 1)
+            action.setVisible(available)
+            action.setChecked(index == current)
+            if available:
+                text = qt("qt.result_table_label", number=index + 1, title=tabs.tabText(index).replace("&", "&&"))
+            else:
+                text = qt("qt.result_table_number", number=index + 1)
+            action.setText(text)
 
     def zoom_table(self, step):
         self.table_zoom = zoom_step(self.table_zoom, step)
@@ -2625,6 +2650,7 @@ class MainWindow(QMainWindow):
                 if self.result_tabs is results.tabs and results.tabs.currentIndex() >= 0:
                     self.status_results.setCurrentIndex(results.tabs.currentIndex())
                     self.status_results.setToolTip(results.tabs.tabText(results.tabs.currentIndex()))
+                    self._sync_result_table_commands()
             results.tabs.currentChanged.connect(result_position)
             result_position()
             page.add(results, 1)
