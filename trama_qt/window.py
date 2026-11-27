@@ -24,6 +24,7 @@ from analisi.i18n import LANGUAGE_NAMES, config_path, save_language, tr, transla
 from analisi.kmeans_options import METHODS as KMEANS_METHODS
 from analisi.kmeans_reports import FIT_DIAGNOSTICS_TABLE, FIT_REASON, FIT_SOURCE
 from analisi.correlation_matrix import CORRELATION_MATRIX
+from analisi.anova_covariates import CovariateFitCancelled
 from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
 from analisi.weighted_logrank import WeightedComparisonCancelled
 from analisi.plot_function import CURVES as FUNCTION_CURVES, PLOT_FUNCTION
@@ -3492,7 +3493,7 @@ class MainWindow(QMainWindow):
                 return
             try:
                 result = future.result()
-            except (MonteCarloCancelled, ChainCancelled, WeightedComparisonCancelled):
+            except (MonteCarloCancelled, ChainCancelled, WeightedComparisonCancelled, CovariateFitCancelled):
                 self.status(qt("qt.cancelled"))
                 return
             except Exception as error:  # Field and data errors reopen the dialog with the message.
@@ -3555,7 +3556,7 @@ class MainWindow(QMainWindow):
             recovery = None
             try:
                 outcomes = future.result()
-            except (ChainCancelled, WeightedComparisonCancelled):
+            except (ChainCancelled, WeightedComparisonCancelled, CovariateFitCancelled):
                 self.project.restore_after_cancel(job, qt("qt.cancelled"))
                 self.status(qt("qt.cancelled"))
             except Exception as error:
@@ -3671,7 +3672,7 @@ class MainWindow(QMainWindow):
             from .family import family_error_text
             try:
                 outcome = future.result()
-            except (ChainCancelled, WeightedComparisonCancelled):
+            except (ChainCancelled, WeightedComparisonCancelled, CovariateFitCancelled):
                 self.status(cancelled)
                 return
             except Exception as error:

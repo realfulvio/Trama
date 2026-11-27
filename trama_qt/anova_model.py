@@ -34,6 +34,7 @@ from analisi.anova_contrast_editor import check_contrast_input, contrast_context
 from analisi.anova_diagnostics import format_anova_error, graph_choice, ensure_graph_budget
 from analisi.anova_diagnostics import validate as validate_diagnostics
 from analisi.anova_ss import KEY as SUMS_OF_SQUARES, TYPE_I, TYPE_II, TYPE_III, sums_of_squares
+from analisi.anova_covariates import COVARIATES, check_request as check_covariates
 from analisi.anova_terms import (FULL, MAX_FACTORS, MAX_ORDER, MODEL_TERMS, SELECTED, TERM_SELECTION,
                                  active_factors, check_comparison_controls, check_options, full_terms, label,
                                  prerequisites)
@@ -547,6 +548,20 @@ class AnovaFields:
         self.sync_mode()
         if self.means is not None:
             self.means.refresh()
+        self.covariates = controls[COVARIATES][1] if COVARIATES in controls else None
+        if self.covariates is not None:
+            self.response.currentIndexChanged.connect(lambda _index: self.sync_covariates())
+            self.factor_list.itemChanged.connect(lambda _item: self.sync_covariates())
+            self.order.moved.connect(self.sync_covariates)
+            self.editor.changed.connect(self.sync_covariates)
+            self.sync_covariates()
+
+    def sync_covariates(self):
+        """The columns offered as covariates follow the response and the factors of the model."""
+        if self.covariates is None:
+            return
+        response = self.response.currentData() or self.response.currentText()
+        self.covariates.set_roles(response, self.model_factors())
 
     # -- live state -------------------------------------------------------------------------------
     def ticked(self):
@@ -651,6 +666,7 @@ class AnovaFields:
         """The cheap checks of the engine, before the dialog closes. The fit runs on the worker."""
         from analisi.workbench import _anova_row_count, check_anova_options
         sums_of_squares(options)
+        covariate_names = check_covariates(options) or ()
         terms = check_options(options)
         factors = options.get(FACTORS) or []
         if terms is not None:
@@ -665,7 +681,7 @@ class AnovaFields:
         graph = graph_choice(options)
         if graph != "None":
             used = active_factors(factors, terms) if terms is not None else factors
-            count = _anova_row_count(self.dialog.data, options.get("Response"), used)
+            count = _anova_row_count(self.dialog.data, options.get("Response"), used, covariate_names)
             if count is not None:
                 ensure_graph_budget(count, graph)
 
