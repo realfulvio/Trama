@@ -90,7 +90,7 @@ from analisi.worksheet_row_identity import (ROW_SPANS, after_deletion, after_ins
 from analisi import source_link
 from analisi.worksheet_sort import ASCENDING, plan_row_sort, sort_text, validate_sort_key
 from .sheet_commands import SheetCommands
-from analisi.category_graphs import (AS_GRAPH, BAR_DIRECTION, BARS as GROUPED_BARS, GROUPED_GRAPH,
+from analisi.category_graphs import (AS_GRAPH, BAR_BASELINE, BAR_DIRECTION, BARS as GROUPED_BARS, GROUPED_GRAPH,
                                      GROUPED_SERIES_COMPATIBLE_STYLES, HORIZONTAL_BARS,
                                      GROUPED_BAR_SPACING, GROUPED_SERIES_ORDER, SERIES_INTERVAL_DIRECTION,
                                      SERIES_PLACEMENT, SERIES_STYLE, STACKED_PLACEMENTS, series_interval_directions,
@@ -1247,6 +1247,9 @@ class Project(WorksheetJoinSources, SheetCommands):
             direction = options.pop(BAR_DIRECTION, run.options.get(BAR_DIRECTION))
             if graph_style == GROUPED_BARS and direction == HORIZONTAL_BARS:
                 options[BAR_DIRECTION] = direction
+            baseline = options.pop(BAR_BASELINE, run.options.get(BAR_BASELINE))
+            if graph_style == GROUPED_BARS and placement not in STACKED_PLACEMENTS and baseline:
+                options[BAR_BASELINE] = baseline
             if ((run.options.get(BAR_DIRECTION) == HORIZONTAL_BARS)
                     != (options.get(BAR_DIRECTION) == HORIZONTAL_BARS)):
                 style = transpose_grouped_bar_style(style)

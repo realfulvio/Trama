@@ -7,8 +7,9 @@ import pandas as pd
 from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtTest import QTest
 
-from analisi.category_graphs import BAR_DIRECTION, BARS, GROUPED_BAR_SPACING, GROUPED_GRAPH, HORIZONTAL_BARS, grouped_graph_metadata
-from analisi.data import GROUPED_BAR_DIRECTION_VERSION, GROUPED_BAR_SPACING_VERSION
+from analisi.category_graphs import (BAR_BASELINE, BAR_DIRECTION, BARS, GROUPED_BAR_SPACING, GROUPED_GRAPH,
+                                     HORIZONTAL_BARS, grouped_graph_metadata)
+from analisi.data import GROUPED_BAR_BASELINE_VERSION, GROUPED_BAR_SPACING_VERSION
 from analisi.figure_export import export_figure
 from analisi.presentation import Layout
 
@@ -125,6 +126,7 @@ def check_grouped_bar_spacing(smoke, window):
             choice = dialog.bar_direction
             assert choice.isVisible() and choice.isEnabled()
             choice.set(HORIZONTAL_BARS)
+            dialog.bar_baseline.setText("1,5")
             assert dialog.preview()
             assert dialog.preview_canvas.figure.axes[0].get_xlim() == (-1., 9.)
             assert BAR_DIRECTION not in restored.options
@@ -154,6 +156,7 @@ def check_grouped_bar_spacing(smoke, window):
     def check_horizontal():
         run = window.project.runs[index]
         assert run.options[BAR_DIRECTION] == HORIZONTAL_BARS
+        assert run.options[BAR_BASELINE] == 1.5
         assert run.options[GROUPED_BAR_SPACING] == spacing
         axes, = run.result.figure.axes
         assert axes._tramastat_numeric_axes == ("x",) and axes.yaxis_inverted()
@@ -162,7 +165,8 @@ def check_grouped_bar_spacing(smoke, window):
         assert run.style["reference_lines"][0]["axis"] == "x"
         bars = grouped_graph_metadata(axes)["handles"]["B"].patches
         np.testing.assert_allclose([patch.get_y() for patch in bars], [2., 6.5])
-        np.testing.assert_allclose([patch.get_width() for patch in bars], [3., 4.])
+        np.testing.assert_allclose([patch.get_x() for patch in bars], [1.5, 1.5])
+        np.testing.assert_allclose([patch.get_width() for patch in bars], [1.5, 2.5])
         pd.testing.assert_frame_equal(run.result.tables["Graph data"], original)
         return run
 
@@ -176,6 +180,7 @@ def check_grouped_bar_spacing(smoke, window):
     smoke.wait()
     current = window.project.runs[index]
     assert current.options.get(BAR_DIRECTION) != HORIZONTAL_BARS
+    assert BAR_BASELINE not in current.options
     assert current.result.figure.axes[0].get_ylabel() == "Response"
     window.actions["redo"].trigger()
     smoke.wait()
@@ -183,7 +188,7 @@ def check_grouped_bar_spacing(smoke, window):
 
     saved = stem.with_name(stem.name + "-horizontal").with_suffix(".alab")
     window.project.save(saved)
-    assert json.loads(saved.read_text(encoding="utf-8"))["version"] == GROUPED_BAR_DIRECTION_VERSION
+    assert json.loads(saved.read_text(encoding="utf-8"))["version"] == GROUPED_BAR_BASELINE_VERSION
     window.close_project()
     window.open_path(saved)
     window.open_sheet(("graph", index))

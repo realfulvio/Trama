@@ -51,6 +51,23 @@ MESSAGES = {
         "Axis labels, limits and data-anchored objects follow the bars.",
         "Etichette, limiti degli assi e oggetti ancorati ai dati seguono la direzione delle barre.",
     ),
+    "grouped.bars.baseline": ("Bar baseline", "Base delle barre"),
+    "grouped.bars.baseline_default": ("0 (default)", "0 (predefinita)"),
+    "grouped.bars.baseline_hint": (
+        "Set where the bars start. The estimates and their intervals keep their positions.",
+        "Imposta il valore da cui partono le barre. Le stime e i loro intervalli mantengono le proprie posizioni.",
+    ),
+    "grouped.bars.baseline_graph": (
+        "A custom baseline requires a grouped bar graph without stacks.",
+        "La base personalizzata è disponibile nei grafici a barre raggruppate senza pile.",
+    ),
+    "grouped.bars.baseline_value": (
+        "Enter a finite starting value for the bars.", "Inserisci un valore iniziale finito per le barre.",
+    ),
+    "grouped.bars.baseline_range": (
+        "The distance from the bar baseline exceeds the numeric range.",
+        "La distanza dalla base delle barre supera l’intervallo numerico.",
+    ),
     "grouped.spacing.custom": ("Custom spacing", "Spaziatura personalizzata"),
     "grouped.spacing.hint": (
         "Distances are percentages of a bar’s width. Zero removes the space.",
@@ -143,6 +160,9 @@ MESSAGES = {
 }
 
 _ENGLISH_TO_KEY = {
+    "A custom baseline requires a grouped bar graph without stacks.": "grouped.bars.baseline_graph",
+    "Enter a finite starting value for the bars.": "grouped.bars.baseline_value",
+    "The distance from the bar baseline exceeds the numeric range.": "grouped.bars.baseline_range",
     "Enter a cap length between 0 and 72 points.": "grouped.interval.caps_error",
     "Horizontal direction is available for grouped bar graphs.": "grouped.bars.direction_error",
     "Choose a valid interval direction for each series.": "grouped.series.interval_value",

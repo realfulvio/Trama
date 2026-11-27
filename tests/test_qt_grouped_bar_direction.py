@@ -4,7 +4,7 @@ import unittest
 import pandas as pd
 from PySide6.QtWidgets import QApplication
 
-from analisi.category_graphs import BAR_DIRECTION, BARS, HORIZONTAL_BARS, POINTS, category_graph
+from analisi.category_graphs import BAR_BASELINE, BAR_DIRECTION, BARS, HORIZONTAL_BARS, POINTS, category_graph
 from analisi.i18n import active_language, set_language
 from trama_qt.graph_format import GraphFormatDialog
 
@@ -42,3 +42,17 @@ class GroupedBarDirectionDialogTests(unittest.TestCase):
     def test_no_bar_direction_selector_without_bars(self):
         dialog, _ = self.dialog(POINTS)
         self.assertIsNone(dialog.bar_direction)
+
+    def test_baseline_accepts_a_decimal_comma_and_validates_the_field(self):
+        self.addCleanup(set_language, active_language())
+        set_language("it")
+        dialog, options = self.dialog(BARS)
+        dialog.bar_baseline.setText("nan")
+        self.assertFalse(dialog.preview())
+        self.assertEqual(dialog.tabs.currentIndex(), dialog.spacing_tab)
+        self.assertIn("iniziale finito", dialog.banner.text())
+        dialog.bar_baseline.setText("1,5")
+        self.assertTrue(dialog.preview())
+        self.assertNotIn(BAR_BASELINE, options)
+        dialog.accept()
+        self.assertEqual(dialog.grouped_update[BAR_BASELINE], 1.5)

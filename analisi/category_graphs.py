@@ -1,7 +1,9 @@
 """Native column and grouped plots from worksheet observations."""
 from copy import deepcopy
 from dataclasses import dataclass
+from math import isfinite
 import re
+from sys import float_info
 
 from matplotlib.collections import LineCollection
 from matplotlib.colors import to_rgba
@@ -42,6 +44,7 @@ STACKED_PLACEMENTS = frozenset({STACKED, PERCENT_STACKED})
 SERIES_PLACEMENT = "Series placement"
 GROUPED_SERIES_ORDER = "Grouped series order"
 GROUPED_BAR_SPACING = "Grouped bar spacing"
+BAR_BASELINE = "Bar baseline"
 BAR_DIRECTION = "Bar direction"
 VERTICAL_BARS, HORIZONTAL_BARS = BAR_DIRECTIONS = ("Vertical bars", "Horizontal bars")
 BAR_SPACING_DEFAULTS = {"adjacent": 14., "groups": 45., "empty": 100., "leading": 50., "trailing": 50.}
@@ -515,6 +518,12 @@ def grouped_bar_spacing(options):
         raise FieldError(GROUPED_BAR_SPACING, "Choose valid percentages for the grouped bar spacing.")
     return {key: value / 100 for key, value in settings.items()}
 
+def grouped_bar_baseline(options):
+    baseline = options.get(BAR_BASELINE, 0)
+    if type(baseline) not in (int, float) or abs(baseline) > float_info.max or not isfinite(baseline):
+        raise FieldError(BAR_BASELINE, "Enter a finite starting value for the bars.")
+    return float(baseline)
+
 
 def _space_grouped_bars(plots, summaries, row_names, by_row, placements, spacing):
     """Keep overlays and stacks in a shared slot and reserve space for empty slots."""
@@ -681,7 +690,8 @@ def _draw_bars(axes, categories, heights, width, baseline, horizontal, **style):
 
 
 def _draw_series(axes, series, summaries, style, width, show_points, placement, rng, *,
-                 grouped_track=False, bottom=None, interval_direction=BOTH_INTERVALS, horizontal=False):
+                 grouped_track=False, bottom=None, interval_direction=BOTH_INTERVALS, horizontal=False,
+                 bar_baseline=0.):
     def coordinates(category, response):
         return (response, category) if horizontal else (category, response)
 
@@ -691,8 +701,12 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
     interval = np.isfinite(lower) & np.isfinite(upper)
     primary = err = pts = None
     if style == BARS:
-        base = 0. if bottom is None else bottom[observed]
-        primary = _draw_bars(axes, x[observed], center[observed], width, base, horizontal,
+        base = bar_baseline if bottom is None else bottom[observed]
+        with np.errstate(over="ignore"):
+            heights = center[observed] - bar_baseline
+        if not np.isfinite(heights).all():
+            raise FieldError(BAR_BASELINE, "The distance from the bar baseline exceeds the numeric range.")
+        primary = _draw_bars(axes, x[observed], heights, width, base, horizontal,
                              color=to_rgba(color, .76), edgecolor=color, linewidth=1.15, label=series.name, zorder=2.5)
         if bottom is not None:
             show_points = False
@@ -835,6 +849,9 @@ def category_graph(frame, options, *, grouped=False):
     horizontal = grouped and _choice(options, BAR_DIRECTION, BAR_DIRECTIONS) == HORIZONTAL_BARS
     if horizontal and style != BARS:
         raise FieldError(BAR_DIRECTION, "Horizontal direction is available for grouped bar graphs.")
+    baseline = grouped_bar_baseline(options)
+    if baseline and (not grouped or style != BARS or stacked):
+        raise FieldError(BAR_BASELINE, "A custom baseline requires a grouped bar graph without stacks.")
     spacing = grouped_bar_spacing(options)
     if spacing and (not grouped or style != BARS):
         raise FieldError(GROUPED_BAR_SPACING, "Custom spacing is available for grouped bar graphs.")
@@ -953,6 +970,8 @@ def category_graph(frame, options, *, grouped=False):
     piles = []
     if custom:
         offsets, width, piles = _series_positions(drawing_order, custom, layout)
+        if piles and baseline:
+            raise FieldError(BAR_BASELINE, "A custom baseline requires a grouped bar graph without stacks.")
         category_centers = np.arange(len(row_names), dtype=float)
         ticks, legend = (category_centers, row_names), True
         for plot, offset in zip(plots, offsets, strict=True):
@@ -997,6 +1016,7 @@ def category_graph(frame, options, *, grouped=False):
                 axes, plot, summary, effective_styles[plot.name], width, show_points, placement, rng,
                 grouped_track=series_supports_per_series, bottom=bottoms_by_index.get(index),
                 interval_direction=directions.get(plot.name, direction), horizontal=horizontal,
+                bar_baseline=baseline,
             )
             if primary is not None:
                 grouped_handles[plot.name] = primary

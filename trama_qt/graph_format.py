@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDia
 
 from analisi.axis_breaks import AXIS_BREAKS, SUPPORT_ATTR, axis_breaks_reason
 from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
-from analisi.category_graphs import (AS_GRAPH, BAR_DIRECTION, BAR_DIRECTIONS,
+from analisi.category_graphs import (AS_GRAPH, BAR_BASELINE, BAR_DIRECTION, BAR_DIRECTIONS,
                                      BAR_SPACING_DEFAULTS, BAR_SPACING_MAXIMUMS, BOTH_INTERVALS,
                                      GROUPED_BAR_SPACING, GROUPED_SERIES_COMPATIBLE_STYLES, HORIZONTAL_BARS,
                                      INTERVAL_DIRECTIONS, VERTICAL_BARS,
@@ -218,6 +218,7 @@ class GraphFormatDialog(QDialog):
         self.spacing_controls = {}
         self.spacing_enabled = None
         self.bar_direction = None
+        self.bar_baseline = None
         if self.grouped is not None and self._grouped_global_style == GROUPED_BARS:
             self._bar_arrangement(grouped_options)
         if self.preview_canvas is not None:
@@ -650,6 +651,20 @@ class GraphFormatDialog(QDialog):
         self.bar_direction.setToolTip(tr("grouped.bars.direction_hint"))
         self.bar_direction.currentIndexChanged.connect(self._update_grouped_preview)
         direction.addRow(caption, self.bar_direction)
+        baseline = options.get(BAR_BASELINE)
+        text = str(baseline) if baseline else ""
+        if active_language() == "it":
+            text = text.replace(".", ",")
+        self.bar_baseline = QLineEdit(text)
+        baseline_label = tr("grouped.bars.baseline")
+        self.bar_baseline.setAccessibleName(baseline_label)
+        self.bar_baseline.setPlaceholderText(tr("grouped.bars.baseline_default"))
+        self.bar_baseline.setEnabled(not self._grouped_stacked)
+        self.bar_baseline.setToolTip(tr(
+            "grouped.bars.baseline_graph" if self._grouped_stacked else "grouped.bars.baseline_hint"
+        ))
+        self.bar_baseline.editingFinished.connect(self._update_grouped_preview)
+        direction.addRow(baseline_label, self.bar_baseline)
         values = options.get(GROUPED_BAR_SPACING)
         settings = QGroupBox(tr("grouped.spacing.custom"))
         settings.setObjectName("groupedBarSpacing")
@@ -1080,6 +1095,14 @@ class GraphFormatDialog(QDialog):
         options.pop(BAR_DIRECTION, None)
         if self.bar_direction is not None and self.bar_direction.value() == HORIZONTAL_BARS:
             options[BAR_DIRECTION] = HORIZONTAL_BARS
+        options.pop(BAR_BASELINE, None)
+        if self.bar_baseline is not None and self.bar_baseline.isEnabled() and self.bar_baseline.text().strip():
+            try:
+                baseline = float(self.bar_baseline.text().strip().replace(",", "."))
+            except ValueError:
+                raise FieldError(BAR_BASELINE, "Enter a finite starting value for the bars.") from None
+            if baseline:
+                options[BAR_BASELINE] = baseline
         return prune_series_styles(options, names)
 
     def _grouped_style(self, style, options):
@@ -1096,7 +1119,8 @@ class GraphFormatDialog(QDialog):
         new = {k: v for k, v in (options.get(SERIES_STYLE) or {}).items() if v and v != AS_GRAPH}
         previous = self.grouped["options"]
         return old != new or any(previous.get(key, {}) != options.get(key, {})
-                                 for key in (SERIES_PLACEMENT, GROUPED_BAR_SPACING, SERIES_INTERVAL_DIRECTION, BAR_DIRECTION))
+                                 for key in (SERIES_PLACEMENT, GROUPED_BAR_SPACING, SERIES_INTERVAL_DIRECTION,
+                                             BAR_DIRECTION, BAR_BASELINE))
 
     def _prepare_grouped(self, style, options):
         result = category_graph(self.grouped["frame"], options, grouped=True)
@@ -1162,6 +1186,8 @@ class GraphFormatDialog(QDialog):
                 self._focus(self.spacing_tab, self.spacing_enabled)
             elif error.field == BAR_DIRECTION and self.bar_direction is not None:
                 self._focus(self.spacing_tab, self.bar_direction)
+            elif error.field == BAR_BASELINE and self.bar_baseline is not None:
+                self._focus(self.spacing_tab, self.bar_baseline)
             elif error.field == SERIES_PLACEMENT and self.grouped_place is not None:
                 self._focus(2, self.grouped_place if self.grouped_place.isEnabled() else self.selector)
             elif error.field == SERIES_INTERVAL_DIRECTION and self.grouped_interval is not None:
@@ -1239,9 +1265,10 @@ class GraphFormatDialog(QDialog):
             reset_spacing = options.pop(GROUPED_BAR_SPACING, None)
             reset_intervals = options.pop(SERIES_INTERVAL_DIRECTION, None)
             reset_direction = options.pop(BAR_DIRECTION, None) == HORIZONTAL_BARS
+            reset_baseline = options.pop(BAR_BASELINE, None)
             if reset_direction:
                 style = transpose_grouped_bar_style(style)
-            if reset_drawing or reset_placement or reset_spacing or reset_intervals or reset_direction:
+            if reset_drawing or reset_placement or reset_spacing or reset_intervals or reset_direction or reset_baseline:
                 try:
                     self._prepare_grouped(style, options)
                 except ValueError as error:

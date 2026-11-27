@@ -34,6 +34,8 @@ L’anteprima mostra la geometria aggiornata. Il foglio numerico resta uguale. P
 
 Nella stessa scheda, scegli **Direzione delle barre → Orizzontale** per mettere i valori sull’asse X e le categorie sull’asse Y. I limiti, le etichette, le linee di riferimento e gli oggetti ancorati ai dati seguono gli assi. Le pile, la spaziatura e le opzioni degli intervalli restano disponibili. Il salvataggio con barre orizzontali richiede ALAB 22.
 
+Nelle disposizioni senza pile, **Base delle barre** imposta il valore da cui partono le barre. Le stime e gli intervalli si leggono ancora nelle unità del foglio. Il campo vuoto usa zero. Una base personalizzata richiede ALAB 24.
+
 ## Regole di compatibilità e persistenza
 
 - Supporta sia **Affiancati** (*Interleaved*) sia **Sovrapposti** (*Superimposed*), sia con **Repliche grezze** (*Raw replicates*) sia con **Riepiloghi precalcolati** (*Precomputed summaries*).
@@ -67,3 +69,5 @@ Use **Change → Series drawing order…** to arrange the plotted series. Side-b
 Use **Format Graph → Bar arrangement → Custom spacing** to set distances between adjacent bars, extra group spacing and the leading and trailing margins. Measurements are percentages of a bar’s width. **Space for missing values** can reserve between zero and one bar width. A stack or overlay shares one position, and an observed zero counts as data. The preview shows the adjusted graph. Custom spacing leaves the result table unchanged, follows the graph into layouts and export, and requires ALAB 20.
 
 On the same tab, choose **Bar direction → Horizontal** to put the values on X and the categories on Y. Limits, labels, reference lines and data-anchored objects follow the axes. Stacks, spacing and interval options remain available. Horizontal bars require ALAB 22.
+
+For charts without stacks, **Bar baseline** sets where the bars start. The estimates and intervals stay in the worksheet’s units. Leave the field empty to start at zero. A custom baseline requires ALAB 24.
