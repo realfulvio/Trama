@@ -20,7 +20,7 @@ import traceback
 
 import pandas as pd
 from PySide6 import __version__ as PYSIDE_VERSION
-from PySide6.QtCore import QRect, Qt
+from PySide6.QtCore import QEvent, QRect, Qt
 from PySide6.QtWidgets import QAbstractButton, QApplication, QDialog, QLabel, QMessageBox, QToolButton, QWidget
 
 LANGUAGES = ("en", "it")
@@ -73,6 +73,8 @@ class Smoke:
         if not widget.grab().save(str(path)):
             self.problem(f"{name}: screenshot not written")
         self.shots += 1
+        # The smoke drives Qt without exec(); release sheets and dialogs that already closed.
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
     def dialog(self, dialog, name):
         """Show a dialog the smoke built itself, record it and close it."""
@@ -286,6 +288,7 @@ class Smoke:
             window.close()
             window.deleteLater()
             self.app.processEvents()
+            self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
     def editors(self, window, refs):
         """The sub-dialogs that Format Graph and the drawing lists open, built directly."""
