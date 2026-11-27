@@ -61,6 +61,7 @@ from analisi import weibull_aft_workbench as weibull_form
 from analisi.i18n import active_language, tr, translate_message, ui
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
 from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
+from analisi import weighted_logrank
 from analisi.survival_input import (PAIRWISE_CORRECTION, PAIRWISE_FIELDS, PAIRWISE_SCOPE, PAIRWISE_PAIR_LIST,
                                      pairwise_corrections, pairwise_scope)
 from analisi.summary_twoway import METHOD as SUMMARY_TWOWAY
@@ -71,6 +72,7 @@ from analisi.stats import GEOMETRIC_REPORT, SUMMARY_FORMAT, summary_confidence, 
 
 from . import (anova_model, ellipse_groups, global_catalog, global_fit, logistic_validation, marginal_means,
                 planned_contrasts)
+from . import coefficient_links
 from . import kmeans_stability as stability_options
 from . import bland_altman_repeated as repeated_agreement
 from . import rm_sphericity_dialog as sphericity_options
@@ -613,7 +615,7 @@ class AnalysisDialog(QDialog):
                 form = hierarchy_forms[label]
             if lognormal_method:
                 form = variables if label in lognormal_tests.DATA_FIELDS else options
-            if survival_method and label in PAIRWISE_FIELDS:
+            if survival_method and label in (*PAIRWISE_FIELDS, *weighted_logrank.FIELDS):
                 form = pages["survival-pairs"]
             if self.method in regression_range.METHODS and label in (*regression_range.FIELDS, regression_range.SHOW_OUTSIDE):
                 form = pages["range"]
@@ -712,7 +714,9 @@ class AnalysisDialog(QDialog):
             elif kind == PAIRWISE_PAIR_LIST:
                 widget = survival_pairs.PairEditor(saved.get(label, ()))
             elif kind == PARAMETER_LIST:
-                widget = ParameterTable(saved.get(label, ()))
+                # 0.117: the table of Fit custom equation also edits the links between coefficients.
+                widget = coefficient_links.SingleParameterEditor(saved.get(label, ()))
+                widget.changed.connect(lambda: self.clear_field_error("Parameters"))
             elif kind in (global_fit.PARAMETER_LIST, global_fit.SERIES_LIST):
                 # Global coefficient list / Global series constraints (Global fit custom equation).
                 widget = global_fit.build_editor(kind, label, saved, self)
@@ -771,7 +775,8 @@ class AnalysisDialog(QDialog):
                 continue
             full_width = (kind in (TERM_LIST, CONTRAST_LIST, global_fit.PARAMETER_LIST, global_fit.SERIES_LIST)
                           or isinstance(widget, (Profiles, ordinal_options.OrderEditor, kappa_options.CategoryOrder,
-                                                 FunctionCurves, TransposeSets)))
+                                                 FunctionCurves, TransposeSets,
+                                                 coefficient_links.SingleParameterEditor)))
             if bare:
                 form.addRow(widget)  # the panel carries its own caption, so the form label is not repeated
             elif full_width:
@@ -1392,6 +1397,8 @@ class AnalysisDialog(QDialog):
                 for key in (rank_tests.P_VALUE, rank_tests.ALTERNATIVE, rank_tests.CONTINUITY,
                             rank_tests.ZERO_DIFFERENCES):
                     options.pop(key, None)
+        if self.method == "Kaplan–Meier survival":
+            options = weighted_logrank.canonical(options)
         return self.anova.canonical(options) if self.anova is not None else options
 
     def accept(self):
@@ -1399,6 +1406,8 @@ class AnalysisDialog(QDialog):
             options = global_fit.confirm(self, self.options())
             if self.method == global_catalog.METHOD:
                 global_catalog.check_global_weighting(self.data, options)
+            if self.method == CUSTOM_EQUATION:
+                coefficient_links.check_single(options)
             if self.method == "Kaplan–Meier survival":
                 check_survival_options(self.data, options)
             if self.method == "t-test":
@@ -1529,7 +1538,9 @@ class AnalysisDialog(QDialog):
         if self.method == PASSING_BABLOK:
             return passing_error(error)
         if self.method == "Kaplan–Meier survival":
-            return ui(str(error))
+            text = str(error)
+            translated = translate_message(text, "weight.error.", convert={"field": field_label})
+            return ui(text) if translated == text else translated
         if self.method == "t-test":
             return translate_message(str(error), "ttest.error.")
         if self.method == lognormal_tests.LOGNORMAL:
@@ -1540,6 +1551,8 @@ class AnalysisDialog(QDialog):
             return ui(str(error))
         if self.method in (global_fit.GLOBAL_CUSTOM_EQUATION, global_catalog.METHOD):
             return global_fit.describe_error(error, field)
+        if self.method == CUSTOM_EQUATION:
+            return coefficient_links.describe_error(error, global_fit.translate_error)
         if self.method in (*kmeans_options.METHODS, kmeans_reports.MODEL_GRAPH):
             return ui(str(error))
         if self.stability is not None:  # K-means stability: engine messages in the active language

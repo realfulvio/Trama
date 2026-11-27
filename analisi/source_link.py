@@ -98,6 +98,7 @@ class SourceLink:
     spans: RowSpans  # Row identities of the confirmed file rows, in file order.
     digests: bytes  # ROW_BYTES per confirmed file row.
     encoding: str = "utf-8"
+    relative_folder: Path | None = None  # Session only. Undo can restore a link from before Save as.
 
     def __copy__(self):
         return self
@@ -128,11 +129,14 @@ class SourceLink:
     def with_relative(self, folder):
         """The link with its path relative to ``folder`` (the project folder), or without one when the file is on
         another drive."""
+        target = self.relative_folder / self.relative if self.relative and self.relative_folder else self.path
         try:
-            relative = Path(os.path.relpath(self.path, folder)).as_posix()
+            relative = Path(os.path.relpath(target, folder)).as_posix()
         except (ValueError, TypeError, OSError):
             relative = None
-        return self if relative == self.relative else replace(self, relative=relative)
+        if relative == self.relative and folder == self.relative_folder:
+            return self
+        return replace(self, relative=relative, relative_folder=folder)
 
 
 def _path_name(path):
@@ -228,8 +232,9 @@ def locate(link, project_path):
     absolute = Path(link.path)
     if absolute.is_file():
         return absolute, False
-    if link.relative and project_path is not None:
-        candidate = Path(project_path).parent / link.relative
+    folder = Path(project_path).parent if project_path is not None else link.relative_folder
+    if link.relative and folder is not None:
+        candidate = folder / link.relative
         if candidate.is_file():
             return candidate.resolve(), True
     return None, False
@@ -1133,7 +1138,8 @@ def confirmed_link(plan, arrangement, new_raw):
     relative = previous.relative if previous is not None and previous.path == path else None
     return SourceLink(path, relative, plan.delimiter, plan.options, tuple(zip(plan.sources, plan.tokens)),
                       plan.key_source, plan.size, plan.sha256, _coalesce(pairs),
-                      pack(keys[keep] if len(keep) else keys[:0], rows[keep] if len(keep) else rows[:0]))
+                      pack(keys[keep] if len(keep) else keys[:0], rows[keep] if len(keep) else rows[:0]),
+                      relative_folder=previous.relative_folder if relative else None)
 
 
 def same_link(first, second):

@@ -34,6 +34,7 @@ from analisi.graph_shapes import SHAPES
 from analisi import linked_tables
 from analisi.linked_tables import TABLES, FrameSource, Problem, TableSpec
 from analisi.worksheet_number_format import Renderer, automatic_text
+from analisi.cell_search import apply_replace, stale_cells
 from analisi.grid_data import clear_block, edit_cell_value, grow_rows, paste_block
 from analisi.category_levels import (LevelEditError, apply_level_plan, can_rename_levels, find_blocking_recipes,
                                      format_recipe_blockers)
@@ -536,11 +537,15 @@ class Project(WorksheetJoinSources, SheetCommands):
                 for index, (method, options) in enumerate(dataset.analyses)]
 
     # -- files ----------------------------------------------------------------------------------
-    def load(self, path, *, initial_sheet=None, import_warnings=None):
+    def load(self, path, *, initial_sheet=None, import_warnings=None, link_folder=None):
         """Open a project or import a data file into this project. Returns the titles added."""
         path = Path(path)
         if path.suffix.lower() == ".alab":
             loaded, layouts, info_sheets = load_workspace(path, include_info=True)
+            folder = path.absolute().parent if link_folder is None else Path(link_folder).absolute()
+            for dataset in loaded.values():
+                if dataset.source_link is not None and dataset.source_link.relative:
+                    dataset.source_link = replace(dataset.source_link, relative_folder=folder)
             from .frozen_output import restore
             runs = [run for name, table in loaded.items() for run in self.runs_for(name, table)]
             frozen = loaded.sheet_metadata.get("frozen_runs", {})
@@ -712,11 +717,16 @@ class Project(WorksheetJoinSources, SheetCommands):
         if path.suffix.lower() != ".alab":
             raise ValueError(tr("error.alab_name"))
         self.sync_links(persist=True)
-        for dataset in self.tables.values():  # Linked files: also relative to the project folder (moving both).
+        tables = dict(self.tables)
+        for title, dataset in self.tables.items():
             if dataset.source_link is not None:
-                dataset.source_link = dataset.source_link.with_relative(path.absolute().parent)
-        save_project(path, self.tables, layouts=self.layouts, info_sheets=tuple(self.info_sheets.values()),
+                tables[title] = copy(dataset)
+                tables[title].source_link = dataset.source_link.with_relative(path.absolute().parent)
+        save_project(path, tables, layouts=self.layouts, info_sheets=tuple(self.info_sheets.values()),
                      sheet_metadata=self.sheet_metadata)
+        for title, dataset in tables.items():
+            if dataset.source_link is not None:
+                self.tables[title].source_link = dataset.source_link
         self.path = path
         self.dirty = False
         self.recovered_from = self.recovered_title = self.recovery_base_title = self.save_suggestion = None
@@ -740,6 +750,8 @@ class Project(WorksheetJoinSources, SheetCommands):
             twin.analysis_sources = dict(dataset.analysis_sources)
             twin.analysis_labels = dict(dataset.analysis_labels)
             twin.row_heights = dict(dataset.row_heights)
+            if twin.source_link is not None and self.recovery_source:
+                twin.source_link = twin.source_link.with_relative(Path(self.recovery_source).absolute().parent)
             tables[title] = twin
         _persist_links(self.runs, tables, pinned=self._pinned_runs())
         return Snapshot(tables, deepcopy(self.layouts), deepcopy(tuple(self.info_sheets.values())),
@@ -1596,6 +1608,19 @@ class Project(WorksheetJoinSources, SheetCommands):
     def clear(self, title, selection):
         return self.edit(title, "Clear cells", lambda dataset: clear_block(dataset, selection))
 
+    def replace_cells(self, title, plan):
+        """Apply a «Replace all» preview as one undoable step, only if the sheet is still as it was shown."""
+        if plan.title != title or title not in self.tables or plan.revision != self.revision:
+            raise ValueError(qt("qt.find_stale"))
+        if plan.too_long:
+            raise ValueError(qt("qt.replace_too_long", cell=plan.too_long))
+        if plan.problem:
+            raise ValueError(plan.problem)
+        dataset = self.editable(title)
+        if stale_cells(dataset, plan.changes):
+            raise ValueError(qt("qt.find_stale"))
+        return self.edit(title, "Replace", lambda candidate: apply_replace(candidate, plan.changes))
+
     def create_numeric_series(self, title, plan_or_start_row, column=None, *, mode=None,
                               start_text=None, count=None, step_text=None, confirm_replace=False):
         dataset = self.editable(title)
@@ -2049,6 +2074,9 @@ class Project(WorksheetJoinSources, SheetCommands):
         change = self.history.apply(self.tables, redo=redo)
         if change is None:
             return None, None
+        dataset = self.tables[change.title]
+        if dataset.source_link is not None and self.path is not None:
+            dataset.source_link = dataset.source_link.with_relative(self.path.absolute().parent)
         self.dirty = True
         # False for colours and number formats: the window can refresh the open grid in place.
         self.undo_changed_data = change.before.data_changed(change.after)

@@ -365,6 +365,61 @@ class SourceLinkTests(unittest.TestCase):
         self.assertEqual(column(reopened, title, "ID"), CASES["updated_order"])
         self.assertEqual({row for row, _ in reopened.tables[title].cell_backgrounds}, {1})  # A follows its key.
 
+    def test_save_and_save_as_keep_the_unconfirmed_link_after_moving_the_folder(self):
+        original = self.folder / "Original"
+        original.mkdir()
+        source = original / "data.csv"
+        shutil.copyfile(DATA / "iniziale.csv", source)
+        project, title = link_file(source)
+        project.save(original / "study.alab")
+        moved = original.rename(self.folder / "Moved")
+        reopened = _project()
+        reopened.load(moved / "study.alab")
+        target = self.folder / "Copies"
+        target.mkdir()
+        for path in (reopened.path, target / "copy.alab"):
+            with self.subTest(path=path):
+                reopened.save(path)
+                reopened = _project()
+                reopened.load(path)
+                link = reopened.tables[title].source_link
+                self.assertEqual(Path(link.path), source)
+                self.assertEqual(engine.locate(link, path), ((moved / "data.csv").resolve(), True))
+
+    def test_failed_save_as_preserves_the_live_link_and_the_saved_file(self):
+        source = self.copy("iniziale.csv")
+        project, title = link_file(source)
+        project.save(self.folder / "study.alab")
+        original_link = project.tables[title].source_link
+        original_bytes = project.path.read_bytes()
+        project.edit_cell(title, 0, 2, "99")
+        with self.assertRaises(OSError):
+            project.save(self.folder / "absent" / "copy.alab")
+        self.assertIs(project.tables[title].source_link, original_link)
+        self.assertEqual(project.path, self.folder / "study.alab")
+        self.assertEqual(project.path.read_bytes(), original_bytes)
+        self.assertTrue(project.dirty)
+
+    def test_undo_after_save_as_keeps_the_folder_of_the_restored_link(self):
+        initial = self.folder / "Initial"
+        initial.mkdir()
+        source = initial / "data.csv"
+        shutil.copyfile(DATA / "iniziale.csv", source)
+        project, title = link_file(source)
+        project.save(initial / "study.alab")
+        moved = initial.rename(self.folder / "Moved")
+        project = _project()
+        project.load(moved / "study.alab")
+        project.unlink_source(title)
+        project.save(self.folder / "copy.alab")
+        project.undo()
+        expected = ((moved / "data.csv").resolve(), True)
+        self.assertEqual(engine.locate(project.tables[title].source_link, project.path), expected)
+        project.save(project.path)
+        reopened = _project()
+        reopened.load(project.path)
+        self.assertEqual(engine.locate(reopened.tables[title].source_link, reopened.path), expected)
+
     def test_missing_file_is_not_searched_for(self):
         path = self.copy("iniziale.csv")
         project, title = link_file(path)

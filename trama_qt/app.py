@@ -157,6 +157,12 @@ def main(argv=None):
         elif only == "qt-linked-tables":
             from .linked_table_smoke import run_dedicated as linked_tables
             status = linked_tables(folder)
+        elif only == "qt-coefficient-links":
+            from .coefficient_links_smoke import main as coefficient_smoke
+            language = _option(argv, "--lang") or "it"
+            mode = _option(argv, "--theme") or "light"
+            size = _option(argv, "--size") or "1024x768"
+            status = "PASS" if coefficient_smoke([folder, "--lang", language, "--theme", mode, "--size", size]) == 0 else "FAIL"
         elif only == "qt-linked-table-move":
             from .linked_table_move_smoke import main as table_move_smoke
             language = _option(argv, "--lang") or "it"
@@ -180,6 +186,9 @@ def main(argv=None):
         elif only == "qt-replicate-lack-of-fit":
             from .replicate_lack_of_fit_smoke import main as lack_of_fit_smoke
             status = "PASS" if lack_of_fit_smoke([folder]) == 0 else "FAIL"
+        elif only == "qt-weighted-logrank":
+            from .weighted_logrank_smoke import run as weighted_logrank_smoke
+            status = weighted_logrank_smoke(folder)
         else:
             from .smoke import SCENARIOS, run
             if scenario is not None and scenario not in SCENARIOS:

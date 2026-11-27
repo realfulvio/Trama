@@ -20,7 +20,7 @@ MENUS = (
               "export_pdf", "export_batch", "export_report", "export_excel", "send_word", "send_powerpoint", "|",
               "print", "print_preview", "page_setup", "|", "close_project", "exit")),
     ("Edit", ("undo", "redo", "|", "cut", "copy", "paste", "paste_special", "paste_transpose", "paste_table",
-              "clear_cells", "|", "exclude", "move_rows_up", "move_rows_down", "move_rows_first", "move_rows_last",
+              "clear_cells", "|", "find_cells", "replace_cells", "|", "exclude", "move_rows_up", "move_rows_down", "move_rows_first", "move_rows_last",
               "sort_rows", "sort_by_x", "sort_by_row_title", "reverse_rows", "reset_row_height",
               "delete_rows", "delete_columns", "|",
               "sheet_duplicate", "sheet_rename", "sheet_delete", "sheet_move_up", "sheet_move_down", "sheet_freeze")),

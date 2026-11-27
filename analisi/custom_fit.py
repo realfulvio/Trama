@@ -24,13 +24,14 @@ Conventions fixed by this module (documented in the pull request):
   against max(|estimate|, |limit|, SE) and with no absolute floor, keeps its estimate but has no SE or
   interval, and its Status is "At bound".
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 from scipy.optimize import least_squares
 
+from . import coefficient_links as links
 from .custom_equations import (ARITHMETIC, CONDITIONAL, MAX_PARAMETERS, SYNTAXES, ConditionError, check_name,
                                compile_equation, curve_with_breaks, syntax_of)
 from .field_error import FieldError
@@ -71,6 +72,9 @@ class Coefficient:
     lower: float | None
     upper: float | None
     fixed: bool
+    # 0.117: ``C = factor * source + offset`` (coefficient_links.Link) or None. A linked coefficient is not
+    # estimated: its value follows the source at every step.
+    link: object = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +90,19 @@ class Settings:
     points: int
     intervals: str
     syntax: str = ARITHMETIC
+    # 0.117: the links of the recipe (coefficient_links.Plan). The coefficients above already carry the
+    # limits that the links impose on their roots.
+    plan: object = None
+
+
+def free_coefficients(s):
+    """The coefficients the solver estimates: neither Fixed nor Linked, in declaration order."""
+    return [c for c in s.coefficients if not c.fixed and c.link is None]
+
+
+def complete(s, values):
+    """Coefficient values with every linked coefficient recomputed from its source."""
+    return s.plan.apply(values) if s.plan else values
 
 
 def _number(value):
@@ -131,11 +148,37 @@ def coefficients_from(records, syntax=ARITHMETIC):
         lower, upper = _bound(record.get("lower"), name, "lower"), _bound(record.get("upper"), name, "upper")
         if lower is not None and upper is not None and not lower < upper:
             raise FieldError("Parameters", f"{name}: the lower limit must be smaller than the upper limit.")
-        if (lower is not None and start < lower) or (upper is not None and start > upper):
+        # A linked coefficient takes its value from the link; its stored start is only shown, never used.
+        if record.get("link") is None and ((lower is not None and start < lower)
+                                           or (upper is not None and start > upper)):
             raise FieldError("Parameters", f"{name}: the value {start:g} lies outside its limits." if fixed
                              else f"{name}: the starting value {start:g} lies outside its limits.")
-        found.append(Coefficient(name, start, lower, upper, bool(fixed)))
+        found.append(Coefficient(name, start, lower, upper, bool(fixed), links.read_link(record, name)))
     return tuple(found)
+
+
+def link_coefficients(coefficients, *, local_names=()):
+    """Validate the links and carry the limits of every linked coefficient onto its root.
+
+    Returns ``(coefficients, plan)``; a root keeps its recipe limits intersected with the ones implied by its
+    links, so the solver, the status at a bound and the profiles all see the admissible range.
+    """
+    plan = links.Plan(coefficients)
+    if not plan:
+        return coefficients, plan
+    limits = {c.name: [-np.inf if c.lower is None else c.lower, np.inf if c.upper is None else c.upper]
+              for c in coefficients}
+    constant = {c.name: c.start for c in coefficients if c.fixed}
+    start = {c.name: c.start for c in coefficients if not c.fixed and c.link is None and c.name not in local_names}
+    narrowed = plan.carry_limits(limits, constant, start)
+    found = []
+    for c in coefficients:
+        if c.name in narrowed:
+            low, high = limits[c.name]
+            c = replace(c, lower=None if not np.isfinite(low) else float(low),
+                        upper=None if not np.isfinite(high) else float(high))
+        found.append(c)
+    return tuple(found), plan
 
 
 def resolve(frame, options):
@@ -168,17 +211,21 @@ def resolve(frame, options):
             or not MIN_POINTS <= points <= MAX_POINTS):
         raise FieldError(POINTS, f"Curve points must be a whole number from {MIN_POINTS} to {MAX_POINTS}.")
     syntax = syntax_of(options.get(SYNTAX))
-    coefficients = coefficients_from(options.get("Parameters", ()), syntax)
+    coefficients, plan = link_coefficients(coefficients_from(options.get("Parameters", ()), syntax))
     intervals = options.get(INTERVAL_METHOD, WALD)
     if intervals not in INTERVAL_METHODS:
         raise FieldError(INTERVAL_METHOD, "Choose Symmetric (Wald) or Profile likelihood.")
-    if intervals == PROFILE and sum(not c.fixed for c in coefficients) > PROFILE_PARAMETERS:
+    if intervals == PROFILE and sum(not c.fixed and c.link is None for c in coefficients) > PROFILE_PARAMETERS:
         raise FieldError(INTERVAL_METHOD, f"Profile intervals support at most {PROFILE_PARAMETERS} free parameters per fit.")
     equation = options.get("Equation")
     compiled = compile_equation(equation, [c.name for c in coefficients], syntax=syntax)
-    require_fixed_conditions(compiled, [c.name for c in coefficients if not c.fixed])
+    free_names = [c.name for c in coefficients if not c.fixed and c.link is None]
+    require_fixed_conditions(compiled, free_names)
+    found = plan.condition_free(compiled.condition_parameters, lambda name: name in free_names)
+    if found:
+        raise links.condition_error(found)
     return Settings(x, y, group, sd, equation.strip(), coefficients, weighting, float(level), int(points), intervals,
-                    syntax)
+                    syntax, plan)
 
 
 def require_fixed_conditions(compiled, free_names):
@@ -240,7 +287,7 @@ def prepare(frame, s):
         data = pd.DataFrame({"X": x[keep], "Y": y[keep]})
         if sd is not None:
             data["SD"] = sd[keep]
-        if s.intervals == PROFILE and any(not c.fixed for c in s.coefficients) and len(data) > PROFILE_POINTS:
+        if s.intervals == PROFILE and free_coefficients(s) and len(data) > PROFILE_POINTS:
             raise FieldError(INTERVAL_METHOD, f"Profile intervals support at most {PROFILE_POINTS} complete observations per fit.")
         groups.append((label, data, int((member & ~used).sum())))
     return groups
@@ -271,7 +318,7 @@ def _evaluate_rows(compiled, label, data, parameters):
 def check_domain(frame, s):
     """Dialog check: parse, then evaluate at the starting values on every used X. Never runs a fit."""
     compiled = compile_equation(s.equation, [c.name for c in s.coefficients], syntax=s.syntax)
-    start = {c.name: c.start for c in s.coefficients}
+    start = complete(s, {c.name: c.start for c in s.coefficients})
     for label, data, _ in prepare(frame, s):
         if len(data):
             predicted = _evaluate_rows(compiled, label, data, start)
@@ -290,8 +337,8 @@ def check_options(frame, options):
 def _fit_group(label, data, s, compiled):
     x, y = data["X"].to_numpy(), data["Y"].to_numpy()
     sd = data["SD"].to_numpy() if "SD" in data else np.ones(len(data))
-    free = [c for c in s.coefficients if not c.fixed]
-    fixed = {c.name: c.start for c in s.coefficients if c.fixed}
+    free = free_coefficients(s)
+    fixed = {c.name: c.start for c in s.coefficients if c.fixed or c.link is not None}
     n, p = len(data), len(free)
     if n == 0:
         raise FieldError("Y", _where(label, "No complete X and Y pairs."))
@@ -300,7 +347,7 @@ def _fit_group(label, data, s, compiled):
                                                      "fix some coefficients or add data."))
 
     def predicted(theta):
-        return compiled.evaluate(x, {**fixed, **dict(zip((c.name for c in free), theta))})
+        return compiled.evaluate(x, complete(s, {**fixed, **dict(zip((c.name for c in free), theta))}))
 
     # Normalised problem (see the module docstring). The SD column is first divided by its largest value, a
     # finite common factor, so everything below is independent of the unit in which the relative SDs were
@@ -310,7 +357,7 @@ def _fit_group(label, data, s, compiled):
     start = np.array([c.start for c in free], dtype=float)
     scale = np.where(start == 0, 1.0, np.abs(start))
     sd_unit = sd / np.max(sd)
-    initial = _evaluate_rows(compiled, label, data, {c.name: c.start for c in s.coefficients})
+    initial = _evaluate_rows(compiled, label, data, complete(s, {c.name: c.start for c in s.coefficients}))
     with np.errstate(all="ignore"):
         reference = float(np.max(np.abs(y / sd_unit)))
         if reference == 0:
@@ -351,7 +398,9 @@ def _fit_group(label, data, s, compiled):
     wsse, df = float(np.sum(weighted ** 2)), n - p
     estimates = {c.name: c.start for c in s.coefficients}
     estimates.update({c.name: float(v) for c, v in zip(free, theta)})
-    status, notes = {c.name: "Fixed" if c.fixed else "Free" for c in s.coefficients}, []
+    estimates = complete(s, estimates)
+    status = {c.name: "Fixed" if c.fixed else links.LINKED if c.link is not None else "Free" for c in s.coefficients}
+    notes = []
     se = {c.name: np.nan for c in s.coefficients}
     if p:
         norm = np.linalg.norm(jacobian, axis=0)
@@ -380,6 +429,15 @@ def _fit_group(label, data, s, compiled):
                     inference_note = ("no Wald SE is reported for it; see the profile endpoint status."
                                       if s.intervals == PROFILE else "no SE or interval is reported for it.")
                     notes.append(f"{c.name} is at its {word} limit ({limit:g}); {inference_note}")
+    if s.plan:
+        # SE(target) = |factor| * SE(root): the affine image of the root's variance, on the scale of the fit.
+        for target in s.plan.order:
+            root, factor, _ = s.plan.root(target)
+            if factor != 0 and status.get(root) in ("Free", "At bound"):
+                se[target] = abs(factor) * se[root]
+                if status[root] == "At bound":
+                    notes.append(f"{target} follows {root}, which is at a limit; no SE or interval is reported "
+                                 f"for {target}.")
     half = stats.t.ppf((1 + s.level / 100) / 2, df) if df > 0 else np.nan
     names = [c.name for c in s.coefficients]
     parameters = pd.DataFrame({
@@ -387,8 +445,12 @@ def _fit_group(label, data, s, compiled):
         "CI lower": [estimates[name] - half * se[name] for name in names],
         "CI upper": [estimates[name] + half * se[name] for name in names],
         "Status": [status[name] for name in names]}, index=pd.Index(names, name="Parameter"))
+    if s.plan:
+        parameters["Relation"] = [s.plan.formula(name) if s.plan.is_linked(name) else "" for name in names]
     summary = {"N": n, "Free parameters": p, "df": df, "Residual SS": float(np.sum(resid ** 2)),
                "Weighted residual SS": wsse}
+    if s.plan:
+        summary.update(s.plan.summary())
     if df > 0:
         summary["Weighted residual SD" if "SD" in data else "Residual SD"] = float(np.sqrt(wsse / df))
     summary.update({"Equation": s.equation, "Weighting": s.weighting, LEVEL: s.level, "Skipped rows": None,

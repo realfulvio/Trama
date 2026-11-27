@@ -133,6 +133,7 @@ from .survival_input import (PAIRWISE_CORRECTION, PAIRWISE_CONTROL, PAIRWISE_ADJ
                              CONTROL_PAIRS, SELECTED_PAIRS, UNADJUSTED, pairwise_scope, CENSOR_CODE, EVENT_CODE,
                              OTHER_STATUS, STATUS_POLICIES, recode_statuses)
 from .survival_bands import SHEET as SIMULTANEOUS_SHEET, join_bands
+from . import weighted_logrank
 from .survival_plot import (ERROR_BARS, GRAPH_OPTIONS as SURVIVAL_GRAPH_OPTIONS, GREENWOOD, INTERVAL, RISK_TABLE,
                             SURVIVAL_GRAPH, SURVIVAL_SERIES, SURVIVAL_SUMMARY, UNCERTAINTY, SurvivalGraphData,
                             draw_survival_graph, linked_survival_graph, survival_graph_settings)
@@ -222,6 +223,7 @@ def check_survival_options(frame, options):
     if any(column not in frame for column in responses):
         raise FieldError("Event columns", "Choose existing status columns.")
     coded = recode_statuses(frame, responses, options)
+    weighted_logrank.validate(options)
     wants_trend, wants_hazard = options.get("Log-rank trend"), options.get("Hazard ratio")
     correction = options.get(PAIRWISE_CORRECTION, "None")
     scope = pairwise_scope(options)
@@ -239,9 +241,18 @@ def check_survival_options(frame, options):
             if (isinstance(alpha, (bool, np.bool_)) or not isinstance(alpha, (int, float, np.floating))
                     or not 0 < alpha < 1):
                 raise FieldError(PAIRWISE_ALPHA, "Pairwise alpha must be between zero and one.")
-    if not (wants_trend or wants_hazard or control or selected):
+    weighting = weighted_logrank.active(options)
+    if not (wants_trend or wants_hazard or control or selected or weighting):
         return coded
     levels = _survival_levels(coded, options.get("Time"), responses, roles["Grouping variables"])
+    if weighting and len(levels) > weighted_logrank.PAIR_LIMIT:
+        raise FieldError(weighted_logrank.WEIGHTING, weighted_logrank.TOO_MANY)
+    if weighting and scope == SELECTED_PAIRS and not selected:
+        selected_pair_indices(levels, options.get(PAIRWISE_PAIRS), PAIRWISE_PAIRS)
+    if weighting and scope == CONTROL_PAIRS and not control:
+        control_name = options.get(PAIRWISE_CONTROL)
+        if len(levels) < 2 or not isinstance(control_name, str) or control_name not in levels:
+            raise FieldError(PAIRWISE_CONTROL, "Choose a control from at least two observed groups.")
     if selected:
         if len(levels) > 12:
             raise FieldError(PAIRWISE_PAIRS, "Pairwise survival tests support up to twelve groups.")
@@ -353,6 +364,9 @@ METHODS = {
                          marginal_means.OVERALL: False,
                          marginal_means.CONFIDENCE: marginal_means.DEFAULT_CONFIDENCE},
     "Kaplan–Meier survival": {"Time": None, "Event columns": MULTIPLE, "Grouping variables": OPTIONAL_MULTIPLE,
+                              weighted_logrank.WEIGHTING: weighted_logrank.CHOICES,
+                              weighted_logrank.RHO: 1.0, weighted_logrank.GAMMA: 0.0,
+                              weighted_logrank.DETAIL: False,
                               PAIRWISE_CORRECTION: PAIRWISE_CORRECTIONS,
                               PAIRWISE_SCOPE: PAIRWISE_SCOPES, PAIRWISE_CONTROL: GROUP_CHOICE,
                               PAIRWISE_PAIRS: PAIRWISE_PAIR_LIST,
@@ -829,9 +843,11 @@ def _comparison_sheet(result, labels):
 
 
 def _has_survival_orientation(options):
-    return bool(options.get("Log-rank trend") or options.get("Hazard ratio") or
+    scope = pairwise_scope(options)
+    weighted = weighted_logrank.active(options) and scope in (CONTROL_PAIRS, SELECTED_PAIRS)
+    return bool(options.get("Log-rank trend") or options.get("Hazard ratio") or weighted or
                 (options.get(PAIRWISE_CORRECTION, "None") != "None"
-                 and pairwise_scope(options) in (CONTROL_PAIRS, SELECTED_PAIRS)))
+                 and scope in (CONTROL_PAIRS, SELECTED_PAIRS)))
 
 
 def _survival_extras(frame, o, time, event, group, level, group_count):
@@ -931,7 +947,7 @@ def _pairwise_survival(frame, options, time, event, group, curves, correction, s
     return {"Pairwise log-rank": result.set_index("Comparison")}
 
 
-def _survival(frame, o, axes=None, compact=False, risk_axes=None):
+def _survival(frame, o, axes=None, compact=False, risk_axes=None, cancel=None):
     time, event, group = o["Time"], o["Event"], o.get("Group")
     level = float(o.get("Confidence level (%)", 95.0))
     settings = survival_graph_settings(o)
@@ -966,6 +982,8 @@ def _survival(frame, o, axes=None, compact=False, risk_axes=None):
     scope = pairwise_scope(o)
     if group and correction != "None" and (len(curves) > 1 or scope == SELECTED_PAIRS):
         outputs.update(_pairwise_survival(frame, o, time, event, group, curves, correction, scope))
+    outputs.update(weighted_logrank.contribute(
+        frame, o, curves, figure, response=event if axes is not None else None, km_axes=axes, cancel=cancel))
     if compact:
         outputs["Survival curves"] = pd.concat({label: table.rename_axis("Time point")
                                                 for label, table in tables.items()}, names=["Group"])
@@ -1106,7 +1124,7 @@ def _by_response(title, parts):
     return table.reset_index(level=0).reset_index(drop=True) if title in INDEXLESS else table.reset_index()
 
 
-def _classic_analysis(method, frame, options, predict, run, *, outside=None):
+def _classic_analysis(method, frame, options, predict, run, *, outside=None, cancel=None):
     response_field, response_key = CLASSIC_RESPONSES[method]
     roles = classic_roles(method, options)
     responses, groups = roles[response_field], roles["Grouping variables"]
@@ -1125,6 +1143,8 @@ def _classic_analysis(method, frame, options, predict, run, *, outside=None):
     extra_options = {"outside": outside} if outside is not None else {}
     if len(responses) == 1:
         compact = len(groups) > 1
+        if cancel is not None:
+            extra_options = {**extra_options, "cancel": cancel}
         result = run(frame, {**options, response_key: responses[0], "Group": group}, compact=compact,
                      **extra_options)
         if compact:
@@ -1146,6 +1166,8 @@ def _classic_analysis(method, frame, options, predict, run, *, outside=None):
             extras["risk_axes"] = figure.add_subplot(risk_panel)
         axes.spines[["right", "top"]].set_visible(False)
         try:
+            if cancel is not None:
+                extras = {**extras, "cancel": cancel}
             result = run(frame, {**options, response_key: response, "Group": group}, axes, compact=True, **extras)
         except FieldError as error:
             raise FieldError(error.field, f"{response}: {error}") from error
@@ -1606,7 +1628,7 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
             field = kmeans_options.ITERATION_FIELDS[o[kmeans_options.ALGORITHM]]
             raise FieldError(field, str(error)) from error
     if method == "Kaplan–Meier survival":
-        return _classic_analysis(method, frame, o, "Time", _survival)
+        return _classic_analysis(method, frame, o, "Time", _survival, cancel=cancel)
     if method == "Hierarchical clustering":
         return hierarchical_result(frame, o, cancel=cancel)
     if method == HIERARCHY_GRAPH:

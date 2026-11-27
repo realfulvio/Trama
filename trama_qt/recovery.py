@@ -26,7 +26,7 @@ import tempfile
 import threading
 import time
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QItemSelectionModel, QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFrame,
                                QHBoxLayout, QLabel, QMessageBox, QPushButton, QTreeWidget, QTreeWidgetItem,
                                QVBoxLayout)
@@ -476,7 +476,8 @@ class RecoveryController(QObject):
             with os.fdopen(handle, "wb") as stream:
                 stream.write(data)
             project = Project(number)
-            project.load(name)
+            source = record.get("source")
+            project.load(name, link_folder=Path(source).parent if source else None)
         finally:
             try:
                 os.unlink(name)
@@ -488,7 +489,6 @@ class RecoveryController(QObject):
         project.recovered_from = record.get("source")
         project.recovery_base_title = record["title"]
         project.recovered_title = r("recovered_title", title=record["title"])
-        source = record.get("source")
         stem = Path(source).stem if source else Path(record["title"]).stem
         folder = Path(source).parent if source else None
         project.save_suggestion = str(folder / r("recovered_file", stem=stem)) if folder else r(
@@ -598,8 +598,8 @@ class RecoveryDialog(QDialog):
         for column in range(3):
             self.list.resizeColumnToContents(column)
         if self.records:
-            self.list.topLevelItem(0).setSelected(True)
-            self.list.setCurrentItem(self.list.topLevelItem(0))
+            select = QItemSelectionModel.SelectionFlag
+            self.list.setCurrentItem(self.list.topLevelItem(0), 0, select.ClearAndSelect | select.Rows)
         if self.problems:
             rows = [r("damaged_row", title=problem.get("title") or r("damaged_untitled"),
                       reason=r(f"damage.{problem['code']}")) for problem in self.problems]
