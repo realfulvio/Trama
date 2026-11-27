@@ -156,3 +156,34 @@ class ImportedSurvivalFigureTests(unittest.TestCase):
             self.assertNotIn(SURVIVAL_GRAPH, parent.options)
             self.assertIsNone(graph.source)
             self.assertIn("Imported graph · Follow-up $", project.tables)
+
+    def test_survival_graph_axis_breaks_persist_across_reload_and_refresh(self):
+        from analisi.axis_breaks import AXIS_BREAKS, segment_axes
+
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "survival.prismt"
+            write_project(path, 4)
+            project = Project()
+            project.load(path)
+            _parent, graph = project.runs
+            self.assertEqual(refresh(project, [graph]), [])
+            breaks = {
+                "axis": "x", "gap": 0.04,
+                "segments": [
+                    {"low": 0.0, "high": 1.5, "share": 45.0, "major_step": 0.5},
+                    {"low": 2.5, "high": 4.5, "share": 55.0, "major_step": 1.0},
+                ],
+            }
+            project.apply_format(graph, {AXIS_BREAKS: breaks})
+            self.assertEqual(len(segment_axes(graph.result.figure)), 2)
+
+            alab = Path(folder) / "survival_breaks.alab"
+            project.save(alab)
+            reopened = Project()
+            reopened.load(alab)
+            reloaded_graph = reopened.runs[1]
+            self.assertEqual(refresh(reopened, [reloaded_graph]), [])
+            panels = segment_axes(reloaded_graph.result.figure)
+            self.assertEqual(len(panels), 2)
+            self.assertEqual(panels[0].get_xlim(), (0.0, 1.5))
+            self.assertEqual(panels[1].get_xlim(), (2.5, 4.5))

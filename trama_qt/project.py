@@ -40,7 +40,7 @@ from analisi.category_levels import (LevelEditError, apply_level_plan, can_renam
 from analisi.category_order import WORKSHEET_ORDERS, keep_source_columns
 from analisi.variable_types import TYPES, VARIABLE_TYPES, convert_type
 from analisi.numeric_series import NumericSeriesPlan, apply_numeric_series, plan_numeric_series, series_text
-from analisi.i18n import tr, ui
+from analisi.i18n import tr, translate_message, ui
 from analisi.info import InfoSheet, info_contexts, validate_info_sheets
 from analisi.legacy_notes import WORKSHEET_NOTES
 from analisi.repeated_input import SAVED_REPLICATE_DISPLAY
@@ -164,7 +164,7 @@ def breaks_warning(figure, style):
     reason = axis_breaks_reason(figure) if figure is not None and (style or {}).get(AXIS_BREAKS) else None
     if not reason:
         return None
-    return tr("axis_breaks.status.ignored", reason=reason)
+    return tr("axis_breaks.status.ignored", reason=translate_message(reason, "axis_breaks.error."))
 
 
 def graph_warning(figure, style):

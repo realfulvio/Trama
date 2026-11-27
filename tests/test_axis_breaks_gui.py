@@ -606,6 +606,33 @@ class InspectorTests(GuiCase):
         self.addCleanup(inspector.dispose)
         self.assertNotIn("axis_breaks", inspector.widgets)
 
+    def test_km_break_rules_notes_and_warnings_translate_in_en_and_it(self):
+        from analisi.workbench import analyse
+        from trama_qt.project import breaks_warning
+
+        df = pd.DataFrame({
+            "Tempo": [1, 2, 4, 14, 16, 20, 2, 3, 5, 12, 16, 18, 21],
+            "Evento": [1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0],
+            "Gruppo": ["Controllo"] * 6 + ["Trattamento"] * 7,
+        })
+        result = analyse("Kaplan–Meier survival", df, {
+            "Time": "Tempo", "Event columns": ["Evento"], "Grouping variables": ["Gruppo"],
+            "Show risk table below graph": True,
+        })
+        y_breaks = ab.normalise_axis_breaks(Y_BREAKS)
+        apply_style(result.figure, {AXIS_BREAKS: y_breaks})
+        self.assertEqual(axis_breaks_reason(result.figure), ab.P_KM_AXIS)
+        self.language("it")
+        self.assertIn("solo per l'asse X", breaks_warning(result.figure, {AXIS_BREAKS: y_breaks}))
+        self.assertIn("Kaplan–Meier", tr("axis_breaks.note.survival"))
+        self.assertEqual(
+            translate_breaks_error(ValueError(ab.P_OTHER.format(axis="Y"))),
+            "Le interruzioni richiedono un asse Y lineare o logaritmico.",
+        )
+        self.language("en")
+        self.assertIn("X axis only", breaks_warning(result.figure, {AXIS_BREAKS: y_breaks}))
+        self.assertIn("Kaplan–Meier", tr("axis_breaks.note.survival"))
+
 
 if __name__ == "__main__":
     unittest.main()

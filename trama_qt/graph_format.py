@@ -12,7 +12,8 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDia
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
                                QPushButton, QScrollArea, QTabWidget, QVBoxLayout, QWidget)
 
-from analisi.axis_breaks import AXIS_BREAKS, SUPPORT_ATTR, axis_breaks_reason
+from analisi.axis_breaks import (AXIS_BREAKS, P_RIGHT, SUPPORT_ATTR, axis_breaks_panel_problem, axis_breaks_problem,
+                                 axis_breaks_reason)
 from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
 from analisi.field_error import FieldError
 from analisi.graph_annotations import ANNOTATIONS
@@ -138,6 +139,7 @@ class GraphFormatDialog(QDialog):
         self.series_index = -1
         self.axis_breaks = deepcopy(style.get(AXIS_BREAKS) or {})
         self.linked_axes = deepcopy(style.get(LINKED_AXES) or {})
+        self._breaks_previewed = False
 
         outer = QVBoxLayout(self)
         self.banner = QLabel()
@@ -162,7 +164,7 @@ class GraphFormatDialog(QDialog):
             button.setAutoDefault(False)
         apply_button.setAutoDefault(True)
         apply_button.setDefault(True)
-        fit_dialog(self, 620, 560)
+        fit_dialog(self, 700, 620)
 
     # -- tabs ----------------------------------------------------------------------------------------
     def _tab(self, title):
@@ -286,7 +288,7 @@ class GraphFormatDialog(QDialog):
                 note.setObjectName("muted")
                 note.setWordWrap(True)
                 form.addRow(note)
-            scale.currentIndexChanged.connect(lambda _=0, dimension=dimension: self._axis_states(dimension))
+            scale.currentIndexChanged.connect(lambda _=0: self._break_states())
             self._axis_states(dimension)
             blocks.addWidget(box)
         hint = QLabel(tr("graph.axis.hint"))
@@ -309,11 +311,11 @@ class GraphFormatDialog(QDialog):
                                  ("min", "graph.axis.min"), ("max", "graph.axis.max")):
                 form.addRow(tr(caption), self.right[key])
             layout.addWidget(box)
-        self.breaks_summary = None
+        self.breaks_button = self.breaks_summary = None
         if getattr(self.axes, SUPPORT_ATTR, False):
             box = QGroupBox(tr("axis_breaks.title"))
             grid = QGridLayout(box)
-            button = QPushButton(tr("axis_breaks.button"))
+            self.breaks_button = button = QPushButton(tr("axis_breaks.button"))
             button.clicked.connect(self.edit_breaks)
             grid.addWidget(button, 0, 0)
             self.breaks_summary = QLabel()
@@ -393,38 +395,109 @@ class GraphFormatDialog(QDialog):
                 self.tabs.setCurrentIndex(1)
                 raise ValueError(reasons[dimension])
 
+    def _break_reason(self):
+        axis = self.axis_breaks.get("axis")
+        panel_blocker = axis_breaks_panel_problem(self.axes)
+        if self.xy is not None and hasattr(self, "xy_side"):
+            self._store_series()
+            columns = self.xy["options"].get("Y columns") or ()
+            if any(self.xy_side.get(column) == "Right" for column in columns):
+                panel_blocker = P_RIGHT
+        scales = self._scale_values()
+        reason = panel_blocker or (axis_breaks_problem(self.axes, self.axis_breaks, scales=scales) if axis else None)
+        if reason is None and axis:
+            reason = axis_breaks_reason(self.axes.figure)
+        return panel_blocker, reason
+
     def _break_states(self):
         """The limits and the scale of an axis with breaks come from its segments, so those fields rest."""
+        panel_blocker, reason = self._break_reason()
         for dimension in self.scales:
-            self._axis_states(dimension)
+            self._axis_states(dimension, panel_blocker=panel_blocker, reason=reason)
         if self.breaks_summary is not None:
             from .axis_breaks import breaks_summary, translate_breaks_error
 
             axis = self.axis_breaks.get("axis")
             self.breaks_summary.setText(breaks_summary(self.axis_breaks))
-            reason = axis_breaks_reason(self.axes.figure) if axis else None
+            self.breaks_button.setEnabled(not panel_blocker or bool(axis))
             if reason:
-                note = tr("axis_breaks.status.ignored", reason=translate_breaks_error(ValueError(reason)))
+                message = translate_breaks_error(ValueError(reason))
+                note = tr("axis_breaks.status.ignored", reason=message) if axis else message
+                banner = "infoBanner"
             else:
                 note = tr("axis_breaks.axis_note", axis=axis.upper()) if axis else ""
+                banner = "muted"
             self.breaks_note.setText(note)
+            self.breaks_note.setVisible(bool(note))
+            if self.breaks_note.objectName() != banner:
+                self.breaks_note.setObjectName(banner)
+                self.breaks_note.style().unpolish(self.breaks_note)
+                self.breaks_note.style().polish(self.breaks_note)
+
+    def _preview_axis_breaks(self, record, *, prior):
+        figure = self.axes.figure
+        canvas = getattr(figure, "canvas", None)
+        if record is None:
+            apply_style(figure, prior)
+            if canvas is not None:
+                canvas.draw_idle()
+            return
+        if record:
+            scales = self._scale_values()
+            problem = axis_breaks_problem(self.axes, record, scales=scales)
+            if not problem and self.xy is not None:
+                self._store_series()
+                columns = self.xy["options"].get("Y columns") or ()
+                if any(self.xy_side.get(column) == "Right" for column in columns):
+                    problem = P_RIGHT
+            if problem:
+                raise ValueError(problem)
+        candidate = deepcopy(self.style)
+        for dimension, scale in self._scale_values().items():
+            candidate[dimension + "scale"] = scale
+        if record:
+            candidate[AXIS_BREAKS] = deepcopy(record)
+        else:
+            candidate.pop(AXIS_BREAKS, None)
+        apply_style(figure, candidate)
+        reason = axis_breaks_reason(figure) if record else None
+        if reason:
+            apply_style(figure, prior)
+            if canvas is not None:
+                canvas.draw_idle()
+            raise ValueError(reason)
+        self._breaks_previewed = True
+        if canvas is not None:
+            canvas.draw_idle()
 
     def edit_breaks(self):
         from .axis_breaks import AxisBreaksDialog
 
-        dialog = AxisBreaksDialog(self, self.axes, self.axis_breaks)
+        prior = deepcopy(self.style)
+        for dimension, scale in self._scale_values().items():
+            prior[dimension + "scale"] = scale
+        if self.axis_breaks:
+            prior[AXIS_BREAKS] = deepcopy(self.axis_breaks)
+        else:
+            prior.pop(AXIS_BREAKS, None)
+        dialog = AxisBreaksDialog(
+            self, self.axes, self.axis_breaks,
+            preview=lambda record, prior=prior: self._preview_axis_breaks(record, prior=prior))
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.result is not None:
             self.axis_breaks = dialog.result
             self._break_states()
+            self._linked_states()
 
-    def _axis_states(self, dimension):
+    def _axis_states(self, dimension, *, panel_blocker=None, reason=None):
         mode = self.scales[dimension].value()
-        broken = self.axis_breaks.get("axis") == dimension
-        self.scales[dimension].setEnabled(self.scale_enabled[dimension] and not broken)
+        has_breaks = self.axis_breaks.get("axis") == dimension
+        scale_broken = has_breaks and mode == "linear" and not panel_blocker
+        fields_broken = has_breaks and not reason
+        self.scales[dimension].setEnabled(self.scale_enabled[dimension] and not scale_broken)
         for key, field in self.axis_fields[dimension].items():
             disabled = (not self.numeric[dimension] or (mode == "log" and key in {"step", "start"})
                         or (mode in PROBABILITY_SCALES and key not in {"min", "max"})
-                        or (broken and key in {"min", "max", "step", "start"}))
+                        or (fields_broken and key in {"min", "max", "step", "start"}))
             field.setEnabled(not disabled)
 
     def _series(self):
@@ -459,6 +532,7 @@ class GraphFormatDialog(QDialog):
             self.draw = Choice(DRAW_STYLES, DRAW_LABELS)
             self.side = Choice(SIDES, SIDE_LABELS)
             self.draw.currentIndexChanged.connect(self._series_states)
+            self.side.currentIndexChanged.connect(lambda _=0: self._break_states())
             form.addRow(tr("graph.series.draw_style"), self.draw)
             form.addRow(tr("graph.series.side"), self.side)
             saved_width = self.xy["options"].get(BAR_WIDTH)
@@ -475,6 +549,7 @@ class GraphFormatDialog(QDialog):
         form.addRow(self.series_hint)
         self.selector.currentIndexChanged.connect(self._select_series)
         self._select_series()
+        self._break_states()
 
     def _has_bars(self):
         styles = dict(self.xy_style)
@@ -777,6 +852,15 @@ class GraphFormatDialog(QDialog):
             style = self.read_style()
             if self.xy is None:
                 validate_graph_style(self.axes, style)
+                if style.get(AXIS_BREAKS) and style[AXIS_BREAKS] != self.style.get(AXIS_BREAKS):
+                    scales = {dimension: style.get(dimension + "scale", "linear") for dimension in ("x", "y")}
+                    reason = (axis_breaks_problem(self.axes, style[AXIS_BREAKS], scales=scales)
+                              or axis_breaks_reason(self.axes.figure))
+                    if reason:
+                        from .axis_breaks import translate_breaks_error
+
+                        self._focus(1, self.breaks_button)
+                        raise ValueError(translate_breaks_error(ValueError(reason)))
                 self._check_linked(style)
             else:
                 if "ylabel" not in self.style and style["ylabel"] == self.axes.get_ylabel():
@@ -788,7 +872,7 @@ class GraphFormatDialog(QDialog):
                     if reason:
                         from .axis_breaks import translate_breaks_error
 
-                        self.tabs.setCurrentIndex(1)
+                        self._focus(1, self.breaks_button)
                         raise ValueError(translate_breaks_error(ValueError(reason)))
                 self._check_linked(style, self.xy_result.figure)
         except ValueError as error:
@@ -796,6 +880,17 @@ class GraphFormatDialog(QDialog):
             return
         self.result = style
         super().accept()
+
+    def reject(self):
+        if self._breaks_previewed:
+            try:
+                apply_style(self.axes.figure, self.style)
+            except ValueError:
+                pass
+            canvas = getattr(self.axes.figure, "canvas", None)
+            if canvas is not None:
+                canvas.draw_idle()
+        super().reject()
 
     def reset(self):
         """Back to the analysis defaults; drawings, annotations and panel settings stay."""

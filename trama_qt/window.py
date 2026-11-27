@@ -2041,6 +2041,7 @@ class MainWindow(QMainWindow):
         project.commit_style(run, style)
         if project is self.project:
             self.update_title()
+            self.update_actions()
             self.status(qt("qt.style_applied"))
         else:
             self._sync_tabs()
