@@ -39,6 +39,25 @@ MESSAGES = {
         "The chosen graph settings require resetting the drawing and placement of individual series. Continue?",
         "Le impostazioni del grafico richiedono il ripristino del disegno e della disposizione per serie. Continuare?",
     ),
+    "grouped.spacing.tab": ("Bar spacing", "Spaziatura barre"),
+    "grouped.spacing.custom": ("Custom spacing", "Spaziatura personalizzata"),
+    "grouped.spacing.hint": (
+        "Distances are percentages of a bar’s width. Zero removes the space.",
+        "Le distanze sono percentuali della larghezza di una barra. Zero elimina lo spazio.",
+    ),
+    "grouped.spacing.adjacent": ("Between bars", "Tra barre adiacenti"),
+    "grouped.spacing.groups": ("Extra space between groups", "Spazio aggiuntivo tra gruppi"),
+    "grouped.spacing.empty": ("Space for missing values", "Spazio per valori mancanti"),
+    "grouped.spacing.leading": ("Before the first bar", "Prima della prima barra"),
+    "grouped.spacing.trailing": ("After the last bar", "Dopo l’ultima barra"),
+    "grouped.spacing.error_value": (
+        "Choose valid percentages for the grouped bar spacing.",
+        "Scegli percentuali valide per la spaziatura delle barre raggruppate.",
+    ),
+    "grouped.spacing.error_graph": (
+        "Custom spacing is available for grouped bar graphs.",
+        "La spaziatura personalizzata è disponibile nei grafici a barre raggruppate.",
+    ),
     "grouped.series.drawing": ("Drawing", "Disegno"),
     "grouped.draw.as_graph": ("As graph", "Come il grafico"),
     "grouped.draw.bars": ("Bars", "Barre"),
@@ -81,6 +100,8 @@ MESSAGES = {
 }
 
 _ENGLISH_TO_KEY = {
+    "Choose valid percentages for the grouped bar spacing.": "grouped.spacing.error_value",
+    "Custom spacing is available for grouped bar graphs.": "grouped.spacing.error_graph",
     "Choose a valid order for the grouped series.": "grouped.order.invalid",
     "Choose a valid placement for each series.": "grouped.placement.error_value",
     "Choose a grouped bar or center graph with side-by-side or overlaid placement.": "grouped.placement.error_graph",

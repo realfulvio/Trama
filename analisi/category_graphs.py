@@ -39,6 +39,9 @@ INTERLEAVED, SUPERIMPOSED, STACKED, PERCENT_STACKED = GROUP_PLACEMENTS = (
 STACKED_PLACEMENTS = frozenset({STACKED, PERCENT_STACKED})
 SERIES_PLACEMENT = "Series placement"
 GROUPED_SERIES_ORDER = "Grouped series order"
+GROUPED_BAR_SPACING = "Grouped bar spacing"
+BAR_SPACING_DEFAULTS = {"adjacent": 14., "groups": 45., "empty": 100., "leading": 50., "trailing": 50.}
+BAR_SPACING_MAXIMUMS = {**dict.fromkeys(BAR_SPACING_DEFAULTS, 400.), "empty": 100.}
 SIDE_BY_SIDE, OVERLAY_PREVIOUS, STACK_PREVIOUS, GAP_BEFORE = RELATIVE_PLACEMENTS = (
     "Beside previous", "Overlay previous", "Stack on previous", "Separate from previous")
 DISTANCES, LIMITS = "Distances from estimate (minus/plus)", "Limits on axis (lower/upper)"
@@ -486,6 +489,60 @@ def grouped_graph_metadata(axes):
     return getattr(axes, "_tramastat_grouped", None) or getattr(axes, "_tramastat_grouped_context", None)
 
 
+def grouped_bar_spacing(options):
+    """Return optional physical gaps as fractions of a drawn bar's width."""
+    if GROUPED_BAR_SPACING not in options:
+        return None
+    settings = options[GROUPED_BAR_SPACING]
+    if (not isinstance(settings, dict) or settings.keys() != BAR_SPACING_DEFAULTS.keys()
+            or any(type(value) not in (int, float) or not 0 <= value <= BAR_SPACING_MAXIMUMS[key]
+                   for key, value in settings.items())):
+        raise FieldError(GROUPED_BAR_SPACING, "Choose valid percentages for the grouped bar spacing.")
+    return {key: value / 100 for key, value in settings.items()}
+
+
+def _space_grouped_bars(plots, summaries, row_names, by_row, placements, spacing):
+    """Keep overlays and stacks in a shared slot and reserve space for empty slots."""
+    previous_positions = np.array([plot.x for plot in plots]).T
+    observed = np.isfinite(np.array(summaries)[:, :, 0]).T
+    positions = np.full(previous_positions.shape, np.nan)
+    ticks, labels = [], []
+    cursor = spacing["leading"]
+    for row, name in enumerate(row_names):
+        members_at = {}
+        for series, position in enumerate(previous_positions[row]):
+            members_at.setdefault(position, []).append(series)
+        occupied = []
+        for members in members_at.values():
+            width = 1. if observed[row, members].any() else spacing["empty"]
+            if width:
+                occupied.append((members, width))
+        if not occupied:
+            continue
+        if ticks:
+            cursor += spacing["adjacent"] + spacing["groups"]
+        start = cursor
+        for index, (members, width) in enumerate(occupied):
+            if index:
+                cursor += spacing["adjacent"]
+                if placements.get(plots[members[0]].name) == GAP_BEFORE:
+                    cursor += spacing["groups"]
+            center = cursor + width / 2
+            positions[row, members] = center
+            cursor += width
+            if not by_row:
+                ticks.append(center)
+                labels.append(plots[members[0]].name)
+        if by_row:
+            ticks.append((start + cursor) / 2)
+            labels.append(name)
+    if not ticks:
+        raise FieldError("Variables", "The selected variables have no observations.")
+    for plot, position in zip(plots, positions.T, strict=True):
+        plot.x = position
+    return (ticks, labels), (0., cursor + spacing["trailing"])
+
+
 def _series_positions(names, placements, layout):
     default = OVERLAY_PREVIOUS if layout == SUPERIMPOSED else SIDE_BY_SIDE
     slots = [0.]
@@ -715,6 +772,9 @@ def category_graph(frame, options, *, grouped=False):
     layout = _choice(options, "Placement of groups", GROUP_PLACEMENTS) if grouped else None
     stacked = layout in STACKED_PLACEMENTS
     style = _choice(options, "Graph style", GROUPED_STYLES if grouped else COLUMN_STYLES)
+    spacing = grouped_bar_spacing(options)
+    if spacing and (not grouped or style != BARS):
+        raise FieldError(GROUPED_BAR_SPACING, "Custom spacing is available for grouped bar graphs.")
     raw_series_styles = options.get(SERIES_STYLE)
     if raw_series_styles is not None:
         if not isinstance(raw_series_styles, dict) or len(raw_series_styles) > MAX_CATEGORIES:
@@ -820,6 +880,18 @@ def category_graph(frame, options, *, grouped=False):
         positions, ticks, width, legend = _positions(len(row_names), len(plots), layout, row_names, drawing_order)
         for plot, position in zip(plots, positions, strict=True):
             plot.x = position
+    custom = series_placements(options, drawing_order) if relative_placements else {}
+    piles = []
+    if custom:
+        offsets, width, piles = _series_positions(drawing_order, custom, layout)
+        category_centers = np.arange(len(row_names), dtype=float)
+        ticks, legend = (category_centers, row_names), True
+        for plot, offset in zip(plots, offsets, strict=True):
+            plot.x = category_centers + offset
+    if spacing:
+        ticks, x_limits = _space_grouped_bars(plots, summaries, row_names, legend, custom, spacing)
+        axes.set_xlim(*x_limits)
+        width = 1.
     rows_by_series = {name: [] for name in worksheet_order}
     rng = np.random.default_rng(0)
     if stacked:
@@ -844,20 +916,13 @@ def category_graph(frame, options, *, grouped=False):
             for plot in plots
         }
         bottoms_by_index = {}
-        custom = series_placements(options, [plot.name for plot in plots]) if relative_placements else {}
-        if custom:
-            offsets, width, piles = _series_positions([plot.name for plot in plots], custom, layout)
-            category_centers = np.arange(len(row_names), dtype=float)
-            ticks, legend = (category_centers, row_names), True
-            for plot, offset in zip(plots, offsets, strict=True):
-                plot.x = category_centers + offset
-            for members in piles:
-                if any(effective_styles[plots[index].name] != BARS for index in members):
-                    raise FieldError(SERIES_PLACEMENT, "All series in the same stack must use bars.")
-                heights = np.column_stack([np.asarray(summaries[index])[:, 0] for index in members])
-                bottoms_by_index.update(zip(members, _stack_bottoms(heights).T, strict=True))
-            if piles:
-                axes._tramastat_zero_baseline = ("y",)
+        for members in piles:
+            if any(effective_styles[plots[index].name] != BARS for index in members):
+                raise FieldError(SERIES_PLACEMENT, "All series in the same stack must use bars.")
+            heights = np.column_stack([np.asarray(summaries[index])[:, 0] for index in members])
+            bottoms_by_index.update(zip(members, _stack_bottoms(heights).T, strict=True))
+        if piles:
+            axes._tramastat_zero_baseline = ("y",)
         for index, (plot, summary, count) in enumerate(zip(plots, summaries, counts, strict=True)):
             primary = _draw_series(
                 axes, plot, summary, effective_styles[plot.name], width, show_points, placement, rng,

@@ -9,15 +9,16 @@ from copy import deepcopy
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.colors import to_hex
 from matplotlib.figure import Figure
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QLocale, QTimer
 from PySide6.QtGui import QColor, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame,
+from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QFrame,
                                QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
                                QPushButton, QScrollArea, QTabWidget, QVBoxLayout, QWidget)
 
 from analisi.axis_breaks import AXIS_BREAKS, SUPPORT_ATTR, axis_breaks_reason
 from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
-from analisi.category_graphs import (AS_GRAPH, GROUPED_SERIES_COMPATIBLE_STYLES, RELATIVE_PLACEMENTS,
+from analisi.category_graphs import (AS_GRAPH, BAR_SPACING_DEFAULTS, BAR_SPACING_MAXIMUMS, GROUPED_BAR_SPACING,
+                                     GROUPED_SERIES_COMPATIBLE_STYLES, RELATIVE_PLACEMENTS,
                                      SERIES_DRAW_STYLES, SERIES_PLACEMENT, SERIES_STYLE, STACK_PREVIOUS,
                                      STACKED_PLACEMENTS, BARS as GROUPED_BARS,
                                      LINE_SYMBOLS as GROUPED_LINE_SYMBOLS, SYMBOLS as GROUPED_SYMBOLS,
@@ -197,6 +198,10 @@ class GraphFormatDialog(QDialog):
         self._axes()
         self._series()
         self._references()
+        self.spacing_controls = {}
+        self.spacing_enabled = None
+        if self.grouped is not None and self._grouped_global_style == GROUPED_BARS:
+            self._bar_spacing(grouped_options.get(GROUPED_BAR_SPACING))
         if self.preview_canvas is not None:
             self._update_grouped_preview()
         buttons = QDialogButtonBox()
@@ -585,15 +590,59 @@ class GraphFormatDialog(QDialog):
         self.series_hint.setWordWrap(True)
         form.addRow(self.series_hint)
         if self.grouped is not None:
-            preview_group = QGroupBox(tr("graph.format.preview"))
-            preview_layout = QVBoxLayout(preview_group)
+            self.preview_group = QGroupBox(tr("graph.format.preview"))
+            self.series_columns = columns
+            preview_layout = QVBoxLayout(self.preview_group)
             self.preview_canvas = FigureCanvasQTAgg(Figure(figsize=(4.4, 3.0), dpi=76))
             self.preview_canvas.setObjectName("groupedPreviewCanvas")
             self.preview_canvas.setMinimumSize(320, 240)
             preview_layout.addWidget(self.preview_canvas, 1)
-            columns.addWidget(preview_group, 1)
+            columns.addWidget(self.preview_group, 1)
         self.selector.currentIndexChanged.connect(self._select_series)
         self._select_series()
+
+    def _bar_spacing(self, values):
+        page = self._tab(tr("grouped.spacing.tab"))
+        self.spacing_tab = self.tabs.count() - 1
+        columns = QHBoxLayout(page)
+        settings = QGroupBox(tr("grouped.spacing.custom"))
+        settings.setObjectName("groupedBarSpacing")
+        settings.setCheckable(True)
+        settings.setChecked(values is not None)
+        self.spacing_enabled = settings
+        panel = QVBoxLayout()
+        columns.addLayout(panel)
+        panel.addWidget(settings)
+        panel.addStretch(1)
+        form = QFormLayout(settings)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        hint = QLabel(tr("grouped.spacing.hint"))
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        redraw = QTimer(self)
+        redraw.setInterval(120)
+        redraw.setSingleShot(True)
+        redraw.timeout.connect(self._update_grouped_preview)
+        for key, default in BAR_SPACING_DEFAULTS.items():
+            caption = tr(f"grouped.spacing.{key}")
+            field = self.spacing_controls[key] = QDoubleSpinBox()
+            field.setAccessibleName(caption)
+            field.setLocale(QLocale(active_language()))
+            field.setDecimals(2)
+            field.setRange(0., BAR_SPACING_MAXIMUMS[key])
+            field.setSuffix(" %")
+            field.setKeyboardTracking(False)
+            field.setValue(default if values is None else values[key])
+            field.valueChanged.connect(lambda _: redraw.start())
+            form.addRow(caption, field)
+        settings.toggled.connect(self._update_grouped_preview)
+
+        def place_preview(index):
+            target = columns if index == self.spacing_tab else self.series_columns
+            if target.indexOf(self.preview_group) < 0:
+                target.addWidget(self.preview_group, 1)
+
+        self.tabs.currentChanged.connect(place_preview)
 
     def _effective_grouped_draw(self, series):
         if series is None or not series.key.startswith(GROUPED_PREFIX):
@@ -957,14 +1006,17 @@ class GraphFormatDialog(QDialog):
         placements = series_placements({SERIES_PLACEMENT: self.grouped_placement_map})
         if placements := {name: placements[name] for name in names if name in placements}:
             options[SERIES_PLACEMENT] = placements
+        options.pop(GROUPED_BAR_SPACING, None)
+        if self.spacing_enabled is not None and self.spacing_enabled.isChecked():
+            options[GROUPED_BAR_SPACING] = {key: field.value() for key, field in self.spacing_controls.items()}
         return prune_series_styles(options, names)
 
     def _grouped_changed(self, options):
         old = {k: v for k, v in (self.grouped["options"].get(SERIES_STYLE) or {}).items() if v and v != AS_GRAPH}
         new = {k: v for k, v in (options.get(SERIES_STYLE) or {}).items() if v and v != AS_GRAPH}
-        return old != new or (
-            self.grouped["options"].get(SERIES_PLACEMENT, {}) != options.get(SERIES_PLACEMENT, {})
-        )
+        previous = self.grouped["options"]
+        return old != new or any(previous.get(key, {}) != options.get(key, {})
+                                 for key in (SERIES_PLACEMENT, GROUPED_BAR_SPACING))
 
     def _prepare_grouped(self, style, options):
         result = category_graph(self.grouped["frame"], options, grouped=True)
@@ -1030,7 +1082,9 @@ class GraphFormatDialog(QDialog):
         if isinstance(error, FieldError) and self.xy is not None:
             self._focus_xy_error(error)
         elif isinstance(error, FieldError) and self.grouped_draw is not None:
-            if error.field == SERIES_PLACEMENT and self.grouped_place is not None:
+            if error.field == GROUPED_BAR_SPACING and self.spacing_enabled is not None:
+                self._focus(self.spacing_tab, self.spacing_enabled)
+            elif error.field == SERIES_PLACEMENT and self.grouped_place is not None:
                 self._focus(2, self.grouped_place if self.grouped_place.isEnabled() else self.selector)
             elif error.field in (SERIES_STYLE, "Placement of groups", "Graph style"):
                 self._focus(2, self.grouped_draw)
@@ -1103,7 +1157,8 @@ class GraphFormatDialog(QDialog):
             options = dict(self.grouped["options"])
             reset_drawing = options.pop(SERIES_STYLE, None)
             reset_placement = options.pop(SERIES_PLACEMENT, None)
-            if reset_drawing or reset_placement:
+            reset_spacing = options.pop(GROUPED_BAR_SPACING, None)
+            if reset_drawing or reset_placement or reset_spacing:
                 try:
                     self._prepare_grouped(style, options)
                 except ValueError as error:

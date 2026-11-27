@@ -22,6 +22,12 @@ Nei parametri del grafico, **Direzione dell’intervallo → Solo superiore** mo
 
 **Cambia → Ordine di disegno delle serie…** sposta le serie nel grafico. Le barre affiancate vanno da sinistra a destra, quelle impilate dal basso verso l’alto. La disposizione relativa segue la serie e si applica alla nuova precedente. La prima serie apre sempre il gruppo. La legenda ha un ordine proprio. Puoi invertire l’elenco, ripristinare l’ordine del foglio e usare Annulla o Ripeti. Un ordine personalizzato richiede ALAB 19.
 
+## Spaziatura delle barre
+
+In **Formato grafico → Spaziatura barre** attiva **Spaziatura personalizzata** per impostare la distanza tra barre adiacenti, lo spazio aggiuntivo tra gruppi e i margini prima e dopo le barre. Le misure sono percentuali della larghezza di una barra. **Spazio per valori mancanti** può riservare da zero alla larghezza intera di una barra. Una pila o un insieme di serie sovrapposte occupa una sola posizione. Uno zero osservato conta come valore.
+
+L’anteprima mostra la geometria aggiornata. Il foglio numerico resta uguale. Per tornare alla disposizione automatica, disattiva **Spaziatura personalizzata**. L’impostazione segue il grafico nel layout e nell’esportazione. Il salvataggio con spaziatura personalizzata richiede ALAB 20.
+
 ## Regole di compatibilità e persistenza
 
 - Supporta sia **Affiancati** (*Interleaved*) sia **Sovrapposti** (*Superimposed*), sia con **Repliche grezze** (*Raw replicates*) sia con **Riepiloghi precalcolati** (*Precomputed summaries*).
@@ -47,3 +53,5 @@ With an interleaved or superimposed grouped graph, **Placement** controls the re
 In the graph parameters, **Interval direction → Upper only** draws the portion above the estimate and keeps both limits in the results. This setting requires ALAB 18. For supported ZIP and PZF projects, Trama restores side-by-side stacks with means and upper SEM from the original worksheet, together with supported axis settings. The graph uses Trama’s formatting.
 
 Use **Change → Series drawing order…** to arrange the plotted series. Side-by-side bars run left to right and stacks run bottom to top. Each relative placement follows its series and refers to the series that now comes before it. The first series always starts a group. The legend has its own order. You can reverse the list, restore worksheet order, and undo or redo edits. A custom order requires ALAB 19.
+
+Use **Format Graph → Bar spacing → Custom spacing** to set distances between adjacent bars, extra group spacing and the leading and trailing margins. Measurements are percentages of a bar’s width. **Space for missing values** can reserve between zero and one bar width. A stack or overlay shares one position, and an observed zero counts as data. The preview shows the adjusted graph. Custom spacing leaves the result table unchanged, follows the graph into layouts and export, and requires ALAB 20.

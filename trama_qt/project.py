@@ -91,7 +91,7 @@ from analisi import source_link
 from analisi.worksheet_sort import ASCENDING, plan_row_sort, sort_text, validate_sort_key
 from .sheet_commands import SheetCommands
 from analisi.category_graphs import (AS_GRAPH, BARS as GROUPED_BARS, GROUPED_GRAPH, GROUPED_SERIES_COMPATIBLE_STYLES,
-                                     GROUPED_SERIES_ORDER, SERIES_PLACEMENT, SERIES_STYLE, STACKED_PLACEMENTS,
+                                     GROUPED_BAR_SPACING, GROUPED_SERIES_ORDER, SERIES_PLACEMENT, SERIES_STYLE, STACKED_PLACEMENTS,
                                      grouped_series_names, grouped_series_order, grouped_style_after_parameter_change,
                                      prune_series_styles, series_placements)
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
@@ -1239,6 +1239,9 @@ class Project(WorksheetJoinSources, SheetCommands):
             order = grouped_series_order({GROUPED_SERIES_ORDER: saved_order}, names)
             if order != names:
                 options[GROUPED_SERIES_ORDER] = order
+            spacing = options.pop(GROUPED_BAR_SPACING, run.options.get(GROUPED_BAR_SPACING))
+            if graph_style == GROUPED_BARS and spacing is not None:
+                options[GROUPED_BAR_SPACING] = deepcopy(spacing)
             options = prune_series_styles(options, names)
             if placement in STACKED_PLACEMENTS or graph_style not in GROUPED_SERIES_COMPATIBLE_STYLES:
                 options.pop(SERIES_STYLE, None)
