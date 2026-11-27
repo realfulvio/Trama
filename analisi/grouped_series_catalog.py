@@ -8,6 +8,10 @@ CAPTIONS = {
     "Series style": "Stile serie",
     "As graph": "Come il grafico",
     "Line and symbols": "Linea e simboli",
+    "Interval direction": "Direzione dell’intervallo",
+    "Both sides": "Entrambi i lati",
+    "Upper only": "Solo superiore",
+    "Lower only": "Solo inferiore",
 }
 
 MESSAGES = {
@@ -59,6 +63,25 @@ MESSAGES = {
         "La spaziatura personalizzata è disponibile nei grafici a barre raggruppate.",
     ),
     "grouped.series.drawing": ("Drawing", "Disegno"),
+    "grouped.series.interval_direction": ("Interval direction", "Direzione dell’intervallo"),
+    "grouped.interval.both": ("Both sides", "Entrambi i lati"),
+    "grouped.interval.upper": ("Upper only", "Solo superiore"),
+    "grouped.interval.lower": ("Lower only", "Solo inferiore"),
+    "grouped.series.interval_hint": (
+        "Show both ends of the interval, just the upper end or just the lower end for this series.",
+        "Mostra entrambe le estremità dell’intervallo, solo quella superiore o solo quella inferiore per questa serie.",
+    ),
+    "grouped.series.interval_inactive": (
+        "Set the interval type in the graph parameters to use this control.",
+        "Imposta il tipo di intervallo nei parametri del grafico per usare questo controllo.",
+    ),
+    "grouped.series.interval_value": (
+        "Choose a valid interval direction for each series.", "Scegli una direzione dell’intervallo valida per ogni serie.",
+    ),
+    "grouped.series.interval_graph": (
+        "Per-series interval direction requires a grouped bar or center graph that shows intervals.",
+        "Per scegliere la direzione per serie, usa un grafico raggruppato a barre o con centri e intervalli.",
+    ),
     "grouped.draw.as_graph": ("As graph", "Come il grafico"),
     "grouped.draw.bars": ("Bars", "Barre"),
     "grouped.draw.symbols": ("Center and interval", "Centro e intervallo"),
@@ -100,6 +123,9 @@ MESSAGES = {
 }
 
 _ENGLISH_TO_KEY = {
+    "Choose a valid interval direction for each series.": "grouped.series.interval_value",
+    "Per-series interval direction requires a grouped bar or center graph that shows intervals.":
+        "grouped.series.interval_graph",
     "Choose valid percentages for the grouped bar spacing.": "grouped.spacing.error_value",
     "Custom spacing is available for grouped bar graphs.": "grouped.spacing.error_graph",
     "Choose a valid order for the grouped series.": "grouped.order.invalid",

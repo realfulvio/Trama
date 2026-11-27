@@ -17,12 +17,14 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDia
 
 from analisi.axis_breaks import AXIS_BREAKS, SUPPORT_ATTR, axis_breaks_reason
 from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
-from analisi.category_graphs import (AS_GRAPH, BAR_SPACING_DEFAULTS, BAR_SPACING_MAXIMUMS, GROUPED_BAR_SPACING,
-                                     GROUPED_SERIES_COMPATIBLE_STYLES, RELATIVE_PLACEMENTS,
-                                     SERIES_DRAW_STYLES, SERIES_PLACEMENT, SERIES_STYLE, STACK_PREVIOUS,
+from analisi.category_graphs import (AS_GRAPH, BAR_SPACING_DEFAULTS, BAR_SPACING_MAXIMUMS, BOTH_INTERVALS,
+                                     GROUPED_BAR_SPACING, GROUPED_SERIES_COMPATIBLE_STYLES, INTERVAL_DIRECTIONS,
+                                     LOWER_INTERVAL, RELATIVE_PLACEMENTS, SERIES_DRAW_STYLES, SERIES_INTERVAL_DIRECTION,
+                                     SERIES_PLACEMENT, SERIES_STYLE, STACK_PREVIOUS, UPPER_INTERVAL,
                                      STACKED_PLACEMENTS, BARS as GROUPED_BARS,
                                      LINE_SYMBOLS as GROUPED_LINE_SYMBOLS, SYMBOLS as GROUPED_SYMBOLS,
-                                     category_graph, grouped_series_names, prune_series_styles, series_placements)
+                                     category_graph, grouped_series_names, prune_series_styles, series_interval_directions,
+                                     series_placements)
 from analisi.field_error import FieldError
 from analisi.graph_annotations import ANNOTATIONS
 from analisi.grouped_series_catalog import translate_grouped_error
@@ -76,6 +78,12 @@ GROUPED_PLACEMENT_LABELS = {
     AS_GRAPH: "grouped.draw.as_graph",
     **{mode: f"grouped.placement.{key}"
        for mode, key in zip(RELATIVE_PLACEMENTS, ("beside", "overlay", "stack", "gap"), strict=True)},
+}
+GROUPED_INTERVAL_LABELS = {
+    AS_GRAPH: "grouped.draw.as_graph",
+    BOTH_INTERVALS: "grouped.interval.both",
+    UPPER_INTERVAL: "grouped.interval.upper",
+    LOWER_INTERVAL: "grouped.interval.lower",
 }
 SIDE_LABELS = {"Left": "graph.side.left", "Right": "graph.side.right"}
 DEFAULT_LABELS = {DEFAULT: "graph.choice.analysis_default"}
@@ -182,6 +190,10 @@ class GraphFormatDialog(QDialog):
         )
         self.grouped_style_map = dict(grouped_options.get(SERIES_STYLE) or {})
         self.grouped_placement_map = dict(grouped_options.get(SERIES_PLACEMENT) or {})
+        self.grouped_interval_map = dict(grouped_options.get(SERIES_INTERVAL_DIRECTION) or {})
+        self._grouped_has_intervals = any(
+            grouped_options.get(key) not in (None, "None") for key in ("Interval", "Summary error")
+        )
         self.series_index = -1
         self.axis_breaks = deepcopy(style.get(AXIS_BREAKS) or {})
         self.linked_axes = deepcopy(style.get(LINKED_AXES) or {})
@@ -548,6 +560,7 @@ class GraphFormatDialog(QDialog):
                 form.addRow(tr(caption), field)
         self.draw = self.side = self.bar_width = None
         self.grouped_draw = self.grouped_place = self.grouped_note = self.preview_canvas = None
+        self.grouped_interval = None
         if self.xy is not None or self._grouped_present:
             visible_box = QCheckBox(tr("graph.series.visible"))
             visible_box.setObjectName("seriesVisible")
@@ -577,14 +590,21 @@ class GraphFormatDialog(QDialog):
                 self.grouped_place.setObjectName("groupedSeriesPlacement")
                 self.grouped_place.currentIndexChanged.connect(self._change_grouped_placement)
                 form.insertRow(2, tr("grouped.series.placement"), self.grouped_place)
+                self.grouped_interval = Choice((AS_GRAPH, *INTERVAL_DIRECTIONS), GROUPED_INTERVAL_LABELS)
+                self.grouped_interval.setObjectName("groupedSeriesIntervalDirection")
+                caption = tr("grouped.series.interval_direction")
+                self.grouped_interval.setAccessibleName(caption)
+                self.grouped_interval.currentIndexChanged.connect(self._change_grouped_interval)
+                form.insertRow(3, caption, self.grouped_interval)
                 QWidget.setTabOrder(self.selector, self.grouped_draw)
                 QWidget.setTabOrder(self.grouped_draw, self.grouped_place)
-                QWidget.setTabOrder(self.grouped_place, self.series_fields["label"])
+                QWidget.setTabOrder(self.grouped_place, self.grouped_interval)
+                QWidget.setTabOrder(self.grouped_interval, self.series_fields["label"])
             self.grouped_note = QLabel()
             self.grouped_note.setObjectName("infoBanner")
             self.grouped_note.setWordWrap(True)
             self.grouped_note.setVisible(False)
-            form.insertRow(3 if self.grouped_place is not None else 2, self.grouped_note)
+            form.insertRow(4 if self.grouped_interval is not None else 2, self.grouped_note)
         self.series_hint = QLabel(tr("graph.series.hint" if self.series else "graph.series.none"))
         self.series_hint.setObjectName("muted")
         self.series_hint.setWordWrap(True)
@@ -686,6 +706,17 @@ class GraphFormatDialog(QDialog):
         self._series_states()
         self._update_grouped_preview()
 
+    def _change_grouped_interval(self):
+        if not self.grouped_interval.isEnabled() or self.series_index < 0:
+            return
+        name = self.series[self.series_index].name
+        direction = self.grouped_interval.value()
+        if direction == AS_GRAPH:
+            self.grouped_interval_map.pop(name, None)
+        else:
+            self.grouped_interval_map[name] = direction
+        self._update_grouped_preview()
+
     def _has_bars(self):
         styles = dict(self.xy_style)
         if self.draw is not None and 0 <= self.series_index < len(self.series):
@@ -776,6 +807,15 @@ class GraphFormatDialog(QDialog):
                     if is_grouped and self.series_index > 0 else tr("grouped.placement.first")
                 )
                 self.grouped_place.blockSignals(False)
+            if self.grouped_interval is not None:
+                self.grouped_interval.blockSignals(True)
+                self.grouped_interval.setEnabled(can_edit and self._grouped_has_intervals)
+                chosen = self.grouped_interval_map.get(series.name, AS_GRAPH) if is_grouped else AS_GRAPH
+                self.grouped_interval.set(chosen)
+                self.grouped_interval.setToolTip(tr(
+                    "grouped.series.interval_hint" if self._grouped_has_intervals else "grouped.series.interval_inactive"
+                ))
+                self.grouped_interval.blockSignals(False)
         self._series_states()
 
     def _series_states(self, *_):
@@ -1006,6 +1046,10 @@ class GraphFormatDialog(QDialog):
         placements = series_placements({SERIES_PLACEMENT: self.grouped_placement_map})
         if placements := {name: placements[name] for name in names if name in placements}:
             options[SERIES_PLACEMENT] = placements
+        options.pop(SERIES_INTERVAL_DIRECTION, None)
+        directions = series_interval_directions({SERIES_INTERVAL_DIRECTION: self.grouped_interval_map})
+        if directions := {name: directions[name] for name in names if name in directions}:
+            options[SERIES_INTERVAL_DIRECTION] = directions
         options.pop(GROUPED_BAR_SPACING, None)
         if self.spacing_enabled is not None and self.spacing_enabled.isChecked():
             options[GROUPED_BAR_SPACING] = {key: field.value() for key, field in self.spacing_controls.items()}
@@ -1016,7 +1060,7 @@ class GraphFormatDialog(QDialog):
         new = {k: v for k, v in (options.get(SERIES_STYLE) or {}).items() if v and v != AS_GRAPH}
         previous = self.grouped["options"]
         return old != new or any(previous.get(key, {}) != options.get(key, {})
-                                 for key in (SERIES_PLACEMENT, GROUPED_BAR_SPACING))
+                                 for key in (SERIES_PLACEMENT, GROUPED_BAR_SPACING, SERIES_INTERVAL_DIRECTION))
 
     def _prepare_grouped(self, style, options):
         result = category_graph(self.grouped["frame"], options, grouped=True)
@@ -1086,6 +1130,8 @@ class GraphFormatDialog(QDialog):
                 self._focus(self.spacing_tab, self.spacing_enabled)
             elif error.field == SERIES_PLACEMENT and self.grouped_place is not None:
                 self._focus(2, self.grouped_place if self.grouped_place.isEnabled() else self.selector)
+            elif error.field == SERIES_INTERVAL_DIRECTION and self.grouped_interval is not None:
+                self._focus(2, self.grouped_interval if self.grouped_interval.isEnabled() else self.selector)
             elif error.field in (SERIES_STYLE, "Placement of groups", "Graph style"):
                 self._focus(2, self.grouped_draw)
         if not isinstance(error, str):
@@ -1158,7 +1204,8 @@ class GraphFormatDialog(QDialog):
             reset_drawing = options.pop(SERIES_STYLE, None)
             reset_placement = options.pop(SERIES_PLACEMENT, None)
             reset_spacing = options.pop(GROUPED_BAR_SPACING, None)
-            if reset_drawing or reset_placement or reset_spacing:
+            reset_intervals = options.pop(SERIES_INTERVAL_DIRECTION, None)
+            if reset_drawing or reset_placement or reset_spacing or reset_intervals:
                 try:
                     self._prepare_grouped(style, options)
                 except ValueError as error:

@@ -6,7 +6,8 @@ from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtTest import QTest
 
 from analisi.category_graphs import (
-    BARS, GROUPED_GRAPH, GROUPED_SERIES_ORDER, INTERLEAVED, SERIES_PLACEMENT, STACK_PREVIOUS, grouped_graph_metadata,
+    BARS, GROUPED_GRAPH, GROUPED_SERIES_ORDER, INTERLEAVED, LOWER_INTERVAL,
+    SERIES_INTERVAL_DIRECTION, SERIES_PLACEMENT, STACK_PREVIOUS, grouped_graph_metadata,
 )
 from analisi.figure_export import export_figure
 from analisi.presentation import Layout, graph_series
@@ -65,6 +66,8 @@ def check_grouped_placement(smoke, window):
             smoke.expect(placement.isEnabled() and "A" in placement.toolTip(), "the preceding series was not identified")
             placement.setFocus()
             QTest.keyClick(placement, Qt.Key.Key_Tab)
+            smoke.expect(dialog.focusWidget() is dialog.grouped_interval, "Tab did not reach the interval direction")
+            QTest.keyClick(dialog.grouped_interval, Qt.Key.Key_Tab)
             smoke.expect(dialog.focusWidget() is dialog.series_fields["label"], "Tab did not reach the legend label")
             if not cancel:
                 def close_shortcuts():
@@ -159,3 +162,61 @@ def check_grouped_placement(smoke, window):
     window.actions["undo"].trigger()
     assert GROUPED_SERIES_ORDER not in restored.options
     check_chart(restored.result.figure)
+
+    def check_one_sided(figure):
+        bars = grouped_graph_metadata(figure.axes[0])["handles"]
+        err_a = bars["A"]._tramastat_grouped_series["errorbar"]
+        err_b = bars["B"]._tramastat_grouped_series["errorbar"]
+        assert all(len(cap.get_ydata()) == 4 for cap in err_a.lines[1])
+        assert [len(cap.get_ydata()) for cap in err_b.lines[1]] == [3, 0]
+        np.testing.assert_allclose([segment[:, 1] for segment in err_b.lines[2][0].get_segments()],
+                                   [[4, 5], [-9, -8], [-4, -3]])
+
+    def lower_interval():
+        dialog = smoke.app.activeModalWidget()
+        try:
+            assert isinstance(dialog, GraphFormatDialog)
+            dialog.activateWindow()
+            dialog.tabs.setCurrentIndex(2)
+            dialog.selector.setCurrentIndex(1)
+            choice = dialog.grouped_interval
+            assert choice.isEnabled()
+            choice.set(LOWER_INTERVAL)
+            assert dialog.preview()
+            check_one_sided(dialog.preview_canvas.figure)
+            assert SERIES_INTERVAL_DIRECTION not in restored.options
+            choice.setFocus()
+            QTest.keyClick(choice, Qt.Key.Key_Tab)
+            assert dialog.focusWidget() is dialog.series_fields["label"]
+            smoke.shot(dialog, "grouped-interval-direction")
+            QTest.keyClick(dialog.series_fields["label"], Qt.Key.Key_Return)
+        except Exception as error:
+            smoke.problem(f"interval direction: {error!r}")
+        finally:
+            if isinstance(dialog, GraphFormatDialog) and dialog.isVisible():
+                dialog.reject()
+
+    QTimer.singleShot(150, lower_interval)
+    window.actions["format_graph"].trigger()
+    assert restored.options[SERIES_INTERVAL_DIRECTION] == {"B": LOWER_INTERVAL}
+    pd.testing.assert_frame_equal(restored.result.tables["Graph data"], baseline)
+    check_one_sided(restored.result.figure)
+    window.actions["undo"].trigger()
+    assert SERIES_INTERVAL_DIRECTION not in restored.options
+    check_chart(restored.result.figure)
+    window.actions["redo"].trigger()
+    check_one_sided(restored.result.figure)
+
+    saved = stem.with_name(stem.name + "-interval").with_suffix(".alab")
+    window.project.save(saved)
+    window.close_project()
+    window.open_path(saved)
+    window.open_sheet(("graph", index))
+    smoke.wait()
+    reopened = window.project.runs[index]
+    assert reopened.options[SERIES_INTERVAL_DIRECTION] == {"B": LOWER_INTERVAL}
+    check_one_sided(reopened.result.figure)
+    svg = saved.with_suffix(".svg")
+    export_figure(reopened.result.figure, svg, {"format": "svg", "svg_text": "text"})
+    assert "<image" not in svg.read_text(encoding="utf-8")
+    smoke.shot(window, "grouped-interval-reopened")

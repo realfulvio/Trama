@@ -91,7 +91,8 @@ from analisi import source_link
 from analisi.worksheet_sort import ASCENDING, plan_row_sort, sort_text, validate_sort_key
 from .sheet_commands import SheetCommands
 from analisi.category_graphs import (AS_GRAPH, BARS as GROUPED_BARS, GROUPED_GRAPH, GROUPED_SERIES_COMPATIBLE_STYLES,
-                                     GROUPED_BAR_SPACING, GROUPED_SERIES_ORDER, SERIES_PLACEMENT, SERIES_STYLE, STACKED_PLACEMENTS,
+                                     GROUPED_BAR_SPACING, GROUPED_SERIES_ORDER, SERIES_INTERVAL_DIRECTION,
+                                     SERIES_PLACEMENT, SERIES_STYLE, STACKED_PLACEMENTS, series_interval_directions,
                                      grouped_series_names, grouped_series_order, grouped_style_after_parameter_change,
                                      prune_series_styles, series_placements)
 from analisi.xy_series import (XY_METHOD, assign_colors, retain_recipe_options,
@@ -1246,11 +1247,16 @@ class Project(WorksheetJoinSources, SheetCommands):
             if placement in STACKED_PLACEMENTS or graph_style not in GROUPED_SERIES_COMPATIBLE_STYLES:
                 options.pop(SERIES_STYLE, None)
                 options.pop(SERIES_PLACEMENT, None)
+                options.pop(SERIES_INTERVAL_DIRECTION, None)
             else:
                 record = options.pop(SERIES_PLACEMENT, run.options.get(SERIES_PLACEMENT, {}))
                 placements = series_placements({SERIES_PLACEMENT: record})
                 if placements := {name: placements[name] for name in names if name in placements}:
                     options[SERIES_PLACEMENT] = placements
+                record = options.pop(SERIES_INTERVAL_DIRECTION, run.options.get(SERIES_INTERVAL_DIRECTION, {}))
+                directions = series_interval_directions({SERIES_INTERVAL_DIRECTION: record})
+                if directions := {name: directions[name] for name in names if name in directions}:
+                    options[SERIES_INTERVAL_DIRECTION] = directions
             style = grouped_style_after_parameter_change(style, options, raw)
         elif method == XY_METHOD:
             style = xy_style(style, options)
