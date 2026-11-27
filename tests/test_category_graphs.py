@@ -15,7 +15,7 @@ from analisi.category_graphs import (
 )
 from analisi.data import Dataset
 from analisi.field_error import FieldError
-from analisi.presentation import active_series_fields, apply_style, graph_series
+from analisi.presentation import INTERVAL_STYLE_FIELDS, active_series_fields, apply_style, graph_series
 
 
 class CategoryGraphTests(unittest.TestCase):
@@ -237,12 +237,12 @@ class GroupedSummaryTests(unittest.TestCase):
         axis, = self.graph(frame, names=["A [Center]", "A [Minus]", "A [Plus]"],
                            **{"Summary error": "Distances from estimate (minus/plus)"}).figure.axes
         whiskers, = _whiskers(axis)
-        np.testing.assert_allclose([pair[1:] for pair in whiskers], [(3, 7), (5, 7)], atol=1e-10)
+        np.testing.assert_allclose([pair[1:] for pair in whiskers], [(3, 7), (5, 7), (5, 6)], atol=1e-10)
         np.testing.assert_allclose([patch.get_height() for patch in axis.patches], [4, 5, 6], atol=1e-10)
         axis, = self.graph(frame, names=["B [Mean]", "B [Lower]", "B [Upper]"], **{
             "Summary error": "Limits on axis (lower/upper)", "Graph style": "Center and interval"}).figure.axes
         whiskers, = _whiskers(axis)
-        np.testing.assert_allclose([pair[1:] for pair in whiskers], [(6, 13), (9, 9)], atol=1e-10)
+        np.testing.assert_allclose([pair[1:] for pair in whiskers], [(6, 13), (9, 9), (10, 11)], atol=1e-10)
         np.testing.assert_allclose(axis.collections[0].get_offsets()[:, 1], [8, 9, 10], atol=1e-10)
         with self.assertRaisesRegex(ValueError, r"A has no \[Lower\] and \[Upper\]") as raised:
             self.graph(frame, **{"Summary error": "Limits on axis (lower/upper)"})
@@ -578,8 +578,9 @@ class GroupedSeriesStyleTests(unittest.TestCase):
             ("grouped:1:Controllo", "bar"),
         ])
         self.assertEqual(active_series_fields(ax, gs[0]),
-                         {"color", "line_style", "width", "marker", "marker_size", "marker_color", "label", "visible"})
-        self.assertEqual(active_series_fields(ax, gs[1]), {"color", "label", "visible"})
+                         {"color", "line_style", "width", "marker", "marker_size", "marker_color", "label", "visible"}
+                         | INTERVAL_STYLE_FIELDS)
+        self.assertEqual(active_series_fields(ax, gs[1]), {"color", "label", "visible"} | INTERVAL_STYLE_FIELDS)
         apply_style(res.figure, {"series": {
             "grouped:1:Controllo": {"visible": False},
             "grouped:1:Trattamento": {"color": "#228833", "line_style": "dashed"},

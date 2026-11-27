@@ -13,7 +13,7 @@ from analisi.category_graphs import (
 )
 from analisi.data import Dataset, load_workspace, save_project
 from analisi.figure_export import export_figure
-from analisi.presentation import active_series_fields, apply_style, graph_series, validated_style
+from analisi.presentation import INTERVAL_STYLE_FIELDS, active_series_fields, apply_style, graph_series, validated_style
 
 
 class GraphFormatTests(unittest.TestCase):
@@ -306,7 +306,7 @@ class GraphFormatTests(unittest.TestCase):
         ax, = result.figure.axes
         gs = graph_series(ax)
         self.assertEqual([s.key for s in gs], ["grouped:1:Controllo", "grouped:1:Trattamento"])
-        self.assertEqual(active_series_fields(ax, gs[0]), {"color", "label", "visible"})
+        self.assertEqual(active_series_fields(ax, gs[0]), {"color", "label", "visible"} | INTERVAL_STYLE_FIELDS)
         self.assertIn("line_style", active_series_fields(ax, gs[1]))
 
         pruned = grouped_style_after_parameter_change(
