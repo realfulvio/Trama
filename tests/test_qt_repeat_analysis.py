@@ -145,6 +145,9 @@ class RepeatWindowTests(unittest.TestCase):
             for box in boxes:  # Not proposed: the names differ.
                 self.assertEqual(box.currentData(), "")
                 box.setCurrentIndex(box.findData("Tempo"))
+            self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            for row, box in enumerate(boxes):
+                self.assertIs(dialog.table.cellWidget(row, 1), box)
             self.assertFalse(dialog.next.isEnabled())
             self.assertIn("chosen twice", dialog.sheet_status.text())
             boxes[1].setCurrentIndex(boxes[1].findData("Segnale"))

@@ -8,7 +8,7 @@ be calculated the same assistant opens again with its choices and the reason.
 """
 from html import escape
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QComboBox, QDialog, QHBoxLayout, QHeaderView, QLabel,
                                QListWidget, QListWidgetItem, QPushButton, QRadioButton, QSizePolicy, QSplitter,
                                QStackedWidget, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
@@ -178,9 +178,11 @@ class RepeatDialog(QDialog):
 
     def _sheet_checked(self, item):
         title = item.data(Qt.ItemDataRole.UserRole)
-        self.assistant.choose(title, item.checkState() == Qt.CheckState.Checked)
-        if item.checkState() == Qt.CheckState.Checked:
-            self.sheet_list.setCurrentItem(item)
+        checked = item.checkState() == Qt.CheckState.Checked
+        self.assistant.choose(title, checked)
+        if checked:
+            with QSignalBlocker(self.sheet_list):
+                self.sheet_list.setCurrentItem(item)
         self._fill_columns()
 
     def _sheet_current(self, item, _previous=None):
@@ -226,12 +228,14 @@ class RepeatDialog(QDialog):
 
     def _fill_status(self):
         assistant = self.assistant
-        for row in range(self.sheet_list.count()):
-            item = self.sheet_list.item(row)
-            title = item.data(Qt.ItemDataRole.UserRole)
-            if title in assistant.selected:
-                problems = assistant.problem_texts(title)
-                item.setToolTip("\n".join(problems) or t("ready"))
+        # A tooltip update also emits itemChanged. Keep the current mapping controls and focus.
+        with QSignalBlocker(self.sheet_list):
+            for row in range(self.sheet_list.count()):
+                item = self.sheet_list.item(row)
+                title = item.data(Qt.ItemDataRole.UserRole)
+                if title in assistant.selected:
+                    problems = assistant.problem_texts(title)
+                    item.setToolTip("\n".join(problems) or t("ready"))
         title = assistant.current if assistant.current in assistant.selected else None
         problems = assistant.problem_texts(title) if title is not None else []
         self.sheet_status.setText("\n".join(problems) if problems else (t("ready") if title else ""))
@@ -317,9 +321,10 @@ def repeat_analysis(window, assistant=None, *, notice=None):
     try:
         if dialog.exec() != QDialog.DialogCode.Accepted or dialog.plan is None:
             return
+        plan = dialog.plan
     finally:
         window.repeat_dialog = None
-    plan = dialog.plan
+        dialog.deleteLater()
     try:
         staged, inputs, state = prepare_job(project.tables, plan)
     except (RepeatError, ValueError) as error:
