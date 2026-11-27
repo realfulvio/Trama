@@ -39,6 +39,8 @@ GID_PREFIX = "trama-axis-break:"
 
 # Attributes the machinery keeps. The renderers of the supported graphs set SUPPORT_ATTR on their Axes.
 SUPPORT_ATTR = "_tramastat_axis_breaks_support"
+SURVIVAL_ATTR = "_tramastat_survival_plot"
+KM_RISK_ATTR = "_tramastat_km_risk_axes"
 STATE_ATTR = "_tramastat_axis_breaks"
 REASON_ATTR = "_tramastat_axis_breaks_reason"
 SCOPE_ATTR = "_tramastat_axis_break_scope"
@@ -69,12 +71,16 @@ M_ORIGIN = "Segment {row}: enter a finite tick origin and a major interval, or l
 M_LABELS = "Segment {row}: tick labels need distinct numeric positions and short printable text."
 M_MINOR = "Segment {row}: enter 0 to 10 minor ticks per interval, or leave it blank to inherit the axis setting."
 M_TICK_BUDGET = "Segment {row}: the intervals would place more than 200 major and minor ticks."
+M_NONNEGATIVE = "Segment {row}: Kaplan–Meier time limits must be zero or positive."
 
-P_SUPPORT = "Axis breaks are available for XY series, XY error bars and global nonlinear fits."
+P_SUPPORT = "Axis breaks are available for XY series, XY error bars, global nonlinear fits and Kaplan–Meier survival curves."
 P_NATIVE = "Axis breaks need a native graph, not an imported picture."
+P_PANELS = "Axis breaks need a graph with a single plot panel."
 P_RIGHT = "Axis breaks cannot be combined with a right Y axis. Move every series to the left axis first."
 P_LAYOUT = "Axis breaks need the standard graph layout."
 P_ARTISTS = "This graph has drawing elements that axis breaks cannot repeat on every panel."
+P_KM_AXIS = "On Kaplan–Meier survival graphs, axis breaks are available for the X axis only."
+P_KM_NONNEGATIVE = "Kaplan–Meier time segments require limits greater than or equal to zero."
 P_LINEAR = "Axis breaks need a linear {axis} axis."
 P_OTHER = "Axis breaks need a linear or logarithmic {axis} axis."
 P_NUMERIC = "Axis breaks need a numeric {axis} axis."
@@ -214,6 +220,29 @@ def mark_supported(axes):
     setattr(axes, SUPPORT_ATTR, True)
 
 
+def is_survival_axes(axes):
+    """True when ``axes`` is a native Kaplan–Meier survival plot."""
+    return bool(getattr(axes, SURVIVAL_ATTR, False))
+
+
+def axis_breaks_panel_problem(axes):
+    """Reason ``axes`` cannot take axis breaks because of its panel layout, or None."""
+    if not getattr(axes, SUPPORT_ATTR, False):
+        return P_SUPPORT
+    if getattr(axes, "_tramastat_non_native", False) or not getattr(axes, "axison", True):
+        return P_NATIVE
+    figure = axes.figure
+    state = getattr(figure, STATE_ATTR, None)
+    own = set(state["panels"]) if state else {axes}
+    risk = getattr(axes, KM_RISK_ATTR, None)
+    if risk is not None:
+        own.add(risk)
+    others = [other for other in figure.axes if other not in own]
+    if any(not axes.get_shared_x_axes().joined(axes, other) for other in others):
+        return P_PANELS
+    return None
+
+
 def segment_axes(figure):
     """The segment Axes of ``figure`` in increasing data order, or an empty list for a normal figure."""
     state = getattr(figure, STATE_ATTR, None)
@@ -249,7 +278,7 @@ def _foreign_artists(axes):
             + list(axes.texts))
 
 
-def axis_breaks_problem(axes, record):
+def axis_breaks_problem(axes, record, *, scales=None):
     """Why ``record`` cannot be drawn on the graph that owns ``axes`` right now, or None. Never changes it."""
     if not record:
         return None
@@ -260,17 +289,30 @@ def axis_breaks_problem(axes, record):
         return P_NATIVE
     state = getattr(figure, STATE_ATTR, None)
     own = set(state["panels"]) if state else {axes}
-    if any(other not in own for other in figure.axes):
+    risk = getattr(axes, KM_RISK_ATTR, None)
+    if risk is not None:
+        own.add(risk)
+    others = [other for other in figure.axes if other not in own]
+    if others:
+        if any(not axes.get_shared_x_axes().joined(axes, other) for other in others):
+            return P_PANELS
         return P_RIGHT
     if not isinstance(figure.get_layout_engine(), ConstrainedLayoutEngine) or axes.get_subplotspec() is None:
         return P_LAYOUT
     dimension = record["axis"]
+    if is_survival_axes(axes):
+        if dimension != "x":
+            return P_KM_AXIS
+        if any(segment["low"] < 0 for segment in record["segments"]):
+            return P_KM_NONNEGATIVE
     other = "y" if dimension == "x" else "x"
     if dimension in getattr(axes, "_tramastat_categorical_axes", ()) or _axis_of(axes, dimension).get_units() is not None:
         return P_NUMERIC.format(axis=dimension.upper())
-    if _axis_of(axes, dimension).get_scale() != "linear":
+    scale = (scales or {}).get(dimension) or _axis_of(axes, dimension).get_scale()
+    other_scale = (scales or {}).get(other) or _axis_of(axes, other).get_scale()
+    if scale != "linear":
         return P_LINEAR.format(axis=dimension.upper())
-    if _axis_of(axes, other).get_scale() not in ("linear", "log"):
+    if other_scale not in ("linear", "log"):
         return P_OTHER.format(axis=other.upper())
     if state is None:
         low, high = getattr(axes, f"get_{dimension}lim")()
@@ -429,6 +471,10 @@ def _after_layout(figure):
         return
     _slice_panels(state)
     band = _band(state)
+    risk = state.get("risk_axes")
+    if risk is not None:
+        risk_box = risk.get_position()
+        _place(risk, [band.x0, risk_box.y0, band.width, risk_box.height])
     _center_labels(state, band)
     _place_legend(figure, state, band)
 
@@ -576,7 +622,8 @@ def _data_points(primary, *, between=False):
         finite = np.isfinite(x) & np.isfinite(y)
         x, y = x[finite], y[finite]
         if between and source.get_linestyle() not in _NO_LINE and len(x) > 1:  # a line occupies the space between points
-            x, y = np.concatenate([x, (x[1:] + x[:-1]) / 2]), np.concatenate([y, (y[1:] + y[:-1]) / 2])
+            mid_y = y[:-1] if str(source.get_drawstyle()).startswith("steps-post") else (y[1:] + y[:-1]) / 2
+            x, y = np.concatenate([x, (x[1:] + x[:-1]) / 2]), np.concatenate([y, mid_y])
         points.append((x, y))
     for scatter in filter(_plain_scatter, primary.collections):
         offsets = np.ma.asarray(scatter.get_offsets(), dtype=float).filled(np.nan)
@@ -777,13 +824,22 @@ def _build(figure, primary, record):
     lengths = segment_lengths(record)
     saved = _snapshot(primary, dimension)
     engine = figure.get_layout_engine()
+    risk = getattr(primary, KM_RISK_ATTR, None)
     state = {"axis": dimension, "record": deepcopy(record), "primary": primary, "panels": [primary],
              "clones": [], "artists": [], "saved": saved, "spec": primary.get_subplotspec(), "engine": engine,
+             "risk_axes": risk, "risk_spec": risk.get_subplotspec() if risk is not None else None,
+             "risk_in_layout": risk.get_in_layout() if risk is not None else None,
              "legend": None, "legend_loc": None, "legends": [], "points": [], "tick_alignment": []}
     setattr(figure, STATE_ATTR, state)
     if dimension == "x":
-        grid = GridSpec(1, count, figure=figure, width_ratios=lengths)
-        cells = [grid[0, index] for index in range(count)]
+        if risk is not None:
+            height_ratios = state["spec"].get_gridspec().get_height_ratios()
+            grid = GridSpec(2, count, figure=figure, height_ratios=height_ratios, width_ratios=lengths)
+            cells = [grid[0, index] for index in range(count)]
+            risk.set_subplotspec(grid[1, :])
+        else:
+            grid = GridSpec(1, count, figure=figure, width_ratios=lengths)
+            cells = [grid[0, index] for index in range(count)]
     else:
         grid = GridSpec(count, 1, figure=figure, height_ratios=lengths[::-1])
         cells = [grid[count - 1 - index, 0] for index in range(count)]
@@ -835,6 +891,9 @@ def clear_axis_breaks(figure):
     delattr(figure, STATE_ATTR)
     if state["spec"] is not None:
         primary.set_subplotspec(state["spec"])
+    if state.get("risk_axes") is not None and state.get("risk_spec") is not None:
+        state["risk_axes"].set_subplotspec(state["risk_spec"])
+        state["risk_axes"].set_in_layout(state["risk_in_layout"])
     primary.set_in_layout(saved["in_layout"])
     primary.set_zorder(saved["zorder"])
     axis = _axis_of(primary, dimension)
@@ -899,6 +958,9 @@ def suggest_axis_breaks(axes, axis, count=3):
     Limits are padded a little and rounded outward so the symbols at the ends stay whole; the shares follow
     the span of each segment but never fall below 15, and the major interval stays automatic.
     """
+    survival = is_survival_axes(axes)
+    if survival and axis != "x":
+        return None
     values = np.concatenate([part[0 if axis == "x" else 1] for part in _data_points(axes)] or [np.empty(0)])
     values = np.unique(values[np.isfinite(values)])
     if count not in SEGMENT_COUNTS or len(values) < count:
@@ -912,10 +974,12 @@ def suggest_axis_breaks(axes, axis, count=3):
     pad = min(0.03 * span, float(steps[cuts].min()) / 3)
     exponent = floor(log10(span / 20))
     unit, digits = 10.0 ** exponent, max(0, -exponent)
-    limits = [(round(_round_out(float(g[0]) - pad, unit, False), digits),
+    floor_low = (lambda val: max(0.0, val)) if survival else (lambda val: val)
+    limits = [(floor_low(round(_round_out(float(g[0]) - pad, unit, False), digits)),
                round(_round_out(float(g[-1]) + pad, unit, True), digits)) for g in groups]
     if any(not high < nxt for (_, high), (nxt, _) in zip(limits, limits[1:])) or any(low >= high for low, high in limits):
-        limits = [(float(g[0]), float(g[-1])) if g[0] < g[-1] else (float(g[0]) - pad, float(g[0]) + pad) for g in groups]
+        limits = [(float(g[0]), float(g[-1])) if g[0] < g[-1]
+                  else (floor_low(float(g[0]) - pad), float(g[0]) + pad) for g in groups]
     lengths = np.array([high - low for low, high in limits])
     shares = 100 * lengths / lengths.sum()
     for _ in range(count):

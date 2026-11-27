@@ -11,7 +11,8 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QLabel,
                                QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
-from analisi.axis_breaks import AXIS_BREAKS
+from analisi.axis_breaks import (AXIS_BREAKS, SUPPORT_ATTR, axis_breaks_panel_problem, axis_breaks_problem,
+                                 axis_breaks_reason)
 from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.linked_axes import LINKED_AXES, linked_axes_status, supported_dimensions
 from analisi.i18n import tr, translate_message
@@ -46,10 +47,11 @@ def _translated(error):
     """An engine message in the active language: graph messages first, then the linked-axes ones."""
     from analisi.observation_labels import translate_label_error
     from analisi.point_style import translate_point_error
+    from .axis_breaks import translate_breaks_error
     from .linked_axes import translate_linked_error
 
     text = translate_message(error)
-    for translate in (translate_point_error, translate_label_error, translate_linked_error):
+    for translate in (translate_point_error, translate_label_error, translate_breaks_error, translate_linked_error):
         if text == str(error):
             text = translate(error)
     return text
@@ -265,8 +267,111 @@ class GraphInspector(QFrame):
             hint.setObjectName("muted")
             hint.setWordWrap(True)
             form.addRow(hint)
+        self._breaks_controls(form)
         self._linked_controls(form)
         self._finish(form, "axes")
+
+    def _breaks_controls(self, form):
+        """Axis breaks: shown when the graph supports breaks on one of its axes."""
+        self.breaks_widgets = []
+        if not getattr(self.axes, SUPPORT_ATTR, False):
+            return
+        self.breaks_button = QPushButton(tr("axis_breaks.button"))
+        self.breaks_button.setAutoDefault(False)
+        self.breaks_button.clicked.connect(self.edit_breaks)
+        self.breaks_summary = QLabel()
+        self.breaks_summary.setObjectName("muted")
+        self.breaks_summary.setWordWrap(True)
+        self.breaks_note = QLabel()
+        self.breaks_note.setObjectName("muted")
+        self.breaks_note.setWordWrap(True)
+        for widget in (self.breaks_button, self.breaks_summary, self.breaks_note):
+            form.addRow(widget)
+            self.breaks_widgets.append(widget)
+
+    def _break_scales(self):
+        return {
+            dimension: (self.widgets[dimension + "scale"].value()
+                        if (dimension + "scale") in self.widgets
+                        else getattr(self.axes, dimension + "axis").get_scale())
+            for dimension in ("x", "y")}
+
+    def _break_reason(self):
+        record = self.draft.get(AXIS_BREAKS) or {}
+        axis = record.get("axis")
+        blocker = axis_breaks_panel_problem(self.axes)
+        reason = blocker or (axis_breaks_problem(self.axes, record, scales=self._break_scales()) if axis else None)
+        if reason is None and axis:
+            reason = axis_breaks_reason(self.figure)
+        return blocker, reason
+
+    def _refresh_breaks(self):
+        if not self.breaks_widgets:
+            return
+        from .axis_breaks import breaks_summary, translate_breaks_error
+
+        record = self.draft.get(AXIS_BREAKS) or {}
+        axis = record.get("axis")
+        blocker, reason = self._break_reason()
+        self.breaks_summary.setText(breaks_summary(record))
+        self.breaks_button.setEnabled(not blocker or bool(axis))
+        if reason:
+            message = translate_breaks_error(ValueError(reason))
+            note = tr("axis_breaks.status.ignored", reason=message) if axis else message
+            banner = "infoBanner"
+        else:
+            note = tr("axis_breaks.axis_note", axis=axis.upper()) if axis else ""
+            banner = "muted"
+        self.breaks_note.setText(note)
+        self.breaks_note.setVisible(bool(note))
+        if self.breaks_note.objectName() != banner:
+            self.breaks_note.setObjectName(banner)
+            self.breaks_note.style().unpolish(self.breaks_note)
+            self.breaks_note.style().polish(self.breaks_note)
+
+    def edit_breaks(self):
+        from .axis_breaks import AxisBreaksDialog, translate_breaks_error
+
+        self._flush()
+        saved = deepcopy(self.draft)
+
+        def preview(record):
+            if record is None:
+                apply_style(self.figure, saved)
+                self.canvas.draw_idle()
+                return
+            candidate = deepcopy(saved)
+            if record:
+                candidate[AXIS_BREAKS] = record
+            else:
+                candidate.pop(AXIS_BREAKS, None)
+            try:
+                apply_style(self.figure, candidate)
+            except ValueError as error:
+                apply_style(self.figure, saved)
+                self.canvas.draw_idle()
+                raise ValueError(_translated(error)) from error
+            reason = axis_breaks_reason(self.figure) if record else None
+            if reason:
+                apply_style(self.figure, saved)
+                self.canvas.draw_idle()
+                raise ValueError(translate_breaks_error(ValueError(reason)))
+            self.canvas.draw_idle()
+
+        dialog = AxisBreaksDialog(
+            self, self.axes, self.draft.get(AXIS_BREAKS) or {},
+            preview=preview, busy=lambda: not self.isEnabled())
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.result is None:
+            self._refresh_states()
+            return
+        candidate = deepcopy(self.draft)
+        if dialog.result:
+            candidate[AXIS_BREAKS] = dialog.result
+        else:
+            candidate.pop(AXIS_BREAKS, None)
+        if candidate != self.draft:
+            self._preview(candidate)
+        self._refresh_states()
 
     def _linked_controls(self, form):
         """Secondary axes: shown when the graph can link at least one axis."""
@@ -392,14 +497,19 @@ class GraphInspector(QFrame):
 
     def _refresh_states(self):
         self._refresh_linked()
+        self._refresh_breaks()
+        _blocker, reason = self._break_reason() if self.breaks_widgets else (None, None)
         for dimension in ("x", "y"):
             numeric = axis_has_numeric_ticks(self.axes, dimension)
             zero = dimension in zero_baseline_axes(self.axes)
-            broken = self.draft.get(AXIS_BREAKS, {}).get("axis") == dimension
+            has_breaks = self.draft.get(AXIS_BREAKS, {}).get("axis") == dimension
+            scale_value = self.widgets[dimension + "scale"].value() if (dimension + "scale") in self.widgets else "linear"
+            fields_broken = has_breaks and not reason
+            scale_broken = has_breaks and scale_value == "linear" and not _blocker
             for bound in ("min", "max"):
-                self.widgets[dimension + bound].setEnabled(numeric and not broken)
+                self.widgets[dimension + bound].setEnabled(numeric and not fields_broken)
             self.widgets[dimension + "scale"].setEnabled(
-                numeric and not zero and not broken and not (self._xy and dimension == "y"))
+                numeric and not zero and not scale_broken and not (self._xy and dimension == "y"))
         item = self.current
         if item and item["kind"] == "series":
             series = item["item"]
@@ -471,7 +581,7 @@ class GraphInspector(QFrame):
             return False
         self.draft = candidate
         self.show_status("")
-        self._refresh_linked()
+        self._refresh_states()
         self.points.refresh()
         self.labels.refresh()
         self.canvas.draw_idle()

@@ -844,5 +844,187 @@ class CompatibilityTests(unittest.TestCase):
         self.assertNotIsInstance(figure.get_layout_engine(), ab._BreakEngine)
 
 
+KM_FRAME = pd.DataFrame({
+    "Tempo": [1, 2, 4, 14, 16, 20, 2, 3, 5, 12, 16, 18, 21],
+    "Evento": [1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0],
+    "Gruppo": ["Controllo"] * 6 + ["Trattamento"] * 7,
+})
+KM_BREAKS = {
+    "axis": "x",
+    "gap": 0.04,
+    "segments": [
+        {"low": 0, "high": 4, "share": 40, "major_step": 2},
+        {"low": 12, "high": 20, "share": 60, "major_step": 2},
+    ],
+}
+
+
+def _km(uncertainty="None", units="Fraction", risk=True, **extra):
+    from analisi.workbench import analyse
+
+    options = {
+        "Time": "Tempo", "Event columns": ["Evento"], "Grouping variables": ["Gruppo"],
+        "Show risk table below graph": risk, "Uncertainty": uncertainty,
+        "Display units": units, "Observation markers": "Censored observations", **extra,
+    }
+    return analyse("Kaplan–Meier survival", KM_FRAME, options)
+
+
+def _svg_risk_info(figure):
+    import matplotlib as mpl
+
+    buf = BytesIO()
+    with mpl.rc_context({"svg.fonttype": "none"}):
+        figure.savefig(buf, format="svg")
+    root = ET.fromstring(buf.getvalue())
+    ids = [el.attrib["id"] for el in root.iter() if "id" in el.attrib]
+    labels = {}
+    counts = {}
+    for el in root.iter():
+        gid = el.attrib.get("id", "")
+        text = "".join(el.itertext()).strip()
+        if gid.startswith("risk-label-"):
+            labels[gid] = text
+        elif gid.startswith("risk-count-"):
+            counts[gid] = text
+    return ids, labels, counts
+
+
+class KaplanMeierAxisBreaksTests(unittest.TestCase):
+    def test_km_estimates_censors_and_risk_counts_match_expected_fixture(self):
+        result = _km(uncertainty="Pointwise confidence band")
+        apply_style(result.figure, {ab.AXIS_BREAKS: deepcopy(KM_BREAKS)})
+        panels = segment_axes(result.figure)
+        self.assertEqual(len(panels), 2)
+        self.assertTrue(ab.is_survival_axes(panels[0]))
+        self.assertEqual([p.get_xticks().tolist() for p in panels], [[0.0, 2.0, 4.0], [12.0, 14.0, 16.0, 18.0, 20.0]])
+
+        # Step curves on both panels keep exact history (step at t=12 to 18/35; censoring at 14 and 20).
+        by_label = {line.get_label(): line for line in panels[0].lines if line.get_label() in {"Controllo", "Trattamento"}}
+        np.testing.assert_allclose(by_label["Trattamento"].get_ydata()[:6], [1.0, 6 / 7, 6 / 7, 24 / 35, 18 / 35, 18 / 35])
+        np.testing.assert_allclose(by_label["Controllo"].get_ydata()[:6], [1.0, 5 / 6, 5 / 6, 5 / 8, 5 / 8, 5 / 16])
+
+        ids, labels, counts = _svg_risk_info(result.figure)
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(list(labels.values()), ["At risk", "Controllo", "Trattamento"])
+        ctrl = [int(counts[f"risk-count-1-0-{col}"]) for col in range(8)]
+        trt = [int(counts[f"risk-count-1-1-{col}"]) for col in range(8)]
+        self.assertEqual(ctrl, [6, 5, 4, 3, 3, 2, 1, 1])
+        self.assertEqual(trt, [7, 7, 5, 4, 3, 3, 2, 1])
+
+    def test_risk_table_alignment_follows_resize_and_manual_ticks(self):
+        import uuid
+        from matplotlib.transforms import blended_transform_factory
+        from matplotlib.text import Text
+        from analisi.axis_guides import AXIS_GUIDES
+
+        result = _km()
+        guide_id = str(uuid.uuid4())
+        apply_style(result.figure, {
+            ab.AXIS_BREAKS: deepcopy(KM_BREAKS),
+            AXIS_GUIDES: [{"id": guide_id, "axis": "x", "value": 15.0, "label": "15", "tick": True, "line": True}],
+        })
+        FigureCanvasAgg(result.figure)
+        for size in ((8.0, 6.0), (11.5, 6.5)):
+            result.figure.set_size_inches(*size)
+            result.figure.canvas.draw()
+            panels = segment_axes(result.figure)
+            risk_axes = getattr(panels[0], ab.KM_RISK_ATTR)
+            self.assertAlmostEqual(risk_axes.get_position().x0, panels[0].get_position().x0, places=5)
+            self.assertAlmostEqual(risk_axes.get_position().x1, panels[-1].get_position().x1, places=5)
+            # Manual tick 15 appears in second panel ticks and produces 9 risk count columns.
+            self.assertIn(15.0, panels[1].get_xticks())
+            ids, labels, counts = _svg_risk_info(result.figure)
+            self.assertEqual(len(labels), 3)
+            self.assertEqual(len(counts), 18)
+            self.assertEqual(len(ids), len(set(ids)))
+
+    def test_uncertainty_modes_percent_three_segments_shared_boundary_and_clear(self):
+        for mode in ("None", "Standard error bars", "Pointwise confidence band", "Pointwise confidence bars",
+                     "Hall–Wellner simultaneous band"):
+            result = _km(uncertainty=mode, units="Percent")
+            apply_style(result.figure, {ab.AXIS_BREAKS: deepcopy(KM_BREAKS)})
+            _draw(result.figure)
+            self.assertEqual(len(segment_axes(result.figure)), 2)
+            self.assertGreaterEqual(segment_axes(result.figure)[1].get_ylim()[1], 100.0)
+            ids, _labels, counts = _svg_risk_info(result.figure)
+            self.assertEqual(len(ids), len(set(ids)))
+            self.assertEqual(len(counts), 16)
+
+        # Shared boundary, 3 segments, and without risk table.
+        shared = {"axis": "x", "gap": 0.04, "segments": [
+            {"low": 0, "high": 4, "share": 35, "major_step": 2},
+            {"low": 4, "high": 20, "share": 65, "major_step": 4},
+        ]}
+        three = {"axis": "x", "gap": 0.04, "segments": [
+            {"low": 0, "high": 4, "share": 30, "major_step": 2},
+            {"low": 12, "high": 16, "share": 35, "major_step": 2},
+            {"low": 18, "high": 22, "share": 35, "major_step": 2},
+        ]}
+        for rec, risk in ((shared, True), (three, True), (KM_BREAKS, False)):
+            res = _km(risk=risk)
+            apply_style(res.figure, {ab.AXIS_BREAKS: deepcopy(rec)})
+            _draw(res.figure)
+            self.assertEqual(len(segment_axes(res.figure)), len(rec["segments"]))
+            expected_axes = len(rec["segments"]) + (1 if risk else 0)
+            self.assertEqual(len(res.figure.axes), expected_axes)
+            ids, labels, _counts = _svg_risk_info(res.figure)
+            self.assertEqual(len(ids), len(set(ids)))
+            if risk:
+                self.assertEqual(len(labels), 3)
+            apply_style(res.figure, {})
+            _draw(res.figure)
+            self.assertEqual(segment_axes(res.figure), [])
+            self.assertEqual(len(res.figure.axes), 2 if risk else 1)
+
+    def test_km_constraints_and_layout_vector_exports(self):
+        res = _km()
+        ax = res.figure.axes[0]
+        self.assertIsNone(ab.suggest_axis_breaks(ax, "y", 2))
+        suggested = ab.suggest_axis_breaks(ax, "x", 2)
+        self.assertIsNotNone(suggested)
+        self.assertTrue(all(seg["low"] >= 0 for seg in suggested["segments"]))
+        self.assertIn("X axis only", ab.axis_breaks_problem(ax, normalise_axis_breaks(Y_BREAKS)))
+        neg = {"axis": "x", "gap": 0.04, "segments": [
+            {"low": -1, "high": 4, "share": 40, "major_step": 1},
+            {"low": 12, "high": 20, "share": 60, "major_step": 2},
+        ]}
+        self.assertIn("greater than or equal to zero", ab.axis_breaks_problem(ax, normalise_axis_breaks(neg)))
+        self.assertIn("linear X", ab.axis_breaks_problem(ax, normalise_axis_breaks(KM_BREAKS), scales={"x": "log", "y": "linear"}))
+        self.assertIn("linear or logarithmic Y", ab.axis_breaks_problem(ax, normalise_axis_breaks(KM_BREAKS), scales={"x": "linear", "y": "probability"}))
+
+        # Multi-response and weighted log-rank detail panels are blocked cleanly.
+        from analisi.workbench import analyse
+
+        multi_df = KM_FRAME.assign(Evento2=[0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0])
+        multi = analyse("Kaplan–Meier survival", multi_df, {
+            "Time": "Tempo", "Event columns": ["Evento", "Evento2"], "Show risk table below graph": True,
+        })
+        self.assertEqual(ab.axis_breaks_panel_problem(multi.figure.axes[0]), ab.P_PANELS)
+
+        wlr = analyse("Kaplan–Meier survival", KM_FRAME, {
+            "Time": "Tempo", "Event columns": ["Evento"], "Grouping variables": ["Gruppo"],
+            "Curve comparison": "Tarone–Ware", "Weight detail": True, "Show risk table below graph": True,
+        })
+        self.assertEqual(ab.axis_breaks_panel_problem(wlr.figure.axes[0]), ab.P_PANELS)
+
+        # Standalone and layout PDF / SVG / PNG exports produce non-empty files with unique SVG IDs.
+        apply_style(res.figure, {ab.AXIS_BREAKS: deepcopy(KM_BREAKS)})
+        with TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for ext in ("svg", "pdf", "png"):
+                target = folder / f"km.{ext}"
+                export_figure(res.figure, target, {"format": ext, **({"svg_text": "text"} if ext == "svg" else {"dpi": 120})})
+                self.assertGreater(target.stat().st_size, 0)
+            svg_ids = [el.attrib["id"] for el in ET.parse(folder / "km.svg").iter() if "id" in el.attrib]
+            self.assertEqual(len(svg_ids), len(set(svg_ids)))
+
+            layout_fig = compose_layout("KM Layout", 1, [res.figure])
+            export_layout_svg("KM Layout", 1, [res.figure], folder / "layout.svg", {"format": "svg", "svg_text": "text"})
+            export_figure(layout_fig, folder / "layout.png", {"format": "png", "dpi": 120})
+            l_ids = [el.attrib["id"] for el in ET.parse(folder / "layout.svg").iter() if "id" in el.attrib]
+            self.assertEqual(len(l_ids), len(set(l_ids)))
+
+
 if __name__ == "__main__":
     unittest.main()

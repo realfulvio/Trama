@@ -2,14 +2,16 @@
 from copy import deepcopy
 from math import isfinite
 
-from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-                               QVBoxLayout)
+from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+                               QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
-from analisi.axis_breaks import AxisBreakError, DEFAULT_GAP, normalise_axis_breaks, suggest_axis_breaks
+from analisi.axis_breaks import (AxisBreakError, DEFAULT_GAP, M_NONNEGATIVE, is_survival_axes, normalise_axis_breaks,
+                                 suggest_axis_breaks)
 from analisi.data import decimal_comma
 from analisi.i18n import tr, translate_message
 
 from .graph_format import Choice
+from .theme import fit_dialog
 
 AXIS_CHOICES = ("", "x", "y")
 AXIS_LABELS = {"": "axis_breaks.axis.none", "x": "axis_breaks.axis.x", "y": "axis_breaks.axis.y"}
@@ -49,16 +51,27 @@ def _typed(text, blank=""):
 class AxisBreaksDialog(QDialog):
     """``result`` is ``{}`` for no breaks or the canonical record after Apply."""
 
-    def __init__(self, parent, axes, record):
+    def __init__(self, parent, axes, record, *, preview=None, busy=None):
         super().__init__(parent)
         self.setWindowTitle(tr("axis_breaks.title"))
         self.axes, self.result = axes, None
+        self._preview, self._busy_check = preview, busy
+        self._previewed = self._accepted = False
+        self.survival = is_survival_axes(axes)
         self.record = record = deepcopy(record) or {}
         segments = record.get("segments") or []
         outer = QVBoxLayout(self)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        body = QVBoxLayout(content)
+        body.setContentsMargins(0, 0, 4, 0)
         grid = QGridLayout()
-        outer.addLayout(grid)
-        self.axis = Choice(AXIS_CHOICES, AXIS_LABELS, record.get("axis", ""))
+        body.addLayout(grid)
+        axis_choices = ("", "x") if self.survival else AXIS_CHOICES
+        current_axis = record.get("axis", "") if record.get("axis", "") in axis_choices else ""
+        self.axis = Choice(axis_choices, AXIS_LABELS, current_axis)
         grid.addWidget(QLabel(tr("axis_breaks.field.axis")), 0, 0)
         grid.addWidget(self.axis, 0, 1, 1, 2)
         self.count = Choice(("2", "3"), COUNT_LABELS, str(len(segments) if len(segments) in (2, 3) else 3))
@@ -86,33 +99,51 @@ class AxisBreaksDialog(QDialog):
                     cell.setToolTip(tr(f"axis_breaks.hint.{name}"))
                 grid.addWidget(cell, 4 + row, column)
         self.total = QLabel()
-        outer.addWidget(self.total)
+        self.total.setObjectName("muted")
+        body.addWidget(self.total)
         line = QHBoxLayout()
         self.suggest_button = QPushButton(tr("axis_breaks.btn.suggest"))
+        self.suggest_button.setAutoDefault(False)
         self.suggest_button.clicked.connect(self.suggest)
         line.addWidget(self.suggest_button)
+        self.preview_button = QPushButton(tr("axis_breaks.btn.preview"))
+        self.preview_button.setAutoDefault(False)
+        self.preview_button.clicked.connect(self.preview)
+        self.preview_button.setVisible(preview is not None)
+        line.addWidget(self.preview_button)
         line.addStretch(1)
-        outer.addLayout(line)
-        for key in ("axis_breaks.note.scale", "axis_breaks.note.limits", "axis_breaks.note.numbers"):
+        body.addLayout(line)
+        notes = ["axis_breaks.note.scale", "axis_breaks.note.limits", "axis_breaks.note.numbers"]
+        if self.survival:
+            notes.append("axis_breaks.note.survival")
+        for key in notes:
             note = QLabel(tr(key))
             note.setObjectName("muted")
             note.setWordWrap(True)
-            outer.addWidget(note)
+            body.addWidget(note)
+        body.addStretch(1)
+        self.scroll.setWidget(content)
+        outer.addWidget(self.scroll, 1)
         self.problem = QLabel()
         self.problem.setObjectName("errorBanner")
         self.problem.setWordWrap(True)
         self.problem.setVisible(False)
         outer.addWidget(self.problem)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(tr("axis_breaks.btn.ok"))
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("axis_breaks.btn.cancel"))
+        ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        ok_button.setText(tr("axis_breaks.btn.ok"))
+        ok_button.setAutoDefault(True)
+        ok_button.setDefault(True)
+        cancel_button = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        cancel_button.setText(tr("axis_breaks.btn.cancel"))
+        cancel_button.setAutoDefault(False)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         outer.addWidget(buttons)
         self.axis.currentIndexChanged.connect(self._axis_changed)
         self.count.currentIndexChanged.connect(self._count_changed)
         self._states()
-        self.resize(620, 460)
+        fit_dialog(self, 700, 560)
 
     def rows(self):
         return int(self.count.value())
@@ -126,12 +157,21 @@ class AxisBreaksDialog(QDialog):
         self._total()
 
     def _total(self, *_):
+        if not self.axis.value():
+            self.total.setText("")
+            return
         try:
             shares = [float(decimal_comma(self.cells[(row, "share")].text().strip())) for row in range(self.rows())]
         except ValueError:
             self.total.setText("")
             return
-        self.total.setText(tr("axis_breaks.total", total=f"{sum(shares):g}"))
+        total = sum(shares)
+        self.total.setText(tr("axis_breaks.total", total=f"{total:g}"))
+        name = "muted" if abs(total - 100.0) <= 1e-6 else "errorText"
+        if self.total.objectName() != name:
+            self.total.setObjectName(name)
+            self.total.style().unpolish(self.total)
+            self.total.style().polish(self.total)
 
     def _fill(self, record):
         for row in range(ROWS):
@@ -178,21 +218,70 @@ class AxisBreaksDialog(QDialog):
                     if key in saved[row]:
                         segment[key] = saved[row][key]
             segments.append(segment)
-        return normalise_axis_breaks({"axis": axis, "gap": _typed(self.gap.text()), "segments": segments})
+        record = normalise_axis_breaks({"axis": axis, "gap": _typed(self.gap.text()), "segments": segments})
+        if self.survival:
+            for row, segment in enumerate(record["segments"]):
+                if segment["low"] < 0:
+                    raise AxisBreakError(row, "low", M_NONNEGATIVE.format(row=row + 1))
+        return record
 
-    def _show(self, text):
+    def _error_widget(self, error):
+        if isinstance(error, AxisBreakError):
+            widget = self.cells.get((error.row, error.name))
+            if widget is not None:
+                return widget
+        field = getattr(error, "field", None)
+        if field == "gap":
+            return self.gap
+        if field == "segments":
+            return self.count
+        if field == "axis":
+            return self.axis
+        return None
+
+    def _show(self, error):
+        text = str(error) if isinstance(error, str) else translate_breaks_error(error)
         self.problem.setText(text)
         self.problem.setVisible(True)
+        widget = self._error_widget(error) if not isinstance(error, str) else None
+        if widget is not None:
+            self.scroll.ensureWidgetVisible(widget)
+            widget.setFocus()
+            if isinstance(widget, QLineEdit):
+                widget.selectAll()
+
+    def _try(self, draw):
+        if self._busy_check and self._busy_check():
+            self._show(tr("axis_breaks.error.busy"))
+            return None
+        try:
+            record = self.read_record()
+            if draw and self._preview is not None:
+                self._preview(record)
+                self._previewed = True
+        except ValueError as error:
+            self.result = None
+            self._show(error)
+            return None
+        self.problem.setVisible(False)
+        return record
+
+    def preview(self):
+        return self._try(True) is not None
 
     def accept(self):
-        try:
-            self.result = self.read_record()
-        except AxisBreakError as error:
-            self.result = None
-            self._show(translate_breaks_error(error))
-            field = self.cells.get((error.row, error.name))
-            if field is not None:
-                field.setFocus()
-                field.selectAll()
+        record = self._try(True)
+        if record is None:
             return
+        self.result = record
+        self._accepted = True
         super().accept()
+
+    def reject(self):
+        if not self._accepted and self._previewed and self._preview is not None:
+            try:
+                self._preview(None)
+            except ValueError:
+                pass
+        self.result = None
+        super().reject()

@@ -3617,10 +3617,13 @@ _AXIS_BREAKS_EN = {
         "Panels can have a different physical scale even when they show the same unit: the share of a segment is "
         "the space you give it, not its length in data units."),
     "axis_breaks.note.limits": (
-        "Available for XY series, XY error bars and global nonlinear fits with a linear X or left Y axis. "
-        "Not available with a right Y "
-        "axis, a logarithmic or inverted broken axis, or drawings placed in plot fractions. A saved setting that a "
-        "later change makes impossible is kept and ignored, and the reason appears in the status bar."),
+        "Available for XY series, XY error bars, global nonlinear fits and Kaplan–Meier survival curves with a linear "
+        "X or left Y axis (X axis only with zero or positive limits for Kaplan–Meier). Not available with a right Y "
+        "axis, a logarithmic or inverted broken axis, multiple panels, or drawings placed in plot fractions. A saved "
+        "setting that a later change makes impossible is kept and ignored, and the reason appears in the status bar."),
+    "axis_breaks.note.survival": (
+        "Kaplan–Meier survival graphs allow breaks on the linear X axis with limits of 0 or greater. At-risk counts "
+        "and estimates continue to include all events and censorings, even in omitted intervals."),
     "axis_breaks.note.numbers": (
         "Leave the major interval empty for automatic ticks. Both limits belong to their segment. Points between "
         "segments are not shown, but they stay in the worksheets and in the calculations. You can type a decimal "
@@ -3653,14 +3656,19 @@ _AXIS_BREAKS_EN = {
     "axis_breaks.error.m_minor": (
         "Segment {row}: enter 0 to 10 minor ticks per interval, or leave it blank to inherit the axis setting."),
     "axis_breaks.error.m_tick_budget": "Segment {row}: the intervals would place more than 200 major and minor ticks.",
-    "axis_breaks.error.p_support": "Axis breaks are available for XY series, XY error bars and global nonlinear fits.",
+    "axis_breaks.error.m_nonnegative": "Segment {row}: Kaplan–Meier time limits must be zero or positive.",
+    "axis_breaks.error.p_support": (
+        "Axis breaks are available for XY series, XY error bars, global nonlinear fits and Kaplan–Meier survival curves."),
     "axis_breaks.error.p_native": "Axis breaks need a native graph, not an imported picture.",
+    "axis_breaks.error.p_panels": "Axis breaks need a graph with a single plot panel.",
     "axis_breaks.error.p_right": (
         "Axis breaks cannot be combined with a right Y axis. Move every series to the left axis first."),
     "axis_breaks.error.p_layout": "Axis breaks need the standard graph layout.",
     "axis_breaks.error.p_artists": "This graph has drawing elements that axis breaks cannot repeat on every panel.",
-    "axis_breaks.error.p_linear": "Axis breaks need a linear {axis} axis.",
+    "axis_breaks.error.p_km_axis": "On Kaplan–Meier survival graphs, axis breaks are available for the X axis only.",
+    "axis_breaks.error.p_km_nonnegative": "Kaplan–Meier time segments require limits greater than or equal to zero.",
     "axis_breaks.error.p_other": "Axis breaks need a linear or logarithmic {axis} axis.",
+    "axis_breaks.error.p_linear": "Axis breaks need a linear {axis} axis.",
     "axis_breaks.error.p_numeric": "Axis breaks need a numeric {axis} axis.",
     "axis_breaks.error.p_inverted": "Axis breaks need an {axis} axis that increases.",
     "axis_breaks.error.p_plot_fractions": (
@@ -3703,11 +3711,15 @@ _AXIS_BREAKS_IT = {
         "I pannelli possono avere una scala fisica diversa anche quando mostrano la stessa unità: la quota di un "
         "segmento è lo spazio che gli assegni, non la sua lunghezza in unità dei dati."),
     "axis_breaks.note.limits": (
-        "Disponibile per Serie XY, Barre di errore XY e fit non lineari globali con asse X o Y sinistro lineare. "
-        "Non è disponibile con un "
-        "asse Y destro, con l'asse interrotto logaritmico o invertito, né con disegni posti in frazioni del grafico. "
-        "Un'impostazione salvata che una modifica successiva rende impossibile viene conservata e ignorata, e il "
-        "motivo compare nella barra di stato."),
+        "Disponibile per Serie XY, Barre di errore XY, fit non lineari globali e curve di sopravvivenza Kaplan–Meier "
+        "con asse X o Y sinistro lineare (solo asse X non negativo per Kaplan–Meier). Non è disponibile con un asse Y "
+        "destro, con pannelli multipli, con l'asse interrotto logaritmico o invertito, né con disegni posti in "
+        "frazioni del grafico. Un'impostazione salvata che una modifica successiva rende impossibile viene conservata "
+        "e ignorata, e il motivo compare nella barra di stato."),
+    "axis_breaks.note.survival": (
+        "Nei grafici Kaplan–Meier le interruzioni sono ammesse sull'asse X lineare con limiti maggiori o uguali a 0. "
+        "Conteggi dei soggetti a rischio e stime continuano a considerare tutti gli eventi e le censure, anche nei "
+        "tratti omessi."),
     "axis_breaks.note.numbers": (
         "Lascia vuoto l'intervallo principale per tacche automatiche. Entrambi i limiti appartengono al proprio "
         "segmento. I punti tra i segmenti non sono mostrati, ma restano nei fogli e nei calcoli. Puoi scrivere la "
@@ -3743,14 +3755,22 @@ _AXIS_BREAKS_IT = {
     "axis_breaks.error.m_minor": (
         "Segmento {row}: inserisci da 0 a 10 tacche secondarie per intervallo o lascia vuoto per ereditare l’impostazione."),
     "axis_breaks.error.m_tick_budget": "Segmento {row}: gli intervalli genererebbero più di 200 tacche.",
+    "axis_breaks.error.m_nonnegative": (
+        "Segmento {row}: i limiti temporali Kaplan–Meier devono essere maggiori o uguali a 0."),
     "axis_breaks.error.p_support": (
-        "Le interruzioni sono disponibili per Serie XY, Barre di errore XY e fit non lineari globali."),
+        "Le interruzioni sono disponibili per Serie XY, Barre di errore XY, fit non lineari globali e curve di "
+        "sopravvivenza Kaplan–Meier."),
     "axis_breaks.error.p_native": "Le interruzioni richiedono un grafico nativo, non un'immagine importata.",
+    "axis_breaks.error.p_panels": "Le interruzioni richiedono un grafico con un solo pannello di tracciamento.",
     "axis_breaks.error.p_right": (
         "Le interruzioni non si combinano con un asse Y destro. Sposta prima tutte le serie sull'asse sinistro."),
     "axis_breaks.error.p_layout": "Le interruzioni richiedono il layout standard del grafico.",
     "axis_breaks.error.p_artists": (
         "Il grafico contiene elementi che le interruzioni non possono ripetere su ogni pannello."),
+    "axis_breaks.error.p_km_axis": (
+        "Nei grafici di sopravvivenza Kaplan–Meier le interruzioni sono disponibili solo per l'asse X."),
+    "axis_breaks.error.p_km_nonnegative": (
+        "I segmenti temporali Kaplan–Meier richiedono limiti maggiori o uguali a zero."),
     "axis_breaks.error.p_linear": "Le interruzioni richiedono un asse {axis} lineare.",
     "axis_breaks.error.p_other": "Le interruzioni richiedono un asse {axis} lineare o logaritmico.",
     "axis_breaks.error.p_numeric": "Le interruzioni richiedono un asse {axis} numerico.",

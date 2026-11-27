@@ -290,6 +290,7 @@ def stylesheet():
     QToolButton#newProjectTab {{ margin: 1px 0 0 2px; padding: 2px; }}
     QLabel#notice {{ background: {t['warning_bg']}; color: {t['warning']}; border-radius: 0px; padding: 8px 12px; }}
     QLabel#errorBanner {{ background: {t['error_bg']}; color: {t['error']}; border-radius: 0px; padding: 8px 12px; }}
+    QLabel#errorText {{ color: {t['error']}; }}
 
     QMenuBar {{ background: {t['panel2']}; border: 0; padding: 1px 3px; }}
     QMenuBar::item {{ background: transparent; padding: 3px 7px; }}

@@ -1,6 +1,8 @@
 """Kaplan–Meier presentation options. Inference stays on the survival scale."""
 from dataclasses import dataclass
 
+from math import ulp
+
 from matplotlib.artist import Artist
 from matplotlib.figure import Figure
 from matplotlib.text import Text
@@ -10,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from .analysis_chain import RESULT_CONTEXT
+from .axis_breaks import KM_RISK_ATTR, SURVIVAL_ATTR, mark_supported, segment_axes
 from .linked_axes import style_without_linked_y
 from .processing import FieldError
 from .reporting import Result, _plot
@@ -209,11 +212,21 @@ def draw_survival_graph(data, title, axes=None, risk_axes=None, *, order=(), ban
         if len(data.curves) > 8:
             raise ValueError("The plot can show a risk table for up to eight groups.")
         draw_risk_table(axes, risk_axes, {label: data.curves[label] for label in labels}, data.short_labels)
+        setattr(axes, KM_RISK_ATTR, risk_axes)
+    mark_supported(axes)
+    setattr(axes, SURVIVAL_ATTR, True)
     return figure, tables, risks
 
 
 def risk_counts(curve, ticks):
-    indices = curve["Time"].to_numpy().searchsorted(ticks)
+    times = curve["Time"].to_numpy(dtype=float)
+    tick_values = np.asarray(ticks, dtype=float)
+    indices = times.searchsorted(tick_values)
+    # Match an exact event/censor time even when a tick grid adds a few ULPs of float noise (e.g. 0.1 * 3).
+    if len(times):
+        for pos, (index, tick) in enumerate(zip(indices, tick_values, strict=True)):
+            if index > 0 and abs(tick - times[index - 1]) <= 8 * max(ulp(float(tick)), ulp(float(times[index - 1]))):
+                indices[pos] = index - 1
     return np.r_[curve["At risk"].to_numpy(), 0][indices]
 
 
@@ -232,18 +245,37 @@ class _RiskCounts(Artist):
     def draw(self, renderer):
         if not self.get_visible():
             return
-        left, right = sorted(self.plot.get_xlim())
-        ticks = np.unique(self.plot.get_xticks())
-        ticks = ticks[(ticks >= max(left, 0)) & (ticks <= right)]
+        figure = self.plot.figure
+        panels = segment_axes(figure) or [self.plot]
+        panel_ticks = []
+        for panel_pos, panel in enumerate(panels):
+            left, right = sorted(panel.get_xlim())
+            tolerance = max(right - left, 1.0) * 1e-9
+            ticks = np.unique(panel.get_xticks())
+            ticks = ticks[(ticks >= max(left, 0) - tolerance) & (ticks <= right + tolerance)]
+            ticks = np.where((ticks < 0) & (ticks >= -tolerance), 0.0, ticks)
+            panel_ticks.append((panel_pos, panel, left, right, tolerance, ticks))
         renderer.open_group("kaplan-meier-risk-counts", self.get_gid())
         try:
             for index, (curve, y) in enumerate(zip(self.curves.values(), self.row_positions, strict=True)):
-                for column, (tick, count) in enumerate(zip(ticks, risk_counts(curve, ticks), strict=True)):
-                    text = Text(x=tick, y=y, text=str(count), transform=self.transform, ha="center",
-                                va="center", fontsize=8, color="#203b53",
-                                gid=f"risk-count-{self.panel_index}-{index}-{column}", usetex=False, parse_math=False)
-                    text.set_figure(self.get_figure())
-                    text.draw(renderer)
+                column = 0
+                for panel_pos, panel, left, right, tolerance, ticks in panel_ticks:
+                    transform = self.transform if panel is self.plot else blended_transform_factory(
+                        panel.transData, self.axes.transAxes)
+                    for tick, count in zip(ticks, risk_counts(curve, ticks), strict=True):
+                        if panel_pos > 0 and abs(tick - left) <= tolerance:
+                            ha = "left"
+                        elif panel_pos < len(panels) - 1 and abs(tick - right) <= tolerance:
+                            ha = "right"
+                        else:
+                            ha = "center"
+                        text = Text(x=tick, y=y, text=str(count), transform=transform, ha=ha,
+                                    va="center", fontsize=8, color="#203b53",
+                                    gid=f"risk-count-{self.panel_index}-{index}-{column}", usetex=False,
+                                    parse_math=False)
+                        text.set_figure(self.get_figure())
+                        text.draw(renderer)
+                        column += 1
         finally:
             renderer.close_group("kaplan-meier-risk-counts")
 
