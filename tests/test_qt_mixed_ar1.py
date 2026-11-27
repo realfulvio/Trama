@@ -203,9 +203,12 @@ class MixedCovarianceDialogTests(unittest.TestCase):
         )
         env = os.environ.copy()
         env.pop("QT_SCALE_FACTOR", None)
-        env["QT_QPA_PLATFORM"] = f"offscreen:configfile={config}"
+        # Qt separates platform arguments at colons, including a Windows drive separator.
+        env["QT_QPA_PLATFORM"] = f"offscreen:configfile={config.name}"
+        project = str(Path(__file__).resolve().parents[1])
+        env["PYTHONPATH"] = os.pathsep.join(filter(None, (project, env.get("PYTHONPATH"))))
         completed = subprocess.run(
-            [sys.executable, "-c", script], cwd=Path(__file__).resolve().parents[1],
+            [sys.executable, "-c", script], cwd=config.parent,
             env=env, capture_output=True, text=True, check=False)
         self.assertEqual(completed.returncode, 0, completed.stderr[-2000:])
         print(completed.stdout.strip())
