@@ -25,6 +25,7 @@ from analisi.kmeans_options import METHODS as KMEANS_METHODS
 from analisi.kmeans_reports import FIT_DIAGNOSTICS_TABLE, FIT_REASON, FIT_SOURCE
 from analisi.correlation_matrix import CORRELATION_MATRIX
 from analisi.monte_carlo import MONTE_CARLO, MonteCarloCancelled
+from analisi.partial_correlation import METHOD as PARTIAL_CORRELATION, PartialCorrelationCancelled
 from analisi.weighted_logrank import WeightedComparisonCancelled
 from analisi.plot_function import CURVES as FUNCTION_CURVES, PLOT_FUNCTION
 from analisi.transpose_xy import TRANSPOSE_XY
@@ -667,6 +668,7 @@ class MainWindow(QMainWindow):
         for name, method in (("descriptive", "Descriptive statistics"), ("ttest", "t-test"),
                              ("anova", "One-way ANOVA"), ("correlation", "Correlation"),
                              ("correlation_matrix", CORRELATION_MATRIX),
+                             ("partial_correlation", PARTIAL_CORRELATION),
                              ("linear", "Linear regression"), ("nonlinear", "Nonlinear regression"),
                              ("survival", "Kaplan–Meier survival"), ("contingency", "Contingency table")):
             a(name, method_label(method), lambda method=method: self.analyze(method=method))
@@ -3492,7 +3494,7 @@ class MainWindow(QMainWindow):
                 return
             try:
                 result = future.result()
-            except (MonteCarloCancelled, ChainCancelled, WeightedComparisonCancelled):
+            except (MonteCarloCancelled, ChainCancelled, WeightedComparisonCancelled, PartialCorrelationCancelled):
                 self.status(qt("qt.cancelled"))
                 return
             except Exception as error:  # Field and data errors reopen the dialog with the message.
@@ -3555,7 +3557,7 @@ class MainWindow(QMainWindow):
             recovery = None
             try:
                 outcomes = future.result()
-            except (ChainCancelled, WeightedComparisonCancelled):
+            except (ChainCancelled, WeightedComparisonCancelled, PartialCorrelationCancelled):
                 self.project.restore_after_cancel(job, qt("qt.cancelled"))
                 self.status(qt("qt.cancelled"))
             except Exception as error:
@@ -3671,7 +3673,7 @@ class MainWindow(QMainWindow):
             from .family import family_error_text
             try:
                 outcome = future.result()
-            except (ChainCancelled, WeightedComparisonCancelled):
+            except (ChainCancelled, WeightedComparisonCancelled, PartialCorrelationCancelled):
                 self.status(cancelled)
                 return
             except Exception as error:

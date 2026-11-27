@@ -50,6 +50,8 @@ from .raincloud_plot import METHOD as RAINCLOUD_PLOT, OPTIONS as RAINCLOUD_PLOT_
 from .correlation_details import (COMPARE_INDEPENDENT, CONTROL_OPTIONS, CORRELATE_CONTROL, INDEPENDENT_OPTIONS,
                                   SINGLE_EXTRA, control_result, correlation_result, independent_result)
 from .correlation_matrix import CORRELATION_MATRIX, OPTIONS as CORRELATION_MATRIX_OPTIONS, correlation_matrix
+from .partial_correlation import METHOD as PARTIAL_CORRELATION, OPTIONS as PARTIAL_OPTIONS
+from .partial_correlation import analyse as partial_correlation
 from .rmcorr import OPTIONS as RMCORR_OPTIONS, RMCORR, analyse as rmcorr_analysis
 from .ellipse_workbench import ELLIPSE_OPTIONS, NONE, SEPARATE_GROUP, draw_confidence_overlays
 from .extract_rearrange import (COMPLETE, EXTRACT_FIELDS, EXTRACT_FORMATS, EXTRACT_OPTIONAL_FIELDS, EXTRACT_REARRANGE,
@@ -317,6 +319,7 @@ METHODS = {
     COMPARE_INDEPENDENT: INDEPENDENT_OPTIONS,
     RMCORR: RMCORR_OPTIONS,
     CORRELATION_MATRIX: {"Variables": MULTIPLE, **CORRELATION_MATRIX_OPTIONS},
+    PARTIAL_CORRELATION: {"Variables": MULTIPLE, "Covariates": MULTIPLE, **PARTIAL_OPTIONS},
     ROW_TESTS: ROW_TEST_OPTIONS,
     **NESTED_METHODS,
     CONTINGENCY: CONTINGENCY_OPTIONS,
@@ -453,7 +456,8 @@ GROUPS = {
                         "Reshape replicates", RESHAPE_LONG_WIDE, TRANSPOSE_XY, WORKSHEET_JOIN,
                         "Outlier test (Grubbs)", OUTLIERS),
     "Data Exploration and Summary": ("Descriptive statistics", TOLERANCE, "Row statistics", NORMALITY,
-                                    "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX, RMCORR,
+                                    "Correlation", CORRELATE_CONTROL, COMPARE_INDEPENDENT, CORRELATION_MATRIX,
+                                    PARTIAL_CORRELATION, RMCORR,
                                     "Histogram", FREQUENCY, GOODNESS_OF_FIT,
                                     "Area under curve", "Principal component analysis",
                                     "Adjust a stack of p values", "Control false discoveries", META_ANALYSIS),
@@ -482,7 +486,7 @@ GROUPS = {
 GRAPH_METHODS = frozenset({
     anova_comparison_plot.METHOD, anova_diagnostics.METHOD, anova_grouped_plot.METHOD,
     *GROUPS["Graphing"], PLOT_FUNCTION, "Area under curve", "Bland–Altman", ba_repeated.METHOD, icc.METHOD, "Correlation", CORRELATE_CONTROL,
-    COMPARE_INDEPENDENT, CORRELATION_MATRIX, COHEN_KAPPA, "Deming regression", PASSING_BABLOK,
+    COMPARE_INDEPENDENT, CORRELATION_MATRIX, PARTIAL_CORRELATION, COHEN_KAPPA, "Deming regression", PASSING_BABLOK,
     "Global nonlinear regression", "Hierarchical clustering", HIERARCHY_GRAPH, "Histogram", FREQUENCY,
     "Interpolate a standard curve",
     "K-means clustering", "K-means model selection", KMEANS_STABILITY, kmeans_reports.MODEL_GRAPH,
@@ -1535,6 +1539,8 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
         return rmcorr_analysis(frame, o, cancel=cancel)
     if method == CORRELATION_MATRIX:
         return correlation_matrix(frame, o)
+    if method == PARTIAL_CORRELATION:
+        return partial_correlation(frame, o, cancel=cancel)
     if method == ROW_TESTS:
         return row_tests(frame, o)
     if method in NESTED_METHODS:

@@ -912,6 +912,12 @@ class Dataset:
         if masked_columns:
             for row, column in self.excluded:
                 computed.iat[row, column] = pd.NA
+        # Positional row and column name, captured before formulas or a column reorder move the cells.
+        # A masked frame can then tell an excluded cell from a cell that was already missing.
+        excluded_cells = None
+        if mask_excluded:
+            names = [str(column) for column in computed.columns]
+            excluded_cells = {(int(row), names[column]) for row, column in self.excluded if 0 <= column < len(names)}
         order = formula_calculation_order(tuple(self.formulas.items()))
         for name in order:
             computed[name] = formula(computed, self.formulas[name], info=self.info)
@@ -920,6 +926,8 @@ class Dataset:
                 computed.isetitem(column, self.raw.iloc[:, column])
         if self.column_order is not None or order != tuple(self.formulas):
             computed = computed.loc[:, list(self.columns)]
+        if excluded_cells is not None:
+            computed.attrs["excluded_cells"] = excluded_cells
         return computed
 
     def set_formula(self, name, expression):

@@ -59,6 +59,7 @@ from analisi import tolerance_intervals as tolerance
 from analisi import weibull_aft as weibull
 from analisi import weibull_aft_workbench as weibull_form
 from analisi.i18n import active_language, tr, translate_message, ui
+from analisi import partial_correlation
 from analisi.select_transform import SELECT_TRANSFORM, check_options as check_select_transform
 from analisi.xy_series import XY_METHOD, check_xy_options, retain_recipe_options
 from analisi import weighted_logrank
@@ -193,6 +194,16 @@ class ParameterTable(QTableWidget):
                             "upper": number(self.item(row, 3).text() if self.item(row, 3) else ""),
                             "fixed": self.item(row, 4).checkState() == Qt.CheckState.Checked})
         return records
+
+
+class _AcceptOnReturn(QListWidget):
+    """A check list that leaves Return and Enter for the dialog's default button."""
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            event.ignore()
+            return
+        super().keyPressEvent(event)
 
 
 class AnalysisDialog(QDialog):
@@ -640,9 +651,10 @@ class AnalysisDialog(QDialog):
             widget = None
             bare = False
             if kind in (MULTIPLE, OPTIONAL_MULTIPLE):
-                widget = QListWidget()
+                widget = _AcceptOnReturn() if self.method == partial_correlation.METHOD else QListWidget()
                 widget.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-                default_columns = numeric if label in {"Variables", "Count columns"} and not tolerance_method else ()
+                default_columns = (numeric if label in {"Variables", "Count columns"} and not tolerance_method
+                                   and self.method != partial_correlation.METHOD else ())
                 defaults = saved.get(label, default_columns)
                 selected = [str(name) for name in (defaults or ())]
                 offered = list(dict.fromkeys([*selected, *columns])) if label in saved else columns
@@ -786,6 +798,8 @@ class AnalysisDialog(QDialog):
                 form.addRow(caption, widget)
             self.controls[label] = (kind, widget)
             self.rows[label] = (widget if bare else caption, widget, form)
+        if self.method == partial_correlation.METHOD:
+            self._configure_partial(variables)
         if self.method == "Deming regression":
             self._add_deming_paired(options, saved)
         variable_lists = [(self.rows[label][0], widget) for label, (kind, widget) in self.controls.items()
@@ -1401,6 +1415,28 @@ class AnalysisDialog(QDialog):
             options = weighted_logrank.canonical(options)
         return self.anova.canonical(options) if self.anova is not None else options
 
+    def _configure_partial(self, form):
+        note = QLabel(tr("partial.note"))
+        note.setObjectName("infoBanner")
+        note.setWordWrap(True)
+        form.addRow(note)
+        self.partial_note = note
+        variables = self.controls[partial_correlation.VARIABLES][1]
+        covariates = self.controls[partial_correlation.COVARIATES][1]
+
+        def release(source, other):
+            chosen = {source.item(row).text() for row in range(source.count())
+                      if source.item(row).checkState() == Qt.CheckState.Checked}
+            other.blockSignals(True)
+            for row in range(other.count()):
+                item = other.item(row)
+                if item.text() in chosen and item.checkState() == Qt.CheckState.Checked:
+                    item.setCheckState(Qt.CheckState.Unchecked)
+            other.blockSignals(False)
+
+        variables.itemChanged.connect(lambda _item: release(variables, covariates))
+        covariates.itemChanged.connect(lambda _item: release(covariates, variables))
+
     def accept(self):
         try:
             options = global_fit.confirm(self, self.options())
@@ -1425,6 +1461,8 @@ class AnalysisDialog(QDialog):
                 replicate_groups(fit_data, options)
             if self.anova is not None:
                 self.anova.check(options)  # the engine's cheap checks; the fit stays on the worker
+            if self.method == partial_correlation.METHOD:
+                partial_correlation.check_options(self.data, options)
             if self.stability is not None:
                 self.stability.check(options)  # the engine's checks and budgets; the fits stay on the worker
             if self.repeated is not None:
@@ -1625,6 +1663,8 @@ class AnalysisDialog(QDialog):
             return translate_message(error, "xy.error.")
         if self.method == "Multiple regression":
             return translate_message(str(error), "mlr.error.", convert={"name": field_label, "field": field_label})
+        if self.method == partial_correlation.METHOD:
+            return translate_message(error, "partial.error.", convert={"field": field_label})
         return str(error)
 
     def show_error(self, error, field=None):
