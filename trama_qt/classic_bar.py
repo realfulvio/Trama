@@ -25,6 +25,14 @@ SELECTION_COMMANDS = {
     "select_data_row": "Shift+Space",
     **{key: shortcut for key, (shortcut, _, _) in FILLED_SELECTION_COMMANDS.items()},
 }
+SECTION_COMMANDS = {
+    "data": ("bar.data_tables", "data"),
+    "info": ("bar.info_sheets", "info"),
+    "result": ("bar.results", "result"),
+    "graph": ("nav.graphs", "graph"),
+    "layout": ("bar.layouts", "layout"),
+}
+SECTION_ACTIONS = tuple(f"section_{kind}" for kind in SECTION_COMMANDS)
 RESULT_TABLE_COMMANDS = tuple(f"result_table_{number}" for number in range(1, 10))
 
 
@@ -40,7 +48,7 @@ MENUS = (
               "delete_rows", "delete_columns", "|",
               "sheet_duplicate", "sheet_rename", "sheet_delete", "sheet_move_up", "sheet_move_down", "sheet_freeze")),
     ("View", ("navigator", "find_sheet", "combined_navigator", "gallery", "previous_sheet", "next_sheet", "previous_project", "next_project",
-              "focus_next_pane", "focus_previous_pane", "|",
+              "focus_next_pane", "focus_previous_pane", *SECTION_ACTIONS, "|",
               "worksheet_preview", "analysis_graph", "analysis_tables", *RESULT_TABLE_COMMANDS, "layout_go_origin", "inspector", "|",
               "fit_graph", "fit_layout_page", "layout_rulers", "layout_page_grid", "|",
               "sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset", "|",
@@ -135,6 +143,7 @@ def build_menus(window):
         menu = menus[name] = bar.addMenu(title)
         selection_menu = None
         tables_menu = None
+        sections_menu = None
         for key in keys:
             if key in SELECTION_COMMANDS:
                 if selection_menu is None:
@@ -143,6 +152,10 @@ def build_menus(window):
                 if key == "select_filled_down":
                     selection_menu.addSeparator()
                 selection_menu.addAction(window.actions[key])
+            elif key in SECTION_ACTIONS:
+                if sections_menu is None:
+                    sections_menu = menu.addMenu(qt("qt.go_to_section"))
+                sections_menu.addAction(window.actions[key])
             elif key in RESULT_TABLE_COMMANDS:
                 if tables_menu is None:
                     tables_menu = window.result_table_menu = menu.addMenu(qt("qt.result_table_menu"))

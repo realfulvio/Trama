@@ -1,4 +1,4 @@
-"""Use the numbered result shortcuts with the status and the narrow result selector."""
+"""Use the result and section shortcuts with the status bar and the narrow selector."""
 import pandas as pd
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtTest import QTest
@@ -34,7 +34,7 @@ def check_result_table_keys(smoke, window):
             assert isinstance(dialog, ShortcutsDialog)
             items = [dialog.tree.topLevelItem(i) for i in range(dialog.tree.topLevelItemCount())]
             keys = {item.child(j).text(1) for item in items for j in range(item.childCount())}
-            assert "Ctrl+2" in keys
+            assert {"Ctrl+2", "Alt+1", "Alt+3", "Alt+5"} <= keys
         except Exception as error:
             smoke.problem(f"result table shortcuts: {error!r}")
         finally:
@@ -48,3 +48,19 @@ def check_result_table_keys(smoke, window):
     QTest.keyClick(tabs.currentWidget(), Qt.Key.Key_1, Qt.KeyboardModifier.ControlModifier)
     assert tabs.currentIndex() == 0 and window.actions["result_table_1"].isChecked()
     assert window.selected == reference
+
+    assert not window.section_buttons["layout"].isEnabled()
+    QTest.keyClick(tabs.currentWidget(), Qt.Key.Key_1, Qt.KeyboardModifier.AltModifier)
+    assert window.selected == ("data", "groups")
+    active = window.section_buttons["data"]
+    assert active.isChecked()
+    assert "Alt+1" in active.toolTip()
+    QTest.mouseClick(active, Qt.MouseButton.LeftButton)
+    assert active.isChecked()
+    smoke.shot(window, "status-section-active")
+    worksheet = window.sheet
+    worksheet.setFocus()
+    QTest.keyClick(worksheet, Qt.Key.Key_3, Qt.KeyboardModifier.AltModifier)
+    assert window.selected == reference
+    assert window.section_buttons["result"].isChecked()
+    assert not active.isChecked()

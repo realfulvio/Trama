@@ -34,6 +34,13 @@ On a results sheet, press **Ctrl+1** to **Ctrl+9** to open the corresponding out
 
 In un foglio dei risultati, **Ctrl+1** fino a **Ctrl+9** apre la tabella corrispondente. **Visualizza → Tabelle dei risultati** mostra le scorciatoie disponibili. I selettori e le schede seguono la tabella attiva.
 
+**View → Go to section** uses the same actions as the status bar. Alt+1 through Alt+5 open Data, Info, Results,
+Graphs and Layouts. The active section remains marked when you click it again or cancel a pending edit.
+
+**Visualizza → Vai alla sezione** usa gli stessi comandi della barra di stato. Da Alt+1 ad Alt+5 si aprono Tabelle
+dati, Info, Risultati, Grafici e Layout. La sezione attiva resta evidenziata quando la si seleziona di nuovo
+o si annulla una modifica in corso.
+
 [Worksheet with an active replicate on Windows](media/worksheet-titles/worksheet-it.png) · [Editing the replicate titles](media/worksheet-titles/replicate-titles-en.png)
 
 ### Horizontal error bars

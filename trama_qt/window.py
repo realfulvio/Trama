@@ -79,7 +79,8 @@ from .layout_view import LayoutView
 from . import global_catalog
 from . import gui_gc, office, theme
 from .analysis_dialog import AnalysisDialog
-from .classic_bar import ClassicToolbar, RESULT_TABLE_COMMANDS, SELECTION_COMMANDS, build_menus
+from .classic_bar import (ClassicToolbar, RESULT_TABLE_COMMANDS, SECTION_COMMANDS, SELECTION_COMMANDS,
+                          build_menus)
 from .flow import FlowLayout
 from .gallery import GalleryPage, g as gallery_text
 from .graph_axis_click import axis_at, right_y_axes
@@ -776,6 +777,14 @@ class MainWindow(QMainWindow):
           shortcut="Alt+Left").setShortcuts([QKeySequence("Alt+Left"), QKeySequence("Ctrl+PgUp")])
         a("next_sheet", tr("command.next_sheet"), lambda: self.step_sheet(1), icon="arrow-right",
           shortcut="Alt+Right").setShortcuts([QKeySequence("Alt+Right"), QKeySequence("Ctrl+PgDown")])
+        for number, (kind, (label, icon)) in enumerate(SECTION_COMMANDS.items(), 1):
+            caption = tr(label)
+            action = a(f"section_{kind}", caption, lambda kind=kind: self.open_section(kind),
+                       shortcut=f"Alt+{number}")
+            shortcut = action.shortcut().toString(QKeySequence.SequenceFormat.NativeText)
+            action.setToolTip(f"{caption} ({shortcut})")
+            action.setCheckable(True)
+            action.setIcon(theme.classic_icon(icon))
         themes = QActionGroup(self)
         for mode, icon in (("system", "monitor"), ("light", "sun"), ("dark", "moon")):
             action = a(f"theme_{mode}", qt(f"qt.theme_{mode}"), lambda mode=mode: theme.set_mode(mode), icon=icon,
@@ -884,18 +893,12 @@ class MainWindow(QMainWindow):
             status.addWidget(button)
         status.addWidget(self._status_divider())
         self.section_buttons = {}
-        for kind, key, icon in (("data", "data_tables", "data"), ("info", "info_sheets", "info"),
-                                ("result", "results", "result"), ("graph", "graphs", "graph"),
-                                ("layout", "layouts", "layout")):
+        for kind in SECTION_COMMANDS:
             button = self.section_buttons[kind] = QToolButton()
             button.setProperty("statusTool", True)
-            button.setIcon(theme.classic_icon(icon))
-            label = tr("nav.graphs") if kind == "graph" else tr(f"bar.{key}")
-            button.setText(label)
-            button.setCheckable(True)
-            button.setToolTip(label)
-            button.setAccessibleName(label)
-            button.clicked.connect(lambda _checked=False, kind=kind: self.open_section(kind))
+            action = self.actions[f"section_{kind}"]
+            button.setDefaultAction(action)
+            button.setAccessibleName(action.text())
             status.addWidget(button)
         status.addWidget(self._status_divider())
         status.addWidget(self.sheet_picker)
@@ -1141,14 +1144,7 @@ class MainWindow(QMainWindow):
             self.formula_editor.apply_button.setEnabled(idle)
         self.gallery_button.setVisible(self.gallery is None)
         self.sheet_picker.setEnabled(idle and self.sheet_picker.count() > 0)
-        sections = {kind for kind, _ in self.sheet_refs.values()}
-        if "saved-layout" in sections:
-            sections.add("layout")
-        active_section = "layout" if kind == "saved-layout" else kind
-        for section_kind, button in self.section_buttons.items():
-            button.setEnabled(idle and section_kind in sections)
-            button.setChecked(section_kind == active_section and self.gallery is None)
-        self._status_section_labels()
+        self._sync_section_commands()
         self.status_results.setVisible(kind == "result" and self.result_tabs is not None and self.gallery is None)
         self._sync_result_table_commands()
         self.cell_label.setVisible(kind == "data" and self.gallery is None and idle)
@@ -1521,6 +1517,18 @@ class MainWindow(QMainWindow):
         if self.gallery is not None:
             self.gallery.sync()
 
+    def _sync_section_commands(self):
+        sections = {kind for kind, _ in self.sheet_refs.values()}
+        if "saved-layout" in sections:
+            sections.add("layout")
+        kind = self.selected[0] if self.selected and self.gallery is None else None
+        active_section = "layout" if kind == "saved-layout" else kind
+        for section in SECTION_COMMANDS:
+            action = self.actions[f"section_{section}"]
+            action.setEnabled(self.job is None and section in sections)
+            action.setChecked(section == active_section)
+        self._status_section_labels()
+
     def _status_section_labels(self):
         self.sheet_picker.setMinimumContentsLength(18 if self.width() >= 980 else 10)
         if hasattr(self, "zoom_slider"):
@@ -1559,6 +1567,8 @@ class MainWindow(QMainWindow):
             self.open_sheet(ref)
 
     def open_section(self, kind):
+        # The checked action represents the displayed sheet, including when a draft blocks navigation.
+        self._sync_section_commands()
         if self.busy() or not self.settle_graph_draft():
             return
         kinds = {"layout", "saved-layout"} if kind == "layout" else {kind}
