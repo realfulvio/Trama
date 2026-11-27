@@ -11,6 +11,7 @@ import pandas as pd
 
 from analisi.field_error import FieldError
 from analisi.graph_legend import collect_legend_entries
+from analisi.grouped_bar_style import BAR_APPEARANCE
 from analisi.presentation import (active_series_fields, apply_style, graph_series, validate_graph_style,
                                   xy_legend_handles)
 from analisi.xy_series import BAR_WIDTH, SHEET, check_xy_options, parse_bar_width, prune_options, xy_series
@@ -200,7 +201,7 @@ class MixedStyleTests(unittest.TestCase):
         result = xy_series(frame(), options())
         figure, axes = result.figure, result.figure.axes[0]
         bars = next(item for item in graph_series(axes) if item.key == "xy:1:Bars left")
-        self.assertEqual(active_series_fields(axes, bars), {"color", "label", "visible"})
+        self.assertEqual(active_series_fields(axes, bars), {"color", "label", "visible", BAR_APPEARANCE})
         geometry = [(p.get_x(), p.get_width()) for p in bars.artist.patches]
         style = {"series": {"xy:1:Bars left": {"color": "#624b91", "label": "Observed $x$", "marker": "s",
                                                "line_style": "dashed", "width": 3.0},
@@ -233,7 +234,7 @@ class MixedStyleTests(unittest.TestCase):
         step = next(item for item in graph_series(axes) if item.key == "xy:1:Step dose")
         self.assertEqual(active_series_fields(axes, step), {"color", "label", "line_style", "width", "visible"})
         self.assertEqual(active_series_fields(axes, step, "Line"), {"color", "label", "line_style", "width"})
-        self.assertEqual(active_series_fields(axes, step, "Bars"), {"color", "label", "visible"})
+        self.assertEqual(active_series_fields(axes, step, "Bars"), {"color", "label", "visible", BAR_APPEARANCE})
         apply_style(result.figure, {"series": {"xy:1:Step dose": {"line_style": "dotted", "width": 2.5,
                                                                   "marker": "D", "visible": False}}})
         self.assertEqual((step.artist.get_linestyle(), step.artist.get_linewidth()), (":", 2.5))
