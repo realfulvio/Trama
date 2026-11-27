@@ -1,5 +1,8 @@
 """Exercise mixed placement of grouped series on the Classic Qt desktop."""
 
+import json
+
+from matplotlib.colors import to_rgba
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import QPoint, QTimer, Qt
@@ -10,6 +13,7 @@ from analisi.category_graphs import (
     SERIES_INTERVAL_DIRECTION, SERIES_PLACEMENT, STACK_PREVIOUS, grouped_graph_metadata,
 )
 from analisi.figure_export import export_figure
+from analisi.data import GROUPED_INTERVAL_APPEARANCE_VERSION
 from analisi.presentation import Layout, graph_series
 
 from .graph_format import GraphFormatDialog
@@ -171,6 +175,10 @@ def check_grouped_placement(smoke, window):
         assert [len(cap.get_ydata()) for cap in err_b.lines[1]] == [3, 0]
         np.testing.assert_allclose([segment[:, 1] for segment in err_b.lines[2][0].get_segments()],
                                    [[4, 5], [-9, -8], [-4, -3]])
+        assert all(not cap.get_visible() for cap in err_b.lines[1])
+        whisker, = err_b.lines[2]
+        np.testing.assert_allclose(whisker.get_colors()[0], to_rgba("#943454"))
+        np.testing.assert_allclose(whisker.get_linewidths(), [2.5])
 
     def lower_interval():
         dialog = smoke.app.activeModalWidget()
@@ -182,14 +190,21 @@ def check_grouped_placement(smoke, window):
             choice = dialog.grouped_interval
             assert choice.isEnabled()
             choice.set(LOWER_INTERVAL)
+            for name, value in (("interval_color", "#943454"), ("interval_width", "2,5"), ("interval_caps", "0")):
+                field = dialog.series_fields[name]
+                assert field.isEnabled()
+                field.setText(value)
             assert dialog.preview()
             check_one_sided(dialog.preview_canvas.figure)
             assert SERIES_INTERVAL_DIRECTION not in restored.options
             choice.setFocus()
             QTest.keyClick(choice, Qt.Key.Key_Tab)
             assert dialog.focusWidget() is dialog.series_fields["label"]
+            caps = dialog.series_fields["interval_caps"]
+            dialog.series_scroll.ensureWidgetVisible(caps)
+            caps.setFocus()
             smoke.shot(dialog, "grouped-interval-direction")
-            QTest.keyClick(dialog.series_fields["label"], Qt.Key.Key_Return)
+            QTest.keyClick(caps, Qt.Key.Key_Return)
         except Exception as error:
             smoke.problem(f"interval direction: {error!r}")
         finally:
@@ -209,6 +224,7 @@ def check_grouped_placement(smoke, window):
 
     saved = stem.with_name(stem.name + "-interval").with_suffix(".alab")
     window.project.save(saved)
+    assert json.loads(saved.read_text(encoding="utf-8"))["version"] == GROUPED_INTERVAL_APPEARANCE_VERSION
     window.close_project()
     window.open_path(saved)
     window.open_sheet(("graph", index))
@@ -216,6 +232,7 @@ def check_grouped_placement(smoke, window):
     reopened = window.project.runs[index]
     assert reopened.options[SERIES_INTERVAL_DIRECTION] == {"B": LOWER_INTERVAL}
     check_one_sided(reopened.result.figure)
+    assert reopened.style["series"]["grouped:1:B"]["interval_width"] == 2.5
     svg = saved.with_suffix(".svg")
     export_figure(reopened.result.figure, svg, {"format": "svg", "svg_text": "text"})
     assert "<image" not in svg.read_text(encoding="utf-8")

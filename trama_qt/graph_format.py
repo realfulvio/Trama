@@ -38,7 +38,7 @@ from analisi.point_style import POINTS
 from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.linked_axes import LINKED_AXES, linked_axes_reasons
 from analisi.i18n import active_language, tr, translate_message
-from analisi.presentation import (FONT_FAMILIES, GROUPED_PREFIX, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
+from analisi.presentation import (FONT_FAMILIES, GROUPED_PREFIX, INTERVAL_STYLE_FIELDS, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
                                   active_series_fields, apply_style, axis_has_numeric_ticks, graph_series,
                                   validate_graph_style, zero_baseline_axes)
 from analisi.probability_scale import FRACTION_SCALE, PERCENT_SCALE, PROBABILITY_SCALES
@@ -56,7 +56,10 @@ AXIS_FIELDS = {"min": "graph.axis.min", "max": "graph.axis.max", "step": "graph.
 FONT_FIELDS = {"title_size": "graph.field.font_title", "label_size": "graph.field.font_labels",
                "tick_size": "graph.field.font_ticks", "legend_size": "graph.field.font_legend"}
 SERIES_LABELS = {key: "graph.series." + key
-                 for key in ("label", "color", "line_style", "width", "marker", "marker_size", "marker_color")}
+                 for key in ("label", "color", "line_style", "width", "marker", "marker_size", "marker_color",
+                             "interval_color", "interval_width", "interval_caps")}
+SERIES_COLOR_FIELDS = {"color", "marker_color", "interval_color"}
+SERIES_NUMBER_FIELDS = {"width", "marker_size", "interval_width", "interval_caps"}
 DEFAULT = "Analysis default"
 SCALE_LABELS = {"linear": "graph.choice.linear", "log": "graph.choice.log",
                 FRACTION_SCALE: "graph.choice.probability", PERCENT_SCALE: "graph.choice.probability_percent"}
@@ -545,6 +548,8 @@ class GraphFormatDialog(QDialog):
         form.addRow(tr("graph.series.element"), self.selector)
         self.series_fields = {}
         for key, caption in SERIES_LABELS.items():
+            if key in INTERVAL_STYLE_FIELDS and not self._grouped_present:
+                continue
             if key == "line_style":
                 field = Choice((DEFAULT, *LINE_STYLES), {**DEFAULT_LABELS, **LINE_LABELS})
             elif key == "marker":
@@ -552,7 +557,11 @@ class GraphFormatDialog(QDialog):
             else:
                 field = QLineEdit()
             self.series_fields[key] = field
-            if key in {"color", "marker_color"}:
+            if key in INTERVAL_STYLE_FIELDS:
+                field.setAccessibleName(tr(caption))
+                field.setToolTip(tr("grouped.interval." + key.removeprefix("interval_") + "_hint"))
+                field.editingFinished.connect(self._update_grouped_preview)
+            if key in SERIES_COLOR_FIELDS:
                 row = QHBoxLayout()
                 row.addWidget(field, 1)
                 button = _color_button(field)
@@ -979,7 +988,7 @@ class GraphFormatDialog(QDialog):
             for key, options in self.series_values.items():
                 values = {}
                 for name, value in options.items():
-                    if name in {"width", "marker_size"}:
+                    if name in SERIES_NUMBER_FIELDS:
                         try:
                             value = float(str(value).replace(",", "."))
                         except ValueError:

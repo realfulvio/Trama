@@ -108,6 +108,7 @@ MARKERS = {"Circle": "o", "Square": "s", "Diamond": "D", "Triangle up": "^", "Tr
            "Plus": "+", "Cross": "x", "Star": "*", "No symbol": "none"}
 FONT_SIZES = ("title_size", "label_size", "tick_size", "legend_size")
 LINE_FIELDS = {"color", "line_style", "width", "marker", "marker_size", "marker_color", "label"}
+INTERVAL_STYLE_FIELDS = {"interval_color", "interval_width", "interval_caps"}
 SERIES_FIELDS = {
     "line": LINE_FIELDS,
     "errorbar": LINE_FIELDS,
@@ -116,7 +117,7 @@ SERIES_FIELDS = {
     # Native XY series keep draw style and side on the recipe; the style dict formats line, symbol and
     # bars. Visibility is active for Step and Bars; the other fields stay saved for every draw style.
     "xy": LINE_FIELDS | {"visible"},
-    "grouped": LINE_FIELDS | {"visible"},
+    "grouped": LINE_FIELDS | {"visible"} | INTERVAL_STYLE_FIELDS,
 }
 XY_PREFIX = "xy:1:"
 GROUPED_PREFIX = "grouped:1:"
@@ -208,10 +209,12 @@ def _check_series(key, options):
     kind = match[1]
     _record(options, SERIES_FIELDS[kind], "This setting is not available for the selected series.")
     for name, value in options.items():
-        if name in {"color", "marker_color"} and not _color(value):
+        if name in {"color", "marker_color", "interval_color"} and not _color(value):
             raise ValueError("Enter a valid color, for example #2866ae.")
-        if name in {"width", "marker_size"} and (not _number(value) or not 0.1 <= value <= 72):
+        if name in {"width", "marker_size", "interval_width"} and (not _number(value) or not 0.1 <= value <= 72):
             raise ValueError("Enter line widths and symbol sizes between 0.1 and 72 points.")
+        if name == "interval_caps" and (not _number(value) or not 0 <= value <= 72):
+            raise ValueError("Enter a cap length between 0 and 72 points.")
         if name == "line_style" and value not in tuple(LINE_STYLES):
             raise ValueError("Choose a valid line style.")
         if name == "marker" and (value not in tuple(MARKERS.values()) or (kind == "scatter" and value == "none")):
@@ -351,15 +354,16 @@ def active_series_fields(axes, series, draw_style=None):
     if series.key.startswith(GROUPED_PREFIX):
         meta = getattr(series.artist, "_tramastat_grouped_series", None) or {}
         grouped_info = getattr(axes, "_tramastat_grouped", None) or {}
+        interval = INTERVAL_STYLE_FIELDS if meta.get("errorbar") is not None else set()
         kind = draw_style if (draw_style is not None and draw_style != "As graph") else (
             grouped_info.get("global_style") if draw_style == "As graph" else meta.get("draw_style")
         )
         if kind == "Bars":
-            return {"color", "label", "visible"}
+            return {"color", "label", "visible"} | interval
         if kind == "Center and interval":
-            return {"color", "marker", "marker_size", "label", "visible"}
+            return {"color", "marker", "marker_size", "label", "visible"} | interval
         if kind == "Line and symbols":
-            return {"color", "line_style", "width", "marker", "marker_size", "marker_color", "label", "visible"}
+            return {"color", "line_style", "width", "marker", "marker_size", "marker_color", "label", "visible"} | interval
         return {"color", "label", "visible"}
     if series.kind != "xy":
         return set(series.fields)
@@ -559,8 +563,8 @@ def _primary_defaults(kind, artist):
     if kind == "errorbar":
         center, caps, whiskers = artist.lines
         return (_line_defaults(center) if center is not None else None,
-                [(cap.get_color(), cap.get_markeredgecolor()) for cap in caps],
-                [whisker.get_colors().copy() for whisker in whiskers], artist.get_label())
+                [(cap.get_color(), cap.get_markeredgecolor(), cap.get_markersize(), cap.get_markeredgewidth()) for cap in caps],
+                [(whisker.get_colors().copy(), whisker.get_linewidths().copy()) for whisker in whiskers])
     if kind == "scatter":
         return (artist.get_facecolors().copy(), artist.get_edgecolors().copy(), artist.get_paths(),
                 artist.get_sizes().copy(), artist.get_label(), artist.get_visible())
@@ -875,15 +879,21 @@ def _apply_grouped_series(series, defaults, options):
 
     err = meta.get("errorbar")
     if err is not None and e_def is not None:
-        center_defaults, cap_colors, whisker_colors, _ = e_def
+        center_defaults, cap_defaults, whisker_defaults = e_def
         center, caps, whiskers = err.lines
+        color = options.get("interval_color", options.get("color"))
         if center is not None and center_defaults is not None:
             _apply_line(center, center_defaults, {k: v for k, v in options.items() if k != "label"})
-        for cap, (c, e) in zip(caps, cap_colors, strict=True):
-            cap.set(color=options.get("color", c), markeredgecolor=options.get("color", e))
-            cap.set_visible(shown)
-        for whisker, c in zip(whiskers, whisker_colors, strict=True):
-            whisker.set_color(options.get("color", c))
+        for cap, (base_color, edge, length, width) in zip(caps, cap_defaults, strict=True):
+            length = options.get("interval_caps", length)
+            cap.set(color=color if color is not None else base_color,
+                    markeredgecolor=color if color is not None else edge,
+                    markersize=length,
+                    markeredgewidth=options.get("interval_width", width))
+            cap.set_visible(shown and length > 0)
+        for whisker, (base_colors, widths) in zip(whiskers, whisker_defaults, strict=True):
+            whisker.set_color(color if color is not None else base_colors)
+            whisker.set_linewidth(options.get("interval_width", widths))
             whisker.set_visible(shown)
 
     pts = meta.get("points")

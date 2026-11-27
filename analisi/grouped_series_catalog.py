@@ -78,6 +78,15 @@ MESSAGES = {
     "grouped.interval.both": ("Both sides", "Entrambi i lati"),
     "grouped.interval.upper": ("Upper only", "Solo superiore"),
     "grouped.interval.lower": ("Lower only", "Solo inferiore"),
+    "graph.series.interval_color": ("Interval color", "Colore dell’intervallo"),
+    "graph.series.interval_width": ("Interval thickness (pt)", "Spessore dell’intervallo (pt)"),
+    "graph.series.interval_caps": ("Cap length (pt)", "Lunghezza dei cappucci (pt)"),
+    "grouped.interval.color_hint": ("Leave empty to use the series color.", "Lascia vuoto per usare il colore della serie."),
+    "grouped.interval.width_hint": ("Leave empty for the default thickness.", "Lascia vuoto per lo spessore predefinito."),
+    "grouped.interval.caps_hint": ("Enter 0 to hide the caps.", "Inserisci 0 per nascondere i cappucci."),
+    "grouped.interval.caps_error": (
+        "Enter a cap length between 0 and 72 points.", "Inserisci una lunghezza dei cappucci da 0 a 72 punti.",
+    ),
     "grouped.series.interval_hint": (
         "Show both ends of the interval, just the upper end or just the lower end for this series.",
         "Mostra entrambe le estremità dell’intervallo, solo quella superiore o solo quella inferiore per questa serie.",
@@ -134,6 +143,7 @@ MESSAGES = {
 }
 
 _ENGLISH_TO_KEY = {
+    "Enter a cap length between 0 and 72 points.": "grouped.interval.caps_error",
     "Horizontal direction is available for grouped bar graphs.": "grouped.bars.direction_error",
     "Choose a valid interval direction for each series.": "grouped.series.interval_value",
     "Per-series interval direction requires a grouped bar or center graph that shows intervals.":

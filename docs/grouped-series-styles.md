@@ -22,6 +22,8 @@ Nei parametri del grafico, **Direzione dell’intervallo → Solo superiore** mo
 
 Con **Solo inferiore**, l’intervallo termina alla stima. In **Formato grafico → Serie** puoi ereditare la direzione del grafico o scegliere entrambi i lati, solo quello superiore o solo quello inferiore per la serie selezionata. Le scelte sono disponibili quando hai impostato un intervallo nei parametri. L’anteprima e le esportazioni mantengono le scelte. La direzione per serie e l’opzione globale **Solo inferiore** richiedono ALAB 21.
 
+Nella stessa scheda, **Colore dell’intervallo**, **Spessore dell’intervallo** e **Lunghezza dei cappucci** formattano solo l’intervallo della serie. Lascia un campo vuoto per mantenere l’aspetto predefinito. Imposta i cappucci a zero per mostrare solo il segmento. La formattazione indipendente richiede ALAB 23.
+
 **Cambia → Ordine di disegno delle serie…** sposta le serie nel grafico. Le barre affiancate vanno da sinistra a destra, quelle impilate dal basso verso l’alto. La disposizione relativa segue la serie e si applica alla nuova precedente. La prima serie apre sempre il gruppo. La legenda ha un ordine proprio. Puoi invertire l’elenco, ripristinare l’ordine del foglio e usare Annulla o Ripeti. Un ordine personalizzato richiede ALAB 19.
 
 ## Spaziatura delle barre
@@ -57,6 +59,8 @@ With an interleaved or superimposed grouped graph, **Placement** controls the re
 In the graph parameters, **Interval direction → Upper only** draws the portion above the estimate and keeps both limits in the results. This setting requires ALAB 18. For supported ZIP and PZF projects, Trama restores side-by-side stacks with means and upper SEM from the original worksheet, together with supported axis settings. The graph uses Trama’s formatting.
 
 **Lower only** draws the portion below the estimate. In **Format Graph → Series**, each series can inherit the graph direction or use both sides, the upper side or the lower side. Set an interval type in the graph parameters to enable the selector. The choices appear in the preview and in exports. Per-series overrides and the global **Lower only** option require ALAB 21.
+
+Use **Interval color**, **Interval thickness** and **Cap length** to format the selected interval. Leave a field empty to keep its default. Set the cap length to zero to show just the segment. Independent interval formatting requires ALAB 23.
 
 Use **Change → Series drawing order…** to arrange the plotted series. Side-by-side bars run left to right and stacks run bottom to top. Each relative placement follows its series and refers to the series that now comes before it. The first series always starts a group. The legend has its own order. You can reverse the list, restore worksheet order, and undo or redo edits. A custom order requires ALAB 19.
 
