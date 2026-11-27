@@ -320,7 +320,9 @@ def _anova_type_iii(data, factors, design, error, df, *, term_label=":".join):
         numerator_df = bounds.stop - bounds.start
         ms = ss / numerator_df
         statistic = ms / (error / df)
-        name = term_label(display[part] for part in term.split(":"))
+        parts = term.split(":")
+        # A covariate column is one term under its own name. Factor terms stay the historical labels.
+        name = term_label(display[part] for part in parts) if all(part in display for part in parts) else term
         rows.append({"Term": name, "SS": ss, "df": numerator_df, "MS": ms, "F": statistic,
                      "p": stats.f.sf(statistic, numerator_df, df), "Eta²": ss / total,
                      "Partial eta²": ss / (ss + error)})
@@ -340,7 +342,16 @@ def factorial_anova_fit(frame, response, factors, order=1, *, terms=None, sums_o
                                        sums_of_squares=sums_of_squares)[:2]
 
 
-def _factorial_anova_components(frame, response, factors, order=1, *, terms=None, sums_of_squares=None):
+def _anova_fit(frame, response, factors, order, *, terms=None, covariates=None, references=None, cancel=None):
+    """The factorial fit. Covariates append centred columns; without them this is ``_anova_model``."""
+    if covariates:
+        from .anova_covariates import augment
+        return augment(frame, response, factors, order, terms, list(covariates), references, cancel)
+    return _anova_model(frame, response, factors, order, terms=terms)
+
+
+def _factorial_anova_components(frame, response, factors, order=1, *, terms=None, sums_of_squares=None,
+                               covariates=None, references=None, cancel=None):
     """One full fit, its ANOVA table, and the design used for that fit.
 
     Callers that also need diagnostics reuse ``design``, ``beta``, ``error`` and ``df``.
@@ -348,8 +359,16 @@ def _factorial_anova_components(frame, response, factors, order=1, *, terms=None
     ``terms`` (Selected terms, 0.83) fits exactly those terms instead of the Full hierarchy of ``order``.
     ``sums_of_squares`` is ``"Type I"`` or ``"Type II"``; ``None`` and ``"Type III"`` keep the historical
     Type III table. The types share the fit, so the residual SS, df and MS never depend on the type.
+    ``covariates`` (centred additive columns) are absent from every recipe that does not ask for them.
     """
-    data, _, _, design, beta, error, df = _anova_model(frame, response, factors, order, terms=terms)
+    if covariates and sums_of_squares not in (None, "Type III"):
+        from .anova_covariates import ERRORS as COVARIATE_ERRORS
+        from .anova_ss import KEY as SUMS_KEY
+        from .field_error import FieldError
+        raise FieldError(SUMS_KEY, COVARIATE_ERRORS["sums"])
+    data, _, _, design, beta, error, df = _anova_fit(
+        frame, response, factors, order, terms=terms, covariates=covariates, references=references,
+        cancel=cancel)
     options = {"term_label": ":".join}
     if terms is not None:
         from .anova_terms import active_factors, canonical_terms, label
@@ -383,12 +402,22 @@ def anova_effect_sizes(table, fit, alpha=0.05):
     return effects, model
 
 
-def _design_grid(design, table):
-    """Design rows of a table of internal keys, from the design that was fitted (Patsy or selected terms)."""
+def _factor_design_rows(design, table):
+    """Design rows of the factor coding only (Patsy full hierarchy or the selected-term design)."""
     from .anova_terms import TermDesign
     if isinstance(design, TermDesign):
         return design.rows(table)
     return np.asarray(build_design_matrices([design.design_info], table)[0])
+
+
+def _design_grid(design, table):
+    """Design rows of a table of internal keys, from the design that was fitted (Patsy or selected terms).
+
+    A covariate design appends a zero for each covariate, so the row is the mean at the references.
+    """
+    if type(design).__name__ == "CovariateDesign":
+        return design.rows(table)
+    return _factor_design_rows(design, table)
 
 
 def marginal_comparisons(frame, response, factors, order, compare, method="holm", *, terms=None):

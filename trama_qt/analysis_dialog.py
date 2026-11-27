@@ -21,6 +21,7 @@ from analisi.anova_marginal_means import FACTOR_LIST as MEANS_FACTOR_LIST, FACTO
 from analisi.anova_marginal_means import OVERALL as MEANS_OVERALL, PANEL as MEANS_PANEL
 from analisi.anova_planned_contrasts import ALPHA as CONTRAST_ALPHA, CONTRAST_LIST, CORRECTION as CONTRAST_CORRECTION
 from analisi.anova_planned_contrasts import FACTOR_LIST as CONTRAST_FACTOR_LIST
+from analisi.anova_covariates import PANEL as COVARIATE_PANEL
 from analisi.anova_terms import TERM_LIST
 from analisi import curve_pipeline, curve_pipeline_dialog, lognormal_tests, regression_range, result_display, ttest_options
 from analisi.custom_fit import CUSTOM_EQUATION, DEFAULT_EQUATION, EQUATION_TEXT, EXAMPLE_PARAMETERS
@@ -70,7 +71,7 @@ from analisi.workbench import (CLASSIC_RESPONSES, GROUP_CHOICE, GROUPS, METHODS,
                                OPTIONAL_MULTIPLE, TEXT, check_survival_options, classic_roles)
 from analisi.stats import GEOMETRIC_REPORT, SUMMARY_FORMAT, summary_confidence, summary_fields
 
-from . import (anova_model, ellipse_groups, global_catalog, global_fit, logistic_validation, marginal_means,
+from . import (anova_covariates, anova_model, ellipse_groups, global_catalog, global_fit, logistic_validation, marginal_means,
                 planned_contrasts)
 from . import coefficient_links
 from . import kmeans_stability as stability_options
@@ -708,6 +709,8 @@ class AnalysisDialog(QDialog):
             elif kind == MEANS_PANEL:  # Estimated marginal means; the panel writes the four recipe keys
                 widget = marginal_means.MeansPanel(saved)
                 bare = True
+            elif kind == COVARIATE_PANEL:  # Additive covariates; the panel writes the recipe keys
+                widget = anova_covariates.CovariatePanel(self.data, saved)
             elif kind == EQUATION_TEXT:
                 widget = QPlainTextEdit(str(saved.get(label, DEFAULT_EQUATION)))
                 widget.setMinimumHeight(90)
@@ -1352,6 +1355,8 @@ class AnalysisDialog(QDialog):
                 options.update(control.values())  # the four planned-contrast keys, or none
             elif kind == MEANS_PANEL:
                 options.update(control.values())  # the four marginal-mean keys, or none while the option is off
+            elif kind == COVARIATE_PANEL:
+                options.update(control.values())  # covariate names and explicit references, or nothing
             elif kind == EQUATION_TEXT:
                 options[name] = control.toPlainText().strip()
             elif kind == PARAMETER_LIST:

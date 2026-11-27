@@ -121,6 +121,7 @@ Nonlinear regression|Regressione non lineare
 Compare nonlinear models|Confronta modelli non lineari
 Compare models (AICc)|Confronta modelli (AICc)
 Multifactor ANOVA|ANOVA multifattoriale
+Covariates|Covariate
 Result significant digits (0 = automatic)|Cifre significative nei risultati (0 = automatico)
 P-value display|Visualizzazione dei valori p
 P-value decimal places|Cifre decimali dei valori p
@@ -1576,3 +1577,57 @@ from .weighted_logrank_catalog import MESSAGES as _WEIGHTED_LOGRANK_MESSAGES  # 
 
 CAPTIONS.update(_WEIGHTED_LOGRANK_CAPTIONS)
 MESSAGES.update(_WEIGHTED_LOGRANK_MESSAGES)
+
+# Additive covariates of the multifactor ANOVA. The English sentences are the engine's FieldError text.
+MESSAGES.update({
+    "anova.covariate.error.type": ("Choose covariates as a list of column names.",
+                                   "Scegli le covariate come elenco di nomi di colonna."),
+    "anova.covariate.error.repeat": ("Covariate {name} is listed more than once.",
+                                     "La covariata {name} è elencata più di una volta."),
+    "anova.covariate.error.same": ("Covariate {name} is already the response or a factor.",
+                                   "La covariata {name} è già la risposta o un fattore."),
+    "anova.covariate.error.missing": ("Covariate {name} is not in the table.",
+                                      "La covariata {name} non è nella tabella."),
+    "anova.covariate.error.numeric": ("Covariate {name} must be a numeric column.",
+                                      "La covariata {name} deve essere una colonna numerica."),
+    "anova.covariate.error.rows": ("The response, the factors and the covariates have no complete row in common.",
+                                   "La risposta, i fattori e le covariate non hanno nessuna riga completa in comune."),
+    "anova.covariate.error.constant": ("Covariate {name} is constant in the rows used by the model.",
+                                       "La covariata {name} è costante nelle righe usate dal modello."),
+    "anova.covariate.error.redundant": ("Covariate {name} repeats {other} in the rows used by the model.",
+                                        "La covariata {name} ripete {other} nelle righe usate dal modello."),
+    "anova.covariate.error.empty": ("The design has an empty cell ({cell}).",
+                                    "Il disegno ha una cella vuota ({cell})."),
+    "anova.covariate.error.reference": ("The reference for {name} must be a finite number.",
+                                        "Il riferimento di {name} deve essere un numero finito."),
+    "anova.covariate.error.rank": ("The model does not have full rank with these covariates.",
+                                   "Il modello non ha rango pieno con queste covariate."),
+    "anova.covariate.error.df": ("The model with these covariates has no residual degrees of freedom.",
+                                 "Il modello con queste covariate non ha gradi di libertà residui."),
+    "anova.covariate.error.variance": ("The fitted model has no measurable residual variance.",
+                                       "Il modello stimato non ha varianza residua misurabile."),
+    "anova.ss.error.covariates": (
+        "Type I and Type II sums of squares are not available when covariates are included. Choose Type III.",
+        "Le somme dei quadrati di tipo I e di tipo II non sono disponibili quando il modello include covariate. "
+        "Scegli il tipo III."),
+    "anova.covariate.note.limits": (
+        "Covariates are added to the model. This release does not add covariate-by-factor interactions, "
+        "repeated measures, weights or imputation. Type I and Type II sums of squares stay unavailable "
+        "while covariates are included. Adjusted means and comparisons are evaluated at the covariate references.",
+        "Le covariate entrano nel modello. Questa versione non aggiunge interazioni covariata per fattore, "
+        "misure ripetute, pesi o imputazione. Le somme dei quadrati di tipo I e di tipo II restano non disponibili "
+        "finché ci sono covariate. Le medie aggiustate e i confronti sono calcolati ai riferimenti delle covariate."),
+    "anova.covariate.note.range": (
+        "A reference outside the observed range of a covariate is an extrapolation. A reference outside a cell’s "
+        "own range is reported as well. With two covariates, the separate ranges do not show whether the "
+        "references fall inside their joint support.",
+        "Un riferimento fuori dall’intervallo osservato di una covariata è un’estrapolazione. Viene segnalato anche "
+        "un riferimento fuori dall’intervallo di una cella. Con due covariate, gli intervalli separati non dicono "
+        "se i riferimenti stanno nel loro supporto congiunto."),
+    "anova.covariate.mean": ("Mean of the used rows: {value}", "Media delle righe usate: {value}"),
+    "anova.covariate.explicit": ("Reference: {value}", "Riferimento: {value}"),
+    "anova.covariate.outside": ("Outside the observed range: extrapolation.",
+                                "Fuori dall’intervallo osservato: estrapolazione."),
+    "anova.covariate.cells": ("Outside the range in {count} cells.", "Fuori intervallo in {count} celle."),
+    "anova.covariate.reference_caption": ("Reference for {name}", "Riferimento di {name}"),
+})

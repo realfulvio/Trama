@@ -470,6 +470,8 @@ from analisi.anova_diagnostics import (ALPHA as ANOVA_DIAG_ALPHA, ASSUMPTIONS as
                                        format_anova_error, graph_choice as anova_graph_choice,
                                        validate as validate_anova_diagnostics,
                                        visibility as anova_diagnostic_visibility)
+from analisi.anova_covariates import COVARIATES as ANOVA_COVARIATES
+from analisi.anova_covariates import REFERENCES as ANOVA_COVARIATE_REFERENCES
 from analisi.anova_ss import KEY as ANOVA_SUMS_OF_SQUARES, TYPE_III as ANOVA_TYPE_III
 from analisi.anova_ss import sums_of_squares as anova_sums_of_squares
 from analisi.anova_ss_dialog import SumsOfSquaresPanel
@@ -1672,6 +1674,8 @@ class AnalysisDialog(simpledialog.Dialog):
                 continue  # The planned-contrast editor owns these four fields.
             if self.method == "Multifactor ANOVA" and label in marginal_means.KEYS:
                 continue  # Qt owns estimated marginal means; a saved recipe is copied back below.
+            if self.method == "Multifactor ANOVA" and label == ANOVA_COVARIATES:
+                continue  # Qt owns the covariate panel; a saved recipe is copied back below.
             use_vars = (kind in (MULTIPLE, OPTIONAL_MULTIPLE, OPTIONAL, None) or label == "Input format"
                         or (self.method == "t-test" and label in ("Design", ttest_options.INPUT))) and label not in {
                 "Comparison factor", "Condition on factors",
@@ -4485,6 +4489,9 @@ class AnalysisDialog(simpledialog.Dialog):
                 options.update(self.contrast_panel.values())
                 for key in marginal_means.KEYS:
                     if key in saved_terms and key not in options:
+                        options[key] = deepcopy(saved_terms[key])
+                for key in (ANOVA_COVARIATES, ANOVA_COVARIATE_REFERENCES):
+                    if key in saved_terms:
                         options[key] = deepcopy(saved_terms[key])
                 chosen_terms = check_anova_terms(options)
                 if (anova_sums_of_squares(options) == ANOVA_TYPE_III
