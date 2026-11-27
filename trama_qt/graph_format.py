@@ -17,14 +17,16 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDia
 
 from analisi.axis_breaks import AXIS_BREAKS, SUPPORT_ATTR, axis_breaks_reason
 from analisi.axis_guides import AXIS_BANDS, AXIS_GUIDES
-from analisi.category_graphs import (AS_GRAPH, BAR_SPACING_DEFAULTS, BAR_SPACING_MAXIMUMS, BOTH_INTERVALS,
-                                     GROUPED_BAR_SPACING, GROUPED_SERIES_COMPATIBLE_STYLES, INTERVAL_DIRECTIONS,
+from analisi.category_graphs import (AS_GRAPH, BAR_DIRECTION, BAR_DIRECTIONS,
+                                     BAR_SPACING_DEFAULTS, BAR_SPACING_MAXIMUMS, BOTH_INTERVALS,
+                                     GROUPED_BAR_SPACING, GROUPED_SERIES_COMPATIBLE_STYLES, HORIZONTAL_BARS,
+                                     INTERVAL_DIRECTIONS, VERTICAL_BARS,
                                      LOWER_INTERVAL, RELATIVE_PLACEMENTS, SERIES_DRAW_STYLES, SERIES_INTERVAL_DIRECTION,
                                      SERIES_PLACEMENT, SERIES_STYLE, STACK_PREVIOUS, UPPER_INTERVAL,
                                      STACKED_PLACEMENTS, BARS as GROUPED_BARS,
                                      LINE_SYMBOLS as GROUPED_LINE_SYMBOLS, SYMBOLS as GROUPED_SYMBOLS,
                                      category_graph, grouped_series_names, prune_series_styles, series_interval_directions,
-                                     series_placements)
+                                     series_placements, transpose_grouped_bar_style)
 from analisi.field_error import FieldError
 from analisi.graph_annotations import ANNOTATIONS
 from analisi.grouped_series_catalog import translate_grouped_error
@@ -212,8 +214,9 @@ class GraphFormatDialog(QDialog):
         self._references()
         self.spacing_controls = {}
         self.spacing_enabled = None
+        self.bar_direction = None
         if self.grouped is not None and self._grouped_global_style == GROUPED_BARS:
-            self._bar_spacing(grouped_options.get(GROUPED_BAR_SPACING))
+            self._bar_arrangement(grouped_options)
         if self.preview_canvas is not None:
             self._update_grouped_preview()
         buttons = QDialogButtonBox()
@@ -621,17 +624,29 @@ class GraphFormatDialog(QDialog):
         self.selector.currentIndexChanged.connect(self._select_series)
         self._select_series()
 
-    def _bar_spacing(self, values):
+    def _bar_arrangement(self, options):
         page = self._tab(tr("grouped.spacing.tab"))
         self.spacing_tab = self.tabs.count() - 1
         columns = QHBoxLayout(page)
+        panel = QVBoxLayout()
+        columns.addLayout(panel)
+        direction = QFormLayout()
+        panel.addLayout(direction)
+        self.bar_direction = Choice(
+            BAR_DIRECTIONS, {VERTICAL_BARS: "grouped.bars.vertical", HORIZONTAL_BARS: "grouped.bars.horizontal"},
+            options.get(BAR_DIRECTION, VERTICAL_BARS),
+        )
+        caption = tr("grouped.bars.direction")
+        self.bar_direction.setAccessibleName(caption)
+        self.bar_direction.setToolTip(tr("grouped.bars.direction_hint"))
+        self.bar_direction.currentIndexChanged.connect(self._update_grouped_preview)
+        direction.addRow(caption, self.bar_direction)
+        values = options.get(GROUPED_BAR_SPACING)
         settings = QGroupBox(tr("grouped.spacing.custom"))
         settings.setObjectName("groupedBarSpacing")
         settings.setCheckable(True)
         settings.setChecked(values is not None)
         self.spacing_enabled = settings
-        panel = QVBoxLayout()
-        columns.addLayout(panel)
         panel.addWidget(settings)
         panel.addStretch(1)
         form = QFormLayout(settings)
@@ -1053,14 +1068,26 @@ class GraphFormatDialog(QDialog):
         options.pop(GROUPED_BAR_SPACING, None)
         if self.spacing_enabled is not None and self.spacing_enabled.isChecked():
             options[GROUPED_BAR_SPACING] = {key: field.value() for key, field in self.spacing_controls.items()}
+        options.pop(BAR_DIRECTION, None)
+        if self.bar_direction is not None and self.bar_direction.value() == HORIZONTAL_BARS:
+            options[BAR_DIRECTION] = HORIZONTAL_BARS
         return prune_series_styles(options, names)
+
+    def _grouped_style(self, style, options):
+        for key, default in (("xlabel", self.axes.get_xlabel()), ("ylabel", self.axes.get_ylabel())):
+            if key not in self.style and style.get(key) == default:
+                style.pop(key)
+        previous = self.grouped["options"].get(BAR_DIRECTION, VERTICAL_BARS)
+        if options.get(BAR_DIRECTION, VERTICAL_BARS) != previous:
+            return transpose_grouped_bar_style(style)
+        return style
 
     def _grouped_changed(self, options):
         old = {k: v for k, v in (self.grouped["options"].get(SERIES_STYLE) or {}).items() if v and v != AS_GRAPH}
         new = {k: v for k, v in (options.get(SERIES_STYLE) or {}).items() if v and v != AS_GRAPH}
         previous = self.grouped["options"]
         return old != new or any(previous.get(key, {}) != options.get(key, {})
-                                 for key in (SERIES_PLACEMENT, GROUPED_BAR_SPACING, SERIES_INTERVAL_DIRECTION))
+                                 for key in (SERIES_PLACEMENT, GROUPED_BAR_SPACING, SERIES_INTERVAL_DIRECTION, BAR_DIRECTION))
 
     def _prepare_grouped(self, style, options):
         result = category_graph(self.grouped["frame"], options, grouped=True)
@@ -1085,20 +1112,16 @@ class GraphFormatDialog(QDialog):
         if self.preview_canvas is None or self.grouped is None or not hasattr(self, "references"):
             return
         try:
-            style = self.read_style()
-            if "ylabel" not in self.style and style.get("ylabel") == self.axes.get_ylabel():
-                style.pop("ylabel")
-            self._render_grouped_preview(style, self._grouped_options())
+            options = self._grouped_options()
+            self._render_grouped_preview(self._grouped_style(self.read_style(), options), options)
         except (ValueError, FieldError):
             pass
 
     def preview(self):
         """Validate current edits and refresh the embedded preview canvas without committing."""
         try:
-            style = self.read_style()
-            if "ylabel" not in self.style and style.get("ylabel") == self.axes.get_ylabel():
-                style.pop("ylabel")
-            self._render_grouped_preview(style, self._grouped_options())
+            options = self._grouped_options()
+            self._render_grouped_preview(self._grouped_style(self.read_style(), options), options)
         except ValueError as error:
             self.show_error(error)
             return False
@@ -1128,6 +1151,8 @@ class GraphFormatDialog(QDialog):
         elif isinstance(error, FieldError) and self.grouped_draw is not None:
             if error.field == GROUPED_BAR_SPACING and self.spacing_enabled is not None:
                 self._focus(self.spacing_tab, self.spacing_enabled)
+            elif error.field == BAR_DIRECTION and self.bar_direction is not None:
+                self._focus(self.spacing_tab, self.bar_direction)
             elif error.field == SERIES_PLACEMENT and self.grouped_place is not None:
                 self._focus(2, self.grouped_place if self.grouped_place.isEnabled() else self.selector)
             elif error.field == SERIES_INTERVAL_DIRECTION and self.grouped_interval is not None:
@@ -1155,9 +1180,8 @@ class GraphFormatDialog(QDialog):
         try:
             style = self.read_style()
             if self.grouped is not None:
-                if "ylabel" not in self.style and style.get("ylabel") == self.axes.get_ylabel():
-                    style.pop("ylabel")
                 options = self._grouped_options()
+                style = self._grouped_style(style, options)
                 if self._grouped_changed(options):
                     self._prepare_grouped(style, options)
                     if style.get(AXIS_BREAKS) and style[AXIS_BREAKS] != self.style.get(AXIS_BREAKS):
@@ -1205,7 +1229,10 @@ class GraphFormatDialog(QDialog):
             reset_placement = options.pop(SERIES_PLACEMENT, None)
             reset_spacing = options.pop(GROUPED_BAR_SPACING, None)
             reset_intervals = options.pop(SERIES_INTERVAL_DIRECTION, None)
-            if reset_drawing or reset_placement or reset_spacing or reset_intervals:
+            reset_direction = options.pop(BAR_DIRECTION, None) == HORIZONTAL_BARS
+            if reset_direction:
+                style = transpose_grouped_bar_style(style)
+            if reset_drawing or reset_placement or reset_spacing or reset_intervals or reset_direction:
                 try:
                     self._prepare_grouped(style, options)
                 except ValueError as error:

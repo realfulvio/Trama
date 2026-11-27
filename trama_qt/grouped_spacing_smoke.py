@@ -7,8 +7,8 @@ import pandas as pd
 from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtTest import QTest
 
-from analisi.category_graphs import BARS, GROUPED_BAR_SPACING, GROUPED_GRAPH, grouped_graph_metadata
-from analisi.data import GROUPED_BAR_SPACING_VERSION
+from analisi.category_graphs import BAR_DIRECTION, BARS, GROUPED_BAR_SPACING, GROUPED_GRAPH, HORIZONTAL_BARS, grouped_graph_metadata
+from analisi.data import GROUPED_BAR_DIRECTION_VERSION, GROUPED_BAR_SPACING_VERSION
 from analisi.figure_export import export_figure
 from analisi.presentation import Layout
 
@@ -110,3 +110,90 @@ def check_grouped_bar_spacing(smoke, window):
     window.project.export_layout(window.project.layouts[0], layout, {"format": "svg", "svg_text": "text"})
     assert all("<image" not in file.read_text(encoding="utf-8") for file in (svg, layout))
     smoke.shot(window, "grouped-bar-spacing-reopened")
+
+    style = {"xlabel": "Visit", "ylabel": "Response", "axis": {"y": {"min": -1., "max": 9.}},
+             "reference_lines": [{"axis": "y", "value": 2., "label": "Control limit"}]}
+    window.project.apply_format(restored, style)
+    window.show_sheet("graph", index)
+
+    def horizontal_dialog():
+        dialog = smoke.app.activeModalWidget()
+        try:
+            assert isinstance(dialog, GraphFormatDialog)
+            dialog.activateWindow()
+            dialog.tabs.setCurrentIndex(dialog.spacing_tab)
+            choice = dialog.bar_direction
+            assert choice.isVisible() and choice.isEnabled()
+            choice.set(HORIZONTAL_BARS)
+            assert dialog.preview()
+            assert dialog.preview_canvas.figure.axes[0].get_xlim() == (-1., 9.)
+            assert BAR_DIRECTION not in restored.options
+            choice.setFocus()
+            QTest.keyClick(choice, Qt.Key.Key_Tab)
+            assert dialog.focusWidget() is not choice
+            QTest.qWait(80)
+            def close_shortcuts():
+                help_dialog = smoke.app.activeModalWidget()
+                smoke.expect(isinstance(help_dialog, ShortcutsDialog), "F1 did not open the shortcuts")
+                if isinstance(help_dialog, ShortcutsDialog):
+                    help_dialog.reject()
+            QTimer.singleShot(120, close_shortcuts)
+            QTest.keyClick(dialog, Qt.Key.Key_F1)
+            QTest.qWait(140)
+            smoke.shot(dialog, "grouped-bar-direction")
+            field = dialog.spacing_controls["adjacent"]
+            field.setFocus()
+            QTest.keyClick(field, Qt.Key.Key_Return)
+        except Exception as error:
+            smoke.problem(f"bar direction: {error!r}")
+        finally:
+            if isinstance(dialog, GraphFormatDialog) and dialog.isVisible():
+                smoke.problem("Enter did not confirm the grouped graph format")
+                dialog.reject()
+
+    def check_horizontal():
+        run = window.project.runs[index]
+        assert run.options[BAR_DIRECTION] == HORIZONTAL_BARS
+        assert run.options[GROUPED_BAR_SPACING] == spacing
+        axes, = run.result.figure.axes
+        assert axes._tramastat_numeric_axes == ("x",) and axes.yaxis_inverted()
+        assert axes.get_xlabel() == "Response" and axes.get_ylabel() == "Visit"
+        assert axes.get_xlim() == (-1., 9.)
+        assert run.style["reference_lines"][0]["axis"] == "x"
+        bars = grouped_graph_metadata(axes)["handles"]["B"].patches
+        np.testing.assert_allclose([patch.get_y() for patch in bars], [2., 6.5])
+        np.testing.assert_allclose([patch.get_width() for patch in bars], [3., 4.])
+        pd.testing.assert_frame_equal(run.result.tables["Graph data"], original)
+        return run
+
+    position = window.project.history.position
+    QTimer.singleShot(150, horizontal_dialog)
+    window.actions["format_graph"].trigger()
+    smoke.wait()
+    check_horizontal()
+    assert window.project.history.position == position + 1
+    window.actions["undo"].trigger()
+    smoke.wait()
+    current = window.project.runs[index]
+    assert current.options.get(BAR_DIRECTION) != HORIZONTAL_BARS
+    assert current.result.figure.axes[0].get_ylabel() == "Response"
+    window.actions["redo"].trigger()
+    smoke.wait()
+    check_horizontal()
+
+    saved = stem.with_name(stem.name + "-horizontal").with_suffix(".alab")
+    window.project.save(saved)
+    assert json.loads(saved.read_text(encoding="utf-8"))["version"] == GROUPED_BAR_DIRECTION_VERSION
+    window.close_project()
+    window.open_path(saved)
+    window.open_sheet(("graph", index))
+    smoke.wait()
+    reopened = check_horizontal()
+    smoke.shot(window, "grouped-bar-horizontal")
+    svg = saved.with_suffix(".svg")
+    export_figure(reopened.result.figure, svg, {"format": "svg", "svg_text": "text"})
+    assert "<image" not in svg.read_text(encoding="utf-8")
+    layout = saved.with_name(saved.stem + "-layout").with_suffix(".svg")
+    window.project.export_layout(window.project.layouts[0], layout, {"format": "svg", "svg_text": "text"})
+    contents = layout.read_text(encoding="utf-8")
+    assert "Response" in contents and "<image" not in contents

@@ -43,7 +43,14 @@ MESSAGES = {
         "The chosen graph settings require resetting the drawing and placement of individual series. Continue?",
         "Le impostazioni del grafico richiedono il ripristino del disegno e della disposizione per serie. Continuare?",
     ),
-    "grouped.spacing.tab": ("Bar spacing", "Spaziatura barre"),
+    "grouped.spacing.tab": ("Bar arrangement", "Disposizione barre"),
+    "grouped.bars.direction": ("Bar direction", "Direzione delle barre"),
+    "grouped.bars.vertical": ("Vertical", "Verticale"),
+    "grouped.bars.horizontal": ("Horizontal", "Orizzontale"),
+    "grouped.bars.direction_hint": (
+        "Axis labels, limits and data-anchored objects follow the bars.",
+        "Etichette, limiti degli assi e oggetti ancorati ai dati seguono la direzione delle barre.",
+    ),
     "grouped.spacing.custom": ("Custom spacing", "Spaziatura personalizzata"),
     "grouped.spacing.hint": (
         "Distances are percentages of a bar’s width. Zero removes the space.",
@@ -61,6 +68,10 @@ MESSAGES = {
     "grouped.spacing.error_graph": (
         "Custom spacing is available for grouped bar graphs.",
         "La spaziatura personalizzata è disponibile nei grafici a barre raggruppate.",
+    ),
+    "grouped.bars.direction_error": (
+        "Horizontal direction is available for grouped bar graphs.",
+        "La direzione orizzontale è disponibile nei grafici a barre raggruppate.",
     ),
     "grouped.series.drawing": ("Drawing", "Disegno"),
     "grouped.series.interval_direction": ("Interval direction", "Direzione dell’intervallo"),
@@ -123,6 +134,7 @@ MESSAGES = {
 }
 
 _ENGLISH_TO_KEY = {
+    "Horizontal direction is available for grouped bar graphs.": "grouped.bars.direction_error",
     "Choose a valid interval direction for each series.": "grouped.series.interval_value",
     "Per-series interval direction requires a grouped bar or center graph that shows intervals.":
         "grouped.series.interval_graph",

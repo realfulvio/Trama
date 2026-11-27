@@ -30,7 +30,7 @@ class GroupedBarSpacingDialogTests(unittest.TestCase):
     def test_localized_controls_and_shared_preview(self):
         current = active_language()
         self.addCleanup(set_language, current)
-        for language, caption in (("en", "Bar spacing"), ("it", "Spaziatura barre")):
+        for language, caption in (("en", "Bar arrangement"), ("it", "Disposizione barre")):
             with self.subTest(language=language):
                 set_language(language)
                 dialog, options = self.dialog()

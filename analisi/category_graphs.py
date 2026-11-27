@@ -1,4 +1,5 @@
 """Native column and grouped plots from worksheet observations."""
+from copy import deepcopy
 from dataclasses import dataclass
 import re
 
@@ -41,6 +42,8 @@ STACKED_PLACEMENTS = frozenset({STACKED, PERCENT_STACKED})
 SERIES_PLACEMENT = "Series placement"
 GROUPED_SERIES_ORDER = "Grouped series order"
 GROUPED_BAR_SPACING = "Grouped bar spacing"
+BAR_DIRECTION = "Bar direction"
+VERTICAL_BARS, HORIZONTAL_BARS = BAR_DIRECTIONS = ("Vertical bars", "Horizontal bars")
 BAR_SPACING_DEFAULTS = {"adjacent": 14., "groups": 45., "empty": 100., "leading": 50., "trailing": 50.}
 BAR_SPACING_MAXIMUMS = {**dict.fromkeys(BAR_SPACING_DEFAULTS, 400.), "empty": 100.}
 SIDE_BY_SIDE, OVERLAY_PREVIOUS, STACK_PREVIOUS, GAP_BEFORE = RELATIVE_PLACEMENTS = (
@@ -639,8 +642,49 @@ def grouped_style_after_parameter_change(style, options, frame=None):
     return updated
 
 
+def transpose_grouped_bar_style(style):
+    """Keep the saved data-axis formatting and data-anchored objects with their coordinates."""
+    from .axis_breaks import AXIS_BREAKS
+    from .axis_guides import AXIS_BANDS, AXIS_GUIDES
+    from .graph_annotations import ANNOTATIONS
+    from .graph_shapes import SHAPES
+    from .linked_axes import LINKED_AXES
+
+    if not style:
+        return style
+    swapped = {"x": "y", "y": "x"}
+    keys = {"xlabel": "ylabel", "ylabel": "xlabel", "xscale": "yscale", "yscale": "xscale"}
+    updated = {keys.get(key, key): deepcopy(value) for key, value in style.items()}
+    for key in ("axis", LINKED_AXES):
+        if updated.get(key):
+            updated[key] = {swapped[axis]: value for axis, value in updated[key].items()}
+    for key in ("reference_lines", AXIS_GUIDES, AXIS_BANDS):
+        for record in updated.get(key) or ():
+            record["axis"] = swapped[record["axis"]]
+    if record := updated.get(AXIS_BREAKS):
+        record["axis"] = swapped[record["axis"]]
+    for record in updated.get(ANNOTATIONS, ()):
+        if record["units"] == "data":
+            record["position"] = record["position"][::-1]
+            if "target" in record:
+                record["target"] = record["target"][::-1]
+    for record in updated.get(SHAPES, ()):
+        if record["units"] == "data":
+            record["points"] = [point[::-1] for point in record["points"]]
+    return updated
+
+
+def _draw_bars(axes, categories, heights, width, baseline, horizontal, **style):
+    if horizontal:
+        return axes.barh(categories, heights, width, left=baseline, **style)
+    return axes.bar(categories, heights, width, bottom=baseline, **style)
+
+
 def _draw_series(axes, series, summaries, style, width, show_points, placement, rng, *,
-                 grouped_track=False, bottom=None, interval_direction=BOTH_INTERVALS):
+                 grouped_track=False, bottom=None, interval_direction=BOTH_INTERVALS, horizontal=False):
+    def coordinates(category, response):
+        return (response, category) if horizontal else (category, response)
+
     x, color = series.x, series.color
     center, lower, upper = np.asarray(summaries).T
     observed = np.isfinite(center)
@@ -648,8 +692,8 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
     primary = err = pts = None
     if style == BARS:
         base = 0. if bottom is None else bottom[observed]
-        primary = axes.bar(x[observed], center[observed], width, bottom=base, color=to_rgba(color, .76),
-                           edgecolor=color, linewidth=1.15, label=series.name, zorder=2.5)
+        primary = _draw_bars(axes, x[observed], center[observed], width, base, horizontal,
+                             color=to_rgba(color, .76), edgecolor=color, linewidth=1.15, label=series.name, zorder=2.5)
         if bottom is not None:
             show_points = False
             with np.errstate(over="ignore", invalid="ignore"):
@@ -664,13 +708,13 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
         primary = axes.bar(x[interval], upper[interval] - lower[interval], width, bottom=lower[interval],
                            color=to_rgba(color, .22), edgecolor=color, linewidth=1.4, label=series.name, zorder=2.5)
     elif style == SYMBOLS:
-        primary = axes.scatter(x[observed], center[observed], marker="o", s=42, linewidths=1.8, color=color,
+        primary = axes.scatter(*coordinates(x[observed], center[observed]), marker="o", s=42, linewidths=1.8, color=color,
                                label=series.name, zorder=4)
     elif style == POINTS:
         axes.scatter(x[observed], center[observed], marker="_", s=160, linewidths=1.8, color=color,
                      label="_nolegend_", zorder=4)
     elif style == LINE_SYMBOLS:
-        primary, = axes.plot(x, center, linestyle="-", linewidth=1.8, marker="o", markersize=6.5, color=color,
+        primary, = axes.plot(*coordinates(x, center), linestyle="-", linewidth=1.8, marker="o", markersize=6.5, color=color,
                              markerfacecolor=color, markeredgecolor=color, label=series.name, zorder=4)
     if style not in {RANGE, PAIRED} and interval.any():
         # Intervals may be asymmetric, and a mean need not lie inside the IQR.
@@ -680,7 +724,8 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
         elif interval_direction == LOWER_INTERVAL:
             top = np.clip(center[interval], bottom, top)
         middle = bottom + (top - bottom) / 2
-        err = axes.errorbar(x[interval], middle, yerr=[middle - bottom, top - middle], fmt="none",
+        error = {"xerr" if horizontal else "yerr": [middle - bottom, top - middle]}
+        err = axes.errorbar(*coordinates(x[interval], middle), **error, fmt="none",
                             ecolor=color, capsize=4, elinewidth=1.3, zorder=3)
         if interval_direction != BOTH_INTERVALS:
             invisible_cap = 0 if interval_direction == UPPER_INTERVAL else 1
@@ -690,7 +735,7 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
                   for location, values in zip(x, series.values, strict=True) if len(values)]
         if points:
             x_points, y_points = (np.concatenate(parts) for parts in zip(*points, strict=True))
-            pts = axes.scatter(x_points, y_points, s=26, color=color, edgecolors="white", linewidths=.6,
+            pts = axes.scatter(*coordinates(x_points, y_points), s=26, color=color, edgecolors="white", linewidths=.6,
                                label=series.name if style in {POINTS, PAIRED} else "_nolegend_", zorder=3.5)
     if grouped_track and primary is not None:
         primary._tramastat_grouped_series = {
@@ -723,7 +768,7 @@ def _stack_bottoms(heights):
     return bottoms
 
 
-def _draw_stacks(axes, plots, centers, width, percent, row_names):
+def _draw_stacks(axes, plots, centers, width, percent, row_names, horizontal=False):
     """Stack the center of each row and series, keeping positive and negative totals apart."""
     heights = centers
     if percent:
@@ -754,8 +799,8 @@ def _draw_stacks(axes, plots, centers, width, percent, row_names):
         drawn = np.isfinite(height)
         bottom = bottoms[:, index]
         if drawn.any():
-            bars = axes.bar(plot.x[drawn], height[drawn], width, bottom=bottom[drawn],
-                            color=to_rgba(plot.color, .76), edgecolor=plot.color, linewidth=1.15, label=plot.name)
+            bars = _draw_bars(axes, plot.x[drawn], height[drawn], width, bottom[drawn], horizontal,
+                              color=to_rgba(plot.color, .76), edgecolor=plot.color, linewidth=1.15, label=plot.name)
             for patch, value in zip(bars.patches, height[drawn], strict=True):
                 if value == 0:
                     patch.set_linewidth(0)  # An observed zero adds no visible segment.
@@ -787,6 +832,9 @@ def category_graph(frame, options, *, grouped=False):
     layout = _choice(options, "Placement of groups", GROUP_PLACEMENTS) if grouped else None
     stacked = layout in STACKED_PLACEMENTS
     style = _choice(options, "Graph style", GROUPED_STYLES if grouped else COLUMN_STYLES)
+    horizontal = grouped and _choice(options, BAR_DIRECTION, BAR_DIRECTIONS) == HORIZONTAL_BARS
+    if horizontal and style != BARS:
+        raise FieldError(BAR_DIRECTION, "Horizontal direction is available for grouped bar graphs.")
     spacing = grouped_bar_spacing(options)
     if spacing and (not grouped or style != BARS):
         raise FieldError(GROUPED_BAR_SPACING, "Custom spacing is available for grouped bar graphs.")
@@ -858,7 +906,9 @@ def category_graph(frame, options, *, grouped=False):
     direction = _choice(options, INTERVAL_DIRECTION, INTERVAL_DIRECTIONS) if grouped else BOTH_INTERVALS
     placement = "Centered" if style == PAIRED else _choice(options, "Point placement", PLACEMENTS) if show_points else "Centered"
     graph = GROUPED_GRAPH if grouped else COLUMN_GRAPH
-    figure, axes = _plot(graph, "", PERCENT_LABEL if layout == PERCENT_STACKED else "Value")
+    label = PERCENT_LABEL if layout == PERCENT_STACKED else "Value"
+    figure, axes = _plot(graph, label, "") if horizontal else _plot(graph, "", label)
+    numeric_axis, category_axis = ("x", "y") if horizontal else ("y", "x")
     counts = None
     if grouped and source == SUMMARIES:
         plots, row_names, ticks, width, legend, summaries, counts = _summary_data(
@@ -908,14 +958,14 @@ def category_graph(frame, options, *, grouped=False):
         for plot, offset in zip(plots, offsets, strict=True):
             plot.x = category_centers + offset
     if spacing:
-        ticks, x_limits = _space_grouped_bars(plots, summaries, row_names, legend, custom, spacing)
-        axes.set_xlim(*x_limits)
+        ticks, limits = _space_grouped_bars(plots, summaries, row_names, legend, custom, spacing)
+        (axes.set_ylim if horizontal else axes.set_xlim)(*limits)
         width = 1.
     rows_by_series = {name: [] for name in worksheet_order}
     rng = np.random.default_rng(0)
     if stacked:
         centers = np.column_stack([np.asarray(summary, dtype=float).reshape(-1, 3)[:, 0] for summary in summaries])
-        bottoms, heights = _draw_stacks(axes, plots, centers, width, layout == PERCENT_STACKED, row_names)
+        bottoms, heights = _draw_stacks(axes, plots, centers, width, layout == PERCENT_STACKED, row_names, horizontal)
         for index, plot in enumerate(plots):
             for row, category in enumerate(row_names):
                 record = {"Row": category, "Group": plot.name, "N": counts[index][row], center: centers[row, index],
@@ -923,9 +973,9 @@ def category_graph(frame, options, *, grouped=False):
                 if layout == PERCENT_STACKED:
                     record["Percent"] = heights[row, index]
                 rows_by_series[plot.name].append(record)
-        axes._tramastat_zero_baseline = ("y",)
+        axes._tramastat_zero_baseline = (numeric_axis,)
         if layout == PERCENT_STACKED:
-            axes.set_ylim(0, 100)
+            (axes.set_xlim if horizontal else axes.set_ylim)(0, 100)
     else:
         anchors = {}
         series_supports_per_series = grouped and style in GROUPED_SERIES_COMPATIBLE_STYLES
@@ -941,12 +991,12 @@ def category_graph(frame, options, *, grouped=False):
             heights = np.column_stack([np.asarray(summaries[index])[:, 0] for index in members])
             bottoms_by_index.update(zip(members, _stack_bottoms(heights).T, strict=True))
         if piles:
-            axes._tramastat_zero_baseline = ("y",)
+            axes._tramastat_zero_baseline = (numeric_axis,)
         for index, (plot, summary, count) in enumerate(zip(plots, summaries, counts, strict=True)):
             primary = _draw_series(
                 axes, plot, summary, effective_styles[plot.name], width, show_points, placement, rng,
                 grouped_track=series_supports_per_series, bottom=bottoms_by_index.get(index),
-                interval_direction=directions.get(plot.name, direction),
+                interval_direction=directions.get(plot.name, direction), horizontal=horizontal,
             )
             if primary is not None:
                 grouped_handles[plot.name] = primary
@@ -976,10 +1026,16 @@ def category_graph(frame, options, *, grouped=False):
             "worksheet_order": worksheet_order,
             "handles": dict(zip(labels, handles, strict=True)),
         }
-    axes.set_xticks(*ticks, rotation=30 if len(ticks[1]) > 8 else 0)
-    axes._tramastat_numeric_axes = ("y",)
-    axes._tramastat_categorical_axes = ("x",)
-    for label in axes.get_xticklabels():
+    if horizontal:
+        axes.set_yticks(*ticks)
+        axes.invert_yaxis()
+        ticklabels = axes.get_yticklabels()
+    else:
+        axes.set_xticks(*ticks, rotation=30 if len(ticks[1]) > 8 else 0)
+        ticklabels = axes.get_xticklabels()
+    axes._tramastat_numeric_axes = (numeric_axis,)
+    axes._tramastat_categorical_axes = (category_axis,)
+    for label in ticklabels:
         label.set_parse_math(False)
     if legend:
         if grouped:

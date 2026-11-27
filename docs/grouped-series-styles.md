@@ -26,9 +26,11 @@ Con **Solo inferiore**, l’intervallo termina alla stima. In **Formato grafico 
 
 ## Spaziatura delle barre
 
-In **Formato grafico → Spaziatura barre** attiva **Spaziatura personalizzata** per impostare la distanza tra barre adiacenti, lo spazio aggiuntivo tra gruppi e i margini prima e dopo le barre. Le misure sono percentuali della larghezza di una barra. **Spazio per valori mancanti** può riservare da zero alla larghezza intera di una barra. Una pila o un insieme di serie sovrapposte occupa una sola posizione. Uno zero osservato conta come valore.
+In **Formato grafico → Disposizione barre** attiva **Spaziatura personalizzata** per impostare la distanza tra barre adiacenti, lo spazio aggiuntivo tra gruppi e i margini prima e dopo le barre. Le misure sono percentuali della larghezza di una barra. **Spazio per valori mancanti** può riservare da zero alla larghezza intera di una barra. Una pila o un insieme di serie sovrapposte occupa una sola posizione. Uno zero osservato conta come valore.
 
 L’anteprima mostra la geometria aggiornata. Il foglio numerico resta uguale. Per tornare alla disposizione automatica, disattiva **Spaziatura personalizzata**. L’impostazione segue il grafico nel layout e nell’esportazione. Il salvataggio con spaziatura personalizzata richiede ALAB 20.
+
+Nella stessa scheda, scegli **Direzione delle barre → Orizzontale** per mettere i valori sull’asse X e le categorie sull’asse Y. I limiti, le etichette, le linee di riferimento e gli oggetti ancorati ai dati seguono gli assi. Le pile, la spaziatura e le opzioni degli intervalli restano disponibili. Il salvataggio con barre orizzontali richiede ALAB 22.
 
 ## Regole di compatibilità e persistenza
 
@@ -58,4 +60,6 @@ In the graph parameters, **Interval direction → Upper only** draws the portion
 
 Use **Change → Series drawing order…** to arrange the plotted series. Side-by-side bars run left to right and stacks run bottom to top. Each relative placement follows its series and refers to the series that now comes before it. The first series always starts a group. The legend has its own order. You can reverse the list, restore worksheet order, and undo or redo edits. A custom order requires ALAB 19.
 
-Use **Format Graph → Bar spacing → Custom spacing** to set distances between adjacent bars, extra group spacing and the leading and trailing margins. Measurements are percentages of a bar’s width. **Space for missing values** can reserve between zero and one bar width. A stack or overlay shares one position, and an observed zero counts as data. The preview shows the adjusted graph. Custom spacing leaves the result table unchanged, follows the graph into layouts and export, and requires ALAB 20.
+Use **Format Graph → Bar arrangement → Custom spacing** to set distances between adjacent bars, extra group spacing and the leading and trailing margins. Measurements are percentages of a bar’s width. **Space for missing values** can reserve between zero and one bar width. A stack or overlay shares one position, and an observed zero counts as data. The preview shows the adjusted graph. Custom spacing leaves the result table unchanged, follows the graph into layouts and export, and requires ALAB 20.
+
+On the same tab, choose **Bar direction → Horizontal** to put the values on X and the categories on Y. Limits, labels, reference lines and data-anchored objects follow the axes. Stacks, spacing and interval options remain available. Horizontal bars require ALAB 22.
