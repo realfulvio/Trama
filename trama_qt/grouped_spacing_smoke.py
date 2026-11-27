@@ -9,7 +9,8 @@ from PySide6.QtTest import QTest
 
 from analisi.category_graphs import (BAR_BASELINE, BAR_DIRECTION, BARS, DISTANCES, GROUPED_BAR_SPACING, GROUPED_GRAPH,
                                      HORIZONTAL_BARS, RIGHT_SIDE, SERIES_SIDE, SUMMARIES, grouped_graph_metadata)
-from analisi.data import GROUPED_BAR_BASELINE_VERSION, GROUPED_BAR_SPACING_VERSION, GROUPED_RIGHT_AXIS_VERSION
+from analisi.data import (GROUPED_BAR_BASELINE_VERSION, GROUPED_BAR_SPACING_VERSION, GROUPED_RIGHT_AXIS_VERSION,
+                          GROUPED_RIGHT_LOG_AXIS_VERSION)
 from analisi.figure_export import export_figure
 from analisi.presentation import Layout
 
@@ -314,6 +315,58 @@ def check_grouped_bar_spacing(smoke, window):
     smoke.wait()
     check_right(window.project.runs[index], (0., 2600.))
     smoke.shot(window, "grouped-right-axis")
+    svg = saved.with_suffix(".svg")
+    window.project.export_layout(window.project.layouts[0], svg, {"format": "svg", "svg_text": "text"})
+    contents = svg.read_text(encoding="utf-8")
+    assert "Mass" in contents and "<image" not in contents
+
+    def set_logarithmic():
+        dialog = smoke.app.activeModalWidget()
+        try:
+            assert isinstance(dialog, GraphFormatDialog)
+            dialog.activateWindow()
+            dialog.tabs.setCurrentIndex(1)
+            scale = dialog.right["scale"]
+            scale.set("Log")
+            assert not dialog.preview()  # The previous linear range starts at zero.
+            field = dialog.right["min"]
+            field.setText("1")
+            assert dialog.preview()
+            assert dialog.preview_canvas.figure.axes[1].get_yscale() == "log"
+            field.setFocus()
+            QTest.keyClick(field, Qt.Key.Key_Return)
+        except Exception as error:
+            smoke.problem(f"right logarithmic scale: {error!r}")
+        finally:
+            if isinstance(dialog, GraphFormatDialog) and dialog.isVisible():
+                dialog.reject()
+
+    def check_logarithmic():
+        current = window.project.runs[index]
+        left, right = current.result.figure.axes
+        assert left.get_yscale() == "linear" and right.get_yscale() == "log"
+        assert right.get_ylim() == (1., 2600.)
+        bars = grouped_graph_metadata(left)["handles"]["B"].patches
+        assert all(bar.get_y() == 1 for bar in bars)
+        pd.testing.assert_frame_equal(current.result.tables["Graph data"], table)
+
+    QTimer.singleShot(150, set_logarithmic)
+    window.actions["format_graph"].trigger()
+    smoke.wait()
+    check_logarithmic()
+    window.actions["undo"].trigger()
+    assert check_right(window.project.runs[index], (0., 2600.)).get_yscale() == "linear"
+    window.actions["redo"].trigger()
+    check_logarithmic()
+    saved = smoke.folder / f"{smoke.language}-grouped-right-log-axis.alab"
+    window.project.save(saved)
+    assert json.loads(saved.read_text(encoding="utf-8"))["version"] == GROUPED_RIGHT_LOG_AXIS_VERSION
+    window.close_project()
+    window.open_path(saved)
+    window.open_sheet(("graph", index))
+    smoke.wait()
+    check_logarithmic()
+    smoke.shot(window, "grouped-right-log-axis")
     svg = saved.with_suffix(".svg")
     window.project.export_layout(window.project.layouts[0], svg, {"format": "svg", "svg_text": "text"})
     contents = svg.read_text(encoding="utf-8")

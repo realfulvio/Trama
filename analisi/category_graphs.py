@@ -16,7 +16,7 @@ from .pairwise_graph import register_anchors
 from .processing import FieldError
 from .reporting import Result, _plot
 from .stats import geometric_interval_fields, geometric_summary
-from .xy_series import SIDES as SERIES_SIDES, _limit_pair
+from .xy_series import SCALES as SERIES_SCALES, SIDES as SERIES_SIDES, _limit_pair
 
 
 COLUMN_GRAPH, GROUPED_GRAPH = "Column graph", "Grouped graph"
@@ -530,15 +530,19 @@ def grouped_right_series(options):
 
 
 def _grouped_right_axis(axes, options, names, right_names):
-    if options.get("Right scale", "Linear") != "Linear":
-        raise FieldError("Right scale", "The independent axis for grouped graphs uses a linear scale.")
+    scale = options.get("Right scale", "Linear")
+    if scale not in SERIES_SCALES:
+        raise FieldError("Right scale", "Choose a linear or logarithmic right axis.")
+    logarithmic = scale == "Log"
     title = options.get("Right title", "")
     if not isinstance(title, str) or len(title) > 160:
         raise FieldError("Right title", "Enter an axis title of up to 160 characters.")
-    limits = _limit_pair(options, "Right minimum", "Right maximum", "Right minimum", False)
+    limits = _limit_pair(options, "Right minimum", "Right maximum", "Right minimum", logarithmic)
     right = axes.twinx()
     right.set_ylabel(title.strip() or ", ".join(name for name in names if name in right_names))
     right.grid(False)
+    if logarithmic:
+        right.set_yscale("log")
     right.spines[["left", "top", "bottom"]].set_visible(False)
     # Keep the primary legend and annotations visible above artists on the right axis.
     right.set_zorder(axes.get_zorder() - 1)
@@ -551,6 +555,19 @@ def _grouped_right_axis(axes, options, names, right_names):
     if limits is not None:
         right.set_ylim(*limits)
     return right
+
+
+def _validate_right_log_data(series, summaries, direction, show_points):
+    shown = [0]
+    if direction != UPPER_INTERVAL:
+        shown.append(1)
+    if direction != LOWER_INTERVAL:
+        shown.append(2)
+    values = np.asarray(summaries, dtype=float).reshape(-1, 3)[:, shown]
+    if np.any(np.isfinite(values) & (values <= 0)) or (
+        show_points and any(np.any(values <= 0) for values in series.values)
+    ):
+        raise FieldError("Right scale", "The estimates, visible interval limits and points on the right logarithmic axis must be positive.")
 
 
 def grouped_graph_metadata(axes):
@@ -752,8 +769,19 @@ def _draw_intervals(axes, categories, center, lower, upper, color, direction, ho
     anchor = np.where(both, np.clip(center, lower, upper), center)
     start = np.where(show_lower, lower, anchor)[plotted]
     end = np.where(show_upper, upper, anchor)[plotted]
-    midpoint = start + (end - start) / 2
     locations = categories[plotted]
+    if not horizontal and axes.get_yscale() == "log":
+        # yerr reconstructs endpoints by subtraction, which can collapse a small positive bound to zero.
+        artist = axes.errorbar(locations, start, yerr=np.zeros_like(start), fmt="none",
+                               ecolor=color, capsize=4, elinewidth=1.3, zorder=3)
+        lower_vertices = np.column_stack((locations, start))
+        upper_vertices = np.column_stack((locations, end))
+        artist.lines[2][0].set_segments(np.stack((lower_vertices, upper_vertices), axis=1))
+        for cap, values, shown in zip(artist.lines[1], (start, end), (show_lower[plotted], show_upper[plotted]), strict=True):
+            cap.set_data(locations[shown], values[shown])
+        axes.update_datalim(np.vstack((lower_vertices, upper_vertices)))
+        return artist
+    midpoint = start + (end - start) / 2
     x, y = (midpoint, locations) if horizontal else (locations, midpoint)
     errors = {"xerr" if horizontal else "yerr": [midpoint - start, end - midpoint]}
     artist = axes.errorbar(x, y, **errors, fmt="none", ecolor=color, capsize=4, elinewidth=1.3, zorder=3)
@@ -778,6 +806,10 @@ def _draw_series(axes, series, summaries, style, width, show_points, placement, 
         base = bar_baseline if bottom is None else bottom[observed]
         with np.errstate(over="ignore"):
             heights = center[observed] - bar_baseline
+        if not horizontal and axes.get_yscale() == "log":
+            # Keep the smaller endpoint itself as the bottom, even for ratios several decades below 1.
+            base = np.minimum(center[observed], bar_baseline)
+            heights = np.abs(heights)
         if not np.isfinite(heights).all():
             raise FieldError(BAR_BASELINE, "The distance from the bar baseline exceeds the numeric range.")
         primary = _draw_bars(axes, x[observed], heights, width, base, horizontal,
@@ -1048,6 +1080,7 @@ def category_graph(frame, options, *, grouped=False):
         (axes.set_ylim if horizontal else axes.set_xlim)(*limits)
         width = 1.
     right = _grouped_right_axis(axes, options, drawing_order, right_names) if right_names else None
+    right_log = right is not None and right.get_yscale() == "log"
     rows_by_series = {name: [] for name in worksheet_order}
     rng = np.random.default_rng(0)
     if stacked:
@@ -1079,16 +1112,26 @@ def category_graph(frame, options, *, grouped=False):
             if len(axis_sides) > 1:
                 raise FieldError(SERIES_SIDE, "All series in a stack must use the same value axis.")
             target = right if True in axis_sides else axes
+            if target is right and right_log:
+                raise FieldError("Right scale", "A stack on the right needs a linear axis.")
             target._tramastat_zero_baseline = (numeric_axis,)
             heights = np.column_stack([np.asarray(summaries[index])[:, 0] for index in members])
             bottoms_by_index.update(zip(members, _stack_bottoms(heights).T, strict=True))
         for index, (plot, summary, count) in enumerate(zip(plots, summaries, counts, strict=True)):
             target = right if plot.name in right_names else axes
+            interval_side = directions.get(plot.name, direction)
+            series_style = effective_styles[plot.name]
+            start = baseline
+            if target is right and right_log:
+                _validate_right_log_data(plot, summary, interval_side, show_points)
+                if series_style == BARS:
+                    if baseline < 0:
+                        raise FieldError(BAR_BASELINE, "The baseline of logarithmic bars must be positive.")
+                    start = baseline or 1.
             primary = _draw_series(
-                target, plot, summary, effective_styles[plot.name], width, show_points, placement, rng,
+                target, plot, summary, series_style, width, show_points, placement, rng,
                 grouped_track=series_supports_per_series, bottom=bottoms_by_index.get(index),
-                interval_direction=directions.get(plot.name, direction), horizontal=horizontal,
-                bar_baseline=baseline,
+                interval_direction=interval_side, horizontal=horizontal, bar_baseline=start,
             )
             if primary is not None:
                 grouped_handles[plot.name] = primary

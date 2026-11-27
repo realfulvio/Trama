@@ -399,21 +399,20 @@ class GraphFormatDialog(QDialog):
             form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
             self.right = {
                 "title": QLineEdit(options.get("Right title") or (twin.get_ylabel() if self.xy is not None and twin else "")),
+                "scale": Choice(XY_SCALES, RIGHT_SCALE_LABELS, options.get("Right scale") or "Linear"),
                 "min": QLineEdit("" if options.get("Right minimum") in (None, "") else str(options["Right minimum"])),
                 "max": QLineEdit("" if options.get("Right maximum") in (None, "") else str(options["Right maximum"])),
             }
-            if self.xy is not None:
-                self.right["scale"] = Choice(XY_SCALES, RIGHT_SCALE_LABELS, options.get("Right scale") or "Linear")
-            elif twin is not None:
+            if self.xy is None and twin is not None:
                 self.right["title"].setPlaceholderText(twin.get_ylabel())
             for key, caption in (("title", "graph.axis.right_title"), ("scale", "graph.axis.scale"),
                                  ("min", "graph.axis.min"), ("max", "graph.axis.max")):
-                if key not in self.right:
-                    continue
-                self.right[key].setAccessibleName(f"{box.title()}: {tr(caption)}")
-                form.addRow(tr(caption), self.right[key])
+                control = self.right[key]
+                control.setAccessibleName(f"{box.title()}: {tr(caption)}")
+                form.addRow(tr(caption), control)
                 if self.xy is None:
-                    self.right[key].editingFinished.connect(self._update_grouped_preview)
+                    signal = control.currentIndexChanged if key == "scale" else control.editingFinished
+                    signal.connect(self._update_grouped_preview)
             box.setEnabled(self.xy is not None or bool(self.grouped_right_names))
             layout.addWidget(box)
         self.breaks_summary = None
@@ -1099,8 +1098,11 @@ class GraphFormatDialog(QDialog):
             options["Right title"] = title
         else:
             options.pop("Right title", None)
-        if "scale" in self.right:
-            options["Right scale"] = self.right["scale"].value() or "Linear"
+        scale = self.right["scale"].value() or "Linear"
+        if self.xy is not None or scale != "Linear":
+            options["Right scale"] = scale
+        else:
+            options.pop("Right scale", None)
         low, high = self.right["min"].text().strip(), self.right["max"].text().strip()
         if low or high:
             for key, text in (("min", low), ("max", high)):
@@ -1251,7 +1253,7 @@ class GraphFormatDialog(QDialog):
             elif error.field == SERIES_SIDE and self.grouped_side is not None:
                 self._focus(2, self.grouped_side)
             elif error.field in RIGHT_AXIS_FIELDS and self.right is not None:
-                name = {"Right minimum": "min", "Right maximum": "max"}.get(error.field, "title")
+                name = {"Right minimum": "min", "Right maximum": "max", "Right scale": "scale"}.get(error.field, "title")
                 self._focus(1, self.right[name])
             elif error.field in (SERIES_STYLE, "Placement of groups", "Graph style"):
                 self._focus(2, self.grouped_draw)

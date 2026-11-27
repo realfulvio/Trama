@@ -1137,6 +1137,7 @@ GROUPED_BAR_DIRECTION_VERSION = 22
 GROUPED_INTERVAL_APPEARANCE_VERSION = 23
 GROUPED_BAR_BASELINE_VERSION = 24
 GROUPED_RIGHT_AXIS_VERSION = 25
+GROUPED_RIGHT_LOG_AXIS_VERSION = 26
 XY_SERIES_ORDER = "xy_series_order"
 
 
@@ -1233,6 +1234,9 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
     if any(method == GROUPED_GRAPH and grouped_right_series(options)
            for table in tables.values() for method, options in table.analyses):
         version = GROUPED_RIGHT_AXIS_VERSION
+    if any(method == GROUPED_GRAPH and options.get("Right scale") == "Log" and grouped_right_series(options)
+           for table in tables.values() for method, options in table.analyses):
+        version = GROUPED_RIGHT_LOG_AXIS_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
@@ -1376,7 +1380,7 @@ def load_workspace(path, *, include_info=False):
                 GROUPED_SERIES_STYLE_VERSION, GROUPED_SERIES_PLACEMENT_VERSION, GROUPED_INTERVAL_DIRECTION_VERSION,
                 GROUPED_SERIES_ORDER_VERSION, GROUPED_BAR_SPACING_VERSION, GROUPED_SERIES_INTERVAL_VERSION,
                 GROUPED_BAR_DIRECTION_VERSION, GROUPED_INTERVAL_APPEARANCE_VERSION, GROUPED_BAR_BASELINE_VERSION,
-                GROUPED_RIGHT_AXIS_VERSION)
+                GROUPED_RIGHT_AXIS_VERSION, GROUPED_RIGHT_LOG_AXIS_VERSION)
     if version not in versions or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])
