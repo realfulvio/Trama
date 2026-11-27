@@ -108,6 +108,10 @@ Wilcoxon signed-rank|Test dei ranghi con segno di Wilcoxon
 Mood median test|Test delle mediane di Mood
 Correlation|Correlazione
 Correlation matrix|Matrice di correlazione
+Partial correlation|Correlazione parziale
+Covariates|Covariate
+Holm adjustment|Correzione di Holm
+Residual scatter|Grafico dei residui
 Multiple tests (one per row)|Test multipli (uno per riga)
 Nested t test|Test t annidato
 Nested one-way ANOVA|ANOVA a una via annidata
@@ -1576,3 +1580,33 @@ from .weighted_logrank_catalog import MESSAGES as _WEIGHTED_LOGRANK_MESSAGES  # 
 
 CAPTIONS.update(_WEIGHTED_LOGRANK_CAPTIONS)
 MESSAGES.update(_WEIGHTED_LOGRANK_MESSAGES)
+
+MESSAGES.update({
+    "partial.error.variables": ("Choose 2 to 12 distinct variables.", "Scegli da 2 a 12 variabili distinte."),
+    "partial.error.covariates": ("Choose 1 to 8 distinct covariates.", "Scegli da 1 a 8 covariate distinte."),
+    "partial.error.overlap": ("{name} cannot be both a variable and a covariate.",
+                              "{name} non può essere sia una variabile sia una covariata."),
+    "partial.error.missing": ("Choose a column for {field}.", "Scegli una colonna per {field}."),
+    "partial.error.numeric": ('Column "{name}" is not numeric.', 'La colonna "{name}" non è numerica.'),
+    "partial.error.flag": ("Choose yes or no for {field}.", "Scegli sì o no per {field}."),
+    "partial.error.method": ("Choose Pearson or Spearman.", "Scegli Pearson o Spearman."),
+    "partial.error.constant": ("Covariate {name} is constant on the rows used by this correlation.",
+                               "La covariata {name} è costante sulle righe usate da questa correlazione."),
+    "partial.error.redundant": ("Covariate {name} repeats {other}.", "La covariata {name} ripete {other}."),
+    "partial.error.rank": ("The covariates do not have full rank on the rows used by this correlation.",
+                           "Le covariate non hanno rango pieno sulle righe usate da questa correlazione."),
+    "partial.error.rows": ("N − k − 2 must be positive. This selection leaves {n} complete rows and {k} covariates.",
+                           "N − k − 2 deve essere positivo. Questa selezione lascia {n} righe complete e {k} covariate."),
+    "partial.error.scatter": ("The residual scatter needs exactly two variables.",
+                              "Il grafico dei residui richiede esattamente due variabili."),
+    "partial.note": (
+        "Pearson correlates the residuals of each variable on the covariates, including an intercept. "
+        "Spearman applies the same calculation to average ranks, and its p value is approximate. "
+        "The Fisher interval uses standard error 1/√(N − k − 3) and stays empty when it cannot be estimated. "
+        "The residual scatter is drawn only for exactly two variables.",
+        "Pearson correla i residui di ogni variabile sulle covariate, con intercetta. "
+        "Spearman applica lo stesso calcolo ai ranghi medi e il suo valore p è approssimato. "
+        "L’intervallo di Fisher usa l’errore standard 1/√(N − k − 3) e resta vuoto quando non è stimabile. "
+        "Il grafico dei residui si disegna solo per due variabili esatte.",
+    ),
+})
