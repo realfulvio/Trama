@@ -189,6 +189,15 @@ class PackageTests(unittest.TestCase):
         sheet = means(widened, ["X"], 1, ["Dose"])
         self.assertIn("A$B", set(sheet["Dose"]))
 
+    def test_the_example_project_reopens_on_the_reference_fit(self):
+        project = load_project(ROOT.parents[2] / "docs" / "examples" / "covariate-anova-fattoriale.alab")
+        data = project["Fattoriale"]
+        self.assertEqual(data.analyses[0][1][COVARIATES], ["X", "Z"])
+        self.assertEqual(data.analyses[0][1][REFERENCES], {"X": 6.0, "Z": 4.0})
+        result = analyse(METHOD, data.frame(), data.analyses[0][1])
+        self.assertAlmostEqual(float(result.tables[COEFFICIENTS].loc["X", "Estimate"]),
+                               expected()["two_covariates_with_interaction"]["covariates"]["X"]["estimate"])
+
     def test_save_reopen_and_a_changed_response(self):
         data = frame()
         options = recipe(["X", "Z"], 2)
