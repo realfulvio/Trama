@@ -25,6 +25,7 @@ from analisi.ar1 import (
     REASON_DF,
     REASON_EVEN_LAGS,
     REASON_LIMIT,
+    REASON_NUMERIC_RANGE,
     REASON_VARIANCE,
     SUBJECT_EFFECTS,
     VISIT_ORDER,
@@ -274,6 +275,29 @@ class SyntheticContractTests(unittest.TestCase):
         self.assertAlmostEqual(fitted.rho, oracle["rho"], delta=2e-6)
         self.assertAlmostEqual(fitted.rho, -0.66179365, delta=2e-6)
         np.testing.assert_allclose(fitted.covariance, oracle["covariance"], rtol=2e-6, atol=1e-8)
+
+    def test_estimable_variance_and_wald_tests_survive_large_response_units(self):
+        normal = package_frame()
+        reference = ar1(normal, posthoc="holm")
+        for factor in (5e153, 1e-150):
+            with self.subTest(factor=factor):
+                result = ar1(normal.assign(Response=normal["Response"] * factor), posthoc="holm")
+                self.assertEqual(result["Model"].iloc[0]["Status"], "Converged")
+                residual = result["Variance components"].iloc[0]["Variance"] / factor / factor
+                self.assertAlmostEqual(residual, reference["Variance components"].iloc[0]["Variance"], places=6)
+                np.testing.assert_allclose(result["Fixed effects"]["F"], reference["Fixed effects"]["F"], rtol=2e-6)
+                np.testing.assert_allclose(result["Multiple comparisons"]["p"],
+                                           reference["Multiple comparisons"]["p"], rtol=2e-6)
+                np.testing.assert_allclose(result["Fixed estimates"]["SE"] / factor,
+                                           reference["Fixed estimates"]["SE"], rtol=2e-6)
+
+    def test_unrepresentable_response_variance_leaves_inference_empty(self):
+        normal = package_frame()
+        for factor in (1e155, 1e-166):
+            with self.subTest(factor=factor):
+                result = ar1(normal.assign(Response=normal["Response"] * factor))
+                self.assertEqual(result["Model"].iloc[0]["Status"], REASON_NUMERIC_RANGE)
+                self.assertTrue(result["Fixed estimates"]["SE"].isna().all())
 
     def test_repeated_or_incomplete_order_is_rejected(self):
         frame = self.series(0.2, subjects=6)

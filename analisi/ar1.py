@@ -28,6 +28,7 @@ UNKNOWN_STRUCTURE = "Choose subject random effects or AR(1) for ordered visits."
 
 REASON_LIMIT = "The correlation is at a limit and is not estimable."
 REASON_VARIANCE = "No measurable residual variation for the mixed model."
+REASON_NUMERIC_RANGE = "The response variance is outside the numeric range. Rescale the response values."
 REASON_DF = "Residual degrees of freedom are zero."
 REASON_RANK = "The fixed effects do not have full rank, so the model is not estimable."
 REASON_CORRELATION = "The correlation is not estimable."
@@ -186,9 +187,12 @@ def fit_ar1(y, cells, subjects, times, n_cells, *, cancel=None):
     if df <= 0:
         return failed
     origin = float(y[0])
-    centered = y - origin
+    with np.errstate(over="ignore", invalid="ignore"):
+        centered = y - origin
     scale = float(np.max(np.abs(centered)))
-    if not np.isfinite(scale) or scale == 0.0:
+    if not np.isfinite(scale):
+        return Ar1Fit(None, None, np.nan, np.nan, df, REASON_NUMERIC_RANGE)
+    if scale == 0.0:
         return Ar1Fit(None, None, np.nan, np.nan, df, REASON_VARIANCE)
     patterns = _patterns(centered / scale, cells, subjects, times)
     if not any((times[1:] % 2 != times[0] % 2).any() for times, _, _ in patterns):
@@ -227,9 +231,12 @@ def fit_ar1(y, cells, subjects, times, n_cells, *, cancel=None):
     margin = 1e-3
     if abs(rho) >= 0.998 or min(scores[0], scores[-1]) <= value + margin:
         return Ar1Fit(None, None, np.nan, np.nan, df, REASON_LIMIT)
-    beta = origin + scale * beta
-    covariance = covariance * scale ** 2
-    sigma2 = sigma2 * scale ** 2
-    if not np.isfinite(beta).all() or not np.isfinite(covariance).all() or not np.isfinite(sigma2):
-        return Ar1Fit(None, None, np.nan, np.nan, df, REASON_VARIANCE)
+    with np.errstate(over="ignore", invalid="ignore", under="ignore"):
+        beta = origin + scale * beta
+        # Multiplying in two stages also handles a representable variance when scale² itself would overflow.
+        covariance = (covariance * scale) * scale
+        sigma2 = (sigma2 * scale) * scale
+    if (not np.isfinite(beta).all() or not np.isfinite(covariance).all()
+            or not np.isfinite(sigma2) or sigma2 <= 0 or np.any(covariance.diagonal() <= 0)):
+        return Ar1Fit(None, None, np.nan, np.nan, df, REASON_NUMERIC_RANGE)
     return Ar1Fit(beta, covariance, float(sigma2), rho, df, None)

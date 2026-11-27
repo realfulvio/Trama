@@ -1595,6 +1595,8 @@ CAPTIONS.update({
     "Visit order": "Ordine delle visite",
     "The sign of the correlation cannot be estimated from even visit distances alone.":
         "Le sole distanze pari tra le visite non consentono di stimare il segno della correlazione.",
+    "The response variance is outside the numeric range. Rescale the response values.":
+        "La varianza della risposta è fuori dall’intervallo numerico. Cambia la scala dei valori della risposta.",
 })
 MESSAGES.update({
     "mixed.error.one_within": (

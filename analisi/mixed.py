@@ -567,8 +567,11 @@ def _ar1_analysis(y, cell, subjects, levels, counts, factors, within, visit_orde
             "Subjects": counts,
         }
 
-    fit = _Fit(fitted.beta, fitted.covariance, np.zeros((1, n_cells, n_cells)), None,
-               0.0, 1.0, {"Residual": fitted.sigma2}, "Converged", "wald", None, fitted.df)
+    # Keep the Wald matrix near unit scale and convert units only for the reported estimates.
+    origin, scale = float(y[0]), np.sqrt(fitted.sigma2)
+    fit = _Fit((fitted.beta - origin) / scale, fitted.covariance / fitted.sigma2,
+               np.zeros((1, n_cells, n_cells)), None,
+               origin, scale, {"Residual": fitted.sigma2}, "Converged", "wald", None, fitted.df)
     identity = np.eye(n_cells)
     estimates = _labeled_cells(levels, factors, _estimate_table(fit, identity, pd.RangeIndex(n_cells)))
     grid = identity.reshape(*shape, n_cells)
