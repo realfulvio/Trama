@@ -16,7 +16,7 @@ from .anova_terms import CONTROL_FIELD
 from .field_error import FieldError
 from .kmeans_options import GAP_GEOMETRIES, GAP_PRINCIPAL_AXES, GAP_REFERENCE, GAP_VARIABLE_RANGES
 from .parallel import run_tasks
-from .stats import Clusters, _anova_model, _cluster_data, _design_grid, kmeans
+from .stats import Clusters, _anova_fit, _cluster_data, _design_grid, kmeans
 
 
 _CLUSTER_METRICS = {
@@ -417,7 +417,8 @@ def _format_levels(factors, levels):
 
 
 def anova_comparisons(frame, response, factors, order, compare, *, within=(), method="holm",
-                      family="separate", confidence=.95, control=None, reverse=False, terms=None):
+                      family="separate", confidence=.95, control=None, reverse=False, terms=None,
+                      covariates=None, references=None, cancel=None):
     """Compare equal-weight estimated means from the ordinary factorial model.
 
     Select one compared factor for main/simple effects or multiple factors for
@@ -444,7 +445,9 @@ def anova_comparisons(frame, response, factors, order, compare, *, within=(), me
     if method == "dunnett" and control is None:
         raise FieldError(CONTROL_FIELD, "Dunnett requires a control level or cell.")
 
-    data, keys, _, design, beta, error, df = _anova_model(frame, response, factors, order, terms=terms)
+    data, keys, _, design, beta, error, df = _anova_fit(
+        frame, response, factors, order, terms=terms, covariates=covariates, references=references,
+        cancel=cancel)
     key_by_factor = dict(zip(factors, keys))
     grid_factors = (*selected, *(factor for factor in factors if factor not in selected))
     grid_keys = [key_by_factor[factor] for factor in grid_factors]

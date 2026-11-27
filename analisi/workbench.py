@@ -26,6 +26,8 @@ from .anova_ss import CHOICES as SS_CHOICES, KEY as SUMS_OF_SQUARES, SHEETS as A
 from .anova_ss import sums_of_squares as anova_sums_of_squares
 from . import anova_marginal_means as marginal_means
 from . import anova_planned_contrasts as planned_contrasts
+from .anova_covariates import COVARIATES, PANEL as COVARIATE_PANEL, REFERENCES as COVARIATE_REFERENCES
+from .anova_covariates import check_request as check_anova_covariates
 from .anova_terms import (CHOICES as TERM_CHOICES, MODEL_TERMS, SHEET as MODEL_TERMS_SHEET, TERM_LIST, TERM_SELECTION,
                           active_factors as anova_active_factors, check_comparison_controls as check_anova_comparisons,
                           selection as anova_term_selection, terms_table as anova_terms_table)
@@ -347,7 +349,7 @@ METHODS = {
     NB2: NB2_OPTIONS,
     LOGISTIC_VALIDATION: LOGISTIC_VALIDATION_OPTIONS,
     "Multifactor ANOVA": {"Response": None, "Factors": MULTIPLE, TERM_SELECTION: TERM_CHOICES, "Interaction order": 1,
-                         SUMS_OF_SQUARES: SS_CHOICES, MODEL_TERMS: TERM_LIST,
+                         SUMS_OF_SQUARES: SS_CHOICES, MODEL_TERMS: TERM_LIST, COVARIATES: COVARIATE_PANEL,
                          "Compare marginal means by": OPTIONAL, "Cell comparison factors": OPTIONAL_MULTIPLE,
                          "Within factors (simple effects)": OPTIONAL_MULTIPLE, "Control level(s), separated by |": TEXT,
                          "Families": ("Separate", "Pooled"), "Reverse comparisons": False,
@@ -548,16 +550,19 @@ def check_anova_options(options):
     return float(alpha)
 
 
-def _anova_row_count(frame, response, factors):
+def _anova_row_count(frame, response, factors, covariates=()):
     """Complete rows, or None when the columns are not yet a valid ANOVA selection."""
     try:
-        return len(engine.complete(frame, [response], factors))
-    except (ValueError, KeyError):
+        return len(engine.complete(frame, [response, *covariates], factors))
+    except (ValueError, KeyError, TypeError):
         return None
 
 
-def _anova(frame, o):
+def _anova(frame, o, cancel=None):
     y, factors = o["Response"], o["Factors"]
+    # Covariates are optional. A recipe that does not name them keeps the historical fit.
+    covariate_names = check_anova_covariates(o)
+    covariate_references = o.get(COVARIATE_REFERENCES) if covariate_names else None
     # Selected terms (0.83): None means Full hierarchy, whose Interaction order and Patsy fit are unchanged.
     terms = anova_term_selection(o)
     # Sums of squares: Type III (also when the key is absent), Type I or Type II. All three share one fit.
@@ -580,11 +585,13 @@ def _anova(frame, o):
         marginal_means.check_data(marginal, frame, y, model_factors)
     graph = anova_graph_choice(o)
     if graph != "None":
-        count = _anova_row_count(frame, y, anova_active_factors(factors, terms) if terms is not None else factors)
+        count = _anova_row_count(frame, y, anova_active_factors(factors, terms) if terms is not None else factors,
+                                 covariate_names or ())
         if count is not None:
             ensure_anova_graph_budget(count, graph)
     table, fit, data, design, beta, error, df = engine._factorial_anova_components(
-        frame, y, factors, order, terms=terms, sums_of_squares=kind)
+        frame, y, factors, order, terms=terms, sums_of_squares=kind, covariates=covariate_names,
+        references=covariate_references, cancel=cancel)
     tables = {ANOVA_SHEETS[kind]: table}
     if terms is not None:
         tables[MODEL_TERMS_SHEET] = anova_terms_table(terms, anova_active_factors(factors, terms), data)
@@ -602,7 +609,8 @@ def _anova(frame, o):
         tables["Multiple comparisons"] = anova_comparisons(
             frame, y, factors, order, compare, within=within,
             method=correction, family=o.get("Families", "Separate").lower(), control=control or None,
-            reverse=o.get("Reverse comparisons", False), terms=terms)
+            reverse=o.get("Reverse comparisons", False), terms=terms, covariates=covariate_names,
+            references=covariate_references, cancel=cancel)
     elif within or control:
         raise ValueError("Choose which factor or cells to compare.")
     if planned is not None:  # the same fit: design, coefficients, residual SS and df of the table above
@@ -622,6 +630,10 @@ def _anova(frame, o):
         extra, figure = build_anova_diagnostics(
             o, data.index, data["response"].to_numpy(), design.to_numpy(), beta, error, df)
         tables.update(extra)
+    report = getattr(design, "report", None)
+    if report:
+        tables[COVARIATES] = report["coefficients"]
+        tables[COVARIATE_REFERENCES] = report["references"]
     return Result(tables, figure)
 
 
@@ -1608,7 +1620,7 @@ def _analyse(method, frame, options, *, layout_data=None, cancel=None, join_data
     if method == NB2:
         return nb2_analysis(frame, o)
     if method == "Multifactor ANOVA":
-        return _anova(frame, o)
+        return _anova(frame, o, cancel=cancel)
     if method == anova_comparison_plot.METHOD:
         return anova_comparison_plot.comparison_plot(frame)
     if method == anova_diagnostics.METHOD:
