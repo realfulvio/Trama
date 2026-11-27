@@ -2,13 +2,15 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import replace
+from math import ceil
 from pathlib import Path
 from weakref import WeakKeyDictionary
 
 from matplotlib.backend_bases import FigureCanvasBase
+from matplotlib.backends.backend_agg import RendererAgg
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from PySide6 import __version__ as PYSIDE_VERSION
-from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer
+from PySide6.QtCore import QEvent, QSignalBlocker, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QColor, QGuiApplication, QIcon, QKeySequence, QShortcut, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractItemView, QApplication, QComboBox, QDialog, QFileDialog, QFrame,
                                QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
@@ -42,7 +44,7 @@ from analisi.plot_function import CURVES as FUNCTION_CURVES, PLOT_FUNCTION
 from analisi.transpose_xy import TRANSPOSE_XY
 from analisi.presentation import apply_style, graph_series, validate_graph_style
 from analisi.series_layers import MAX_ORDERED_SERIES, XY_SERIES_ORDER, xy_layer_groups, xy_order_record
-from analisi.bubble_style import describe_bubble_artists
+from analisi.bubble_style import ATTR as BUBBLE_ARTISTS, describe_bubble_artists
 from analisi.legacy_binary_range import BINARY_XY_RANGE
 from analisi.legacy_layout_edit import LEGACY_EDITABLE_PANELS, LEGACY_PANEL_EDITS
 from analisi.legacy_fit_graph import FIT_GRAPH
@@ -271,18 +273,44 @@ class PaperPreview(QWidget):
 class FigureViewport(QScrollArea):
     """Magnify the displayed page without changing its axes or the size it exports at."""
 
-    def __init__(self, content, canvas):
+    def __init__(self, content, canvas, *, bubble_guides=False):
         super().__init__()
         self.canvas = canvas
         self.percent = 100
+        self._minimum_drawing_size = QSize(0, 0)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setWidget(content)
+        if bubble_guides:
+            self.setMinimumWidth(148)
+            self._guide_renderer = RendererAgg(1, 1, canvas.figure._original_dpi)
+            self._minimum_drawing_size = self._bubble_drawing_size()
+            canvas.mpl_connect("draw_event", self._refresh_bubble_drawing_size)
+
+    def _bubble_drawing_size(self):
+        figure = self.canvas.figure
+        bounds = [legend.get_window_extent(self._guide_renderer) for legend in visible_legends(figure)]
+        if not bounds and getattr(figure.axes[0], "_tramastat_bubble_colorbar", None) is None:
+            return QSize(0, 0)
+        width = max((box.width for box in bounds), default=0)
+        heights = sorted((box.height for box in bounds), reverse=True)
+        first, second = (heights + [0, 0])[:2]
+        # Leave room for the axes beside the guides. Upper, middle and lower legends
+        # share the side gutter, so its midpoint needs clear space on either side.
+        return QSize(min(1600, max(540, ceil(width + 370))),
+                     min(1200, max(380, ceil(2 * first + second + 44))))
+
+    def _refresh_bubble_drawing_size(self, _event):
+        minimum = self._bubble_drawing_size()
+        if minimum != self._minimum_drawing_size:
+            self._minimum_drawing_size = minimum
+            QTimer.singleShot(0, self, lambda: self.set_percent(self.percent))
 
     def set_percent(self, value):
         self.percent = value
         self.canvas.display_zoom = value
-        size = self.maximumViewportSize() * (value / 100)
+        scale = value / 100
+        size = self.maximumViewportSize().expandedTo(self._minimum_drawing_size) * scale
         self.widget().resize(size)
 
     def resizeEvent(self, event):
@@ -2385,7 +2413,8 @@ class MainWindow(QMainWindow):
             preview = ImportedPaperPreview(canvas, paper) if imported_layout else PaperPreview(canvas, paper)
         if toolbar:
             if not isinstance(preview, ImportedPaperPreview):
-                preview = FigureViewport(preview, canvas)
+                # Bubble guides need room beside the data even when both side panes are open.
+                preview = FigureViewport(preview, canvas, bubble_guides=paper is None and hasattr(figure, BUBBLE_ARTISTS))
             page.figure_view = preview
             preview.set_percent(self.figure_zoom)
         if toolbar and paper is not None and not imported_layout and reference and reference[0] == "layout":

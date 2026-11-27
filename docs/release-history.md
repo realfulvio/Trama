@@ -3,7 +3,7 @@
 The public repository begins with **Trama 0.73.0 beta**. All 0.x versions are
 beta builds; no final stable release has been declared.
 
-- [0.117 beta — Linked coefficients, weighted survival tests, project saving and PZF import](release-117.md).
+- [0.117 beta — Bubble and grouped charts, linked Excel, layout tools, AR(1) and linked coefficients](release-117.md).
 - [0.116 beta — Move tables on figures and test linear lack of fit](release-116.md).
 - [0.115 beta — Resolve linked file conflicts row by row](release-115.md).
 - [0.114 beta — Worksheet preview and imported PCA graphs](release-114.md).

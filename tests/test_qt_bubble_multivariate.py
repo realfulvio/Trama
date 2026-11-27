@@ -14,14 +14,16 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from analisi.bubble import (
     ATTR, BUBBLE, COLOR_COLUMN, COLOR_LIMITS, COLOR_MAX, COLOR_MID, COLOR_MIN, FILL_CONTINUOUS,
-    FILL_FIXED, FILL_MODE, FIXED_AREA, MAX_AREA, MISSING_COLOR, PALETTE, REVERSE_PALETTE,
+    FILL_BY_CATEGORY, FILL_FIXED, FILL_MODE, FIXED_AREA, MAX_AREA, MISSING_COLOR, PALETTE, REVERSE_PALETTE,
     SHAPE_BY_CATEGORY, SHAPE_COLUMN, SHAPE_MAP, SHAPE_MODE, SHEET, SIZE_BY_COLUMN, SIZE_FIXED,
     SIZE_MODE,
 )
 from analisi.i18n import set_language, tr
+from analisi.bubble_style import apply_bubble_style
 from trama_qt import theme
 from trama_qt.analysis_dialog import AnalysisDialog
 from trama_qt.bubble_style import BubbleStyleDialog, LevelSymbolDialog
+from trama_qt.bubble_multivariate_smoke import check_legend_geometry
 from trama_qt.graph_format import GraphFormatDialog
 from trama_qt.project import Project, compute
 from trama_qt.shortcuts_dialog import ShortcutsDialog
@@ -101,6 +103,51 @@ class QtBubbleMultivariateTests(unittest.TestCase):
         self.assertEqual(method, BUBBLE)
         self.assertEqual(opts[SIZE_MODE], SIZE_FIXED)
         self.assertEqual(opts[SHAPE_MAP], {"int:1": "D", "str:1": "P"})
+
+    def test_narrow_window_keeps_bubble_guides_separate_and_scrollable(self):
+        window = MainWindow()
+        def close_window():
+            window.project.dirty = False
+            window.close()
+        self.addCleanup(close_window)
+        frame = _load_misure()
+        title, = window.project.add_tables({"Measurements": frame})
+        run = window.project.candidate(title, BUBBLE, {
+            "X": "x", "Y": "y", "Size": "area", "Label": "etichetta", "Group": "id",
+            FILL_MODE: FILL_CONTINUOUS, COLOR_COLUMN: "segnale",
+            SHAPE_MODE: SHAPE_BY_CATEGORY, SHAPE_COLUMN: "classe",
+        })
+        window.project.add_result(run, compute(run, frame))
+        window.project.dirty = False
+        window.resize(650, 470)
+        window.show()
+        window.open_sheet(("graph", 0))
+        if window.inspector is None:
+            window.toggle_inspector()
+        self.app.processEvents()
+
+        canvas = window.plot_tools.canvas
+        viewport = window.page.figure_view
+        self.assertTrue(window.nav_card.isVisible())
+        self.assertTrue(window.inspector.isVisible())
+        guide_width = check_legend_geometry(canvas)
+        self.assertGreaterEqual(viewport.viewport().width() * canvas.device_pixel_ratio, guide_width)
+        self.assertGreater(viewport.horizontalScrollBar().maximum(), 0)
+        self.assertEqual(window.width(), 650)
+
+        apply_bubble_style(canvas.figure, {"fill_mode": FILL_BY_CATEGORY})
+        canvas.draw()
+        self.app.processEvents()
+        check_legend_geometry(canvas, ("bubble-group-legend", "bubble-shape-legend", "bubble-size-legend"))
+        apply_bubble_style(canvas.figure, {})
+        viewport.set_percent(70)
+        self.app.processEvents()
+        check_legend_geometry(canvas)
+        window.resize(1380, 900)
+        viewport.set_percent(100)
+        self.app.processEvents()
+        check_legend_geometry(canvas)
+        self.assertEqual(viewport.horizontalScrollBar().maximum(), 0)
 
     def test_window_inspector_dialog_preview_apply_undo_zero_recalc_themes_and_exports(self):
         for lang, mode in (("it", "dark"), ("en", "light")):

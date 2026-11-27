@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QDialog
 from analisi.bubble import (ATTR, BUBBLE, COLOR_COLUMN, FILL_CONTINUOUS, FILL_MODE, SHAPE_BY_CATEGORY,
                             SHAPE_COLUMN, SHAPE_MODE, SHEET)
 from analisi.figure_export import export_figure
+from analisi.graph_legend import visible_legends
 from analisi.presentation import compose_layout
 
 from .bubble_style import BubbleStyleDialog
@@ -139,6 +140,8 @@ def check_bubble_multivariate(smoke, window):
 
 def _check_compact_tools(smoke, window):
     original_size = window.size()
+    if window.inspector is None:
+        window.toggle_inspector()
     window.resize(650, 470)
     QTest.qWait(120)
     page = window.page
@@ -150,6 +153,14 @@ def _check_compact_tools(smoke, window):
     ]
     assert not page.actions_row.parentWidget().isVisible()
     smoke.shot(window, "compact-graph-actions")
+    viewport = page.figure_view
+    assert viewport.horizontalScrollBar().maximum() > 0
+    canvas = window.plot_tools.canvas
+    guide_width = check_legend_geometry(canvas)
+    assert viewport.viewport().width() * canvas.device_pixel_ratio >= guide_width
+    viewport.horizontalScrollBar().setValue(viewport.horizontalScrollBar().maximum())
+    smoke.shot(window, "compact-bubble-legends")
+    viewport.horizontalScrollBar().setValue(0)
 
     def navigate_menu():
         try:
@@ -168,6 +179,27 @@ def _check_compact_tools(smoke, window):
     QTest.qWait(120)
     assert page.actions_row.parentWidget().isVisible()
     assert not tools.isVisible()
+
+
+def check_legend_geometry(
+    canvas, expected=("bubble-shape-legend", "bubble-missing-legend", "bubble-size-legend", "color scale"),
+):
+    """Verify every guide stays outside the plotting area and apart from the other guides."""
+    canvas.draw()
+    figure = canvas.figure
+    renderer = canvas.get_renderer()
+    axes = figure.axes[0]
+    guides = {legend.get_gid(): legend.get_window_extent(renderer) for legend in visible_legends(figure)}
+    if colorbar := getattr(axes, "_tramastat_bubble_colorbar", None):
+        guides["color scale"] = colorbar.ax.get_tightbbox(renderer)
+    assert set(guides) >= set(expected), tuple(guides)
+    for label, box in guides.items():
+        assert figure.bbox.contains(*box.p0) and figure.bbox.contains(*box.p1), (label, box, figure.bbox)
+        assert not axes.bbox.overlaps(box), label
+    for index, (first, box) in enumerate(guides.items()):
+        for second, other in list(guides.items())[index + 1:]:
+            assert not box.overlaps(other), (first, second)
+    return max(box.width for box in guides.values())
 
 
 def main(argv=None):
