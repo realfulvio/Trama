@@ -46,6 +46,10 @@ Fai clic destro su una barra oppure apri **Cambia → Formato singola barra…**
 
 **Anteprima** mostra le modifiche prima di salvarle. **Applica** le registra in un solo passaggio che puoi annullare o ripetere. Il formato segue la riga quando la sposti, rimane in attesa se la barra scompare e si vede anche nei layout e nelle esportazioni. Le stime, gli intervalli e la legenda della serie restano uguali. Il salvataggio con formati individuali richiede ALAB 27.
 
+## Aspetto delle barre di una serie
+
+In **Formato grafico → Serie → Aspetto delle barre** imposti riempimento, bordo, spessore, motivo e colore del motivo per l’intera serie. Puoi usare gli stessi controlli per le serie disegnate come barre nei grafici a colonne, raggruppati o XY. Il grafico raggruppato mostra l’anteprima nella scheda. Il formato della singola barra prevale sui campi che hai personalizzato. I formati di serie, i colori dei motivi e i nuovi motivi a righe e griglia richiedono ALAB 28.
+
 ## Regole di compatibilità e persistenza
 
 - Supporta sia **Affiancati** (*Interleaved*) sia **Sovrapposti** (*Superimposed*), sia con **Repliche grezze** (*Raw replicates*) sia con **Riepiloghi precalcolati** (*Precomputed summaries*).
@@ -91,3 +95,7 @@ For charts without stacks, **Bar baseline** sets where the bars start. The estim
 Right-click a bar or choose **Change → Format individual bar…**. Choose a bar by its worksheet row, category and series. Customize the fill, border, border width and fill pattern, including for a single segment in a stack. Empty fields inherit the series appearance. **Reset bar** removes the selected bar’s changes.
 
 **Preview** shows what will change. **Apply** saves the edits as one step you can undo or redo. Formatting follows the worksheet row when you move it, is suspended if the bar disappears, and appears in layouts and exports. The estimates, intervals and series legend keep their original values and appearance. Individual bar formats require ALAB 27.
+
+### Format the bars of a series
+
+In **Format Graph → Series → Bar appearance**, set the fill, outline, border width, pattern and pattern color for a whole series. These controls are available for bars on grouped, column and XY plots. Grouped graphs show an embedded preview. Overrides on an individual bar take precedence for the fields you set. Series appearance, pattern colors and the new line and grid patterns require ALAB 28.

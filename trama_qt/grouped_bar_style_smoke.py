@@ -54,14 +54,14 @@ def check_grouped_bar_style(smoke, window):
             if cancel:
                 dialog.target.setCurrentIndex(next(i for i, bar in enumerate(dialog.bars) if bar.key == key))
             assert dialog.bars[dialog.target.currentIndex()].key == key
-            field = dialog.colors["fill"]
+            field = dialog.fields.colors["fill"]
             field.setFocus()
             QTest.keyClick(field, Qt.Key.Key_Tab)
             assert dialog.focusWidget() is not field
             field.setText(fill)
-            dialog.colors["border"].setText("#873d19")
-            dialog.width.setText("2,5" if smoke.language == "it" else "2.5")
-            dialog.pattern.set("diagonal")
+            dialog.fields.colors["border"].setText("#873d19")
+            dialog.fields.width.setText("2,5" if smoke.language == "it" else "2.5")
+            dialog.fields.pattern.set("diagonal")
             dialog._preview()
             assert BAR_STYLES not in (run.style or {}) and window.project.history.position == initial_depth
             check_chart(run, styled=True)

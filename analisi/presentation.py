@@ -43,7 +43,8 @@ from .linked_tables import TABLES, draw_tables, validate_tables
 from .observation_labels import LABELS, apply_observation_labels, restore_observation_labels, validate_labels
 from .point_style import (GID_PREFIX as POINT_GID_PREFIX, INDICATOR_GID, POINTS, apply_point_styles,
                           restore_point_styles, validate_points)
-from .grouped_bar_style import BAR_STYLES, apply_bar_styles, restore_bar_styles, validate_bar_styles
+from .grouped_bar_style import (BAR_APPEARANCE, BAR_STYLES, apply_appearance, apply_bar_styles,
+                                bar_appearance, restore_bar_styles, valid_appearance, validate_bar_styles)
 from .layout_arrangement import BORDER_DASHES, PanelArrangement, validated_arrangement
 from .layout_graph_link import graph_links
 from .layout_geometry import (AUTO_PAPER, AXIS_ALIGNMENTS, LABEL_PAD, LABEL_SIZE, PANEL_LIMIT, PANEL_SIZES,
@@ -114,11 +115,11 @@ SERIES_FIELDS = {
     "line": LINE_FIELDS,
     "errorbar": LINE_FIELDS,
     "scatter": {"color", "marker", "marker_size", "label"},
-    "bar": {"color", "label"},
+    "bar": {"color", "label", BAR_APPEARANCE},
     # Native XY series keep draw style and side on the recipe; the style dict formats line, symbol and
     # bars. Visibility is active for Step and Bars; the other fields stay saved for every draw style.
-    "xy": LINE_FIELDS | {"visible"},
-    "grouped": LINE_FIELDS | {"visible"} | INTERVAL_STYLE_FIELDS,
+    "xy": LINE_FIELDS | {"visible", BAR_APPEARANCE},
+    "grouped": LINE_FIELDS | {"visible", BAR_APPEARANCE} | INTERVAL_STYLE_FIELDS,
 }
 XY_PREFIX = "xy:1:"
 GROUPED_PREFIX = "grouped:1:"
@@ -210,6 +211,8 @@ def _check_series(key, options):
     kind = match[1]
     _record(options, SERIES_FIELDS[kind], "This setting is not available for the selected series.")
     for name, value in options.items():
+        if name == BAR_APPEARANCE and not valid_appearance(value):
+            raise ValueError("Invalid bar appearance.")
         if name in {"color", "marker_color", "interval_color"} and not _color(value):
             raise ValueError("Enter a valid color, for example #2866ae.")
         if name in {"width", "marker_size", "interval_width"} and (not _number(value) or not 0.1 <= value <= 72):
@@ -362,7 +365,7 @@ def active_series_fields(axes, series, draw_style=None):
             grouped_info.get("global_style") if draw_style == "As graph" else meta.get("draw_style")
         )
         if kind == "Bars":
-            return {"color", "label", "visible"} | interval
+            return {"color", "label", "visible", BAR_APPEARANCE} | interval
         if kind == "Center and interval":
             return {"color", "marker", "marker_size", "label", "visible"} | interval
         if kind == "Line and symbols":
@@ -372,7 +375,7 @@ def active_series_fields(axes, series, draw_style=None):
         return set(series.fields)
     kind = draw_style if draw_style is not None else xy_draw_kind(series.artist)
     if kind == "Bars":
-        return {"color", "label", "visible"}
+        return {"color", "label", "visible", BAR_APPEARANCE}
     if kind == "Step":
         return {"color", "label", "visible", "line_style", "width"}
     if draw_style is not None:
@@ -560,6 +563,10 @@ def _line_defaults(artist):
             artist.get_markersize(), artist.get_markerfacecolor(), artist.get_markeredgecolor(), artist.get_label())
 
 
+def _bar_defaults(artist):
+    return ([(bar_appearance(patch), patch.get_visible()) for patch in artist.patches], artist.get_label())
+
+
 def _primary_defaults(kind, artist):
     if kind == "line":
         return (*_line_defaults(artist), artist.get_visible())
@@ -571,17 +578,13 @@ def _primary_defaults(kind, artist):
     if kind == "scatter":
         return (artist.get_facecolors().copy(), artist.get_edgecolors().copy(), artist.get_paths(),
                 artist.get_sizes().copy(), artist.get_label(), artist.get_visible())
-    return ([patch.get_facecolor() for patch in artist.patches],
-            [patch.get_edgecolor() for patch in artist.patches],
-            [patch.get_visible() for patch in artist.patches],
-            artist.get_label())
+    return _bar_defaults(artist)
 
 
 def _series_defaults(series):
     artist = series.artist
     if series.kind == "xy" and isinstance(artist, BarContainer):
-        return ([patch.get_facecolor() for patch in artist.patches], artist.get_label(),
-                [patch.get_visible() for patch in artist.patches])
+        return _bar_defaults(artist)
     if series.kind == "xy":
         return (*_line_defaults(artist), artist.get_visible())
     if series.key.startswith(GROUPED_PREFIX):
@@ -603,7 +606,7 @@ def _series_defaults(series):
     if series.kind == "scatter":
         return (artist.get_facecolors().copy(), artist.get_edgecolors().copy(), artist.get_paths(),
                 artist.get_sizes().copy(), artist.get_label())
-    return ([patch.get_facecolor() for patch in artist.patches], artist.get_label())
+    return _bar_defaults(artist)
 
 
 def graph_series(axes):
@@ -848,6 +851,25 @@ def _apply_xy_errors(artist, color, visible):
         component.set_visible(visible)
 
 
+def _apply_bars(artist, defaults, options, *, grouped=False):
+    patches, label = defaults
+    color = options.get("color")
+    appearance = options.get(BAR_APPEARANCE)
+    visible = options.get("visible", True)
+    for patch, (original, shown) in zip(artist.patches, patches, strict=True):
+        baseline = {**original, "visible": shown and visible}
+        if color is not None:
+            baseline["facecolor"] = to_rgba(color, original["facecolor"][3]) if grouped else color
+            if grouped:
+                baseline["edgecolor"] = color
+        patch.set(**baseline)
+        if appearance is not None:
+            apply_appearance(patch, appearance)
+            if not original["linewidth"] and not (patch.get_width() and patch.get_height()):
+                patch.set_linewidth(0)  # Keep the outline of an empty stack segment hidden.
+    artist.set_label(options.get("label", label))
+
+
 def _apply_grouped_series(series, defaults, options):
     artist = series.artist
     meta = getattr(artist, "_tramastat_grouped_series", None) or {}
@@ -855,17 +877,7 @@ def _apply_grouped_series(series, defaults, options):
     shown = options.get("visible", True)
     p_def, e_def, pt_def = defaults
     if series.kind == "bar":
-        faces, edges, visibles, label = p_def
-        for patch, face, edge, orig_vis in zip(artist.patches, faces, edges, visibles, strict=True):
-            if "color" in options:
-                alpha = to_rgba(face)[3]
-                patch.set_facecolor(to_rgba(options["color"], alpha))
-                patch.set_edgecolor(options["color"])
-            else:
-                patch.set_facecolor(face)
-                patch.set_edgecolor(edge)
-            patch.set_visible(orig_vis and shown)
-        artist.set_label(options.get("label", label))
+        _apply_bars(artist, p_def, options, grouped=True)
     elif series.kind == "scatter":
         face, edge, paths, sizes, label, orig_vis = p_def
         if "marker" in options:
@@ -914,14 +926,10 @@ def _apply_series(series, defaults, options):
         _apply_grouped_series(series, defaults, options)
         return
     if series.kind == "xy" and isinstance(artist, BarContainer):
-        # Bars take color, label and visibility; saved line and symbol settings stay in the style unused.
-        colors, label, visible = defaults
-        for patch, color, shown in zip(artist.patches, colors, visible, strict=True):
-            patch.set_facecolor(options.get("color", color))
-            patch.set_visible(shown and options.get("visible", True))
-        artist.set_label(options.get("label", label))
-        if colors:
-            _apply_xy_errors(artist, options.get("color", colors[0]), options.get("visible", True))
+        _apply_bars(artist, defaults, options)
+        patches, _ = defaults
+        if patches:
+            _apply_xy_errors(artist, options.get("color", patches[0][0]["facecolor"]), options.get("visible", True))
         return
     if series.kind == "xy":
         has_line = defaults[1] not in ("None", "none", None, "")
@@ -958,10 +966,7 @@ def _apply_series(series, defaults, options):
         artist.set(facecolor=options.get("color", face), edgecolor=options.get("color", edge),
                    label=options.get("label", label))
     else:
-        colors, label = defaults
-        for patch, color in zip(artist.patches, colors, strict=True):
-            patch.set_facecolor(options.get("color", color))
-        artist.set_label(options.get("label", label))
+        _apply_bars(artist, defaults, options)
 
 
 def _reference_artists(axes, references):

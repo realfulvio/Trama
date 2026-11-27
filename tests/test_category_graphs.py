@@ -15,6 +15,7 @@ from analisi.category_graphs import (
 )
 from analisi.data import Dataset
 from analisi.field_error import FieldError
+from analisi.grouped_bar_style import BAR_APPEARANCE
 from analisi.presentation import INTERVAL_STYLE_FIELDS, active_series_fields, apply_style, graph_series
 
 
@@ -580,7 +581,7 @@ class GroupedSeriesStyleTests(unittest.TestCase):
         self.assertEqual(active_series_fields(ax, gs[0]),
                          {"color", "line_style", "width", "marker", "marker_size", "marker_color", "label", "visible"}
                          | INTERVAL_STYLE_FIELDS)
-        self.assertEqual(active_series_fields(ax, gs[1]), {"color", "label", "visible"} | INTERVAL_STYLE_FIELDS)
+        self.assertEqual(active_series_fields(ax, gs[1]), {"color", "label", "visible", BAR_APPEARANCE} | INTERVAL_STYLE_FIELDS)
         apply_style(res.figure, {"series": {
             "grouped:1:Controllo": {"visible": False},
             "grouped:1:Trattamento": {"color": "#228833", "line_style": "dashed"},

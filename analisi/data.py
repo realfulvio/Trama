@@ -1139,6 +1139,7 @@ GROUPED_BAR_BASELINE_VERSION = 24
 GROUPED_RIGHT_AXIS_VERSION = 25
 GROUPED_RIGHT_LOG_AXIS_VERSION = 26
 GROUPED_SINGLE_BAR_VERSION = 27
+BAR_APPEARANCE_VERSION = 28
 XY_SERIES_ORDER = "xy_series_order"
 
 
@@ -1151,7 +1152,7 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
                                   UPPER_INTERVAL, grouped_bar_baseline, grouped_bar_spacing, grouped_right_series, grouped_series_order,
                                   has_series_style_overrides, series_interval_directions, series_placements)
     from .presentation import GROUPED_PREFIX, INTERVAL_STYLE_FIELDS
-    from .grouped_bar_style import BAR_STYLES
+    from .grouped_bar_style import BAR_APPEARANCE, BAR_STYLES
 
     if len(tables) > 256:
         raise ValueError("A project supports up to 256 data tables.")
@@ -1241,6 +1242,13 @@ def project_document(tables, *, layouts=(), info_sheets=None, sheet_metadata=Non
         version = GROUPED_RIGHT_LOG_AXIS_VERSION
     if any((style or {}).get(BAR_STYLES) for table in tables.values() for style in table.graph_styles.values()):
         version = GROUPED_SINGLE_BAR_VERSION
+    if any(
+        any(BAR_APPEARANCE in options for options in (style or {}).get("series", {}).values())
+        or any("pattern_color" in bar["style"] or bar["style"].get("pattern") in {"horizontal", "vertical", "grid"}
+               for bar in (style or {}).get(BAR_STYLES, ()))
+        for table in tables.values() for style in table.graph_styles.values()
+    ):
+        version = BAR_APPEARANCE_VERSION
     data = {"version": version, "tables": [], "layouts": layout_records}
     if sheet_metadata is None:
         sheet_metadata = getattr(tables, "sheet_metadata", None)
@@ -1384,7 +1392,8 @@ def load_workspace(path, *, include_info=False):
                 GROUPED_SERIES_STYLE_VERSION, GROUPED_SERIES_PLACEMENT_VERSION, GROUPED_INTERVAL_DIRECTION_VERSION,
                 GROUPED_SERIES_ORDER_VERSION, GROUPED_BAR_SPACING_VERSION, GROUPED_SERIES_INTERVAL_VERSION,
                 GROUPED_BAR_DIRECTION_VERSION, GROUPED_INTERVAL_APPEARANCE_VERSION, GROUPED_BAR_BASELINE_VERSION,
-                GROUPED_RIGHT_AXIS_VERSION, GROUPED_RIGHT_LOG_AXIS_VERSION, GROUPED_SINGLE_BAR_VERSION)
+                GROUPED_RIGHT_AXIS_VERSION, GROUPED_RIGHT_LOG_AXIS_VERSION, GROUPED_SINGLE_BAR_VERSION,
+                BAR_APPEARANCE_VERSION)
     if version not in versions or len(obj["tables"]) > 256:
         raise ValueError("Unsupported project version or size.")
     stored_info = obj.get("info_sheets", [])

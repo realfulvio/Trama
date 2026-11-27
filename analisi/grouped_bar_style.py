@@ -9,10 +9,12 @@ from .worksheet_row_identity import valid_token as row_token
 
 
 BAR_STYLES = "grouped_bar_styles"
-PATTERNS = {"none": None, "diagonal": "/", "cross": "xx", "dots": ".."}
+BAR_APPEARANCE = "bar_appearance"
+PATTERNS = {"none": None, "diagonal": "/", "cross": "xx", "dots": "..",
+            "horizontal": "-", "vertical": "|", "grid": "+"}
 MAX_OVERRIDES = 1200
 MAX_COLUMNS = 256
-FIELDS = {"fill", "border", "width", "pattern"}
+FIELDS = {"fill", "border", "width", "pattern", "pattern_color"}
 _HEX = re.compile(r"#[a-fA-F0-9]{6}")
 _INVALID = "Invalid individual bar formatting."
 
@@ -37,7 +39,7 @@ class Bar:
 def valid_appearance(style):
     if not isinstance(style, dict) or not style or style.keys() - FIELDS:
         return False
-    for field in ("fill", "border"):
+    for field in ("fill", "border", "pattern_color"):
         if field in style:
             color = style[field]
             if not isinstance(color, str) or (color != "none" and _HEX.fullmatch(color) is None):
@@ -75,6 +77,23 @@ def grouped_bars(figure):
     return getattr(figure, "_tramastat_individual_bars", ())
 
 
+def bar_appearance(patch):
+    """Capture inherited and explicit appearances so previews can be reversed."""
+    return {"facecolor": patch.get_facecolor(), "edgecolor": patch.get_edgecolor(),
+            "linewidth": patch.get_linewidth(), "hatch": patch.get_hatch(),
+            # get_hatchcolor() resolves 'edge' to a color, which would stop it following the border.
+            "hatchcolor": patch._hatch_color}
+
+
+def apply_appearance(patch, appearance):
+    for field, setter in (("fill", patch.set_facecolor), ("border", patch.set_edgecolor),
+                          ("width", patch.set_linewidth), ("pattern_color", patch.set_hatchcolor)):
+        if field in appearance:
+            setter(appearance[field])
+    if "pattern" in appearance:
+        patch.set_hatch(PATTERNS[appearance["pattern"]])
+
+
 def register_bars(figure, patches, rows, columns, categories, series):
     """Associate already-drawn rectangles with their original worksheet coordinates."""
     if not columns or not 1 <= len(columns) <= MAX_COLUMNS or not all(column_token(token) for token in columns):
@@ -87,8 +106,8 @@ def register_bars(figure, patches, rows, columns, categories, series):
 
 
 def restore_bar_styles(figure):
-    for patch, fill, border, width, pattern in getattr(figure, "_tramastat_individual_bar_defaults", ()):
-        patch.set(facecolor=fill, edgecolor=border, linewidth=width, hatch=pattern)
+    for patch, appearance in getattr(figure, "_tramastat_individual_bar_defaults", ()):
+        patch.set(**appearance)
     figure._tramastat_individual_bar_defaults = ()
 
 
@@ -102,14 +121,8 @@ def apply_bar_styles(figure, records):
         patch = lookup.get(style_key(record))
         if patch is None:
             continue
-        original.append((patch, patch.get_facecolor(), patch.get_edgecolor(), patch.get_linewidth(), patch.get_hatch()))
-        appearance = record["style"]
-        for field, setter in (("fill", patch.set_facecolor), ("border", patch.set_edgecolor),
-                              ("width", patch.set_linewidth)):
-            if field in appearance:
-                setter(appearance[field])
-        if "pattern" in appearance:
-            patch.set_hatch(PATTERNS[appearance["pattern"]])
+        original.append((patch, bar_appearance(patch)))
+        apply_appearance(patch, record["style"])
     figure._tramastat_individual_bar_defaults = original
 
 

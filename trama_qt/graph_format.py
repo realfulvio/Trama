@@ -39,6 +39,7 @@ from analisi.point_style import POINTS
 from analisi.hierarchical_style import describe_hierarchical_artists
 from analisi.linked_axes import LINKED_AXES, P_RIGHT, linked_axes_reasons
 from analisi.i18n import active_language, tr, translate_message
+from analisi.grouped_bar_style import BAR_APPEARANCE
 from analisi.presentation import (FONT_FAMILIES, GROUPED_PREFIX, INTERVAL_STYLE_FIELDS, LEGEND_LOCATIONS, LINE_STYLES, MARKERS, SCALES,
                                   active_series_fields, apply_style, axis_has_numeric_ticks, graph_series,
                                   validate_graph_style, zero_baseline_axes)
@@ -539,7 +540,8 @@ class GraphFormatDialog(QDialog):
     def _series(self):
         title = tr("graph.format.series")
         self.series_scroll = None
-        if self.grouped is not None:
+        can_style_bars = any(BAR_APPEARANCE in series.fields for series in self.series)
+        if self.grouped is not None or can_style_bars:
             page = QWidget()
             self.tabs.addTab(page, title)
             columns = QHBoxLayout(page)
@@ -553,6 +555,7 @@ class GraphFormatDialog(QDialog):
         else:
             columns = None
             form = QFormLayout(self._tab(title))
+        self.series_form = form
         self.selector = QComboBox()
         self.selector.addItems([
             series.name if series.key.startswith(GROUPED_PREFIX) else series_name(series) for series in self.series
@@ -560,6 +563,7 @@ class GraphFormatDialog(QDialog):
         self.selector.setEnabled(bool(self.series))
         form.addRow(tr("graph.series.element"), self.selector)
         self.series_fields = {}
+        self.series_rows = {}
         for key, caption in SERIES_LABELS.items():
             if key in INTERVAL_STYLE_FIELDS and not self._grouped_present:
                 continue
@@ -581,8 +585,10 @@ class GraphFormatDialog(QDialog):
                 field.button = button
                 row.addWidget(button)
                 form.addRow(tr(caption), row)
+                self.series_rows[key] = row
             else:
                 form.addRow(tr(caption), field)
+                self.series_rows[key] = field
         self.draw = self.side = self.bar_width = None
         self.grouped_draw = self.grouped_place = self.grouped_note = self.preview_canvas = None
         self.grouped_interval = None
@@ -605,7 +611,6 @@ class GraphFormatDialog(QDialog):
             self.bar_width = QLineEdit(text)
             self.bar_width.setPlaceholderText(tr("graph.series.bar_width_hint"))
             form.addRow(tr("graph.series.bar_width"), self.bar_width)
-            self.series_form = form
         if self._grouped_present:
             self.grouped_draw = Choice(SERIES_DRAW_STYLES, GROUPED_DRAW_LABELS)
             self.grouped_draw.setObjectName("groupedSeriesDrawing")
@@ -646,6 +651,16 @@ class GraphFormatDialog(QDialog):
         self.series_hint.setObjectName("muted")
         self.series_hint.setWordWrap(True)
         form.addRow(self.series_hint)
+        self.series_bar_fields = self.series_bar_group = None
+        if can_style_bars:
+            from .grouped_bar_editor import BarAppearanceFields
+
+            self.series_bar_group = QGroupBox(tr("grouped_bar.appearance"))
+            self.series_bar_group.setObjectName("barSeriesAppearance")
+            appearance = QVBoxLayout(self.series_bar_group)
+            self.series_bar_fields = BarAppearanceFields()
+            appearance.addWidget(self.series_bar_fields)
+            form.addRow(self.series_bar_group)
         if self.grouped is not None:
             self.preview_group = QGroupBox(tr("graph.format.preview"))
             self.series_columns = columns
@@ -822,6 +837,12 @@ class GraphFormatDialog(QDialog):
                 value = field.text().strip()
                 if value:
                     options[key] = value
+        if self.series_bar_fields is not None and BAR_APPEARANCE in series.fields:
+            bar_draft = self.series_bar_fields.draft()
+            if bar_draft:
+                options[BAR_APPEARANCE] = bar_draft
+            else:
+                options.pop(BAR_APPEARANCE, None)
         if options:
             self.series_values[series.key] = options
         else:
@@ -860,6 +881,8 @@ class GraphFormatDialog(QDialog):
                 field.set(value or DEFAULT)
             else:
                 field.setText(str(value))
+        if self.series_bar_fields is not None:
+            self.series_bar_fields.set_appearance(options.get(BAR_APPEARANCE, {}))
         if self.draw is not None:
             active = series is not None and series.kind == "xy"
             self.draw.setEnabled(active)
@@ -909,6 +932,10 @@ class GraphFormatDialog(QDialog):
         else:
             draw = None
         active = active_series_fields(self.axes, series, draw) if series else set()
+        if self.series_bar_group is not None:
+            self.series_bar_group.setVisible(BAR_APPEARANCE in active)
+            for key, row in self.series_rows.items():
+                self.series_form.setRowVisible(row, key in active or BAR_APPEARANCE not in active)
         if self.bar_width is not None:
             self.series_form.setRowVisible(self.bar_width, self._has_bars())
         for key, field in self.series_fields.items():
@@ -1052,6 +1079,10 @@ class GraphFormatDialog(QDialog):
                         except ValueError:
                             self._focus(2, self.series_fields[name])
                             raise ValueError(f"{tr(SERIES_LABELS[name])}: {value}") from None
+                    elif name == BAR_APPEARANCE:
+                        from .grouped_bar_editor import validate_appearance
+
+                        value = validate_appearance(value)
                     values[name] = value
                 parsed[key] = values
             style["series"] = parsed
