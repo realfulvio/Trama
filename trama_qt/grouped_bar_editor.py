@@ -37,7 +37,7 @@ class BarAppearanceFields(QWidget):
             description = label + " · " + pick.text()
             pick.setAccessibleName(description)
             pick.setToolTip(description)
-            pick.setIcon(classic_icon("palette"))
+            pick.setIcon(classic_icon("format"))
             pick.setText("")
             pick.setFixedWidth(32)
             clear.toggled.connect(field.setDisabled)

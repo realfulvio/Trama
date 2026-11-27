@@ -3,7 +3,7 @@ import unittest
 
 from matplotlib.colors import to_rgba
 import pandas as pd
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from analisi.category_graphs import BARS, SYMBOLS, category_graph
 from analisi.data import Dataset
@@ -26,6 +26,9 @@ class QtBarSeriesAppearanceTests(unittest.TestCase):
         dialog = GraphFormatDialog(None, figure.axes[0], {}, grouped={"frame": frame, "options": options})
         self.addCleanup(dialog.deleteLater)
         fields = dialog.series_bar_fields
+        pickers = fields.findChildren(QPushButton)
+        self.assertEqual(len(pickers), 3)
+        self.assertTrue(all(not button.icon().isNull() and button.toolTip() for button in pickers))
         fields.width.setText("2,5")
         fields.colors["border"].setText("#112233")
         fields.pattern.set("horizontal")
