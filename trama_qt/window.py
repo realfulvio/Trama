@@ -423,6 +423,8 @@ class Page(QWidget):
         self.layout_.addWidget(actions)
         self.canvases = []
         self.worksheet_preview = None
+        self.compact_actions = None
+        self._commands_compact = False
 
     def button(self, text, handler, *, primary=False, icon=None):
         button = QPushButton(text)
@@ -434,14 +436,14 @@ class Page(QWidget):
         self.actions_row.addWidget(button)
         return button
 
-    def command(self, action):
+    def command(self, action, *, row=None):
         button = QToolButton()
         button.setObjectName("pageAction")
         button.setDefaultAction(action)
         button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         if action.menu() is not None:
             button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.actions_row.addWidget(button)
+        (self.actions_row if row is None else row).addWidget(button)
         return button
 
     def notice(self, text, *, error=False):
@@ -455,8 +457,61 @@ class Page(QWidget):
         self.layout_.addWidget(widget, stretch)
         return widget
 
-    def finish_actions(self):
-        self.actions_row.parentWidget().setVisible(self.actions_row.count() > 0)
+    def finish_actions(self, *, graph_inspector=None):
+        normal = self.actions_row.parentWidget()
+        normal.setVisible(self.actions_row.count() > 0)
+        if graph_inspector is None:
+            return
+        buttons = [self.actions_row.itemAt(i).widget() for i in range(self.actions_row.count())]
+        if len(buttons) < 3 or not all(isinstance(button, QToolButton) and button.defaultAction() for button in buttons):
+            return
+        self.compact_actions = QWidget()
+        row = QHBoxLayout(self.compact_actions)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(self.actions_row.spacing())
+        self.graph_tools = QToolButton()
+        self.graph_tools.setObjectName("pageAction")
+        self.graph_tools.setText(qt("qt.graph_toolbar"))
+        self.graph_tools.setAccessibleName(self.graph_tools.text())
+        self.graph_tools.setToolTip(self.graph_tools.text())
+        self.graph_tools.setIcon(theme.icon("chevron-down", size=14))
+        self.graph_tools.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.graph_tools.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(self.graph_tools)
+        for button in buttons:
+            action = button.defaultAction()
+            if action is not graph_inspector:
+                menu.addAction(action)
+        self.graph_tools.setMenu(menu)
+        row.addWidget(self.graph_tools)
+        self.command(graph_inspector, row=row)
+        row.addStretch(1)
+        self.compact_actions.hide()
+        self.layout_.insertWidget(self.layout_.indexOf(normal) + 1, self.compact_actions)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.compact_actions is None:
+            return
+        margins = self.layout_.contentsMargins()
+        available = self.width() - margins.left() - margins.right()
+        items = [self.actions_row.itemAt(i) for i in range(self.actions_row.count())]
+        needed = sum(item.widget().sizeHint().width() for item in items) + self.actions_row.spacing() * (len(items) - 1)
+        compact = self.height() < 390 and available < needed
+        if compact == self._commands_compact:
+            return
+        self._commands_compact = compact
+        normal = self.actions_row.parentWidget()
+        prev = normal if compact else self.compact_actions
+        focus = self.focusWidget()
+        move_focus = focus is not None and prev.isAncestorOf(focus)
+        normal.setVisible(not compact)
+        self.compact_actions.setVisible(compact)
+        if move_focus:
+            target = self.graph_tools if compact else next(
+                (item.widget() for item in items if item.widget().isEnabled()), None)
+            if target is not None:
+                target.setFocus()
 
     def release(self):
         """Detach matplotlib figures from the canvases that are about to be deleted."""
@@ -2615,7 +2670,7 @@ class MainWindow(QMainWindow):
             page.command(self.actions["analyze_result"])
             if run.source is None:
                 page.command(self.actions["change_input"])
-        page.finish_actions()
+        page.finish_actions(graph_inspector=self.actions["inspector"] if kind == "graph" else None)
         if run.source is not None:
             source = next((other for other in self.project.runs if other.uid == run.source.analysis_id), None)
             name = source.name if source is not None else tr("chain.missing_source")

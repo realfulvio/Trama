@@ -27,3 +27,6 @@ Fixed area in the analysis dialog uses every valid X/Y pair. In the formatting c
 already selected by the recipe. Use **Change parameters** when the change should also include rows omitted for
 size zero or missing size. A project with any of the new encoding settings is saved in ALAB format 29. Projects
 using the earlier options remain readable and keep their original result values.
+
+On a short and narrow graph window, the page commands are available in **Graph tools**. The Inspector stays
+directly accessible. Widening the window restores the full row.

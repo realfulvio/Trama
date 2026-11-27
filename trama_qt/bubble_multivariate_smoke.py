@@ -129,6 +129,40 @@ def check_bubble_multivariate(smoke, window):
     smoke.wait()
     assert window.project.runs[index].result.tables[SHEET].loc[1, "Color position (u)"] == 0.5
     smoke.shot(window, "bubble-multivariate-reopened")
+    _check_compact_tools(smoke, window)
+
+
+def _check_compact_tools(smoke, window):
+    original_size = window.size()
+    window.resize(650, 470)
+    QTest.qWait(120)
+    page = window.page
+    tools = page.graph_tools
+    menu = tools.menu()
+    assert tools.isVisible(), (window.size(), page.size())
+    assert menu.actions() == [
+        window.actions[key] for key in ("annotations", "draw", "linked_table", "linked_table_move", "bubble_style")
+    ]
+    assert not page.actions_row.parentWidget().isVisible()
+    smoke.shot(window, "compact-graph-actions")
+
+    def navigate_menu():
+        try:
+            assert menu.isVisible()
+            menu.setActiveAction(window.actions["bubble_style"])
+            QTest.keyClick(menu, Qt.Key.Key_Escape)
+        except Exception as error:
+            smoke.problem(f"Compact graph tools: {error!r}")
+            menu.close()
+
+    tools.setFocus()
+    QTimer.singleShot(150, navigate_menu)
+    QTest.keyClick(tools, Qt.Key.Key_Space)
+    assert window.selected[0] == "graph"
+    window.resize(original_size)
+    QTest.qWait(120)
+    assert page.actions_row.parentWidget().isVisible()
+    assert not tools.isVisible()
 
 
 def main(argv=None):

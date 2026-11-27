@@ -27,3 +27,6 @@ L’area fissa nel dialogo dell’analisi usa tutte le coppie X/Y valide. Nei co
 già selezionati dalla ricetta. Usa **Cambia parametri** per includere anche le righe omesse per dimensione zero
 o mancante. I progetti che usano una delle nuove impostazioni vengono salvati in formato ALAB 29. I progetti
 con le impostazioni precedenti restano leggibili e conservano i valori dei risultati.
+
+Nelle finestre del grafico strette e basse, i comandi della pagina sono in **Strumenti grafico**. L’Inspector
+resta accessibile direttamente. Allargando la finestra si torna alla riga completa.

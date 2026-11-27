@@ -141,6 +141,7 @@ class GraphInspector(QFrame):
         self.body.addStretch(1)
         self.status = QLabel()
         self.status.setWordWrap(True)
+        self.status.hide()
         outer.addWidget(self.status)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
@@ -509,6 +510,7 @@ class GraphInspector(QFrame):
     def show_status(self, text, *, error=False):
         self.status.setObjectName("errorBanner" if error and text else "muted")
         self.status.setText(text)
+        self.status.setVisible(bool(text))
         self.status.style().unpolish(self.status)
         self.status.style().polish(self.status)
 
