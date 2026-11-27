@@ -100,6 +100,42 @@ def selection_box(view):
             max(item.bottom() for item in ranges), max(item.right() for item in ranges))
 
 
+class FrozenPaneHooks:
+    """Fixed rows and columns (trama_qt/frozen_panes.py): a free view behaves as a plain table."""
+
+    frozen_panes = None
+
+    def _frozen(self):
+        panes = self.frozen_panes
+        return panes if panes is not None and panes.active() else None
+
+    def scrollTo(self, index, hint=QAbstractItemView.ScrollHint.EnsureVisible):
+        panes = self._frozen()
+        if panes is None or not panes.scroll_to(index, hint):
+            super().scrollTo(index, hint)
+
+    def visualRect(self, index):
+        panes = self._frozen()
+        return super().visualRect(index) if panes is None else panes.visual_rect(index)
+
+    def indexAt(self, point):
+        panes = self._frozen()
+        return super().indexAt(point) if panes is None else panes.index_at(point)
+
+    def updateGeometries(self):
+        super().updateGeometries()
+        panes = self._frozen()
+        if panes is not None:  # The scroll ranges start after the fixed part.
+            panes.after_geometries()
+
+    def edit(self, index, trigger=QAbstractItemView.EditTrigger.AllEditTriggers, event=None):
+        panes = self._frozen()
+        pane = panes.pane_for(index) if panes is not None else None
+        if pane is not None:  # A fixed cell is edited where it is drawn.
+            return pane.edit(index, trigger, event)
+        return super().edit(index, trigger, event)
+
+
 class WorksheetHeading(QHeaderView):
     """Draw the shared table, series and replicate headings over the worksheet columns."""
 
@@ -472,7 +508,7 @@ class WorksheetEditorDelegate(QStyledItemDelegate):
             editor.setGeometry(rect.x(), top, rect.width(), height)
 
 
-class WorksheetView(QTableView):
+class WorksheetView(FrozenPaneHooks, QTableView):
     """The data grid: typing, F2 and double click edit; Ctrl+C/X/V and Delete work on the selection."""
 
     def __init__(self, model, host, parent=None):
@@ -733,8 +769,8 @@ class WorksheetView(QTableView):
             return False
         return self.host.can_reorder_active_rows()
 
-    def _heading_menu(self, position):
-        heading = self.horizontalHeader()
+    def _heading_menu(self, position, heading=None):
+        heading = heading or self.horizontalHeader()
         menu = QMenu(self)
         column = heading.logicalIndexAt(position)
         model = self.model()
@@ -773,7 +809,7 @@ class WorksheetView(QTableView):
         column = index.column() if index.isValid() else self.currentIndex().column()
         if self._can_series_column(column):
             menu.addAction(self.host.actions["create_numeric_series"])
-        self._add_freeze_action(menu, self.columnAt(position.x()))
+        self._add_freeze_action(menu, index.column() if index.isValid() else self.columnAt(position.x()))
         menu.addSeparator()
         menu.addAction(tr("command.toggle_exclusion"), self.host.toggle_exclusion)
         menu.addSeparator()
@@ -784,7 +820,7 @@ class WorksheetView(QTableView):
         menu.exec(self.viewport().mapToGlobal(position))
 
 
-class FrameView(QTableView):
+class FrameView(FrozenPaneHooks, QTableView):
     """A result table with copy (tab-separated, decimal point as in the classic grid)."""
 
     def __init__(self, frame, formatters=None, parent=None, *, backgrounds=None, number_formats=None,

@@ -27,7 +27,7 @@ MENUS = (
     ("View", ("navigator", "find_sheet", "combined_navigator", "gallery", "previous_sheet", "next_sheet", "previous_project", "next_project", "|",
               "worksheet_preview", "analysis_graph", "analysis_tables", "inspector", "|",
               "fit_graph", "fit_layout_page", "|",
-              "sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset", "|",
+              "sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset", "freeze_panes", "unfreeze_panes", "|",
               "theme_system", "theme_light", "theme_dark")),
     ("Insert", ("new_table", "new_info", "sheet_notes", "insert_row", "insert_column",
                 "create_numeric_series", "formula", "|",

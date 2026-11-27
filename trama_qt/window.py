@@ -676,6 +676,9 @@ class MainWindow(QMainWindow):
         self.table_move.create_actions()
         self.text_format = TextFormat(self)  # The Text group: font, size, colour, bold, italic, underline, alignment.
         self.text_format.create_actions()
+        from .frozen_panes import PaneCommands
+        self.frozen_panes = PaneCommands(self)  # Fixed rows and columns: a view setting of this session only.
+        self.frozen_panes.create_actions()
         self.command_menus = build_menus(self)
         self.search_dialog = None
 
@@ -975,6 +978,7 @@ class MainWindow(QMainWindow):
         has_table = (data and self.sheet is not None) or (kind == "result" and self.result_tabs is not None)
         for key in ("sheet_zoom_in", "sheet_zoom_out", "sheet_zoom_reset"):
             self.actions[key].setEnabled(has_table)
+        self.frozen_panes.update(has_table)
         for key in ("cell_background", "clear_cell_background", "number_format"):
             self.actions[key].setEnabled(has_table and idle and not locked)
         self.text_format.update()
@@ -1723,6 +1727,7 @@ class MainWindow(QMainWindow):
         page.worksheet_split.addWidget(page.worksheet_preview)
         page.worksheet_split.setStretchFactor(0, 1)
         self.sheet.setCurrentIndex(model.index(0, 0))
+        self.frozen_panes.attach(self.sheet, ("data", title))
         return page
 
     def _resize_tables(self):
@@ -2188,6 +2193,7 @@ class MainWindow(QMainWindow):
                 if self.table_font != ("", None) or self.table_zoom != 100:
                     set_table_appearance(view, self.table_font, self.table_zoom)
                 self.text_format.watch(view)
+                self.frozen_panes.attach(view, (kind, index), table=title)
                 results.add_table(view, caption)
             page.add(results, 1)
         elif result.figure is not None:
