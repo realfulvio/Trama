@@ -8,7 +8,7 @@ from unittest import mock
 
 import numpy as np
 import pandas as pd
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
@@ -148,6 +148,15 @@ class QtBubbleMultivariateTests(unittest.TestCase):
         self.app.processEvents()
         check_legend_geometry(canvas)
         self.assertEqual(viewport.horizontalScrollBar().maximum(), 0)
+
+        window.open_sheet(("data", title))
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        window.open_sheet(("graph", 0))
+        self.app.processEvents()
+        replacement = window.plot_tools.canvas
+        self.assertIsNot(replacement, canvas)
+        self.assertIs(replacement.figure, run.result.figure)
+        check_legend_geometry(replacement)
 
     def test_window_inspector_dialog_preview_apply_undo_zero_recalc_themes_and_exports(self):
         for lang, mode in (("it", "dark"), ("en", "light")):

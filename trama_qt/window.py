@@ -285,7 +285,9 @@ class FigureViewport(QScrollArea):
             self.setMinimumWidth(148)
             self._guide_renderer = RendererAgg(1, 1, canvas.figure._original_dpi)
             self._minimum_drawing_size = self._bubble_drawing_size()
-            canvas.mpl_connect("draw_event", self._refresh_bubble_drawing_size)
+            constraint = canvas.mpl_connect("draw_event", self._refresh_bubble_drawing_size)
+            # The figure keeps its callbacks when Qt replaces the sheet's canvas.
+            self.destroyed.connect(lambda: canvas.mpl_disconnect(constraint))
 
     def _bubble_drawing_size(self):
         figure = self.canvas.figure
@@ -300,7 +302,9 @@ class FigureViewport(QScrollArea):
         return QSize(min(1600, max(540, ceil(width + 370))),
                      min(1200, max(380, ceil(2 * first + second + 44))))
 
-    def _refresh_bubble_drawing_size(self, _event):
+    def _refresh_bubble_drawing_size(self, event):
+        if event.canvas is not self.canvas:
+            return
         minimum = self._bubble_drawing_size()
         if minimum != self._minimum_drawing_size:
             self._minimum_drawing_size = minimum
